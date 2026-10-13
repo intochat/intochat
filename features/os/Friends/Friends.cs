@@ -62,7 +62,18 @@ public static class Friends
             await index.Set(new([new(key, title, "post"), .. previous.Definition.Items],
                 FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet"), previous.Revision);
         }
-        foreach (var circle in destinations.Definition.Items)
-        { await brain.Get<ICircleChat>(ICircleChat.Key(circle.Id)).PublishPost(key, requestId.ToString()); }
+        var factory = brain.Get<ICircleFactory>(ICircleFactory.Key(scope));
+        var current = (await factory.Circles()).Select(circle => circle.BrainId).ToHashSet(StringComparer.Ordinal);
+        foreach (var circle in destinations.Definition.Items.Where(circle => current.Contains(circle.Id)))
+        {
+            try { await brain.Get<ICircleChat>(ICircleChat.Key(circle.Id)).PublishPost(key, requestId.ToString()); }
+            catch (UnauthorizedAccessException)
+            {
+                // Removal can race the membership snapshot. Keep the publication guard authoritative;
+                // only confirmed loss of this destination is skippable, not other authorization failures.
+                current = (await factory.Circles()).Select(member => member.BrainId).ToHashSet(StringComparer.Ordinal);
+                if (current.Contains(circle.Id)) { throw; }
+            }
+        }
     }
 }

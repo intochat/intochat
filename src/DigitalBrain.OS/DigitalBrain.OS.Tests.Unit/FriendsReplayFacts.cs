@@ -17,6 +17,61 @@ public sealed class FriendsReplayFacts
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task RemovedDestinationDoesNotBlockReplayOrTheNextRequest(bool race)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new PausePublication();
+        await using var brain = await Start(ct, gate);
+        var admin = await brain.PersonAsync("admin", ct);
+        string removed;
+        using (admin.AsCaller())
+        { removed = await brain.Get<ICircleFactory>(ICircleFactory.Key(admin.BrainId)).Create("removed"); }
+        using (admin.AsCallerIn(removed)) { await brain.Get<ICircle>(ICircle.Key(removed)).Invite(brain.Owner.AccountId); }
+        using (brain.Owner.AsCallerIn(removed)) { await brain.Get<ICircle>(ICircle.Key(removed)).Accept(); }
+        var retainedCircle = await Circle(brain, "retained");
+        var app = await App(brain);
+        await Handle(brain, await Request(brain, app, ct));
+        var replay = await Replay(brain, app, ct);
+        if (race)
+        {
+            gate.Target = ICircleChat.Key(removed);
+            var handling = Handle(brain, replay);
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            try
+            {
+                using (admin.AsCallerIn(removed)) { await brain.Get<ICircle>(ICircle.Key(removed)).Remove(brain.Owner.AccountId); }
+            }
+            finally { gate.Release.TrySetResult(); }
+            await handling;
+            Assert.True(gate.DeniedByRealGuard);
+        }
+        else
+        {
+            using (admin.AsCallerIn(removed)) { await brain.Get<ICircle>(ICircle.Key(removed)).Remove(brain.Owner.AccountId); }
+            await Handle(brain, replay);
+        }
+        Assert.Single(await Lines(brain, retainedCircle));
+        // The reaction can continue to its next request rather than restarting on the old one forever.
+        await Handle(brain, await Request(brain, app, ct));
+        Assert.Equal(2, (await Lines(brain, retainedCircle)).Length);
+        using (admin.AsCallerIn(removed))
+        { Assert.Single(await brain.Get<ICircleChat>(ICircleChat.Key(removed)).Read(0)); }
+    }
+
+    [Fact]
+    public async Task AuthorizationFailureWhileStillAMemberIsNotHidden()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct, new DenyPublication());
+        var app = await App(brain);
+        await Circle(brain, "eligible");
+        var request = await Request(brain, app, ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Handle(brain, request));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RetainedReplayNeverAddsANewCircle(bool initialCircle)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -124,7 +179,34 @@ public sealed class FriendsReplayFacts
         }
     }
 
-    private static Task<ITestBrain> Start(CancellationToken ct, FailSecondPublication? failure = null)
+    private sealed class PausePublication : IIncomingGrainCallFilter
+    {
+        public string? Target { get; set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool DeniedByRealGuard { get; private set; }
+        public async Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (context.InterfaceMethod.Name == nameof(ICircleChat.PublishPost) && context.TargetId.Key.ToString() == Target)
+            {
+                Target = null;
+                Entered.TrySetResult();
+                await Release.Task;
+                try { await context.Invoke(); }
+                catch (UnauthorizedAccessException) { DeniedByRealGuard = true; throw; }
+            }
+            else { await context.Invoke(); }
+        }
+    }
+
+    private sealed class DenyPublication : IIncomingGrainCallFilter
+    {
+        public Task Invoke(IIncomingGrainCallContext context)
+            => context.InterfaceMethod.Name == nameof(ICircleChat.PublishPost)
+                ? Task.FromException(new UnauthorizedAccessException("Unrelated authorization refusal")) : context.Invoke();
+    }
+
+    private static Task<ITestBrain> Start(CancellationToken ct, IIncomingGrainCallFilter? failure = null)
         => TestBrain.Create().WithModule<AppsModule, AppsOptions>(o => o.Features = SolutionProjects.Features)
             .WithModule<CirclesModule>().WithModule<FlutterModule>().WithModule<FlameModule>()
             .ConfigureServices(s =>
