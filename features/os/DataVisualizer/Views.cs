@@ -89,33 +89,23 @@ public static class Views
     }
 
     public static Task OpenWindowAsync(DigitalBrainConnection brain, string appKey, CancellationToken ct)
-        => EnsureWindowAsync(brain, appKey + "/window", "Data Visualizer", appKey + "/surface", Guid.NewGuid().ToString(), ct);
+        => ShowAsync(brain, appKey, Guid.NewGuid().ToString(), ct);
 
-    // Each view has its own window over its surface; opening is idempotent, so a replayed show opens it once.
     public static Task OpenViewWindowAsync(DigitalBrainConnection brain, string appKey, View view, string operation, CancellationToken ct)
-        => EnsureWindowAsync(brain, $"{appKey}/views/{view.Id}/window", view.Title, $"{appKey}/views/{view.Id}/surface", operation, ct);
+        => ShowAsync(brain, appKey, operation, ct);
 
-    public static Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, string operation, CancellationToken ct)
+    public static async Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, string operation, CancellationToken ct)
     {
-        var window = $"{appKey}/views/{id}/window";
-        return ChangeWorkspaceAsync(brain, state => async workspace =>
-            { await workspace.Close(window, state.Revision, operation); }, ct);
-    }
-
-    private static Task EnsureWindowAsync(DigitalBrainConnection brain, string window, string title, string surface, string operation, CancellationToken ct)
-    {
-        var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, surface));
-        // The operation id makes a replayed show or close idempotent.
-        return ChangeWorkspaceAsync(brain, state => async workspace =>
-            { await workspace.Open(new(operation, window, title, reference, state.Revision)); }, ct);
-    }
-
-    private static async Task ChangeWorkspaceAsync(DigitalBrainConnection brain, Func<WorkspaceState, Func<IWorkspace, Task>?> plan, CancellationToken ct)
-    {
-        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
         ct.ThrowIfCancellationRequested();
-        var state = await workspace.Read();
-        if (plan(state) is { } change) { await change(workspace); }
+        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+        await workspace.Close(appKey, operation, (await workspace.Read()).Revision);
+    }
+
+    private static async Task ShowAsync(DigitalBrainConnection brain, string appKey, string operation, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+        await workspace.Show(appKey, operation, (await workspace.Read()).Revision);
     }
 
     private static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);

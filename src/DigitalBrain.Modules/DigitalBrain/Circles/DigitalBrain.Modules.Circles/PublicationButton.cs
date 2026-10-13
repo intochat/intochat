@@ -58,7 +58,7 @@ internal static class PublicationButton
             await grains.GetGrain<ICard>(app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
             List<UiChildRef> controls = [new("card", app + "/installed")];
             await AddButton("configure-installed", "Configure app", "configuration");
-            if (installed.Manifest.Entry is not null) { await AddButton("open-installed", "Open app", null); }
+            await AddButton("open-installed", "Open app", null);
             var layout = grains.GetGrain<ILayout>(app + "/result");
             await layout.Set(new("list", [.. controls]), (await layout.Read()).Revision);
             await status.Set("Installed " + installed.Name + " · " + installed.Version + " · from @" + installed.Origin?.Publisher + ". " + state + ".");

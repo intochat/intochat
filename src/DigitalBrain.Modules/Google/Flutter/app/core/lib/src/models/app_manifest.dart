@@ -36,15 +36,6 @@ class AppToolbarEntry {
       );
 }
 
-class AppEntry {
-  const AppEntry({required this.kind, required this.name});
-  final String kind, name;
-  factory AppEntry.fromJson(Map<String, dynamic> json) => AppEntry(
-    kind: json['kind'] as String,
-    name: json['name'] as String,
-  );
-}
-
 class AppManifest {
   const AppManifest({
     required this.title,
@@ -52,13 +43,11 @@ class AppManifest {
     required this.operations,
     this.icon,
     this.toolbar = const [],
-    this.entry,
   });
   final String title, description;
   final List<String> operations;
   final String? icon;
   final List<AppToolbarEntry> toolbar;
-  final AppEntry? entry;
   factory AppManifest.fromJson(Map<String, dynamic> json) => AppManifest(
     title: json['title'] as String? ?? '',
     description: json['description'] as String? ?? '',
@@ -67,9 +56,6 @@ class AppManifest {
         Map<String, dynamic>.from(operation as Map)['name'] as String,
     ],
     icon: json['icon'] as String?,
-    entry: json['entry'] is Map
-        ? AppEntry.fromJson(Map<String, dynamic>.from(json['entry'] as Map))
-        : null,
     toolbar: [
       for (final entry in json['toolbar'] as List? ?? const [])
         AppToolbarEntry.fromJson(Map<String, dynamic>.from(entry as Map)),

@@ -184,11 +184,7 @@ public static class Assistant
     public static async Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
-        var window = Key(brain) + "/window";
-        var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Key(brain) + "/surface"));
         ct.ThrowIfCancellationRequested();
-        var state = await workspace.Read();
-        if (state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)) { return; }
-        await workspace.Open(new(Guid.NewGuid().ToString(), window, "Assistant", reference, state.Revision));
+        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
     }
 }

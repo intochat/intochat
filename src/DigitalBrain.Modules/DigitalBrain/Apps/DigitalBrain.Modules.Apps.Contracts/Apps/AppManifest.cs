@@ -1,5 +1,3 @@
-using DigitalBrain.Flutter;
-
 namespace DigitalBrain.Apps;
 
 [GenerateSerializer, Alias("apps.operation2")]
@@ -40,21 +38,11 @@ public sealed record AppManifest(
     [property: Id(3)] AppSetting[] Settings,
     [property: Id(4)] AppSlot[] Slots,
     [property: Id(5)] string? Icon = null,
-    [property: Id(6)] AppToolbarEntry[]? Toolbar = null,
-    [property: Id(7)] UiChildRef? Entry = null)
+    [property: Id(6)] AppToolbarEntry[]? Toolbar = null)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()
     {
-        if (Entry is { } root)
-        {
-            if (root.Kind is not ("surface" or "layout" or "collection" or "imagecanvas" or "card" or "button" or "textfield" or "tabs" or "text" or "table" or "chart" or "scene" or "chat" or "composer" or "select" or "fileinput" or "voiceinput" or "webbrowser" or "form"))
-            { throw new InvalidDataException($"Unsupported app entry kind '{root.Kind}'."); }
-            if (string.IsNullOrWhiteSpace(root.Name) || root.Name.Length > 256
-                || root.Name.Split('/').Any(segment => segment.Length == 0 || segment is "." or ".."
-                    || segment.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))))
-            { throw new InvalidDataException("An app entry needs a safe installation-relative neuron name."); }
-        }
         foreach (var entry in Toolbar ?? [])
         {
             if (!Operations.Any(operation => operation.Name == entry.Operation))

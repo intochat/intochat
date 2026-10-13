@@ -31,7 +31,7 @@ public sealed class AppCreatorFacts
         """;
 
     [Fact]
-    public async Task AuthorAndBuilderPreserveTheDeclaredEntry()
+    public async Task AuthorAndBuilderPreserveTheDeclaredTitle()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
@@ -41,12 +41,12 @@ public sealed class AppCreatorFacts
         var creator = brain.Services.GetRequiredService<Creator>();
         var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         var authored = await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        Assert.Equal(new DigitalBrain.Flutter.UiChildRef("text", "answer"), authored.Manifest.Entry);
+        Assert.Equal("Shouter", authored.Manifest.Title);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
         await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
-        Assert.Equal(authored.Manifest.Entry, (await app.Read()).Manifest.Entry);
+        Assert.Equal(authored.Manifest.Title, (await app.Read()).Manifest.Title);
     }
 
     [Fact]

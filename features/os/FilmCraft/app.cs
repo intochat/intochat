@@ -45,7 +45,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar: [new("open", Icon: "link", Label: "Connect editor")]);
 }

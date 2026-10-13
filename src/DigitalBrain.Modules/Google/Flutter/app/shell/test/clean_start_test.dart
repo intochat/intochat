@@ -17,18 +17,7 @@ void main() {
       await store.load();
       store.reconcileWorkspace(
         store.currentProject,
-        WorkspaceSnapshot(
-          revision: 3,
-          windows: [
-            WorkspaceWindow(
-              id: 'old-table',
-              title: 'Saved table',
-              kind: 'table',
-              neuronId: 'old-table',
-              isOpen: true,
-            ),
-          ],
-        ),
+        WorkspaceSnapshot(revision: 3, path: ['brain'], open: ['old-table']),
       );
       expect(store.currentProject.presentation.openArtifactIds, ['old-table']);
       expect(store.currentProject.artifacts, hasLength(1));
@@ -94,21 +83,14 @@ void main() {
       await store.load();
       WorkspaceSnapshot snapshot(int revision, bool open) => WorkspaceSnapshot(
         revision: revision,
-        windows: [
-          WorkspaceWindow(
-            id: 'table',
-            title: 'Saved table',
-            kind: 'table',
-            neuronId: 'table',
-            isOpen: open,
-          ),
-        ],
+        path: ['brain'],
+        open: open ? ['table'] : [],
       );
       store.reconcileWorkspace(store.currentProject, snapshot(1, true));
       store.reconcileWorkspace(store.currentProject, snapshot(2, true));
       expect(store.currentProject.presentation.openArtifactIds, ['table']);
       expect(store.focusedWindow, isNull);
-      expect(store.currentProject.artifacts.single.title, 'Saved table');
+      expect(store.currentProject.artifacts.single.title, 'table');
       store.onRemoteWindowAction = (_, id, open) =>
           store.reconcileWorkspace(store.currentProject, snapshot(3, open));
       store.openArtifact('table');

@@ -156,19 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     try {
-      final view = await widget.request!(
-        'GET',
-        '/brains/$_brain/apps/${Uri.encodeComponent(app.id)}',
-      );
-      if (!mounted) return;
-      final manifest = AppManifest.fromJson(
-        Map<String, dynamic>.from(view['manifest'] as Map),
-      );
-      if (manifest.entry != null) {
-        await widget.onOpen(app.id);
-      } else {
-        await _details(installed: app.id);
-      }
+      await widget.onOpen(app.id);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

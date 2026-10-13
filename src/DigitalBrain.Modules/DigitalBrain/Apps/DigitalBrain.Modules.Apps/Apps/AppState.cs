@@ -34,6 +34,9 @@ public sealed class AppState
     [Id(28)] public AppReleaseRecord[] Releases { get; set; } = [];
     [Id(29)] public AppInstallReceipt? Installation { get; set; }
 
+    [Id(30)] public long ProgramRevision { get; set; }
+    [Id(31)] public AppPresentation? Presentation { get; set; }
+
     public AppState Clone() => new()
     {
         Manifest = Manifest,
@@ -62,6 +65,8 @@ public sealed class AppState
         Synapses = [.. Synapses],
         Releases = [.. Releases],
         Installation = Installation,
+        ProgramRevision = ProgramRevision,
+        Presentation = Presentation,
     };
 }
 

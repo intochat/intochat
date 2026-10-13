@@ -2,6 +2,12 @@ import 'dart:async';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 
+final class WorkspaceRevision {
+  const WorkspaceRevision(this.workspaceId, this.revision);
+  final String workspaceId;
+  final int revision;
+}
+
 /// Revisions invalidate a projection; only an authoritative read supplies state.
 final class WorkspaceRemoteController {
   WorkspaceRemoteController({

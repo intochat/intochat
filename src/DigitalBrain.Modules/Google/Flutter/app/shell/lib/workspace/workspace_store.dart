@@ -362,44 +362,32 @@ class WorkspaceStore extends ChangeNotifier {
     if (snapshot.revision < (remoteRevisions[project.id] ?? -1)) return;
     remoteRevisions[project.id] = snapshot.revision;
     remoteSnapshots[project.id] = snapshot;
-    _firstRun[project.id] = snapshot.firstRun == null
-        ? null
-        : FirstRunState.fromMetadata(snapshot.firstRun);
+    _firstRun[project.id] = null;
     final layout = project.presentation;
-    final localOpen = layout.openArtifactIds
-        .where(
-          (id) => project.artifacts.any((a) => a.id == id && !a.remoteManaged),
-        )
-        .toList();
-    for (final window in snapshot.windows) {
-      var artifact = project.artifacts
-          .where((a) => a.id == window.id)
-          .firstOrNull;
-      if (artifact == null) {
-        artifact = WorkspaceArtifact(
-          id: window.id,
-          title: window.title,
-          kind: window.kind == 'table' ? 'table' : 'surface',
+    // Task5 replaces this desktop projection with direct scene rendering.
+    for (final key in snapshot.open) {
+      if (!project.artifacts.any((artifact) => artifact.id == key)) {
+        project.artifacts.add(
+          WorkspaceArtifact(
+            id: key,
+            title: key.split('/').last,
+            kind: 'app',
+            remoteManaged: true,
+            data: {'app': key.split('/').last},
+          ),
         );
-        project.artifacts.add(artifact);
       }
-      artifact.remoteManaged = true;
-      artifact.title = window.title;
-      artifact.kind = window.kind == 'table' ? 'table' : 'surface';
-      artifact.data = {
-        ...artifact.data,
-        if (window.kind == 'table')
-          'tableId': window.neuronId
-        else
-          'surface': {'kind': window.kind, 'name': window.neuronId},
-      };
     }
     layout.openArtifactIds = [
-      ...localOpen,
-      ...snapshot.windows.where((w) => w.isOpen).map((w) => w.id),
+      ...layout.openArtifactIds.where(
+        (id) => project.artifacts.any((a) => a.id == id && !a.remoteManaged),
+      ),
+      ...snapshot.open,
     ];
-    layout.activeArtifactId = snapshot.focusedWindow;
-    layout.minimizedArtifactIds.retainAll(localOpen);
+    layout.activeArtifactId = snapshot.path.length > 1
+        ? snapshot.path.last
+        : null;
+    layout.minimizedArtifactIds.clear();
     // A remote snapshot is a projection, never another persistence write.
     _notify();
   }
@@ -423,7 +411,7 @@ class WorkspaceStore extends ChangeNotifier {
   /// otherwise the most recently opened one that is. Null means the assistant is the focused app.
   String? get focusedWindow {
     if (remoteSnapshots[selectedProjectId] case final snapshot?) {
-      return snapshot.focusedWindow;
+      return snapshot.path.length > 1 ? snapshot.path.last : null;
     }
     final p = currentProject.presentation;
     final visible = p.openArtifactIds

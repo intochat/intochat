@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:uuid/uuid.dart';
 
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
@@ -27,8 +26,6 @@ import 'models/table_models.dart';
 import 'models/workspace_models.dart';
 
 final class DigitalBrainUiClient {
-  static const _uuid = Uuid();
-
   /// Gated on the kernel; 404 when the kernel runs ungated.
   static const authCheckPath = '/auth/check';
 
@@ -237,22 +234,6 @@ final class DigitalBrainUiClient {
         });
   }
 
-  /// WorkspaceChanged over the channel: the same revision ping the SSE route sends.
-  Stream<WorkspaceRevision> watchWorkspaceChannel(String workspaceId) => channel
-      .watch(workspaceId, [
-        WatchSourceSpec(
-          'DigitalBrain.Flutter.Workspace.IWorkspace',
-          workspaceId,
-          ['WorkspaceChanged'],
-        ),
-      ])
-      .map(
-        (s) => WorkspaceRevision(
-          workspaceId,
-          (s.payload['revision'] as num).toInt(),
-        ),
-      );
-
   /// Server-owned capabilities; the shell hides developer-only surfaces when this is off.
   Future<SessionCapabilities> readCapabilities() async {
     final response = await _request(
@@ -328,35 +309,6 @@ final class DigitalBrainUiClient {
     return (body as Map)['requestId'] as String;
   }
 
-  Future<WorkspaceSnapshot> openApp(
-    String brainId,
-    String appId, [
-    Map<String, dynamic> arguments = const {},
-  ]) async {
-    final manifest = await readAppManifest(brainId, appId);
-    final entry = manifest.entry;
-    if (entry == null) {
-      throw StateError('This app does not declare a UI entry.');
-    }
-    final key = appKey(brainId, appId);
-    final state = await readWorkspace(brainId);
-    return WorkspaceSnapshot.fromJson(
-      Map<String, dynamic>.from(
-        await _tableRequest(
-          'POST',
-          '/brains/${Uri.encodeComponent(brainId)}/windows/open',
-          body: {
-            'operationId': _uuid.v4(),
-            'windowId': '$key/window',
-            'title': manifest.title,
-            'reference': {'kind': entry.kind, 'neuronId': '$key/${entry.name}'},
-            'expectedRevision': state.revision,
-          },
-        ) as Map,
-      ),
-    );
-  }
-
   /// Raw bytes of a served file such as an app icon; null when the server has none.
   Future<Uint8List?> readBytes(String path) async {
     try {
@@ -400,20 +352,6 @@ final class DigitalBrainUiClient {
     ),
   );
 
-  /// Declares which sources a workspace is connected to; the first-run prompts follow them.
-  Future<WorkspaceSnapshot> setConnectedSources(
-    String workspaceId,
-    List<String> sources,
-  ) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/connected-sources',
-        body: {'sources': sources},
-      ) as Map,
-    ),
-  );
-
   Future<WorkspaceSnapshot> readWorkspace(
     String workspaceId, {
     Future<void>? cancelled,
@@ -427,78 +365,49 @@ final class DigitalBrainUiClient {
     ),
   );
 
-  Future<WorkspaceSnapshot> closeWorkspaceWindow(
-    String workspaceId,
-    String windowId,
-    int revision,
-  ) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/close',
-        body: {
-          'windowId': windowId,
-          'operationId': _uuid.v4(),
-          'expectedRevision': revision,
-        },
-      ) as Map,
-    ),
-  );
+  Future<WorkspaceSnapshot> showNeuron(
+    String workspace,
+    String key,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'show', operationId, expectedRevision, key);
+  Future<WorkspaceSnapshot> backNeuron(
+    String workspace,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'back', operationId, expectedRevision);
+  Future<WorkspaceSnapshot> homeNeuron(
+    String workspace,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'home', operationId, expectedRevision);
+  Future<WorkspaceSnapshot> closeNeuron(
+    String workspace,
+    String key,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'close', operationId, expectedRevision, key);
 
-  Future<WorkspaceSnapshot> reopenWorkspaceWindow(
-    String workspaceId,
-    String windowId,
-    int revision,
-  ) async => WorkspaceSnapshot.fromJson(
+  Future<WorkspaceSnapshot> _navigateNeuron(
+    String workspace,
+    String command,
+    String operationId,
+    int expectedRevision, [
+    String? key,
+  ]) async => WorkspaceSnapshot.fromJson(
     Map<String, dynamic>.from(
       await _tableRequest(
         'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/reopen',
+        '/brains/${Uri.encodeComponent(workspace)}/$command',
         body: {
-          'windowId': windowId,
-          'operationId': _uuid.v4(),
-          'expectedRevision': revision,
-        },
-      ) as Map,
-    ),
-  );
-
-  Future<WorkspaceSnapshot> focusWorkspaceWindow(
-    String workspaceId,
-    String? windowId,
-    int revision,
-  ) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/focus',
-        body: {
-          'windowId': windowId,
-          'operationId': _uuid.v4(),
-          'expectedRevision': revision,
-        },
-      ) as Map,
-    ),
-  );
-
-  Future<WorkspaceSnapshot> configureWorkspacePresentation(
-    String workspaceId, {
-    required Map<String, dynamic>? home,
-    required Map<String, dynamic>? companion,
-    required int expectedRevision,
-  }) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/presentation',
-        body: {
-          'home': home,
-          'companion': companion,
+          'app': ?key,
+          'operationId': operationId,
           'expectedRevision': expectedRevision,
         },
       ) as Map,
     ),
   );
+
   Future<void> reportProblem({
     required String workspaceId,
     required String intentId,
@@ -510,11 +419,6 @@ final class DigitalBrainUiClient {
       body: {'intentId': intentId, 'message': message},
     );
   }
-
-  Stream<WorkspaceRevision> watchWorkspace(String workspaceId) => _serverEvents(
-    '/brains/${Uri.encodeComponent(workspaceId)}/events',
-    'Workspace events are unavailable.',
-  ).map(WorkspaceRevision.fromJson);
 
   /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
   /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.

@@ -70,7 +70,7 @@ void main() {
   });
 
   test(
-    'opening a declared scene uses workspace state without app preparation',
+    'showing a neuron uses workspace state without app preparation',
     () async {
       final requests = <String>[];
       Map<String, dynamic>? opened;
@@ -78,38 +78,37 @@ void main() {
         baseUri: Uri.parse('http://test'),
         httpClient: MockClient((request) async {
           requests.add('${request.method} ${request.url.path}');
-          if (request.url.path.endsWith('/apps/ino')) {
-            return http.Response(
-              jsonEncode({
-                'manifest': {
-                  'title': 'Ino',
-                  'entry': {'kind': 'scene', 'name': 'scenes/home'},
-                },
-              }),
-              200,
-            );
-          }
-          if (request.url.path.endsWith('/windows/open')) {
+          if (request.url.path.endsWith('/show')) {
             opened = jsonDecode(request.body) as Map<String, dynamic>;
             return http.Response(
               jsonEncode({
                 'revision': 4,
-                'windows': [],
-                'focusedWindow': 'b1/apps/ino/window',
+                'path': ['b1', 'b1/apps/ino'],
+                'open': ['b1/apps/ino'],
               }),
               200,
             );
           }
-          return http.Response(jsonEncode({'revision': 3, 'windows': []}), 200);
+          return http.Response(
+            jsonEncode({
+              'revision': 3,
+              'path': ['b1'],
+              'open': [],
+            }),
+            200,
+          );
         }),
       );
-      final state = await client.openApp('b1', 'ino');
-      expect(opened!['reference'], {
-        'kind': 'scene',
-        'neuronId': 'b1/apps/ino/scenes/home',
-      });
+      final before = await client.readWorkspace('b1');
+      final state = await client.showNeuron(
+        'b1',
+        'b1/apps/ino',
+        'open',
+        before.revision,
+      );
+      expect(opened!['app'], 'b1/apps/ino');
       expect(opened!['expectedRevision'], 3);
-      expect(state.focusedWindow, 'b1/apps/ino/window');
+      expect(state.path.last, 'b1/apps/ino');
       expect(requests.where((r) => r.endsWith('/request')), isEmpty);
       client.close();
     },

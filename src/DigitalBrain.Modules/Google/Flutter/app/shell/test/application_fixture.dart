@@ -141,13 +141,13 @@ class ApplicationServer extends http.BaseClient {
       return http.StreamedResponse(events.stream, 200);
     }
     requests.add(RecordedAppRequest(request.url.path, _body(request)));
-    if (request.url.path.endsWith('/windows/open')) {
+    if (request.url.path.endsWith('/show')) {
       assistantOpened = true;
-      focused = requests.last.body['windowId'] as String;
+      focused = requests.last.body['app'] as String;
       revision++;
     }
-    if (request.url.path.endsWith('/focus')) {
-      focused = requests.last.body['windowId'] as String?;
+    if (request.url.path.endsWith('/home')) {
+      focused = null;
       revision++;
     }
     if (request.url.path.endsWith('/close')) {
@@ -174,20 +174,8 @@ class ApplicationServer extends http.BaseClient {
         : brainId;
     return _json({
       'revision': revision,
-      'focusedWindow': focused,
-      'windows': assistantOpened
-          ? [
-              {
-                'id': '$brain/apps/assistant/window',
-                'title': 'Assistant',
-                'reference': {
-                  'kind': 'surface',
-                  'neuronId': '$brain/apps/assistant/surface',
-                },
-                'isOpen': true,
-              },
-            ]
-          : <Object>[],
+      'path': [brain, if (focused != null) focused],
+      'open': assistantOpened ? ['$brain/apps/assistant'] : [],
       'apps': <Object>[],
     });
   }
@@ -241,6 +229,20 @@ class ApplicationFixture {
   /// Opens an app the way the Home screen does and settles what it renders.
   /// The Home island hides once a window opens, so its callback is taken once.
   Future<void> openApp(String name) async {
+    final key = '$brainId/apps/$name';
+    if (!store.currentProject.artifacts.any((artifact) => artifact.id == key)) {
+      store.currentProject.artifacts.add(
+        WorkspaceArtifact(
+          id: key,
+          title: name,
+          kind: 'surface',
+          remoteManaged: true,
+          data: {
+            'surface': {'kind': 'surface', 'name': '$key/surface'},
+          },
+        ),
+      );
+    }
     _open ??= tester.widget<HomeScreen>(find.byType(HomeScreen)).onOpen;
     await _open!(name);
     await tester.pumpAndSettle();

@@ -123,6 +123,5 @@ static class App
         [
             new("db", "postgres"),
         ],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg");
 }

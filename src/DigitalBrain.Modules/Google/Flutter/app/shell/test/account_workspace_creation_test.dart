@@ -36,7 +36,10 @@ void main() {
           if (request.url.path.endsWith('/events')) {
             return http.Response('', 200);
           }
-          return http.Response('{"revision":0,"windows":[]}', 200);
+          return http.Response(
+            '{"revision":0,"path":["brain"],"open":[]}',
+            200,
+          );
         }),
       )..accountId = 'alice-account';
       final store = WorkspaceStore(persistence: MemoryPersistence());

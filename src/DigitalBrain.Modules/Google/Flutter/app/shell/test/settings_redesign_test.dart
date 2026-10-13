@@ -31,23 +31,8 @@ class SettingsAppClient extends WorkspaceClient {
   String? settingsWindow;
   Map<String, dynamic> get settingsSnapshot => {
     'revision': openedSettings,
-    'focusedWindow': settingsWindow,
-    'windows': settingsWindow == null
-        ? []
-        : [
-            {
-              'id': settingsWindow,
-              'title': 'Settings',
-              'reference': {
-                'kind': 'surface',
-                'neuronId': settingsWindow!.replaceFirst(
-                  RegExp(r'/window$'),
-                  '/surface',
-                ),
-              },
-              'isOpen': true,
-            },
-          ],
+    'path': ['brain', if (settingsWindow != null) settingsWindow],
+    'open': [if (settingsWindow != null) settingsWindow],
   };
 
   @override
@@ -60,11 +45,10 @@ class SettingsAppClient extends WorkspaceClient {
           'entry': {'kind': 'surface', 'name': 'surface'},
         },
       };
-    } else if (request.url.path.endsWith('/windows/open')) {
+    } else if (request.url.path.endsWith('/show')) {
       openedSettings++;
       settingsWindow =
-          (jsonDecode((request as http.Request).body) as Map)['windowId']
-              as String;
+          (jsonDecode((request as http.Request).body) as Map)['app'] as String;
       response = settingsSnapshot;
     } else if ((request.url.queryParameters['name'] ?? '').endsWith(
       'apps/settings/surface',
@@ -121,6 +105,18 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = WorkspaceStore(persistence: MemoryPersistence());
       final api = SettingsAppClient();
+      final key = '${store.currentProject.id}/apps/settings';
+      store.currentProject.artifacts.add(
+        WorkspaceArtifact(
+          id: key,
+          title: 'Settings',
+          kind: 'surface',
+          remoteManaged: true,
+          data: {
+            'surface': {'kind': 'surface', 'name': '$key/surface'},
+          },
+        ),
+      );
       await tester.pumpWidget(
         WorkspaceApp(
           store: store,

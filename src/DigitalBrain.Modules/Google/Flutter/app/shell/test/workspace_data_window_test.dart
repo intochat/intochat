@@ -86,16 +86,8 @@ class WorkspaceClient extends http.BaseClient {
             ? {'revision': 4, 'activeRun': null, 'runs': history}
             : {
                 'revision': revision,
-                'windows': revision == 0
-                    ? []
-                    : [
-                        {
-                          'id': 'window',
-                          'title': 'Leads',
-                          'reference': {'kind': 'table', 'neuronId': 'table'},
-                          'isOpen': open,
-                        },
-                      ],
+                'path': [request.url.pathSegments[1]],
+                'open': <String>[],
               });
     return http.StreamedResponse(
       Stream.value(utf8.encode(jsonEncode(value))),

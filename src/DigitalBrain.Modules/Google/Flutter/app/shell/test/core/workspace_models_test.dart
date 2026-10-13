@@ -2,23 +2,17 @@ import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('workspace snapshot retains closed descriptors for explicit reopen', () {
+  test('workspace snapshot retains navigation path and open apps', () {
     final state = WorkspaceSnapshot.fromJson({
       'revision': 4,
-      'windows': [
-        {
-          'id': 'window',
-          'title': 'Leads',
-          'reference': {'kind': 'table', 'neuronId': 'table'},
-          'isOpen': false,
-        },
-      ],
+      'path': ['brain', 'brain/apps/ino', 'brain/apps/files'],
+      'open': ['brain/apps/ino', 'brain/apps/files'],
     });
     expect(state.revision, 4);
-    expect(state.windows.single.kind, 'table');
-    expect(state.windows.single.neuronId, 'table');
-    expect(state.windows.single.isOpen, false);
-    expect(() => state.windows.clear(), throwsUnsupportedError);
+    expect(state.path.last, 'brain/apps/files');
+    expect(state.open, ['brain/apps/ino', 'brain/apps/files']);
+    expect(() => state.path.clear(), throwsUnsupportedError);
+    expect(() => state.open.clear(), throwsUnsupportedError);
   });
 
   test('query table contract preserves scalar cells and server counts', () {

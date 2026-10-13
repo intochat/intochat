@@ -11,7 +11,7 @@ namespace DigitalBrain.Modules.Flutter.Tests.Workspace;
 public sealed class WorkspaceRouteFacts
 {
     [Fact]
-    public void WindowStateEventsAndReportsAreServedOnlyUnderTheBrainRoute()
+    public void NavigationStateAndReportsAreServedOnlyUnderTheBrainRoute()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(typeof(IDigitalBrain), _ => null!);
@@ -24,14 +24,11 @@ public sealed class WorkspaceRouteFacts
         Assert.Equal(
             [
                 "GET /brains/{brainId}/",
-                "GET /brains/{brainId}/events",
-                "POST /brains/{brainId}/connected-sources",
-                "POST /brains/{brainId}/focus",
-                "POST /brains/{brainId}/presentation",
+                "POST /brains/{brainId}/back",
+                "POST /brains/{brainId}/close",
+                "POST /brains/{brainId}/home",
                 "POST /brains/{brainId}/reports",
-                "POST /brains/{brainId}/windows/open",
-                "POST /brains/{brainId}/windows/{windowId}/close",
-                "POST /brains/{brainId}/windows/{windowId}/reopen",
+                "POST /brains/{brainId}/show",
             ],
             routes);
     }

@@ -74,7 +74,6 @@ static class App
             new("Model", "Model catalog id for the classifier (\"preset:<Marker>\" or \"profile:<name>\"); empty uses preset:IDeepSeekV41Flash.", ""),
         ],
         Slots: [],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

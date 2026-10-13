@@ -29,11 +29,10 @@ public static class Jev
     }
 
     // Opens a window on one of the router's surfaces unless it is already open.
-    public static Task OpenWindow(DigitalBrainConnection brain, string window, string title, string surface)
+    public static async Task OpenWindow(DigitalBrainConnection brain, string window, string title, string surface)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
-        var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name(brain, surface)));
-        return workspace.EnsureOpenAsync(Name(brain, window), title, reference, brain.Stopping);
+        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
     }
 
     public static string Short(string contract) => contract[(contract.LastIndexOf('.') + 1)..];

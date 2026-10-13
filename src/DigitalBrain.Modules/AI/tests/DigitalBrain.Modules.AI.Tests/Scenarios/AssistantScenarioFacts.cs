@@ -44,20 +44,19 @@ public sealed class AssistantScenarioFacts
     }
 
     [Fact]
-    public async Task ShowDataFromDemoRequestsTheDataVisualizerAndOpensItsWindow()
+    public async Task ShowDataFromDemoRequestsTheDataVisualizerAndFocusesItsSphere()
     {
         var ct = TestContext.Current.CancellationToken;
         var show = JsonSerializer.Serialize(new object[] { "show", """{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""" }, JsonSerializerOptions.Web);
         var model = new ScriptedModel(
             Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = "{visualizer}", ["method"] = "Request", ["arguments"] = show }),
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IWorkspace).FullName, ["key"] = "{scope}", ["method"] = "OpenSurface", ["arguments"] = "{open}" }));
+            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IWorkspace).FullName, ["key"] = "{scope}", ["method"] = "Show", ["arguments"] = "{open}" }));
         await using var host = await Start(model, ct);
         var alice = await host.PersonAsync("alice", ct);
         var visualizer = IApp.Key(alice.BrainId, "datavisualizer");
-        var surface = visualizer + "/views/demo";
         model.Visualizer = visualizer;
         model.Scope = alice.BrainId;
-        model.Open = JsonSerializer.Serialize(new[] { new OpenSurfaceWindow("open-demo", "demo", "Demo", new WindowReference("surface", surface), 0) }, JsonSerializerOptions.Web);
+        model.Open = JsonSerializer.Serialize(new object[] { visualizer, "open-demo", 0 }, JsonSerializerOptions.Web);
         await Connect(host, alice);
         var app = host.Get<IApp>(visualizer);
         using (alice.AsCaller()) { await app.Create(new AppManifest("Data Visualizer", "shows data", [new("show", "show a table or chart")], [], []), "spec"); }
@@ -74,8 +73,7 @@ public sealed class AssistantScenarioFacts
         Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", request.Input);
         using (alice.AsCaller())
         {
-            var window = Assert.Single((await host.Get<IWorkspace>(alice.BrainId).Read()).Windows);
-            Assert.Equal(surface, window.Reference.NeuronId);
+            Assert.Equal(visualizer, (await host.Get<IWorkspace>(alice.BrainId).Read()).Path[^1]);
         }
     }
 

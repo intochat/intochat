@@ -72,7 +72,6 @@ public static class AppDeclaration
             "Slots: " + List(manifest.Slots.Select(slot => $"new({Literal(slot.Name)}, {Literal(slot.Connector)})")),
         ];
         if (manifest.Icon is not null) { arguments.Add("Icon: " + Literal(manifest.Icon)); }
-        if (manifest.Entry is { } entry) { arguments.Add($"Entry: new({Literal(entry.Kind)}, {Literal(entry.Name)})"); }
         if (manifest.Toolbar is not null) { arguments.Add("Toolbar: " + List(manifest.Toolbar.Select(Entry))); }
         text.Append(string.Join(",\n", arguments.Select(argument => "        " + argument.Replace(": \n", ":\n", StringComparison.Ordinal)))).Append(");\n}\n");
         return text.ToString();

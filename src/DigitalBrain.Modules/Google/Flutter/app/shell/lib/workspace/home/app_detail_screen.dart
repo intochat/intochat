@@ -51,9 +51,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   String? get _installedName =>
       _app == null ? null : '${_app!['name'] ?? widget.installedName}';
   Map<String, dynamic> get _manifest => _map(_app?['manifest']);
-  bool get _openable =>
-      _app?['status'] == 'Live' &&
-      AppManifest.fromJson(_manifest).entry != null;
+  bool get _openable => _app?['status'] == 'Live';
 
   @override
   void initState() {

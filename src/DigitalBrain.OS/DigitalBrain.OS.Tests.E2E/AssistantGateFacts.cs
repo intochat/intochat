@@ -29,8 +29,8 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
 
         while (!(await status.Read()).Markdown.StartsWith("Jev: ", StringComparison.Ordinal)) { await changes.NextAsync(ct: ct); }
         Assert.Contains(typeof(DigitalBrain.Apps.IApp).FullName + ".Request (0.95)", (await status.Read()).Markdown, StringComparison.Ordinal);
-        // The calculator's own synapse opens the window after the dispatch returns; the wait is on the workspace neuron.
-        while (!(await workspace.Read()).Windows.Any(window => window.Reference.NeuronId.EndsWith("/apps/calculator/surface", StringComparison.Ordinal)))
+        // Navigation is confirmed through the workspace change stream.
+        while ((await workspace.Read()).Path[^1] != scope + "/apps/calculator")
         { await windows.NextAsync(ct: ct); }
         Assert.DoesNotContain(LLMModel.All.SelectMany(model => Host.Model.Requests(model.Id)),
             request => RouterHostFixture.Text(request).Contains("You are the user's assistant", StringComparison.Ordinal));

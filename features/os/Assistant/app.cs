@@ -176,7 +176,6 @@ static class App
             new("RouteGate", "Confidence (0-1) above which Jev answers a request directly, without the language model.", "0.8"),
         ],
         Slots: [],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

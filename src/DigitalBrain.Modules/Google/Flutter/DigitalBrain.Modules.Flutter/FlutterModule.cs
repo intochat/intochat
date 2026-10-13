@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Flutter.Space;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
@@ -17,6 +18,7 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
+        silo.Services.AddHostedService<SpaceWatcher>();
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

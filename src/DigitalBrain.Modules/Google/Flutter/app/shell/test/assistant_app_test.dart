@@ -44,12 +44,9 @@ void main() {
       await fixture.openApp('assistant');
 
       final request = fixture.server.requests.singleWhere(
-        (request) => request.path.endsWith('/windows/open'),
+        (request) => request.path.endsWith('/show'),
       );
-      expect(request.body['reference'], {
-        'kind': 'surface',
-        'neuronId': '${fixture.brainId}/apps/assistant/surface',
-      });
+      expect(request.body['app'], '${fixture.brainId}/apps/assistant');
       expect(
         fixture.renderedSurface,
         '${fixture.brainId}/apps/assistant/surface',
@@ -73,16 +70,13 @@ void main() {
     await fixture.openApp('assistant');
 
     final posted = fixture.server.requests
-        .where((request) => request.path.endsWith('/windows/open'))
+        .where((request) => request.path.endsWith('/show'))
         .length;
     expect(posted, 2);
     expect(fixture.store.currentProject.artifacts.map((a) => a.id), [
-      '${fixture.brainId}/apps/assistant/window',
+      '${fixture.brainId}/apps/assistant',
     ]);
-    expect(
-      fixture.store.focusedWindow,
-      '${fixture.brainId}/apps/assistant/window',
-    );
+    expect(fixture.store.focusedWindow, '${fixture.brainId}/apps/assistant');
     expect(find.byType(DockTextField), findsOneWidget);
     expect(
       fixture.renderedSurface,

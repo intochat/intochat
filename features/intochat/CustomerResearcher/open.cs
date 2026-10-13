@@ -26,9 +26,8 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
         // Docked: the shell renders the surface in its side panel, so no workspace window opens.
         if (request.Input != "docked")
         {
-            await brain.Get<IWorkspace>(brain.Setting("Brain")!)
-                .EnsureOpenAsync(appKey + "/window", "Customer Researcher",
-                    WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
+            var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+            await workspace.Show(appKey, request.RequestId.ToString(), (await workspace.Read()).Revision);
         }
         if ((await failure.Read()).Markdown is { Length: > 0 } shown)
         {

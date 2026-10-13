@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 
 class FirstRunClient extends http.BaseClient {
+  bool home = false;
   final events = StreamController<List<int>>.broadcast();
 
   @override
@@ -24,6 +25,7 @@ class FirstRunClient extends http.BaseClient {
     if (request.url.path.endsWith('/events')) {
       return http.StreamedResponse(events.stream, 200);
     }
+    if (request.url.path.endsWith('/home')) home = true;
     final Object value;
     final application = applicationResponse(request);
     if (request.url.path.endsWith('/apps/assistant')) {
@@ -46,33 +48,11 @@ class FirstRunClient extends http.BaseClient {
     } else {
       value = {
         'revision': 0,
-        'windows': <Object>[],
-        'home': {
-          'kind': 'text',
-          'name': '${request.url.pathSegments[1]}/apps/ino/welcome',
-        },
-        'companion': {
-          'kind': 'surface',
-          'name': '${request.url.pathSegments[1]}/apps/assistant/surface',
-        },
-        'firstRun': {
-          'assistantId': 'intocaht',
-          'assistantTitle': 'IntoChat',
-          'prompts': [
-            {
-              'id': 'assistant',
-              'label': 'Ask the assistant',
-              'prompt': 'What can you do?',
-              'source': 'assistant',
-            },
-            {
-              'id': 'salesforce',
-              'label': 'Work with Salesforce',
-              'prompt': 'Show my Salesforce leads',
-              'source': 'salesforce',
-            },
-          ],
-        },
+        'path': [
+          request.url.pathSegments[1],
+          if (!home) '${request.url.pathSegments[1]}/apps/ino',
+        ],
+        'open': ['${request.url.pathSegments[1]}/apps/ino'],
       };
     }
     return http.StreamedResponse(
@@ -84,7 +64,7 @@ class FirstRunClient extends http.BaseClient {
 }
 
 void main() {
-  testWidgets('a new workspace shows the assistant starter prompts', (
+  testWidgets('a new workspace projects the Ino navigation path', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -106,10 +86,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The companion remains available while Home is the workspace focus.
-    expect(find.widgetWithText(TextField, 'Message'), findsOneWidget);
-    expect(find.text('Work with Salesforce'), findsOneWidget);
-    expect(find.text('Ask the assistant'), findsOneWidget);
+    expect(
+      store.remoteSnapshots[store.currentProject.id]?.path.last,
+      '${store.currentProject.id}/apps/ino',
+    );
+    expect(store.firstRun, isNull);
 
     await tester.pumpWidget(const SizedBox());
     await api.events.close();

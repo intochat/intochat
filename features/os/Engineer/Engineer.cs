@@ -305,10 +305,9 @@ public static class Engineer
         await surface.Set(new("Engineer", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
     }
 
-    public static Task OpenWindowAsync(DigitalBrainConnection brain)
+    public static async Task OpenWindowAsync(DigitalBrainConnection brain)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
-        var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Key(brain) + "/surface"));
-        return workspace.EnsureOpenAsync(Key(brain) + "/window", "Engineer", reference, brain.Stopping);
+        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
     }
 }

@@ -49,8 +49,7 @@ internal sealed class Creator(
             var authored = await Authored(brainId, prompt, cancellationToken);
             var manifest = new AppManifest(authored.Title, authored.Description,
                 authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? [],
-                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar,
-                Entry: authored.Entry ?? existing?.Manifest.Entry);
+                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar);
             var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
             if (name is null)
             {
@@ -121,7 +120,6 @@ internal sealed class Creator(
                 Settings = built.Settings is { Count: > 0 }
                         ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
                         : snapshot.Manifest.Settings,
-                Entry = built.Entry ?? snapshot.Manifest.Entry,
             };
             var completed = await app.CompleteBuild(attempt, files, null, manifest);
             if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}"); }

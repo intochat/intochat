@@ -29,6 +29,6 @@ static class App
         Title: "Brain",
         Description: "See your brain think: neurons, subscriptions and live signals, down to one synapse's runs.",
         Operations: [new("open", "Compose the brain scene and its detail panel.")],
-        Settings: [], Slots: [], Entry: new("surface", "surface"),
+        Settings: [], Slots: [],
         Icon: "icon.svg");
 }

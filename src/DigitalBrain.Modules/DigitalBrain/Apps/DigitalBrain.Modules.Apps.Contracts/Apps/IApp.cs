@@ -8,6 +8,10 @@ namespace DigitalBrain.Apps;
 public interface IApp : INeuron
 {
     [Orleans.Concurrency.ReadOnly, Orleans.Concurrency.AlwaysInterleave] Task<AppSnapshot> Read();
+    Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation);
+    Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error);
+    Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values);
+    [Internal] Task Stamp(string key, string value);
     Task<AppSnapshot> Create(AppManifest manifest, string spec);
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump

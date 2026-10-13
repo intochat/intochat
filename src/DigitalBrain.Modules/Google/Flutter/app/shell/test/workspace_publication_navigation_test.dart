@@ -23,25 +23,38 @@ class PublicationClient extends SettingsAppClient {
     Object? response;
     var status = 200;
     if (request.url.path == '/identity/brains') {
-      response = allowed ? [{'id': 'circle-test', 'kind': 'circle'}] : [];
+      response = allowed
+          ? [
+              {'id': 'circle-test', 'kind': 'circle'},
+            ]
+          : [];
     } else if (request.url.path.startsWith('/brains/circle-test/')) {
       destinationCalls.add(request.url.path);
       if (request.url.path.endsWith('/request')) {
-        submitted = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        submitted =
+            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         response = {'requestId': 'test-request'};
-      } else if (request.url.path.endsWith('/windows/open') && failOpen) {
+      } else if (request.url.path.endsWith('/show') && failOpen) {
         response = {'error': 'Unavailable'};
         status = 503;
       }
     }
     if (response == null) return super.send(request);
-    return http.StreamedResponse(Stream.value(utf8.encode(jsonEncode(response))), status,
-      headers: {'content-type': 'application/json'});
+    return http.StreamedResponse(
+      Stream.value(utf8.encode(jsonEncode(response))),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
   }
 }
 
 void main() {
-  for (final scenario in ['allowed', 'not a member', 'open fails', 'configuration']) {
+  for (final scenario in [
+    'allowed',
+    'not a member',
+    'open fails',
+    'configuration',
+  ]) {
     testWidgets('publication navigation: $scenario', (tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
@@ -49,26 +62,52 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = WorkspaceStore(persistence: MemoryPersistence());
       final original = store.currentProject;
+      final key = '${original.id}/apps/settings';
+      original.artifacts.add(
+        WorkspaceArtifact(
+          id: key,
+          title: 'Settings',
+          kind: 'surface',
+          remoteManaged: true,
+          data: {
+            'surface': {'kind': 'surface', 'name': '$key/surface'},
+          },
+        ),
+      );
       store.currentConversation.draft = 'Keep my draft';
       final api = PublicationClient()
         ..allowed = scenario != 'not a member'
         ..failOpen = scenario == 'open fails';
-      await tester.pumpWidget(WorkspaceApp(store: store,
-        programmingClient: DigitalBrainUiClient(baseUri: Uri.parse('http://test'), httpClient: api)));
+      await tester.pumpWidget(
+        WorkspaceApp(
+          store: store,
+          programmingClient: DigitalBrainUiClient(
+            baseUri: Uri.parse('http://test'),
+            httpClient: api,
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
       const exact = '{"name":"echo","version":"1.0.0","digest":"old-release"}';
-      final view = tester.widgetList<NeuronView>(find.byType(NeuronView)).firstWhere((v) => v.name.endsWith('/settings/surface'));
-      view.onActivate!({'kind': 'workspace', 'brainId': 'circle-test',
-        'application': 'settings', 'operation': 'publication', 'input': exact,
-        if (scenario == 'configuration') 'view': 'configuration'});
+      final view = tester
+          .widgetList<NeuronView>(find.byType(NeuronView))
+          .firstWhere((v) => v.name.endsWith('/settings/surface'));
+      view.onActivate!({
+        'kind': 'workspace',
+        'brainId': 'circle-test',
+        'application': 'settings',
+        'operation': 'publication',
+        'input': exact,
+        if (scenario == 'configuration') 'view': 'configuration',
+      });
       await tester.pumpAndSettle();
       expect(original.conversations.first.draft, 'Keep my draft');
       if (scenario == 'configuration') {
         expect(find.byType(AppDetailScreen), findsOneWidget);
         expect(api.submitted, isNull);
-        expect(api.destinationCalls.where((p) => p.endsWith('/windows/open')), isEmpty);
+        expect(api.destinationCalls.where((p) => p.endsWith('/show')), isEmpty);
       } else if (scenario == 'allowed') {
         expect(store.currentProject.id, 'circle-test');
         expect(api.submitted, {'operation': 'publication', 'input': exact});

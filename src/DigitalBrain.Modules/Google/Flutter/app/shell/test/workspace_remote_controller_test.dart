@@ -25,7 +25,7 @@ void main() {
     var reads = 0, watches = 0;
     final controller = WorkspaceRemoteController(
       read: (_) async => ++reads == 1
-          ? WorkspaceSnapshot(revision: 1, windows: [])
+          ? WorkspaceSnapshot(revision: 1, path: ['brain'], open: [])
           : reconnectRead.future,
       watch: (_) {
         if (++watches == 2) reconnected.complete();
@@ -56,7 +56,7 @@ void main() {
     final controller = WorkspaceRemoteController(
       read: (_) async {
         if (offline) throw StateError('offline');
-        return WorkspaceSnapshot(revision: 1, windows: []);
+        return WorkspaceSnapshot(revision: 1, path: ['brain'], open: []);
       },
       watch: (_) {
         if (++watches == 2) reconnected.complete();
@@ -96,15 +96,8 @@ void main() {
       final project = store.currentProject;
       WorkspaceSnapshot snapshot(int revision, bool open) => WorkspaceSnapshot(
         revision: revision,
-        windows: [
-          WorkspaceWindow(
-            id: 'result',
-            title: 'Leads',
-            kind: 'table',
-            neuronId: 'table',
-            isOpen: open,
-          ),
-        ],
+        path: ['brain'],
+        open: open ? ['result'] : [],
       );
       store.reconcileWorkspace(project, snapshot(1, true));
       project.presentation.windowBounds['result'] = [100, 80, 700, 400];
@@ -145,18 +138,7 @@ void main() {
     expect(changes.hasListener, isTrue);
     final selected = store.createProject('Other workspace').id;
     read.complete(
-      WorkspaceSnapshot(
-        revision: 1,
-        windows: [
-          const WorkspaceWindow(
-            id: 'result',
-            title: 'Leads',
-            kind: 'table',
-            neuronId: 'table',
-            isOpen: true,
-          ),
-        ],
-      ),
+      WorkspaceSnapshot(revision: 1, path: [project.id], open: ['result']),
     );
     await Future<void>.delayed(Duration.zero);
     expect(
@@ -169,18 +151,7 @@ void main() {
     expect(store.selectedProjectId, selected);
     store.reconcileWorkspace(
       project,
-      WorkspaceSnapshot(
-        revision: 2,
-        windows: [
-          const WorkspaceWindow(
-            id: 'result',
-            title: 'Leads',
-            kind: 'table',
-            neuronId: 'table',
-            isOpen: false,
-          ),
-        ],
-      ),
+      WorkspaceSnapshot(revision: 2, path: [project.id], open: []),
     );
     expect(project.presentation.openArtifactIds, ['local']);
     expect(project.artifacts.last.remoteManaged, isTrue);

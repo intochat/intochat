@@ -15,10 +15,7 @@ void main() {
       final fixture = await ApplicationFixture.start(tester);
 
       await fixture.openApp('assistant');
-      expect(
-        fixture.store.focusedWindow,
-        '${fixture.brainId}/apps/assistant/window',
-      );
+      expect(fixture.store.focusedWindow, '${fixture.brainId}/apps/assistant');
       expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
       expect(find.byType(DockTextField), findsOneWidget);
 
@@ -26,7 +23,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(
-          ValueKey('workspace-entry-${fixture.brainId}/apps/assistant/window'),
+          ValueKey('workspace-entry-${fixture.brainId}/apps/assistant'),
         ),
         findsOneWidget,
       );
@@ -34,9 +31,7 @@ void main() {
       await tester.tap(find.byTooltip('Delete'));
       await tester.pumpAndSettle();
       expect(
-        fixture.server.requestsTo(
-          '/brains/${fixture.brainId}/windows/${Uri.encodeComponent('${fixture.brainId}/apps/assistant/window')}/close',
-        ),
+        fixture.server.requestsTo('/brains/${fixture.brainId}/close'),
         isNotEmpty,
       );
       await fixture.dispose();

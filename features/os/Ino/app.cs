@@ -33,6 +33,5 @@ static class App
         Operations: [new("open", "Compose Ino's scenes without changing workspace navigation.")],
         Settings: [],
         Slots: [],
-        Entry: new("scene", "scenes/home"),
         Icon: "icon.svg");
 }

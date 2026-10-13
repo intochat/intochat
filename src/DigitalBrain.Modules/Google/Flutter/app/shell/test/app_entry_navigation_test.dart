@@ -32,48 +32,44 @@ void main() {
       };
     }
 
-    testWidgets('catalog uses declared entry when entry is $hasEntry', (
-      tester,
-    ) async {
-      final opened = <String>[];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: HomeScreen(
-              workspaceId: 'brain',
-              request: request,
-              onOpen: (name) async => opened.add(name),
+    testWidgets(
+      'catalog opens every live neuron regardless of obsolete entry $hasEntry',
+      (tester) async {
+        final opened = <String>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: HomeScreen(
+                workspaceId: 'brain',
+                request: request,
+                onOpen: (name) async => opened.add(name),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('app-notes')));
-      await tester.pumpAndSettle();
-      expect(opened, hasEntry ? ['notes'] : isEmpty);
-      expect(
-        find.byType(AppDetailScreen),
-        hasEntry ? findsNothing : findsOneWidget,
-      );
-    });
-    testWidgets('app details uses declared entry when entry is $hasEntry', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AppDetailScreen(
-            workspaceId: 'brain',
-            installedName: 'notes',
-            request: request,
-            onOpen: (_) async {},
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('app-notes')));
+        await tester.pumpAndSettle();
+        expect(opened, ['notes']);
+        expect(find.byType(AppDetailScreen), findsNothing);
+      },
+    );
+    testWidgets(
+      'app details opens every live neuron regardless of obsolete entry $hasEntry',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AppDetailScreen(
+              workspaceId: 'brain',
+              installedName: 'notes',
+              request: request,
+              onOpen: (_) async {},
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('open-app')),
-        hasEntry ? findsOneWidget : findsNothing,
-      );
-    });
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('open-app')), findsOneWidget);
+      },
+    );
   }
 }

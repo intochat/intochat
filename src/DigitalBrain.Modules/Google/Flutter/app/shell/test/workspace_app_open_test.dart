@@ -23,7 +23,7 @@ class OpeningClient extends SettingsAppClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    if (request.url.path.endsWith('/windows/open')) {
+    if (request.url.path.endsWith('/show')) {
       currentRevision++;
       windowOpen = true;
       final response = await super.send(request);
@@ -52,15 +52,8 @@ class OpeningClient extends SettingsAppClient {
           utf8.encode(
             jsonEncode({
               'revision': currentRevision,
-              'focusedWindow': windowOpen ? windowId : null,
-              'windows': [
-                {
-                  'id': windowId,
-                  'title': 'Settings',
-                  'reference': {'kind': 'surface', 'neuronId': surfaceId},
-                  'isOpen': windowOpen,
-                },
-              ],
+              'path': ['brain', if (windowOpen) windowId],
+              'open': [if (windowOpen) windowId],
             }),
           ),
         ),
@@ -82,8 +75,19 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = WorkspaceStore(persistence: MemoryPersistence());
       final appKey = '${store.currentProject.id}/apps/settings';
+      store.currentProject.artifacts.add(
+        WorkspaceArtifact(
+          id: appKey,
+          title: 'Settings',
+          kind: 'surface',
+          remoteManaged: true,
+          data: {
+            'surface': {'kind': 'surface', 'name': '$appKey/surface'},
+          },
+        ),
+      );
       final api = OpeningClient()
-        ..windowId = '$appKey/window'
+        ..windowId = appKey
         ..surfaceId = '$appKey/surface';
       await tester.pumpWidget(
         WorkspaceApp(

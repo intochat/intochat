@@ -80,15 +80,8 @@ async Task Carry(Routed routed)
             }
             else
             {
-                if (manifest.Entry is not { } entry)
-                {
-                    await Assistant.Status(brain, title + " has no workspace entry.");
-                    return;
-                }
                 var workspace = brain.Get<IWorkspace>(scope);
-                var state = await workspace.Read();
-                await workspace.Open(new(routed.Id.ToString(), IApp.Key(scope, route.App) + "/window", title,
-                    WindowReference.For(new UiChildRef(entry.Kind, IApp.Key(scope, route.App) + "/" + entry.Name)), state.Revision));
+                await workspace.Show(IApp.Key(scope, route.App), routed.Id.ToString(), (await workspace.Read()).Revision);
                 await Assistant.Status(brain, $"Jev: {chosen} ({route.Confidence:0.00}) -> opened {title}");
                 return;
             }

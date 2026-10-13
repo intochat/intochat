@@ -50,6 +50,74 @@ public sealed class FastPathFacts : IDisposable
         await foreach (var close in brain.On(app, "ask", brain.Stopping)) { }
         """;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AStagedAssignmentCanPublishBeforeCompletionAndRollbackUsesAFreshRevision(bool refuse)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new PublishingRuntime();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>()
+            .WithModule<AppsModule, AppsOptions>(apps => apps.FastPathModel = nameof(IGpt56Luna))
+            .WithFakeModel(model).ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime>(runtime);
+                services.AddSingleton<IScriptSandbox>(new FastPathSandbox());
+            }).StartAsync(ct);
+        var app = await Created(brain, "startup");
+        var key = IApp.Key(Brain, "startup");
+        await app.WriteBehavior("old.cs", "public static class Old { }", Guid.NewGuid());
+        var oldRevision = (await app.Read()).ProgramRevision;
+        using (brain.Owner.AsAppIn(Brain, key)) { await app.Present(oldRevision, new(new Sphere("old", []))); }
+        var attempted = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        long proposedRevision = 0;
+        runtime.Startup = async (sources, configuration) =>
+        {
+            var revision = long.Parse(configuration["ProgramRevision"]);
+            var proposed = sources.ContainsKey("lemons.cs");
+            if (proposed) { proposedRevision = revision; }
+            Exception? failure = null;
+            try
+            {
+                Assert.Equal(revision, (await app.Read()).ProgramRevision);
+                Assert.Null((await app.Read()).Presentation);
+                using (brain.Owner.AsAppIn(Brain, key))
+                { await app.Present(revision, new(new Sphere(proposed ? "proposed" : "restored", []))); }
+            }
+            catch (Exception error) { failure = error; }
+            if (proposed) { attempted.TrySetResult(failure); }
+            if (proposed && refuse) { throw new InvalidOperationException("assignment refused after startup"); }
+        };
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        await using var outcomes = await brain.Observe<Signal>(app, ct);
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+        var failure = await attempted.Task.WaitAsync(ct);
+        await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct);
+        Assert.Null(failure);
+        var state = await app.Read();
+        Assert.Equal(refuse ? "restored" : "proposed", state.Presentation!.Root!.Sphere.Icon);
+        Assert.Equal(refuse ? proposedRevision + 1 : proposedRevision, state.ProgramRevision);
+        Assert.Equal(!refuse, state.Files.ContainsKey("lemons.cs"));
+        using (brain.Owner.AsAppIn(Brain, key))
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => app.Present(oldRevision, new(new Sphere("stale", []))));
+            if (refuse) { await Assert.ThrowsAsync<InvalidOperationException>(() => app.Present(proposedRevision, new(new Sphere("stale", [])))); }
+        }
+    }
+
+    private sealed class PublishingRuntime : IAppRuntime
+    {
+        public Func<Dictionary<string, string>, Dictionary<string, string>, Task>? Startup { get; set; }
+        public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+        {
+            if (Startup is { } startup) { await startup(sources, configuration); }
+            return sources.Keys.ToDictionary(path => path, path => "hash:" + path);
+        }
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     [Fact]
     public async Task ASentenceBecomesALiveSynapse()
     {

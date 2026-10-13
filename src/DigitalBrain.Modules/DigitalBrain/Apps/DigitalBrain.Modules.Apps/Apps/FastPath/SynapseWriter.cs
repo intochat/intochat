@@ -256,7 +256,6 @@ internal sealed class SynapseWriter(
                 }
                 catch (Exception error) when (error is InvalidOperationException or ArgumentException)
                 {
-                    turn.Unsettled = false;
                     return (new Dictionary<string, string>(), error.Message);
                 }
                 catch (TimeoutException error) when (call < MaxDeployCalls)

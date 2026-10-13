@@ -7,28 +7,13 @@ void main() {
     final store = WorkspaceStore();
     await store.load();
     final project = store.currentProject;
-    const windows = [
-      WorkspaceWindow(
-        id: 'first',
-        title: 'First',
-        kind: 'scene',
-        neuronId: 'brain/scenes/first',
-        isOpen: true,
-      ),
-      WorkspaceWindow(
-        id: 'second',
-        title: 'Second',
-        kind: 'text',
-        neuronId: 'brain/text/second',
-        isOpen: true,
-      ),
-    ];
+    const open = ['brain/apps/first', 'brain/apps/second'];
     store.reconcileWorkspace(
       project,
-      WorkspaceSnapshot(revision: 4, windows: windows, focusedWindow: 'first'),
+      WorkspaceSnapshot(revision: 4, path: ['brain', open.first], open: open),
     );
-    expect(store.focusedWindow, 'first');
-    expect(project.presentation.openArtifactIds, ['first', 'second']);
+    expect(store.focusedWindow, open.first);
+    expect(project.presentation.openArtifactIds, open);
     final saved = project.toJson();
     expect(
       saved['artifacts'],
@@ -39,16 +24,16 @@ void main() {
     expect((saved['presentation'] as Map)['openArtifactIds'], isEmpty);
     String? requested;
     store.onRemoteFocus = (_, id) => requested = id;
-    store.focusWindow('second');
-    expect(requested, 'second');
+    store.focusWindow(open.last);
+    expect(requested, open.last);
     expect(
       store.focusedWindow,
-      'first',
+      open.first,
       reason: 'Only the accepted server state changes focus',
     );
     store.reconcileWorkspace(
       project,
-      WorkspaceSnapshot(revision: 5, windows: windows),
+      WorkspaceSnapshot(revision: 5, path: ['brain'], open: open),
     );
     expect(
       store.focusedWindow,
@@ -57,7 +42,7 @@ void main() {
     );
     store.reconcileWorkspace(
       project,
-      WorkspaceSnapshot(revision: 4, windows: windows, focusedWindow: 'second'),
+      WorkspaceSnapshot(revision: 4, path: ['brain', open.last], open: open),
     );
     expect(store.focusedWindow, isNull);
     store.dispose();

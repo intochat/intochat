@@ -24,4 +24,6 @@ public sealed record AppSnapshot(
     [property: Id(11)] AppOrigin? Origin = null,
     [property: Id(12)] bool Edited = false,
     [property: Id(13)] AppSynapse[]? Synapses = null,
-    [property: Id(14)] AppInstallReceipt? Installation = null);
+    [property: Id(14)] AppInstallReceipt? Installation = null,
+    [property: Id(15)] AppPresentation? Presentation = null,
+    [property: Id(16)] long ProgramRevision = 0);

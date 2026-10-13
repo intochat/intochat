@@ -62,7 +62,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

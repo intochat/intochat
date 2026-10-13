@@ -9,6 +9,15 @@ public sealed class SceneAccessFacts
     private const string Key = "owner/apps/ino/scenes/home";
 
     [Fact]
+    public async Task AnAppSceneNamedSpaceStillBelongsToItsApp()
+    {
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(TestContext.Current.CancellationToken);
+        var scene = brain.Get<IScene>("owner/apps/ino/scenes/space");
+        using (brain.Owner.AsApp("owner/apps/ino")) { await scene.Set(Scenes.Ino(), 0); }
+        Assert.Equal(1, (await scene.Read()).Revision);
+    }
+
+    [Fact]
     public async Task AnotherAppCannotSetAnAppsScene()
     {
         var ct = TestContext.Current.CancellationToken;

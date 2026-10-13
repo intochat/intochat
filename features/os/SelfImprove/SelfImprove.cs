@@ -85,7 +85,10 @@ public static class SelfImprove
         await surface.Set(new SurfaceDefinition("Self-improve", [new UiChildRef(UIVocabulary.LayoutType, Name("main"))]), (await surface.Read()).Revision);
     }
 
-    public static Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
-        => brain.Get<IWorkspace>(Scope(brain)).EnsureOpenAsync(Key(brain) + "/window", "Self-improve",
-            WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Key(brain) + "/surface")), ct);
+    public static async Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var workspace = brain.Get<IWorkspace>(Scope(brain));
+        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
+    }
 }

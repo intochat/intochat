@@ -94,6 +94,7 @@ internal sealed partial class AppNeuron(
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
+        AdvanceProgram(next);
         // The whole program goes to the runtime before anything is persisted: a write the
         // compiler refuses leaves the app's files exactly as they were.
         IReadOnlyDictionary<string, string>? hashes = null;
@@ -140,6 +141,7 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
         foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }
+        AdvanceProgram(next);
         await Persist(next);
         // The running program reads its settings from the deployment configuration, so a
         // configure hands it the whole thing again.
@@ -159,6 +161,7 @@ internal sealed partial class AppNeuron(
         next.Files = new(record.Files, StringComparer.Ordinal);
         next.Version = Bump(next.Version, minor: false);
         Record(next);
+        AdvanceProgram(next);
         await Persist(next);
         // Programs the target version lacks stop with the rest: one program, assigned whole.
         await Deploy();
@@ -244,6 +247,7 @@ internal sealed partial class AppNeuron(
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
+        AdvanceProgram(next);
         await Persist(next);
         // The Builder's program lands whole; one that does not compile is a failed build.
         try { await Deploy(); }
@@ -392,6 +396,7 @@ internal sealed partial class AppNeuron(
     private async Task<AppSnapshot> Land(AppState next)
     {
         next.Status = AppStatus.Deploying;
+        AdvanceProgram(next);
         Record(next);
         await Persist(next);
         try { await Deploy(); }
@@ -542,13 +547,20 @@ internal sealed partial class AppNeuron(
         {
             var next = Snapshot.Clone();
             next.Synapses[index] = entry with { Path = path, Source = source };
+            AdvanceProgram(next);
             await Persist(next);
         }
         return new(sources, Configuration(Snapshot), Snapshot.Principal);
     }
 
     // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
-    public Task<StagedProgram> Program() => Task.FromResult(new StagedProgram(Sources(Snapshot), Configuration(Snapshot), Snapshot.Principal));
+    public async Task<StagedProgram> Program()
+    {
+        var next = Snapshot.Clone();
+        AdvanceProgram(next);
+        await Persist(next);
+        return new(Sources(Snapshot), Configuration(Snapshot), Snapshot.Principal);
+    }
 
     // A deleted app holds no requests, so a late Unsettle answers its empty snapshot and writes nothing.
     public async Task<AppSnapshot> Unsettle(Guid operationId, string reason, long elapsedMs, int attempts, string? baseSynapse)
@@ -593,7 +605,9 @@ internal sealed partial class AppNeuron(
         Signal outcome = refused.Length == 0
             ? new SynapseWritten(entry.Path!, hash ?? entry.Hash ?? "", elapsedMs, attempts)
             : new SynapseRejected(entry.Sentence, refused);
+        var replacedProgram = next.ProgramRevision != Snapshot.ProgramRevision;
         await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
+        if (replacedProgram) { await PublishAsync(new PresentationChanged(this.GetPrimaryKeyString(), next.ProgramRevision, 0)); }
         return Describe(Snapshot);
     }
 
@@ -658,6 +672,7 @@ internal sealed partial class AppNeuron(
         {
             ["App"] = this.GetPrimaryKeyString(),
             ["Brain"] = state.BrainScopeId ?? "",
+            ["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
         foreach (var (name, value) in state.Settings) { values[name] = value; }
         foreach (var (slot, id) in state.Connections) { values["Account__" + slot] = id; }
@@ -732,8 +747,17 @@ internal sealed partial class AppNeuron(
                      : $"{parts[0]}.{parts[1]}.{int.Parse(parts[2]) + 1}";
     }
 
+    private static void AdvanceProgram(AppState next)
+    {
+        next.ProgramRevision = checked(next.ProgramRevision + 1);
+        next.Presentation = null;
+    }
+
     private Task Persist(AppState next)
-        => Save(next, new AppChanged(Name(), next.Version, next.Status));
+        => next.ProgramRevision == Snapshot.ProgramRevision
+            ? Save(next, new AppChanged(Name(), next.Version, next.Status))
+            : Save(next, new AppChanged(Name(), next.Version, next.Status),
+                new PresentationChanged(this.GetPrimaryKeyString(), next.ProgramRevision, 0));
 
     private AppSnapshot Describe(AppState state) => new(
         Name(),
@@ -750,7 +774,9 @@ internal sealed partial class AppNeuron(
         state.Origin,
         state.Edited,
         [.. state.Synapses],
-        state.Installation);
+        state.Installation,
+        state.Presentation,
+        state.ProgramRevision);
 }
 
 internal sealed class AppActivation : IActivationHandler<AppNeuron>

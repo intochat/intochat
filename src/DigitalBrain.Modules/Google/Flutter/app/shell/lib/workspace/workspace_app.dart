@@ -4,6 +4,7 @@ import 'dart:ui' show SemanticsRole;
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
@@ -71,10 +72,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _remoteCancelled = Completer<void>();
   final _apps = <String, List<InstalledAppSummary>>{};
   final _appsLoading = <String>{};
-  final _sourcesSynced = <String>{};
   final _circleFeeds = <String, CircleActivityFeed>{};
   final _computeRefresh = ValueNotifier<int>(0);
-  final _presentationConfigured = <String>{};
   final _scenes = <String, SceneClient>{};
   final _brainWatches = <String, WatchBrain>{};
   bool _companionExpanded = true;
@@ -89,27 +88,25 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         unawaited(_remoteAction(workspace, window, open));
     for (final project in store.projects) {
       if (_remote.containsKey(project.id)) continue;
-      if (_sourcesSynced.add(project.id)) {
-        unawaited(
-          client
-              .setConnectedSources(project.id, widget.connectedSources)
-              .then((snapshot) {
-                if (mounted) store.reconcileWorkspace(project, snapshot);
-              })
-              .catchError((Object _) {}),
-        );
-      }
       final controller = WorkspaceRemoteController(
         read: (id) =>
             client.readWorkspace(id, cancelled: _remoteCancelled.future),
-        watch: client.grpcLive
-            ? client.watchWorkspaceChannel
-            : client.watchWorkspace,
+        watch: (id) => client.channel
+            .watch(id, [
+              WatchSourceSpec('DigitalBrain.Flutter.Workspace.IWorkspace', id, [
+                'WorkspaceChanged',
+              ]),
+            ])
+            .map(
+              (signal) => WorkspaceRevision(
+                id,
+                (signal.payload['revision'] as num).toInt(),
+              ),
+            ),
         apply: (state) {
           if (mounted) {
             _animateFocus = false;
             store.reconcileWorkspace(project, state);
-            unawaited(_configurePresentation(project, state));
           }
         },
         onError: (error) {
@@ -135,8 +132,18 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     try {
       final revision = store.remoteRevisions[workspace] ?? 0;
       final state = open
-          ? await client.reopenWorkspaceWindow(workspace, window, revision)
-          : await client.closeWorkspaceWindow(workspace, window, revision);
+          ? await client.showNeuron(
+              workspace,
+              window,
+              const Uuid().v4(),
+              revision,
+            )
+          : await client.closeNeuron(
+              workspace,
+              window,
+              const Uuid().v4(),
+              revision,
+            );
       if (!mounted) return;
       final project = store.projects.firstWhere((p) => p.id == workspace);
       store.reconcileWorkspace(
@@ -244,7 +251,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       controller.dispose();
     }
     _remote.clear();
-    _sourcesSynced.clear();
     for (final table in _tables.values) {
       table.dispose();
     }
@@ -754,11 +760,18 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     final client = widget.programmingClient;
     if (client == null) return;
     try {
-      final snapshot = await client.focusWorkspaceWindow(
-        workspace,
-        window,
-        store.remoteRevisions[workspace] ?? 0,
-      );
+      final snapshot = window == null
+          ? await client.homeNeuron(
+              workspace,
+              const Uuid().v4(),
+              store.remoteRevisions[workspace] ?? 0,
+            )
+          : await client.showNeuron(
+              workspace,
+              window,
+              const Uuid().v4(),
+              store.remoteRevisions[workspace] ?? 0,
+            );
       if (!mounted) return;
       _animateFocus = true;
       store.reconcileWorkspace(
@@ -767,57 +780,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       );
     } catch (_) {
       await _remote[workspace]?.refresh();
-    }
-  }
-
-  Future<void> _configurePresentation(
-    WorkspaceProject project,
-    WorkspaceSnapshot snapshot,
-  ) async {
-    if (snapshot.home != null ||
-        snapshot.companion != null ||
-        !_presentationConfigured.add(project.id)) {
-      return;
-    }
-    final client = widget.programmingClient!;
-    try {
-      final manifests = await Future.wait([
-        _manifest(client, project.id, 'ino'),
-        _manifest(client, project.id, 'assistant'),
-      ]);
-      if (!mounted) return;
-      Map<String, dynamic>? entry(String app, AppManifest manifest) =>
-          manifest.entry == null
-          ? null
-          : {
-              'kind': manifest.entry!.kind,
-              'name': '${project.id}/apps/$app/${manifest.entry!.name}',
-            };
-      final home = entry('ino', manifests[0]);
-      final companion = entry('assistant', manifests[1]);
-      if (home == null && companion == null) return;
-      var latest = snapshot;
-      for (var attempt = 0; attempt < 2; attempt++) {
-        try {
-          final configured = await client.configureWorkspacePresentation(
-            project.id,
-            home: latest.home ?? home,
-            companion: latest.companion ?? companion,
-            expectedRevision: latest.revision,
-          );
-          if (mounted) store.reconcileWorkspace(project, configured);
-          return;
-        } on TableRequestException catch (error) {
-          if (error.statusCode != 409 || attempt == 1) rethrow;
-          latest = await client.readWorkspace(project.id);
-          if (latest.home != null && latest.companion != null) {
-            if (mounted) store.reconcileWorkspace(project, latest);
-            return;
-          }
-        }
-      }
-    } catch (_) {
-      _presentationConfigured.remove(project.id);
     }
   }
 
@@ -874,9 +836,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       return _home ? _homeScreen(context) : _work(context);
     }
     final project = store.currentProject;
-    final snapshot = store.remoteSnapshots[project.id];
-    final home = snapshot?.home;
-    final companion = snapshot?.companion;
+    // Task5 replaces these desktop slots with the derived scene slots.
+    final Map<String, dynamic>? home = null;
+    final Map<String, dynamic>? companion = null;
     final tokens = UiTokens.of(context);
     final main = Column(
       children: [
@@ -1112,11 +1074,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         final shown = snapshot.data;
         if (shown == null) return const SizedBox(width: 40, height: 40);
         final (app, manifest) = shown;
-        if (app == 'assistant' &&
-            (_companionExpanded || appOfWindow(focused ?? '') == 'assistant') &&
-            store.remoteSnapshots[project.id]?.companion != null) {
-          return const SizedBox.shrink();
-        }
         return WorkspaceIslands.island(
           context,
           Dock(
@@ -1450,31 +1407,40 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       final operation = action['operation'] as String?;
       final input = action['input'] as String? ?? '';
       final brains = await client.jsonRequest('GET', '/identity/brains');
-      if (brains is! List || !brains.any((b) => b is Map && b['id'] == brainId)) {
+      if (brains is! List ||
+          !brains.any((b) => b is Map && b['id'] == brainId)) {
         throw StateError('This account is not a member of that brain.');
       }
       if (action['view'] == 'configuration') {
         await client.readAppManifest(brainId, application);
         if (!mounted) return;
-        _navigator.currentState?.push(MaterialPageRoute<void>(
-          builder: (_) => AppDetailScreen(
-            workspaceId: brainId,
-            installedName: application,
-            request: (method, path, [body]) => client.jsonRequest(method, path, body),
-            onOpen: (name) => _activateWorkspace({
-              'brainId': brainId,
-              'application': name,
-            }),
+        _navigator.currentState?.push(
+          MaterialPageRoute<void>(
+            builder: (_) => AppDetailScreen(
+              workspaceId: brainId,
+              installedName: application,
+              request: (method, path, [body]) =>
+                  client.jsonRequest(method, path, body),
+              onOpen: (name) =>
+                  _activateWorkspace({'brainId': brainId, 'application': name}),
+            ),
           ),
-        ));
+        );
         return;
       }
-      final snapshot = await client.openApp(brainId, application);
+      final current = await client.readWorkspace(brainId);
+      final snapshot = await client.showNeuron(
+        brainId,
+        DigitalBrainUiClient.appKey(brainId, application),
+        const Uuid().v4(),
+        current.revision,
+      );
       if (operation != null && operation.isNotEmpty) {
         await client.requestApp(brainId, application, operation, input);
       }
       if (!mounted) return;
-      final project = store.projects.where((p) => p.id == brainId).firstOrNull ??
+      final project =
+          store.projects.where((p) => p.id == brainId).firstOrNull ??
           store.createProject(brainId, id: brainId);
       store.reconcileWorkspace(project, snapshot);
       store.selectProject(brainId);
@@ -1497,7 +1463,13 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     if (client == null) return;
     final project = store.currentProject;
     try {
-      final result = await client.openApp(project.id, application, arguments);
+      final state = await client.readWorkspace(project.id);
+      final result = await client.showNeuron(
+        project.id,
+        DigitalBrainUiClient.appKey(project.id, application),
+        const Uuid().v4(),
+        state.revision,
+      );
       if (!mounted) return;
       _animateFocus = true;
       store.reconcileWorkspace(project, result);

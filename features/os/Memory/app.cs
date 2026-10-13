@@ -82,7 +82,6 @@ static class App
         [
             new("tables", "postgres"),
         ],
-        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [
