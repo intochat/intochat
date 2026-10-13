@@ -15,3 +15,9 @@ public sealed record CircleSpoke(
     [property: Id(1)] string Speaker,
     [property: Id(2)] string Text,
     [property: Id(3)] long Sequence) : Signal;
+
+// Trust revocation has committed; part rotation and the circle snapshot may still be in progress.
+[GenerateSerializer, Alias("circles.membership-revoked")]
+public sealed record CircleMembershipRevoked(
+    [property: Id(0)] string AccountId,
+    [property: Id(1)] string[] PreviousMembers) : Signal;

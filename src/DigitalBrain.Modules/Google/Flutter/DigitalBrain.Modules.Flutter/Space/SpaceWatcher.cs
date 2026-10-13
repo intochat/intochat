@@ -3,6 +3,8 @@ using DigitalBrain.Circles;
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flutter.Workspace.Signals;
+using DigitalBrain.Flutter.Person.Signals;
+using DigitalBrain.Flutter.Card.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,9 +18,16 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     private readonly LocalSignalHub.Subscription<AppActivity> _activity = hub.Subscribe<AppActivity>();
 
     private readonly LocalSignalHub.Subscription<CircleChanged> _circles = hub.Subscribe<CircleChanged>();
+    private readonly LocalSignalHub.Subscription<CircleMembershipRevoked> _revoked = hub.Subscribe<CircleMembershipRevoked>();
     private readonly LocalSignalHub.Subscription<CircleSpoke> _posts = hub.Subscribe<CircleSpoke>();
 
+    private readonly LocalSignalHub.Subscription<PersonChanged> _profiles = hub.Subscribe<PersonChanged>();
+    private readonly LocalSignalHub.Subscription<CardChanged> _cards = hub.Subscribe<CardChanged>();
+
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(
+        Consume(_profiles, change => RebuildAuthorAndFriends(change.Name.EndsWith("/profile", StringComparison.Ordinal) ? change.Name[..^8] : null), stoppingToken),
+        Consume(_cards, change => RebuildAuthorAndFriends(CircleMembers.PostBrain(change.Name)), stoppingToken),
+        Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
         Consume(_circles, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])), stoppingToken),
         Consume(_posts, async change =>
         {
@@ -51,6 +60,13 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
                 { logger.LogWarning(error, "Could not rebuild a space after {Signal}.", typeof(T).Name); }
             }
         }
+    }
+
+    private async Task RebuildAuthorAndFriends(string? author)
+    {
+        if (!BrainScope.IsValidId(author)) { return; }
+        await Rebuild(author);
+        foreach (var friend in await friends.FriendsOf(author)) { await Rebuild(friend.Brain); }
     }
 
     private async Task RebuildMembers(IEnumerable<string> accounts)

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Circles;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
@@ -172,6 +173,106 @@ public sealed class FriendsSpaceFacts
         Assert.Empty(await brain.Services.GetRequiredService<CircleMembers>().FriendsOf(bob.BrainId));
     }
 
+    [Fact(Timeout = 120_000)]
+    public async Task RevocationClearsBothFocusedScenesWhileRemovalIsStillRotating()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct, pauseRotation: true);
+        var (alice, bob, circle) = await People(brain, ct);
+        await Post(brain, bob, circle);
+        await Post(brain, alice, circle);
+        await Show(brain, alice, bob.Key("posts/p1"));
+        await Show(brain, bob, alice.Key("profile"));
+        await Rebuild(brain, alice, ct, s => s.Definition.Nodes.Any(n => n.Id == bob.Key("posts/p1")));
+        await Rebuild(brain, bob, ct, s => s.Definition.Nodes.Any(n => n.Id == alice.Key("profile")));
+        var a = brain.Get<IScene>(alice.Key("space"));
+        var b = brain.Get<IScene>(bob.Key("space"));
+        await using var ac = await brain.Observe<SceneChanged>(a, ct);
+        await using var bc = await brain.Observe<SceneChanged>(b, ct);
+        var keys = brain.Services.GetRequiredService<PausedCircleKeys>();
+        Task removing;
+        using (alice.AsCallerIn(circle)) { removing = brain.Get<ICircle>(ICircle.Key(circle)).Remove(bob.AccountId); }
+        try
+        {
+            await keys.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            do { await ac.NextAsync(ct: ct); }
+            while ((await a.Read()).Definition.Nodes.Any(n => n.Id.StartsWith(bob.BrainId + "/", StringComparison.Ordinal)));
+            do { await bc.NextAsync(ct: ct); }
+            while ((await b.Read()).Definition.Nodes.Any(n => n.Id.StartsWith(alice.BrainId + "/", StringComparison.Ordinal)));
+            Assert.False(removing.IsCompleted);
+            using (alice.AsCaller())
+            {
+                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(bob.Key("profile")));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(bob.Key("posts/p1")));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPosts(bob.Key("posts")));
+            }
+            using (bob.AsCaller())
+            {
+                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(bob.BrainId);
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(alice.Key("profile")));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(alice.Key("posts/p1")));
+            }
+        }
+        finally { keys.Release.TrySetResult(); await removing.WaitAsync(TimeSpan.FromSeconds(5), ct); }
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task ProfileAndPostEditsRefreshCurrentViewersWithoutNavigation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct);
+        var (alice, bob, circle) = await People(brain, ct);
+        await Post(brain, bob, circle);
+        await Show(brain, alice, bob.Key("profile"));
+        await Home(brain, bob);
+        await Rebuild(brain, alice, ct, s => s.Definition.Nodes.Any(n => n.Id == bob.Key("posts/p1")));
+        await Rebuild(brain, bob, ct);
+        var a = brain.Get<IScene>(alice.Key("space"));
+        var b = brain.Get<IScene>(bob.Key("space"));
+        var beforeA = await brain.Get<IWorkspace>(alice.BrainId).Read();
+        var beforeB = await brain.Get<IWorkspace>(bob.BrainId).Read();
+        await using (var ac = await brain.Observe<SceneChanged>(a, ct))
+        await using (var bc = await brain.Observe<SceneChanged>(b, ct))
+        {
+            using (bob.AsCaller()) { await brain.Get<IPerson>(bob.Key("profile")).Set("Robert", "avatar.png"); }
+            do { await ac.NextAsync(ct: ct); }
+            while (!(await a.Read()).Definition.Nodes.Any(n => n.Id == bob.Key("profile") && n.Parameters["title"] == "Robert"));
+            await bc.NextAsync(ct: ct);
+            using (alice.AsCaller())
+            { Assert.Equal("Robert", (await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId).ReadProfile(bob.Key("profile"))).DisplayName); }
+        }
+        await using (var ac = await brain.Observe<SceneChanged>(a, ct))
+        await using (var bc = await brain.Observe<SceneChanged>(b, ct))
+        {
+            using (bob.AsCaller()) { await brain.Get<ICard>(bob.Key("posts/p1")).Set("Edited title", "Edited body"); }
+            do { await ac.NextAsync(ct: ct); }
+            while (!(await a.Read()).Definition.Nodes.Any(n => n.Id == bob.Key("posts/p1") && n.Parameters["title"] == "Edited title"));
+            await bc.NextAsync(ct: ct);
+            using (alice.AsCaller())
+            {
+                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+                Assert.Equal("Edited body", (await space.ReadPost(bob.Key("posts/p1"))).Body);
+                Assert.Equal("Edited title", Assert.Single((await space.ReadPosts(bob.Key("posts"))).Definition.Items).Label);
+            }
+            using (bob.AsCaller())
+            { Assert.Equal("Edited body", (await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(bob.BrainId).ReadPost(bob.Key("posts/p1"))).Body); }
+        }
+        Assert.Equal(beforeA.Revision, (await brain.Get<IWorkspace>(alice.BrainId).Read()).Revision);
+        Assert.Equal(beforeB.Revision, (await brain.Get<IWorkspace>(bob.BrainId).Read()).Revision);
+    }
+
+    // Synchronizes the real key service; all operations still delegate to its actual implementation.
+    private sealed class PausedCircleKeys(ICirclePartKeys inner) : ICirclePartKeys
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task ShareWith(string circle, string machine, CancellationToken ct = default) => inner.ShareWith(circle, machine, ct);
+        public Task RevokeLeases(string circle, string machine, CancellationToken ct = default) => inner.RevokeLeases(circle, machine, ct);
+        public async Task Rotate(string circle, CancellationToken ct = default)
+        { Entered.TrySetResult(); await Release.Task.WaitAsync(ct); await inner.Rotate(circle, ct); }
+    }
+
     private static async Task<(DigitalBrain.Testing.Person Alice, DigitalBrain.Testing.Person Bob, string Circle)> People(ITestBrain brain, CancellationToken ct)
     {
         var alice = await brain.PersonAsync("alice", ct);
@@ -220,13 +321,21 @@ public sealed class FriendsSpaceFacts
         return state;
     }
 
-    private static Task<ITestBrain> Start(CancellationToken ct, bool checkCreation = false)
+    private static Task<ITestBrain> Start(CancellationToken ct, bool checkCreation = false, bool pauseRotation = false)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
         return TestBrain.Create().WithModule<AppsModule, AppsOptions>(o => o.Features = Path.Combine(root!.FullName, "features"))
             .WithModule<CirclesModule>().WithModule<FlutterModule>().WithModule<FlameModule>()
-            .ConfigureServices(s => { if (checkCreation) { s.AddSingleton<CreationFriends>(); s.AddSingleton<ICreationHandler>(p => p.GetRequiredService<CreationFriends>()); } s.RemoveAll<IAppRuntime>(); s.AddSingleton<IAppRuntime, NoRuntime>(); }).StartAsync(ct);
+            .ConfigureServices(s => { if (pauseRotation)
+            {
+                var original = s.Last(d => d.ServiceType == typeof(ICirclePartKeys));
+                s.Remove(original);
+                s.AddSingleton(p => new PausedCircleKeys((ICirclePartKeys)(original.ImplementationInstance
+                    ?? original.ImplementationFactory?.Invoke(p) ?? ActivatorUtilities.CreateInstance(p, original.ImplementationType!))));
+                s.AddSingleton<ICirclePartKeys>(p => p.GetRequiredService<PausedCircleKeys>());
+            }
+            if (checkCreation) { s.AddSingleton<CreationFriends>(); s.AddSingleton<ICreationHandler>(p => p.GetRequiredService<CreationFriends>()); } s.RemoveAll<IAppRuntime>(); s.AddSingleton<IAppRuntime, NoRuntime>(); }).StartAsync(ct);
     }
 
     private sealed class NoRuntime : IAppRuntime

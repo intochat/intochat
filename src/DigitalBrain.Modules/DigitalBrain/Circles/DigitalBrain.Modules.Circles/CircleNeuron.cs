@@ -45,7 +45,7 @@ internal sealed record CircleBinding(
 
 // The circle core `{circle}/circle` (T26-1): the circle brain's own state. Members are accounts the trust side records
 // as memberships (R129), its machines are contributed (R128), and every part key of the circle brain is wrapped to
-// those machines (T26-5). Not reentrant: every change is committed before anyone hears of it.
+// those machines (T26-5). Mutations remain nonreentrant; trust revocation is announced before key rotation.
 [GrainType(CircleGrainType.Name)]
 internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
@@ -58,6 +58,8 @@ internal sealed class CircleNeuron(
     private const string CoreSuffix = "/circle";
 
     private string CircleBrain => this.GetPrimaryKeyString()[..^CoreSuffix.Length];
+
+    public Task<string[]> Members() => Task.FromResult(Core().Members.ToArray());
 
     public Task<CircleState> State() => Task.FromResult(Describe(Core()));
 
@@ -158,7 +160,11 @@ internal sealed class CircleNeuron(
 
     private async Task Drop(CircleRecord next, string accountId)
     {
-        if (next.Members.Contains(accountId)) { await identity.RemoveMember(CircleBrain, accountId); }
+        if (next.Members.Contains(accountId))
+        {
+            await identity.RemoveMember(CircleBrain, accountId);
+            await PublishAsync(new CircleMembershipRevoked(accountId, next.Members.ToArray()));
+        }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];
         // A machine goes by the accounts it is registered to, not by who contributed it: one that serves the removed

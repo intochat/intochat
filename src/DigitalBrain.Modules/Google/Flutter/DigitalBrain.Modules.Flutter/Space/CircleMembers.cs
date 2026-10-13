@@ -22,11 +22,11 @@ internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identi
         foreach (var entry in (await identity.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Circle))
         {
             if ((await identity.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
-            CircleState circle;
-            try { circle = await grains.GetGrain<ICircleStateReader>(ICircle.Key(entry.Id)).State(); }
+            string[] members;
+            try { members = await grains.GetGrain<ICircleStateReader>(ICircle.Key(entry.Id)).Members(); }
             catch (KeyNotFoundException) { continue; }
-            if (!circle.Members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
-            foreach (var member in circle.Members.Where(m => m != account.AccountId))
+            if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
+            foreach (var member in members.Where(m => m != account.AccountId))
             {
                 if (await identity.ReadAccount(member) is not { } memberAccount
                     || (await identity.Membership(entry.Id, memberAccount.OwnerPrincipalId))?.AccountId != member) { continue; }

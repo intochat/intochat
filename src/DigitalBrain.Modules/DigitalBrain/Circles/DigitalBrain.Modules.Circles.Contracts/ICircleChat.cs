@@ -26,6 +26,9 @@ public interface ICircleChat : INeuron
 public interface ICircleStateReader : IGrainWithStringKey
 {
     Task<CircleState> State();
+    // Immutable snapshot only; consumers must intersect it with current trust membership.
+    [Orleans.Concurrency.AlwaysInterleave, Orleans.Concurrency.ReadOnly]
+    Task<string[]> Members();
 }
 
 [Alias("circles.post-reader"), DefaultGrainType("circles.chat")]
