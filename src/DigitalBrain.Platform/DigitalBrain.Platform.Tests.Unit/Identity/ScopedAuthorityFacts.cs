@@ -1,6 +1,5 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
@@ -11,12 +10,40 @@ namespace DigitalBrain.Platform.Tests.Unit.Identity;
 public sealed class ScopedAuthorityFacts
 {
     [Fact]
+    public async Task SignInFinishesLocalHostingAfterTrustRegistrationAlreadyCompleted()
+    {
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var identity = brain.Services.GetRequiredService<IIdentityClient>();
+        var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
+        const string principal = "interrupted-hosting";
+        const string password = "long-test-password";
+        var hash = new global::Microsoft.AspNetCore.Identity.PasswordHasher<string>().HashPassword(principal, password);
+        Assert.True(await brain.Grains.GetGrain<IPrincipalCredential>(principal).TryCreate(hash));
+        var provision = await identity.RegisterPrincipal(principal, "Interrupted hosting");
+        Assert.True(provision.NewBrain);
+        Assert.True(await identity.IsRegistered(principal));
+        Assert.DoesNotContain(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
+
+        Assert.Null(await passwords.Authenticate(principal, "wrong-password"));
+        Assert.DoesNotContain(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
+        Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
+        Assert.Contains(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
+        var created = brain.Grains.GetGrain<IBrain>(provision.Member.BrainId);
+        var original = await created.Read();
+        Assert.Equal(provision.Member.AccountId, original.Owner.AccountId);
+        Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
+        Assert.Equal(original, await created.Read());
+    }
+
+    [Fact]
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
         await using var brain = await TestBrain.Create().ConfigureServices(services =>
             services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
+        // Interrupt the registration under test, after the harness owner has bootstrapped.
+        ((FailOnceStorage)brain.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage)).Arm();
         var principal = brain.Grains.GetGrain<IPrincipal>("recoverable");
         var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
         var failure = await Assert.ThrowsAsync<OrleansException>(() => passwords.Register("recoverable", "long-test-password", "Recoverable"));
@@ -33,7 +60,8 @@ public sealed class ScopedAuthorityFacts
     private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, GrainId), BinaryData> _data = new();
-        private int _failed;
+        private int _armed;
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
         public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
             if (_data.TryGetValue((name, id), out var bytes)) { state.State = serializer.Deserialize<T>(bytes); state.RecordExists = true; }
@@ -41,7 +69,7 @@ public sealed class ScopedAuthorityFacts
         }
         public Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
-            if (typeof(T) == typeof(AccountState) && Interlocked.Exchange(ref _failed, 1) == 0)
+            if (typeof(T) == typeof(AccountState) && Interlocked.Exchange(ref _armed, 0) == 1)
             { throw new IOException("Interrupted account provisioning."); }
             _data[(name, id)] = serializer.Serialize(state.State);
             state.RecordExists = true;

@@ -12,7 +12,8 @@ internal sealed class BrainBirths(IGrainFactory grains, MachineRegistrar registr
     {
         ArgumentNullException.ThrowIfNull(provision);
         var owner = provision.Member;
-        if (!provision.NewBrain) { return owner; }
+        // Trust provisioning may have committed before local binding or creation failed.
+        // Both local steps are idempotent; NewBrain describes trust state, not their completion.
         await registrar.Bind(owner.AccountId);
         // As its owner: the creation handlers (the OS defaults' installs) act in the owner's brain, also at boot,
         // where no call stamped a caller.
