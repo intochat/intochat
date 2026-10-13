@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'models/scene_models.dart';
 import 'ui_client.dart';
 
-/// The brain's Flame routes under `/brains/{brain}/ui/`: scenes and the person's stage.
+/// The brain's Flame routes under `/brains/{brain}/ui/`: scenes.
 // Not final, so the shell's tests can stand in a fake.
 class SceneClient {
   SceneClient(this._http, this._base, this.workspace);
@@ -39,21 +39,6 @@ class SceneClient {
     'y': y,
     'payload': payload,
   });
-
-  Future<StageState> stage() async =>
-      StageState.fromJson(await _getJson(_ui('stage')));
-
-  Future<void> go(String sceneKey, {String? dockSurfaceKey}) => _post(
-    _ui('stage/go'),
-    {'sceneKey': sceneKey, 'dockSurfaceKey': dockSurfaceKey},
-  );
-
-  Future<void> back() => _post(_ui('stage/back'), const {});
-
-  Future<void> home() => _post(_ui('stage/home'), const {});
-
-  Future<void> setHome(String sceneKey) =>
-      _post(_ui('stage/home/set'), {'sceneKey': sceneKey});
 
   Future<Map<String, dynamic>> _getJson(String path) async {
     final response = await _send('GET', path);

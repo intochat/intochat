@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Flame module: scene and stage neurons the Flutter shell renders with Flame.</Description>
+    <Description>Flame module: scene neurons the Flutter shell renders with Flame.</Description>
     <RootNamespace>DigitalBrain.Modules.Flame</RootNamespace>
   </PropertyGroup>
   <ItemGroup>

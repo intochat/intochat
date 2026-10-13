@@ -786,19 +786,6 @@ final class DigitalBrainUiClient {
     ];
   }
 
-  Future<Map<String, dynamic>> readUi(
-    String workspace,
-    String collection,
-    String name,
-  ) async {
-    final response = await _request(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspace)}/ui/$collection/${Uri.encodeComponent(name)}',
-      timeout: const Duration(seconds: 10),
-    );
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
   Future<void> postUi(String path, {Map<String, Object?>? body}) async {
     await _request(
       'POST',
@@ -819,7 +806,7 @@ final class DigitalBrainUiClient {
     );
   }
 
-  /// The brain's scenes and stage over this client's authenticated session.
+  /// The brain's scenes over this client's authenticated session.
   SceneClient scenes(String workspace) =>
       SceneClient(_http, baseUri, workspace);
 

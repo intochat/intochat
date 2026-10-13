@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Flame module contracts: scenes and the stage, edge neurons a Flame renderer draws.</Description>
+    <Description>Flame module contracts: scenes, edge neurons a Flame renderer draws.</Description>
     <RootNamespace>DigitalBrain.Modules.Flame.Contracts</RootNamespace>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>

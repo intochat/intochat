@@ -14,10 +14,11 @@ namespace DigitalBrain.Modules.Flutter.Tests;
 public sealed class AppUiRouteFacts(FlutterHostFixture host)
 {
     [Fact]
-    public void AppUiNodesAndEventsAreServedUnderTheBrainRoute()
+    public void AppUiNodesEventsAndTablesAreServedUnderTheBrainRoute()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(typeof(IDigitalBrain), _ => null!);
+        builder.Services.AddSingleton(typeof(IGrainFactory), _ => null!);
         IEndpointRouteBuilder app = builder.Build();
         AppUiEndpoints.Map(app);
 
@@ -25,7 +26,13 @@ public sealed class AppUiRouteFacts(FlutterHostFixture host)
             .OfType<RouteEndpoint>().Select(endpoint => $"{string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)} {endpoint.RoutePattern.RawText}").Order(StringComparer.Ordinal).ToArray();
 
         Assert.All(routes, route => Assert.Contains(" /brains/{brainId}/", route));
-        Assert.Equal(["GET /brains/{brainId}/apps/node", "POST /brains/{brainId}/apps/event"], routes);
+        Assert.Equal(
+        [
+            "GET /brains/{brainId}/apps/node",
+            "GET /brains/{brainId}/ui/tables/{name}",
+            "POST /brains/{brainId}/apps/event",
+            "POST /brains/{brainId}/ui/tables/{name}/replace",
+        ], routes);
     }
 
     [Fact]

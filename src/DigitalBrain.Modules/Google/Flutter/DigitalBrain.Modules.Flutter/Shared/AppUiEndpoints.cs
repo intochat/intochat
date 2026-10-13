@@ -135,6 +135,13 @@ internal static class AppUiEndpoints
             }
             return Results.Ok(new { delivered = true });
         });
+
+        UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
+        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, IGrainFactory grains, CancellationToken ct) =>
+        {
+            await grains.GetGrain<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
+            return Results.Accepted();
+        });
     }
 
     private static bool OwnsUi(string scope, string name) =>

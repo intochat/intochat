@@ -5,7 +5,6 @@ namespace DigitalBrain.Flame;
 public static class FlameVocabulary
 {
     public const string SceneType = "scene";
-    public const string StageType = "stage";
     public const int MaxNodes = 4096;
     public const int MaxParameterBytes = 64 * 1024;
     public static readonly string[] NodeTypes =

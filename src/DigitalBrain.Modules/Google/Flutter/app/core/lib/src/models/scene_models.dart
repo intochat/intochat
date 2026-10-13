@@ -1,4 +1,4 @@
-// Dart mirrors of the Flame module's scene and stage records (camelCase JSON).
+// Dart mirrors of the Flame module's scene records (camelCase JSON).
 
 List<Map<String, dynamic>> _objects(Object? value) =>
     (value as List? ?? const [])
@@ -252,36 +252,4 @@ final class SceneState {
       current: _strings(json['current']),
     );
   }
-}
-
-final class StageEntry {
-  const StageEntry({required this.sceneKey, this.dockSurfaceKey});
-  final String sceneKey;
-  final String? dockSurfaceKey;
-
-  factory StageEntry.fromJson(Map<String, dynamic> json) => StageEntry(
-    sceneKey: json['sceneKey'] as String,
-    dockSurfaceKey: json['dockSurfaceKey'] as String?,
-  );
-}
-
-final class StageState {
-  const StageState({
-    required this.name,
-    required this.revision,
-    this.home = '',
-    this.stack = const [],
-  });
-  final String name, home;
-  final int revision;
-  final List<StageEntry> stack;
-
-  factory StageState.fromJson(Map<String, dynamic> json) => StageState(
-    name: json['name'] as String? ?? '',
-    revision: (json['revision'] as num?)?.toInt() ?? 0,
-    home: json['home'] as String? ?? '',
-    stack: _objects(json['stack'])
-        .map(StageEntry.fromJson)
-        .toList(growable: false),
-  );
 }

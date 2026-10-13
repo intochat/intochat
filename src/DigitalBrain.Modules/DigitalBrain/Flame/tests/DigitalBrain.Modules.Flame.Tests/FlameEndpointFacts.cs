@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
-using DigitalBrain.Flame.Stage;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flame.Tests;
@@ -33,29 +32,5 @@ public sealed class FlameEndpointFacts
 
         using var reported = await http.PostAsJsonAsync($"{Scene}/report", new { nodeId = "sphere", kind = "tap", x = 0.5, y = 0.5, payload = (string?)null }, ct);
         Assert.Equal(HttpStatusCode.OK, reported.StatusCode);
-    }
-
-    [Fact]
-    public async Task TheShellMovesItsOwnStageOverHttp()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var http = brain.HttpClient;
-        const string Stage = "/brains/owner/ui/stage";
-
-        using var home = await http.PostAsJsonAsync($"{Stage}/home/set", new { sceneKey = "owner/apps/ino/scenes/home" }, ct);
-        Assert.Equal(HttpStatusCode.OK, home.StatusCode);
-        using var go = await http.PostAsJsonAsync($"{Stage}/go", new { sceneKey = "owner/apps/brainview/scenes/brain", dockSurfaceKey = (string?)null }, ct);
-        Assert.Equal(HttpStatusCode.OK, go.StatusCode);
-        var pushed = await http.GetFromJsonAsync<JsonElement>(Stage, ct);
-        Assert.Equal(2, pushed.GetProperty("stack").GetArrayLength());
-
-        using var back = await http.PostAsync($"{Stage}/back", null, ct);
-        Assert.Equal(HttpStatusCode.OK, back.StatusCode);
-        var popped = await http.GetFromJsonAsync<JsonElement>(Stage, ct);
-        Assert.Equal(1, popped.GetProperty("stack").GetArrayLength());
-        Assert.Equal("owner/apps/ino/scenes/home", popped.GetProperty("stack")[0].GetProperty("sceneKey").GetString());
-        // The owner's shell moved the alias stage, the one its synapses address.
-        Assert.Single((await brain.Get<IStage>("owner/stage/owner").Read()).Stack);
     }
 }
