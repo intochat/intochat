@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -171,6 +172,51 @@ void main() {
     expect(find.text('Could not update your space.'), findsNothing);
     expect(ui.calls[0].id, ui.calls[1].id);
   });
+  for (final concurrent in [false, true]) {
+    testWidgets(
+      'failed Show survives successful unchanged-scene refresh concurrent=$concurrent',
+      (tester) async {
+        final (ui, scenes, controller) = await mount(tester);
+        final release = Completer<void>();
+        final entered = Completer<void>();
+        Future<void>? reading;
+        if (concurrent) {
+          scenes.beforeRead = () async {
+            entered.complete();
+            await release.future;
+          };
+          reading = controller.refresh();
+          await tester.pump();
+          expect(entered.isCompleted, isTrue);
+        }
+        ui.failCommands = true;
+        await expectLater(
+          controller.show('brain/apps/files'),
+          throwsA(anything),
+        );
+        final commandError = controller.error.value;
+        expect(commandError, isNotNull);
+        if (concurrent) {
+          scenes.beforeRead = null;
+          release.complete();
+          await reading;
+        } else {
+          await controller.refresh();
+        }
+        await tester.pumpAndSettle();
+        expect(controller.error.value, same(commandError));
+        expect(controller.view.value.focused, 'brain/apps/ino');
+        expect(find.text('Could not update your space.'), findsOneWidget);
+        ui.failCommands = false;
+        scenes.revision++;
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+        expect(controller.view.value.focused, 'brain/apps/files');
+        expect(ui.calls[0].id, ui.calls[1].id);
+        expect(find.text('Could not update your space.'), findsNothing);
+      },
+    );
+  }
   testWidgets('retry after a lost Back response does not pop twice', (
     tester,
   ) async {

@@ -123,7 +123,7 @@ class SpaceController {
             .listen(
               (_) => unawaited(refresh(animate: !_recovering)),
               onError: (Object problem) {
-                if (!_disposed) error.value = problem;
+                if (!_disposed && _retry == null) error.value = problem;
                 _reopen();
               },
               onDone: _reopen,
@@ -157,11 +157,12 @@ class SpaceController {
         if (_disposed) return;
         workspace = snapshot;
         _apply(scene, animate: animate && !_recovering, cut: _recovering);
-        error.value = null;
+        // A successful read cannot acknowledge a failed navigation intent.
+        if (_retry == null) error.value = null;
         _recovering = false;
       } while (_again && !_disposed);
     } catch (problem) {
-      if (!_disposed) error.value = problem;
+      if (!_disposed && _retry == null) error.value = problem;
     } finally {
       _reading = false;
     }

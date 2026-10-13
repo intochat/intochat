@@ -97,8 +97,10 @@ class SpaceScenes extends SceneClient {
   String icon = 'folder';
   List<Map<String, dynamic>> toolbar = [];
   final reports = <String>[];
+  Future<void> Function()? beforeRead;
   @override
   Future<SceneState> read(String sceneKey) async {
+    await beforeRead?.call();
     if (failRead) throw StateError('scene unavailable');
     return scene();
   }
