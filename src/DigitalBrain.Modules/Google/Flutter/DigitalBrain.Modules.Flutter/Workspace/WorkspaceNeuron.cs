@@ -124,7 +124,7 @@ internal sealed class WorkspaceNeuron(
     private void RequireRevision(long revision)
     {
         if (store.State.Revision != revision)
-        { throw new WorkspaceRevisionConflictException($"Expected revision {revision}; current revision is {store.State.Revision}.", store.State.Revision); }
+        { throw new RevisionConflictException($"Expected revision {revision}; current revision is {store.State.Revision}.", store.State.Revision); }
     }
     private static void Validate(string value, int limit, string name)
     {

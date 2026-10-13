@@ -138,7 +138,7 @@ public sealed class WorkspaceFacts
         var workspace = brain.Get<IWorkspace>("owner/a");
         var request = new OpenWindow("run/call", "view", "Active leads", WindowReference.Table("table"), 0);
         await workspace.Open(request);
-        await Assert.ThrowsAsync<WorkspaceRevisionConflictException>(() => workspace.Close("view", 0, "close"));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => workspace.Close("view", 0, "close"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Open(request with { Reference = WindowReference.Table("another-table") }));
         Assert.Equal(1, (await workspace.Read()).Revision);
         Assert.Empty((await brain.Get<IWorkspace>("owner/b").Read()).Windows);
@@ -165,7 +165,7 @@ public sealed class WorkspaceFacts
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await workspace.Open(new("operation", "window", "Leads", WindowReference.Table("table"), 0));
-        var conflict = await Assert.ThrowsAsync<WorkspaceRevisionConflictException>(() => workspace.Close("window", 0, "close"));
+        var conflict = await Assert.ThrowsAsync<RevisionConflictException>(() => workspace.Close("window", 0, "close"));
         Assert.Equal(1, conflict.CurrentRevision);
     }
 

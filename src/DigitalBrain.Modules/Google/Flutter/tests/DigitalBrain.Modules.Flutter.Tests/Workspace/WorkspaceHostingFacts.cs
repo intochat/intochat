@@ -17,10 +17,10 @@ public sealed class WorkspaceHostingFacts
             new OpenWindow("two", "two", "Two", new("text", "owner/a/apps/editor/two"), 0)
         };
         var attempts = requests.Select(workspace.Open).ToArray();
-        await Assert.ThrowsAsync<WorkspaceRevisionConflictException>(() => Task.WhenAll(attempts));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => Task.WhenAll(attempts));
         var winner = Assert.Single(attempts, attempt => attempt.IsCompletedSuccessfully);
         var rejected = Assert.Single(attempts, attempt => attempt.IsFaulted);
-        var conflict = Assert.IsType<WorkspaceRevisionConflictException>(rejected.Exception!.InnerException);
+        var conflict = Assert.IsType<RevisionConflictException>(rejected.Exception!.InnerException);
         Assert.Equal(1, conflict.CurrentRevision);
         Assert.Single((await workspace.Read()).Windows);
 

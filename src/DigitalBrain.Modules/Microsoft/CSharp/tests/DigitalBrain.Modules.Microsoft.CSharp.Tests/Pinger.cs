@@ -22,6 +22,7 @@ public interface IPinger : INeuron
 
     Task<string> Caller();
     Task RefuseUnavailable();
+    Task RefuseStale();
 
     // The caller the first Unwatch carried, as Caller() reports one, once one came: unwatches run off the runtime's turn.
     [Orleans.Concurrency.AlwaysInterleave] Task<string> Unwatched();
@@ -37,6 +38,7 @@ public sealed record Ignored([property: Id(0)] int Number) : Signal;
 // callable contract that reports the caller context the script edge stamped.
 public sealed class Pinger : Neuron, IPinger
 {
+    public Task RefuseStale() => throw new RevisionConflictException("Expected revision 3; current revision is 7.", 7);
     public Task RefuseUnavailable() => throw new ServiceUnavailableException("Sorry, the service is not available at the moment.");
     public async Task Ping(int number)
     {

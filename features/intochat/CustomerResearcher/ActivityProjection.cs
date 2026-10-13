@@ -14,16 +14,7 @@ public static class Activity
 
     sealed record Card(string Id, string Title, string Body);
 
-    public static async Task Project(DigitalBrainConnection brain, string key)
-    {
-        // A stale revision means a layout was written meanwhile; a rebuild reads authoritative state,
-        // so rerunning it from scratch is correct.
-        for (var attempt = 1; ; attempt++)
-        {
-            try { await Rebuild(brain, key); return; }
-            catch (InvalidOperationException) when (attempt < 3) { }
-        }
-    }
+    public static Task Project(DigitalBrainConnection brain, string key) => Rebuild(brain, key);
 
     static async Task Rebuild(DigitalBrainConnection brain, string key)
     {

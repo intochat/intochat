@@ -60,7 +60,7 @@ internal static class WorkspaceEndpoints
     private static async Task<IResult> Respond(Func<Task<IResult>> action)
     {
         try { return await action(); }
-        catch (WorkspaceRevisionConflictException error) { return Results.Conflict(new { error = error.Message }); }
+        catch (RevisionConflictException error) { return Results.Conflict(new { error = error.Message, currentRevision = error.CurrentRevision }); }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
         catch (KeyNotFoundException) { return Results.NotFound(new { error = "The requested workspace item was not found." }); }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }

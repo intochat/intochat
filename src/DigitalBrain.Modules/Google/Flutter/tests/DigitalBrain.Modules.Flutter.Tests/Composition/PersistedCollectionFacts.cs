@@ -20,7 +20,7 @@ public sealed class PersistedCollectionFacts
         Assert.Equal(["storages", "root"], (await collection.Read()).Definition.Breadcrumbs!.Select(x => x.Id));
         await collection.Activate("storages", 1);
         await Assert.ThrowsAsync<ArgumentException>(() => collection.Activate("outside", 1));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => collection.Activate("storages", 0));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => collection.Activate("storages", 0));
     }
 
     [Fact]

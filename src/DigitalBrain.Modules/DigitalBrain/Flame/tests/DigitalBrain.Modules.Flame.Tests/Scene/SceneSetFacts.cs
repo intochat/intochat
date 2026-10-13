@@ -46,7 +46,7 @@ public sealed class SceneSetFacts
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
         await scene.Set(Scenes.Ino(), 0);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => scene.Set(Scenes.Ino(), 0));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => scene.Set(Scenes.Ino(), 0));
         Assert.Equal(1, (await scene.Read()).Revision);
     }
 

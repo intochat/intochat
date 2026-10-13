@@ -228,16 +228,13 @@ static class Memory
     }
 
     // The current generation, whole: rows are read after the switch they were written before, and a count
-    // that disagrees with the generation (a rebuild switched and pruned meanwhile) is read again.
+    // that disagrees with the generation (a rebuild switched and pruned meanwhile) is a conflict the caller rebuilds from.
     public static async Task<Index?> ReadIndex(ITable generations, ITable rows, CancellationToken cancellationToken)
     {
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            if (await ReadGeneration(generations) is not { } generation) { return null; }
-            var current = (await ReadAll(rows, cancellationToken)).Where(row => row.Generation == generation.Number).ToList();
-            if (current.Count == generation.Rows) { return new(generation, current); }
-        }
-        return null;
+        if (await ReadGeneration(generations) is not { } generation) { return null; }
+        var current = (await ReadAll(rows, cancellationToken)).Where(row => row.Generation == generation.Number).ToList();
+        if (current.Count != generation.Rows) { throw new RevisionConflictException("The memory index switched generation while it was read.", generation.Number); }
+        return new(generation, current);
     }
 
     public static async Task<List<Row>> ReadAll(ITable table, CancellationToken cancellationToken)

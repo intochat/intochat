@@ -37,6 +37,11 @@ internal static class RuntimeEdgeEndpoints
 
     private static IResult Refusal(HttpContext http, Exception error)
     {
+        if (error is RevisionConflictException conflict)
+        {
+            http.Response.Headers[RuntimeProtocol.RefusalHeader] = RevisionConflictException.Code;
+            return Results.Json(new { message = conflict.Message, currentRevision = conflict.CurrentRevision }, statusCode: StatusCodes.Status409Conflict);
+        }
         if (error is ServiceUnavailableException)
         {
             http.Response.Headers[RuntimeProtocol.RefusalHeader] = error.GetType().Name;

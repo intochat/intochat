@@ -249,7 +249,15 @@ public sealed class SessionConnection : IAsyncDisposable
         if (response.IsSuccessStatusCode) { return; }
         var detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (response.Headers.TryGetValues(RuntimeProtocol.RefusalHeader, out var codes))
-        { throw new ScriptRefusalException(detail, codes.Single()); }
+        {
+            var code = codes.Single();
+            if (code == RevisionConflictException.Code)
+            {
+                using var body = JsonDocument.Parse(detail);
+                throw new RevisionConflictException(body.RootElement.GetProperty("message").GetString() ?? detail, body.RootElement.GetProperty("currentRevision").GetInt64());
+            }
+            throw new ScriptRefusalException(detail, code);
+        }
         throw new InvalidOperationException($"The brain refused {operation} ({(int)response.StatusCode}): {detail}");
     }
 

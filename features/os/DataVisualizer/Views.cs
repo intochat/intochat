@@ -110,30 +110,12 @@ public static class Views
             { await workspace.Open(new(operation, window, title, reference, state.Revision)); }, ct);
     }
 
-    // The workspace is shared and revisioned, so a window change can lose a race with any other caller. Through
-    // the script client that conflict arrives as a plain refusal, never as WorkspaceRevisionConflictException, so
-    // WorkspaceWindows' retry cannot match it here. Each attempt reads the current revision; a refusal is retried
-    // only while the workspace has moved past the revision the attempt sent, and any other refusal surfaces.
-    private const int WorkspaceAttempts = 8;
-
     private static async Task ChangeWorkspaceAsync(DigitalBrainConnection brain, Func<WorkspaceState, Func<IWorkspace, Task>?> plan, CancellationToken ct)
     {
         var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
-        for (var attempt = 1; ; attempt++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var state = await workspace.Read();
-            if (plan(state) is not { } change) { return; }
-            try
-            {
-                await change(workspace);
-                return;
-            }
-            catch (InvalidOperationException) when (attempt < WorkspaceAttempts)
-            {
-                if ((await workspace.Read()).Revision == state.Revision) { throw; }
-            }
-        }
+        ct.ThrowIfCancellationRequested();
+        var state = await workspace.Read();
+        if (plan(state) is { } change) { await change(workspace); }
     }
 
     private static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);

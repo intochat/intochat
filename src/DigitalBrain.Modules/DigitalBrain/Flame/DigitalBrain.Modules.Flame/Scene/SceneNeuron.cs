@@ -15,7 +15,7 @@ internal sealed class SceneNeuron([PersistentState("state", DigitalBrainNames.Cl
         var name = this.GetPrimaryKeyString();
         SceneAccess.RequireWriter(name);
         SceneValidation.Check(definition);
-        if (Snapshot.Revision != expectedRevision) { throw new InvalidOperationException($"Scene changed (revision {Snapshot.Revision}); read it and set again."); }
+        if (Snapshot.Revision != expectedRevision) { throw new RevisionConflictException($"Scene changed (revision {Snapshot.Revision}); read it and set again.", Snapshot.Revision); }
         var next = new SceneState
         {
             Name = name,

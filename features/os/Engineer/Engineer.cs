@@ -305,20 +305,10 @@ public static class Engineer
         await surface.Set(new("Engineer", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
     }
 
-    // Over the script edge a workspace revision conflict arrives as the brain's refusal (422), not as the
-    // conflict exception EnsureOpenAsync retries on, so a busy workspace is retried here the same bounded way.
-    public static async Task OpenWindowAsync(DigitalBrainConnection brain)
+    public static Task OpenWindowAsync(DigitalBrainConnection brain)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
         var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Key(brain) + "/surface"));
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                await workspace.EnsureOpenAsync(Key(brain) + "/window", "Engineer", reference, brain.Stopping);
-                return;
-            }
-            catch (InvalidOperationException conflict) when (attempt < 8 && conflict.Message.Contains("revision", StringComparison.OrdinalIgnoreCase)) { }
-        }
+        return workspace.EnsureOpenAsync(Key(brain) + "/window", "Engineer", reference, brain.Stopping);
     }
 }

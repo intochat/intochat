@@ -181,33 +181,14 @@ public static class Assistant
     public static AgentRunStatus? Settled(AgentState state)
         => state.ActiveRun is null ? state.Runs.LastOrDefault()?.Status : null;
 
-    // The workspace is shared and revisioned, so opening can lose a race with any other writer. Through the
-    // script client that conflict arrives as a plain refusal, never as WorkspaceRevisionConflictException, so
-    // WorkspaceWindows.EnsureOpenAsync's retry cannot match it here. Each attempt reads the current revision
-    // under one operation id (a refused attempt is never logged; an applied one answers its retry from the
-    // log); a refusal is retried only while the workspace has moved past the revision the attempt sent.
-    private const int WorkspaceAttempts = 8;
-
     public static async Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
         var window = Key(brain) + "/window";
         var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Key(brain) + "/surface"));
-        var operation = Guid.NewGuid().ToString();
-        for (var attempt = 1; ; attempt++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var state = await workspace.Read();
-            if (state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)) { return; }
-            try
-            {
-                await workspace.Open(new(operation, window, "Assistant", reference, state.Revision));
-                return;
-            }
-            catch (InvalidOperationException) when (attempt < WorkspaceAttempts)
-            {
-                if ((await workspace.Read()).Revision == state.Revision) { throw; }
-            }
-        }
+        ct.ThrowIfCancellationRequested();
+        var state = await workspace.Read();
+        if (state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)) { return; }
+        await workspace.Open(new(Guid.NewGuid().ToString(), window, "Assistant", reference, state.Revision));
     }
 }

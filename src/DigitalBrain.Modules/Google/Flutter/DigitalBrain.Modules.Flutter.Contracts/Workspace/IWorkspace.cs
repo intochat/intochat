@@ -14,10 +14,3 @@ public interface IWorkspace : INeuron
     Task<WorkspaceState> Close(string windowId, long expectedRevision, string operationId);
     [ReadOnly] Task<WorkspaceState> Read();
 }
-
-[GenerateSerializer, Alias("ui.workspace-revision-conflict")]
-public sealed class WorkspaceRevisionConflictException(string message, long currentRevision = 0) : InvalidOperationException(message)
-{
-    // Carries the observed revision so an optimistic caller can retry without a separate read.
-    [Id(0)] public long CurrentRevision { get; } = currentRevision;
-}

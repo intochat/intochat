@@ -31,7 +31,7 @@ internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainName
             if (state.State.LastDigest != digest) { throw new InvalidOperationException("Operation ID was reused with different data."); }
             return await Load();
         }
-        if (state.State.Revision != expectedRevision) { throw new InvalidOperationException("Workspace changed on another client. Reload before saving."); }
+        if (state.State.Revision != expectedRevision) { throw new RevisionConflictException("Workspace changed on another client. Reload before saving.", state.State.Revision); }
         var snapshot = JsonNode.Parse(json) ?? throw new ArgumentException("Missing snapshot.");
         ShellSnapshotParts.Validate(snapshot);
         var root = await ShellSnapshotParts.Write(snapshot, (hash, value) => Part(hash).Put(value));

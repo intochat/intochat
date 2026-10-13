@@ -18,7 +18,7 @@ public sealed class CompositionFacts
         var state = await surface.Read();
         Assert.Equal(1, state.Revision);
         Assert.Equal(["layout", "text"], state.Definition.Children.Select(c => c.Kind));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => surface.Set(new("Wrong", []), 0));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => surface.Set(new("Wrong", []), 0));
         Assert.Equal("Files", (await surface.Read()).Definition.Title);
     }
 

@@ -63,7 +63,7 @@ public sealed class ShellPersistenceFacts
         var saved = await state.Save(1, savedOperation, changed);
         Assert.Equal(2, saved.Revision);
         Assert.Equal(saved, await state.Save(1, savedOperation, changed));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => state.Save(1, Guid.NewGuid().ToString(), EmptySnapshot));
+        await Assert.ThrowsAsync<RevisionConflictException>(() => state.Save(1, Guid.NewGuid().ToString(), EmptySnapshot));
         await Assert.ThrowsAsync<InvalidOperationException>(() => state.Save(2, savedOperation, EmptySnapshot));
         Assert.Equal(saved, await state.Read());
         Assert.Null((await other.Read()).Json);

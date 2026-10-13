@@ -28,23 +28,12 @@ public static class Jev
         return direct;
     }
 
-    // Opens a window on one of the router's surfaces unless it is already open. Another writer can move the
-    // workspace's revision between the read and the open; the script client reports that conflict as a
-    // plain refusal (422, "Expected revision …"), so EnsureOpenAsync's own conflict retry never sees it, and
-    // a fresh read settles it. Any other refusal (a timeout is one too) is not retried.
-    public static async Task OpenWindow(DigitalBrainConnection brain, string window, string title, string surface)
+    // Opens a window on one of the router's surfaces unless it is already open.
+    public static Task OpenWindow(DigitalBrainConnection brain, string window, string title, string surface)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
         var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name(brain, surface)));
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                await workspace.EnsureOpenAsync(Name(brain, window), title, reference, brain.Stopping);
-                return;
-            }
-            catch (InvalidOperationException conflict) when (attempt < 4 && conflict.Message.Contains("Expected revision", StringComparison.Ordinal)) { }
-        }
+        return workspace.EnsureOpenAsync(Name(brain, window), title, reference, brain.Stopping);
     }
 
     public static string Short(string contract) => contract[(contract.LastIndexOf('.') + 1)..];
