@@ -10,7 +10,7 @@ namespace DigitalBrain.Flutter.Card;
 
 [GrainType(UIVocabulary.CardType)]
 internal sealed class CardNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CardState> store)
-    : Neuron<CardState>(store), ICard
+    : Neuron<CardState>(store), ICard, ISharedCardReader
 {
     public Task Set(string title, string body, IReadOnlyList<UiChildRef>? children = null)
     {
@@ -26,4 +26,11 @@ internal sealed class CardNeuron([PersistentState("state", DigitalBrainNames.Clu
     }
 
     [ReadOnly] public Task<CardState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+}
+
+// Module-only leaf access after the viewer Space neuron authorizes the exact reference.
+[Orleans.Metadata.DefaultGrainType(UIVocabulary.CardType)]
+internal interface ISharedCardReader : IGrainWithStringKey
+{
+    Task<CardState> Read();
 }

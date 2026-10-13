@@ -203,8 +203,13 @@ class _NeuronViewState extends State<NeuronView> {
       if (mounted &&
           generation == _generation &&
           version == _events.version &&
-          _data == null) {
-        setState(() => _error = error);
+          (_data == null || (error is UiRequestException &&
+              (error.statusCode == 401 || error.statusCode == 403)))) {
+        setState(() {
+          _data = null;
+          _sceneState = null;
+          _error = error;
+        });
       }
     } finally {
       _loading = false;
@@ -367,6 +372,15 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'person':
+        final avatar = '${definition['avatarUrl'] ?? ''}';
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: avatar.isEmpty ? null : NetworkImage(avatar),
+            child: avatar.isEmpty ? const Icon(Icons.person) : null,
+          ),
+          title: Text('${definition['displayName'] ?? ''}'),
+        );
       case 'composer':
         return UiComposer(
           key: ValueKey(

@@ -18,6 +18,7 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
+        silo.Services.AddSingleton<CircleMembers>();
         silo.Services.AddHostedService<SpaceWatcher>();
     }
 

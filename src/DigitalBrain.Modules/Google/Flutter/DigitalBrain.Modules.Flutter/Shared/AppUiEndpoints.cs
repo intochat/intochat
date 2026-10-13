@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
+using DigitalBrain.Flutter.Space;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Chat;
@@ -30,9 +32,16 @@ internal static class AppUiEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
-        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, CancellationToken ct) =>
+        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            var space = grains.GetGrain<ISpace>(scope);
+            if (kind == "person" && name.EndsWith("/profile", StringComparison.Ordinal))
+            { return Results.Ok(await space.ReadProfile(name).WaitAsync(ct)); }
+            if (kind == "card" && CircleMembers.PostBrain(name) is not null)
+            { return Results.Ok(await space.ReadPost(name).WaitAsync(ct)); }
+            if (kind == "collection" && name.EndsWith("/posts", StringComparison.Ordinal))
+            { return Results.Ok(await space.ReadPosts(name).WaitAsync(ct)); }
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
             return kind switch
             {
@@ -60,6 +69,15 @@ internal static class AppUiEndpoints
         apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
+            {
+                var posts = await grains.GetGrain<ISpace>(scope).ReadPosts(input.Name).WaitAsync(ct);
+                if (input.Action != "activate" || !posts.Definition.Items.Any(item => item.Id == input.Value))
+                { throw new UnauthorizedAccessException("Only a visible post can be opened."); }
+                var workspace = grains.GetGrain<IWorkspace>(scope);
+                await workspace.Show(input.Value!, input.OperationId?.ToString() ?? Guid.NewGuid().ToString(), (await workspace.Read()).Revision).WaitAsync(ct);
+                return Results.Accepted();
+            }
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
             switch (input.Kind)
             {

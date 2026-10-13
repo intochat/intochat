@@ -6,7 +6,8 @@ public sealed record CircleChanged(
     [property: Id(1)] string[] Members,
     [property: Id(2)] string[] SharedApps,
     [property: Id(3)] int ComputeSharePercent,
-    [property: Id(4)] string[] Machines) : Signal;
+    [property: Id(4)] string[] Machines,
+    [property: Id(5)] string[]? PreviousMembers = null) : Signal;
 
 [GenerateSerializer, Alias("circles.circle-spoke")]
 public sealed record CircleSpoke(

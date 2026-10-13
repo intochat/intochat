@@ -10,7 +10,7 @@ namespace DigitalBrain.Flutter.Person;
 
 [GrainType(UIVocabulary.PersonType)]
 internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PersonState> store)
-    : Neuron<PersonState>(store), IPerson
+    : Neuron<PersonState>(store), IPerson, ISharedPersonReader
 {
     public Task Set(string displayName, string avatarUrl)
     {
@@ -25,4 +25,11 @@ internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.C
     }
 
     [ReadOnly] public Task<PersonState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+}
+
+// Module-only leaf access after the viewer Space neuron authorizes the exact reference.
+[Orleans.Metadata.DefaultGrainType(UIVocabulary.PersonType)]
+internal interface ISharedPersonReader : IGrainWithStringKey
+{
+    Task<PersonState> Read();
 }

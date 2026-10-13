@@ -21,7 +21,8 @@ internal static class SpaceComposer
         for (var i = 0; i < ordered.Length; i++)
         {
             var entry = ordered[i];
-            if (focus != brain && entry.Key != focus) { continue; }
+            if (focus != brain && entry.Key != focus
+                && !(focus.EndsWith("/profile", StringComparison.Ordinal) && CircleMembers.PostBrain(entry.Key) == focus[..^8])) { continue; }
             var angle = 2 * Math.PI * i / Math.Max(1, ordered.Length);
             var focused = entry.Key == focus;
             var transform = new Transform(320 * Math.Cos(angle), 320 * Math.Sin(angle), Scale: focused ? 2.2 : 1);

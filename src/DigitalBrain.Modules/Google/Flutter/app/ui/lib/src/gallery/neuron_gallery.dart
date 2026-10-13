@@ -62,6 +62,7 @@ String compositionGuidance(String kind) => switch (kind) {
 };
 
 Map<String, dynamic> neuronExample(String kind) => switch (kind) {
+  'person' => {'displayName': 'Alex', 'avatarUrl': ''},
   'surface' => {
     'title': 'Reading app',
     'children': [

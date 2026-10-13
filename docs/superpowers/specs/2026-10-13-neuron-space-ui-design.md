@@ -147,7 +147,7 @@ cannot drift. Unknown node types still render as placeholders.
   membership and the member's profile neuron `{brain}/profile`. Focusing a friend shows the profile in
   main and their posts in side. A post is a neuron `{brain}/posts/{id}` in the author's brain with its
   own presentation (sphere plus main showing the post). `post` publishes it into a circle through the
-  existing circle publication path; the circle brain keeps the index every member reads. Posts are
+  dedicated `ICircleChat.PublishPost(postKey, requestId)` operation; the circle brain keeps the index every member reads. Posts are
   spheres in the friend's field, so opening one is the same zoom.
 
 ## Section 4: data flow, failures, security
@@ -160,8 +160,8 @@ cannot drift. Unknown node types still render as placeholders.
   attention badge and the error text in main. Null tree: the shell's default idle tree. Invalid tree:
   refused at publish.
 - **Cross-brain reads.** Friend and post presentations are read from the circle brain and the author's
-  brain through the person's membership and the existing `/brains/{circle}` authorization. The module
-  holds references, never copies. A member who leaves disappears on the next rebuild.
+  brain through typed reads on the viewer-scoped Space neuron, with current shared-circle membership and published-reference checks on every request. The module
+  holds references and transient projections, never persisted copies. A member who leaves disappears on the next rebuild and stale slot reads are refused.
 - **Provenance.** Only the executing assignment publishes a presentation. Reserved blackboard keys
   are stamped by the module.
 - **State.** Concrete arrays, whole rebuilds, no self-calls on the workspace neuron, no migration:
@@ -187,3 +187,19 @@ cannot drift. Unknown node types still render as placeholders.
 
 Cross-app subscription scopes, renderable palette / UiPart, run-token tightening (open fronts, as in
 CLAUDE.md). Profile editing beyond name and avatar. Post comments and reactions.
+
+## Task 8 authorization decision (2026-10-13)
+
+The previously required stop on own-brain `Say` refusal is superseded by the user's explicit authorization to resolve this conflict. Keep `Say` and `Read` circle-scoped. Add only method-scoped `[Shared] PublishPost`: NeuronCallFilter and CallFilter still verify the original trusted stamp, ambient identity and all policy stages. The operation requires an App stamped for `{personalBrain}/apps/friends`, an identity-verified owner membership of that personal brain, current membership of the target circle, and a canonical post reference under that same owned personal brain. It never restamps the caller as the circle or broadens general cross-brain access. Check membership before replay deduplication. Kernel-only circle-state lookup uses a non-INeuron grain interface unavailable to script/edge contract resolution.
+
+Tradeoff: one narrow public contract operation replaces the impossible reuse of `Say`, avoiding a general authorization exception or widening ordinary chat. Post publication reuses the existing circle chat index and CircleSpoke signal. Existing circle-scoped publication remains valid. Friends/profile/post derivation uses current shared-circle membership on every rebuild; typed viewer-scoped `ISpace.ReadProfile`, `ReadPost`, and `ReadPosts` repeat current membership and published-reference checks for every stale slot request. The HTTP endpoint delegates only canonical profile/post/index shapes to this filter-covered neuron. The friend collection is a transient projection of references published in circles currently shared with the viewer, not the author's global index; legacy references must have an author-owned speaker. Collection activation navigates the viewer workspace after validating the visible reference. The shell watches viewer scene changes and clears cached slots on access denial. `CircleChanged.PreviousMembers` invalidates removed viewers as well as remaining members. No profile/card writes or unrelated access are shared. Removed viewer and author visibility must both disappear, including focused slots.
+
+Publication receipts are durable and separate from the ordinary chat's bounded retry cache, so retained Friends requests do not republish after 64 newer requests. This grows one receipt per publication; chat retains its existing 500-line index limit. Friends is installed by existing defaults on new personal brains; existing brains use the normal Marketplace install flow. No general reconciliation or unrelated authorization change is added.
+
+Publication receipts are durable and separate from the ordinary chat's bounded retry cache, so retained Friends requests do not republish after 64 newer requests. This grows one receipt per publication; chat retains its existing 500-line index limit. Friends is installed by existing defaults on new personal brains; existing brains use the normal Marketplace install flow. No general reconciliation or unrelated authorization change is added.
+
+Typed projection reads retain the original verified viewer caller throughout. Narrow non-INeuron circle state/reference and person/card readers provide module leaf access after current membership and exact reference checks; these are absent from the neuron catalog, script brain.Get constraints and generic edge resolution. No new caller-context removal is used to obtain cross-brain reads. Existing background scene rebuild context handling is unchanged.
+
+Friend derivation resolves the viewer owner from the runtime machine's trust-directory accounts and verified Owner membership, never by reading IBrain during creation. This avoids a defaults/scene creation cycle; a host with no machine identity or no owner account produces no friends. No account access is manufactured.
+
+Read derivation checks both trust-directory circle membership and the actual circle member snapshot for viewer and author. Trust revocation therefore denies access even before a delayed key rotation/circle snapshot commit finishes. The real-grain partial-removal fact preserves the old snapshot intentionally and verifies all three typed reads refuse the revoked author.

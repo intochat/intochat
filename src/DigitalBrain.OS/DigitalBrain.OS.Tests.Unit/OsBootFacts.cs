@@ -25,7 +25,7 @@ public sealed class OsBootFacts
         var person = await brain.PersonAsync("ada", ct);
 
         using var caller = person.AsCaller();
-        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer" })
+        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer", "friends" })
         {
             var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);

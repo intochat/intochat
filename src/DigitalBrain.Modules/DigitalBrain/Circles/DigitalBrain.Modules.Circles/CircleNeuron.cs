@@ -53,7 +53,7 @@ internal sealed class CircleNeuron(
     ICirclePartKeys keys,
     ILogger<CircleNeuron> logger,
     DigitalBrain.Apps.FeatureLoader? loader = null)
-    : Neuron<CircleRecord>(store), ICircle
+    : Neuron<CircleRecord>(store), ICircle, ICircleStateReader
 {
     private const string CoreSuffix = "/circle";
 
@@ -204,7 +204,7 @@ internal sealed class CircleNeuron(
         foreach (var machine in next.Machines.Select(known => known.MachineId).Union(await identity.MachinesOf(CircleBrain), StringComparer.Ordinal).ToArray())
         { await identity.WithdrawMachine(CircleBrain, machine); }
         await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(0, []);
-        await Clear(new CircleChanged(next.Name, [], [], 0, []));
+        await Clear(new CircleChanged(next.Name, [], [], 0, [], Snapshot.Members));
     }
 
     private CircleRecord Core() => Exists ? Snapshot : throw new KeyNotFoundException($"Circle {CircleBrain} has not been founded.");
@@ -223,7 +223,7 @@ internal sealed class CircleNeuron(
     {
         next.Version++;
         await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(next.ComputeSharePercent, next.Members);
-        await Save(next, Changed(next));
+        await Save(next, Changed(next) with { PreviousMembers = Snapshot.Members });
         return Describe(next);
     }
 

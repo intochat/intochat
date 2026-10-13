@@ -219,10 +219,14 @@ final class DigitalBrainUiClient {
 
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
-    final contract = NodeContracts.of(kind);
+    final friendSlot = (kind == 'person' && name.endsWith('/profile')) ||
+        (kind == 'collection' && name.endsWith('/posts')) ||
+        (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
+    final contract = NodeContracts.of(friendSlot ? 'scene' : kind);
+    final source = friendSlot ? '$brainId/space' : name;
     return channel
         .watch(brainId, [
-          WatchSourceSpec(contract.contract, name, [contract.changed]),
+          WatchSourceSpec(contract.contract, source, [contract.changed]),
         ])
         .map((signal) {
           // Delivery latency as the comparison measures it: envelope stamp to arrival.

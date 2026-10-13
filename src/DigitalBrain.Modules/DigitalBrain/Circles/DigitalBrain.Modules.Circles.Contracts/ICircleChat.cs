@@ -16,6 +16,20 @@ public interface ICircleChat : INeuron
     // A requestId makes the call idempotent: saying twice under one id is one line.
     Task Say(string text, string? requestId = null);
     Task<CircleLine[]> Read(long since);
+    [Shared] Task PublishPost(string postKey, string requestId);
 
     static string Key(string circleBrainId) => $"{circleBrainId}/chat";
+}
+
+// Module-only typed readers: not INeuron contracts, absent from scripts and edge resolution.
+[Alias("circles.state-reader"), DefaultGrainType("circles.circle")]
+public interface ICircleStateReader : IGrainWithStringKey
+{
+    Task<CircleState> State();
+}
+
+[Alias("circles.post-reader"), DefaultGrainType("circles.chat")]
+public interface ICirclePostReader : IGrainWithStringKey
+{
+    Task<CircleLine[]> PostReferences();
 }
