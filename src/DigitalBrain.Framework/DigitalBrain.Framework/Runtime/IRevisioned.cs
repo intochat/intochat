@@ -1,4 +1,4 @@
-namespace DigitalBrain;
+namespace DigitalBrain.Framework;
 
 public interface IRevisioned<TSelf> where TSelf : IRevisioned<TSelf>
 {

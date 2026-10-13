@@ -21,7 +21,6 @@ public sealed class VocabularyRingFacts
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(Sources)] = "A set of neurons for IDigitalBrain.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
-        [typeof(IRevisioned<>)] = "The shape a revisioned neuron's state takes so RevisionedNeuron.Commit can guard it; it sits beside RevisionConflictException, the one exception scripts see, and never crosses the wire itself (neuron space UI plan, task 2).",
     };
 
     private static readonly string[] Namespaces = ["DigitalBrain"];
