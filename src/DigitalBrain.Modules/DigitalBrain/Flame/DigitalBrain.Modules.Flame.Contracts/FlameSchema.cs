@@ -41,8 +41,6 @@ public static class FlameSchema
         new("path", [Needed("d")]),
         new("particles", [Number("count"), Number("speed"), Color("color")]),
         new("group", []),
-        new("ino_sphere", [Choice("mood", Moods), Number("radius"), Number("hue")]),
-        new("brain_graph", [Choice("source", "events", "static"), Choice("filter", "apps", "all"), Text("selected"), Choice("layout", "sphere"), Text("title")]),
         new("activity_ring", [Json("items"), Number("radius")]),
         new("sphere", [Needed("icon"), Text("title"), Text("description"), Json("blackboard"), Json("side"), Json("main"), Json("toolbar"),
             Choice("state", "ready", "unready", "error"), Text("error"), Text("neuron"), Boolean("focused")]),

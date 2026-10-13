@@ -242,7 +242,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
               leading: Icon(Icons.storage_outlined),
               title: Text('Local workspace storage'),
               subtitle: Text(
-                'Projects, conversations, drafts and preferences are saved automatically on this device. Credentials are managed separately. This local copy is not a cloud backup.',
+                'Appearance and personal preferences are saved on this device. Workspace navigation and app content are held by your brain.',
               ),
             ),
             const SizedBox(height: 16),

@@ -27,9 +27,8 @@ public static class BrainView
 
     public static SceneDefinition BrainScene(string? selected)
     {
-        var parameters = new Dictionary<string, string> { ["source"] = "events", ["filter"] = "apps", ["layout"] = "sphere", ["title"] = Title };
-        if (selected is { Length: > 0 }) { parameters["selected"] = selected; }
-        return new([new("graph", "brain_graph", new Transform(), null, parameters, [], [], ["tap"])], new SceneCamera(), "#05080C");
+        var parameters = new Dictionary<string, string> { ["icon"] = "hub", ["title"] = selected is { Length: > 0 } ? selected : "Brain", ["neuron"] = selected ?? "" };
+        return new([new("brain", "sphere", new Transform(), null, parameters, [], [], ["tap"])], new SceneCamera(), "#05080C");
     }
 
     public static async Task ComposeScene(DigitalBrainConnection brain, string? selected)

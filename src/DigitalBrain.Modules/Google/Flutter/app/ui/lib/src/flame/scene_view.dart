@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'scene_game.dart';
+import 'prefabs/sphere.dart';
 import '../theme/ui_tokens.dart';
 
 /// Hosts one scene neuron in a [GameWidget].
@@ -19,8 +20,9 @@ class SceneView extends StatefulWidget {
     this.client,
     this.state,
     this.refresh,
-    this.watchBrain,
     this.animateChanges = true,
+    this.onInput,
+    this.loadIcon,
   });
 
   final String sceneKey;
@@ -28,9 +30,9 @@ class SceneView extends StatefulWidget {
   final SceneState? state;
   final Stream<void>? refresh;
 
-  /// The brain-events stream for `brain_graph` nodes with `source=events`.
-  final WatchBrain? watchBrain;
   final bool animateChanges;
+  final SceneInputHandler? onInput;
+  final SphereIconLoader? loadIcon;
 
   @override
   State<SceneView> createState() => _SceneViewState();
@@ -39,7 +41,7 @@ class SceneView extends StatefulWidget {
 class _SceneViewState extends State<SceneView> {
   late final SceneGame _game = SceneGame()
     ..onInput = _report
-    ..watchBrain = widget.watchBrain;
+    ..loadIcon = widget.loadIcon;
   StreamSubscription<void>? _refresh;
   Object? _error;
   int? _revision;
@@ -68,9 +70,9 @@ class _SceneViewState extends State<SceneView> {
   @override
   void didUpdateWidget(SceneView old) {
     super.didUpdateWidget(old);
-    if (old.watchBrain != widget.watchBrain) {
+    if (old.loadIcon != widget.loadIcon) {
       _game
-        ..watchBrain = widget.watchBrain
+        ..loadIcon = widget.loadIcon
         ..host();
     }
     final state = widget.state;
@@ -118,6 +120,10 @@ class _SceneViewState extends State<SceneView> {
     double y,
     String? payload,
   ) {
+    if (widget.onInput != null) {
+      widget.onInput!(nodeId, kind, x, y, payload);
+      return;
+    }
     final client = widget.client;
     if (client == null) return;
     unawaited(

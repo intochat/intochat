@@ -1,28 +1,19 @@
-import 'application_fixture.dart';
-
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'workspace_remote_controller_test.dart' show MemoryPersistence;
+import 'application_fixture.dart';
 
 void main() {
-  testWidgets('aShellWithoutAServerBrainDoesNotInventOne', (tester) async {
-    final server = ApplicationServer();
-    final store = WorkspaceStore(persistence: MemoryPersistence());
-    store.createProject('Stale local project');
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: server,
-    )..defaultBrainId = 'owner';
-
-    await tester.pumpWidget(
-      WorkspaceApp(store: store, programmingClient: client),
-    );
-    await tester.pumpAndSettle();
-
-    expect(store.currentProject.id, 'owner');
-    expect(store.projects.where((p) => p.id == 'owner'), hasLength(1));
-  });
+  testWidgets(
+    'the shell reads the session brain without inventing a local project',
+    (tester) async {
+      final f = await ApplicationFixture.start(
+        tester,
+        server: ApplicationServer(brainId: 'owned'),
+      );
+      expect(f.space.brain, 'owned');
+      expect(f.space.view.value.focused, 'owned/apps/ino');
+      expect(f.server.requestsTo('/brains/owned'), isNotEmpty);
+      await f.dispose();
+    },
+  );
 }

@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
+import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
+import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/widgets.dart';
@@ -108,143 +109,209 @@ class RecordedAppRequest {
   final Map<String, dynamic> body;
 }
 
-/// The fake kernel behind the shell: it records app requests and answers the
-/// workspace, the installed apps and every node a rendered surface asks for.
-class ApplicationServer extends http.BaseClient {
-  ApplicationServer({this.brainId = 'brain-1'});
-
-  final String brainId;
-  final List<RecordedAppRequest> requests = [];
-  final events = StreamController<List<int>>.broadcast();
-
-  /// The assistant committed its window: an "open" request was posted, so the kernel's
-  /// workspace view reports it open, exactly as the real app answers through its neurons.
-  bool assistantOpened = false;
-  String? focused;
-  int revision = 0;
-
-  /// The surface neuron the shell last rendered.
-  String? renderedSurface;
-
-  List<RecordedAppRequest> requestsTo(String path) => [
-    for (final request in requests)
-      if (request.path == path) request,
-  ];
+class RecordingLink implements NeuronLink {
+  final watches = <(String, List<WatchSourceSpec>)>[];
+  final events = StreamController<NeuronSignal>.broadcast();
+  @override
+  Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources) {
+    watches.add((brainId, sources));
+    return events.stream;
+  }
 
   @override
+  Future<Map<String, dynamic>?> call(
+    String brainId,
+    String contract,
+    String key,
+    String method,
+    List<Object?> arguments,
+  ) async => null;
+  @override
+  Future<void> shutdown() async {
+    await events.close();
+  }
+}
+
+class ApplicationServer extends http.BaseClient {
+  ApplicationServer({this.brainId = 'brain-1'});
+  final String brainId;
+  final requests = <RecordedAppRequest>[];
+  final events = StreamController<List<int>>.broadcast();
+  final paths = <String, List<String>>{};
+  int revision = 0;
+  bool developerMode = false, allowed = true, failOpen = false;
+  String? renderedSurface;
+  List<RecordedAppRequest> requestsTo(String path) =>
+      requests.where((r) => r.path == path).toList();
+  Map<String, dynamic> body(http.BaseRequest request) =>
+      request is http.Request && request.body.isNotEmpty
+      ? Map<String, dynamic>.from(jsonDecode(request.body) as Map)
+      : {};
+  http.StreamedResponse json(Object value, {int status = 200}) =>
+      http.StreamedResponse(
+        Stream.value(utf8.encode(jsonEncode(value))),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
+  @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    // The Home graph's brain feed is not served here: it shows its error instead of spinning forever.
-    if (request.url.path.endsWith('/brain/events')) {
-      return http.StreamedResponse(const Stream.empty(), 404);
+    requests.add(RecordedAppRequest(request.url.path, body(request)));
+    final path = request.url.path;
+    if (path == '/session/capabilities') {
+      return json({'developerMode': developerMode});
     }
-    if (request.url.path.endsWith('/events')) {
-      return http.StreamedResponse(events.stream, 200);
+    if (path == '/identity/brains') {
+      return request.method == 'POST'
+          ? json({'brainId': 'created-brain'})
+          : json(
+              allowed
+                  ? [
+                      {'id': 'circle-test', 'kind': 'circle'},
+                    ]
+                  : [],
+            );
     }
-    requests.add(RecordedAppRequest(request.url.path, _body(request)));
-    if (request.url.path.endsWith('/show')) {
-      assistantOpened = true;
-      focused = requests.last.body['app'] as String;
+    if (path == '/connectors') return json(<Object>[]);
+    final brain = request.url.pathSegments.length > 1
+        ? request.url.pathSegments[1]
+        : brainId;
+    final navigation = paths.putIfAbsent(
+      brain,
+      () => [brain, '$brain/apps/ino'],
+    );
+    if (path.endsWith('/show')) {
+      if (failOpen) return json({'error': 'Unavailable'}, status: 503);
+      navigation.add(body(request)['app'] as String);
       revision++;
     }
-    if (request.url.path.endsWith('/home')) {
-      focused = null;
+    if (path.endsWith('/home')) {
+      navigation.removeRange(1, navigation.length);
       revision++;
     }
-    if (request.url.path.endsWith('/close')) {
-      assistantOpened = false;
-      focused = null;
+    if (path.endsWith('/back') && navigation.length > 1) {
+      navigation.removeLast();
       revision++;
+    }
+    if (path.endsWith('/close')) {
+      navigation.remove(body(request)['app']);
+      revision++;
+    }
+    if (path.contains('/ui/scenes/')) {
+      if (path.endsWith('/report')) return json({});
+      final focus = navigation.last;
+      final nodes = <Object>[
+        for (final app in {
+          'ino',
+          'assistant',
+          'files',
+          'settings',
+          if (focus.contains('/apps/')) focus.split('/apps/').last,
+        })
+          {
+            'id': '$brain/apps/$app',
+            'type': 'sphere',
+            'transform': {
+              'x': 0,
+              'y': 0,
+              'scale': focus == '$brain/apps/$app' ? 2.2 : 1,
+            },
+            'inputs': ['tap'],
+            'parameters': {
+              'icon': 'folder',
+              'title': app,
+              'neuron': '$brain/apps/$app',
+              'focused': '${focus == '$brain/apps/$app'}',
+              'state': 'ready',
+              if (focus == '$brain/apps/$app')
+                'main': jsonEncode({
+                  'kind': 'surface',
+                  'name': '$brain/apps/$app/surface',
+                }),
+              if (focus == '$brain/apps/$app')
+                'toolbar': jsonEncode(
+                  app == 'ino' || app == 'assistant'
+                      ? (assistantView['manifest'] as Map)['toolbar']
+                      : [],
+                ),
+            },
+          },
+      ];
+      return json({
+        'name': '$brain/space',
+        'revision': revision + 1,
+        'definition': {
+          'nodes': nodes,
+          'camera': {'x': 0, 'y': 0, 'zoom': 1},
+        },
+      });
     }
     if (request.url.queryParameters['kind'] == 'surface') {
       renderedSurface = request.url.queryParameters['name'];
     }
-    if (request.url.path.endsWith('/apps/assistant')) {
-      return _json(assistantView);
+    if (path.endsWith('/apps/assistant') || path.endsWith('/apps/ino')) {
+      return json(assistantView);
     }
-    if (request.url.path.endsWith('/connections')) {
-      return _json(const <Object>[]);
-    }
-    if (request.url.path.endsWith('/apps')) {
-      return _json(const [assistantSummary]);
-    }
-    final application = applicationResponse(request);
-    if (application != null) return _json(application);
-    final brain = request.url.pathSegments.length > 1
-        ? request.url.pathSegments[1]
-        : brainId;
-    return _json({
+    if (path.endsWith('/connections')) return json(<Object>[]);
+    if (path.endsWith('/csharp')) return json({'files': <Object>[]});
+    final response = applicationResponse(request);
+    if (response != null) return json(response);
+    return json({
       'revision': revision,
-      'path': [brain, if (focused != null) focused],
-      'open': assistantOpened ? ['$brain/apps/assistant'] : [],
-      'apps': <Object>[],
+      'path': navigation,
+      'open': navigation.skip(1).toList(),
     });
   }
-
-  Map<String, dynamic> _body(http.BaseRequest request) {
-    if (request is! http.Request || request.body.isEmpty) {
-      return <String, dynamic>{};
-    }
-    return Map<String, dynamic>.from(jsonDecode(request.body) as Map);
-  }
-
-  http.StreamedResponse _json(Object value) => http.StreamedResponse(
-    Stream.value(utf8.encode(jsonEncode(value))),
-    200,
-    headers: {'content-type': 'application/json'},
-  );
 }
 
-/// The shell started against the fake kernel, with one workspace; Home is the start view,
-/// the dock is the assistant island.
 class ApplicationFixture {
-  ApplicationFixture._(this.tester, this.server, this.store, this.client);
-
+  ApplicationFixture._(
+    this.tester,
+    this.server,
+    this.store,
+    this.client,
+    this.link,
+  );
   final WidgetTester tester;
   final ApplicationServer server;
   final WorkspaceStore store;
   final DigitalBrainUiClient client;
-
-  /// The workspace id the shell actually uses (the store''s own project).
-  String get brainId => store.currentProject.id;
-
-  /// The surface neuron the shell last rendered.
+  final RecordingLink link;
+  String get brainId => client.defaultBrainId!;
   String? get renderedSurface => server.renderedSurface;
-
-  static Future<ApplicationFixture> start(WidgetTester tester) async {
-    final server = ApplicationServer();
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence());
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: server,
-    )..defaultBrainId = server.brainId;
+  SpaceController get space =>
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).controller;
+  static Future<ApplicationFixture> start(
+    WidgetTester tester, {
+    ApplicationServer? server,
+    Future<void> Function()? onSwitchAccount,
+  }) async {
+    final api = server ?? ApplicationServer();
+    final store = WorkspaceStore();
+    final link = RecordingLink();
+    final client =
+        DigitalBrainUiClient(baseUri: Uri.parse('http://test'), httpClient: api)
+          ..defaultBrainId = api.brainId
+          ..link = link;
     await tester.pumpWidget(
-      WorkspaceApp(store: store, programmingClient: client),
+      WorkspaceApp(
+        store: store,
+        programmingClient: client,
+        onSwitchAccount: onSwitchAccount,
+      ),
     );
     await tester.pumpAndSettle();
-    return ApplicationFixture._(tester, server, store, client);
+    return ApplicationFixture._(tester, api, store, client, link);
   }
 
-  Future<void> Function(String)? _open;
-
-  /// Opens an app the way the Home screen does and settles what it renders.
-  /// The Home island hides once a window opens, so its callback is taken once.
   Future<void> openApp(String name) async {
-    final key = '$brainId/apps/$name';
-    if (!store.currentProject.artifacts.any((artifact) => artifact.id == key)) {
-      store.currentProject.artifacts.add(
-        WorkspaceArtifact(
-          id: key,
-          title: name,
-          kind: 'surface',
-          remoteManaged: true,
-          data: {
-            'surface': {'kind': 'surface', 'name': '$key/surface'},
-          },
-        ),
-      );
-    }
-    _open ??= tester.widget<HomeScreen>(find.byType(HomeScreen)).onOpen;
-    await _open!(name);
+    await space.show('$brainId/apps/$name');
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> menu(String label) async {
+    await tester.tap(find.byTooltip('Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label));
     await tester.pumpAndSettle();
   }
 

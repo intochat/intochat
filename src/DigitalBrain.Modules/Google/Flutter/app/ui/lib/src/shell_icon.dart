@@ -15,5 +15,9 @@ IconData? shellIcon(String name) => switch (name) {
   'search' => Icons.search_rounded,
   'settings' => Icons.settings_outlined,
   'home' => Icons.home_outlined,
+  'folder' => Icons.folder_outlined,
+  'circle' => Icons.circle_outlined,
+  'hub' => Icons.hub_outlined,
+  'ino' => Icons.auto_awesome_rounded,
   _ => null,
 };

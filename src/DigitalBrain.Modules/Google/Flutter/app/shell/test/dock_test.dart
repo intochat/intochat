@@ -1,5 +1,4 @@
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/workspace/dock/assistant_island.dart';
 import 'package:digitalbrain_flutter_shell/workspace/dock/dock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,12 +82,6 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       '',
     );
-    // Ino is docked small beside a focused app's toolbar.
-    expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
-    expect(
-      tester.getSize(find.byKey(const ValueKey('assistant-ino'))).width,
-      36,
-    );
   });
 
   testWidgets('an empty submit posts nothing', (tester) async {
@@ -100,63 +93,13 @@ void main() {
     expect(posted, isEmpty);
   });
 
-  testWidgets(
-    'the assistant toolbar is the assistant island: Ino, then its entries',
-    (tester) async {
-      final posted = <(String, String)>[];
-      await tester.pumpWidget(host('assistant', assistant, posted));
-
-      expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
-      expect(find.byType(DockTextField), findsOneWidget);
-      expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
-      final ino = tester.getTopLeft(
-        find.byKey(const ValueKey('assistant-ino')),
-      );
-      final field = tester.getTopLeft(find.byType(DockTextField));
-      final mic = tester.getTopLeft(find.byKey(const ValueKey('dock-voice')));
-      expect(ino.dx, lessThan(field.dx));
-      expect(field.dx, lessThan(mic.dx));
-
-      await tester.tap(find.byKey(const ValueKey('dock-voice')));
-      expect(posted, [('voice', '')]);
-    },
-  );
-
-  testWidgets('with no app focused Ino is large and centered in the dock', (
+  testWidgets('the focused toolbar draws the declared text and voice entries', (
     tester,
   ) async {
-    const bare = AppManifest(
-      title: 'Assistant',
-      description: '',
-      operations: ['open'],
-      toolbar: [],
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: Scaffold(
-            body: Center(
-              child: SizedBox(
-                key: const ValueKey('dock-room'),
-                width: 400,
-                child: Dock(
-                  app: 'assistant',
-                  manifest: bare,
-                  floating: true,
-                  onRequest: (_, _) async {},
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    final ino = find.byKey(const ValueKey('assistant-ino'));
-    expect(tester.getSize(ino).width, 64);
-    expect(
-      tester.getCenter(ino).dx,
-      tester.getCenter(find.byKey(const ValueKey('dock-room'))).dx,
-    );
+    final posted = <(String, String)>[];
+    await tester.pumpWidget(host('assistant', assistant, posted));
+    expect(find.byType(DockTextField), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('dock-voice')));
+    expect(posted, [('voice', '')]);
   });
 }

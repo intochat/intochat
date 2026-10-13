@@ -3,7 +3,27 @@ import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'workspace_data_window_test.dart' show tableJson;
+Map<String, dynamic> tableJson(int revision, String company) => {
+  'id': 'table',
+  'title': 'Companies',
+  'revision': revision,
+  'columns': [
+    {'id': 'company', 'label': 'company', 'type': 'text'},
+  ],
+  'rows': [
+    {
+      'id': 'r',
+      'cells': [company],
+    },
+  ],
+  'filters': [],
+  'sort': null,
+  'visibleColumns': ['company'],
+  'totalRows': 100,
+  'filteredRows': 100,
+  'offset': 0,
+  'limit': 25,
+};
 
 void main() {
   testWidgets(

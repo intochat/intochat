@@ -7,8 +7,6 @@ import 'package:flutter/painting.dart';
 
 import 'node_components.dart';
 import 'placeholder_node.dart';
-import 'prefabs/brain_graph.dart';
-import 'prefabs/ino_sphere.dart';
 import 'prefabs/sphere.dart';
 import 'primitive_nodes.dart';
 
@@ -27,9 +25,7 @@ final class SceneGame extends FlameGame {
 
   final _byId = <String, NodeComponent>{};
   SceneInputHandler? onInput;
-
-  /// The host's brain-events stream, handed to every `brain_graph` node with `source=events`.
-  WatchBrain? watchBrain;
+  SphereIconLoader? loadIcon;
 
   /// False under reduced motion: prefabs snap to their targets and stay still.
   bool animations = true;
@@ -137,7 +133,7 @@ final class SceneGame extends FlameGame {
     host();
   }
 
-  /// Hands [watchBrain] and [animations] to the prefabs that need them.
+  /// Hands the host's motion preference and authenticated icon loader to its spheres.
   void host() {
     _appearances.removeWhere(
       (_, appearance) => appearance.effects.every((effect) => effect.isRemoved),
@@ -154,13 +150,9 @@ final class SceneGame extends FlameGame {
     }
     for (final component in _byId.values) {
       switch (component) {
-        case BrainGraph graph:
-          graph.animations = animations;
-          if (graph.watch != watchBrain) graph.watch = watchBrain;
-        case InoSphere sphere:
-          sphere.animations = animations;
         case SphereComponent sphere:
           sphere.animations = animations;
+          sphere.loadIcon = loadIcon;
         default:
       }
     }

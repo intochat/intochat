@@ -33,7 +33,7 @@ public sealed class SceneSchemaFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
-        var error = await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("ino_sphere", ("modd", "idle"))));
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("sphere", ("icon", "ino"), ("modd", "idle"))));
         Assert.Contains("modd", error.Message);
     }
 
@@ -53,7 +53,7 @@ public sealed class SceneSchemaFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
-        await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("ino_sphere", ("mood", "sleepy"))));
+        await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("sphere", ("icon", "ino"), ("state", "sleepy"))));
     }
 
     [Fact]
@@ -80,21 +80,21 @@ public sealed class SceneSchemaFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
-        await Set(scene, Node("ino_sphere", ("mood", "thinking"), ("radius", "120")), ["tap"]);
+        await Set(scene, Node("sphere", ("icon", "ino"), ("state", "ready")), ["tap"]);
         var state = await scene.Read();
-        Assert.Equal("thinking", state.Definition.Nodes[0].Parameters["mood"]);
+        Assert.Equal("ready", state.Definition.Nodes[0].Parameters["state"]);
     }
 
     [Fact]
-    public async Task TheInoAndBrainViewSceneShapesAreAccepted()
+    public async Task TheSphereAndActivityRingSceneShapesAreAccepted()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
         var ring = new SceneNode("ring", "activity_ring", new Transform(), null,
             new() { ["items"] = "[{\"id\":\"r1\",\"label\":\"Routing\",\"kind\":\"route\",\"progress\":0.4}]", ["radius"] = "220" }, [], [], []);
-        var graph = new SceneNode("graph", "brain_graph", new Transform(), null,
-            new() { ["source"] = "events", ["filter"] = "apps", ["layout"] = "sphere", ["title"] = "Behavior runs" }, [], [], []);
+        var graph = new SceneNode("sphere", "sphere", new Transform(), null,
+            new() { ["icon"] = "hub", ["title"] = "Behavior runs" }, [], [], []);
         await scene.Set(new([ring, graph], new SceneCamera()), (await scene.Read()).Revision);
         Assert.Equal(2, (await scene.Read()).Definition.Nodes.Length);
     }

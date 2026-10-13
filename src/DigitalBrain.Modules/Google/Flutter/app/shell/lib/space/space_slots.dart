@@ -1,0 +1,74 @@
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:flutter/material.dart';
+
+import 'space_controller.dart';
+
+class SideSlot extends StatelessWidget {
+  const SideSlot({
+    super.key,
+    required this.reference,
+    required this.load,
+    this.watch,
+    this.onAction,
+    this.onActivate,
+    this.scenes,
+  });
+  final UiChildRef reference;
+  final NeuronLoader load;
+  final Stream<void> Function(String, String)? watch;
+  final Future<void> Function(Map<String, dynamic>)? onAction;
+  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final SceneClient? scenes;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 320,
+    child: UiSurface(
+      child: NeuronView(
+        kind: reference.kind,
+        name: reference.name,
+        load: load,
+        watch: watch ?? (_, _) => const Stream.empty(),
+        onAction: onAction,
+        onActivate: onActivate,
+        scenes: scenes,
+      ),
+    ),
+  );
+}
+
+class MainSlot extends StatelessWidget {
+  const MainSlot({
+    super.key,
+    this.reference,
+    required this.load,
+    this.error,
+    this.watch,
+    this.onAction,
+    this.onActivate,
+    this.scenes,
+  });
+  final UiChildRef? reference;
+  final NeuronLoader load;
+  final String? error;
+  final Stream<void> Function(String, String)? watch;
+  final Future<void> Function(Map<String, dynamic>)? onAction;
+  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final SceneClient? scenes;
+  @override
+  Widget build(BuildContext context) => UiSurface(
+    child: error != null
+        ? Center(child: Text(error!))
+        : reference == null
+        ? const SizedBox.shrink()
+        : NeuronView(
+            kind: reference!.kind,
+            name: reference!.name,
+            load: load,
+            watch: watch ?? (_, _) => const Stream.empty(),
+            onAction: onAction,
+            onActivate: onActivate,
+            scenes: scenes,
+          ),
+  );
+}

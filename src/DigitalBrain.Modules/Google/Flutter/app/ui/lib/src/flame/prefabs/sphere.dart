@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -7,11 +9,17 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame_behavior_tree/flame_behavior_tree.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter_svg/flutter_svg.dart' as svg;
 
 import '../../shell_icon.dart';
 import '../behavior/default_idle_tree.dart';
 import '../behavior/tree_runtime.dart';
 import '../node_components.dart';
+
+typedef SphereIconLoader = Future<Uint8List?> Function(
+  String neuron,
+  String icon,
+);
 
 /// What a sphere's behavior tree moves: draws the icon disc and its labels, and runs the tree's
 /// moveTo, scale, fade and pulse tasks as Flame effects on itself.
@@ -31,6 +39,8 @@ final class SphereVisual extends PositionComponent
   String title = '';
   String description = '';
   bool badge = false;
+  double presentationOpacity = 1;
+  ui.Image? iconImage;
 
   final _effects = <String, Effect>{};
   TextPainter? _titleText, _descriptionText;
@@ -106,7 +116,8 @@ final class SphereVisual extends PositionComponent
     // HasPaint stores effect opacity in paint.color; render must leave it intact.
     canvas.saveLayer(
       null,
-      ui.Paint()..color = Color.fromRGBO(255, 255, 255, opacity),
+      ui.Paint()
+        ..color = Color.fromRGBO(255, 255, 255, opacity * presentationOpacity),
     );
     final center = (size / 2).toOffset();
     final radius = size.x / 2;
@@ -123,7 +134,15 @@ final class SphereVisual extends PositionComponent
         ..strokeWidth = 2
         ..color = const Color(0xFF7FB069),
     );
-    if (icon.isNotEmpty) {
+    if (iconImage case final image?) {
+      final extent = radius * 1.3;
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        Rect.fromCenter(center: center, width: extent, height: extent),
+        ui.Paint(),
+      );
+    } else if (icon.isNotEmpty) {
       final data = shellIcon(icon);
       final glyph = TextPainter(
         text: TextSpan(
@@ -170,6 +189,94 @@ final class SphereComponent extends NodeComponent
   SphereBlackboard get blackboard => _board;
   final body = SphereVisual();
   String _treeKey = 'unset';
+  SphereIconLoader? _loadIcon;
+  int _iconGeneration = 0;
+  String _iconKey = '';
+  bool _removed = false;
+  Future<void> _iconRead = Future.value();
+  Future<void> get iconReady => _iconRead;
+  SphereIconLoader? get loadIcon => _loadIcon;
+  set loadIcon(SphereIconLoader? value) {
+    if (value == _loadIcon) return;
+    _loadIcon = value;
+    _iconKey = '';
+    _readIcon();
+  }
+
+  void _readIcon() {
+    final icon = params['icon'] ?? '', neuron = params['neuron'] ?? nodeId;
+    final key = '$neuron:$icon';
+    if (key == _iconKey) return;
+    _iconKey = key;
+    final generation = ++_iconGeneration;
+    body.iconImage?.dispose();
+    body.iconImage = null;
+    final load = _loadIcon;
+    if (load == null || icon.isEmpty || shellIcon(icon) != null || _removed) {
+      return;
+    }
+    _iconRead = () async {
+      ui.Image? image;
+      try {
+        final bytes = await load(neuron, icon);
+        if (bytes == null ||
+            bytes.isEmpty ||
+            generation != _iconGeneration ||
+            _removed) {
+          return;
+        }
+        if (utf8
+            .decode(bytes.take(256).toList(), allowMalformed: true)
+            .trimLeft()
+            .startsWith('<')) {
+          final picture = await svg.vg.loadPicture(
+            svg.SvgBytesLoader(bytes),
+            null,
+          );
+          try {
+            final recorder = ui.PictureRecorder();
+            ui.Canvas(recorder)
+              ..scale(96 / picture.size.width, 96 / picture.size.height)
+              ..drawPicture(picture.picture);
+            // End recording before awaiting conversion so both pictures have explicit owners.
+            final scaled = recorder.endRecording();
+            try {
+              image = await scaled.toImage(96, 96);
+            } finally {
+              scaled.dispose();
+            }
+          } finally {
+            picture.picture.dispose();
+          }
+        } else {
+          final codec = await ui.instantiateImageCodec(bytes);
+          try {
+            image = (await codec.getNextFrame()).image;
+          } finally {
+            codec.dispose();
+          }
+        }
+        if (generation != _iconGeneration || _removed) {
+          image.dispose();
+          return;
+        }
+        body.iconImage = image;
+        if (isMounted) game.wake();
+      } catch (_) {
+        image?.dispose();
+      }
+    }();
+    unawaited(_iconRead);
+  }
+
+  @override
+  void onRemove() {
+    _removed = true;
+    _iconGeneration++;
+    body.iconImage?.dispose();
+    body.iconImage = null;
+    super.onRemove();
+  }
 
   bool get usesDefaultTree => treeDef == null;
   bool get attentionBadge => blackboard['attention'] == 'true';
@@ -201,8 +308,10 @@ final class SphereComponent extends NodeComponent
       ..size.setFrom(size)
       ..position.setValues(size.x / 2, size.y / 2)
       ..icon = params['icon'] ?? ''
-      ..badge = attentionBadge
+      ..presentationOpacity = params['state'] == 'unready' ? .45 : 1
+      ..badge = attentionBadge || params['state'] == 'error'
       ..setLabels(params['title'] ?? '', params['description'] ?? '');
+    _readIcon();
     final key = treeDef == null ? '' : jsonEncode(treeDef!.toJson());
     if (key != _treeKey) {
       _treeKey = key;

@@ -10,5 +10,5 @@ public static class FlameVocabulary
     public const int MaxTreeNodes = 256;
     public const int MaxTreeDepth = 16;
     public static readonly string[] NodeTypes =
-        ["circle", "rect", "text", "sprite", "path", "particles", "group", "ino_sphere", "brain_graph", "activity_ring", "sphere"];
+        ["circle", "rect", "text", "sprite", "path", "particles", "group", "activity_ring", "sphere"];
 }

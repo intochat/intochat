@@ -1,17 +1,10 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/model_settings.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_settings.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'workspace_data_window_test.dart' show WorkspaceClient;
-import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 
 const catalog = ChatModelCatalog(
   automatic: ChatModelOption(label: 'Automatic (workspace default)'),
@@ -26,135 +19,8 @@ const catalog = ChatModelCatalog(
   ],
 );
 
-class SettingsAppClient extends WorkspaceClient {
-  int openedSettings = 0;
-  String? settingsWindow;
-  Map<String, dynamic> get settingsSnapshot => {
-    'revision': openedSettings,
-    'path': ['brain', if (settingsWindow != null) settingsWindow],
-    'open': [if (settingsWindow != null) settingsWindow],
-  };
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    Map<String, dynamic>? response;
-    if (request.url.path.endsWith('/apps/settings')) {
-      response = {
-        'manifest': {
-          'title': 'Settings',
-          'entry': {'kind': 'surface', 'name': 'surface'},
-        },
-      };
-    } else if (request.url.path.endsWith('/show')) {
-      openedSettings++;
-      settingsWindow =
-          (jsonDecode((request as http.Request).body) as Map)['app'] as String;
-      response = settingsSnapshot;
-    } else if ((request.url.queryParameters['name'] ?? '').endsWith(
-      'apps/settings/surface',
-    )) {
-      response = {
-        'definition': {
-          'children': [
-            {'kind': 'text', 'name': 'brain/apps/settings/connections'},
-          ],
-        },
-      };
-    } else if (request.url.queryParameters['name'] ==
-        'brain/apps/settings/connections') {
-      response = {'markdown': 'Connections supplied by the app'};
-    }
-    if (response == null) return super.send(request);
-    return http.StreamedResponse(
-      Stream.value(utf8.encode(jsonEncode(response))),
-      200,
-      headers: {'content-type': 'application/json'},
-    );
-  }
-}
-
 void main() {
   paletteTests();
-  test(
-    'model default applies to new conversations and survives reload',
-    () async {
-      final persistence = MemoryPersistence();
-      final store = WorkspaceStore(persistence: persistence);
-      final old = store.currentConversation;
-      store.settings.defaultModelProfile = 'profile:fast';
-      final next = store.createConversation();
-      expect(next.modelProfile, 'profile:fast');
-      expect(old.modelProfile, isNull);
-      next.modelProfile = null;
-      await store.save();
-      final restored = WorkspaceStore(persistence: persistence);
-      await restored.load();
-      expect(restored.settings.defaultModelProfile, 'profile:fast');
-      expect(restored.currentConversation.modelProfile, isNull);
-      store.dispose();
-      restored.dispose();
-    },
-  );
-
-  testWidgets(
-    'connected gear opens app surface and configuration stays reachable',
-    (tester) async {
-      tester.view.physicalSize = const Size(1440, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final store = WorkspaceStore(persistence: MemoryPersistence());
-      final api = SettingsAppClient();
-      final key = '${store.currentProject.id}/apps/settings';
-      store.currentProject.artifacts.add(
-        WorkspaceArtifact(
-          id: key,
-          title: 'Settings',
-          kind: 'surface',
-          remoteManaged: true,
-          data: {
-            'surface': {'kind': 'surface', 'name': '$key/surface'},
-          },
-        ),
-      );
-      await tester.pumpWidget(
-        WorkspaceApp(
-          store: store,
-          programmingClient: DigitalBrainUiClient(
-            baseUri: Uri.parse('http://test'),
-            httpClient: api,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-      expect(api.openedSettings, 1);
-      expect(find.text('Connections supplied by the app'), findsOneWidget);
-      await tester.tap(find.byTooltip('Profile'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Workspace configuration'));
-      await tester.pumpAndSettle();
-      expect(find.text('General'), findsWidgets);
-      expect(find.text('More settings'), findsNothing);
-      expect(find.text('Role or team'), findsNothing);
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Display name'),
-        'Ada',
-      );
-      await tester.tap(find.text('Save name'));
-      await tester.pumpAndSettle();
-      expect(store.settings.displayName, 'Ada');
-      await tester.tap(find.text('UI Kit'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('ui_gallery_screen')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      await api.events.close();
-      store.dispose();
-    },
-  );
-
   testWidgets('narrow settings switches Models and UI Kit without overflow', (
     tester,
   ) async {
@@ -162,7 +28,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final store = WorkspaceStore(persistence: MemoryPersistence());
+    final store = WorkspaceStore();
     await tester.pumpWidget(
       MaterialApp(
         home: WorkspaceSettings(
@@ -268,7 +134,7 @@ void paletteTests() {
   testWidgets(
     'settings picker offers the three palettes and saves the choice',
     (tester) async {
-      final store = WorkspaceStore(persistence: MemoryPersistence());
+      final store = WorkspaceStore();
       await tester.pumpWidget(
         MaterialApp(
           home: WorkspaceSettings(

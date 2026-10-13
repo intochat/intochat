@@ -9,8 +9,6 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 import 'prefabs/activity_ring.dart';
-import 'prefabs/brain_graph.dart';
-import 'prefabs/ino_sphere.dart';
 import 'prefabs/sphere.dart';
 import 'primitive_nodes.dart';
 
@@ -221,9 +219,7 @@ abstract final class NodeComponents {
     'path' => PathNode(node),
     'particles' => ParticlesNode(node),
     'group' => GroupNode(node),
-    'ino_sphere' => InoSphere(node),
     'activity_ring' => ActivityRing(node),
-    'brain_graph' => BrainGraph(node),
     'sphere' => SphereComponent(node),
     _ => null,
   };

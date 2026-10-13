@@ -69,14 +69,11 @@ Widget buildShell({
   return WorkspaceApp(
     key: ValueKey(scope),
     onSwitchAccount: onSwitchAccount,
-    persistenceKey: 'intocaht.workspace.v1.$scope',
+    persistenceKey: 'digitalbrain.preferences.v1.$scope',
     store: workspaceStore,
     initialLocation: initialLocation,
     kernelBaseUri: edge?.baseUri,
     programmingClient: edge,
-    onReadTable: edge?.readTable,
-    onUpdateTableView: edge?.updateTableView,
-    onListTables: edge?.listTables,
     statusMessage: statusMessage,
     onOpenUrl: openExternalUrl,
   );

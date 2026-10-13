@@ -4,7 +4,6 @@ import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../home/app_icon.dart';
-import 'assistant_island.dart';
 
 typedef DockRequest = Future<void> Function(String operation, String input);
 
@@ -18,9 +17,6 @@ class Dock extends StatelessWidget {
     required this.onRequest,
     this.loadIcon,
     this.iconRoute,
-    this.watchActivity,
-    this.brainId,
-    this.floating = false,
   });
 
   final String app;
@@ -29,27 +25,14 @@ class Dock extends StatelessWidget {
   final IconLoader? loadIcon;
   // The route serving the app's own icon file; an entry naming that file renders it.
   final String? iconRoute;
-  // The brain's AppActivity feed Ino follows; floating is true while no app is focused.
-  final Stream<AppActivity> Function()? watchActivity;
-  final String? brainId;
-  final bool floating;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     // Floating Ino is centered in the room the dock is given; a dock in a scroller wraps its content.
     builder: (context, constraints) => Row(
-      mainAxisSize: floating && constraints.hasBoundedWidth
-          ? MainAxisSize.max
-          : MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Ino is always in the dock: small beside a focused app's toolbar, large when nothing is focused.
-        AssistantIsland(
-          key: const ValueKey('assistant-island'),
-          watch: watchActivity,
-          brainId: brainId,
-          floating: floating,
-        ),
         for (final entry in manifest.toolbar)
           _DockEntry(
             key: ValueKey('dock-entry-${entry.operation}'),
@@ -154,4 +137,47 @@ class _DockEntryState extends State<_DockEntry> {
       ),
     };
   }
+}
+
+// The text kind: one line; submit posts the trimmed text and clears the field.
+class DockTextField extends StatefulWidget {
+  const DockTextField({super.key, required this.hint, required this.onSubmit});
+
+  final String hint;
+  final ValueChanged<String> onSubmit;
+
+  @override
+  State<DockTextField> createState() => _DockTextFieldState();
+}
+
+class _DockTextFieldState extends State<DockTextField> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    widget.onSubmit(trimmed);
+    _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 360,
+    child: TextField(
+      controller: _controller,
+      decoration: InputDecoration(
+        hintText: widget.hint,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
+      textInputAction: TextInputAction.send,
+      onSubmitted: _submit,
+    ),
+  );
 }

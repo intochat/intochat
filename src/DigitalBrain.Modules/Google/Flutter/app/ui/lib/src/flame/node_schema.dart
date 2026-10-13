@@ -6,7 +6,12 @@ library;
 enum FlameParamKind { text, number, color, json, choice, boolean }
 
 final class FlameParam {
-  const FlameParam(this.key, this.kind, {this.required = false, this.choices = const []});
+  const FlameParam(
+    this.key,
+    this.kind, {
+    this.required = false,
+    this.choices = const [],
+  });
 
   final String key;
   final FlameParamKind kind;
@@ -29,7 +34,13 @@ final class FlameNodeType {
 }
 
 final class TreeTask {
-  const TreeTask(this.kind, this.minSeconds, this.maxSeconds, this.minValue, this.maxValue);
+  const TreeTask(
+    this.kind,
+    this.minSeconds,
+    this.maxSeconds,
+    this.minValue,
+    this.maxValue,
+  );
 
   final String kind;
   final double minSeconds, maxSeconds, minValue, maxValue;
@@ -37,11 +48,40 @@ final class TreeTask {
 
 abstract final class FlameSchema {
   static const List<String> gestures = ['tap', 'drag', 'hover'];
-  static const List<String> tweenProperties = ['x', 'y', 'scale', 'rotation', 'opacity'];
-  static const List<String> tweenCurves = ['linear', 'easeIn', 'easeOut', 'easeInOut'];
-  static const List<String> moods = ['idle', 'listening', 'thinking', 'acting', 'speaking', 'error', 'disconnected'];
+  static const List<String> tweenProperties = [
+    'x',
+    'y',
+    'scale',
+    'rotation',
+    'opacity',
+  ];
+  static const List<String> tweenCurves = [
+    'linear',
+    'easeIn',
+    'easeOut',
+    'easeInOut',
+  ];
+  static const List<String> moods = [
+    'idle',
+    'listening',
+    'thinking',
+    'acting',
+    'speaking',
+    'error',
+    'disconnected',
+  ];
 
-  static const List<String> treeKinds = ['selector', 'sequence', 'repeat', 'condition', 'wait', 'moveTo', 'scale', 'fade', 'pulse'];
+  static const List<String> treeKinds = [
+    'selector',
+    'sequence',
+    'repeat',
+    'condition',
+    'wait',
+    'moveTo',
+    'scale',
+    'fade',
+    'pulse',
+  ];
   static const List<String> reservedBlackboardKeys = ['running', 'attention'];
   static const int maxTreeNodes = 256;
   static const int maxTreeDepth = 16;
@@ -68,7 +108,11 @@ abstract final class FlameSchema {
       FlameParam('text', FlameParamKind.text, required: true),
       FlameParam('size', FlameParamKind.number),
       FlameParam('color', FlameParamKind.color),
-      FlameParam('align', FlameParamKind.choice, choices: ['left', 'center', 'right']),
+      FlameParam(
+        'align',
+        FlameParamKind.choice,
+        choices: ['left', 'center', 'right'],
+      ),
     ]),
     FlameNodeType('sprite', [
       FlameParam('src', FlameParamKind.text, required: true),
@@ -84,18 +128,6 @@ abstract final class FlameSchema {
       FlameParam('color', FlameParamKind.color),
     ]),
     FlameNodeType('group', []),
-    FlameNodeType('ino_sphere', [
-      FlameParam('mood', FlameParamKind.choice, choices: moods),
-      FlameParam('radius', FlameParamKind.number),
-      FlameParam('hue', FlameParamKind.number),
-    ]),
-    FlameNodeType('brain_graph', [
-      FlameParam('source', FlameParamKind.choice, choices: ['events', 'static']),
-      FlameParam('filter', FlameParamKind.choice, choices: ['apps', 'all']),
-      FlameParam('selected', FlameParamKind.text),
-      FlameParam('layout', FlameParamKind.choice, choices: ['sphere']),
-      FlameParam('title', FlameParamKind.text),
-    ]),
     FlameNodeType('activity_ring', [
       FlameParam('items', FlameParamKind.json),
       FlameParam('radius', FlameParamKind.number),
@@ -108,7 +140,11 @@ abstract final class FlameSchema {
       FlameParam('side', FlameParamKind.json),
       FlameParam('main', FlameParamKind.json),
       FlameParam('toolbar', FlameParamKind.json),
-      FlameParam('state', FlameParamKind.choice, choices: ['ready', 'unready', 'error']),
+      FlameParam(
+        'state',
+        FlameParamKind.choice,
+        choices: ['ready', 'unready', 'error'],
+      ),
       FlameParam('error', FlameParamKind.text),
       FlameParam('neuron', FlameParamKind.text),
       FlameParam('focused', FlameParamKind.boolean),

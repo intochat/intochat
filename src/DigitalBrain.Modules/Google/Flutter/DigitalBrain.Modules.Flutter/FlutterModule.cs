@@ -24,7 +24,6 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapShellPersistence();
         WorkspaceEndpoints.Map(endpoints);
         LiveSignalEndpoints.Map(endpoints);
         BrainEventsEndpoints.Map(endpoints);

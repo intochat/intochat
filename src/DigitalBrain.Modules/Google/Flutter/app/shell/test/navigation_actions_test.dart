@@ -1,70 +1,20 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'first_run_test.dart' show FirstRunClient;
-import 'workspace_remote_controller_test.dart' show MemoryPersistence;
+import 'application_fixture.dart';
 
 void main() {
-  for (final width in [1440.0, 390.0]) {
-    testWidgets('account and app actions live in their menus at $width', (
+  testWidgets('account actions remain reachable in the toolbar menu', (
+    tester,
+  ) async {
+    var switches = 0;
+    final f = await ApplicationFixture.start(
       tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final store = WorkspaceStore(persistence: MemoryPersistence());
-      final api = FirstRunClient();
-      final client = DigitalBrainUiClient(
-        baseUri: Uri.parse('http://test'),
-        httpClient: api,
-      );
-      var switches = 0;
-      await tester.pumpWidget(
-        WorkspaceApp(
-          store: store,
-          programmingClient: client,
-          onSwitchAccount: () async {
-            switches++;
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Switch account'), findsNothing);
-      expect(find.byTooltip('Apps'), findsNothing);
-      expect(find.byKey(const Key('home-island')), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Profile'));
-      await tester.pumpAndSettle();
-      expect(find.text('Switch account'), findsOneWidget);
-      await tester.tap(find.text('Switch account'));
-      await tester.pumpAndSettle();
-      expect(switches, 1);
-      expect(find.text('Switch account'), findsNothing);
-
-      // The catalog remains reachable beside a declared Home root.
-      await tester.tap(find.text('Apps and brain'));
-      await tester.pumpAndSettle();
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(
-        tester.widget<HomeScreen>(find.byType(HomeScreen)).workspaceId,
-        store.currentProject.id,
-      );
-      await tester.tap(find.byTooltip('Close apps'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Home'));
-      await tester.pumpAndSettle();
-      expect(store.focusedWindow, isNull);
-      expect(find.text('Apps and brain'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      await api.events.close();
-      store.dispose();
-      client.close();
-    });
-  }
+      onSwitchAccount: () async {
+        switches++;
+      },
+    );
+    await f.menu('Switch account');
+    expect(switches, 1);
+    await f.dispose();
+  });
 }

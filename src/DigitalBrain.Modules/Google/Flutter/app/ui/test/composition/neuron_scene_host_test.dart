@@ -22,18 +22,16 @@ class _Scenes extends SceneClient {
 }
 
 void main() {
-  testWidgets('nested scene retains the host brain event source', (
+  testWidgets('a nested scene reads its own scene neuron', (
     tester,
   ) async {
     final scenes = _Scenes();
-    Stream<BrainSnapshot> watchBrain() => const Stream.empty();
     await tester.pumpWidget(
       MaterialApp(
         home: NeuronView(
           kind: 'surface',
           name: 'b/apps/brainview/surface',
           scenes: scenes,
-          watchBrain: watchBrain,
           load: (_, _) async => {
             'definition': {
               'children': [
@@ -48,8 +46,8 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(
-      tester.widget<SceneView>(find.byType(SceneView)).watchBrain,
-      same(watchBrain),
+      tester.widget<SceneView>(find.byType(SceneView)).sceneKey,
+      'b/apps/brainview/scenes/brain',
     );
     await tester.pumpWidget(const SizedBox());
   });

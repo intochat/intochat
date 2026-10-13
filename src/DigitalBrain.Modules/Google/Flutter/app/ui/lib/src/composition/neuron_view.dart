@@ -73,7 +73,6 @@ class NeuronView extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.scenes,
-    this.watchBrain,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -94,7 +93,6 @@ class NeuronView extends StatefulWidget {
 
   /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
   final SceneClient? scenes;
-  final WatchBrain? watchBrain;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -292,7 +290,6 @@ class _NeuronViewState extends State<NeuronView> {
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
     scenes: widget.scenes,
-    watchBrain: widget.watchBrain,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -317,7 +314,7 @@ class _NeuronViewState extends State<NeuronView> {
     if (_scenesReadThemselves) {
       final state = _sceneState;
       if (state == null) {
-        return WindowStateView(
+        return _ComponentReadState(
           state: WindowState(
             _error == null ? WindowStatus.loading : WindowStatus.failed,
           ),
@@ -335,11 +332,10 @@ class _NeuronViewState extends State<NeuronView> {
         client: widget.scenes,
         state: state,
         animateChanges: _animateSceneChanges,
-        watchBrain: widget.watchBrain,
       );
     }
     if (_data == null) {
-      return WindowStateView(
+      return _ComponentReadState(
         state: WindowState(
           _error == null ? WindowStatus.loading : WindowStatus.failed,
         ),
@@ -347,10 +343,6 @@ class _NeuronViewState extends State<NeuronView> {
       );
     }
     final data = _data!;
-    final declared = WindowState.fromMetadata(data);
-    if (declared != null) {
-      return WindowStateView(state: declared, onRetry: _reload);
-    }
     if (widget.ancestors.isEmpty &&
         (data['version'] ?? data['revision']) == 0) {
       return Center(
@@ -1026,109 +1018,6 @@ class _FallbackRenderer extends StatelessWidget {
   }
 }
 
-/// Renders each declared window state. Loading shows progress, failed offers a retry, and the
-/// other states explain the situation in one line so no window is blank.
-class WindowStateView extends StatelessWidget {
-  const WindowStateView({super.key, required this.state, this.onRetry});
-
-  final WindowState state;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (state.status == WindowStatus.loading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    final (icon, label, message) = switch (state.status) {
-      WindowStatus.loading => (Icons.hourglass_empty, 'Loading', ''),
-      WindowStatus.empty => (
-        Icons.inbox_outlined,
-        'Nothing here yet',
-        'This window has no content yet.',
-      ),
-      WindowStatus.permissionDenied => (
-        Icons.lock_outline,
-        'Not available to you',
-        'You do not have permission to view this window.',
-      ),
-      WindowStatus.expiredConnection => (
-        Icons.link_off,
-        'Connection expired',
-        'The connection this window needs has expired. Reconnect to continue.',
-      ),
-      WindowStatus.failed => (
-        Icons.error_outline,
-        'Could not load',
-        state.message ?? 'This component could not be loaded.',
-      ),
-    };
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 28),
-            const SizedBox(height: 8),
-            Text(label),
-            if (message.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(message, textAlign: TextAlign.center),
-            ],
-            if (onRetry != null) ...[
-              const SizedBox(height: 8),
-              TextButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Renders the first-run workspace state: the assistant plus starter prompts that match the
-/// connected sources.
-class FirstRunView extends StatelessWidget {
-  const FirstRunView({super.key, required this.state, this.onPrompt});
-
-  final FirstRunState state;
-  final ValueChanged<StarterPrompt>? onPrompt;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            state.assistantTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          const Text('Start with one of these.'),
-          const SizedBox(height: 12),
-          for (final prompt in state.prompts)
-            Card(
-              child: ListTile(
-                title: Text(prompt.label),
-                subtitle: prompt.source == 'assistant'
-                    ? null
-                    : Text(prompt.source),
-                onTap: onPrompt == null ? null : () => onPrompt!(prompt),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Renders a declarative form from one read: typed fields, a date picker and a masked secret
 /// input. Field edits dispatch a `form` event; Save submits the whole form atomically.
 class _FormRenderer extends StatefulWidget {
@@ -1418,4 +1307,24 @@ class _SecretInputState extends State<_SecretInput> {
     controller.dispose();
     super.dispose();
   }
+}
+
+class _ComponentReadState extends StatelessWidget {
+  const _ComponentReadState({required this.state, this.onRetry});
+  final WindowState state;
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context) => state.status == WindowStatus.loading
+      ? const Center(child: CircularProgressIndicator())
+      : Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Could not load'),
+              const Text('This component could not be loaded.'),
+              if (onRetry != null)
+                TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
+        );
 }
