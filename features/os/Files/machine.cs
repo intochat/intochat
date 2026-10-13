@@ -73,6 +73,21 @@ static class Machine
         var listing = brain.Get<ICollectionView>(appKey + "/listing");
         var connections = await Connections(brain);
         var location = await Resolve(brain, input);
+        var roots = location is { } storage ? await brain.Get<IWindows>(storage.Connection).Roots() : [];
+        var storageItems = new List<CollectionItem>();
+        foreach (var connection in connections)
+        {
+            storageItems.Add(new(Id(connection.Neuron, ""), await StorageLabel(brain, connection), "folder",
+                "Windows PC - " + connection.Status, TrailingText: "Browse allowed folders"));
+            if (location?.Connection == connection.Neuron)
+            {
+                storageItems.AddRange(roots.Select(root => new CollectionItem(Id(connection.Neuron, root), Label(root), "folder", root)));
+            }
+        }
+        var storages = brain.Get<ICollectionView>(appKey + "/storages");
+        await storages.Set(new(storageItems.ToArray(),
+            Selection: location is { } active ? Id(active.Connection, "") : null,
+            EmptyLabel: NotConnected), (await storages.Read()).Revision);
         var navigation = brain.Get<IText>(appKey + "/navigation");
         var folder = location is { } selected ? Id(selected.Connection, selected.Path) : Storages;
         var destination = document ?? folder;
@@ -97,7 +112,6 @@ static class Machine
         }
         else
         {
-            var roots = await brain.Get<IWindows>(current.Connection).Roots();
             var paths = current.Path.Length == 0 ? roots : await brain.Get<IFileSystem>(WindowsKeys.Files(current.Connection)).List(current.Path);
             all = paths.Select(path => new CollectionItem(Id(current.Connection, path), Label(path), current.Path.Length == 0 ? "folder" : "entry",
                 current.Path.Length == 0 ? path : "Open folder or preview text")).ToArray();
