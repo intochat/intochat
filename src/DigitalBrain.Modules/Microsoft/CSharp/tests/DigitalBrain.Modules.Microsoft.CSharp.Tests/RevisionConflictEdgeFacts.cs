@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Runtime;
+using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +12,41 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class RevisionConflictEdgeFacts
 {
+    [Fact]
+    public async Task AGuardedNeuronAuthorizationFailureKeepsItsTypeAcrossTheRuntimeEdge()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var session = await Assigned(brain, ct);
+        var invocation = new RuntimeInvocation("acc-brain/csharp/a", typeof(ICSharpFile).FullName!,
+            "another-brain/csharp/private", nameof(ICSharpFile.Inspect), []);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Invoke)
+        { Content = JsonContent.Create(invocation, options: RuntimeProtocol.Json) };
+        request.Headers.Authorization = new("Bearer", session.Token);
+        using var response = await brain.HttpClient.SendAsync(request, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.Contains(RuntimeProtocol.RefusalHeader));
+        var detail = await response.Content.ReadAsStringAsync(ct);
+
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
+            session.Token, RuntimeBrain.Fingerprint(brain), new Forward(brain.HttpClient), ct);
+        var denied = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => connection.InvokeAsync(invocation, ct));
+        Assert.Equal(detail, denied.Message);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.UnprocessableEntity)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task UnclassifiedNonAuthorizationFailuresKeepTheirExistingType(HttpStatusCode status)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
+            "token", "fingerprint", new Refusing("unrelated failure", status, null), ct);
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => connection.InvokeAsync(
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+        Assert.Contains($"({(int)status}): unrelated failure", failure.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AStaleRevisionLeavesTheEdgeAs409WithTheCurrentRevision()
     {
@@ -83,14 +119,15 @@ public sealed class RevisionConflictEdgeFacts
     }
 
     // Accepts the connect report and the stream; refuses every invocation as a conflict with the given body.
-    private sealed class Refusing(string body) : HttpMessageHandler
+    private sealed class Refusing(string body, HttpStatusCode status = HttpStatusCode.Conflict,
+        string? code = RevisionConflictException.Code) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (request.RequestUri!.AbsolutePath.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal))
             {
-                var refused = new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent(body) };
-                refused.Headers.Add(RuntimeProtocol.RefusalHeader, RevisionConflictException.Code);
+                var refused = new HttpResponseMessage(status) { Content = new StringContent(body) };
+                if (code is not null) { refused.Headers.Add(RuntimeProtocol.RefusalHeader, code); }
                 return Task.FromResult(refused);
             }
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("") });

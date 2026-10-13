@@ -269,6 +269,7 @@ public sealed class SessionConnection : IAsyncDisposable
             if (code == RevisionConflictException.Code && TryReadConflict(detail) is { } conflict) { throw conflict; }
             throw new ScriptRefusalException(detail, code);
         }
+        if (response.StatusCode == HttpStatusCode.Unauthorized) { throw new UnauthorizedAccessException(detail); }
         throw new InvalidOperationException($"The brain refused {operation} ({(int)response.StatusCode}): {detail}");
     }
 
