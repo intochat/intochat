@@ -12,12 +12,13 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
     public async Task<UiChildRef> Connect(CancellationToken cancellationToken)
     {
         var scope = BrainScope.CurrentId();
-        var workspace = grains.GetGrain<IApp>(IApp.Key(scope, "workspace"));
-        if ((await workspace.Read()).Manifest.Title.Length == 0)
+        foreach (var required in new[] { "usage", "workspace" })
         {
-            try { await installer.Install("os", "workspace", cancellationToken); }
+            var app = grains.GetGrain<IApp>(IApp.Key(scope, required));
+            if ((await app.Read()).Manifest.Title.Length != 0) { continue; }
+            try { await installer.Install("os", required, cancellationToken); }
             catch (InvalidOperationException)
-            { if ((await workspace.Read()).Manifest.Title.Length == 0) { throw; } }
+            { if ((await app.Read()).Manifest.Title.Length == 0) { throw; } }
         }
         // Explicitly preserve personal programs. The common updater preserves settings and connections.
         await foreach (var instance in brain.Kernel.Instances<IApp>(cancellationToken))
@@ -29,6 +30,7 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
             catch (Exception error) when (error is not OperationCanceledException && name != "workspace")
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }
         }
+        await grains.GetGrain<IApp>(IApp.Key(scope, "workspace")).Request("open", "");
         return new("layout", IApp.Key(scope, "workspace") + "/root");
     }
 }

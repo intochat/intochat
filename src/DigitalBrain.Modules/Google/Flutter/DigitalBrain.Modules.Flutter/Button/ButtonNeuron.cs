@@ -27,6 +27,15 @@ internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.C
         return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
     }
 
+    public Task SetVisual(ControlVisual visual)
+    {
+        ControlVisualValidation.Check(visual);
+        var next = Snapshot;
+        next.Visual = visual;
+        next.Version++;
+        return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
+    }
+
     public Task SetActivation(string label, string activationJson)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);

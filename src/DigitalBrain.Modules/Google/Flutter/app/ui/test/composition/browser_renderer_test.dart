@@ -140,7 +140,9 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('theBrowserShowsTheNeuronsUrlNotItsOwn', (tester) async {
+  testWidgets('browser keeps the observed URL out of its compact header', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -160,7 +162,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('http://observed.example/page'), findsOneWidget);
+    expect(find.text('http://observed.example/page'), findsNothing);
     expect(find.text('http://intended.example/'), findsNothing);
+    expect(
+      tester.widget<EmbeddedBrowser>(find.byType(EmbeddedBrowser)).uri,
+      'http://observed.example/page',
+    );
   });
 }

@@ -1,4 +1,6 @@
 import '../components/workspace/ui_workspace_components.dart';
+import '../components/button/ui_neuron_button.dart';
+import '../theme/ui_tokens.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -236,6 +238,94 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  Widget _layout(
+    Map<String, dynamic> definition,
+    List<Widget> children,
+    List rawChildren,
+  ) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    final gap = (definition['gap'] as num? ?? 0).toDouble().clamp(0.0, 128.0);
+    if (definition['mode'] == 'stack') {
+      return Stack(fit: StackFit.expand, children: children);
+    }
+    if (definition['mode'] == 'list') {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final column = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: gap,
+            children: children,
+          );
+          return constraints.hasBoundedHeight
+              ? _NeuronList(
+                  followEnd: definition['followEnd'] == true,
+                  child: column,
+                )
+              : column;
+        },
+      );
+    }
+    final horizontal =
+        definition['mode'] == 'row' || definition['mode'] == 'split';
+    final flex = Flex(
+      direction: horizontal ? Axis.horizontal : Axis.vertical,
+      spacing: gap,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          if ((definition['extents'] as List?)?.elementAtOrNull(i)
+              case final num extent when extent > 0)
+            SizedBox(
+              width: horizontal ? extent.toDouble() : null,
+              height: horizontal ? null : extent.toDouble(),
+              child: children[i],
+            )
+          else if (!horizontal &&
+              rawChildren[i] is Map &&
+              const {
+                'voiceinput',
+                'fileinput',
+              }.contains((rawChildren[i] as Map)['kind']))
+            children[i]
+          else
+            Expanded(child: children[i]),
+      ],
+    );
+    final extents = definition['extents'] as List? ?? const [];
+    if (!horizontal && !extents.any((extent) => extent is num && extent > 0)) {
+      return flex;
+    }
+    // Keep declared controls reachable when their fixed extents exceed the
+    // viewport. Flexible panes retain room for content and action controls.
+    final minimumExtent =
+        gap * (children.length - 1) +
+        List.generate(children.length, (index) {
+          final extent = extents.elementAtOrNull(index);
+          return extent is num && extent > 0 ? extent.toDouble() : 96.0;
+        }).fold(0.0, (sum, extent) => sum + extent);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (horizontal
+            ? !constraints.hasBoundedWidth
+            : !constraints.hasBoundedHeight) {
+          return flex;
+        }
+        final available = horizontal
+            ? constraints.maxWidth
+            : constraints.maxHeight;
+        final extent = available < minimumExtent ? minimumExtent : available;
+        return SingleChildScrollView(
+          primary: false,
+          scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+          child: SizedBox(
+            width: horizontal ? extent : null,
+            height: horizontal ? null : extent,
+            child: flex,
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _button(Map<String, dynamic> definition) async {
     FocusScope.of(context).unfocus();
     try {
@@ -376,7 +466,10 @@ class _NeuronViewState extends State<NeuronView> {
       case 'viewport':
         final root = data['root'];
         if (root is Map && root['kind'] is String && root['name'] is String) {
-          return _child(root);
+          return UiMotion(
+            contentKey: '${root['kind']}:${root['name']}',
+            child: _child(root),
+          );
         }
         return Center(child: Text('${data['error'] ?? ''}'));
       case 'person':
@@ -482,96 +575,53 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'surface':
       case 'layout':
-        if (children.isEmpty) return const SizedBox.shrink();
-        final gap = (definition['gap'] as num? ?? 0).toDouble().clamp(
+        final content = _layout(definition, children, rawChildren);
+        final inset = (definition['padding'] as num? ?? 0).toDouble().clamp(
           0.0,
           128.0,
         );
-        if (definition['mode'] == 'stack') {
-          return Stack(fit: StackFit.expand, children: children);
-        }
-        if (definition['mode'] == 'list') {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final column = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: gap,
-                children: children,
-              );
-              return constraints.hasBoundedHeight
-                  ? _NeuronList(
-                      followEnd: definition['followEnd'] == true,
-                      child: column,
-                    )
-                  : column;
-            },
+        if (definition['surface'] == 'floating' ||
+            definition['surface'] == 'panel') {
+          final colors = Theme.of(context).colorScheme;
+          return Container(
+            padding: EdgeInsets.all(inset),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(
+                UiTokens.of(context).surfaceRadius,
+              ),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .65),
+              ),
+              boxShadow: definition['surface'] == 'floating'
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: .16),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(
+                UiTokens.of(context).controlRadius,
+              ),
+              child: content,
+            ),
           );
         }
-        final horizontal =
-            definition['mode'] == 'row' || definition['mode'] == 'split';
-        final flex = Flex(
-          direction: horizontal ? Axis.horizontal : Axis.vertical,
-          spacing: gap,
-          children: [
-            for (var i = 0; i < children.length; i++)
-              if ((definition['extents'] as List?)?.elementAtOrNull(i)
-                  case final num extent when extent > 0)
-                SizedBox(
-                  width: horizontal ? extent.toDouble() : null,
-                  height: horizontal ? null : extent.toDouble(),
-                  child: children[i],
-                )
-              else if (!horizontal &&
-                  rawChildren[i] is Map &&
-                  const {
-                    'voiceinput',
-                    'fileinput',
-                  }.contains((rawChildren[i] as Map)['kind']))
-                children[i]
-              else
-                Expanded(child: children[i]),
-          ],
-        );
-        final extents = definition['extents'] as List? ?? const [];
-        if (!horizontal &&
-            !extents.any((extent) => extent is num && extent > 0)) {
-          return flex;
-        }
-        // Keep declared controls reachable when their fixed extents exceed the
-        // viewport. Flexible panes retain room for content and action controls.
-        final minimumExtent =
-            gap * (children.length - 1) +
-            List.generate(children.length, (index) {
-              final extent = extents.elementAtOrNull(index);
-              return extent is num && extent > 0 ? extent.toDouble() : 96.0;
-            }).fold(0.0, (sum, extent) => sum + extent);
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            if (horizontal
-                ? !constraints.hasBoundedWidth
-                : !constraints.hasBoundedHeight) {
-              return flex;
-            }
-            final available = horizontal
-                ? constraints.maxWidth
-                : constraints.maxHeight;
-            final extent = available < minimumExtent
-                ? minimumExtent
-                : available;
-            return SingleChildScrollView(
-              primary: false,
-              scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
-              child: SizedBox(
-                width: horizontal ? extent : null,
-                height: horizontal ? null : extent,
-                child: flex,
-              ),
-            );
-          },
-        );
+        return Padding(padding: EdgeInsets.all(inset), child: content);
       case 'text':
         return _markdown(definition['markdown'] as String? ?? '');
       case 'button':
+        if (definition['visual'] case final Map visual) {
+          return UiNeuronButton(
+            label: definition['label'] as String? ?? '',
+            visual: visual,
+            onPressed: enabled ? () => _button(definition) : null,
+          );
+        }
         return TextButton(
           onPressed: enabled ? () => _button(definition) : null,
           child: Text(
@@ -605,17 +655,29 @@ class _NeuronViewState extends State<NeuronView> {
                 value: '${option['id']}',
                 checked: option['id'] == definition['selected'],
                 enabled: option['enabled'] != false,
-                child: Text('${option['label']}'),
+                child: option['visual'] is Map
+                    ? UiNeuronButton(
+                        label: '${option['label']}',
+                        visual: option['visual'] as Map,
+                        menuChild: true,
+                      )
+                    : Text('${option['label']}'),
               ),
           ],
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(
-              '${options.where((option) => option['id'] == definition['selected']).firstOrNull?['label'] ?? definition['label'] ?? ''}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          child: definition['visual'] is Map
+              ? UiNeuronButton(
+                  label: definition['label'] as String? ?? '',
+                  visual: definition['visual'] as Map,
+                  menuChild: true,
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    '${options.where((option) => option['id'] == definition['selected']).firstOrNull?['label'] ?? definition['label'] ?? ''}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
         );
       case 'fileinput':
         final label = definition['label'] as String? ?? '';

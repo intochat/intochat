@@ -5,9 +5,10 @@ PhotoCraft is an open-source, Photoshop-compatible image editor (layers, masks, 
 
 ## Open
 
-The Connect editor toolbar action connects the brain to PhotoCraft's MCP server, so its tools (documents, `command_list`,
+Startup connects the brain to PhotoCraft's MCP server, so its tools (documents, `command_list`,
 `command_run`, `render_preview`, ...) appear in the assistant's search, and prepares the PhotoCraft web app
-in the main layout: a status line above the app's page.
+in the main layout: a status line above the app's page. The Connect editor action retries a failed
+connection. Startup creates no image and starts no editor turn.
 
 ## Edit
 
@@ -83,7 +84,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "photocraft";
-    public const string Version = "1.0.11";
+    public const string Version = "1.0.13";
 
     public static readonly AppManifest Manifest = new(
         Title: "PhotoCraft",

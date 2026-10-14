@@ -6,18 +6,25 @@ using DigitalBrain.Client;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(PhotoCraft.Key(brain));
 await PhotoCraft.Compose(brain);
-if ((await PhotoCraft.Status(brain).Read()).Version == 0)
-{ await PhotoCraft.Status(brain).Set("PhotoCraft is not connected. Request open to connect its tools."); }
+await Prepare(true);
 
 await foreach (var request in brain.On(app, "open", brain.Stopping))
+{ await Prepare(false); }
+
+async Task Prepare(bool startup)
 {
     var status = PhotoCraft.Status(brain);
     try
     {
         var session = await PhotoCraft.Connect(brain, brain.Stopping);
-        await status.Set(session.WebUrl is null ? "PhotoCraft tools connected; no page is served in this deployment." : "PhotoCraft tools connected.");
+        var previous = await status.Read();
+        var connectionStatus = previous.Markdown.StartsWith("PhotoCraft is not connected.", StringComparison.Ordinal)
+            || previous.Markdown.StartsWith("PhotoCraft tools connected", StringComparison.Ordinal)
+            || previous.Markdown.StartsWith("Could not open PhotoCraft.", StringComparison.Ordinal);
+        if (!startup || previous.Version == 0 || connectionStatus)
+        { await status.Set(session.WebUrl is null ? "PhotoCraft tools connected; no page is served in this deployment." : "PhotoCraft tools connected."); }
         await PhotoCraft.Show(brain, session, brain.Stopping);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await status.Set(PhotoCraft.Clip(error.Message, PhotoCraft.MaxStatusChars)); }
+    { await status.Set(PhotoCraft.Clip("Could not open PhotoCraft. Use Connect editor to retry. " + error.Message, PhotoCraft.MaxStatusChars)); }
 }

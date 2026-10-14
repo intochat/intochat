@@ -30,6 +30,7 @@ public static class PlatformHosting
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<DigitalBrain.Framework.Compute.ICostMeter, Compute.CostMeter>();
+        services.TryAddSingleton<DigitalBrain.Framework.Compute.IComputeReader, Compute.ComputeReader>();
         silo.AddIncomingGrainCallFilter<Compute.CircleShareGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, DigitalBrain.Framework.Compute.MeteredHttpHandlerFilter>());
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);

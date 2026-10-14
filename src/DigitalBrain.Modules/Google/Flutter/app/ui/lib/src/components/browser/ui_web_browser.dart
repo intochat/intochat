@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
 import '../../theme/ui_theme.dart';
+import '../../theme/ui_tokens.dart';
 import 'embedded_browser_stub.dart'
-    if (dart.library.io) 'embedded_browser_windows.dart';
+    if (dart.library.io) 'embedded_browser_windows.dart'
+    if (dart.library.js_interop) 'embedded_browser_web.dart';
 
 final class UiWebBrowser extends StatefulWidget {
   const UiWebBrowser({
@@ -37,15 +40,15 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tokens = UiTokens.of(context);
     final connection = widget.connection.toLowerCase();
     final hasError = widget.error.isNotEmpty;
-    final url = widget.actualUrl.isNotEmpty
+    final url = !kIsWeb && widget.actualUrl.isNotEmpty
         ? widget.actualUrl
         : widget.part.uri;
-    final connectionLabel = widget.connection.isEmpty
-        ? ''
-        : '${widget.connection[0].toUpperCase()}${widget.connection.substring(1)}';
-    final placeholder = hasError
+    final placeholder = kIsWeb
+        ? null
+        : hasError
         ? widget.error
         : connection == 'waiting'
         ? 'Waiting for the page...'
@@ -56,14 +59,14 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
       child: DecoratedBox(
         key: Key('ui_webbrowser_${widget.part.name}'),
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(tokens.surfaceRadius),
           border: Border.all(color: scheme.outlineVariant),
         ),
         child: SizedBox(
           height: widget.height,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(tokens.spaceSmall),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -72,7 +75,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                     Expanded(
                       child: Text(
                         widget.part.title,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: UiType.bodyFamily,
@@ -81,7 +84,19 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                         ),
                       ),
                     ),
-                    if (widget.onConnect != null)
+                    if (kIsWeb)
+                      Tooltip(
+                        message: 'Interact with this page here. Browser automation requires the desktop app.',
+                        child: Padding(
+                          padding: EdgeInsets.all(tokens.spaceSmall),
+                          child: Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    if (widget.onConnect != null || kIsWeb)
                       IconButton(
                         tooltip: 'Reconnect browser',
                         onPressed: () => setState(() => _session++),
@@ -89,31 +104,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                if (connectionLabel.isNotEmpty)
-                  Text(
-                    connectionLabel,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: UiType.bodyFamily,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                if (url.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    url,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: UiType.bodyFamily,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                SizedBox(height: tokens.spaceSmall),
                 Expanded(
                   child: Stack(
                     fit: StackFit.expand,
@@ -121,6 +112,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                       EmbeddedBrowser(
                         // Reconnect replaces the native page and its marked connector session.
                         key: ValueKey(_session),
+                        uri: url,
                         onConnect: widget.onConnect,
                         onDisconnect: widget.onDisconnect,
                         onUnavailable: widget.onUnavailable,
@@ -130,7 +122,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                           color: scheme.surface,
                           child: Center(
                             child: Padding(
-                              padding: const EdgeInsets.all(16),
+                              padding: EdgeInsets.all(tokens.spaceMedium),
                               child: SelectableText(
                                 placeholder,
                                 textAlign: TextAlign.center,

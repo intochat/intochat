@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Flutter.Button;
 using DigitalBrain.Framework;
 using Orleans.Runtime;
 
@@ -16,8 +17,16 @@ internal sealed class SelectNeuron([PersistentState("state", DigitalBrainNames.C
             || options.Select(option => option.Id).Distinct(StringComparer.Ordinal).Count() != options.Count)
         { throw new ArgumentException("Select options must have unique bounded IDs and nonempty labels.", nameof(options)); }
         if (selected is not null && !options.Any(option => option.Id == selected)) { throw new ArgumentException("Selected option is missing.", nameof(selected)); }
-        return Save(new() { Name = this.GetPrimaryKeyString(), Revision = Snapshot.Revision + 1, Label = label.Trim(), Options = options.ToArray(), Selected = selected },
+        return Save(new() { Name = this.GetPrimaryKeyString(), Revision = Snapshot.Revision + 1, Label = label.Trim(), Options = options.ToArray(), Selected = selected, Visual = Snapshot.Visual },
             new SelectChanged(this.GetPrimaryKeyString(), selected ?? ""));
+    }
+    public Task SetVisual(ControlVisual visual)
+    {
+        ControlVisualValidation.Check(visual);
+        var next = Snapshot;
+        next.Visual = visual;
+        next.Revision++;
+        return Save(next, new SelectChanged(this.GetPrimaryKeyString(), ""));
     }
     public async Task Choose(string value)
     {

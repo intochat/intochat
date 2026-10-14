@@ -41,3 +41,6 @@ Successful Workspace request reaction trace: `eaaff6bef9a5fb8dc4865b8979ae4d72`.
 ## Remaining scope
 
 This completes the named-root/default-Workspace migration, not the entire social-product redesign. The existing domain UIs are retained; richer profile identity tabs, feed design, app-specific editing/composer parity, icon-based dock polish, accessible close labels, live subscription reconciliation, usage/billing facade and full connector-owned settings removal remain future work. External person/document contexts and foreign embedded grants are still unsupported; cross-brain activation switches the whole connected brain. Locally edited apps without a named full view are preserved and show an unavailable view rather than being overwritten. The old spatial workspace is not imported into the new typed workspace state.
+
+
+The icon dock, real brain-usage facade, profile routing fix, and embedded PhotoCraft follow-up are recorded in [Workspace polish evidence](2026-10-14-workspace-polish-evidence.md).

@@ -27,6 +27,7 @@ public static class CircleView
         if (navigation.Page is not ("feed" or "profile" or "circles" or "publication")) throw new ArgumentException("Unknown Circle view.");
         await brain.Get<IText>(Key(brain) + "/navigation").Set(PublicationUi.Encode(navigation));
         await Project(brain);
+        await Status(brain, "");
     }
 
     public static async Task Project(DigitalBrainConnection brain)
@@ -34,6 +35,8 @@ public static class CircleView
         var app = Key(brain);
         var raw = (await brain.Get<IText>(app + "/navigation").Read()).Markdown;
         var nav = string.IsNullOrEmpty(raw) ? new PublicationUi.Navigation() : PublicationUi.Decode<PublicationUi.Navigation>(raw);
+        if (nav.Page == "profile" && string.IsNullOrEmpty(nav.Publisher))
+        { nav = nav with { Publisher = (await Factory(brain).Publications(null)).PrincipalId }; }
         var feed = await Factory(brain).Publications(nav.Page == "profile" ? nav.Publisher : null);
         async Task<UiChildRef> Link(string id, string label, PublicationUi.Navigation target) =>
             await PublicationUi.Button(brain, id, label, Scope(brain), "circle", "navigate", PublicationUi.Encode(target));
