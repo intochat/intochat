@@ -81,12 +81,12 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
         {
             instance.WithHttpEndpoint(name: "http", env: env);
         }
-        // Not proxied either: Aspire's proxy keeps accepting while the instance restarts and holds the request,
-        // where a closed port is refused at once and the front moves on to the other instance.
+        // The single runtime needs a stable endpoint while its process restarts. Aspire owns the
+        // proxy listener; the front does not retain a container-to-host mapping to a dead listener.
         foreach (var endpoint in instance.Resource.Annotations.OfType<EndpointAnnotation>())
         {
             endpoint.Port = null;
-            endpoint.IsProxied = false;
+            endpoint.IsProxied = true;
         }
         return instance;
     }

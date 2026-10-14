@@ -131,7 +131,7 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 {
     // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
     // Projects compose ASPNETCORE_URLS from endpoints; an explicit port variable would be overridden by it.
-    silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: false);
+    silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
 #pragma warning disable ASPIRECERTIFICATES001
     silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001

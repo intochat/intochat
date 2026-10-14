@@ -148,7 +148,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
 
     // A launch profile's applicationUrl pins ports; two instances of one project would share them.
     [Fact]
-    public void AnInstanceDropsThePortsItsProfilePinned()
+    public void ASingleInstanceUsesStableProxyEndpointsAcrossRestarts()
     {
         var instance = AspireCompositionTest.CreateBuilder().AddExecutable("OperatingSystem-a", "dotnet", ".")
             .WithHttpEndpoint(port: 5310, name: "http").WithHttpsEndpoint(port: 60275, name: "https");
@@ -158,7 +158,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.All(instance.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint =>
         {
             Assert.Null(endpoint.Port);
-            Assert.False(endpoint.IsProxied);
+            Assert.True(endpoint.IsProxied);
         });
     }
 
