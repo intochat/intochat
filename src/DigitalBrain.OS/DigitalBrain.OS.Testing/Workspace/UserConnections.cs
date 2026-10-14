@@ -20,7 +20,11 @@ public static class UserConnections
             authMethodId = "connection-string",
             value = connection,
         }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException($"The test user's database connection failed ({(int)response.StatusCode}): {body}");
+        }
         var row = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
         if (row.GetProperty("status").GetString() != "Connected")
         { throw new InvalidOperationException("The test user's database connection is unavailable."); }
