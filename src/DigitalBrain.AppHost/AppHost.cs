@@ -87,10 +87,13 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
 // One runtime owns this deployment; devices are connections to external capabilities.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
-var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(name =>
+var storageDirectory = builder.Configuration["DigitalBrain:Platform:Storage:Directory"]
+    ?? (builder.Configuration.GetValue(DigitalBrainHostingOptions.PersistentStorageKey, true)
+        ? Path.Combine(workdir, "brain-store")
+        : Path.Combine(workdir, "test-brains", digitalBrain.ClusterId));
+var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
-        // R76: A is the core holder, the machine the fronts and MCPs route to; B never races it for the core.
         ? Primary(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
             .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
@@ -99,7 +102,7 @@ var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, s
 // The front keeps a stable TLS endpoint across a single-runtime restart.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 
-var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Take(1).Select(name =>
+var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "DigitalBrain.Mcp.dll") is { } live
         ? Mcp(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
         : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_Mcp>(name)))).ToArray();
@@ -109,18 +112,21 @@ builder.Build().Run();
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
-    // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
-    // platform seed nodes (Q25).
+    // One encrypted local brain store for this deployment.
     silo.WithReference(digitalBrain)
-        .WithEnvironment("DigitalBrain__Platform__Storage__Directory", Path.Combine(workdir, "brain-store"))
-        .WithEnvironment("DigitalBrain__Platform__Parts__MachineDirectory", Path.Combine(workdir, "runtime"))
+        .WithEnvironment("DigitalBrain__Platform__Storage__Directory", storageDirectory)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
+    foreach (var key in new[] { DigitalBrain.Framework.DigitalBrainNames.CustodyConfigurationKey,
+        DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey })
+    {
+        if (builder.Configuration[key] is { Length: > 0 } value)
+        { silo.WithEnvironment(key.Replace(":", "__"), value); }
+    }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
 }
 
-// R76: A is the core holder, the machine the fronts and MCPs route to. Its Orleans ports are allocated after the
-// brain reference (Task 22), in the deployment's cluster the MCPs join.
+// Allocate Orleans ports after the brain reference so isolated AppHosts can run side by side.
 IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport, IResourceWithArgs
 {
     // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
@@ -129,7 +135,7 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 #pragma warning disable ASPIRECERTIFICATES001
     silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
-    var primary = Silo(silo.AsCoreHolder());
+    var primary = Silo(silo);
     silo.WithAllocatedOrleansPorts();
     return primary;
 }

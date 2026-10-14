@@ -28,7 +28,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     }
 
     private ISecretSealer Sealer => ServiceProvider.GetRequiredService<ISecretSealer>();
-    private IPartSecretSealer? PartSealer => ServiceProvider.GetService<IPartSecretSealer>();
+    private IBrainSecretSealer? BrainSealer => ServiceProvider.GetService<IBrainSecretSealer>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
     private ConnectorDefinition Connector => ServiceProvider.GetRequiredService<IReadOnlyList<ConnectorDefinition>>()
         .FirstOrDefault(c => c.Id == Key.Connector) ?? throw new InvalidOperationException($"No composed module declares connector '{Key.Connector}'.");
@@ -135,7 +135,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         if (Snapshot.Secrets.Length == 0) { return []; }
-        var part = PartSealer ?? throw new InvalidOperationException("Re-sealing a shared credential needs this machine's part keys.");
+        var part = BrainSealer ?? throw new InvalidOperationException("Re-sealing a shared credential needs this machine's part keys.");
         var reSealed = new List<SealedSecret>(Snapshot.Secrets.Length);
         foreach (var secret in Snapshot.Secrets) { reSealed.Add(await part.Seal(brainId, secret.Name, Sealer.Open(secret))); }
         return [.. reSealed];
@@ -209,17 +209,17 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
 
     // R130: a shared copy's secret is sealed under its brain's core part key; the owner's own under the master key.
     private async Task<string> OpenSecret(SealedSecret secret)
-        => PartSeal.IsPartSealed(secret) && PartSealer is { } part
+        => BrainSeal.IsBrainSealed(secret) && BrainSealer is { } part
             ? await part.Open(Key.Brain, secret)
             : Sealer.Open(secret);
 
     // R130: a shared copy's secrets are sealed under its brain's core part key; the owner's own under the master
     // key. Every write that replaces them stays under the same key the copy already carries.
-    private bool PartSealed => PartSealer is not null && Snapshot.Secrets.Any(PartSeal.IsPartSealed);
+    private bool BrainSealed => BrainSealer is not null && Snapshot.Secrets.Any(BrainSeal.IsBrainSealed);
 
     private async Task<SealedSecret> SealAsync(string name, string plaintext)
     {
-        if (PartSealed && PartSealer is { } part) { return await part.Seal(Key.Brain, name, plaintext); }
+        if (BrainSealed && BrainSealer is { } part) { return await part.Seal(Key.Brain, name, plaintext); }
         return Sealer.Seal(name, plaintext);
     }
 

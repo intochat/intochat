@@ -44,12 +44,11 @@ public sealed class DockerCandidateHostFacts : IDisposable
             [DockerCandidateHost.IntegrationVariable("openrouter", "ApiKey")] = "model-key",
             [DockerCandidateHost.IntegrationVariable("typesafe", "Endpoint")] = "https://jev",
         };
-        string? copiedFrom = null;
-        var host = Host(live, new CandidateSecrets(model, "live-grainstate"), (source, _, _) => { copiedFrom = source; return Task.CompletedTask; });
+        var host = Host(live, new CandidateSecrets(model));
 
         await host.Run("abc1234", TestContext.Current.CancellationToken);
 
-        Assert.Equal("live-grainstate", copiedFrom);
+        Assert.Equal("/app/brain-store", host.LastRunEnvironment[DockerCandidateHost.Env(DigitalBrainNames.BrainStorageDirectoryConfigurationKey)]);
         var forbidden = live.Where(pair => pair.Key.StartsWith(IntegrationSchema.SectionName, StringComparison.Ordinal) || pair.Key.StartsWith("ConnectionStrings:", StringComparison.Ordinal))
             .Select(pair => pair.Value!).ToArray();
         foreach (var environment in new[] { host.LastRunEnvironment, host.LastMcpEnvironment })
@@ -81,14 +80,13 @@ public sealed class DockerCandidateHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task ARunWithoutTheLiveGrainStateFailsBeforeStartingTheSilo()
+    public async Task ACandidateStartsWithoutAccessToLiveStorage()
     {
-        var host = Host(secrets: new CandidateSecrets(new Dictionary<string, string>(), null));
+        var host = Host(secrets: new CandidateSecrets(new Dictionary<string, string>()));
 
-        var error = await Assert.ThrowsAsync<CandidateHostException>(() => host.Run("abc1234", TestContext.Current.CancellationToken));
-
-        Assert.Contains(AspireModule.LiveGrainStateField, error.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(processes.Commands, command => command.Contains("--name candidate-abc1234 ", StringComparison.Ordinal));
+        await host.Run("abc1234", TestContext.Current.CancellationToken);
+        Assert.Contains(processes.Commands, command => command.Contains("--name candidate-abc1234 ", StringComparison.Ordinal));
+        Assert.DoesNotContain(processes.Commands, command => command.Contains("--volume", StringComparison.Ordinal));
     }
 
     // Cleanup after a failed run is best effort: its own failure must not hide why the run failed.
@@ -101,16 +99,6 @@ public sealed class DockerCandidateHostFacts : IDisposable
         var error = await Assert.ThrowsAsync<CandidateHostException>(() => Host().Run("abc1234", TestContext.Current.CancellationToken));
 
         Assert.Contains("pool overlaps", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheStorageCopyLeavesEveryIntegrationBehind()
-    {
-        Assert.True(DockerCandidateHost.LeftBehind("registration-integration/github"));
-        Assert.True(DockerCandidateHost.LeftBehind("integration.registration/integration/postgres.json"));
-        Assert.True(DockerCandidateHost.LeftBehind("registration-integration/openrouter"));
-        Assert.True(DockerCandidateHost.LeftBehind(".digitalbrain-deployment.json"));
-        Assert.False(DockerCandidateHost.LeftBehind("app.state/alice/apps/notes"));
     }
 
     [Fact]
@@ -152,10 +140,10 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.DoesNotContain("line 1\n", error.Message, StringComparison.Ordinal);
     }
 
-    private DockerCandidateHost Host(Dictionary<string, string?>? live = null, CandidateSecrets? secrets = null, Func<string, string, CancellationToken, Task>? copyState = null)
+    private DockerCandidateHost Host(Dictionary<string, string?>? live = null, CandidateSecrets? secrets = null)
         => new(processes, new ConfigurationBuilder().AddInMemoryCollection(live ?? []).Build(),
-            _ => Task.FromResult(workdir), _ => Task.FromResult(secrets ?? new CandidateSecrets(new Dictionary<string, string>(), "live-grainstate")),
-            copyState ?? ((_, _, _) => Task.CompletedTask), _ => false, new HttpClient(), (_, _, _) => Task.CompletedTask);
+            _ => Task.FromResult(workdir), _ => Task.FromResult(secrets ?? new CandidateSecrets(new Dictionary<string, string>())),
+            _ => false, new HttpClient(), (_, _, _) => Task.CompletedTask);
 
     private sealed class RecordingProcessRunner : IProcessRunner
     {

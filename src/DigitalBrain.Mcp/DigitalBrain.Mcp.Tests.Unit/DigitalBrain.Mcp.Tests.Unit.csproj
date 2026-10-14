@@ -2,8 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" />
     <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <!-- The trust cluster a machine fact runs against is the platform tests' own. -->
-    <Compile Include="../../DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/TrustHost.cs" Link="TrustHost.cs" />
     <ProjectReference Include="../../DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
   </ItemGroup>

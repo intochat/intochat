@@ -72,27 +72,12 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.Equal(new Dictionary<string, string> { [AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey")] = "model-key" }, model);
     }
 
-    // The candidate host reads the live grain state from the same orleans integration the silo stores in.
-    [Fact]
-    public async Task TheAspireIntegrationCarriesTheLiveGrainStateOfTheOrleansIntegration()
-    {
-        var builder = AspireCompositionTest.CreateBuilder();
-        var brain = builder.AddDigitalBrain("modules").WithHosting<AspireModuleHosting>();
-        var silo = builder.AddExecutable("silo", "unused", ".")
-            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField), "UseDevelopmentStorage=true")
-            .WithReference(brain);
-
-        var environment = await AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
-
-        Assert.Equal("UseDevelopmentStorage=true", environment[AspireModuleHosting.LiveGrainStateVariable]);
-    }
-
     // Each role runs two named instances on dynamic ports; a YARP front owns the fixed port, routes everything to
     // both instances and health-checks them, so a restarting instance leaves the port served.
     [Theory]
     [InlineData("OperatingSystem", 5080)]
     [InlineData("digitalbrain-mcp", 5081)]
-    public async Task TheSiloRunsTwoReplicasBehindTheFixedPorts(string role, int port)
+    public async Task TheRuntimeRunsOneInstanceBehindTheFixedPort(string role, int port)
     {
         SetLive("abc1234");
         var builder = AspireCompositionTest.CreateBuilder();
@@ -102,7 +87,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
 
         var front = AspireModuleHosting.AddFront(builder, role, port, instances.Select(instance => instance.GetEndpoint("http")));
 
-        Assert.Equal([role + "-a", role + "-b"], instances.Select(instance => instance.Resource.Name));
+        Assert.Equal([role + "-a"], instances.Select(instance => instance.Resource.Name));
         // AspireCliClusterHost recognises an instance as {role}-{one lowercase letter}.
         Assert.All(AspireModuleHosting.Instances, instance => Assert.True(instance is [var letter] && char.IsAsciiLetterLower(letter)));
         Assert.All(instances, instance => Assert.Null(Assert.Single(instance.Resource.Annotations.OfType<EndpointAnnotation>()).Port));
@@ -114,7 +99,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.Equal("/{**catch-all}", environment["REVERSEPROXY__ROUTES__route0__MATCH__PATH"]);
         Assert.Equal($"cluster_{role}", environment["REVERSEPROXY__ROUTES__route0__CLUSTERID"]);
         Assert.Equal($"http://{role}-a", environment[cluster + "DESTINATIONS__destination1__ADDRESS"]);
-        Assert.Equal($"http://{role}-b", environment[cluster + "DESTINATIONS__destination2__ADDRESS"]);
+        Assert.DoesNotContain(cluster + "DESTINATIONS__destination2__ADDRESS", environment.Keys);
         Assert.Equal("/ready", environment[cluster + "HEALTHCHECK__ACTIVE__PATH"]);
         Assert.Equal("00:00:01", environment[cluster + "HEALTHCHECK__ACTIVE__INTERVAL"]);
         // The front answers its own /ready from whichever instance it routes to, on that instance's /alive: a
@@ -136,7 +121,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
             Assert.Equal("HealthyAndUnknown", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__AVAILABLEDESTINATIONSPOLICY"]);
         }
         Assert.Contains($"services__{role}-a__http__0", environment.Keys);
-        Assert.Contains($"services__{role}-b__http__0", environment.Keys);
+        Assert.DoesNotContain($"services__{role}-b__http__0", environment.Keys);
         foreach (var instance in instances)
         {
             var drain = await AspireCompositionTest.EnvironmentOf(builder, instance.Resource, TestContext.Current.CancellationToken);

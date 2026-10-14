@@ -1,8 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Microsoft.Windows;
-using DigitalBrain.Platform.Mesh;
-using DigitalBrain.Platform.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -21,8 +19,7 @@ public sealed class TpmCounterNeuron([PersistentState("counter", DigitalBrainNam
 [GenerateSerializer, Alias("test.tpm-counter.state")]
 public sealed class TpmCounterState { [Id(0)] public int Value { get; set; } }
 
-// R78 step 4, scaled to one single-machine owner: the Windows module puts custody and the signing key in the TPM,
-// the part key is wrapped there, and after a restart the state is read back through it.
+// The local brain key is wrapped by the TPM and state is recovered after restart.
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class TpmRestartFacts
 {
@@ -35,21 +32,14 @@ public sealed class TpmRestartFacts
         var prefix = $"digitalbrain-test-{Guid.NewGuid():N}-";
         try
         {
-            await using var brain = await TestBrain.Create().WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
-                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
-                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
-                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
-                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2")
+            await using var brain = await TestBrain.Create()
                 .WithConfiguration(DigitalBrainNames.CustodyConfigurationKey, nameof(MasterKeyCustodyKind.Tpm))
                 .WithModule<WindowsModule>()
                 // The module's TPM custody and signing key under test-only names, registered after the module's own.
                 .ConfigureServices(services =>
                 {
                     services.RemoveAll<IMasterKeyCustody>();
-                    services.RemoveAll<IMachineSigningKey>();
                     services.AddSingleton<IMasterKeyCustody>(new TpmMasterKeyCustody(prefix));
-                    // MachineIdentity disposes its key with the host, so each host opens its own handle to the same TPM key.
-                    services.AddSingleton<IMachineSigningKey>(_ => new TpmMachineSigningKey($"{prefix}machine"));
                 })
                 .StartAsync(ct);
             Assert.IsType<TpmMasterKeyCustody>(brain.Services.GetRequiredService<IMasterKeyCustody>());
@@ -63,8 +53,6 @@ public sealed class TpmRestartFacts
         finally
         {
             TpmMasterKeyCustody.Delete("owner", prefix);
-            using var machineKey = new TpmMachineSigningKey($"{prefix}machine");
-            machineKey.Delete();
         }
     }
 }

@@ -33,7 +33,6 @@ public sealed class OwnerProvisioningFacts
         }
         // The handler reached every brain's authority while the brain was being born: the three people's and the
         // owner brain the machine bears at boot (R59).
-        await brain.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
         Assert.Equal(4, handler.Decisions.Count);
     }
 

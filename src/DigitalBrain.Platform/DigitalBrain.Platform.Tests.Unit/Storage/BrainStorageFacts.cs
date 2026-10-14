@@ -29,7 +29,6 @@ public sealed class BrainStorageFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
         var identity = brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>();
-        Assert.Null(identity.MachineId);
         var person = await brain.PersonAsync("local-user", ct);
         Assert.NotNull(person);
         Assert.NotNull(await identity.ReadAccount("owner"));

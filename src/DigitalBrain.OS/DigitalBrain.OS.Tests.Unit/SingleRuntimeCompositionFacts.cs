@@ -21,7 +21,7 @@ public sealed class SingleRuntimeCompositionFacts
             var environment = new Dictionary<string, object>();
             var context = new EnvironmentCallbackContext(host.ExecutionContext, resource, environment, TestContext.Current.CancellationToken);
             foreach (var callback in resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
-            Assert.DoesNotContain("DigitalBrain__Platform__Trust__Endpoint", environment.Keys);
+            Assert.DoesNotContain(environment.Keys, key => key.Split("__").Contains("Trust", StringComparer.OrdinalIgnoreCase));
         }
     }
 }

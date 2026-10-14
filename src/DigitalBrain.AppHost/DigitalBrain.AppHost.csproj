@@ -9,7 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../DigitalBrain.Trust/DigitalBrain.Trust/DigitalBrain.Trust.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../DigitalBrain.Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>

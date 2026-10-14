@@ -79,7 +79,7 @@ public sealed class SubscriptionCallerFacts
     public async Task ABehaviorCannotSubscribeToANeuronOfAnotherBrainWhicheverTurnWatchesIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, partLog: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var bob = await brain.PersonAsync("bob", ct);
         var app = bob.Key("apps/spy");
         var session = await AssignAsync(brain, bob, app, ct);
@@ -103,13 +103,11 @@ public sealed class SubscriptionCallerFacts
     // reassigned by bob it speaks for bob, and the reassignment's own watch finds the other brain's app refusing
     // it. That subscription stays, unfed: the watch it held before the refusal outlives the refusal, and the
     // app's log is still there to be read. Only the behavior subscribing again, refused, lets it go.
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ASourceThatStopsAcceptingAProgramFeedsItNothingLiveOrFromItsLog(bool partLog)
+    [Fact]
+    public async Task ASourceThatStopsAcceptingAProgramFeedsItNothingLiveOrFromItsLog()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, partLog: partLog, apps: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, apps: true);
         var bob = await brain.PersonAsync("bob", ct);
         var theirs = brain.Get<IApp>(IApp.Key(brain.Owner.BrainId, "echo"));
         await theirs.Create(new AppManifest("Echo", "", [new("open", "")], [], []), "spec");

@@ -25,7 +25,6 @@ public abstract class Neuron : Grain, INeuron
     public sealed override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await base.OnActivateAsync(cancellationToken);
-        if (ServiceProvider.GetService<IStandInActivations>()?.IsStandIn(this.GetGrainId()) == true) { return; }
         var handlers = ServiceProvider.GetServices(typeof(IActivationHandler<>).MakeGenericType(GetType()));
         foreach (var handler in handlers)
         {

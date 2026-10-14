@@ -15,7 +15,7 @@ internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identi
     public async Task<Friend[]> FriendsOf(string brain)
     {
         // Creation/default installation can rebuild a space while the brain's Create turn is active.
-        // Resolve ownership in the trust directory; reading IBrain here would wait on that same turn.
+        // Resolve ownership in the local identity directory; reading IBrain here would wait on that same turn.
         var account = await OwnerAccount(brain);
         if (account is null) { return []; }
         Dictionary<string, (string Account, List<string> Circles)> friends = new(StringComparer.Ordinal);
@@ -40,17 +40,7 @@ internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identi
         return friends.Select(pair => new Friend(pair.Value.Account, pair.Key, pair.Value.Circles.ToArray())).ToArray();
     }
 
-    private async Task<Account?> OwnerAccount(string brain)
-    {
-        if (identity.MachineId is not { Length: > 0 } machine) { return null; }
-        foreach (var id in await identity.AccountsOf(machine))
-        {
-            if (await identity.ReadAccount(id) is not { } account) { continue; }
-            var member = await identity.Membership(brain, account.OwnerPrincipalId);
-            if (member?.AccountId == id && member.Role == MemberRole.Owner) { return account; }
-        }
-        return null;
-    }
+    private Task<Account?> OwnerAccount(string brain) => identity.OwnerOfBrain(brain);
 
     public async Task<string[]> PersonalBrains(string accountId)
     {

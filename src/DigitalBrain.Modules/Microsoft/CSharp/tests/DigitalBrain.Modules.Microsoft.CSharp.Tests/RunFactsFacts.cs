@@ -10,6 +10,7 @@ using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Storage;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -231,12 +232,14 @@ public sealed class RunFactsFacts
         await rig.Started.NextAsync(started => started.Source == two.GetGrainId().ToString(), ct);
         var runtime = rig.Runtime.GetGrainId();
         var runs = rig.Runs.GetGrainId();
-        var (runtimeAppends, runsAppends) = (rig.Journal.Of(runtime).Length, rig.Journal.Of(runs).Length);
+        var runtimeWrites = rig.Brain.Services.GetRequiredService<RecordingWrites>();
+        var before = runtimeWrites.Count(runtime);
+        var runsAppends = rig.Journal.Of(runs).Length;
 
         await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(first, 1), new AcknowledgeReport(second, 1)]);
         var ran = new[] { await rig.Ran.NextAsync(ct: ct), await rig.Ran.NextAsync(ct: ct) };
 
-        Assert.Equal(runtimeAppends + 1, rig.Journal.Of(runtime).Length);
+        Assert.Equal(before + 1, runtimeWrites.Count(runtime));
         var appended = Assert.Single(rig.Journal.Of(runs).Skip(runsAppends));
         Assert.Equal(2, appended.Signals.OfType<BehaviorRan>().Count());
         Assert.Equal([one.GetGrainId().ToString(), two.GetGrainId().ToString()], ran.Select(fact => fact.Source).Order(StringComparer.Ordinal));
@@ -427,8 +430,16 @@ public sealed class RunFactsFacts
         var activations = new RuntimeActivations();
         var brain = await RuntimeBrain.Create(new FakeSessionHost())
             .WithOptions<CSharpModule, CSharpOptions>(options => options.MaximumPending = maximumPending)
-            .ConfigureServices(services => services.AddSingleton<ISignalJournal>(journal).AddSingleton<ICostMeter>(meter)
-                .AddSingleton<IActivationHandler<BrainRuntimeNeuron>>(activations))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<ISignalJournal>(journal).AddSingleton<ICostMeter>(meter)
+                    .AddSingleton<IActivationHandler<BrainRuntimeNeuron>>(activations);
+                var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
+                    && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+                services.Remove(storage);
+                services.AddSingleton(provider => new RecordingWrites((IGrainStorage)storage.KeyedImplementationFactory!(provider, DigitalBrainNames.ClusterGrainStorage)));
+                services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) => provider.GetRequiredService<RecordingWrites>());
+            })
             .StartAsync(ct);
         try
         {
@@ -500,6 +511,19 @@ public sealed class RunFactsFacts
 
         // Nothing to read back: a host without a part log, so live signals are what arrives.
         public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => Task.FromResult<PartSignals?>(null);
+    }
+
+    private sealed class RecordingWrites(IGrainStorage inner) : IGrainStorage
+    {
+        private readonly ConcurrentDictionary<GrainId, int> writes = new();
+        public int Count(GrainId id) => writes.GetValueOrDefault(id);
+        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
+        public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
+        {
+            await inner.WriteStateAsync(name, id, state);
+            writes.AddOrUpdate(id, 1, (_, count) => count + 1);
+        }
+        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
     }
 
     private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string CostId, string? TraceId, CostSubject? Subject);

@@ -35,26 +35,13 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
         { UseTpmCustody(silo.Services); }
     }
 
-    // Replaces the platform's file key and configured custody whichever registered first. Without a TPM the factory
-    // throws, and the platform's start validation refuses the machine naming the custody key.
+    // The local brain key stays wrapped by the TPM. Missing hardware refuses startup.
     [SupportedOSPlatform("windows")]
     private static void UseTpmCustody(IServiceCollection services)
     {
         services.RemoveAll<IMasterKeyCustody>();
-        services.RemoveAll<IMachineSigningKey>();
         services.AddSingleton<IMasterKeyCustody>(_ => TpmMasterKeyCustody.IsAvailable()
             ? new TpmMasterKeyCustody()
             : throw new InvalidOperationException("The Microsoft Platform Crypto Provider (TPM) is not available on this machine."));
-        services.AddSingleton<IMachineSigningKey>(_ => new TpmMachineSigningKey());
-        UseTpmAgreementKey(services, TpmAgreementKey.IsAvailable);
-    }
-
-    // R127: the agreement key moves into the TPM only where its provider does ECDH; otherwise the platform's software
-    // key stays.
-    internal static void UseTpmAgreementKey(IServiceCollection services, Func<bool> providerHasEcdh)
-    {
-        if (!OperatingSystem.IsWindows() || !providerHasEcdh()) { return; }
-        services.RemoveAll<IMachineAgreementKey>();
-        services.AddSingleton<IMachineAgreementKey>(_ => OperatingSystem.IsWindows() ? new TpmAgreementKey() : throw new PlatformNotSupportedException());
     }
 }

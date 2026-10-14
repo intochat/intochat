@@ -15,7 +15,7 @@ namespace DigitalBrain.Platform.Identity.Directory;
 // service id and master key, so a misconfigured host cannot read or write another's state.
 internal sealed class DeploymentStorageIdentity(
     IOptions<ClusterOptions> cluster, IKeyWrapper keys,
-    [FromKeyedServices(DigitalBrainNames.GrainState)] BlobServiceClient? storage = null)
+    [FromKeyedServices(DigitalBrainNames.GrainState)] BlobContainerClient? storage = null)
 {
     private const string MarkerName = ".digitalbrain-deployment.json";
     private static readonly byte[] Proof = "DigitalBrain deployment key binding v1"u8.ToArray();
@@ -23,7 +23,7 @@ internal sealed class DeploymentStorageIdentity(
     public async Task ValidateAsync(CancellationToken ct)
     {
         if (storage is null) { return; } // In-memory unit/development hosts have no durable store.
-        var container = storage.GetBlobContainerClient(DigitalBrainNames.GrainStateContainer);
+        var container = storage;
         if (!await container.ExistsAsync(ct)) { return; }
         var marker = await ReadAsync(container, ct);
         if (marker is not null) { Validate(marker, cluster.Value.ServiceId, keys); }
@@ -33,7 +33,7 @@ internal sealed class DeploymentStorageIdentity(
     {
         if (storage is null) { return; }
         await ValidateAsync(ct);
-        var container = storage.GetBlobContainerClient(DigitalBrainNames.GrainStateContainer);
+        var container = storage;
         await container.CreateIfNotExistsAsync(cancellationToken: ct);
         var current = await ReadAsync(container, ct);
         if (current is not null) { Validate(current, cluster.Value.ServiceId, keys); return; }

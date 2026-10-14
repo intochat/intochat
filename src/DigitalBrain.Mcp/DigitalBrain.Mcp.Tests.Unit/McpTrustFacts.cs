@@ -14,7 +14,9 @@ public sealed class McpTrustFacts
     [InlineData("Secured")]
     public async Task TheMcpHostResolvesIBrainAccess(string posture)
     {
+        await using var runtime = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton(runtime.Services.GetRequiredService<Orleans.IGrainFactory>());
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddDigitalBrainMcp();
         await using var app = builder.Build();

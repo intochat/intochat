@@ -8,14 +8,12 @@ public sealed class StorageRingFacts
 {
     private static readonly Assembly Apps = Assembly.Load("DigitalBrain.Modules.Apps");
 
-    // Neurons keyed outside every brain that hold no brain's data: trust-cluster services (ruling R1), which a
-    // machine cannot host because it holds only brain parts (Q27).
+    // Brain state and platform authority remain separate storage boundaries in one runtime.
     [Fact]
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        var trust = typeof(DigitalBrain.Platform.TrustHosting).Assembly;
-        var sites = new[] { typeof(Neuron).Assembly, platform, trust, Apps }
+        var sites = new[] { typeof(Neuron).Assembly, platform, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
@@ -24,13 +22,13 @@ public sealed class StorageRingFacts
             .Where(site => site.storage is not null)
             .ToArray();
         var offenders = sites
-            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || (site.type.Assembly != platform && site.type.Assembly != trust)
+            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
                 ? site.storage != DigitalBrainNames.ClusterGrainStorage
                 : site.storage != DigitalBrainNames.PlatformGrainStorage)
             .Select(site => $"{site.type.FullName} -> {site.storage}")
             .ToArray();
 
         Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
-        Assert.Contains(sites, site => site.type.Assembly == trust);
+        Assert.Contains(sites, site => site.type.Assembly == platform);
     }
 }

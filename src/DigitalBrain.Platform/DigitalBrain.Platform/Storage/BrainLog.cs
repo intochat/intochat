@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using DigitalBrain.Framework;
-using DigitalBrain.Platform.Mesh;
+using DigitalBrain.Platform.Storage;
 using Orleans.Serialization;
 using Orleans.Storage;
 
@@ -91,6 +91,15 @@ internal sealed class BrainLog : IDisposable
         }
     }
 
+    public Task<PartSignals> PublisherSignals(string publisher, long since, CancellationToken ct)
+    {
+        lock (gate)
+        {
+            var read = ReadSignals(since, int.MaxValue, publisher, ct).GetAwaiter().GetResult();
+            return Task.FromResult(new PartSignals(0, lastSignal, read));
+        }
+    }
+
     public Task Checkpoint(CancellationToken ct)
     {
         lock (gate)
@@ -128,11 +137,14 @@ internal sealed class BrainLog : IDisposable
             if (!Guid.TryParseExact(generation, "N", out _)) { throw new InvalidDataException("Invalid brain checkpoint generation."); }
             var checkpoint = serializer.Deserialize<BrainSnapshot>(SegmentSeal.Open(key, Context("snapshot"), File.ReadAllBytes(Path.Combine(directory, generation + ".snapshot"))))!;
             records = checkpoint.Records;
-            signals.AddRange(checkpoint.Signals);
+            signals.AddRange(checkpoint.Signals.Select(SignalOnly));
             sequence = checkpoint.Sequence;
             lastSignal = checkpoint.LastSignal;
             if (!File.Exists(Journal)) { throw new InvalidDataException("The checkpoint journal is missing."); }
         }
+        else if (!File.Exists(Journal) && (Directory.EnumerateFiles(directory, "*.snapshot").Any()
+            || Directory.EnumerateFiles(directory, "*.log").Any()))
+        { throw new InvalidDataException("The brain checkpoint manifest is missing; refusing to reset existing data."); }
         using var stream = new FileStream(Journal, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         long valid = 0;
         Span<byte> header = stackalloc byte[4];
@@ -162,10 +174,13 @@ internal sealed class BrainLog : IDisposable
             states[entry.StateName] = new BrainRecord(entry.Record, entry.Sequence);
         }
         else if (entry.Change == BrainRecordChange.Clear) { records.GetValueOrDefault(entry.GrainId)?.Remove(entry.StateName); }
-        if (entry.Signals.Length > 0) { signals.Add(entry); }
+        if (entry.Signals.Length > 0) { signals.Add(SignalOnly(entry)); }
         sequence = entry.Sequence;
         lastSignal = entry.FirstSignal + entry.Signals.Length - 1;
     }
+
+    private static BrainEntry SignalOnly(BrainEntry entry)
+        => entry with { Record = [], StateName = "", Change = BrainRecordChange.None };
 
     internal static void WriteFlushed(string path, byte[] bytes)
     {

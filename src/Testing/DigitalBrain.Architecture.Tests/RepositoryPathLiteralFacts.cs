@@ -42,6 +42,7 @@ public sealed partial class RepositoryPathLiteralFacts
     private static readonly string[] ProjectionFacts =
     [
         "DigitalBrain.OS.Tests.Unit/TelemetryProjectionFacts.cs",
+        "DigitalBrain.OS.Tests.Unit/SingleRuntimeCompositionFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",

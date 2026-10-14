@@ -204,11 +204,8 @@
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/DigitalBrain.Platform.Tests.Unit.csproj" />
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/DigitalBrain.Platform.Trust.csproj" />
   </Folder>
   <Folder Name="/Trust/">
-    <Project Path="src/DigitalBrain.Trust/DigitalBrain.Trust/DigitalBrain.Trust.csproj" />
-    <Project Path="src/DigitalBrain.Trust/DigitalBrain.Trust.Tests.Unit/DigitalBrain.Trust.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

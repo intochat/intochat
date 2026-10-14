@@ -16,7 +16,7 @@ public sealed class PartLogReplayFacts
 
     private static async Task<(ITestBrain Brain, string Session)> StartAsync(CancellationToken ct)
     {
-        var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, partLog: true);
+        var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
         return (brain, (await Runtime(brain).Inspect(ct)).SessionId!);
     }

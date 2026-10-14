@@ -9,8 +9,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Platform.Identity.Configuration;
-using DigitalBrain.Platform.Parts;
-using DigitalBrain.Platform.Trust;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -43,8 +41,6 @@ public sealed class InProcessTarget : ITestTarget
         return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
     }
 
-    private static string? Setting(TestBrainPlan plan, string key) => plan.Configuration.TryGetValue(key, out var value) ? value : null;
-
     internal static async Task<WebApplication> BuildAsync(TestBrainPlan plan, InProcessSession session, int httpPort, CancellationToken cancellationToken)
     {
         // Neither Development (which changes feature and token behaviour) nor Production (which refuses configured custody).
@@ -57,7 +53,6 @@ public sealed class InProcessTarget : ITestTarget
             [DigitalBrain.Platform.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [$"{PartsOptions.Key}:MachineDirectory"] = session.MachineDirectory,
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
             [OrleansStorageHosting.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
             // The AppHost's Orleans resource turns grain-call tracing on for every silo; so does the test host.
@@ -65,12 +60,6 @@ public sealed class InProcessTarget : ITestTarget
         });
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);
-        // A part-log machine with no separate trust cluster is its owner's core holder, so the product births the
-        // owner brain at boot as it does on the AppHost's primary machine.
-        if (!string.IsNullOrWhiteSpace(Setting(plan, $"{PartsOptions.Key}:{nameof(PartsOptions.Role)}"))
-            && string.IsNullOrWhiteSpace(Setting(plan, $"{TrustOptions.Key}:{nameof(TrustOptions.Endpoint)}"))
-            && Setting(plan, $"{PartsOptions.Key}:CoreHolder") is null)
-        { builder.Configuration[$"{PartsOptions.Key}:CoreHolder"] = "true"; }
         // Before the orleans module configures: its TryAddSingleton keeps this instance.
         builder.Services.AddSingleton(session.Stores);
         builder.Services.AddSingleton<ActivationIndex>();

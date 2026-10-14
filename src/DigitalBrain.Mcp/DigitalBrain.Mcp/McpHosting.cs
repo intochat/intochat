@@ -2,7 +2,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Surface;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Trust;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Mcp;
@@ -16,7 +15,7 @@ public static class McpHosting
         services.TryAddSingleton(NeuronTypeSearch.Create);
         services.AddIdentity();
         // IBrainAccess asks the trust side for memberships: the MCP composes the trust clients as a reader (R70).
-        services.AddTrustClientsForClientHost();
+        services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(
             (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));

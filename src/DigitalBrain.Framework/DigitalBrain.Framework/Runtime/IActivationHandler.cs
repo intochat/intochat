@@ -14,10 +14,3 @@ public interface IActivationHandler
 {
     Task Activated(Neuron neuron, CancellationToken cancellationToken);
 }
-
-// Task 22 (R101): an activation made only to forward its calls to the machine that holds its part (a stand-in) runs
-// no activation handler: it read no state and must neither publish nor act. The machine runtime provides it.
-public interface IStandInActivations
-{
-    bool IsStandIn(GrainId grain);
-}

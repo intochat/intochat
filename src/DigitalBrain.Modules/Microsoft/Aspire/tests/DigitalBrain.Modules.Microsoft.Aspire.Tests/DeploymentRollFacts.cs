@@ -2,6 +2,25 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class DeploymentRollFacts
 {
+    [Fact(Timeout = 30_000)]
+    public async Task ASingleRuntimeUpdateRestartsWithoutWaitingForANonexistentPeer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "OperatingSystem-a", InstanceNames = ["digitalbrain-mcp-a", "OperatingSystem-a"] };
+        cluster.NoPeer.UnionWith(cluster.InstanceNames);
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
+        await grain.Roll("sha0001");
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await brain.DeactivateAsync(grain, ct);
+        await grain.Read();
+        await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
+        Assert.Equal(["digitalbrain-mcp-a@sha0001", "OperatingSystem-a@sha0001"], cluster.RestartedSilos);
+        Assert.DoesNotContain(cluster.Steps, step => step.StartsWith("out ", StringComparison.Ordinal));
+        Assert.Equal("sha0001", (await grain.Read()).CurrentSha);
+    }
+
     [Fact]
     public async Task RollingRestartsEveryInstanceOnceAndEndsSteadyOnTheNewShaAfterTheHandover()
     {

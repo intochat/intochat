@@ -5,8 +5,6 @@ using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Mesh;
-using DigitalBrain.Platform.Parts;
 using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,11 +58,6 @@ public sealed class ModelAddressFacts
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
-            .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2")
             .StartAsync(ct);
 
         var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IGrainFactory>(), Owner, nameof(IGpt56Luna), "Be brief.", "hello", ct);

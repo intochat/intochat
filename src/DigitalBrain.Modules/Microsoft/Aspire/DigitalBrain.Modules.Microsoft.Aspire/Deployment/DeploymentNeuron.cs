@@ -142,10 +142,7 @@ internal sealed class DeploymentNeuron(
         Drive();
     }
 
-    // Before an instance stops, the front stops routing it while another instance of its role still serves: the
-    // instance drains, and the step waits until the front has taken it out. A drain that fails, or a front left with
-    // nothing to route to, is a never-ready outcome: going forward it rolls back; going back it stops the roll back
-    // (NeverReady), since restarting the only routable instance would take the port down.
+    // A single instance restarts with a brief interruption. Only deployments with a peer wait for failover.
     private async Task<bool> Drained(string name)
     {
         try
@@ -155,7 +152,9 @@ internal sealed class DeploymentNeuron(
                 await host.DrainInstance(name, CancellationToken.None);
                 await SaveQuietly(Snapshot with { Draining = name });
             }
-            await host.WaitOutOfFront(name, options.Value.SiloStepBudget, CancellationToken.None);
+            var instances = await host.Instances(CancellationToken.None);
+            if (instances.Any(peer => peer != name && AspireCliClusterHost.RoleOf(peer) == AspireCliClusterHost.RoleOf(name)))
+            { await host.WaitOutOfFront(name, options.Value.SiloStepBudget, CancellationToken.None); }
             return true;
         }
         catch (InstanceNeverReadyException error)

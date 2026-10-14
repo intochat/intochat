@@ -22,12 +22,9 @@ public sealed class ScopedAuthorityFacts
         var provision = await identity.RegisterPrincipal(principal, "Interrupted hosting");
         Assert.True(provision.NewBrain);
         Assert.True(await identity.IsRegistered(principal));
-        Assert.DoesNotContain(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
 
         Assert.Null(await passwords.Authenticate(principal, "wrong-password"));
-        Assert.DoesNotContain(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
         Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
-        Assert.Contains(provision.Member.AccountId, await identity.AccountsOf(identity.MachineId!));
         var created = brain.Grains.GetGrain<IBrain>(provision.Member.BrainId);
         var original = await created.Read();
         Assert.Equal(provision.Member.AccountId, original.Owner.AccountId);

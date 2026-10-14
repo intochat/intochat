@@ -9,7 +9,7 @@ internal interface ICandidateHost
     Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct);
     Task BuildGate(string sha, CancellationToken ct);                 // dotnet build + touched tests; throws CandidateHostException
     Task<string> Publish(string sha, CancellationToken ct);           // returns build folder {Workdir}/builds/{sha}
-    Task<RunningCandidate> Run(string sha, CancellationToken ct);     // image + azurite + copy of live storage
+    Task<RunningCandidate> Run(string sha, CancellationToken ct);     // image + isolated fresh storage
     Task WaitHealthy(string sha, TimeSpan budget, CancellationToken ct); // throws TimeoutException
     Task<string?> Commit(string sha, CancellationToken ct);            // CAS fast-forward of refs/digitalbrain/live to sha; returns what it held
     Task Uncommit(string sha, string? previous, CancellationToken ct); // puts the live ref back while it still holds sha

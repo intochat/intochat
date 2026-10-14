@@ -1,4 +1,6 @@
 using DigitalBrain.Microsoft.Orleans;
+using Azure.Storage.Blobs;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -53,6 +55,7 @@ public sealed class StorageSelectionFacts
         new FakeSilo(services, configuration).AddOrleansStorage(configuration);
         using var provider = services.BuildServiceProvider();
         Assert.Equal(expected, provider.GetRequiredService<IOptionsMonitor<AzureBlobStorageOptions>>().Get("cluster").ContainerName);
+        Assert.Equal(expected, provider.GetRequiredKeyedService<BlobContainerClient>(DigitalBrainNames.GrainState).Name);
     }
 
     private sealed class FakeSilo(IServiceCollection services, IConfiguration configuration) : ISiloBuilder

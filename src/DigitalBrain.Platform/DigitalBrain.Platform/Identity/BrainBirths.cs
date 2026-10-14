@@ -1,6 +1,5 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Trust;
 
 namespace DigitalBrain.Platform.Identity;
 

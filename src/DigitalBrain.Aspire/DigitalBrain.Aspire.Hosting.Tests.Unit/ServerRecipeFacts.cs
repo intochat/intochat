@@ -4,7 +4,7 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Platform.Identity.Configuration;
-using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Storage;
 using DigitalBrain.Time;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -26,13 +26,13 @@ public sealed class ServerRecipeFacts
     public async Task TheRecipeHostsASiloAndTheHttpSurfaceInOneProcess()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [DigitalBrainNames.MasterKeyConfigurationKey] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [$"{PartsOptions.Key}:MachineDirectory"] = Directory.CreateTempSubdirectory("recipe-").FullName,
+            [$"{BrainStoreOptions.Key}:Directory"] = Directory.CreateTempSubdirectory("recipe-").FullName,
         });
         builder.AddDigitalBrainServer(server => server.AddModule<OrleansModule>().AddModule<TimeModule>());
         await using var app = builder.Build();

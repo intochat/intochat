@@ -19,7 +19,7 @@ public class ProductionBrainFixture : ReferenceBrainFixture
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .InEnvironment("Production")
             // R81: the AppHost's own machines share one configured custody root (R74); production accepts it only acknowledged.
-            .WithConfiguration($"{DigitalBrain.Platform.Parts.PartsOptions.Key}:{nameof(DigitalBrain.Platform.Parts.PartsOptions.ConfiguredCustodyAcknowledged)}", "true")
+            .WithConfiguration(DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
             .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);
 }

@@ -1,15 +1,16 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
 
 namespace DigitalBrain.Platform.Storage;
 
-internal sealed class BrainLogs : IDisposable
+internal sealed class BrainLogs : IAsyncDisposable
 {
     private readonly BrainStorageKeys keys;
     private readonly Serializer serializer;
     private readonly FileStream ownership;
-    private readonly ConcurrentDictionary<string, Lazy<Task<BrainLog>>> logs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task<BrainLog>> logs = new(StringComparer.Ordinal);
+    private readonly Lock gate = new();
+    private bool disposed;
 
     public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options)
     {
@@ -19,13 +20,38 @@ internal sealed class BrainLogs : IDisposable
         ownership = new FileStream(Path.Combine(options.Value.Directory, "runtime.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
-    public Task<BrainLog> For(string brainId) => logs.GetOrAdd(brainId, id => new Lazy<Task<BrainLog>>(async () =>
-        new BrainLog(keys.DirectoryOf(id), id, await keys.GetOrCreate(id, CancellationToken.None), serializer))).Value;
-
-    public void Dispose()
+    public Task<BrainLog> For(string brainId)
     {
-        foreach (var opening in logs.Values)
-        { if (opening.IsValueCreated && opening.Value.IsCompletedSuccessfully) { opening.Value.Result.Dispose(); } }
-        ownership.Dispose();
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (!logs.TryGetValue(brainId, out var log)) { logs[brainId] = log = Open(brainId); }
+            return log;
+        }
+    }
+
+    private async Task<BrainLog> Open(string brainId)
+        => new(keys.DirectoryOf(brainId), brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer);
+
+    public async ValueTask DisposeAsync()
+    {
+        Task<BrainLog>[] opening;
+        lock (gate)
+        {
+            if (disposed) { return; }
+            disposed = true;
+            opening = [.. logs.Values];
+        }
+        try
+        {
+            foreach (var task in opening)
+            {
+                BrainLog log;
+                try { log = await task; }
+                catch { continue; } // Failed opens already released their writer lock.
+                log.Dispose();
+            }
+        }
+        finally { ownership.Dispose(); }
     }
 }

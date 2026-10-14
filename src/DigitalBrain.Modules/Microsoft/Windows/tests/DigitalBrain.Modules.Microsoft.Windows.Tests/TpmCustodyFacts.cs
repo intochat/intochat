@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using DigitalBrain.Microsoft.Windows;
 
 namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
@@ -43,26 +42,4 @@ public sealed class TpmCustodyFacts
         finally { TpmMasterKeyCustody.Delete(account); }
     }
 
-    [Fact]
-    public void TheMachineSignsHeadsWithItsTpmKey()
-    {
-        Assert.SkipUnless(OperatingSystem.IsWindows() && TpmMasterKeyCustody.IsAvailable(), "No TPM (Microsoft Platform Crypto Provider) on this machine.");
-        var name = $"digitalbrain-test-machine-{Guid.NewGuid():N}";
-        using var machine = new TpmMachineSigningKey(name);
-        try
-        {
-            // The bytes a head record signs; HeadRecord itself is Platform-internal.
-            var head = Encoding.UTF8.GetBytes("part-hash|1|holder|lease|payload");
-            var signature = machine.Sign(head);
-
-            using var verifier = ECDsa.Create();
-            verifier.ImportSubjectPublicKeyInfo(machine.PublicKey, out _);
-            Assert.Equal(256, verifier.KeySize);
-            Assert.True(verifier.VerifyData(head, signature, HashAlgorithmName.SHA256));
-            Assert.False(verifier.VerifyData((byte[])[.. head, 0], signature, HashAlgorithmName.SHA256));
-            using var again = new TpmMachineSigningKey(name);
-            Assert.Equal(machine.PublicKey, again.PublicKey);
-        }
-        finally { machine.Delete(); }
-    }
 }

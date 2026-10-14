@@ -16,6 +16,6 @@ internal sealed class BrainSignalJournal(BrainLogs logs) : ISignalJournal
     public async Task<PartSignals?> SignalsOf(GrainId publisher, long since)
     {
         var log = await logs.For(BrainKey.BrainOf(publisher.Key.ToString()!));
-        return new PartSignals(0, log.LastSignal, await log.ReadSignals(since, int.MaxValue, publisher.ToString(), CancellationToken.None));
+        return await log.PublisherSignals(publisher.ToString(), since, CancellationToken.None);
     }
 }

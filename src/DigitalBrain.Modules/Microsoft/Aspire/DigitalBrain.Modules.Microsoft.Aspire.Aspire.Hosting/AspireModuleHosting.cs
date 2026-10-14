@@ -66,11 +66,8 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
             .WithOtlpExporter();
     }
 
-    // The OS silo and the MCP client each run as two named instances, {role}-a and {role}-b, on dynamic ports
-    // (Aspire 13.6 replicates only project resources, and a live build is an executable). A YARP front owns the
-    // role's fixed host port and balances across them; its active health check takes an instance out while
-    // it restarts, so the port stays served during a roll.
-    public static readonly string[] Instances = ["a", "b"];
+    // One runtime and one MCP host. Fronts preserve URLs across their restarts.
+    public static readonly string[] Instances = ["a"];
     public const string HealthPath = HealthProbes.ReadyPath;
 
     public static string[] InstanceNames(string role) => [.. Instances.Select(instance => $"{role}-{instance}")];
@@ -176,7 +173,6 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     public static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
 
     public static string CandidateModelVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.CandidateModelField));
-    public static string LiveGrainStateVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.LiveGrainStateField));
     public static string FeaturesVariable => DigitalBrainConfiguration.EnvironmentName(FeaturesKey);
     public static string IntegrationVariable(string id, string field) => DigitalBrainConfiguration.IntegrationEnvironmentName(id, field);
 
@@ -221,14 +217,8 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
                     .Where(variable => prefixes.Any(prefix => variable.Key.StartsWith(prefix, StringComparison.Ordinal)))
                     .ToArray();
                 context.EnvironmentVariables[CandidateModelVariable] = new ModelJson(model);
-                if (context.EnvironmentVariables.TryGetValue(GrainStateConnection, out var grainState))
-                {
-                    context.EnvironmentVariables[LiveGrainStateVariable] = grainState;
-                }
             });
 
-        // One storage source: the orleans integration the silo itself reads.
-        private static readonly string GrainStateConnection = DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState");
 
         // The model Integrations' resolved values as one JSON object, resolved with the resource's other values.
         private sealed class ModelJson(KeyValuePair<string, object>[] variables) : IValueProvider

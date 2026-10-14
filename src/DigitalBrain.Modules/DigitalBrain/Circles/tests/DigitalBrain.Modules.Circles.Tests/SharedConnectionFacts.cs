@@ -165,13 +165,13 @@ public sealed class SharedConnectionFacts
         await using var machines = await CircleMachines.Start(ct);
         var (a, b, alice, _, circle, copy) = await Chosen(machines, ct);
         var before = await CopySecrets(a, copy);
-        Assert.True(PartSeal.IsPartSealed(Assert.Single(before, secret => secret.Name == "value")), $"imported as {string.Join(",", before.Select(s => s.KeyId))}");
+        Assert.True(BrainSeal.IsBrainSealed(Assert.Single(before, secret => secret.Name == "value")), $"imported as {string.Join(",", before.Select(s => s.KeyId))}");
         using (alice.AsCallerIn(circle))
         {
             await Grains(a).GetConnectionInbound(copy).AcceptGrant(new("oauth", "access-0", "refresh-1", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
         }
         var granted = await CopySecrets(a, copy);
-        Assert.True(PartSeal.IsPartSealed(Assert.Single(granted, secret => secret.Name == "access")), $"granted as {string.Join(",", granted.Select(s => s.KeyId))}");
+        Assert.True(BrainSeal.IsBrainSealed(Assert.Single(granted, secret => secret.Name == "access")), $"granted as {string.Join(",", granted.Select(s => s.KeyId))}");
         using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
         {
             Assert.Equal($"{circle}:refreshed-access", await Grains(a).GetConnectionGrain<IShared>(copy).Use());
@@ -179,8 +179,8 @@ public sealed class SharedConnectionFacts
 
         var secrets = await CopySecrets(a, copy);
         var access = Assert.Single(secrets, secret => secret.Name == "access");
-        Assert.True(PartSeal.IsPartSealed(access), $"sealed as {access.KeyId}");
-        Assert.Equal("refreshed-access", await b.Services.GetRequiredService<IPartSecretSealer>().Open(circle, access, ct));
+        Assert.True(BrainSeal.IsBrainSealed(access), $"sealed as {access.KeyId}");
+        Assert.Equal("refreshed-access", await b.Services.GetRequiredService<IBrainSecretSealer>().Open(circle, access, ct));
     }
 
     [Fact(Timeout = 240_000)]
