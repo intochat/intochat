@@ -39,12 +39,12 @@ internal static class SpaceComposer
         var presentation = entry.Presentation;
         var root = presentation?.Root;
         var board = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var key in root?.Sphere.BlackboardKeys ?? []) { board[key] = ""; }
+        foreach (var key in root?.Sphere?.BlackboardKeys ?? []) { board[key] = ""; }
         foreach (var key in FlameSchema.ReservedBlackboardKeys) { board[key] = "false"; }
         foreach (var (key, value) in presentation?.Blackboard ?? []) { board[key] = value; }
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["icon"] = string.IsNullOrWhiteSpace(root?.Sphere.Icon) ? "circle" : root.Sphere.Icon,
+            ["icon"] = string.IsNullOrWhiteSpace(root?.Sphere?.Icon) ? "circle" : root.Sphere.Icon,
             ["blackboard"] = JsonSerializer.Serialize(board, Json),
             ["toolbar"] = JsonSerializer.Serialize(entry.Toolbar, Json),
             ["state"] = root is not null ? "ready" : presentation?.Error is not null ? "error" : "unready",
@@ -56,6 +56,6 @@ internal static class SpaceComposer
         if (presentation?.Error is { Length: > 0 } error) { parameters["error"] = error; }
         if (focused && root?.Side is { } side) { parameters["side"] = JsonSerializer.Serialize(side, Json); }
         if (focused && root?.Main is { } main) { parameters["main"] = JsonSerializer.Serialize(main, Json); }
-        return new(entry.Key, "sphere", transform, null, parameters, [], [], ["tap"], root?.Sphere.Tree);
+        return new(entry.Key, "sphere", transform, null, parameters, [], [], ["tap"], root?.Sphere?.Tree);
     }
 }

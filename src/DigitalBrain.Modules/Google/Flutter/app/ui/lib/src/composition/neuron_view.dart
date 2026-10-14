@@ -203,8 +203,9 @@ class _NeuronViewState extends State<NeuronView> {
       if (mounted &&
           generation == _generation &&
           version == _events.version &&
-          (_data == null || (error is UiRequestException &&
-              (error.statusCode == 401 || error.statusCode == 403)))) {
+          (_data == null ||
+              (error is UiRequestException &&
+                  (error.statusCode == 401 || error.statusCode == 403)))) {
         setState(() {
           _data = null;
           _sceneState = null;
@@ -372,6 +373,12 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'viewport':
+        final root = data['root'];
+        if (root is Map && root['kind'] is String && root['name'] is String) {
+          return _child(root);
+        }
+        return Center(child: Text('${data['error'] ?? ''}'));
       case 'person':
         final avatar = '${definition['avatarUrl'] ?? ''}';
         return ListTile(
@@ -525,14 +532,14 @@ class _NeuronViewState extends State<NeuronView> {
                 Expanded(child: children[i]),
           ],
         );
-        if (horizontal) return flex;
         final extents = definition['extents'] as List? ?? const [];
-        if (!extents.any((extent) => extent is num && extent > 0)) {
+        if (!horizontal &&
+            !extents.any((extent) => extent is num && extent > 0)) {
           return flex;
         }
         // Keep declared controls reachable when their fixed extents exceed the
         // viewport. Flexible panes retain room for content and action controls.
-        final minimumHeight =
+        final minimumExtent =
             gap * (children.length - 1) +
             List.generate(children.length, (index) {
               final extent = extents.elementAtOrNull(index);
@@ -540,13 +547,23 @@ class _NeuronViewState extends State<NeuronView> {
             }).fold(0.0, (sum, extent) => sum + extent);
         return LayoutBuilder(
           builder: (context, constraints) {
-            if (!constraints.hasBoundedHeight) return flex;
+            if (horizontal
+                ? !constraints.hasBoundedWidth
+                : !constraints.hasBoundedHeight) {
+              return flex;
+            }
+            final available = horizontal
+                ? constraints.maxWidth
+                : constraints.maxHeight;
+            final extent = available < minimumExtent
+                ? minimumExtent
+                : available;
             return SingleChildScrollView(
               primary: false,
+              scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
               child: SizedBox(
-                height: constraints.maxHeight < minimumHeight
-                    ? minimumHeight
-                    : constraints.maxHeight,
+                width: horizontal ? extent : null,
+                height: horizontal ? null : extent,
                 child: flex,
               ),
             );

@@ -97,7 +97,7 @@ public sealed class FastPathFacts : IDisposable
         await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct);
         Assert.Null(failure);
         var state = await app.Read();
-        Assert.Equal(refuse ? "restored" : "proposed", state.Presentation!.Root!.Sphere.Icon);
+        Assert.Equal(refuse ? "restored" : "proposed", state.Presentation!.Root!.Sphere!.Icon);
         Assert.Equal(refuse ? proposedRevision + 1 : proposedRevision, state.ProgramRevision);
         Assert.Equal(!refuse, state.Files.ContainsKey("lemons.cs"));
         using (brain.Owner.AsAppIn(Brain, key))

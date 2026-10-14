@@ -48,6 +48,13 @@ internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.C
         return Save(next, new ButtonChanged(next.Name, next.Version));
     }
 
+    public Task ClickCurrent(string expectedAction)
+    {
+        if (!string.Equals(expectedAction, Snapshot.Action, StringComparison.Ordinal))
+        { throw new InvalidOperationException("This button changed. Read it again before clicking."); }
+        return Click();
+    }
+
     public async Task Click()
     {
         var next = Snapshot;

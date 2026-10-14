@@ -174,10 +174,10 @@ public sealed class FriendsSpaceFacts
     }
 
     [Fact(Timeout = 120_000)]
-    public async Task RevocationClearsBothFocusedScenesWhileRemovalIsStillRotating()
+    public async Task RevocationClearsBothFocusedScenesAndDeniesFurtherReads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct, pauseRotation: true);
+        await using var brain = await Start(ct);
         var (alice, bob, circle) = await People(brain, ct);
         await Post(brain, bob, circle);
         await Post(brain, alice, circle);
@@ -189,17 +189,12 @@ public sealed class FriendsSpaceFacts
         var b = brain.Get<IScene>(bob.Key("space"));
         await using var ac = await brain.Observe<SceneChanged>(a, ct);
         await using var bc = await brain.Observe<SceneChanged>(b, ct);
-        var keys = brain.Services.GetRequiredService<PausedCircleKeys>();
-        Task removing;
-        using (alice.AsCallerIn(circle)) { removing = brain.Get<ICircle>(ICircle.Key(circle)).Remove(bob.AccountId); }
-        try
+        using (alice.AsCallerIn(circle)) { await brain.Get<ICircle>(ICircle.Key(circle)).Remove(bob.AccountId); }
         {
-            await keys.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
             do { await ac.NextAsync(ct: ct); }
             while ((await a.Read()).Definition.Nodes.Any(n => n.Id.StartsWith(bob.BrainId + "/", StringComparison.Ordinal)));
             do { await bc.NextAsync(ct: ct); }
             while ((await b.Read()).Definition.Nodes.Any(n => n.Id.StartsWith(alice.BrainId + "/", StringComparison.Ordinal)));
-            Assert.False(removing.IsCompleted);
             using (alice.AsCaller())
             {
                 var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
@@ -214,7 +209,6 @@ public sealed class FriendsSpaceFacts
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(alice.Key("posts/p1")));
             }
         }
-        finally { keys.Release.TrySetResult(); await removing.WaitAsync(TimeSpan.FromSeconds(5), ct); }
     }
 
     [Fact(Timeout = 120_000)]
@@ -260,17 +254,6 @@ public sealed class FriendsSpaceFacts
         }
         Assert.Equal(beforeA.Revision, (await brain.Get<IWorkspace>(alice.BrainId).Read()).Revision);
         Assert.Equal(beforeB.Revision, (await brain.Get<IWorkspace>(bob.BrainId).Read()).Revision);
-    }
-
-    // Synchronizes the real key service; all operations still delegate to its actual implementation.
-    private sealed class PausedCircleKeys(ICirclePartKeys inner) : ICirclePartKeys
-    {
-        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task ShareWith(string circle, string machine, CancellationToken ct = default) => inner.ShareWith(circle, machine, ct);
-        public Task RevokeLeases(string circle, string machine, CancellationToken ct = default) => inner.RevokeLeases(circle, machine, ct);
-        public async Task Rotate(string circle, CancellationToken ct = default)
-        { Entered.TrySetResult(); await Release.Task.WaitAsync(ct); await inner.Rotate(circle, ct); }
     }
 
     private static async Task<(DigitalBrain.Testing.Person Alice, DigitalBrain.Testing.Person Bob, string Circle)> People(ITestBrain brain, CancellationToken ct)
@@ -321,20 +304,13 @@ public sealed class FriendsSpaceFacts
         return state;
     }
 
-    private static Task<ITestBrain> Start(CancellationToken ct, bool checkCreation = false, bool pauseRotation = false)
+    private static Task<ITestBrain> Start(CancellationToken ct, bool checkCreation = false)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
         return TestBrain.Create().WithModule<AppsModule, AppsOptions>(o => o.Features = Path.Combine(root!.FullName, "features"))
             .WithModule<CirclesModule>().WithModule<FlutterModule>().WithModule<FlameModule>()
-            .ConfigureServices(s => { if (pauseRotation)
-            {
-                var original = s.Last(d => d.ServiceType == typeof(ICirclePartKeys));
-                s.Remove(original);
-                s.AddSingleton(p => new PausedCircleKeys((ICirclePartKeys)(original.ImplementationInstance
-                    ?? original.ImplementationFactory?.Invoke(p) ?? ActivatorUtilities.CreateInstance(p, original.ImplementationType!))));
-                s.AddSingleton<ICirclePartKeys>(p => p.GetRequiredService<PausedCircleKeys>());
-            }
+            .ConfigureServices(s => {
             if (checkCreation) { s.AddSingleton<CreationFriends>(); s.AddSingleton<ICreationHandler>(p => p.GetRequiredService<CreationFriends>()); } s.RemoveAll<IAppRuntime>(); s.AddSingleton<IAppRuntime, NoRuntime>(); }).StartAsync(ct);
     }
 

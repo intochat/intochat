@@ -42,6 +42,12 @@ class WorkspaceApp extends StatefulWidget {
 }
 
 class _WorkspaceAppState extends State<WorkspaceApp> {
+  // A connector may mount any app-authored root. Product composition stays in that app.
+  static const _root = String.fromEnvironment('DIGITALBRAIN_ROOT');
+  static const _rootKind = String.fromEnvironment(
+    'DIGITALBRAIN_ROOT_KIND',
+    defaultValue: 'layout',
+  );
   late final WorkspaceStore store =
       widget.store ??
       WorkspaceStore(
@@ -83,7 +89,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             })
             .catchError((Object _) {}),
       );
-      if (widget.initialLocation?.path.startsWith('/settings') == true) {
+      if (_root.isEmpty &&
+          widget.initialLocation?.path.startsWith('/settings') == true) {
         await _space!.show('$brain/apps/settings');
       }
     } catch (error) {
@@ -93,6 +100,12 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
 
   Future<void> _selectBrain(String brain, {String? show}) async {
     if (_brain == brain) return;
+    if (_root.isNotEmpty) {
+      _space?.dispose();
+      _space = null;
+      setState(() => _brain = brain);
+      return;
+    }
     final client = widget.programmingClient!;
     final old = _space;
     final controller = SpaceController(
@@ -364,7 +377,27 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       child: child!,
     ),
     home: Scaffold(
-      body: _space == null
+      body: _root.isNotEmpty && _brain != null
+          ? SafeArea(
+              child: NeuronView(
+                key: ValueKey('$_brain/$_root'),
+                kind: _rootKind,
+                name: '$_brain/$_root',
+                load: (kind, name) => widget.programmingClient!.appRequest(
+                  _brain!,
+                  'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                ),
+                onAction: (event) async {
+                  await widget.programmingClient!.appRequest(
+                    _brain!,
+                    'event',
+                    body: event,
+                  );
+                },
+                scenes: widget.programmingClient!.scenes(_brain!),
+              ),
+            )
+          : _space == null
           ? Center(
               child: Text(
                 _startupError?.toString() ??

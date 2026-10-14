@@ -12,21 +12,27 @@ internal sealed partial class AppNeuron
     {
         RequireExecutingAssignment(expectedProgramRevision);
         ArgumentNullException.ThrowIfNull(presentation);
-        ArgumentNullException.ThrowIfNull(presentation.Sphere);
-        ArgumentNullException.ThrowIfNull(presentation.Sphere.BlackboardKeys);
-        foreach (var slot in new[] { presentation.Side, presentation.Main }.OfType<UiChildRef>())
+        if (presentation.Sphere is { } sphere) { ArgumentNullException.ThrowIfNull(sphere.BlackboardKeys); }
+        var views = presentation.Views ?? [];
+        if (presentation.Sphere is null && views.Length == 0)
+        { throw new ArgumentException("Publish at least one named view.", nameof(presentation)); }
+        if (views.Length > 16 || views.Any(view => view is null || string.IsNullOrWhiteSpace(view.Id)
+            || view.Id.Length > 64 || view.Root is null) || views.Select(view => view.Id).Distinct(StringComparer.Ordinal).Count() != views.Length)
+        { throw new ArgumentException("A presentation has at most 16 uniquely named views with roots.", nameof(presentation)); }
+        var declaredKeys = presentation.Sphere?.BlackboardKeys ?? [];
+        foreach (var slot in new[] { presentation.Side, presentation.Main }.OfType<UiChildRef>().Concat(views.Select(view => view.Root)))
         {
-            if (string.IsNullOrWhiteSpace(slot.Name) || !slot.Name.StartsWith(Snapshot.BrainScopeId + "/", StringComparison.Ordinal)
+            if (string.IsNullOrWhiteSpace(slot.Kind) || string.IsNullOrWhiteSpace(slot.Name) || slot.Name.Length > 512 || !slot.Name.StartsWith(Snapshot.BrainScopeId + "/", StringComparison.Ordinal)
                 || slot.Name.Split('/').Any(part => part.Length == 0 || part is "." or ".."))
             { throw new ArgumentException("A slot names a neuron of this brain.", nameof(presentation)); }
         }
-        if (presentation.Sphere.BlackboardKeys.Any(key => string.IsNullOrWhiteSpace(key) || FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)))
+        if (declaredKeys.Any(key => string.IsNullOrWhiteSpace(key) || FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)))
         { throw new ArgumentException("Declare nonempty keys; running and attention are reserved blackboard keys.", nameof(presentation)); }
-        if (presentation.Sphere.Tree is { } tree) { FlameSchema.CheckTree(tree, presentation.Sphere.BlackboardKeys); }
+        if (presentation.Sphere?.Tree is { } tree) { FlameSchema.CheckTree(tree, declaredKeys); }
         var current = Snapshot.Presentation;
         if (current is { Root: { } root, Error: null } && JsonSerializer.Serialize(root) == JsonSerializer.Serialize(presentation))
         { return Describe(Snapshot); }
-        var keys = presentation.Sphere.BlackboardKeys.Concat(FlameSchema.ReservedBlackboardKeys).ToHashSet(StringComparer.Ordinal);
+        var keys = declaredKeys.Concat(FlameSchema.ReservedBlackboardKeys).ToHashSet(StringComparer.Ordinal);
         var blackboard = (current?.Blackboard ?? []).Where(pair => keys.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal);
         await SavePresentation(new(Snapshot.ProgramRevision, (current?.Revision ?? 0) + 1, presentation, null, blackboard));
         return Describe(Snapshot);
@@ -50,7 +56,7 @@ internal sealed partial class AppNeuron
         foreach (var key in values.Keys)
         {
             if (FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)
-                || current.Root?.Sphere.BlackboardKeys.Contains(key, StringComparer.Ordinal) != true)
+                || current.Root?.Sphere?.BlackboardKeys.Contains(key, StringComparer.Ordinal) != true)
             { throw new ArgumentException($"'{key}' is not a script-writable declared blackboard key.", nameof(values)); }
         }
         await WriteValues(current, values);

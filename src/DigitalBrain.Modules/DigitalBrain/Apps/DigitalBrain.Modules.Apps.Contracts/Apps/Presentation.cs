@@ -7,7 +7,11 @@ namespace DigitalBrain.Apps;
 public sealed record Sphere([property: Id(0)] string Icon, [property: Id(1)] string[] BlackboardKeys, [property: Id(2)] BehaviorTree? Tree = null);
 
 [GenerateSerializer, Alias("apps.presentation")]
-public sealed record Presentation([property: Id(0)] Sphere Sphere, [property: Id(1)] UiChildRef? Side = null, [property: Id(2)] UiChildRef? Main = null);
+public sealed record Presentation([property: Id(0)] Sphere? Sphere = null, [property: Id(1)] UiChildRef? Side = null, [property: Id(2)] UiChildRef? Main = null,
+    [property: Id(3)] PresentationView[]? Views = null);
+
+[GenerateSerializer, Alias("apps.presentation-view")]
+public sealed record PresentationView([property: Id(0)] string Id, [property: Id(1)] UiChildRef Root);
 
 [GenerateSerializer, Alias("apps.app-presentation")]
 public sealed record AppPresentation(

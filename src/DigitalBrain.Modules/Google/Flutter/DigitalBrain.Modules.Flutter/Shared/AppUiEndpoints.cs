@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using DigitalBrain.Flutter;
+using DigitalBrain.Apps;
+using DigitalBrain.Flutter.Viewport;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Workspace;
@@ -43,6 +45,22 @@ internal static class AppUiEndpoints
             if (kind == "collection" && name.EndsWith("/posts", StringComparison.Ordinal))
             { return Results.Ok(await space.ReadPosts(name).WaitAsync(ct)); }
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
+            if (kind == "viewport")
+            {
+                var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
+                if (viewport.Target is not { } target)
+                { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
+                if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
+                var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
+                var presentation = app.Presentation;
+                var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
+                // Explicit legacy full-view adapter during first-party app migration.
+                if (root is null && target.Variant == "full" && presentation?.Root is { Views: null } legacy)
+                { root = legacy.Main; }
+                if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
+                return Results.Ok(new { viewport.Revision, viewport.Target, Root = root,
+                    Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null) });
+            }
             return kind switch
             {
                 "text" => Results.Ok(await brain.Get<IText>(name).Read().WaitAsync(ct)),
@@ -117,7 +135,7 @@ internal static class AppUiEndpoints
                     else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
                     else { throw new ArgumentException("Unknown browser action."); }
                     break;
-                case "button": await brain.Get<IButton>(input.Name).Click().WaitAsync(ct); break;
+                case "button": await brain.Get<IButton>(input.Name).ClickCurrent(input.Action ?? "").WaitAsync(ct); break;
                 case "textfield": await brain.Get<ITextField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
                 case "select": await brain.Get<ISelect>(input.Name).Choose(input.Value ?? "").WaitAsync(ct); break;
                 case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;

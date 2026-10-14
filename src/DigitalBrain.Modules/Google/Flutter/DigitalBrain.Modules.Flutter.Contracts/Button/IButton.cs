@@ -8,6 +8,7 @@ public interface IButton : INeuron
 {
     Task Set(string label, string action, bool enabled = true);
     Task Click();
+    Task ClickCurrent(string expectedAction);
     Task SetActivation(string label, string activationJson);
     [ReadOnly, Alias("read")] Task<ButtonState> Read();
 }

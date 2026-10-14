@@ -19,6 +19,41 @@ public sealed class AppPresentationFacts
     private static Presentation Root() => new(new Sphere("icon.svg", ["mood"]));
 
     [Fact]
+    public async Task AnAppCanPublishNamedViewsWithoutASphere()
+    {
+        await using var brain = await Start();
+        var app = await Create(brain);
+        var key = IApp.Key(brain.Owner.BrainId, "files");
+        using (brain.Owner.AsApp(key))
+        {
+            var root = new Presentation(Views: [new("full", new("text", key + "/text")), new("compact", new("text", key + "/text"))]);
+            var state = (await app.Present(0, root)).Presentation!;
+            Assert.Null(state.Root!.Sphere);
+            Assert.Equal(2, state.Root.Views!.Length);
+            Assert.Equal(state.Revision, (await app.Present(0, root)).Presentation!.Revision);
+        }
+        await app.WriteBehavior("shared.cs", "public static class Shared { }", Guid.NewGuid());
+        Assert.Null((await app.Read()).Presentation);
+    }
+
+    [Fact]
+    public async Task NamedViewsRequireUniqueIdsAndLocalRoots()
+    {
+        await using var brain = await Start();
+        var app = await Create(brain);
+        var key = IApp.Key(brain.Owner.BrainId, "files");
+        using (brain.Owner.AsApp(key))
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => app.Present(0,
+                new(Views: [new("full", new("text", key + "/a")), new("full", new("text", key + "/b"))])));
+            await Assert.ThrowsAsync<ArgumentException>(() => app.Present(0,
+                new(Views: [new("full", new("text", "another/brain/apps/private/text"))])));
+            await Assert.ThrowsAsync<ArgumentException>(() => app.Present(0, new Presentation()));
+            await Assert.ThrowsAsync<ArgumentNullException>(() => app.Present(0, new(new Sphere("icon.svg", null!))));
+        }
+    }
+
+    [Fact]
     public async Task TheExecutingAssignmentPublishesAndAStaleOneIsRefused()
     {
         await using var brain = await Start();
