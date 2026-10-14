@@ -103,6 +103,27 @@ class _UiNeuronButtonState extends State<UiNeuronButton>
               ),
       );
     }
+    // Menu rows share an artwork column regardless of SVG bounds or label length.
+    // Compact menu children are the trigger itself and keep the regular control.
+    if (widget.menuChild && !compact) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
+        child: Row(
+          children: [
+            SizedBox(width: 32, height: 32, child: Center(child: artwork)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                widget.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, color: color),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : tokens.quick;

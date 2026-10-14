@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
@@ -12,6 +12,7 @@ import '../space/neuron_space.dart';
 import '../space/space_controller.dart';
 import 'home/app_detail_screen.dart';
 import 'workspace_store.dart';
+import 'workspace_link.dart';
 import 'workspace_settings.dart';
 import 'compute_usage_panel.dart';
 import 'csharp/csharp_manager.dart';
@@ -42,7 +43,7 @@ class WorkspaceApp extends StatefulWidget {
   State<WorkspaceApp> createState() => _WorkspaceAppState();
 }
 
-class _WorkspaceAppState extends State<WorkspaceApp> {
+class _WorkspaceAppState extends State<WorkspaceApp> with WidgetsBindingObserver {
   // A connector may mount any app-authored root. Product composition stays in that app.
   static const _root = String.fromEnvironment('DIGITALBRAIN_ROOT');
   static const _rootKind = String.fromEnvironment(
@@ -66,11 +67,41 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   String? _brain;
   Object? _startupError;
   bool _developerMode = false;
+  bool _ready = false;
+  Uri? _pendingLocation;
   @override
   void initState() {
     super.initState();
+    _pendingLocation = widget.initialLocation;
+    WidgetsBinding.instance.addObserver(this);
     store.addListener(_changed);
     unawaited(_start());
+  }
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    final action = workspaceLink(routeInformation.uri);
+    if (action == null) return false;
+    if (!_ready) {
+      _pendingLocation = routeInformation.uri;
+    } else {
+      await _openLink(routeInformation.uri, action);
+    }
+    return true;
+  }
+
+  Future<void> _openLink(Uri location, Map<String, dynamic> action) async {
+    await _activate(action);
+    if (!mounted) return;
+    final route = location.fragment.startsWith('/')
+        ? Uri.parse(location.fragment)
+        : location;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(SystemNavigator.routeInformationUpdated(uri: route, replace: true));
+      }
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   void _changed() {
@@ -85,6 +116,13 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       final brain = client.defaultBrainId;
       if (brain == null) throw StateError('No brain selected.');
       await _selectBrain(brain);
+      if (!mounted) return;
+      _ready = true;
+      final location = _pendingLocation;
+      _pendingLocation = null;
+      if (workspaceLink(location) case final action?) {
+        await _openLink(location!, action);
+      }
       unawaited(
         client
             .readCapabilities()
@@ -183,6 +221,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     final client = widget.programmingClient;
     if (client == null) return;
     try {
+      if (action['kind'] == 'account') {
+        await widget.onSwitchAccount?.call();
+        return;
+      }
       final brain = action['brainId'] as String? ?? _brain!;
       final app = action['application'] as String?;
       final neuron =
@@ -392,6 +434,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   );
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _space?.dispose();
     store.removeListener(_changed);
     if (widget.store == null) store.dispose();

@@ -25,7 +25,7 @@ public sealed class OsBootFacts
         var person = await brain.PersonAsync("ada", ct);
 
         using var caller = person.AsCaller();
-        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer", "friends", "workspace" })
+        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer", "friends", "circle", "workspace" })
         {
             var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);
@@ -39,6 +39,32 @@ public sealed class OsBootFacts
         Assert.Equal(new DigitalBrain.Flutter.UiChildRef("layout", IApp.Key(person.BrainId, "workspace") + "/root"), root);
         Assert.Equal(before.ProgramRevision, (await calculator.Read()).ProgramRevision);
         Assert.True((await calculator.Read()).Edited);
+    }
+
+    [Fact]
+    public async Task ConnectingAnExistingWorkspaceInstallsItsMissingCircleApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps(options => options.Apps.Remove(new("os", "circle")));
+            })
+            .StartAsync(ct);
+        using var person = await brain.PersonAsync("ada", ct);
+        using var caller = person.AsCaller();
+        var circle = brain.Get<IApp>(IApp.Key(person.BrainId, "circle"));
+        Assert.Empty((await circle.Read()).Manifest.Title);
+
+        await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
+
+        var installed = await circle.Read();
+        Assert.Equal(AppStatus.Live, installed.Status);
+        Assert.Equal("os", installed.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
     }
 
     [Fact]

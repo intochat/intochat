@@ -111,7 +111,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Model'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckedPopupMenuItem<String>));
+    await tester.tap(find.text('Fast'));
     await tester.pumpAndSettle();
     expect(events.single, {
       'kind': 'select',

@@ -136,6 +136,7 @@ public static class Researcher
         await checkpoint();
         var result = await brain.Get<ILLM>("default").Generate(new InferenceRequest(
             [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(user)])],
+            Model: new ModelSelection(Reasoning: "none"),
             Options: new InferenceOptions(MaxOutputTokens: maxTokens)), ct);
         var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
         Console.WriteLine($"Research inference: finish={result.FinishReason}, outputTokens={result.Usage?.OutputTokens}, textCharacters={text.Length}, limit={maxTokens}");

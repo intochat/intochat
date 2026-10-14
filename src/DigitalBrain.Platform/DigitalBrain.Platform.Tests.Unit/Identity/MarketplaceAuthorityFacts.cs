@@ -6,6 +6,29 @@ namespace DigitalBrain.Platform.Tests.Unit.Identity;
 public sealed class MarketplaceAuthorityFacts
 {
     [Fact(Timeout = 60_000)]
+    public async Task PublishedListingsAndTheirOwnershipSurviveARuntimeRestart()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        using var alice = await brain.PersonAsync("alice", ct);
+        using var mallory = await brain.PersonAsync("mallory", ct);
+        var listing = new MarketplaceRecord("alice", alice.AccountId, alice.BrainId, "echo", "Echo", "Shared app", "1.0.0", null);
+        await brain.Services.GetRequiredService<IMarketplaceClient>().Upsert(alice.AccountId, listing);
+
+        await brain.RestartAsync(ct);
+
+        var marketplace = brain.Services.GetRequiredService<IMarketplaceClient>();
+        Assert.Equal(listing, await marketplace.Read("alice", "echo"));
+        Assert.Equal(listing, Assert.Single(await marketplace.List()));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => marketplace.Remove(mallory.AccountId, "alice", "echo"));
+        await marketplace.Remove(alice.AccountId, "alice", "echo");
+
+        await brain.RestartAsync(ct);
+
+        Assert.Null(await brain.Services.GetRequiredService<IMarketplaceClient>().Read("alice", "echo"));
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AMarketplaceWriteWhoseAccountIsNotThePublishersBrainOwnerIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;

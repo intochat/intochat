@@ -31,7 +31,7 @@ Future<void> main() async {
 
   final chat = DigitalBrainHostEnv.resolveChat();
   // Capture the deep link before the authentication gate builds its Navigator.
-  final initialLocation = Uri.parse(
+  var initialLocation = Uri.parse(
     WidgetsBinding.instance.platformDispatcher.defaultRouteName,
   );
 
@@ -41,7 +41,13 @@ Future<void> main() async {
     BrainSessionGate(
       builder: (client, status, switchAccount) => buildShell(
         chat: chat,
-        onSwitchAccount: switchAccount,
+        onSwitchAccount: () async {
+          // Preserve a link opened after startup when the gate replaces the shell.
+          if (kIsWeb && Uri.base.fragment.startsWith('/open?')) {
+            initialLocation = Uri.parse(Uri.base.fragment);
+          }
+          await switchAccount();
+        },
         edge: client,
         statusMessage: status,
         initialLocation: initialLocation,

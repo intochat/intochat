@@ -1,3 +1,4 @@
+import '../components/button/ui_neuron_select.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
 import '../theme/ui_tokens.dart';
@@ -397,7 +398,8 @@ class _NeuronViewState extends State<NeuronView> {
     child: GptMarkdown(
       text,
       onLinkTap: (url, _) async {
-        final uri = Uri.tryParse(url);
+        final link = Uri.tryParse(url);
+        final uri = link == null ? null : Uri.base.resolveUri(link);
         if (uri != null && const {'https', 'http'}.contains(uri.scheme)) {
           await launchUrl(uri);
         }
@@ -645,42 +647,20 @@ class _NeuronViewState extends State<NeuronView> {
         final options = (definition['options'] as List? ?? [])
             .whereType<Map>()
             .toList();
-        return PopupMenuButton<String>(
-          tooltip: definition['label'] as String? ?? '',
-          enabled: enabled && widget.onAction != null,
-          onSelected: (value) => unawaited(
-            _dispatch({'kind': 'select', 'name': widget.name, 'value': value})
-                .catchError((Object _) {}),
-          ),
-          itemBuilder: (_) => [
-            for (final option in options)
-              CheckedPopupMenuItem(
-                value: '${option['id']}',
-                checked: option['id'] == definition['selected'],
-                enabled: option['enabled'] != false,
-                child: option['visual'] is Map
-                    ? UiNeuronButton(
-                        label: '${option['label']}',
-                        visual: option['visual'] as Map,
-                        menuChild: true,
-                      )
-                    : Text('${option['label']}'),
-              ),
-          ],
-          child: definition['visual'] is Map
-              ? UiNeuronButton(
-                  label: definition['label'] as String? ?? '',
-                  visual: definition['visual'] as Map,
-                  menuChild: true,
+        return UiNeuronSelect(
+          label: definition['label'] as String? ?? '',
+          options: options,
+          selected: definition['selected'] as String?,
+          visual: definition['visual'] as Map?,
+          onSelected: enabled && widget.onAction != null
+              ? (value) => unawaited(
+                  _dispatch({
+                    'kind': 'select',
+                    'name': widget.name,
+                    'value': value,
+                  }).catchError((Object _) {}),
                 )
-              : Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Text(
-                    '${options.where((option) => option['id'] == definition['selected']).firstOrNull?['label'] ?? definition['label'] ?? ''}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+              : null,
         );
       case 'fileinput':
         final label = definition['label'] as String? ?? '';
@@ -923,7 +903,7 @@ class _NeuronViewState extends State<NeuronView> {
         return _FormRenderer(
           part: UiFormPart.fromMetadata(definition),
           name: widget.name,
-          revision: widget.revision,
+          revision: (definition['revision'] as num?)?.toInt() ?? widget.revision,
           enabled: enabled,
           onAction: _dispatch,
           secretSaver: widget.secretSaver,
@@ -1158,6 +1138,7 @@ class _FormRenderer extends StatefulWidget {
 }
 
 class _FormRendererState extends State<_FormRenderer> {
+  late int _nextRevision = widget.revision;
   late Map<String, String?> values = _initial();
 
   Map<String, String?> _initial() => {
@@ -1168,17 +1149,26 @@ class _FormRendererState extends State<_FormRenderer> {
   void didUpdateWidget(_FormRenderer old) {
     super.didUpdateWidget(old);
     if (old.revision != widget.revision) {
+      _nextRevision = widget.revision;
       values = _initial();
     }
   }
 
   Future<void> dispatch(Map<String, Object?> event) async {
-    await widget.onAction?.call({
-      'kind': 'form',
-      'name': widget.name,
-      'revision': widget.revision,
-      ...event,
-    });
+    // Each queued draft, secret or submit advances the form by one revision.
+    // Count only our own writes so a concurrent writer still conflicts on Save.
+    final expectedRevision = _nextRevision++;
+    try {
+      await widget.onAction?.call({
+        'kind': 'form',
+        'name': widget.name,
+        'revision': expectedRevision,
+        ...event,
+      });
+    } catch (_) {
+      _nextRevision--;
+      rethrow;
+    }
   }
 
   @override
@@ -1320,7 +1310,7 @@ class _FormRendererState extends State<_FormRenderer> {
               isDense: true,
               helperText: field.supported ? null : 'Shown as plain text.',
             ),
-            onFieldSubmitted: (value) =>
+            onChanged: (value) =>
                 dispatch({'field': field.name, 'value': value}),
           ),
         );

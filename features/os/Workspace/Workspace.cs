@@ -109,8 +109,19 @@ public static class Workspace
             var svg = icon is not null && icon.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? app?.Files.GetValueOrDefault(icon) : null;
             return new(Svg: svg, Icon: svg is null ? "apps" : null, Compact: compact, Selected: selected, Running: running);
         }
-        await brain.Get<ISelect>(key + "/launcher").Set("Open an app", installed.OrderBy(pair => pair.Value.Manifest.Title)
-            .Select(pair => new SelectOption(Encode(state.Revision, "open", pair.Key), pair.Value.Manifest.Title, Visual: Artwork(pair.Key, compact: false))).ToArray(), null);
+        // The launcher lists views, not background services or controls already in the dock.
+        var launcher = installed.Where(pair => pair.Key is not ("router" or "selfimprove" or "circleroom" or "ino" or "usage")
+            && !string.IsNullOrWhiteSpace(pair.Value.Manifest.Title)
+            && (pair.Value.Presentation?.Root?.Main is not null
+                || pair.Value.Presentation?.Root?.Views?.Any(view => view.Id == "full") == true
+                || pair.Value.Manifest.Operations.Any(operation => operation.Name == "open"))).ToArray();
+        var duplicateTitles = launcher.GroupBy(pair => pair.Value.Manifest.Title, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await brain.Get<ISelect>(key + "/launcher").Set("Open an app", launcher.OrderBy(pair => pair.Value.Manifest.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new SelectOption(Encode(state.Revision, "open", pair.Key),
+                duplicateTitles.Contains(pair.Value.Manifest.Title) ? pair.Value.Manifest.Title + " (" + pair.Key + ")" : pair.Value.Manifest.Title,
+                Visual: Artwork(pair.Key, compact: false))).ToArray(), null);
         await brain.Get<ISelect>(key + "/launcher").SetVisual(new(Icon: "apps", Compact: true));
         var pins = new List<UiChildRef>();
         for (var i = 0; i < state.Pins.Length; i++)

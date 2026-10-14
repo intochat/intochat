@@ -81,8 +81,9 @@ upsert makes the retry safe.
 
 ## Scenario: Model output is bounded and honest
 
-Link selection allows 2048 output tokens and extraction 4096, including model reasoning, within the
-existing three-minute research deadline. Exhaustion is an explicit failed outcome, never an empty
+Link selection allows 2048 output tokens and extraction 4096. These bounded JSON tasks explicitly
+disable model reasoning so the response budget remains available for the result, within the existing
+three-minute research deadline. Exhaustion is an explicit failed outcome, never an empty
 link choice interpreted as success. Runtime diagnostics record finish reason and size, not page or
 model content. Invalid or unverifiable extraction returns an error and saves no record. Unknown
 contact fields remain null; every retained claim includes its observed source URL and verbatim quote.
@@ -107,7 +108,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "customer-researcher";
-    public const string Version = "1.2.2";
+    public const string Version = "1.2.3";
 
     public static readonly AppManifest Manifest = new(
         Title: "Customer Researcher",

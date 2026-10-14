@@ -26,6 +26,14 @@ public static class PublicationUi
         return new("button", key);
     }
 
+    public static async Task<UiChildRef> ShareLink(DigitalBrainConnection brain, string label, Navigation navigation)
+    {
+        var key = Key(brain) + "/share-link";
+        var url = "#/open?application=circle&input=" + Uri.EscapeDataString(Encode(navigation));
+        await brain.Get<IText>(key).Set("[" + label + "](" + url + ") - open this link and copy its address to share.");
+        return new("text", key);
+    }
+
     public static async Task<UiChildRef> Card(DigitalBrainConnection brain, string id, string title, string body)
     {
         var key = Key(brain) + "/" + id;
