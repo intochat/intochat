@@ -69,9 +69,9 @@
     <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.3.1" />
     <PackageVersion Include="Microsoft.Orleans.Runtime" Version="10.3.1" />
     <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.3.1" />
+    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Server" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.3.1" />
+    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.0" />
     <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.1.0" />
     <PackageVersion Include="Concentus" Version="2.2.2" />
     <PackageVersion Include="Concentus.Oggfile" Version="1.0.7" />
@@ -97,5 +97,5 @@
     <PackageVersion Include="Aspire.Dashboard.Sdk.osx-arm64" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Dashboard.Sdk.osx-x64" Version="$(AspireVersion)" />
   </ItemGroup>
-  <ItemGroup><PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.3.1" /></ItemGroup>
+  <ItemGroup><PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.4.0" /></ItemGroup>
 </Project>
