@@ -203,6 +203,8 @@ internal sealed partial class AppNeuron(
 
     public async Task Progress(string state, string detail)
     {
+        // A background writer may report after deletion; activity must not recreate its app record.
+        if (Snapshot.Manifest is null) { return; }
         if (!AppActivity.States.Contains(state, StringComparer.Ordinal))
         { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
         detail = (detail ?? "").Trim();

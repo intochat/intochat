@@ -123,6 +123,18 @@ internal static class TypeTableKey
 }
 
 // The types a brain knows, keyed "{brain}": the host's compiled layer, then the brain's own features.
+// Unscoped discovery has no brain journal and must never activate persistent feature state.
+internal interface ICompiledTypeTable : IGrainWithStringKey
+{
+    Task<TypeEntry[]> List();
+}
+
+[GrainType("kernel.compiledtypes")]
+internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable
+{
+    public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(GrainFactory));
+}
+
 internal interface ITypeTable : IGrainWithStringKey
 {
     Task<TypeEntry[]> List();

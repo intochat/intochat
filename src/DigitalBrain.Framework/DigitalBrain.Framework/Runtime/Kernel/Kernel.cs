@@ -24,7 +24,9 @@ public sealed class Kernel(IGrainFactory grains) : IKernel
 
     // A call with no caller is in no brain, so it sees the compiled layer alone.
     public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
-        => grains.GetGrain<ITypeTable>(CallerContextStamper.TryGet(out _) ? BrainScope.CurrentId() : TypeTableKey.NoBrain).List().WaitAsync(cancellationToken);
+        => (CallerContextStamper.TryGet(out _)
+            ? grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List()
+            : grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List()).WaitAsync(cancellationToken);
 
     public async Task<string[]> Brains(CancellationToken cancellationToken = default)
     {

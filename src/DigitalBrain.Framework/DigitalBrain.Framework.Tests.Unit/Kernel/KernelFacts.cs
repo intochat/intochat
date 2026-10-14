@@ -29,6 +29,18 @@ public sealed class PlainGrain([PersistentState("state", DigitalBrainNames.Clust
 public sealed class KernelFacts
 {
     [Fact]
+    public async Task UnscopedTypeDiscoveryReadsCompiledTypesWithoutOpeningABrainJournal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        Assert.False(CallerContextStamper.TryGet(out _));
+        var types = await brain.Services.GetRequiredService<IKernelView>().Types(ct);
+        Assert.NotEmpty(types);
+        Assert.False(typeof(ICompiledTypeTable).IsPublic);
+        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(ICompiledTypeTable)));
+    }
+
+    [Fact]
     public async Task AFirstWriteRegistersTheNeuronOnceAndTheBrainAnnouncesIt()
     {
         var ct = TestContext.Current.CancellationToken;
