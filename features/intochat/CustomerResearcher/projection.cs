@@ -6,4 +6,5 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var key = brain.Setting("App")!;
 var facts = Sources.Of(ResearchState.Requests(brain, key), ResearchState.Cancellations(brain, key),
     ResearchState.Outcomes(brain, key), ResearchState.Active(brain, key));
+await Activity.Project(brain, key);
 await brain.React<TextChanged>(facts, _ => Activity.Project(brain, key), brain.Stopping);

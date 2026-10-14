@@ -107,11 +107,11 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "customer-researcher";
-    public const string Version = "1.1.48";
+    public const string Version = "1.2.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Customer Researcher",
-        Description: "Research companies live in a driven browser and save verified findings to a Postgres table.",
+        Description: "Turn a company name into source-backed research. Explore official websites, verify the details, and keep the evidence. Runs in the desktop workspace.",
         Operations:
         [
             new("open", "Compose and publish the researcher main layout."),

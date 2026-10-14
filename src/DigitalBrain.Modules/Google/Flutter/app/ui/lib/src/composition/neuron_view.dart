@@ -269,6 +269,9 @@ class _NeuronViewState extends State<NeuronView> {
         definition['mode'] == 'row' || definition['mode'] == 'split';
     final flex = Flex(
       direction: horizontal ? Axis.horizontal : Axis.vertical,
+      crossAxisAlignment: horizontal
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.stretch,
       spacing: gap,
       children: [
         for (var i = 0; i < children.length; i++)
@@ -822,21 +825,41 @@ class _NeuronViewState extends State<NeuronView> {
           state: SceneState.fromJson({'name': widget.name, ...data}),
         );
       case 'card':
-        return Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if ((definition['title'] as String? ?? '').isNotEmpty)
-                Text(
-                  definition['title'] as String,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              if ((definition['body'] as String? ?? '').isNotEmpty)
-                _markdown(definition['body'] as String),
-              ...children,
-            ],
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(
+              UiTokens.of(context).surfaceRadius,
+            ),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final content = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if ((definition['title'] as String? ?? '').isNotEmpty)
+                    Text(
+                      definition['title'] as String,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  if ((definition['title'] as String? ?? '').isNotEmpty &&
+                      (definition['body'] as String? ?? '').isNotEmpty)
+                    const SizedBox(height: 8),
+                  if ((definition['body'] as String? ?? '').isNotEmpty)
+                    _markdown(definition['body'] as String),
+                  ...children,
+                ],
+              );
+              return constraints.hasBoundedHeight
+                  ? SingleChildScrollView(primary: false, child: content)
+                  : content;
+            },
           ),
         );
       case 'collection':

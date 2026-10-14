@@ -26,8 +26,7 @@ public static class Activity
         var queue = ResearchState.Queue(brain, key);
         var projected = (await queue.Read()).Markdown;
         var cards = View(records);
-        var before = View(Parse(projected)).ToDictionary(card => card.Id);
-        foreach (var card in cards.Where(card => before.GetValueOrDefault(card.Id) != card))
+        foreach (var card in cards)
         { await brain.Get<ICard>(Name(key, card.Id)).Set(card.Title, card.Body); }
 
         var children = cards.Select(card => new UiChildRef(UIVocabulary.CardType, Name(key, card.Id))).ToArray();
@@ -74,8 +73,8 @@ public static class Activity
     {
         var pending = records.Where(item => item.Status is "pending" or "running").ToArray();
         var recent = records.Where(item => item.Status is not ("pending" or "running")).Reverse().Take(20).ToArray();
-        var summary = new Card("summary", "Research activity", records.Length == 0
-            ? "No research yet. Enter a company above and choose Research."
+        var summary = new Card("summary", "Your research", records.Length == 0
+            ? "Your first company starts here. Enter its name or website above.\nVerified findings and their sources will appear here; nothing is shared with your app publication."
             : $"{pending.Length} pending · {recent.Length} recent outcomes. Saved company records remain available.");
         return [summary, .. pending.Concat(recent).Select(item =>
         {

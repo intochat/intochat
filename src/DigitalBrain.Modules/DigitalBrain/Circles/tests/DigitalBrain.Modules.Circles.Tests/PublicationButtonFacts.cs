@@ -56,6 +56,44 @@ public sealed class PublicationButtonFacts
         Assert.Equal(AppStatus.Live, (await copy.Read()).Status);
     }
 
+    [Theory]
+    [InlineData("tables", "postgres", false)]
+    [InlineData("database", "postgres", true)]
+    [InlineData("tables", "shared", true)]
+    public async Task InstallationOnlySkipsSetupForThePlatformTableSlot(string slot, string connector, bool needsSetup)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct, builder => builder.WithModule<FlutterModule>());
+        var publisher = await brain.PersonAsync("publisher", ct);
+        var reader = await brain.PersonAsync("reader", ct);
+        var source = brain.Get<IApp>(IApp.Key(publisher.BrainId, "research"));
+        await publisher.In(publisher.BrainId, async () =>
+        {
+            await source.Import(new("research", "1.0.0",
+                new("Research", "Research app", [], [], [new(slot, connector)]), "# Research", []));
+            await source.Publish();
+        });
+        var release = Assert.Single(await source.PublishedReleases()).Reference;
+        using var caller = reader.AsCaller();
+        var app = IApp.Key(reader.BrainId, "circle");
+        await brain.Get<ICircleFactory>(ICircleFactory.Key(reader.BrainId)).BindPublicationButton();
+        var form = brain.Get<IForm>(app + "/forms/" + release.Digest);
+        await form.Define(new("Copy", [new("name", "Name", FormFieldKind.PlainText)]));
+        await form.SetDraft("name", "my-research");
+        var button = brain.Get<IButton>(app + "/fork-button");
+        await button.Set("Fork", JsonSerializer.Serialize(release, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        var status = brain.Get<IText>(app + "/status");
+        await using var changed = await brain.Observe<TextChanged>(status, ct);
+        await button.Click();
+        await changed.NextAsync(ct: ct);
+        var message = (await status.Read()).Markdown;
+        Assert.StartsWith("Installed my-research", message);
+        Assert.Equal(needsSetup, message.Contains("Needs setup", StringComparison.Ordinal));
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(reader.BrainId, "my-research")).Read()).Connections);
+        var card = await brain.Get<DigitalBrain.Flutter.Card.ICard>(app + "/installed").Read();
+        Assert.Equal(needsSetup, card.Body.Contains("Needs setup", StringComparison.Ordinal));
+    }
+
     private sealed class FailFirstCopy : IAppRuntime
     {
         private bool _failed;

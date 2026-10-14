@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text;
+using System.Security.Cryptography;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
@@ -6,11 +8,12 @@ using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.Layout;
+using DigitalBrain.Flutter.Text;
 
 public static class PublicationUi
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    public sealed record Navigation(string Page = "feed", string? Publisher = null, AppPublicationRef? Publication = null);
+    public sealed record Navigation(string Page = "feed", string? Publisher = null, AppPublicationRef? Publication = null, int Offset = 0);
     public static string Encode<T>(T value) => JsonSerializer.Serialize(value, Json);
     public static T Decode<T>(string value) => JsonSerializer.Deserialize<T>(value, Json) ?? throw new ArgumentException("Missing selection.");
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
@@ -30,10 +33,10 @@ public static class PublicationUi
         return new("card", key);
     }
 
-    public static async Task Layout(DigitalBrainConnection brain, string id, UiChildRef[] children, string mode = "list")
+    public static async Task Layout(DigitalBrainConnection brain, string id, UiChildRef[] children, string mode = "list", string? surface = null, double padding = 0)
     {
         var layout = brain.Get<ILayout>(Key(brain) + "/" + id);
-        await layout.Set(new(mode, children), (await layout.Read()).Revision);
+        await layout.Set(new(mode, children, Surface: surface, Padding: padding), (await layout.Read()).Revision);
     }
 
     public static async Task<UiChildRef[]> Preview(DigitalBrainConnection brain, AppPublication publication, string command, string label)
@@ -47,13 +50,34 @@ public static class PublicationUi
             await form.SetDraft("name", reference.Name + "-copy");
         }
         await brain.Get<IButton>(Key(brain) + "/" + command).Set(label, Encode(reference));
+        await brain.Get<IButton>(Key(brain) + "/" + command).SetVisual(new(Icon: "apps", Tone: "accent"));
         return [
-            await Card(brain, "publication", publication.Manifest.Title,
-                "@" + reference.Publisher + " · " + reference.Name + " · " + reference.Version + "\nPublished " + publication.PublishedAt.ToString("u") + "\nRead-only preview · " + reference.Digest + "\n\n" + publication.Manifest.Description + "\nRequired connections: " +
-                (publication.Manifest.Slots.Length == 0 ? "none" : string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Connector + ")")))),
-            await Card(brain, "preview", "Sample preview", publication.Preview ?? "No sample preview published."),
+            await Card(brain, "publication", publication.Manifest.Title, publication.Manifest.Description),
+            await Card(brain, "preview", "About this app", publication.Preview ?? publication.Manifest.Description),
+            await Card(brain, "connections", "Your own workspace",
+                "Fork creates your own editable copy. Your connections and research stay in your brain." +
+                (publication.Manifest.Slots.Length == 0 ? "" : "\nAvailable connections: " + string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Connector + ")")))),
             new("form", FormKey(brain, reference)), new("button", Key(brain) + "/" + command)
         ];
     }
 
+    public static async Task<UiChildRef> Post(DigitalBrainConnection brain, AppPublication publication, string scope)
+    {
+        var reference = publication.Reference;
+        var id = "posts/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Encode(reference)))).ToLowerInvariant();
+        var navigation = Encode(new Navigation("publication", reference.Publisher, reference));
+        var author = await Button(brain, id + "/author", "@" + reference.Publisher, scope, "circle", "navigate", Encode(new Navigation("profile", reference.Publisher)));
+        var app = await Button(brain, id + "/app", publication.Manifest.Title, scope, "circle", "navigate", navigation);
+        var bundle = await brain.Get<IApp>(IApp.Key(reference.Source.BrainId, reference.Name)).ExportRelease(reference.Version, reference.Digest);
+        var artwork = publication.Manifest.Icon is { } icon ? bundle.Files.GetValueOrDefault(icon) : null;
+        await brain.Get<IButton>(app.Name).SetVisual(new(Svg: artwork is { Length: <= 32000 } && artwork.TrimStart().StartsWith("<", StringComparison.Ordinal) ? artwork : null, Tone: "accent"));
+        await brain.Get<IText>(Key(brain) + "/" + id + "/description").Set(publication.Manifest.Description);
+        var description = new UiChildRef("text", Key(brain) + "/" + id + "/description");
+        await brain.Get<IText>(Key(brain) + "/" + id + "/story").Set(publication.Preview ?? "Open the preview to explore this app and make it your own.");
+        var story = new UiChildRef("text", Key(brain) + "/" + id + "/story");
+        var preview = await Button(brain, id + "/preview", "Preview & fork", scope, "circle", "navigate", navigation);
+        await brain.Get<IButton>(preview.Name).SetVisual(new(Icon: "apps", Tone: "accent"));
+        await Layout(brain, id, [author, app, description, story, preview], "list", "panel", 24);
+        return new("layout", Key(brain) + "/" + id);
+    }
 }

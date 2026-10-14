@@ -2,7 +2,6 @@ using DigitalBrain.Apps;
 using DigitalBrain.Circles;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.Text;
 
 public static class CircleView
@@ -26,6 +25,7 @@ public static class CircleView
     {
         if (navigation.Page is not ("feed" or "profile" or "circles" or "publication")) throw new ArgumentException("Unknown Circle view.");
         await brain.Get<IText>(Key(brain) + "/navigation").Set(PublicationUi.Encode(navigation));
+        await PublicationUi.Layout(brain, "result", []);
         await Project(brain);
         await Status(brain, "");
     }
@@ -63,16 +63,23 @@ public static class CircleView
         }
         else
         {
-            var collection = brain.Get<ICollectionView>(app + "/feed-items");
-            var title = nav.Page == "profile" ? "@" + nav.Publisher : "Feed";
-            await collection.Set(new(feed.Items.Select(item => new CollectionItem(
-                PublicationUi.Encode(new PublicationUi.Navigation("publication", item.Reference.Publisher, item.Reference)),
-                item.Manifest.Title, "app", "@" + item.Reference.Publisher + " · " + item.Reference.Version + " · " + item.Manifest.Description,
-                ModifiedAt: item.PublishedAt, TrailingText: "Preview")).ToArray(),
-                FileMode: false, EmptyLabel: "No published apps yet. Publish an app from Build to share it here.",
-                Breadcrumbs: [new(PublicationUi.Encode(new PublicationUi.Navigation()), "Circle"), new(PublicationUi.Encode(nav), title)],
-                Error: feed.UnavailablePublishers.Length == 0 ? null : "Some publishers are unavailable. Refresh to retry."), (await collection.Read()).Revision);
-            content.Add(new("collection", app + "/feed-items"));
+            content.Add(await PublicationUi.Card(brain, "feed-heading", nav.Page == "profile" ? "@" + nav.Publisher : "Made to be shared",
+                nav.Page == "profile" ? "Published apps. Explore an idea, then make it your own." : "Apps from the people building here. Preview one and fork your own copy."));
+            if (feed.UnavailablePublishers.Length > 0)
+                content.Add(await PublicationUi.Card(brain, "unavailable", "Some apps are unavailable", "Refresh to try those publishers again."));
+            const int pageSize = 24;
+            var offset = Math.Clamp(nav.Offset, 0, Math.Max(0, feed.Items.Length - 1));
+            var publications = feed.Items.OrderByDescending(item => item.PublishedAt)
+                .ThenBy(item => item.Reference.Publisher, StringComparer.Ordinal)
+                .ThenBy(item => item.Reference.Name, StringComparer.Ordinal).ToArray();
+            foreach (var publication in publications.Skip(offset).Take(pageSize))
+                content.Add(await PublicationUi.Post(brain, publication, Scope(brain)));
+            if (offset > 0)
+                content.Add(await Link("newer", "Newer apps", nav with { Offset = Math.Max(0, offset - pageSize) }));
+            if (offset + pageSize < publications.Length)
+                content.Add(await Link("older", "Older apps", nav with { Offset = offset + pageSize }));
+            if (feed.Items.Length == 0)
+                content.Add(await PublicationUi.Card(brain, "empty", "Your first app starts here", "Publish an app from Build to share it on your profile."));
         }
         await PublicationUi.Layout(brain, "content", [.. content]);
     }

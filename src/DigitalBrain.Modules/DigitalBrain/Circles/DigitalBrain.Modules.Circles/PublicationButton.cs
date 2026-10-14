@@ -52,8 +52,10 @@ internal static class PublicationButton
             { command = JsonSerializer.Deserialize<Command>(prior, Json) ?? throw new ArgumentException("Missing pending command."); }
             else { await pending.Set(JsonSerializer.Serialize(command, Json)); }
             var installed = await install(command.Publication, command.TargetName, command.OperationId);
-            var missing = installed.Manifest.Slots.Where(slot => !installed.Connections.TryGetValue(slot.Name, out var connection)
-                || string.IsNullOrWhiteSpace(connection)).Select(slot => slot.Name).ToArray();
+            // The reserved table slot falls back to the platform database without a user binding.
+            var missing = installed.Manifest.Slots.Where(slot => !(slot.Name == "tables" && slot.Connector == "postgres")
+                && (!installed.Connections.TryGetValue(slot.Name, out var connection)
+                    || string.IsNullOrWhiteSpace(connection))).Select(slot => slot.Name).ToArray();
             var state = missing.Length > 0 ? "Needs setup: " + string.Join(", ", missing) : installed.Status.ToString();
             await grains.GetGrain<ICard>(app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
             List<UiChildRef> controls = [new("card", app + "/installed")];
