@@ -60,6 +60,43 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
+    public async Task SecuredHostsReceiveTheConfiguredBootstrapCredential()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "owner";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "test-only-bootstrap-password";
+        var brain = builder.AddDigitalBrain("memory");
+        var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
+        var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
+        foreach (var resource in new[] { server.Resource, client.Resource })
+        {
+            var values = new Dictionary<string, object>();
+            var context = new EnvironmentCallbackContext(builder.ExecutionContext, resource, values, TestContext.Current.CancellationToken);
+            foreach (var annotation in resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+            { await annotation.Callback(context); }
+            Assert.Equal("owner", values[DigitalBrainConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username)))]);
+            var password = Assert.IsType<ParameterResource>(values[DigitalBrainConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))]);
+            Assert.True(password.Secret);
+            Assert.Null(password.Default);
+            Assert.Equal("{digitalbrain-bootstrap-password.value}", password.ValueExpression);
+            Assert.Equal("test-only-bootstrap-password", await ((IValueProvider)password).GetValueAsync(TestContext.Current.CancellationToken));
+            Assert.Same(Assert.Single(builder.Resources.OfType<ParameterResource>(), parameter => parameter.Name == "digitalbrain-bootstrap-password"), password);
+        }
+    }
+
+    [Theory]
+    [InlineData("owner", null)]
+    [InlineData(null, "test-only-password")]
+    public void IncompleteBootstrapCredentialsAreRejected(string? username, string? password)
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = username;
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = password;
+        Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrain("memory"));
+    }
+    [Fact]
     public void BlobContainerIdentityDoesNotInheritTheAspireResourcePrefix()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });

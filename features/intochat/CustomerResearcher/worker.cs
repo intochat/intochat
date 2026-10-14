@@ -68,6 +68,7 @@ async Task<ResearchOutcome?> Run(ResearchRequest entry, CancellationToken ct)
         await Progress("Saving…");
         await ResearchStore.Save(brain, key, entry.Query, company);
         await brain.Get<IText>(key + "/result/" + entry.Id).Set(await ResearchStore.Row(brain, key, entry.Query));
+        await ResearchView.Saved(brain, key, entry.Query, company);
         return new(entry.Id, "completed", "Saved: " + company.CompanyName);
     }
     catch (ResearchStopped) { return new(entry.Id, "stopped", "Stopped."); }

@@ -11,17 +11,31 @@ using DigitalBrain.Microsoft.Playwright;
 // browser or model step (progress runs it too), so a stop takes effect at the next step.
 public static class Researcher
 {
-    // The browser part attaches from the desktop app's window; a web shell cannot attach one.
-    public const string NotConnected = "The browser is not connected. Open the researcher in the desktop app so its browser attaches, then retry.";
-
     public static async Task<(Company? Company, string Status)> Research(DigitalBrainConnection brain, string appKey, string query,
         Func<string, Task> progress, Func<Task> checkpoint, CancellationToken ct)
     {
         var browser = brain.Get<IPlaywright>(appKey + "/browser");
-        if (!(await browser.Read()).Ready) { return (null, NotConnected); }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromMinutes(3));
-        var token = deadline.Token;
+        try
+        {
+            await progress("Starting your research browser…");
+            await ResearchView.Begin(brain, appKey, query);
+            await browser.Start(deadline.Token);
+            await checkpoint();
+            return await ResearchSession(brain, appKey, browser, query, progress, checkpoint, deadline.Token);
+        }
+        finally
+        {
+            // Cleanup must still run when research times out, is stopped or the behavior shuts down.
+            try { await browser.Stop(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (Exception) { Console.WriteLine("Research browser cleanup did not complete; managed idle cleanup will reclaim the session."); }
+        }
+    }
+
+    static async Task<(Company? Company, string Status)> ResearchSession(DigitalBrainConnection brain, string appKey,
+        IPlaywright browser, string query, Func<string, Task> progress, Func<Task> checkpoint, CancellationToken token)
+    {
         var pages = new List<BrowserObservation>();
         async Task<BrowserObservation> Navigate(string url)
         {
@@ -30,6 +44,7 @@ public static class Researcher
             var page = await browser.Navigate(url, token);
             token.ThrowIfCancellationRequested();
             pages.Add(page);
+            await ResearchView.Observed(brain, appKey, query, pages);
             return page;
         }
         Task<string> Complete(string system, string user, int maxTokens) => CompleteAsync(brain, checkpoint, system, user, maxTokens, token);
@@ -37,12 +52,12 @@ public static class Researcher
         BrowserObservation initial;
         try
         {
-            // Starting the visible browser is application behavior, not an optional model decision.
+            // Starting browser navigation is application behavior, not an optional model decision.
             initial = Uri.TryCreate(query, UriKind.Absolute, out var supplied) && supplied.Scheme is "https" or "http"
                 ? await Navigate(supplied.AbsoluteUri) : await Search(query + " official website");
         }
         catch (Exception error) when (error is not OperationCanceledException)
-        { return (null, "The browser could not load the starting page. Check the connection and retry."); }
+        { return (null, "The browser could not load the starting page. Retry or enter the company’s official website."); }
         if (string.IsNullOrWhiteSpace(initial.Text))
         { return (null, "The browser returned no readable page. Check the page for a loading error or access challenge."); }
 
@@ -95,7 +110,11 @@ public static class Researcher
             await checkpoint();
             var refreshed = await browser.Snapshot(token);
             token.ThrowIfCancellationRequested();
-            if (!string.IsNullOrWhiteSpace(refreshed.Text)) { pages.Add(refreshed); }
+            if (!string.IsNullOrWhiteSpace(refreshed.Text))
+            {
+                pages.Add(refreshed);
+                await ResearchView.Observed(brain, appKey, query, pages);
+            }
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { }

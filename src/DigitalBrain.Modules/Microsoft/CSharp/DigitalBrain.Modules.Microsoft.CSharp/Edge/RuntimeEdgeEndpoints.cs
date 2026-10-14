@@ -13,7 +13,8 @@ internal static class RuntimeEdgeEndpoints
 {
     public static void MapRuntimeEdge(this IEndpointRouteBuilder endpoints)
     {
-        var edge = BrainRoutes.SessionGroup(endpoints).ExcludeFromDescription();
+        // These routes authenticate their own brain/session token; the account-cookie gate must not intercept them.
+        var edge = BrainRoutes.SessionGroup(endpoints).AllowAnonymous().ExcludeFromDescription();
         edge.MapPost(RuntimeProtocol.Invoke, async Task<IResult> (HttpContext http, string brainId, RuntimeInvocation invocation, RuntimeEdge runtime, CancellationToken cancellationToken) =>
         {
             try { return await runtime.InvokeAsync(brainId, Bearer(http), invocation, cancellationToken) is { } value ? Results.Json(value) : Results.NoContent(); }

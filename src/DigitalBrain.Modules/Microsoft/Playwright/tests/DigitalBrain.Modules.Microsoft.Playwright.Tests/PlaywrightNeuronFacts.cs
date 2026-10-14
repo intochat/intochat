@@ -7,6 +7,23 @@ namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
 public sealed class PlaywrightNeuronFacts
 {
     [Fact]
+    public async Task Starting_after_desktop_attachment_replaces_it_with_a_managed_session()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new Provider();
+        await using var brain = await Start(provider);
+        using var caller = brain.Owner.AsCaller();
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
+        await browser.Start(ct);
+        await browser.Attach(new(1234, new string('d', 32)), ct);
+        Assert.Equal(new string('d', 32), (await browser.Read()).SessionId);
+        await browser.Start(ct);
+        Assert.NotEqual(new string('d', 32), (await browser.Read()).SessionId);
+        Assert.True(provider.Pages[1].Disposed);
+        Assert.Equal(3, provider.Pages.Count);
+    }
+
+    [Fact]
     public async Task Attaching_publishes_ready_from_the_browser_and_deactivation_releases_the_page()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -136,6 +153,8 @@ public sealed class PlaywrightNeuronFacts
         public TaskCompletionSource? Release;
         public List<Page> Pages { get; } = [];
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<IBrowserPageSession> StartAsync(string accountId, string sessionId, CancellationToken ct)
+            => AttachAsync(new(1234, sessionId), ct);
         public async Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
         {
             Started.TrySetResult();

@@ -29,12 +29,7 @@ typedef ClientFactory = DigitalBrainUiClient Function(
 DigitalBrainUiClient _fromEnvironment(BasicCredentials? credentials) =>
     DigitalBrainUiClient.fromEnvironment(credentials: credentials);
 
-/// Stands between app start and the shell, prompting for credentials only when
-/// the kernel actually demands them.
-///
-/// An explicit 401 is the sole trigger for the login screen. An unreachable or
-/// ungated kernel falls through to the shell exactly as before, so local dev,
-/// Aspire runs, and the desktop build never see a prompt.
+// Verify the session before opening a workspace; connection failures remain retryable.
 final class BrainSessionGate extends StatefulWidget {
   const BrainSessionGate({
     super.key,
@@ -51,7 +46,14 @@ final class BrainSessionGate extends StatefulWidget {
   State<BrainSessionGate> createState() => _BrainSessionGateState();
 }
 
-enum _Phase { probing, login, ready, logoutFailed, localFailed }
+enum _Phase {
+  probing,
+  login,
+  ready,
+  logoutFailed,
+  localFailed,
+  connectionFailed,
+}
 
 final class _BrainSessionGateState extends State<BrainSessionGate> {
   _Phase _phase = _Phase.probing;
@@ -76,13 +78,10 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     final DigitalBrainUiClient client;
     try {
       client = widget.createClient(credentials);
-    } on Object catch (error) {
-      // No resolvable kernel URL: surface it in the shell as before.
-      debugPrint('DigitalBrain session failed: $error');
-      _enterShell(null, error.toString());
-      return null;
+    } on Object {
+      if (mounted) setState(() => _phase = _Phase.connectionFailed);
+      return 'Unable to connect to your account.';
     }
-
     if (fromStartup && credentials == null) {
       try {
         final account = await widget.readLocalAccount(client.baseUri);
@@ -104,14 +103,11 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     bool accepted;
     try {
       accepted = await client.checkAuth();
-    } on Object catch (error) {
-      // Unreachable kernel is not a credential failure. Let the shell open and
-      // report it, which is what it did before a gate existed.
-      debugPrint('DigitalBrain auth check failed: $error');
-      _enterShell(client, error.toString());
-      return null;
+    } on Object {
+      client.close();
+      if (mounted) setState(() => _phase = _Phase.connectionFailed);
+      return 'Unable to connect to your account.';
     }
-
     if (!accepted) {
       client.close();
       if (credentials != null) {
@@ -247,17 +243,26 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
       title: 'IntoChat',
       debugShowCheckedModeBanner: false,
       theme: UiTheme.dark(),
-      home: _phase == _Phase.localFailed
+      home: _phase == _Phase.localFailed || _phase == _Phase.connectionFailed
           ? Scaffold(
               body: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Could not open your local account.'),
+                    Text(
+                      _phase == _Phase.localFailed
+                          ? 'Could not open your local account.'
+                          : 'Unable to connect to your account.',
+                    ),
                     TextButton(
                       onPressed: () {
                         setState(() => _phase = _Phase.probing);
-                        unawaited(_attempt(null, fromStartup: true));
+                        unawaited(
+                          _attempt(
+                            store.readStoredCredentials(),
+                            fromStartup: true,
+                          ),
+                        );
                       },
                       child: const Text('Retry'),
                     ),

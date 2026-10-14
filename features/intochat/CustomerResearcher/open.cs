@@ -6,10 +6,8 @@ using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.WebBrowser;
 
-// The researcher's main content: edge neurons composed by plain grain calls, safe to re-run. The browser
-// part declares its own driver, so no behavior manages the browser session.
+// The researcher's main content: generic edge neurons composed by C#, safe to re-run.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -54,12 +52,11 @@ async Task ComposeAsync()
     var composer = brain.Get<ILayout>(Name("composer"));
     await composer.Set(new("column", [Ref("textfield", "company"), Ref("layout", "toolbar")],
         Gap: 8, Extents: [56, 44], Surface: "floating", Padding: 12), (await composer.Read()).Revision);
-    await brain.Get<IText>(Name("browser-guide")).Set("**Live evidence** | Open this app in the desktop workspace to run its browser. Every saved finding includes its source.");
-    await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"));
-    // Keep the driver mounted while activity scrolls independently. No UI-specific research logic lives in Flutter.
-    var browser = brain.Get<ILayout>(Name("evidence"));
-    await browser.Set(new("column", [Ref("text", "browser-guide"), Ref("webbrowser", "browser")],
-        Gap: 8, Extents: [48, 0]), (await browser.Read()).Revision);
+    var evidence = brain.Get<IText>(Name("live-evidence"));
+    if (string.IsNullOrWhiteSpace((await evidence.Read()).Markdown))
+    { await evidence.Set("## Sources and evidence\n\nStart research to follow the pages observed by your private research browser. Verified findings will appear here with source links and quotes."); }
+    var evidenceLayout = brain.Get<ILayout>(Name("evidence"));
+    await evidenceLayout.Set(new("list", [Ref("text", "live-evidence")]), (await evidenceLayout.Read()).Revision);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new("column", [Ref("card", "intro"), Ref("layout", "composer"), Ref("text", "status"),
         Ref("layout", "research-activity"), Ref("layout", "evidence")],

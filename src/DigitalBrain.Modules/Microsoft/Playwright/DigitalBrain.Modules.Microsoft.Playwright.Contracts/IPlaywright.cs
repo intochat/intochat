@@ -5,6 +5,9 @@ namespace DigitalBrain.Microsoft.Playwright;
 [Orleans.Metadata.DefaultGrainType("playwright")]
 public interface IPlaywright : INeuron
 {
+    Task Start(CancellationToken ct = default);
+    Task Stop(CancellationToken ct = default);
+
     // Connector handoff. Apps consume Read, BrowserReady and BrowserUnavailable instead.
     Task Attach(BrowserAttachment attachment, CancellationToken ct = default);
     Task Detach(string sessionId, CancellationToken ct = default);

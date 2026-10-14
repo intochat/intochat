@@ -43,6 +43,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
             .Where(candidate => candidate.Name == invocation.Method && !ObserverMethods.Contains(candidate.Name))
             .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == invocation.Arguments.Length)
             ?? throw new ArgumentException($"{contract.Name} has no method {invocation.Method} taking {invocation.Arguments.Length} arguments.");
+        RequireTargetBrain(brainId, invocation.Key, invocation.Method, identity,
+            method.GetCustomAttribute<AccessAttribute>() ?? contract.GetCustomAttribute<AccessAttribute>());
         var parameters = method.GetParameters();
         var values = new object?[parameters.Length];
         for (int index = 0, argument = 0; index < parameters.Length; index++)
@@ -112,7 +114,11 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         if (report.Subscribe is { } subscribe)
         {
             // Registered before the first batch is sent, so a refusal surfaces here and not on the stream.
-            if (grains.GetGrain(Callable(subscribe.Contract), subscribe.Key) is not INeuron source) { throw new ArgumentException($"{subscribe.Contract} is not a neuron."); }
+            var contract = Callable(subscribe.Contract);
+            if (grains.GetGrain(contract, subscribe.Key) is not INeuron source) { throw new ArgumentException($"{subscribe.Contract} is not a neuron."); }
+            var identity = await runtime.Identity(claims.Session, subscribe.Behavior).ConfigureAwait(false)
+                ?? throw new ArgumentException($"{subscribe.Behavior} is not a behavior of this brain.");
+            RequireTargetBrain(brainId, subscribe.Key, nameof(INeuron.Watch), identity, contract.GetCustomAttribute<AccessAttribute>());
             var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, source.GetGrainId().ToString(), subscribe.Signal).ConfigureAwait(false);
             return Results.Ok(new { subscription = id });
         }
@@ -161,6 +167,15 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         var claims = tokens.Validate(token) ?? throw new UnauthorizedAccessException("The session token is missing, invalid or expired.");
         if (claims.Brain != brainId) { throw new UnauthorizedAccessException("The session token speaks for another brain."); }
         return claims;
+    }
+
+    private static void RequireTargetBrain(string brainId, string key, string operation, BehaviorIdentity identity, AccessAttribute? access)
+    {
+        // Recorded callers use the normal neuron policy, including explicitly bound connections.
+        // A platform-assigned behavior has no caller; its session still cannot reach another brain.
+        if (identity.Caller is not null || BrainKey.BelongsTo(key, brainId)) { return; }
+        if (BrainKey.ScopeOf(key) is not null || access is not (PublicAttribute or SharedAttribute))
+        { throw new UnauthorizedAccessException($"The session cannot address a neuron in another brain (operation {operation})."); }
     }
 
     // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.

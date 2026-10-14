@@ -2,6 +2,8 @@ namespace DigitalBrain.Microsoft.Playwright;
 
 public interface IBrowserSessionProvider
 {
+    Task<IBrowserPageSession> StartAsync(string accountId, string sessionId, CancellationToken ct)
+        => throw new NotSupportedException("Managed browsing is not configured.");
     Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct);
     // A page the deployment serves itself (PlaywrightModuleOptions.AppOrigins), exempt from the public-only rule.
     bool IsAppPage(string url) => false;

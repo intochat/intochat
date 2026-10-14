@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using Orleans.Concurrency;
 
 namespace DigitalBrain.Apps;
 
@@ -6,6 +7,8 @@ namespace DigitalBrain.Apps;
 // deploys outside the app's turn, so the app hands it the program to run and the principal it runs as.
 internal interface IAppDeploy : IGrainWithStringKey
 {
+    // Queue after activation and serialize with edits; INeuron.Watch already interleaves runtime callbacks.
+    [OneWay] Task Restore();
     // Records the requested synapse's source on its request (never in the app's files) and answers the app's
     // program with it. Throws when the request is not waiting or the program would break the shape.
     Task<StagedProgram> Stage(Guid operationId, string path, string source);

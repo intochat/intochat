@@ -16,9 +16,17 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         { throw new ArgumentException("A loopback port and 32 hex character session marker are required.", nameof(attachment)); }
     }
 
-    public async Task Attach(BrowserAttachment attachment, CancellationToken ct = default)
+    public Task Attach(BrowserAttachment attachment, CancellationToken ct = default)
     {
         Validate(attachment);
+        return Connect(attachment.SessionId, token => provider.AttachAsync(attachment, token), ct);
+    }
+
+    public Task Start(string accountId, string sessionId, CancellationToken ct = default)
+        => Connect(sessionId, token => provider.StartAsync(accountId, sessionId, token), ct);
+
+    private async Task Connect(string sessionId, Func<CancellationToken, Task<IBrowserPageSession>> connect, CancellationToken ct)
+    {
         ct.ThrowIfCancellationRequested();
         Lease next;
         Lease? previous;
@@ -26,7 +34,7 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             previous = _lease;
-            next = new Lease(attachment.SessionId);
+            next = new Lease(sessionId);
             _lease = next;
         }
         previous?.Lifetime.Cancel();
@@ -36,7 +44,7 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         {
             if (previous?.Page is { } old) { await old.DisposeAsync().ConfigureAwait(false); }
             linked.Token.ThrowIfCancellationRequested();
-            var page = await provider.AttachAsync(attachment, linked.Token).ConfigureAwait(false);
+            var page = await connect(linked.Token).ConfigureAwait(false);
             next.Page = page;
             linked.Token.ThrowIfCancellationRequested();
         }

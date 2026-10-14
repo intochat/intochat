@@ -2,6 +2,7 @@ using DigitalBrain.Apps.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;
@@ -633,6 +634,40 @@ internal sealed partial class AppNeuron(
             _ => [],
         });
 
+    internal Task RestoreAfterActivation()
+        => Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram)
+            ? this.AsReference<IAppDeploy>().Restore()
+            : Task.CompletedTask;
+
+    public async Task Restore()
+    {
+        if (Snapshot.Manifest is null || Runtime is not { } runtime) { return; }
+        var sources = Sources(Snapshot);
+        if (sources.Count == 0) { return; }
+        var configuration = Configuration(Snapshot);
+        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        if (Snapshot.Principal is { } principal) { CallerContextStamper.Stamp(principal); }
+        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        try
+        {
+            // Durable assignments contain compiled hashes. Reassign the source on activation so a new
+            // host's contracts replace old binary calls, even when the app's version did not change.
+            // This ordinary grain turn serializes source capture and reassignment with program edits.
+            RequireShape(sources);
+            await runtime.Deploy(this.GetPrimaryKeyString(), sources, configuration, CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogError(error,
+                "Could not restore the program of app {App} against the current contracts.", this.GetPrimaryKeyString());
+        }
+        finally
+        {
+            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+        }
+    }
+
     private IAppRuntime? Runtime => runtimes.FirstOrDefault();
 
     private static Dictionary<string, string> Sources(AppState state)
@@ -779,5 +814,9 @@ internal sealed partial class AppNeuron(
 
 internal sealed class AppActivation : IActivationHandler<AppNeuron>
 {
-    public Task Activated(AppNeuron neuron, CancellationToken cancellationToken) => neuron.Interrupt();
+    public async Task Activated(AppNeuron neuron, CancellationToken cancellationToken)
+    {
+        await neuron.Interrupt();
+        await neuron.RestoreAfterActivation();
+    }
 }

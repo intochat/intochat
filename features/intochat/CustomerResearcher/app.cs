@@ -1,13 +1,14 @@
 /*
 # Customer Researcher
 
-Researches companies in a driven browser and saves only verified findings to the app's own table.
+Researches companies in an isolated server browser and saves only verified findings to the app's own table.
 The Research and Stop buttons post the same operations the assistant's tools do.
 
 ### Show the researcher
 
 Startup and "open" compose and publish the researcher main layout: the company field,
-Research and Stop buttons, status, activity list and browser paired to its driver.
+Research and Stop buttons, status, activity list and live source observations with verified evidence.
+The same C# composition works in the web workspace without a desktop browser.
 
 ### Queue research
 
@@ -19,9 +20,11 @@ requests and cancellations (the commands synapse), outcomes and the active marke
 
 ### Research and store evidence
 
-Research drives the browser from a search page to the official site, asks the host's default LLM for a
+Research starts a managed browser session, drives it from a search page to the official site, asks the host's default LLM for a
 bounded link choice and then an extraction, and keeps only values found verbatim on observed official
-pages, each with its source URL and quote. The row is upserted into the app's table, keyed by the query.
+pages, each with its source URL and quote. Observed page excerpts appear during research, explicitly
+marked as not yet verified; the saved findings replace them with source links and quotes. The session is
+released in a finally block after success, failure, cancellation or timeout. The row is upserted into the app's table, keyed by the query.
 "result" reads the stored row for a company into {app}/result/{requestId}, or null. Legacy Model settings
 do not pin a provider.
 
@@ -53,7 +56,7 @@ as "Saved: {company}" and "result" sets its result neuron to the stored row with
 
 ## Scenario: An unverifiable company is refused and saves nothing
 
-When no official page can be observed (no connected browser, no readable page, no verifiable identity),
+When no official page can be observed (browser startup fails, no readable page, no verifiable identity),
 the request settles as failed with the reason in the status and the queue, and "result" for that company
 stays null.
 
@@ -66,8 +69,9 @@ arrive back to back.
 
 ## Scenario: Research runs live (live)
 
-With a connected window browser and a real model, "research" drives the visible browser and saves
-findings to Postgres. Live scenarios document the app; they are not part of the deterministic gate.
+With the managed browser worker configured and a real model, "research" runs from the web workspace
+with no desktop running and saves findings to Postgres. Each account has an isolated browser worker;
+each research session uses ephemeral browser state. Observations and evidence are C#-authored text neurons. Live scenarios document the app; they are not part of the deterministic gate.
 
 ## Scenario: Queued research and cancellation survive behavior recovery
 
@@ -94,7 +98,8 @@ One projection rebuilds the queue neuron and the research activity list from the
 change: every open company as Queued or Running, and the twenty most recent Completed, Failed or Stopped
 outcomes with the company and its result or error. Failed and stopped entries explain how to retry. Card keys
 are the request ids, so a rebuild never duplicates a card, and reopening or restarting the behaviors shows
-the same list. The browser remains mounted below the independently scrolling activity list.
+the same list. The most recent source observations or saved evidence remain in the text neuron below
+the independently scrolling activity list; reopening does not overwrite them.
 
 ## Scenario: Research needs no storage configuration
 
@@ -108,11 +113,11 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "customer-researcher";
-    public const string Version = "1.2.3";
+    public const string Version = "1.3.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Customer Researcher",
-        Description: "Turn a company name into source-backed research. Explore official websites, verify the details, and keep the evidence. Runs in the desktop workspace.",
+        Description: "Turn a company name into source-backed research. Explore official websites, verify the details, and keep the evidence. Runs in the web workspace with an isolated research browser.",
         Operations:
         [
             new("open", "Compose and publish the researcher main layout."),

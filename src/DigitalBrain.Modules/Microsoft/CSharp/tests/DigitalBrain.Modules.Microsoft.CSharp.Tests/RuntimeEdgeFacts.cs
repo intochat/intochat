@@ -14,6 +14,88 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RuntimeEdgeFacts
 {
     [Fact]
+    public async Task AStampedBehaviorKeepsItsRecordedCrossBrainConnectionBinding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var binding = new RecordedBinding();
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
+            .WithConfiguration("DigitalBrain:Auth:Posture", "Secured")
+            .ConfigureServices(services => services.AddSingleton<IConnectionBindings>(binding)).StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var behavior = Key(alice, "bound");
+        var session = await StartAs(brain, alice, behavior, ct);
+        var connection = "another-brain/connection/probe/shared";
+        binding.App = behavior;
+        binding.Connection = connection;
+
+        using var allowed = await Send(brain, session, behavior,
+            new("", typeof(IConnectionProbe).FullName!, connection, nameof(IConnectionProbe.Read), []), ct);
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        using var subscribed = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
+            "/brains/" + alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
+            new RuntimeReport(Subscribe: new(behavior, typeof(IConnectionProbe).FullName!, connection, nameof(Pinged)))), ct);
+        Assert.Equal(HttpStatusCode.OK, subscribed.StatusCode);
+        using var refused = await Send(brain, session, behavior,
+            new("", typeof(IConnectionProbe).FullName!, "another-brain/connection/probe/unbound", nameof(IConnectionProbe.Read), []), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+    }
+
+    private sealed class RecordedBinding : IConnectionBindings
+    {
+        public string App { get; set; } = "";
+        public string Connection { get; set; } = "";
+        public ValueTask<bool> IsBound(CallerContext caller, string connectionKey, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(caller.Kind == CallerKind.App && caller.AppId == App && connectionKey == Connection);
+    }
+
+    [Fact]
+    public async Task ASecuredHostAcceptsItsSessionTokenWithoutAUserCookieAndRejectsMissingOrInvalidTokens()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
+            .WithConfiguration("DigitalBrain:Auth:Posture", "Secured").StartAsync(ct);
+        await brain.Get<IBrain>("acc-brain").Create(new Owner("acc"));
+        await brain.Get<IBrain>("another-brain").Create(new Owner("another"));
+        var session = await Assigned(brain, ct);
+
+        using var connected = await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct);
+        Assert.Equal(HttpStatusCode.OK, connected.StatusCode);
+        using var invoked = await Send(brain, session, "acc-brain/csharp/a", Call(nameof(IPinger.Double), 21), ct);
+        Assert.Equal(HttpStatusCode.OK, invoked.StatusCode);
+        Assert.Equal(42, await invoked.Content.ReadFromJsonAsync<int>(ct));
+        using var foreign = await Send(brain, session, "acc-brain/csharp/a",
+            new("", typeof(ICSharpFile).FullName!, "another-brain/csharp/private", nameof(ICSharpFile.Inspect), []), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, foreign.StatusCode);
+        using var subscription = await Report(brain, session,
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "another-brain/private", nameof(Pinged))), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, subscription.StatusCode);
+        using var ownBrain = await Send(brain, session, "acc-brain/csharp/a",
+            new("", typeof(IBrain).FullName!, "acc-brain", nameof(IBrain.Read), []), ct);
+        Assert.Equal(HttpStatusCode.OK, ownBrain.StatusCode);
+        using var otherBrain = await Send(brain, session, "acc-brain/csharp/a",
+            new("", typeof(IBrain).FullName!, "another-brain", nameof(IBrain.Read), []), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, otherBrain.StatusCode);
+        using var ownRootSubscription = await Report(brain, session,
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "acc-brain", nameof(Created))), ct);
+        Assert.Equal(HttpStatusCode.OK, ownRootSubscription.StatusCode);
+        using var otherRootSubscription = await Report(brain, session,
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "another-brain", nameof(Created))), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, otherRootSubscription.StatusCode);
+
+        foreach (var (method, path) in new[] { (HttpMethod.Post, RuntimeProtocol.Invoke), (HttpMethod.Post, RuntimeProtocol.Report), (HttpMethod.Get, RuntimeProtocol.Stream) })
+        {
+            foreach (var token in new string?[] { null, "not.atoken" })
+            {
+                using var request = new HttpRequestMessage(method, "/brains/acc-brain/" + path)
+                { Content = method == HttpMethod.Get ? null : JsonContent.Create(new { }) };
+                if (token is not null) { request.Headers.Authorization = new("Bearer", token); }
+                using var response = await brain.HttpClient.SendAsync(request, ct);
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            }
+        }
+    }
+
+    [Fact]
     public async Task AcknowledgementReportsSupportBatchesAndRejectAmbiguousOrStaleRequests()
     {
         var ct = TestContext.Current.CancellationToken;

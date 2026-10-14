@@ -88,7 +88,7 @@ public static class Activity
             };
             var detail = state switch
             {
-                "Running" => "Research is in progress in the browser below.",
+                "Running" => "Follow the current step above and observed sources below.",
                 "Queued" => "Waiting for earlier research.",
                 _ => item.Outcome ?? "Finished.",
             };

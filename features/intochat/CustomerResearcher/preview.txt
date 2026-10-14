@@ -4,4 +4,4 @@ Start with a company name or website. Watch it explore official pages, check the
 
 Queue companies, follow the progress, and stop whenever you need. Your research stays in your own brain.
 
-Install your own copy and open it in the desktop workspace to connect its research browser. It uses your host's configured model; model usage may incur charges. No separate database setup is needed.
+Install your own copy and research directly in the web workspace—no desktop app is needed. Your account uses an isolated browser worker, and each research session starts with fresh browser state. It uses your host's configured model; model usage may incur charges. No separate database setup is needed.
