@@ -39,16 +39,8 @@ public static class TrustClientHosting
     public static IServiceCollection AddTrustClientsForClientHost(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.AddClientMachine();
-        services.AddOptions<TrustOptions>().BindConfiguration(TrustOptions.Key)
-            .Validate(trust => { trust.Validate(); return true; }).ValidateOnStart();
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(provider => GrainTrustClients.Reading(provider.GetRequiredService<IGrainFactory>, provider.GetRequiredService<TimeProvider>()));
-        services.TryAddSingleton<ISequencerClient>(Either<ISequencerClient>);
-        services.TryAddSingleton<INodeDirectoryClient>(Either<INodeDirectoryClient>);
-        services.TryAddSingleton<IKeyringClient>(Either<IKeyringClient>);
-        services.TryAddSingleton<IMarketplaceClient>(Either<IMarketplaceClient>);
-        services.TryAddSingleton<IIdentityClient>(Either<IIdentityClient>);
+        services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
+        services.TryAddSingleton<IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         return services;
     }
 

@@ -20,6 +20,8 @@ internal interface IMarketplaceCatalog : IGrainWithStringKey
     Task<MarketplaceRecord?> Read(string publisher, string name);
 
     Task Upsert(MachineSigned<MarketplaceRecord> listing);
+    Task UpsertLocal(string account, MarketplaceRecord listing);
+    Task RemoveLocal(string account, string publisher, string name);
 
     Task Remove(MachineSigned<MarketplaceRemoval> removal);
 }
@@ -55,6 +57,22 @@ internal sealed class MarketplaceGrain(
         if (Find(removal.Payload.Publisher, removal.Payload.Name) is not { } stored) { return; }
         await RequireOwner(account, stored);
         store.State.Listings = [.. store.State.Listings.Where(item => !(item.Publisher == stored.Publisher && item.Name == stored.Name))];
+        await store.WriteStateAsync();
+    }
+
+    public async Task UpsertLocal(string account, MarketplaceRecord listing)
+    {
+        await RequireOwner(account, listing);
+        store.State.Listings = [.. store.State.Listings.Where(item => !(item.Publisher == listing.Publisher && item.Name == listing.Name)).Append(listing)
+            .OrderBy(item => item.Publisher, StringComparer.Ordinal).ThenBy(item => item.Name, StringComparer.Ordinal)];
+        await store.WriteStateAsync();
+    }
+
+    public async Task RemoveLocal(string account, string publisher, string name)
+    {
+        if (Find(publisher, name) is not { } listing) { return; }
+        await RequireOwner(account, listing);
+        store.State.Listings = [.. store.State.Listings.Where(item => !(item.Publisher == publisher && item.Name == name))];
         await store.WriteStateAsync();
     }
 

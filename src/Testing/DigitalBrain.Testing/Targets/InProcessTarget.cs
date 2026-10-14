@@ -54,6 +54,7 @@ public sealed class InProcessTarget : ITestTarget
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [DigitalBrainNames.MasterKeyConfigurationKey] = session.MasterKey,
+            [DigitalBrain.Platform.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
             [$"{PartsOptions.Key}:MachineDirectory"] = session.MachineDirectory,

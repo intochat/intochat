@@ -36,57 +36,18 @@ public static class PlatformHosting
         silo.AddIncomingGrainCallFilter<Compute.CircleShareGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, DigitalBrain.Framework.Compute.MeteredHttpHandlerFilter>());
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
-        services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
-            .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
-        // Seeds through the trust client; volunteers over this machine's links when it has them (T23-1).
-        services.TryAddSingleton<Mesh.IShardClient>(provider => new Mesh.ShardClient(provider.GetRequiredService<INodeDirectoryClient>(),
-            provider.GetRequiredService<Orleans.Serialization.Serializer>(), provider.GetService<DigitalBrain.Framework.Links.IMachineTransport>()));
-        services.TryAddSingleton<DigitalBrain.Framework.Mesh.IMeshStore, Mesh.MeshStore>();
-        services.AddOptions<Parts.PartsOptions>().BindConfiguration(Parts.PartsOptions.Key)
-            .Validate(parts => { parts.Validate(); return true; }).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineSigningKey>(provider => Sequencer.FileMachineSigningKey.LoadOrCreate(Path.Combine(
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
-        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineAgreementKey>(provider => DigitalBrain.Framework.Parts.SoftwareMachineAgreementKey.LoadOrCreate(Path.Combine(
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "agreement.key")));
-        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>(),
-            provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineAgreementKey>()));
-        // R75: the identity key is the machine's; what it remembers of a trust deployment lives in that deployment's folder.
-        services.TryAddSingleton<Trust.TrustDeployment>();
-        services.TryAddSingleton(provider => new Sequencer.SeenVersions(() => Path.Combine(
-            provider.GetRequiredService<Trust.TrustDeployment>().Directory, "seen.json")));
-        // The custody root is the same configured master key the owner-key wrapper derives from.
+        services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key);
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
-        services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
-        services.TryAddSingleton<Keys.CirclePartKeys>();
-        services.AddSingleton<DigitalBrain.Framework.IConnectionBindings, Connections.ConnectionBindings>();
-        services.TryAddSingleton<DigitalBrain.Framework.Parts.ICirclePartKeys, Keys.CircleKeySharing>();
-        // R130: the connection neuron re-seals a shared credential under the target brain's core part key.
-        services.TryAddSingleton<DigitalBrain.Framework.Platform.Connections.IPartSecretSealer, Secrets.PartKeySecretSealer>();
-        // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
-        services.TryAddSingleton(provider => new Trust.MachineCounter(() => Path.Combine(
-            provider.GetRequiredService<Trust.TrustDeployment>().Directory, "counter")));
-        // With an Endpoint the trust grains live in a separate cluster reached over this machine's trust link (T20-7);
-        // without one (Stage A, tests) they share this silo.
-        if (string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Endpoint)}"]))
-        { silo.AddTrustCluster(); }
-        else
-        {
-            silo.AddMachineLinks();
-            // T23-1: a machine that offers storage answers node.shard.* on its machine links.
-            silo.AddStorageNodeWhenOffered();
-            // The trust grain classes ride in this process's assemblies; this silo never hosts them.
-            silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>
-                options.Classes.RemoveWhere(type => type.Assembly == typeof(TrustHosting).Assembly));
-        }
-        services.AddTrustClients(signs: true);
-        services.TryAddSingleton<Trust.MachineRegistrar>();
+        services.TryAddSingleton<Storage.BrainStorageKeys>();
+        services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
+        services.TryAddSingleton<IPartSecretSealer, Secrets.BrainSecretSealer>();
+        services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<PrincipalPasswords>();
-        silo.AddStartupTask<Trust.MachineRegistration>(Trust.MachineRegistration.Stage);
-        services.TryAddSingleton<Trust.OwnerBirth>();
-        silo.AddStartupTask((provider, ct) => provider.GetRequiredService<Trust.OwnerBirth>().Execute(ct), Trust.OwnerBirth.Stage);
+        silo.AddStartupTask<Identity.OwnerBootstrap>(ServiceLifecycleStage.Active + 1);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
@@ -125,7 +86,6 @@ public static class PlatformHosting
         Signals.SignalsEndpoints.MapSignals(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
-        Parts.MachinePartEndpoints.Map(endpoints);
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
     }

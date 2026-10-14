@@ -2,7 +2,7 @@ using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Storage;
 using DigitalBrain.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -70,7 +70,7 @@ public static class ServerHostingExtensions
         // Storage, clustering and reminders are the orleans module's; the platform and the machine part
         // log compose over whatever it registered.
         builder.AddDigitalBrainPlatform();
-        builder.AddMachinePartLogWhenConfigured();
+        builder.AddBrainStorage();
         return builder;
     }
 

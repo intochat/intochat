@@ -1,7 +1,6 @@
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
-using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.Logging;
@@ -21,17 +20,11 @@ internal sealed class CircleRecord
     [Id(4)] public int ComputeSharePercent { get; set; }
     [Id(5)] public string[] Invited { get; set; } = [];
     [Id(7)] public long Version { get; set; }
-    // The circle core's contributed machines, each with the member account that contributed it.
-    [Id(8)] public CircleMachine[] Machines { get; set; } = [];
-    [Id(9)] public CircleSchedule[] Schedules { get; set; } = [];
     // R155: each slot of a shared app bound at Share, so a sharer's removal can withdraw it.
     [Id(10)] public CircleBinding[] Bindings { get; set; } = [];
 
     public CircleRecord Clone() => (CircleRecord)MemberwiseClone();
 }
-
-[GenerateSerializer, Alias("circles.circle-machine")]
-internal sealed record CircleMachine([property: Id(0)] string MachineId, [property: Id(1)] string AccountId);
 
 // One slot of a shared app: the sharer's account, the slot, and the connection it names: the circle's own copy
 // (Copy) or the sharer's connection left behind.
@@ -43,14 +36,11 @@ internal sealed record CircleBinding(
     [property: Id(3)] string ConnectionKey,
     [property: Id(4)] bool Copy);
 
-// The circle core `{circle}/circle` (T26-1): the circle brain's own state. Members are accounts the trust side records
-// as memberships (R129), its machines are contributed (R128), and every part key of the circle brain is wrapped to
-// those machines (T26-5). Mutations remain nonreentrant; trust revocation is announced before key rotation.
+// Members share a runtime; membership and selected connection bindings govern access.
 [GrainType(CircleGrainType.Name)]
 internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
     IIdentityClient identity,
-    ICirclePartKeys keys,
     ILogger<CircleNeuron> logger,
     DigitalBrain.Apps.FeatureLoader? loader = null)
     : Neuron<CircleRecord>(store), ICircle, ICircleStateReader
@@ -76,14 +66,13 @@ internal sealed class CircleNeuron(
         return PublicationButton.Handle(GrainFactory, CircleBrain, "circleroom", "bring-button", signal, BringPublication);
     }
 
-    public async Task Found(string name, string machineId)
+    public async Task Found(string name)
     {
         if (!ICircle.IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(machineId);
         if (Exists) { return; }
         var creator = Caller().AccountId;
         // Inside the brain's Create turn: the compute share (which reads the brain) is stated on the first change.
-        var founded = new CircleRecord { Name = name, Owner = creator, Members = [creator], Machines = [new(machineId, creator)], Version = 1 };
+        var founded = new CircleRecord { Name = name, Owner = creator, Members = [creator], Version = 1 };
         await Save(founded, Changed(founded));
     }
 
@@ -106,35 +95,15 @@ internal sealed class CircleNeuron(
         var record = Core();
         if (caller.BrainId != CircleBrain || !record.Invited.Contains(caller.AccountId))
         { throw new InvalidOperationException($"{caller.AccountId} has no invitation to {record.Name}."); }
-        var machine = caller.ForwardedBy ?? identity.MachineId ?? throw new InvalidOperationException("This host is not a machine; it contributes none.");
         await identity.EnsureMember(new Member
         {
             PrincipalId = caller.PrincipalId, AccountId = caller.AccountId, BrainId = CircleBrain,
             Role = MemberRole.Member, DisplayName = caller.PrincipalId, JoinedAt = DateTimeOffset.UtcNow,
         });
-        await identity.ContributeMachine(CircleBrain, machine);
-        await keys.ShareWith(CircleBrain, machine);
         var next = record.Clone();
         next.Invited = [.. next.Invited.Where(invited => invited != caller.AccountId)];
         next.Members = [.. next.Members, caller.AccountId];
-        if (!next.Machines.Any(known => known.MachineId == machine)) { next.Machines = [.. next.Machines, new(machine, caller.AccountId)]; }
         return await CommitCore(next);
-    }
-
-    public async Task Contribute(string machineId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(machineId);
-        var caller = Caller();
-        var next = MemberChange();
-        // The caller's account is bound to the machine its call came from (the forward gate checks the account): a
-        // member contributes only that machine, never another member's.
-        if (machineId != (caller.ForwardedBy ?? identity.MachineId))
-        { throw new UnauthorizedAccessException($"{caller.AccountId} contributes only the machine it calls from, not {machineId}."); }
-        if (next.Machines.Any(known => known.MachineId == machineId)) { return; }
-        await identity.ContributeMachine(CircleBrain, machineId);
-        await keys.ShareWith(CircleBrain, machineId);
-        next.Machines = [.. next.Machines, new(machineId, caller.AccountId)];
-        await CommitCore(next);
     }
 
     // R129: the creator removes anyone; a member removes itself. The creator leaving deletes the circle.
@@ -153,8 +122,6 @@ internal sealed class CircleNeuron(
         }
         if (!next.Members.Contains(accountId) && !next.Invited.Contains(accountId)) { throw new InvalidOperationException($"{accountId} is not in {next.Name}."); }
         await Drop(next, accountId);
-        // T26-5: the machines that remain get new part keys; nothing written from here on opens under the old ones.
-        await keys.Rotate(CircleBrain);
         await CommitCore(next);
     }
 
@@ -167,18 +134,6 @@ internal sealed class CircleNeuron(
         }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];
-        // A machine goes by the accounts it is registered to, not by who contributed it: one that serves the removed
-        // account and no remaining member is withdrawn, wherever it was recorded.
-        var withdrawn = new List<string>();
-        foreach (var machine in next.Machines.Select(known => known.MachineId).Union(await identity.MachinesOf(CircleBrain), StringComparer.Ordinal).ToArray())
-        {
-            var accounts = await identity.AccountsOf(machine);
-            if (!accounts.Contains(accountId, StringComparer.Ordinal) || accounts.Intersect(next.Members, StringComparer.Ordinal).Any()) { continue; }
-            await identity.WithdrawMachine(CircleBrain, machine);
-            await keys.RevokeLeases(CircleBrain, machine);
-            withdrawn.Add(machine);
-        }
-        next.Machines = [.. next.Machines.Where(known => !withdrawn.Contains(known.MachineId, StringComparer.Ordinal))];
         await Unbind(next, accountId);
     }
 
@@ -202,15 +157,12 @@ internal sealed class CircleNeuron(
         next.Bindings = [.. next.Bindings.Where(binding => binding.AccountId != accountId)];
     }
 
-    // The creator's leave: every other member and every machine goes, and the circle's state with them.
+    // The creator leaving revokes other memberships and clears the circle.
     private async Task Delete(CircleRecord next)
     {
         foreach (var member in next.Members.Concat(next.Invited).Where(member => member != next.Owner).Distinct().ToArray()) { await Drop(next, member); }
-        await keys.Rotate(CircleBrain);
-        foreach (var machine in next.Machines.Select(known => known.MachineId).Union(await identity.MachinesOf(CircleBrain), StringComparer.Ordinal).ToArray())
-        { await identity.WithdrawMachine(CircleBrain, machine); }
         await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(0, []);
-        await Clear(new CircleChanged(next.Name, [], [], 0, [], Snapshot.Members));
+        await Clear(new CircleChanged(next.Name, [], [], 0, Snapshot.Members));
     }
 
     private CircleRecord Core() => Exists ? Snapshot : throw new KeyNotFoundException($"Circle {CircleBrain} has not been founded.");
@@ -300,8 +252,7 @@ internal sealed class CircleNeuron(
                 var view = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).Read());
                 var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
                 await GrainFactory.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
-                // R130: the owner's machine opens the credential and re-seals it under the circle's core part key, so
-                // only ciphertext crosses the forwarded write into the circle brain.
+                // Re-seal the selected credential for the destination brain; neuron calls carry ciphertext.
                 var reSealed = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).ExportFor(CircleBrain));
                 if (reSealed.Length > 0)
                 { await GrainFactory.GetConnection(copy).Import(view.AuthMethodId, view.Account, reSealed, ConnectionStatus.Connected, null); }
@@ -357,8 +308,8 @@ internal sealed class CircleNeuron(
     }
 
     private static CircleChanged Changed(CircleRecord record)
-        => new(record.Name, record.Members, record.SharedApps, record.ComputeSharePercent, [.. record.Machines.Select(machine => machine.MachineId)]);
+        => new(record.Name, record.Members, record.SharedApps, record.ComputeSharePercent);
 
     private static CircleState Describe(CircleRecord record) => new(record.Name, record.Owner, record.Members,
-        [.. record.Machines.Select(machine => machine.MachineId)], record.Invited, record.SharedApps, record.ComputeSharePercent, record.Schedules, record.Version);
+        record.Invited, record.SharedApps, record.ComputeSharePercent, record.Version);
 }

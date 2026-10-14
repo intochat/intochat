@@ -1,4 +1,5 @@
 [
+  "DigitalBrain.Platform/Storage/BrainStoreOptions.cs",
   "DigitalBrain.AppHost/AppHost.cs",
   "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
   "DigitalBrain.Aspire.Hosting/DigitalBrainHostingOptions.cs",

@@ -112,7 +112,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
-        .WithEnvironment("DigitalBrain__Platform__Parts__Role", "Own")
+        .WithEnvironment("DigitalBrain__Platform__Storage__Directory", Path.Combine(workdir, "brain-store"))
         .WithEnvironment("DigitalBrain__Platform__Parts__MachineDirectory", Path.Combine(workdir, "runtime"))
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");

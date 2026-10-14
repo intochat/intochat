@@ -6,7 +6,7 @@ namespace DigitalBrain.Platform.Identity;
 
 // R57: the trust side records who owns a brain; the brain neuron is born here, on the machine, and the machine
 // binds itself to the brain's account first (R55) so it can act for it at the trust side.
-internal sealed class BrainBirths(IGrainFactory grains, MachineRegistrar registrar)
+internal sealed class BrainBirths(IGrainFactory grains)
 {
     public async Task<Member> Born(BrainProvision provision)
     {
@@ -14,7 +14,6 @@ internal sealed class BrainBirths(IGrainFactory grains, MachineRegistrar registr
         var owner = provision.Member;
         // Trust provisioning may have committed before local binding or creation failed.
         // Both local steps are idempotent; NewBrain describes trust state, not their completion.
-        await registrar.Bind(owner.AccountId);
         // As its owner: the creation handlers (the OS defaults' installs) act in the owner's brain, also at boot,
         // where no call stamped a caller.
         using (Enforcement.CallerContextScope.Scoped(AccountSession.ForMember(owner)))

@@ -6,7 +6,7 @@ namespace DigitalBrain.Platform.Identity;
 
 // Passwords stay on the machine (R30, R62): it hashes, stores and verifies them in its own credential grain, so
 // neither a password nor its hash crosses the identity client.
-internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains, Sequencer.MachineIdentity machine)
+internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains)
 {
     private static readonly PasswordHasher<string> Passwords = new();
 
@@ -24,7 +24,7 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         {
             // A registration interrupted before its brain was provisioned resumes with the same password.
             if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed || await identity.IsRegistered(principalId)
-                || await identity.RegisteredBy(principalId) is { } by && by != machine.MachineId)
+               )
             { throw new InvalidOperationException("That username is unavailable."); }
             return await births.Born((await identity.CompleteRegistration(principalId))
                 ?? await identity.RegisterPrincipal(principalId, displayName));
@@ -50,7 +50,6 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         var result = Passwords.VerifyHashedPassword(principalId, hash, password);
         if (result == PasswordVerificationResult.Failed) { return null; }
         // A local hash for a principal another machine registered is never a sign-in (R67).
-        if (await identity.RegisteredBy(principalId) is not { } by || by != machine.MachineId) { return null; }
         if (result == PasswordVerificationResult.SuccessRehashNeeded) { await credential.Rehash(Passwords.HashPassword(principalId, password)); }
         return await identity.CompleteRegistration(principalId) is { } provision ? await births.Born(provision) : null;
     }

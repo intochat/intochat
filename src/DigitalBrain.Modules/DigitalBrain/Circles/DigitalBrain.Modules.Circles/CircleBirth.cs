@@ -29,9 +29,7 @@ internal sealed class CircleBirth(IIdentityClient identity, IGrainFactory grains
         if (!CallerContextStamper.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
         var name = (await identity.Membership(brainId, creator.PrincipalId))?.DisplayName
             ?? throw new InvalidOperationException($"Circle {brainId} has no creator on record.");
-        var machine = identity.MachineId ?? throw new InvalidOperationException("A circle is born only on a machine.");
-        await identity.ContributeMachine(brainId, machine);
-        await grains.GetGrain<ICircle>(ICircle.Key(brainId)).Found(name, machine);
+        await grains.GetGrain<ICircle>(ICircle.Key(brainId)).Found(name);
         var room = await catalog.Find(RoomOwner, RoomName)
             ?? throw new InvalidOperationException($"The features folder does not carry {RoomOwner}/{RoomName}; circle {brainId} has no room.");
         await loader.Load(brainId, RoomName, room, new AppOrigin(RoomOwner, new AppSource.Shipped(), RoomName, room.Version), cancellationToken);

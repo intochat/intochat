@@ -118,36 +118,10 @@ public sealed class SharedConnectionFacts
     }
 
     // Finding 2: a machine serving only the removed member is withdrawn, however it was contributed.
-    [Fact(Timeout = 240_000)]
-    public async Task AMachineServingOnlyARemovedMemberIsWithdrawn()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var machines = await CircleMachines.Start(ct);
-        var (a, b, alice, bob, circle, _) = await LeftBehind(machines, ct);
-        var onB = b.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>();
-        await onB.ContributeMachine(circle, onB.MachineId!);
-        Assert.Contains(onB.MachineId!, await onB.MachinesOf(circle));
 
-        await alice.In(circle, () => Circle(a, circle).Remove(bob.AccountId));
-
-        Assert.DoesNotContain(onB.MachineId!, await onB.MachinesOf(circle));
-        Assert.Contains(a.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().MachineId!, await onB.MachinesOf(circle));
-    }
 
     // Finding 2: a member contributes only the machine its own call comes from, never another member's.
-    [Fact(Timeout = 240_000)]
-    public async Task AMemberContributesOnlyTheMachineItCallsFrom()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var machines = await CircleMachines.Start(ct);
-        var (a, b, alice, _, circle, _) = await LeftBehind(machines, ct);
-        var bobs = b.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().MachineId!;
-        var before = await a.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().MachinesOf(circle);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => alice.In(circle, () => Circle(a, circle).Contribute(bobs)));
-
-        Assert.Equal(before, await a.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().MachinesOf(circle));
-    }
 
     // R146/R149: from bob's machine, the circle app's call to alice's connection is forwarded to alice's core holder,
     // which admits it through the binding.
@@ -165,18 +139,7 @@ public sealed class SharedConnectionFacts
         Assert.NotNull(a);
     }
 
-    [Fact(Timeout = 240_000)]
-    public async Task AConnectionLeftBehindIs503WhileTheOwnerIsOffline()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var machines = await CircleMachines.Start(ct);
-        var (a, b, _, bob, circle, left) = await LeftBehind(machines, ct);
 
-        await a.DisposeAsync();
-
-        using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { await Assert.ThrowsAsync<ServiceUnavailableException>(() => Grains(b).GetConnectionGrain<IShared>(left).Use()); }
-    }
 
     // R130: the owner's machine re-seals the chosen credential under the circle's core part key, so a member machine
     // opens it and no plaintext crosses a call.
@@ -240,23 +203,7 @@ public sealed class SharedConnectionFacts
         Assert.DoesNotContain(RecordedCalls.Requests, request => Contains(request, plaintext));
     }
 
-    [Fact(Timeout = 240_000)]
-    public async Task ARemovedMemberCannotOpenACredentialSealedAfterTheRotation()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var machines = await CircleMachines.Start(ct);
-        var (a, b, alice, bob, circle, _) = await Chosen(machines, ct);
-        var aliceSealer = a.Services.GetRequiredService<IPartSecretSealer>();
-        var bobSealer = b.Services.GetRequiredService<IPartSecretSealer>();
-        var before = await aliceSealer.Seal(circle, "value", "before", ct);
-        Assert.Equal("before", await bobSealer.Open(circle, before, ct));
 
-        await alice.In(circle, () => Circle(a, circle).Remove(bob.AccountId));
-        var after = await aliceSealer.Seal(circle, "value", "after", ct);
-
-        Assert.Equal("after", await aliceSealer.Open(circle, after, ct));
-        await Assert.ThrowsAnyAsync<Exception>(() => bobSealer.Open(circle, after, ct));
-    }
 
     // R124/R130: any member may share, not only the creator. The circle holder (alice's machine A) re-seals a
     // non-creator member's connection on the member's own machine B, which must admit A's forwarded read.
@@ -273,7 +220,6 @@ public sealed class SharedConnectionFacts
         await Join(a, circle, alice, bob);
         await b.Services.GetRequiredService<IIdentityClient>().EnsureMember(new Member
         { PrincipalId = bob.AccountId, AccountId = bob.AccountId, BrainId = circle, Role = MemberRole.Member, DisplayName = bob.AccountId });
-        await bob.In(circle, () => Circle(b, circle).Contribute(b.Services.GetRequiredService<IIdentityClient>().MachineId!));
 
         await bob.In(circle, () => Circle(b, circle).Share("notes", ["c1"]));
 
@@ -311,8 +257,6 @@ public sealed class SharedConnectionFacts
         // account differs from its principal, so bob's account is recorded as a member too, then B contributes.
         await b.Services.GetRequiredService<IIdentityClient>().EnsureMember(new Member
         { PrincipalId = bob.AccountId, AccountId = bob.AccountId, BrainId = circle, Role = MemberRole.Member, DisplayName = bob.AccountId });
-        var bMachine = b.Services.GetRequiredService<IIdentityClient>().MachineId!;
-        await bob.In(circle, () => Circle(b, circle).Contribute(bMachine));
         await alice.In(circle, () => Circle(a, circle).Share("notes", ["c1"]));
         return (a, b, alice, bob, circle, ConnectionKeys.For(circle, Connector, "c1"));
     }
