@@ -903,7 +903,8 @@ class _NeuronViewState extends State<NeuronView> {
         return _FormRenderer(
           part: UiFormPart.fromMetadata(definition),
           name: widget.name,
-          revision: (definition['revision'] as num?)?.toInt() ?? widget.revision,
+          revision:
+              (definition['revision'] as num?)?.toInt() ?? widget.revision,
           enabled: enabled,
           onAction: _dispatch,
           secretSaver: widget.secretSaver,

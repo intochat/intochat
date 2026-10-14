@@ -35,7 +35,10 @@ void main() {
     expect(infrastructureHealth('Active', null), InfrastructureHealth.green);
     expect(infrastructureHealth('Dead', null), InfrastructureHealth.red);
     expect(infrastructureHealth('Stopping', null), InfrastructureHealth.red);
-    expect(infrastructureHealth('ShuttingDown', null), InfrastructureHealth.red);
+    expect(
+      infrastructureHealth('ShuttingDown', null),
+      InfrastructureHealth.red,
+    );
     expect(infrastructureHealth('Joining', null), InfrastructureHealth.amber);
     expect(infrastructureHealth('Created', null), InfrastructureHealth.amber);
   });

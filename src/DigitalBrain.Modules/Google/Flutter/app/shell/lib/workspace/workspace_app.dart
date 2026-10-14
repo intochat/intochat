@@ -43,7 +43,8 @@ class WorkspaceApp extends StatefulWidget {
   State<WorkspaceApp> createState() => _WorkspaceAppState();
 }
 
-class _WorkspaceAppState extends State<WorkspaceApp> with WidgetsBindingObserver {
+class _WorkspaceAppState extends State<WorkspaceApp>
+    with WidgetsBindingObserver {
   // A connector may mount any app-authored root. Product composition stays in that app.
   static const _root = String.fromEnvironment('DIGITALBRAIN_ROOT');
   static const _rootKind = String.fromEnvironment(
@@ -79,7 +80,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> with WidgetsBindingObserver
   }
 
   @override
-  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+  Future<bool> didPushRouteInformation(
+    RouteInformation routeInformation,
+  ) async {
     final action = workspaceLink(routeInformation.uri);
     if (action == null) return false;
     if (!_ready) {
@@ -98,7 +101,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> with WidgetsBindingObserver
         : location;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(SystemNavigator.routeInformationUpdated(uri: route, replace: true));
+        unawaited(
+          SystemNavigator.routeInformationUpdated(uri: route, replace: true),
+        );
       }
     });
     WidgetsBinding.instance.scheduleFrame();

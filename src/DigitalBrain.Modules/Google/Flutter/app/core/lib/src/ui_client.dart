@@ -219,7 +219,8 @@ final class DigitalBrainUiClient {
 
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
-    final friendSlot = (kind == 'person' && name.endsWith('/profile')) ||
+    final friendSlot =
+        (kind == 'person' && name.endsWith('/profile')) ||
         (kind == 'collection' && name.endsWith('/posts')) ||
         (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
     final contract = NodeContracts.of(friendSlot ? 'scene' : kind);

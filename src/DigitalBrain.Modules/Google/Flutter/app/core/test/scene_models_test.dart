@@ -31,15 +31,31 @@ void main() {
                   {
                     'kind': 'sequence',
                     'children': [
-                      {'kind': 'condition', 'children': [], 'key': 'mood', 'value': 'busy'},
-                      {'kind': 'pulse', 'children': [], 'seconds': 1.5, 'amplitude': 0.2},
+                      {
+                        'kind': 'condition',
+                        'children': [],
+                        'key': 'mood',
+                        'value': 'busy',
+                      },
+                      {
+                        'kind': 'pulse',
+                        'children': [],
+                        'seconds': 1.5,
+                        'amplitude': 0.2,
+                      },
                     ],
                     'memory': true,
                   },
                   {
                     'kind': 'repeat',
                     'children': [
-                      {'kind': 'moveTo', 'children': [], 'seconds': 2, 'x': 10, 'y': -5},
+                      {
+                        'kind': 'moveTo',
+                        'children': [],
+                        'seconds': 2,
+                        'x': 10,
+                        'y': -5,
+                      },
                     ],
                   },
                 ],
@@ -65,7 +81,11 @@ void main() {
   });
 
   test('a node without a tree has none', () {
-    final node = SceneNode.fromJson({'id': 'a', 'type': 'circle', 'tree': null});
+    final node = SceneNode.fromJson({
+      'id': 'a',
+      'type': 'circle',
+      'tree': null,
+    });
     expect(node.tree, isNull);
   });
 }

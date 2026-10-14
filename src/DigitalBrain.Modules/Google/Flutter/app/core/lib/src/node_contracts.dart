@@ -24,7 +24,10 @@ abstract final class NodeContracts {
       'DigitalBrain.Flutter.FileInput.IFileInput',
       'FileInputChanged',
     ),
-    'person': NodeContract('DigitalBrain.Flutter.Person.IPerson', 'PersonChanged'),
+    'person': NodeContract(
+      'DigitalBrain.Flutter.Person.IPerson',
+      'PersonChanged',
+    ),
     'card': NodeContract('DigitalBrain.Flutter.Card.ICard', 'CardChanged'),
     'tabs': NodeContract('DigitalBrain.Flutter.Tabs.ITabs', 'TabsChanged'),
     'surface': NodeContract(

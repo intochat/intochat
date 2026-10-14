@@ -5,6 +5,9 @@
     <AspireVersion>13.6.0</AspireVersion>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Pin patched crypto dependencies transitively; keep NuGet auditing enabled. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="Octokit.Webhooks" Version="4.2.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />

@@ -58,7 +58,9 @@ final class BehaviorTreeDef {
   final TreeNode root;
 
   factory BehaviorTreeDef.fromJson(Map<String, dynamic> json) =>
-      BehaviorTreeDef(TreeNode.fromJson((json['root'] as Map).cast<String, dynamic>()));
+      BehaviorTreeDef(
+        TreeNode.fromJson((json['root'] as Map).cast<String, dynamic>()),
+      );
 
   Map<String, Object?> toJson() => {'root': root.toJson()};
 }

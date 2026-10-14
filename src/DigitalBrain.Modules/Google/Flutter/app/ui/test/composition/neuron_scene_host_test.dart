@@ -22,9 +22,7 @@ class _Scenes extends SceneClient {
 }
 
 void main() {
-  testWidgets('a nested scene reads its own scene neuron', (
-    tester,
-  ) async {
+  testWidgets('a nested scene reads its own scene neuron', (tester) async {
     final scenes = _Scenes();
     await tester.pumpWidget(
       MaterialApp(

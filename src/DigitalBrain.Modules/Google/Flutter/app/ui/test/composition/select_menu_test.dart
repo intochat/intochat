@@ -92,42 +92,43 @@ void main() {
     expect(selected, 'a');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('duplicate labels wrap while preserving full text and alignment', (
-    tester,
-  ) async {
-    const names = [
-      'Customer Researcher (customer-researcher)',
-      'Customer Researcher (customer-researcher-copy)',
-    ];
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: UiNeuronSelect(
-            label: 'Choose',
-            options: [
-              for (final name in names)
-                {
-                  'id': name,
-                  'label': name,
-                  'visual': {'icon': 'apps'},
-                },
-            ],
-            onSelected: (_) {},
+  testWidgets(
+    'duplicate labels wrap while preserving full text and alignment',
+    (tester) async {
+      const names = [
+        'Customer Researcher (customer-researcher)',
+        'Customer Researcher (customer-researcher-copy)',
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: UiNeuronSelect(
+              label: 'Choose',
+              options: [
+                for (final name in names)
+                  {
+                    'id': name,
+                    'label': name,
+                    'visual': {'icon': 'apps'},
+                  },
+              ],
+              onSelected: (_) {},
+            ),
           ),
         ),
-      ),
-    );
-    await tester.tap(find.text('Choose'));
-    await tester.pumpAndSettle();
-    for (final name in names) {
-      final paragraph = tester.renderObject<RenderParagraph>(find.text(name));
-      expect(paragraph.text.toPlainText(), name);
-      expect(paragraph.size.height, greaterThan(20));
-    }
-    expect(
-      tester.getTopLeft(find.text(names[0])).dx,
-      tester.getTopLeft(find.text(names[1])).dx,
-    );
-    expect(tester.takeException(), isNull);
-  });
+      );
+      await tester.tap(find.text('Choose'));
+      await tester.pumpAndSettle();
+      for (final name in names) {
+        final paragraph = tester.renderObject<RenderParagraph>(find.text(name));
+        expect(paragraph.text.toPlainText(), name);
+        expect(paragraph.size.height, greaterThan(20));
+      }
+      expect(
+        tester.getTopLeft(find.text(names[0])).dx,
+        tester.getTopLeft(find.text(names[1])).dx,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

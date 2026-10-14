@@ -170,16 +170,17 @@ void main() {
     (tester) async {
       final server = ActivationServer('brain-1');
       final fixture = await ApplicationFixture.start(tester, server: server);
-      final pushed = tester.binding.defaultBinaryMessenger.handlePlatformMessage(
-        'flutter/navigation',
-        const JSONMethodCodec().encodeMethodCall(
-          MethodCall('pushRouteInformation', {
-            'location': route.toString(),
-            'state': null,
-          }),
-        ),
-        (_) {},
-      );
+      final pushed = tester.binding.defaultBinaryMessenger
+          .handlePlatformMessage(
+            'flutter/navigation',
+            const JSONMethodCodec().encodeMethodCall(
+              MethodCall('pushRouteInformation', {
+                'location': route.toString(),
+                'state': null,
+              }),
+            ),
+            (_) {},
+          );
       await tester.pumpAndSettle();
       await pushed;
       final requests = server.requestsTo(
