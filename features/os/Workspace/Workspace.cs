@@ -18,6 +18,23 @@ public static class Workspace
     public static IWorkspace State(DigitalBrainConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     public static string Encode(long revision, string action, string id) => JsonSerializer.Serialize(new Command(revision, action, id));
 
+    public sealed record Activation(string? BrainId, string? Application, string? Neuron, string? Operation, string? Input);
+
+    public static async Task Activate(DigitalBrainConnection brain, string input, string requestId)
+    {
+        var action = JsonSerializer.Deserialize<Activation>(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            ?? throw new ArgumentException("An activation is required.");
+        var scope = Scope(brain);
+        if (action.BrainId is not null && action.BrainId != scope) { throw new ArgumentException("Connect to the target brain first."); }
+        var name = action.Application ?? (action.Neuron is null ? null : IApp.NameOf(scope, action.Neuron));
+        if (name is null) { throw new ArgumentException("Choose an installed app."); }
+        var state = await State(brain).Read();
+        await Navigate(brain, Encode(state.Revision, "open", name), requestId);
+        // Only explicit activation carries an operation; ordinary view navigation stays inert.
+        if (!string.IsNullOrEmpty(action.Operation))
+        { await brain.Get<IApp>(IApp.Key(scope, name)).Request(action.Operation, action.Input ?? ""); }
+    }
+
     public static async Task Navigate(DigitalBrainConnection brain, string input, string operation)
     {
         var command = JsonSerializer.Deserialize<Command>(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))
@@ -62,7 +79,7 @@ public static class Workspace
     {
         var key = Key(brain);
         var state = await State(brain).Read();
-        List<INeuron> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/pin")];
+        List<INeuron> sources = [brain.Get<IButton>(key + "/ino")];
         for (var i = 0; i < state.OpenViews.Length; i++)
         { sources.Add(brain.Get<IButton>(key + "/focus-" + i)); sources.Add(brain.Get<IButton>(key + "/close-" + i)); }
         for (var i = 0; i < state.Pins.Length; i++) { sources.Add(brain.Get<IButton>(key + "/pinned-" + i)); }
@@ -102,14 +119,20 @@ public static class Workspace
         await brain.Get<IText>(key + "/usage").Set("Usage unavailable");
         var ino = await Button(brain, "ino", "Ino", Encode(state.Revision, "open", "ino"), installed.ContainsKey("ino"));
         var pinned = focused is not null && state.Pins.Any(view => view.Id == focused.Id);
-        var pinButton = await Button(brain, "pin", pinned ? "Unpin" : "Pin", Encode(state.Revision, pinned ? "unpin" : "pin", focused?.Id ?? ""), focused is not null);
-        var left = await Layout(brain, "left", "row", [new("select", key + "/launcher"), .. pins], [72, .. pins.Select(_ => 120d)]);
-        var center = await Layout(brain, "open-views", "row", [.. tabs], tabs.Select(_ => 180d).ToArray());
-        var right = await Layout(brain, "right", "row", [pinButton, ino, new("text", key + "/usage")], [72, 64, 160]);
-        var dock = await Layout(brain, "dock", "row", [left, center, right], [Math.Min(360, 80 + 128 * pins.Count), 0, 312]);
+        List<SelectOption> commands = [];
+        if (focused is not null) { commands.Add(new(Encode(state.Revision, pinned ? "unpin" : "pin", focused.Id), pinned ? "Unpin this app" : "Pin this app")); }
+        if (installed.ContainsKey("settings")) { commands.Add(new(Encode(state.Revision, "open", "settings"), "Settings")); }
+        await brain.Get<ISelect>(key + "/more").Set("More", [.. commands], null);
+        // Only the app strip scrolls; Ino and usage remain reachable at narrow widths.
+        var strip = await Layout(brain, "strip", "row", [new("select", key + "/launcher"), .. pins, .. tabs],
+            [64, .. pins.Select(_ => 104d), .. tabs.Select(_ => 180d)]);
+        var right = await Layout(brain, "right", "row", [ino, new("select", key + "/more"), new("text", key + "/usage")], [48, 56, 96]);
+        var dock = await Layout(brain, "dock", "row", [strip, right], [0, 216]);
         var content = focused is null ? new UiChildRef("text", key + "/empty")
             : !supported ? new UiChildRef("text", key + "/unsupported") : new UiChildRef("viewport", key + "/canvas");
-        var root = await Layout(brain, "root", "column", [content, dock], [0, 64]);
+        if (!string.IsNullOrEmpty((await brain.Get<IText>(key + "/navigation-error").Read()).Markdown))
+        { content = await Layout(brain, "with-error", "column", [new("text", key + "/navigation-error"), content], [48, 0]); }
+        var root = await Layout(brain, "root", "column", [content, dock], [0, 56]);
         await brain.Get<IApp>(key).Present(long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture), new(Views: [new("full", root)]));
     }
 

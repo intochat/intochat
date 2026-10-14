@@ -20,7 +20,7 @@ public static class Ino
         TreeNode.Repeat(TreeNode.Wait(1))));
 
     public static Presentation Presentation(DigitalBrainConnection brain)
-        => new(new Sphere("icon.svg", ["mood"], Presence()), Side: null, Main: new UiChildRef(UIVocabulary.SurfaceType, AssistantKey(brain) + "/surface"));
+        => new(new Sphere("icon.svg", ["mood"], Presence()), Side: null, Main: new UiChildRef(UIVocabulary.SurfaceType, AssistantKey(brain) + "/surface"), Views: [new("full", new UiChildRef(UIVocabulary.SurfaceType, AssistantKey(brain) + "/surface"))]);
 
     public static Task Present(DigitalBrainConnection brain) => brain.Get<IApp>(Key(brain)).Present(ProgramRevision(brain), Presentation(brain));
 

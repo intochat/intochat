@@ -300,7 +300,7 @@ public static class Engineer
         var main = brain.Get<ILayout>(appKey + "/main");
         await main.Set(new("list", [new(UIVocabulary.TextType, appKey + "/status"), new(UIVocabulary.TextType, appKey + "/list")]), (await main.Read()).Revision);
         await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main"), Views: [new("full", new("layout", appKey + "/main"))]));
     }
 
 }

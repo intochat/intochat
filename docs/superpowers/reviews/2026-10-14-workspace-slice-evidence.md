@@ -47,7 +47,9 @@ Aspire logs confirmed typed subscriptions and successful `events.cs`, `buttons.c
 
 Local scratch evidence is retained in `.superpowers/sdd/2026-10-14-app-composed-workspace/`: test/build logs, `live-proof.log`, `lsp-final.jsonl`, and `workspace-live.png`. These are developer-local artifacts, not shipped app assets.
 
-## Opt-in and remaining work
+## Opt-in and remaining work (historical first-slice status)
+
+The default-shell and named-view migration below is now superseded by [the next slice](2026-10-14-workspace-default-evidence.md).
 
 Install the shipped `os/workspace` app in the selected brain using the existing marketplace install operation. Start the Flutter connector with `--dart-define=DIGITALBRAIN_ROOT=apps/workspace/root` (default root kind is `layout`) and its usual authenticated OS base URL. The running web proof used a temporary loopback same-origin proxy; production CORS/authentication was not changed.
 

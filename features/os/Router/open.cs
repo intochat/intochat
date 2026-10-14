@@ -29,5 +29,5 @@ async Task Compose()
         [new UiChildRef(UIVocabulary.TextType, Name("result")), new UiChildRef(UIVocabulary.TextType, Name("timer")), new UiChildRef(UIVocabulary.LayoutType, Name("input"))],
         Extents: [0, 120, 96]), (await main.Read()).Revision);
     await brain.Get<IApp>(Jev.Key(brain)).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", Jev.Key(brain) + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", Jev.Key(brain) + "/main"), Views: [new("full", new("layout", Jev.Key(brain) + "/main"))]));
 }

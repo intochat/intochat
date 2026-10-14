@@ -26,7 +26,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circle";
-    public const string Version = "2.0.6";
+    public const string Version = "2.0.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle",

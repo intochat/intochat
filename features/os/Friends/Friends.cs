@@ -7,6 +7,7 @@ using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.Person;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Layout;
 
 public static class Friends
 {
@@ -24,8 +25,10 @@ public static class Friends
         await listing.Set(new(circles.Select(circle => new CollectionItem(circle.BrainId, circle.Name, "circle", CanActivate: false)).ToArray(),
             FileMode: false, SelectionEnabled: false, EmptyLabel: "Join a circle to see friends and share posts."), (await listing.Read()).Revision);
         await brain.Get<IText>(key + "/about").Set("Friends are the people in your circles. Find their spheres at Home and open a friend to see their posts. Use Post to share with your circles.");
+        var full = brain.Get<ILayout>(key + "/full");
+        await full.Set(new("column", [new("text", key + "/about"), new("collection", key + "/circles")], Extents: [120, 0]), (await full.Read()).Revision);
         await brain.Get<IApp>(key).Present(long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", ["unread"]), Side: new("collection", key + "/circles"), Main: new("text", key + "/about")));
+            new(new Sphere("icon.svg", ["unread"]), Side: new("collection", key + "/circles"), Main: new("text", key + "/about"), Views: [new("full", new("layout", key + "/full"))]));
     }
 
     public static Task Post(DigitalBrainConnection brain, Guid requestId, string text)

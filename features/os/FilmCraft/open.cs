@@ -43,6 +43,6 @@ async Task Compose()
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
         await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main"), Views: [new("full", new("layout", appKey + "/main"))]));
 
 }

@@ -153,7 +153,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.9.7";
+    public const string Version = "1.9.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",

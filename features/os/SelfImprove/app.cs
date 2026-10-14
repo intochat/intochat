@@ -48,7 +48,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.7";
+    public const string Version = "2.0.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",

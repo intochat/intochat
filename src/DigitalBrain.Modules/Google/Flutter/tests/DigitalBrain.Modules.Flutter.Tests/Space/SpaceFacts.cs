@@ -161,14 +161,18 @@ public sealed class SpaceFacts
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
         var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
         await workspace.Show(key, "show", 0);
+        await using var changed = await brain.Observe<SceneChanged>(scene, ct);
         await using var presentation = await brain.Observe<DigitalBrain.Apps.Signals.PresentationChanged>(app, ct);
         await app.Progress("working", "reading files");
         await presentation.NextAsync(ct: ct);
         await brain.Services.GetRequiredService<Orleans.IGrainFactory>().GetGrain<ISpace>(brain.Owner.BrainId).Rebuild();
-        await using var changed = await brain.Observe<SceneChanged>(scene, ct);
-        await brain.Services.GetRequiredService<Orleans.IGrainFactory>().GetGrain<ISpace>(brain.Owner.BrainId).Rebuild();
-        await changed.NextAsync(ct: ct);
-        var node = Assert.Single((await scene.Read()).Definition.Nodes, node => node.Id == key);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        SceneState state;
+        do { await changed.NextAsync(ct: deadline.Token); state = await scene.Read(); }
+        while (!state.Definition.Nodes.Any(node => node.Id == key
+            && JsonSerializer.Deserialize<Dictionary<string, string>>(node.Parameters["blackboard"])?.GetValueOrDefault("running") == "true"));
+        var node = Assert.Single(state.Definition.Nodes, node => node.Id == key);
         using var board = JsonDocument.Parse(node.Parameters["blackboard"]);
         Assert.Equal("true", board.RootElement.GetProperty("running").GetString());
         using (brain.Owner.AsApp(key))

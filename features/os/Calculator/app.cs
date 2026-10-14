@@ -49,7 +49,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "calculator";
-    public const string Version = "1.2.4";
+    public const string Version = "1.2.5";
 
     public static readonly AppManifest Manifest = new(
         Title: "Calculator",

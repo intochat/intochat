@@ -141,6 +141,7 @@ class ApplicationServer extends http.BaseClient {
   int revision = 0;
   bool developerMode = false, allowed = true, failOpen = false;
   String? renderedSurface;
+  Map<String, dynamic>? root;
   List<RecordedAppRequest> requestsTo(String path) =>
       requests.where((r) => r.path == path).toList();
   Map<String, dynamic> body(http.BaseRequest request) =>
@@ -157,6 +158,7 @@ class ApplicationServer extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     requests.add(RecordedAppRequest(request.url.path, body(request)));
     final path = request.url.path;
+    if (path.endsWith('/apps/connect')) return json({'root': root});
     if (path == '/session/capabilities') {
       return json({'developerMode': developerMode});
     }

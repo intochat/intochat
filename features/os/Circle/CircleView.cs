@@ -19,7 +19,7 @@ public static class CircleView
         await Factory(brain).BindPublicationButton();
         await PublicationUi.Layout(brain, "main", [new("layout", app + "/navigation-bar"), new("text", app + "/status"), new("layout", app + "/content"), new("layout", app + "/result")]);
         await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main"), Views: [new("full", new("layout", app + "/main"))]));
     }
 
     public static async Task Navigate(DigitalBrainConnection brain, PublicationUi.Navigation navigation)

@@ -137,7 +137,7 @@ public static class Assistant
         { writes.Add(surface.Set(surfaceDefinition, surfaceState.Revision)); }
         await Task.WhenAll(writes);
         await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("surface", appKey + "/surface")));
+            new(new Sphere("icon.svg", []), Main: new("surface", appKey + "/surface"), Views: [new("full", new("surface", appKey + "/surface"))]));
     }
 
     private static bool Same(LayoutDefinition left, LayoutDefinition right)

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
@@ -59,6 +60,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _navigator = GlobalKey<NavigatorState>();
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   SpaceController? _space;
+  String? _rootName;
+  String? _activationApp;
+  String _renderKind = 'layout';
   String? _brain;
   Object? _startupError;
   bool _developerMode = false;
@@ -89,7 +93,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             })
             .catchError((Object _) {}),
       );
-      if (_root.isEmpty &&
+      if (_rootName == null &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
         await _space!.show('$brain/apps/settings');
       }
@@ -103,10 +107,31 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     if (_root.isNotEmpty) {
       _space?.dispose();
       _space = null;
-      setState(() => _brain = brain);
+      setState(() {
+        _brain = brain;
+        _rootName = '$brain/$_root';
+        _renderKind = _rootKind;
+      });
       return;
     }
     final client = widget.programmingClient!;
+    final connection = await client.appRequest(brain, 'connect', body: {});
+    if (connection['root'] case final Map root) {
+      final name = root['name'] as String;
+      final kind = root['kind'] as String;
+      if (!mounted) return;
+      _space?.dispose();
+      _space = null;
+      setState(() {
+        _brain = brain;
+        _rootName = name;
+        _activationApp = connection['activationApp'] as String?;
+        _renderKind = kind;
+      });
+      return;
+    }
+    _rootName = null;
+    _activationApp = null;
     final old = _space;
     final controller = SpaceController(
       client: client,
@@ -214,6 +239,19 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
               ),
             ),
           ),
+        );
+        return;
+      }
+      if (_rootName != null) {
+        final receiver = _activationApp;
+        if (receiver == null) {
+          throw StateError('This root has no navigation receiver.');
+        }
+        await client.requestApp(
+          brain,
+          receiver,
+          'activate',
+          jsonEncode(action),
         );
         return;
       }
@@ -377,12 +415,12 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       child: child!,
     ),
     home: Scaffold(
-      body: _root.isNotEmpty && _brain != null
+      body: _rootName != null && _brain != null
           ? SafeArea(
               child: NeuronView(
-                key: ValueKey('$_brain/$_root'),
-                kind: _rootKind,
-                name: '$_brain/$_root',
+                key: ValueKey(_rootName),
+                kind: _renderKind,
+                name: _rootName!,
                 load: (kind, name) => widget.programmingClient!.appRequest(
                   _brain!,
                   'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
@@ -394,6 +432,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
                     body: event,
                   );
                 },
+                onActivate: (action) => unawaited(_activate(action)),
                 scenes: widget.programmingClient!.scenes(_brain!),
               ),
             )

@@ -85,7 +85,7 @@ public static class Views
         if (current.Definition.Mode != "list" || !Same(current.Definition.Children, children))
         { await main.Set(new("list", children), current.Revision); }
         await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main"), Views: [new("full", new("layout", appKey + "/main"))]));
     }
 
     private static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);

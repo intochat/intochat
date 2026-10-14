@@ -29,7 +29,7 @@ public static class BrainView
         var main = brain.Get<ILayout>(app + "/main");
         await main.Set(new("column", [new("layout", app + "/panel")]), (await main.Read()).Revision);
         await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main"), Views: [new("full", new("layout", app + "/main"))]));
     }
 
     public static async Task<Run[]> ReadRecent(DigitalBrainConnection brain)

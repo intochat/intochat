@@ -15,7 +15,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "brainview";
-    public const string Version = "1.0.3";
+    public const string Version = "1.0.4";
     public static readonly AppManifest Manifest = new(
         Title: "Brain",
         Description: "Inspect the brain's behavior-run panel.",

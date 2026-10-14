@@ -34,7 +34,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "filmcraft";
-    public const string Version = "1.0.6";
+    public const string Version = "1.0.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "FilmCraft",

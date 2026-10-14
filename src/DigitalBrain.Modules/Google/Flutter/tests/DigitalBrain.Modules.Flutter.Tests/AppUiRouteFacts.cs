@@ -30,6 +30,7 @@ public sealed class AppUiRouteFacts(FlutterHostFixture host)
         [
             "GET /brains/{brainId}/apps/node",
             "GET /brains/{brainId}/ui/tables/{name}",
+            "POST /brains/{brainId}/apps/connect",
             "POST /brains/{brainId}/apps/event",
             "POST /brains/{brainId}/ui/tables/{name}/replace",
         ], routes);

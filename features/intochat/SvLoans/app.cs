@@ -76,7 +76,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "sv-loans";
-    public const string Version = "0.1.3";
+    public const string Version = "0.1.4";
 
     public static readonly AppManifest Manifest = new(
         Title: "SV Loans",

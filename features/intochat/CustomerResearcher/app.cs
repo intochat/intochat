@@ -107,7 +107,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "customer-researcher";
-    public const string Version = "1.1.47";
+    public const string Version = "1.1.48";
 
     public static readonly AppManifest Manifest = new(
         Title: "Customer Researcher",

@@ -67,7 +67,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "settings";
-    public const string Version = "1.1.9";
+    public const string Version = "1.1.10";
 
     public static readonly AppManifest Manifest = new(
         Title: "Settings",

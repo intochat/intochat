@@ -83,7 +83,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "photocraft";
-    public const string Version = "1.0.10";
+    public const string Version = "1.0.11";
 
     public static readonly AppManifest Manifest = new(
         Title: "PhotoCraft",

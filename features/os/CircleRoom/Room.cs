@@ -21,7 +21,7 @@ public static class Room
         await brain.Get<ICircle>(ICircle.Key(Circle(brain))).BindPublicationButton();
         await PublicationUi.Layout(brain, "main", [new("text", app + "/status"), new("layout", app + "/publication-pane"), new("layout", app + "/result"), new("text", app + "/transcript")]);
         await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main"), Views: [new("full", new("layout", app + "/main"))]));
     }
 
     public static async Task ShowPublication(DigitalBrainConnection brain, AppPublicationRef reference)

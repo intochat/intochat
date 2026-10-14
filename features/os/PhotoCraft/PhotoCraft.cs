@@ -48,7 +48,7 @@ public static class PhotoCraft
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
         await brain.Get<IApp>(Key(brain)).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", Key(brain) + "/main")));
+            new(new Sphere("icon.svg", []), Main: new("layout", Key(brain) + "/main"), Views: [new("full", new("layout", Key(brain) + "/main"))]));
     }
 
     // The editor's last turn when it has ended and the app has not settled it yet.

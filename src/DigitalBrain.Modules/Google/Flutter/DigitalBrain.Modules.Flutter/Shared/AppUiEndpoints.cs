@@ -34,6 +34,11 @@ internal static class AppUiEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        apps.MapPost("/connect", async ([FromServices] IEnumerable<IUiRootProvider> providers, CancellationToken ct) =>
+        {
+            var provider = providers.SingleOrDefault();
+            return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
+        });
         apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
@@ -54,9 +59,6 @@ internal static class AppUiEndpoints
                 var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
                 var presentation = app.Presentation;
                 var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
-                // Explicit legacy full-view adapter during first-party app migration.
-                if (root is null && target.Variant == "full" && presentation?.Root is { Views: null } legacy)
-                { root = legacy.Main; }
                 if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
                 return Results.Ok(new { viewport.Revision, viewport.Target, Root = root,
                     Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null) });
