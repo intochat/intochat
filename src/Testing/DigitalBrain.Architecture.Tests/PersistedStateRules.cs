@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Inference;
 
 namespace DigitalBrain.Architecture.Tests;
@@ -7,11 +8,42 @@ internal static class PersistedStateRules
 {
     internal static IEnumerable<MemberInfo> Members(Type type) => type
         .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
-        .Where(member => member is PropertyInfo or FieldInfo && member.IsDefined(typeof(IdAttribute)));
+        .Where(member => member is PropertyInfo or FieldInfo && member.IsDefined(typeof(IdAttribute)))
+        .Concat(PrimaryConstructorMembers(type));
+
+    // Orleans gives positional record parameters their own serialization layer, before
+    // explicitly numbered members. Adding Id attributes moves an existing field between
+    // layers, even when its numeric ID is unchanged, and breaks stored messages.
+    private static IEnumerable<PropertyInfo> PrimaryConstructorMembers(Type type)
+    {
+        var serializer = type.GetCustomAttributesData().SingleOrDefault(attribute => attribute.AttributeType == typeof(GenerateSerializerAttribute));
+        if (serializer is null || serializer.NamedArguments.Any(argument =>
+            argument.MemberName == nameof(GenerateSerializerAttribute.IncludePrimaryConstructorParameters)
+            && argument.TypedValue.Value is false)) { yield break; }
+
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        // A synthesized Deconstruct describes the positional record parameters. Matching
+        // the constructor prevents an ordinary class with a similarly named method from
+        // acquiring implicit serialization merely because it has writable properties.
+        var deconstruct = type.GetMethods(declared).SingleOrDefault(method => method.Name == "Deconstruct"
+            && method.IsDefined(typeof(CompilerGeneratedAttribute), false));
+        if (deconstruct is null) { yield break; }
+        var parameters = deconstruct.GetParameters();
+        if (!type.GetConstructors(declared).Any(constructor => constructor.GetParameters().Select(parameter => (parameter.Name, parameter.ParameterType))
+            .SequenceEqual(parameters.Select(parameter => (parameter.Name, parameter.ParameterType.GetElementType()!))))) { yield break; }
+        foreach (var parameter in parameters)
+        {
+            var property = type.GetProperty(parameter.Name!, declared);
+            if (property is not null && property.PropertyType == parameter.ParameterType.GetElementType()
+                && !property.IsDefined(typeof(IdAttribute))
+                && !property.IsDefined(typeof(System.Runtime.Serialization.IgnoreDataMemberAttribute))
+                && !property.IsDefined(typeof(NonSerializedAttribute))) { yield return property; }
+        }
+    }
 
     internal static IEnumerable<string> IdViolations(Type type)
     {
-        var ids = Members(type).Select(member => member.GetCustomAttribute<IdAttribute>()!.Id);
+        var ids = Members(type).Select(member => member.GetCustomAttribute<IdAttribute>()).OfType<IdAttribute>().Select(attribute => attribute.Id);
         foreach (var duplicate in ids.GroupBy(id => id).Where(group => group.Count() > 1))
         {
             yield return $"{type.FullName}: duplicate Id({duplicate.Key})";
@@ -21,10 +53,12 @@ internal static class PersistedStateRules
     internal static IEnumerable<string> ShapeViolations(Type type)
     {
         foreach (var violation in IdViolations(type)) { yield return violation; }
+        var implicitMembers = PrimaryConstructorMembers(type).ToHashSet<MemberInfo>();
         foreach (var member in ContractRules.PublicMembers(type).Where(member => member.DeclaringType == type
             && (member is FieldInfo || member is PropertyInfo { SetMethod: not null })))
         {
             if (!member.IsDefined(typeof(IdAttribute))
+                && !implicitMembers.Contains(member)
                 && !member.IsDefined(typeof(System.Runtime.Serialization.IgnoreDataMemberAttribute))
                 && !member.IsDefined(typeof(NonSerializedAttribute)))
             {

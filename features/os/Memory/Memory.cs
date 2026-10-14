@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Client;
 using DigitalBrain.AI.Embeddings;
 using DigitalBrain.AI.Media;
 using DigitalBrain.Apps;
@@ -12,21 +14,21 @@ using DigitalBrain.Postgres.Tables;
 
 // Shared: the rows Memory indexes, the generation recall reads, how text becomes terms and meaning
 // vectors, how a question ranks the rows, and the markdown the surface shows.
-static class Memory
+internal static class Memory
 {
     public const int ShownSynapses = 5;
     public const int ShownOthers = 3;
     public const int EmbedBatch = 128;
     public const int RecentRuns = 31;
-    const int MaxTerms = 200;
-    const int ExcerptLength = 200;
-    const int CodeHead = 1500;
-    const int SpecHead = 600;
-    const int SpecMeaning = 2500;
-    const double WordsWeight = 0.5;
+    private const int MaxTerms = 200;
+    private const int ExcerptLength = 200;
+    private const int CodeHead = 1500;
+    private const int SpecHead = 600;
+    private const int SpecMeaning = 2500;
+    private const double WordsWeight = 0.5;
     // Calibrated on the deployment's embedding model: rows a question is about stand 0.30 to 0.44 above the
     // brain's median row; for a question nothing is about, short scratch rows stand up to 0.14 above it.
-    const double NearLift = 0.18;
+    private const double NearLift = 0.18;
 
     // Meaning is the text a row is embedded from; it is built at reindex and never stored in the table.
     public sealed record Row(string Id, string App, string Path, string Kind, string Title, string Version,
@@ -67,7 +69,7 @@ static class Memory
         new("behavior", "text"), new("hash", "text"), new("recent", "jsonb"), new("p50", "number"), new("updated_at", "timestamptz"),
     ], ["behavior"]);
 
-    static readonly HashSet<string> Stop = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> Stop = new(StringComparer.Ordinal)
     {
         "a", "an", "and", "are", "as", "at", "be", "by", "do", "does", "for", "from", "has", "have", "if", "in", "into",
         "is", "it", "its", "of", "on", "or", "so", "than", "that", "the", "their", "then", "there", "these", "this",
@@ -124,7 +126,7 @@ static class Memory
     // One row for the app (what it is for) and one per program file; a file's row also carries its app's
     // title and description, so a synapse is found by what its app does. Runs belong to the synapse that
     // ran: an app row holds none, so a run is counted once.
-    static Row[] RowsOf(string scope, string name, AppSnapshot state, BehaviorView[] behaviors)
+    private static Row[] RowsOf(string scope, string name, AppSnapshot state, BehaviorView[] behaviors)
     {
         var key = IApp.Key(scope, name);
         var about = name.Replace('-', ' ') + "\n" + state.Manifest.Title + "\n" + state.Manifest.Description;
@@ -152,11 +154,11 @@ static class Memory
     public static BehaviorView? Find(BehaviorView[]? behaviors, string id) => behaviors?.FirstOrDefault(behavior => behavior.Id == id);
 
     // The source without its using directives and blank lines: what the file does, not what it imports.
-    static string Code(string source)
+    private static string Code(string source)
         => string.Join("\n", source.Split('\n').Select(line => line.TrimEnd())
             .Where(line => line.Length > 0 && !line.StartsWith("using ", StringComparison.Ordinal)));
 
-    static string Head(string text, int length) => text.Length <= length ? text : text[..length];
+    private static string Head(string text, int length) => text.Length <= length ? text : text[..length];
 
     // Embeds texts in batches the model accepts; each vector answers the text at its position.
     public static async Task<float[][]> Embed(DigitalBrainConnection brain, IReadOnlyList<string> texts)
@@ -184,7 +186,7 @@ static class Memory
         => [.. rows.Select(row => row.Kind == "synapse" && Find(behaviors, BehaviorIds.For(IApp.Key(scope, row.App), row.Path)) is { } behavior
             ? row with { Runs = behavior.Runs } : row)];
 
-    static TableValue[] RequestKey(Guid request) => [new("request", JsonSerializer.Serialize(request.ToString("N")))];
+    private static TableValue[] RequestKey(Guid request) => [new("request", JsonSerializer.Serialize(request.ToString("N")))];
 
     public static async Task<bool> Answered(ITable requests, AppRequested request)
         => await requests.Read(RequestKey(request.RequestId)) is not null;
@@ -216,7 +218,7 @@ static class Memory
         new("fingerprint", JsonSerializer.Serialize(generation.Fingerprint)),
     ];
 
-    static string Time(DateTimeOffset? time)
+    private static string Time(DateTimeOffset? time)
         => time is { } at ? JsonSerializer.Serialize(at.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)) : "null";
 
     public static async Task<Generation?> ReadGeneration(ITable generations)
@@ -244,7 +246,7 @@ static class Memory
         return rows;
     }
 
-    static async Task<List<TableValue[]>> Pages(ITable table, CancellationToken cancellationToken)
+    private static async Task<List<TableValue[]>> Pages(ITable table, CancellationToken cancellationToken)
     {
         var all = new List<TableValue[]>();
         for (var offset = 0; ; offset += PostgresQuery.MaxRowsLimit)
@@ -256,7 +258,7 @@ static class Memory
         }
     }
 
-    static Row Parse(TableValue[] cells)
+    private static Row Parse(TableValue[] cells)
     {
         var cell = new Cells(cells);
         return new(cell.Text("id"), cell.Text("app"), cell.Text("path"), cell.Text("kind"), cell.Text("title"), cell.Text("version"),
@@ -265,9 +267,9 @@ static class Memory
     }
 
     // Cells arrive as JSON literals, as the table stores them.
-    sealed class Cells(TableValue[] cells)
+    private sealed class Cells(TableValue[] cells)
     {
-        readonly Dictionary<string, string> json = cells.ToDictionary(cell => cell.Column, cell => cell.Json, StringComparer.Ordinal);
+        private readonly Dictionary<string, string> json = cells.ToDictionary(cell => cell.Column, cell => cell.Json, StringComparer.Ordinal);
 
         public string Text(string column)
         {
@@ -290,7 +292,7 @@ static class Memory
             => json.TryGetValue(column, out var literal) && literal != "null" ? JsonSerializer.Deserialize<T>(literal) : default;
     }
 
-    // Runs: a synapse's recent successful run times, kept per program hash by runs.cs.
+    // Legacy run-table schema, retained for read-only compatibility with installed brains.
     public static TableValue[] RunKey(string behavior) => [new("behavior", JsonSerializer.Serialize(behavior))];
 
     public static (string Hash, Sample[] Recent) ParseRuns(TableValue[]? cells)
@@ -306,23 +308,38 @@ static class Memory
         new("p50", Median(recent).ToString(CultureInfo.InvariantCulture)), new("updated_at", Time(DateTimeOffset.UtcNow)),
     ];
 
-    static long Median(Sample[] recent)
+    private static long Median(Sample[] recent)
     {
         if (recent.Length == 0) { return 0; }
         var sorted = recent.Select(sample => sample.Microseconds).Order().ToArray();
         return sorted[(sorted.Length - 1) / 2];
     }
 
-    // Each synapse's p50 and how many runs it is taken over; empty when runs.cs has recorded nothing yet.
-    public static async Task<Dictionary<string, (long P50, int Samples)>> Medians(ITable runs, CancellationToken cancellationToken)
+    public static async Task<Dictionary<string, (string Hash, Sample[] Recent)>> LegacyRuns(ITable runs, CancellationToken cancellationToken)
     {
-        var medians = new Dictionary<string, (long P50, int Samples)>(StringComparer.Ordinal);
+        var legacy = new Dictionary<string, (string Hash, Sample[] Recent)>(StringComparer.Ordinal);
         foreach (var cells in await Pages(runs, cancellationToken))
         {
             var cell = new Cells(cells);
-            var recent = cell.Json<Sample[]>("recent") ?? [];
-            medians[cell.Text("behavior")] = ((long)cell.Number("p50"), recent.Length);
+            legacy[cell.Text("behavior")] = ParseRuns(cells);
         }
+        return legacy;
+    }
+
+    // Native hashes supersede legacy versions; matching hashes extend the same 31-sample window.
+    public static Dictionary<string, (long P50, int Samples)> Medians(
+        IReadOnlyDictionary<string, (string Hash, Sample[] Recent)> legacy, BrainRunStatistics[] statistics)
+    {
+        var samples = legacy.ToDictionary(pair => pair.Key, pair => pair.Value.Recent.TakeLast(RecentRuns).ToArray(), StringComparer.Ordinal);
+        foreach (var stat in statistics)
+        {
+            var previous = legacy.TryGetValue(stat.Behavior, out var old) && old.Hash == stat.Hash ? old.Recent : [];
+            // A native duplicate wins while retaining its original position in the history.
+            samples[stat.Behavior] = previous.Concat(stat.Samples.Select(sample => new Sample(sample.Mark, sample.Microseconds)))
+                .GroupBy(sample => sample.Mark, StringComparer.Ordinal).Select(group => group.Last()).TakeLast(RecentRuns).ToArray();
+        }
+        var medians = new Dictionary<string, (long P50, int Samples)>(StringComparer.Ordinal);
+        foreach (var (behavior, recent) in samples) { medians[behavior] = (Median(recent), recent.Length); }
         return medians;
     }
 
@@ -338,7 +355,7 @@ static class Memory
         return terms;
     }
 
-    static Dictionary<string, int> Weigh(params (string Text, int Weight)[] parts)
+    private static Dictionary<string, int> Weigh(params (string Text, int Weight)[] parts)
     {
         var all = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var (text, weight) in parts)
@@ -350,7 +367,7 @@ static class Memory
     }
 
     // Words split at anything but letters and digits, and inside identifiers: "ConnectAsync" is connect, async.
-    static IEnumerable<string> Words(string text)
+    private static IEnumerable<string> Words(string text)
     {
         var word = new StringBuilder();
         for (var index = 0; index <= text.Length; index++)
@@ -362,18 +379,18 @@ static class Memory
                 continue;
             }
             var next = index + 1 < text.Length ? text[index + 1] : ' ';
-            if (word.Length > 0 && Boundary(word[word.Length - 1], current, next)) { yield return word.ToString(); word.Clear(); }
+            if (word.Length > 0 && Boundary(word[^1], current, next)) { yield return word.ToString(); word.Clear(); }
             word.Append(current);
         }
     }
 
-    static bool Boundary(char previous, char current, char next)
+    private static bool Boundary(char previous, char current, char next)
         => (char.IsLower(previous) && char.IsUpper(current))
             || (char.IsUpper(previous) && char.IsUpper(current) && char.IsLower(next))
             || char.IsDigit(previous) != char.IsDigit(current);
 
     // Plurals only: "words" and "word" are one term; "status" and "class" keep their ending.
-    static string Stem(string term)
+    private static string Stem(string term)
         => term.Length > 4 && term.EndsWith("ies", StringComparison.Ordinal) ? term[..^3] + "y"
             : term.Length > 3 && term[^1] == 's' && term[^2] is not ('s' or 'u' or 'i') ? term[..^1]
             : term;
@@ -381,7 +398,7 @@ static class Memory
     // tf-idf over the question's terms, scaled by how many of them a row holds, so a row with every
     // word beats one that repeats a single word. A term no row holds matches the terms it starts
     // ("calc" finds calculator) at half weight.
-    static Dictionary<string, double> WordScores(IReadOnlyList<Row> rows, string question)
+    private static Dictionary<string, double> WordScores(IReadOnlyList<Row> rows, string question)
     {
         var wanted = Terms(question).Keys.ToArray();
         if (wanted.Length == 0 || rows.Count == 0) { return []; }
@@ -420,7 +437,7 @@ static class Memory
         return new(median, best, median + Math.Max(NearLift, (best - median) / 2));
     }
 
-    static Dictionary<string, double> Near(IReadOnlyList<Row> rows, IReadOnlyDictionary<string, double> meanings)
+    private static Dictionary<string, double> Near(IReadOnlyList<Row> rows, IReadOnlyDictionary<string, double> meanings)
     {
         if (Measure(rows, meanings) is not { } spread) { return []; }
         return rows.Where(row => meanings.TryGetValue(row.Id, out var similarity) && similarity >= spread.Floor)
@@ -481,7 +498,7 @@ static class Memory
         return builder.ToString();
     }
 
-    static void Section(StringBuilder builder, string title, IEnumerable<Ranked> items)
+    private static void Section(StringBuilder builder, string title, IEnumerable<Ranked> items)
     {
         var shown = items.ToArray();
         if (shown.Length == 0) { return; }
@@ -502,7 +519,7 @@ static class Memory
     }
 
     // The apps tree: each app, where it came from, and its files; each synapse with its status, the runs the
-    // brain runtime counted since it started, its failures, its last run time and the p50 runs.cs keeps.
+    // brain runtime counted since it started, its failures, its last run time and its retained p50.
     public static string RenderApps(string scope, IReadOnlyList<(string Name, AppSnapshot State)> apps, BehaviorView[]? behaviors,
         IReadOnlyDictionary<string, (long P50, int Samples)> medians)
     {
@@ -545,12 +562,12 @@ static class Memory
         return header.Append("\n\n").Append(body).ToString();
     }
 
-    static string Duration(long microseconds)
+    private static string Duration(long microseconds)
         => microseconds >= 1_000_000 ? (microseconds / 1_000_000d).ToString("0.0", CultureInfo.InvariantCulture) + " s"
             : microseconds >= 1000 ? (microseconds / 1000d).ToString("0.0", CultureInfo.InvariantCulture) + " ms"
             : microseconds.ToString(CultureInfo.InvariantCulture) + " µs";
 
-    static string Origin(AppSnapshot state)
+    private static string Origin(AppSnapshot state)
         => state.Origin is not { } origin ? "Made in this brain"
             : "From " + origin.Publisher + (origin.Source is AppSource.Shipped ? " (shipped)" : " (a brain)") + " v" + origin.Version
                 + (state.Edited ? ", edited here" : "");
@@ -576,7 +593,7 @@ static class Memory
     }
 
     // A file's own description: its first comment block.
-    static string Summary(string source)
+    private static string Summary(string source)
         => Excerpt(string.Join(" ", source.Split('\n').Take(40).Select(line => line.Trim())
             .SkipWhile(line => !line.StartsWith("//", StringComparison.Ordinal))
             .TakeWhile(line => line.StartsWith("//", StringComparison.Ordinal))

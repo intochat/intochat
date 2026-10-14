@@ -397,6 +397,7 @@ class _NeuronViewState extends State<NeuronView> {
   Widget _markdown(String text) => SelectionArea(
     child: GptMarkdown(
       text,
+      key: ValueKey(text),
       onLinkTap: (url, _) async {
         final link = Uri.tryParse(url);
         final uri = link == null ? null : Uri.base.resolveUri(link);

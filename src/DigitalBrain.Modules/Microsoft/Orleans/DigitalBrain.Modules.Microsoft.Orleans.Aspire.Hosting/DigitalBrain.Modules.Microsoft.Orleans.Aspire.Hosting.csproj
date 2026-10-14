@@ -2,7 +2,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Description>Aspire AppHost integration for the DigitalBrain Orleans module: Azurite clustering, grain state and reminders.</Description>
-    <RootNamespace>DigitalBrain.Microsoft.Orleans</RootNamespace>
+    <RootNamespace>DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Azure.Storage" />

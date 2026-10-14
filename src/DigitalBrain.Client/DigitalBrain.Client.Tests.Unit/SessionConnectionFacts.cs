@@ -11,6 +11,63 @@ namespace DigitalBrain.Client.Tests.Unit;
 public sealed class SessionConnectionFacts
 {
     [Fact]
+    public async Task ReadinessWaitsForTheOutermostInitialReaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var remote = new FakeBrain();
+        await using var session = await remote.OpenAsync(ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var ambient = AmbientSession.Enter(session, "acc-brain/csharp/ready", new Dictionary<string, string>(), stop.Token, "hash", "revision");
+        await using var connection = await DigitalBrainClient.ConnectAsync([], ct);
+        Assert.Empty(remote.Reports("status")); // Connecting a computational program does not initialize it.
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reaction = connection.React<Changed>(Sources.Of(connection.Get<ISource>("source")), async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        }, stop.Token);
+        await entered.Task.WaitAsync(ct);
+        Assert.NotEmpty(remote.Reports("subscribe"));
+        Assert.Empty(remote.Reports("status"));
+        release.SetResult();
+        var report = await remote.StatusReports.Reader.ReadAsync(ct);
+        Assert.Equal("Initialized", report["status"]!.GetValue<string>());
+        Assert.Equal("hash", report["hash"]!.GetValue<string>());
+        Assert.Equal("revision", report["assignmentRevision"]!.GetValue<string>());
+        await stop.CancelAsync();
+        await reaction.WaitAsync(ct);
+    }
+
+    [Fact]
+    public async Task InitialReadinessRetriesTransientDeliveryWithoutRestartingTheReaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var attempts = 0;
+        var remote = new FakeBrain { ReportStatus = () => Interlocked.Increment(ref attempts) switch
+        {
+            1 => throw new HttpRequestException("transient connection failure"),
+            <= 3 => HttpStatusCode.ServiceUnavailable,
+            _ => HttpStatusCode.OK
+        } };
+        await using var session = await remote.OpenAsync(ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var ambient = AmbientSession.Enter(session, "acc-brain/csharp/ready", new Dictionary<string, string>(), stop.Token, "hash", "revision");
+        await using var connection = await DigitalBrainClient.ConnectAsync([], ct);
+        var rebuilds = 0;
+        var reaction = connection.React<Changed>(Sources.Of(connection.Get<ISource>("source")), _ =>
+        {
+            Interlocked.Increment(ref rebuilds);
+            return Task.CompletedTask;
+        }, stop.Token);
+        await remote.StatusReports.Reader.ReadAsync(ct);
+        Assert.Equal(4, attempts);
+        Assert.Equal(1, rebuilds);
+        await stop.CancelAsync();
+        await reaction.WaitAsync(ct);
+    }
+
+    [Fact]
     public async Task AStalledAcknowledgementTimesOutAndReleasesTheNextSubscription()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -462,11 +519,13 @@ public sealed class SessionConnectionFacts
     // after a ready event, then ends; once the script runs out, a stream stays open until cancelled.
     private sealed class FakeBrain : HttpMessageHandler
     {
+        public Func<HttpStatusCode>? ReportStatus { get; init; }
         public List<string> Streams { get; } = [];
         public bool RefuseFingerprint { get; init; }
         public Func<JsonArray, CancellationToken, Task<HttpStatusCode>>? Acknowledge { get; init; }
         public ConcurrentQueue<(string Path, string? Authorization, JsonNode? Body, string? TraceParent)> Requests { get; } = new();
         public System.Threading.Channels.Channel<JsonNode> Acknowledged { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
+        public System.Threading.Channels.Channel<JsonNode> StatusReports { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
         private int _streams;
 
         public Task<SessionConnection> OpenAsync(CancellationToken ct)
@@ -501,6 +560,12 @@ public sealed class SessionConnectionFacts
             }
             if (body?["fingerprint"] is not null) { return new(RefuseFingerprint ? HttpStatusCode.Conflict : HttpStatusCode.OK); }
             if (body?["subscribe"] is not null) { return new(HttpStatusCode.OK) { Content = new StringContent("{\"subscription\":\"s1\"}") }; }
+            if (body?["status"] is { } statusReport)
+            {
+                var status = ReportStatus?.Invoke() ?? HttpStatusCode.OK;
+                if (status == HttpStatusCode.OK) { StatusReports.Writer.TryWrite(statusReport.DeepClone()); }
+                return new(status);
+            }
             var acknowledgements = body?["acknowledgements"] as JsonArray
                 ?? (body?["acknowledge"] is { } single ? new JsonArray(single.DeepClone()) : null);
             if (acknowledgements is not null)

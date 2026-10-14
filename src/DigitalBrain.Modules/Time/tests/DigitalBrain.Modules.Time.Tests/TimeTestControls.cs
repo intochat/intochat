@@ -1,4 +1,5 @@
 global using ITimer = DigitalBrain.Time.Timers.ITimer;
+using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Configuration;
 using Orleans.Runtime;
@@ -13,7 +14,7 @@ internal static class TimeTestControls
     public static void UseControlledTimers(this IServiceCollection services, ControlledTimers timers)
     {
         Decorate<ITimerRegistry>(services, inner => new ControlledTimerRegistry(inner, timers));
-        services.AddSingleton<TimeProvider>(timers);
+        services.AddKeyedSingleton<TimeProvider>(typeof(TimeModule), timers);
     }
 
     // Rule 4 seam: a time knob, so idle collection happens within a fact.

@@ -57,6 +57,8 @@ internal static class SourceSet
                     await _registered.Task.WaitAsync(ct).ConfigureAwait(false);
                     if (subscribed is not null) { await subscribed().ConfigureAwait(false); }
                 }
+                if (!_channel.Reader.TryPeek(out _) && brain is IInitialSignalWait readiness)
+                { await readiness.ReachedInitialWaitAsync(ct).ConfigureAwait(false); }
                 while (await _channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
                 {
                     if (!_channel.Reader.TryRead(out var signal)) { continue; }
@@ -76,6 +78,7 @@ internal static class SourceSet
 
         private async Task Pump(INeuron neuron, Func<Task> onSubscribed, CancellationToken stop)
         {
+            using var nested = (brain as IInitialSignalWait)?.SuppressInitialWait();
             try
             {
                 await foreach (var signal in brain.On<T>(neuron, onSubscribed, stop).WithCancellation(stop).ConfigureAwait(false))
@@ -113,6 +116,7 @@ internal static class SourceSet
 
         private async Task Follow(CancellationToken ct)
         {
+            using var nested = (brain as IInitialSignalWait)?.SuppressInitialWait();
             try
             {
                 if (sources.IsFixed) { await Select(first: true, ct).ConfigureAwait(false); return; }

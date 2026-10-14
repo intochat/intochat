@@ -5,6 +5,7 @@ namespace DigitalBrain.Framework.Tests.E2E.Identity;
 
 // The grants list and revoke routes at the HTTP edge are scoped to the caller's workspace.
 // Enforcement of a grant on a call is covered by Identity's GrantFacts.
+[Collection("ReferenceBrainFixture")]
 public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
 {
     [Fact(Timeout = 300_000)]

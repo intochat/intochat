@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
   <PropertyGroup>
     <!-- The reference brain boots the real AppHost; this project touches the product, so it is
          never packaged. The publishable harness is DigitalBrain.Testing.Aspire and .Playwright. -->

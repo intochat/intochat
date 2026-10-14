@@ -1,28 +1,27 @@
-using System.Net.Http.Json;
-using System.Text.Json.Nodes;
+using DigitalBrain.Flutter.Workspace;
 using Microsoft.Playwright;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
+[Collection("Reference host")]
 public sealed class ShellPersistenceFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 120_000)]
     public async Task FreshBrowserRestoresWorkspaceWithoutDeviceStorage()
     {
         var ct = TestContext.Current.CancellationToken;
-        var brain = Brain;
+        using var caller = User.AsCaller();
         var page = await OpenPageAsync(ct);
-        // The shell acknowledges durability with the save that carries the project; the wait is on that response.
-        var saved = page.WaitForResponseAsync(response => response.Ok && response.Request.Method == "PUT"
-            && response.Url.EndsWith("/shell/state", StringComparison.Ordinal)
-            && response.Request.PostData?.Contains("Cloud-only workspace", StringComparison.Ordinal) == true);
-        var id = await WorkspaceBrowser.CreateProjectAsync(page, "Cloud-only workspace");
-        await saved.WaitAsync(ct);
-        var state = await brain.HttpClient.GetFromJsonAsync<JsonObject>("/shell/state", ct);
-        Assert.Contains(state?["snapshot"]?["projects"]?.AsArray() ?? [], project => project?["id"]?.GetValue<string>() == id);
-        await using var fresh = await brain.OpenBrowserAsync(ReferenceBrainFixture.Browser, ct);
-        await fresh.Page.GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Workspaces") }).ClickAsync();
-        await Assertions.Expect(fresh.Page.GetByRole(AriaRole.Menuitemcheckbox, new() { Name = "Cloud-only workspace", Exact = true })).ToBeVisibleAsync();
-        Assert.Equal(0, await fresh.Page.EvaluateAsync<int>("() => Object.keys(localStorage).filter(k => k.includes('workspace')).length"));
+        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Ino", Exact = true }).ClickAsync();
+        await TestWait.UntilAsync(_ => workspace.Read(), value => value.FocusedViewId == "ino", TimeSpan.FromSeconds(15), ct);
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "New conversation", Exact = true })).ToBeVisibleAsync();
+
+        // A fresh context has no cookies or device preferences. Signing into the same
+        // account must restore the durable open view from the server.
+        var fresh = await OpenPageAsync(ct);
+        await Assertions.Expect(fresh.GetByRole(AriaRole.Button, new() { Name = "New conversation", Exact = true })).ToBeVisibleAsync();
+        Assert.Equal("ino", (await workspace.Read()).FocusedViewId);
+        Assert.Equal(0, await fresh.EvaluateAsync<int>("() => Object.keys(localStorage).filter(k => k.includes('workspace')).length"));
     }
 }

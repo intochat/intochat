@@ -1,10 +1,11 @@
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Time.Timers.Signals;
 using Orleans.Runtime;
 namespace DigitalBrain.Time.Timers;
 
 [GrainType("timer")]
-internal sealed class TimerNeuron(TimeProvider time) : Neuron, ITimer
+internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time) : Neuron, ITimer
 {
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
     private IGrainTimer? _timer;

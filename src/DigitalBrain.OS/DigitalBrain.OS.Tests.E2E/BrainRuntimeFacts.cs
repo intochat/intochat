@@ -12,19 +12,22 @@ namespace DigitalBrain.OS.Tests.E2E;
 // The real path a request takes, as the signed-in user: the shell posts a request to the app, the brain
 // publishes it, the app's synapse reacts in the brain's session in the csharp-sandbox container, and the
 // answer is a neuron the caller reads. Needs a Docker daemon with Linux containers.
+[Collection("Reference host")]
 public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 240_000)]
     public async Task ClearingAConversationUpdatesItsRunningShippedProjection()
     {
         var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
         var scope = WorkspaceId;
         var appKey = scope + "/apps/assistant";
         Assert.Equal(AppStatus.Live, (await Brain.Get<IApp>(appKey).Read()).Status);
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
         var chat = Brain.Get<IChat>(appKey + "/transcript");
         await using var changes = await Brain.Observe<ChatChanged>(chat, ct);
-        using var sent = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/assistant/request",
+        using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/assistant/request",
             new { operation = "send", input = "Remember this conversation" }, ct);
         sent.EnsureSuccessStatusCode();
         ChatProjection? before;
@@ -49,16 +52,19 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     public async Task ARequestReachesASynapseAndItsAnswerIsANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
         var scope = WorkspaceId;
         var bundle = new FeatureDirectory(Features()).Load().Single(candidate => candidate.Owner == "intochat" && candidate.Bundle.Name == "word-count").Bundle;
-        (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
+        (await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
+        // Import persists the assignment before the sandbox starts its new persistent script.
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
 
         var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
 
         var answer = Brain.Get<IText>($"{scope}/apps/{bundle.Name}/answer");
         await using var changes = await Brain.Observe<TextChanged>(answer, ct);
 
-        using var requested = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/request",
+        using var requested = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/request",
             new { operation = "ask", input = "a click reaches a behavior" }, ct);
 
         Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);

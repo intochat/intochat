@@ -99,7 +99,7 @@ internal sealed class WorkspaceNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters.", nameof(operationId)); }
         if (await Commit(operationId, expectedRevision, state => change(Seed(state)), state => new WorkspaceChanged(Brain, state.Revision)))
-        { await GrainFactory.GetGrain<ISpace>(Brain).Rebuild(); }
+        { await GrainFactory.GetGrain<ISpace>(Brain).Recompose(); }
         return await Read();
     }
 

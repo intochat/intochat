@@ -227,6 +227,7 @@ public sealed class DeploymentRollFacts
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
+        await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Rolling), ct);
         var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("base000", steady.Sha);
@@ -264,6 +265,7 @@ public sealed class DeploymentRollFacts
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
+        await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Rolling), ct);
         var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Contains("rolling back", (await grain.Read()).Failure, StringComparison.Ordinal);

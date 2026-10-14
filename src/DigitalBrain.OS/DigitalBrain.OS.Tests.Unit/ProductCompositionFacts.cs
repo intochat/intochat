@@ -49,8 +49,10 @@ public sealed class ProductCompositionFacts
         var key = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SectionName, nameof(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SandboxUrl));
         Assert.IsType<EndpointReference>(environment[key]);
         var sandbox = appHost.Resources.Single(resource => resource.Name == DigitalBrain.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
-        // Always on: the OS never starts it on demand, and readiness never waits for it.
+        // Always on, and independently healthy before the OS bootstraps its persistent scripts.
         Assert.DoesNotContain(sandbox.Annotations, annotation => annotation.GetType().Name == "ExplicitStartupAnnotation");
+        Assert.Contains(runtime.Annotations.OfType<WaitAnnotation>(), wait => ReferenceEquals(wait.Resource, sandbox)
+            && wait.WaitType == WaitType.WaitUntilHealthy);
     }
 
     [Fact]

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.CSharp;
@@ -61,6 +62,10 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         { builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
         builder.Services.AddHttpClient<SessionRunner>();
         builder.Services.TryAddSingleton<SessionStreams>();
+        builder.Services.TryAddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule),
+            (services, _) => services.GetRequiredService<IHostApplicationLifetime>());
+        builder.Services.TryAddSingleton<DeferredRuntimeStarts>();
+        builder.Services.AddHostedService(services => services.GetRequiredService<DeferredRuntimeStarts>());
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         builder.AddIncomingGrainCallFilter<BrainRunsGuard>();

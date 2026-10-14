@@ -15,6 +15,7 @@
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows.Contracts/DigitalBrain.Modules.Microsoft.Windows.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Roslyn/DigitalBrain.Modules.Microsoft.Roslyn.Contracts/DigitalBrain.Modules.Microsoft.Roslyn.Contracts.csproj" />
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
     <ProjectReference Include="../../DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />

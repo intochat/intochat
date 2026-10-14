@@ -172,14 +172,14 @@
     "Member": "Options",
     "Representation": "array",
     "Payload": "MAGarJRXH3VpLnNlbGVjdC1zdGF0ZcABAQHBATEBRBkCayV1aS5zZWxlY3Qtb3B0aW9uW10AAyHoQBlsZWdhY3ktdmFsdWXBEQEB4ODBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false}]"
+    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false,\"Visual\":null}]"
   },
   {
     "Type": "DigitalBrain.Flutter.Select.SelectState",
     "Member": "Options",
     "Representation": "list",
     "Payload": "MAGarJRXH3VpLnNlbGVjdC1zdGF0ZcABAQHBATEBQx8d0GtTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3VpLnNlbGVjdC1vcHRpb25dXQADIehAGWxlZ2FjeS12YWx1ZcERAQHg4MEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false}]"
+    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false,\"Visual\":null}]"
   },
   {
     "Type": "DigitalBrain.Flutter.Surface.SurfaceDefinition",

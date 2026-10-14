@@ -11,7 +11,7 @@ namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 // its ring buffer. Every load and every exit is reported. A behavior the brain did not retire is the
 // host's to keep alive: an exit is reported and the behavior is loaded again after a growing backoff,
 // until the brain retires it or assigns it a different hash.
-internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null) : IAsyncDisposable
+internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null, TimeProvider? time = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ReloadCap = TimeSpan.FromSeconds(60);
 
@@ -76,17 +76,17 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
         try { run = await loader.LoadAsync(connection, assignment, logger, cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            await ReportAsync(new(assignment.Behavior, assignment.Hash, "Exited", 1, error.Message), cancellationToken).ConfigureAwait(false);
+            await ReportAsync(new(assignment.Behavior, assignment.Hash, "Exited", 1, error.Message, assignment.Revision), cancellationToken).ConfigureAwait(false);
             return;
         }
         _behaviors[assignment.Behavior] = run;
         logger.LogInformation("Loaded behavior {Behavior} {Hash}", assignment.Behavior, assignment.Hash);
-        await ReportAsync(new(run.Id, run.Hash, "Running", null, null), cancellationToken).ConfigureAwait(false);
+        await ReportAsync(new(run.Id, run.Hash, "Running", null, null, run.Assignment.Revision), cancellationToken).ConfigureAwait(false);
         _ = ReportExitAsync(run);
     }
 
     private static bool Same(AssignmentEvent running, AssignmentEvent assigned)
-        => running.Hash == assigned.Hash && running.Settings.Count == assigned.Settings.Count
+        => running.Hash == assigned.Hash && running.Revision == assigned.Revision && running.Settings.Count == assigned.Settings.Count
             && running.Settings.All(setting => assigned.Settings.TryGetValue(setting.Key, out var value) && value == setting.Value);
 
     private async Task RetireAsync(string behavior, CancellationToken cancellationToken)
@@ -118,13 +118,13 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
             // A behavior that exited on its own holds nothing to stop, but the brain still expects the
             // retirement answered against the hash it last ran.
             if (_failures.TryRemove(behavior, out var failed))
-            { await ReportAsync(new(behavior, failed.Assignment.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false); }
+            { await ReportAsync(new(behavior, failed.Assignment.Hash, "Stopped", 0, null, failed.Assignment.Revision), cancellationToken).ConfigureAwait(false); }
             return;
         }
         _failures.TryRemove(behavior, out _);
         await run.DisposeAsync().ConfigureAwait(false);
         logger.LogInformation("Unloaded behavior {Behavior} {Hash}", run.Id, run.Hash);
-        await ReportAsync(new(run.Id, run.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false);
+        await ReportAsync(new(run.Id, run.Hash, "Stopped", 0, null, run.Assignment.Revision), cancellationToken).ConfigureAwait(false);
     }
 
     // An exit the brain did not ask for: reported, then reloaded after a backoff for as long as the
@@ -141,7 +141,7 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
             attempt = _failures.TryGetValue(run.Id, out var failed) && failed.Assignment.Hash == run.Hash ? failed.Count + 1 : 1;
             _failures[run.Id] = new(run.Assignment, attempt);
         }
-        await ReportAsync(new(run.Id, run.Hash, "Exited", exit, run.Error), connection.Stopping).ConfigureAwait(false);
+        await ReportAsync(new(run.Id, run.Hash, "Exited", exit, run.Error, run.Assignment.Revision), connection.Stopping).ConfigureAwait(false);
         await run.DisposeAsync().ConfigureAwait(false);
         if (exit == 0) { return; }
         var delay = TimeSpan.FromTicks(Math.Min(_reloadBase.Ticks << Math.Min(attempt - 1, 6), ReloadCap.Ticks));
@@ -152,7 +152,7 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
     {
         try
         {
-            await Task.Delay(delay, connection.Stopping).ConfigureAwait(false);
+            await Task.Delay(delay, time ?? TimeProvider.System, connection.Stopping).ConfigureAwait(false);
             await _changes.WaitAsync(connection.Stopping).ConfigureAwait(false);
             try
             {

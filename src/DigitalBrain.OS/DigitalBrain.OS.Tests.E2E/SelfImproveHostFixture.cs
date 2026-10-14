@@ -6,6 +6,6 @@ public sealed class SelfImproveHostFixture : ReferenceBrainFixture
     protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ProductE2E.Create()
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .ExportingTelemetryTo(Collector)
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 }

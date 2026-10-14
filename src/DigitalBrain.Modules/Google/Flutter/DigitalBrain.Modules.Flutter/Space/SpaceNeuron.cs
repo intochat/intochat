@@ -58,7 +58,57 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         return await read();
     }
 
-    public async Task Rebuild()
+    private bool _rebuilding, _rebuildPending, _fullRefresh;
+    private readonly HashSet<string> _dirtyApps = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SpaceComposer.SpaceEntry> _entries = new(StringComparer.Ordinal);
+
+    public Task RefreshApp(string key)
+    {
+        if (!key.StartsWith(this.GetPrimaryKeyString() + "/apps/", StringComparison.Ordinal))
+        { throw new UnauthorizedAccessException("An app must belong to this space."); }
+        _dirtyApps.Add(key);
+        return Recompose();
+    }
+
+    public Task Rebuild()
+    {
+        _fullRefresh = true;
+        return Recompose();
+    }
+
+    // Invalidations may arrive while the scan awaits another grain. They share
+    // one worker; snapshot pending keys before awaits so later changes are retained.
+    public async Task Recompose()
+    {
+        _rebuildPending = true;
+        if (_rebuilding) { return; }
+        _rebuilding = true;
+        try
+        {
+            do
+            {
+                _rebuildPending = false;
+                var fullRefresh = _fullRefresh;
+                var dirtyApps = _dirtyApps.ToArray();
+                _fullRefresh = false;
+                _dirtyApps.Clear();
+                try { await RebuildOnce(fullRefresh, dirtyApps); }
+                catch (Exception error)
+                {
+                    _fullRefresh |= fullRefresh;
+                    _dirtyApps.UnionWith(dirtyApps);
+                    if (!_rebuildPending) { throw; }
+                    // An accepted invalidation must survive a failed scan even
+                    // if no later event arrives to start another worker.
+                    logger.LogWarning(error, "Space {Brain} scan failed; rebuilding its pending invalidation.", this.GetPrimaryKeyString());
+                }
+            }
+            while (_rebuildPending);
+        }
+        finally { _rebuilding = false; }
+    }
+
+    private async Task RebuildOnce(bool fullRefresh, string[] dirtyApps)
     {
         var brain = this.GetPrimaryKeyString();
         var types = compiled.Entries;
@@ -69,16 +119,33 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         try
         {
             var workspace = await grains.GetGrain<IWorkspace>(brain).Read();
-            List<SpaceComposer.SpaceEntry> entries = [];
-            await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
+            if (fullRefresh || dirtyApps.Length > 0)
             {
-                try
+                // Membership is authoritative: a delayed presentation must not
+                // resurrect a deleted app, and deletion must remove its cached entry.
+                HashSet<string> members = new(StringComparer.Ordinal);
+                await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
+                { members.Add(instance.Key); }
+                foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
+                { _entries.Remove(key); }
+                var refresh = fullRefresh ? members : members.Where(key => !_entries.ContainsKey(key) || dirtyApps.Contains(key, StringComparer.Ordinal));
+                foreach (var key in refresh)
                 {
-                    var app = await grains.GetGrain<IApp>(instance.Key).Read();
-                    entries.Add(new(instance.Key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []));
+                    try
+                    {
+                        var app = await grains.GetGrain<IApp>(key).Read();
+                        _entries[key] = new(key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []);
+                    }
+                    catch (Exception error)
+                    {
+                        _entries.Remove(key);
+                        // Retry transient failures on the next event, without a hot retry loop.
+                        _dirtyApps.Add(key);
+                        logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
+                    }
                 }
-                catch (Exception error) { logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", instance.Key, brain); }
             }
+            List<SpaceComposer.SpaceEntry> entries = [.. _entries.Values];
             if (types.Any(type => type.Name == typeof(DigitalBrain.Circles.ICircle).FullName))
             { entries.AddRange(await friends.Entries(brain, workspace.Path[^1])); }
             var scene = grains.GetGrain<IScene>(brain + "/space");

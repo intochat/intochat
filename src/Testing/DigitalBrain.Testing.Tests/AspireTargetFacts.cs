@@ -10,6 +10,25 @@ namespace DigitalBrain.Testing.Tests;
 public sealed class AspireTargetFacts
 {
     [Fact]
+    public async Task DashboardTelemetryPreservesPreviouslyConfiguredExecutionOptions()
+    {
+        var target = new RecordingTarget();
+        var execution = new TestExecutionOptions
+        {
+            ServerResourceName = "server",
+            StartupTimeout = TimeSpan.FromMinutes(9),
+            AssertionTimeout = TimeSpan.FromSeconds(12),
+            CleanupTimeout = TimeSpan.FromSeconds(18),
+            HostConfiguration = new Dictionary<string, string?> { ["fixture"] = "value" },
+        };
+        await Assert.ThrowsAsync<NotSupportedException>(() => TestBrain.Create().WithExecution(execution)
+            .WithDashboardTelemetry().On(target).StartAsync(TestContext.Current.CancellationToken));
+        var plan = Assert.IsType<TestBrainPlan>(target.Plan);
+        Assert.Equal(execution with { EnableDashboardTelemetry = true }, plan.Execution);
+        Assert.Equal(execution.HostConfiguration, plan.Execution.HostConfiguration);
+    }
+
+    [Fact]
     public async Task AnAspireTargetRefusesWithModuleBecauseTheAppHostOwnsComposition()
     {
         var refusal = await Assert.ThrowsAsync<NotSupportedException>(() => TestBrain.Create().WithModule<PulseModule>()

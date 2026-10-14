@@ -10,7 +10,7 @@ namespace DigitalBrain.Modules.Flutter.Tests.Hosting;
 // A roll restarts silo instances one at a time; the shell must not ride on any one of them.
 public sealed class ShellFrontFacts
 {
-    private const string AllowedOrigin = "DigitalBrain__Cors__AllowedOrigin";
+    private const string AllowedOrigin = DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
 
     [Fact]
     public async Task TheDesktopShellUsesTheFrontsHttpsEndpointForNativeHttp2()
@@ -53,7 +53,7 @@ public sealed class ShellFrontFacts
         Assert.Contains(shell.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == front.Resource);
         foreach (var instance in instances)
         {
-            var environment = await AspireCompositionTest.EnvironmentOf(builder, instance.Resource, ct);
+            var environment = await AspireCompositionTest.ConfigurationOf(builder, instance.Resource, ct);
             var origin = Assert.IsType<EndpointReference>(environment.Single(pair => pair.Key.Equals(AllowedOrigin, StringComparison.OrdinalIgnoreCase)).Value);
             Assert.Same(shell, origin.Resource);
         }

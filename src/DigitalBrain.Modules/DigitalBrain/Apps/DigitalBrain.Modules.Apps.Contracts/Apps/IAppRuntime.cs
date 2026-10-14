@@ -11,3 +11,9 @@ public interface IAppRuntime
     Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken);
     Task Retire(string appKey, CancellationToken cancellationToken);
 }
+
+// Configuration protocol shared by the Apps owner and its runtime implementations.
+public static class AppRuntimeConfiguration
+{
+    public static string AccountBindingKey(string slot) => "Account__" + slot;
+}

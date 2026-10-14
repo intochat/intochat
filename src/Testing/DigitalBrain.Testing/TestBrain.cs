@@ -96,6 +96,13 @@ public sealed class TestBrain
         return this;
     }
 
+    public TestBrain ConfigureExecution(Func<TestExecutionOptions, TestExecutionOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        EnsureMutable();
+        return WithExecution(configure(_execution));
+    }
+
     // The AppHost builder's own configuration on an Aspire target (hosting-layer knobs, never integration values).
     public TestBrain WithHostConfiguration(string key, string? value)
     {

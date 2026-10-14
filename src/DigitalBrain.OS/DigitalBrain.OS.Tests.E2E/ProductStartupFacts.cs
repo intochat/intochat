@@ -1,6 +1,7 @@
 using DigitalBrain.Flutter;
 namespace DigitalBrain.OS.Tests.E2E;
 
+[Collection("Product host")]
 public sealed class ProductStartupFacts(ProductHostFixture host)
 {
     [Fact]

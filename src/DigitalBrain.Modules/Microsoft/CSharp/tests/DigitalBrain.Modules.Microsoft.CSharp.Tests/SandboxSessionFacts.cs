@@ -1,6 +1,7 @@
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -215,21 +216,37 @@ public sealed class SandboxSessionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var edge = new FakeBrainEdge();
+        var time = new RetryTime();
         var crashing = BehaviorLoaderFacts.Compile("throw new InvalidOperationException(\"boom\");\n");
         edge.Serve(crashing);
         await using var connection = await BehaviorLoaderFacts.Open(edge, ct);
-        await using var session = new Session(connection, BehaviorLoaderFacts.Loader(edge), NullLogger.Instance, TimeSpan.FromMilliseconds(100));
+        await using var session = new Session(connection, BehaviorLoaderFacts.Loader(edge), NullLogger.Instance, TimeSpan.FromMilliseconds(100), time);
         _ = session.RunAsync(ct);
         const string behavior = "acc-brain/apps/demo/run-on-row-deleted.cs";
 
         edge.Push(AssignmentEvent.Kind, edge.Assignment(behavior, crashing));
         await edge.StatusAsync(behavior, ct, status: "Exited");
+        // The retry is pending, but cannot race the Ready event while a contended test thread resumes.
+        await time.Scheduled.Task.WaitAsync(ct);
         edge.Push(ReadyEvent.Kind, new ReadyEvent("s1", ["acc-brain/csharp/other"]));
         var next = await edge.StatusAsync(behavior, ct);
         var reportsAfterReady = edge.RecordedReports.Count;
+        time.Clock.Advance(TimeSpan.FromMilliseconds(300));
         await Task.Delay(300, ct);
 
         Assert.Equal(("Stopped", crashing.Hash), (next["status"]!.GetValue<string>(), next["hash"]!.GetValue<string>()));
         Assert.Equal(reportsAfterReady, edge.RecordedReports.Count);   // no reload after the ready
+    }
+
+    private sealed class RetryTime : TimeProvider
+    {
+        public FakeTimeProvider Clock { get; } = new();
+        public TaskCompletionSource Scheduled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = Clock.CreateTimer(callback, state, dueTime, period);
+            Scheduled.TrySetResult();
+            return timer;
+        }
     }
 }

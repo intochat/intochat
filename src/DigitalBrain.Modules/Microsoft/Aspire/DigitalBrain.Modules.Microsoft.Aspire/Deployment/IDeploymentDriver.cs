@@ -5,4 +5,6 @@ namespace DigitalBrain.Microsoft.Aspire.Deployment;
 internal interface IDeploymentDriver : IGrainWithStringKey
 {
     [global::Orleans.Concurrency.OneWay] Task Step();
+    [global::Orleans.Concurrency.AlwaysInterleave]
+    Task MembershipChanged(Guid activation, global::DigitalBrain.Microsoft.Orleans.ClusterSnapshot? snapshot);
 }

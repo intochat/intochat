@@ -1,60 +1,75 @@
 using System.Net.Http.Json;
 using DigitalBrain.Flutter.Chat;
-using static DigitalBrain.Testing.Aspire.Diagnostics.TraceAssertions;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.Framework.Tests.E2E;
 
 // The module option is the only content-capture switch. Both hosts run Production to catch
 // accidental environment/profile gates; each fact reads only what its own turn exported.
-public sealed class ContentCaptureOnFacts(ProductionBrainFixture host)
+[Collection("ProductionBrainFixture")]
+public sealed class ContentCaptureOnFacts(ProductionBrainFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 300_000)]
     public async Task TheModuleSettingExportsMessageContent()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await host.LeaseAsync(ct);
-        var before = host.Collector.Snapshot().Count;
-        var workspace = "workspace-" + Guid.NewGuid().ToString("N");
-        await UserConnections.AuthorizeDatabaseAsync(brain, workspace, ct);
+        var brain = Brain;
+        var workspace = User.BrainId;
+        await UserConnections.AuthorizeDatabaseAsync(brain, User, ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
-        await SendAsync(brain, workspace, ct);
-        await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(span => TextOf(span).Contains("Show active leads", StringComparison.Ordinal)), TimeSpan.FromSeconds(60), ct);
-        Assert.Contains(host.Collector.Snapshot().Skip(before), span => span.Attributes.Keys.Any(key => key.StartsWith("gen_ai.usage", StringComparison.Ordinal)));
-        Assert.Empty(host.Collector.Errors());
+        // A fresh account installs its persistent scripts asynchronously; measure the request after their initial projections.
+        await AppRuntimeReadiness.WaitAsync(brain, User, ct);
+        using var operation = Telemetry.BeginOperation(nameof(TheModuleSettingExportsMessageContent));
+        await SendAsync(brain, workspace, operation, ct, User);
+        var capture = await operation.CompleteAsync(ct);
+        Assert.Contains(capture.Spans, span => span.Text.Contains("Show active leads", StringComparison.Ordinal));
+        Assert.Contains(capture.Spans, span => span.Data.Attributes.Any(attribute => attribute.Key.StartsWith("gen_ai.usage", StringComparison.Ordinal)));
     }
 
     // A request reaches the app's synapse; the answer is the transcript neuron, so the wait is on the
     // neuron, never on an HTTP body.
-    internal static async Task SendAsync(ITestBrain brain, string workspace, CancellationToken ct)
+    internal static async Task SendAsync(ITestBrain brain, string workspace, TelemetryOperation operation, CancellationToken ct, Person? person = null)
     {
+        using var caller = person?.AsCaller();
         var chat = brain.Get<IChat>(workspace + "/apps/assistant/transcript");
         await using var changes = await brain.Observe<ChatChanged>(chat, ct);
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{workspace}/apps/assistant/request",
-            new { operation = "send", input = "Show active leads" }, ct);
+        using var request = operation.Request(HttpMethod.Post, $"/brains/{workspace}/apps/assistant/request",
+            JsonContent.Create(new { operation = "send", input = "Show active leads" }));
+        using var response = await operation.SendAsync(person?.Http ?? brain.HttpClient, request, ct);
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
         ChatProjection? projected;
         while ((projected = (await chat.Read()).Projection) is null
             || projected.Messages.LastOrDefault()?.Status != "completed")
         { await changes.NextAsync(ct: ct); }
+        await WaitIdleAsync(brain, person, workspace, ct);
+    }
+
+    internal static async Task WaitIdleAsync(ITestBrain brain, Person? person, string workspace, CancellationToken ct)
+    {
+        using var caller = person?.AsCaller();
+        await TestWait.UntilAsync(token => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(workspace)).Inspect(token),
+            state => state.IsIdle, TimeSpan.FromSeconds(90), ct);
     }
 }
 
-public sealed class ContentCaptureOffFacts(ProductionCaptureOffFixture host)
+[Collection("ProductionCaptureOffFixture")]
+public sealed class ContentCaptureOffFacts(ProductionCaptureOffFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 300_000)]
     public async Task TheModuleSettingKeepsMessageContentOutOfExports()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await host.LeaseAsync(ct);
-        var before = host.Collector.Snapshot().Count;
-        var workspace = "workspace-" + Guid.NewGuid().ToString("N");
-        await UserConnections.AuthorizeDatabaseAsync(brain, workspace, ct);
+        var brain = Brain;
+        var workspace = User.BrainId;
+        await UserConnections.AuthorizeDatabaseAsync(brain, User, ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
-        await ContentCaptureOnFacts.SendAsync(brain, workspace, ct);
-        await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(IsGenAiSpan), TimeSpan.FromSeconds(60), ct);
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
-        Assert.DoesNotContain(host.Collector.Snapshot().Skip(before), span => TextOf(span).Contains("Show active leads", StringComparison.Ordinal));
-        Assert.DoesNotContain(host.Collector.LogSnapshot(), log => TextOf(log).Contains("Show active leads", StringComparison.Ordinal));
-        Assert.Empty(host.Collector.Errors());
+        // A fresh account installs its persistent scripts asynchronously; measure the request after their initial projections.
+        await AppRuntimeReadiness.WaitAsync(brain, User, ct);
+        using var operation = Telemetry.BeginOperation(nameof(TheModuleSettingKeepsMessageContentOutOfExports));
+        await ContentCaptureOnFacts.SendAsync(brain, workspace, operation, ct, User);
+        var capture = await operation.CompleteAsync(ct);
+        Assert.Contains(capture.Spans, span => span.IsGenAi);
+        Assert.DoesNotContain(capture.PrivacySpans, span => span.Text.Contains("Show active leads", StringComparison.Ordinal));
+        Assert.DoesNotContain(capture.Logs, log => log.Text.Contains("Show active leads", StringComparison.Ordinal));
     }
 }

@@ -9,4 +9,5 @@
     <ProjectReference Include="../../../../Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="DigitalBrain.Testing" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" /></ItemGroup>
 </Project>

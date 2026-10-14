@@ -1,15 +1,15 @@
 // Shared: the synapse shape rule read from text. A file is a synapse when it has top-level statements and
 // shared code when it holds only usings, namespaces and type declarations. Comments, literals and
 // preprocessor lines are blanked first, so a call named inside a string never makes a file a synapse.
-static class Shape
+internal static class Shape
 {
-    static readonly HashSet<string> Modifiers = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> Modifiers = new(StringComparer.Ordinal)
     {
         "public", "internal", "private", "protected", "static", "sealed", "abstract", "partial", "file", "readonly",
         "unsafe", "new", "ref",
     };
 
-    static readonly HashSet<string> Declarations = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> Declarations = new(StringComparer.Ordinal)
     {
         "class", "struct", "record", "interface", "enum", "delegate",
     };
@@ -40,7 +40,7 @@ static class Shape
         return IsStatement(code[start..]);
     }
 
-    static bool IsStatement(string chunk)
+    private static bool IsStatement(string chunk)
     {
         var text = chunk.Trim();
         while (text.StartsWith('['))
@@ -59,7 +59,7 @@ static class Shape
     }
 
     // `using X.Y`, `using static X` and `using A = B` are directives; `using var x = …` and `using (…)` are statements.
-    static bool IsUsingDirective(string rest)
+    private static bool IsUsingDirective(string rest)
     {
         if (rest.StartsWith("static ", StringComparison.Ordinal)) { return true; }
         var name = 0;
@@ -69,7 +69,7 @@ static class Shape
         return after.Length == 0 || (after[0] == '=' && !rest[..name].Contains('.'));
     }
 
-    static int Closing(string text)
+    private static int Closing(string text)
     {
         var depth = 0;
         for (var index = 0; index < text.Length; index++)
@@ -80,7 +80,7 @@ static class Shape
         return -1;
     }
 
-    static string Blank(string source)
+    private static string Blank(string source)
     {
         var code = new System.Text.StringBuilder(source.Length);
         var index = 0;
@@ -94,7 +94,7 @@ static class Shape
     }
 
     // Where the comment, literal or preprocessor line starting at index ends; index itself when none starts there.
-    static int LiteralEnd(string text, int index)
+    private static int LiteralEnd(string text, int index)
     {
         var current = text[index];
         var next = index + 1 < text.Length ? text[index + 1] : '\0';
@@ -110,13 +110,13 @@ static class Shape
         return index;
     }
 
-    static int LineEnd(string text, int index)
+    private static int LineEnd(string text, int index)
     {
         var end = text.IndexOf('\n', index);
         return end < 0 ? text.Length : end;
     }
 
-    static bool AtLineStart(string text, int index)
+    private static bool AtLineStart(string text, int index)
     {
         for (var at = index - 1; at >= 0 && text[at] != '\n'; at--)
         {
@@ -125,7 +125,7 @@ static class Shape
         return true;
     }
 
-    static int CharEnd(string text, int index)
+    private static int CharEnd(string text, int index)
     {
         var at = index + 1;
         while (at < text.Length && text[at] is not ('\'' or '\n')) { at += text[at] == '\\' ? 2 : 1; }
@@ -133,7 +133,7 @@ static class Shape
     }
 
     // Regular, verbatim, interpolated and raw strings; an interpolation hole is code with its own literals.
-    static int StringEnd(string text, int index)
+    private static int StringEnd(string text, int index)
     {
         bool interpolated = false, verbatim = false;
         for (var at = index - 1; at >= 0 && text[at] is '$' or '@'; at--)
@@ -170,7 +170,7 @@ static class Shape
         return text.Length;
     }
 
-    static int HoleEnd(string text, int index)
+    private static int HoleEnd(string text, int index)
     {
         var depth = 0;
         while (index < text.Length)

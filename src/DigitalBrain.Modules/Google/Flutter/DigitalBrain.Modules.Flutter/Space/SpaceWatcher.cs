@@ -26,7 +26,7 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     private readonly LocalSignalHub.Subscription<CardChanged> _cards = hub.Subscribe<CardChanged>();
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(
-        Consume(_apps, change => Rebuild(BrainOf(change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..])), stoppingToken),
+        Consume(_apps, change => RefreshApp(change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..]), stoppingToken),
         Consume(_profiles, change => RebuildAuthorAndFriends(change.Name.EndsWith("/profile", StringComparison.Ordinal) ? change.Name[..^8] : null), stoppingToken),
         Consume(_cards, change => RebuildAuthorAndFriends(CircleMembers.PostBrain(change.Name)), stoppingToken),
         Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
@@ -38,18 +38,21 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
             await RebuildMembers(circle.Members);
         }, stoppingToken),
         Consume(_workspace, change => Rebuild(change.WorkspaceId), stoppingToken),
-        Consume(_presentation, change => Rebuild(BrainOf(change.App)), stoppingToken),
-        Consume(_activity, async activity =>
-        {
-            var publisher = activity.Publisher.Name;
-            var key = publisher[(publisher.IndexOf('/') + 1)..];
-            var brain = BrainOf(key);
-            if (brain is null) { return; }
-            var app = grains.GetGrain<IApp>(key);
-            await app.Stamp("running", activity.State is "working" or "reading" or "searching" or "listening" ? "true" : "false");
-            await app.Stamp("attention", activity.State == "attention" ? "true" : "false");
-            await Rebuild(brain);
-        }, stoppingToken));
+        Consume(_presentation, change => RefreshApp(change.App), stoppingToken),
+        Consume(_activity, activity => ApplyActivity(grains, activity), stoppingToken));
+
+    internal static async Task ApplyActivity(IGrainFactory grains, AppActivity activity)
+    {
+        var publisher = activity.Publisher.Name;
+        var key = publisher[(publisher.IndexOf('/') + 1)..];
+        var brain = BrainOf(key);
+        if (brain is null) { return; }
+        var app = grains.GetGrain<IApp>(key);
+        await app.Stamp("running", activity.State is "working" or "reading" or "searching" or "listening" ? "true" : "false");
+        await app.Stamp("attention", activity.State == "attention" ? "true" : "false");
+        // Stamp publishes PresentationChanged only when a visible blackboard value changes.
+        // Repeated progress details must not rescan every app in the space.
+    }
 
     private async Task Consume<T>(LocalSignalHub.Subscription<T> subscription, Func<T, Task> handle, CancellationToken ct) where T : Signal
     {
@@ -77,7 +80,8 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
         { foreach (var brain in await friends.PersonalBrains(account)) { await Rebuild(brain); } }
     }
 
-    private Task Rebuild(string? brain) => brain is null ? Task.CompletedTask : grains.GetGrain<ISpace>(brain).Rebuild();
+    private Task Rebuild(string? brain) => brain is null ? Task.CompletedTask : grains.GetGrain<ISpace>(brain).Recompose();
+    private Task RefreshApp(string key) => BrainOf(key) is { } brain ? grains.GetGrain<ISpace>(brain).RefreshApp(key) : Task.CompletedTask;
     private static string? BrainOf(string key)
     {
         var marker = key.IndexOf("/apps/", StringComparison.Ordinal);

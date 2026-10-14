@@ -1,8 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Identity;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Chat;
 
@@ -14,21 +12,21 @@ public sealed class ChatFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         using var scope = brain.Owner.AsCaller();
-        var original = CallerContextStamper.Require();
         var chat = brain.Get<IChat>("owner/apps/chat/people");
         await chat.Project(new("conversation", 1, 1, [new("a1", ChatRole.Assistant, "answer")]));
         await chat.MarkRead("conversation", 1, 1, ["a1"]);
-        var identity = brain.Services.GetRequiredService<IIdentityClient>();
-        var member = (await identity.Membership("owner", "owner"))!;
-        await identity.EnsureMember(member with { PrincipalId = "second-person" });
-        CallerContextStamper.Stamp(original with { PrincipalId = "second-person" });
-        Assert.Equal(["a1"], (await chat.Read()).UnreadMessageIds);
-        Assert.Empty((await chat.Read()).ReadReceipts);
-        await chat.MarkRead("conversation", 1, 1, ["a1"]);
-        Assert.Empty((await chat.Read()).UnreadMessageIds);
-        CallerContextStamper.Stamp(original with { ConversationId = "model-conversation" });
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => chat.MarkRead("conversation", 1, 1, ["a1"]));
-        CallerContextStamper.Stamp(original);
+        using var second = await brain.Owner.AddAccountMemberAsync(brain, "second-person");
+        using (second.AsCaller())
+        {
+            Assert.Equal(["a1"], (await chat.Read()).UnreadMessageIds);
+            Assert.Empty((await chat.Read()).ReadReceipts);
+            await chat.MarkRead("conversation", 1, 1, ["a1"]);
+            Assert.Empty((await chat.Read()).UnreadMessageIds);
+        }
+        using (brain.Owner.AsModelImpersonatingCaller("model-conversation"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => chat.MarkRead("conversation", 1, 1, ["a1"]));
+        }
         await brain.DeactivateAsync(chat, ct);
         Assert.Empty((await chat.Read()).UnreadMessageIds);
     }

@@ -25,22 +25,19 @@ public sealed class OsCatalogFacts
     [Fact]
     public void TheMcpHostCarriesEveryCatalogModulesContracts()
     {
-        var root = new DirectoryInfo(Path.GetDirectoryName(ThisFile())!);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
-        Assert.NotNull(root);
-        var modules = Path.Combine(root.FullName, "src", "DigitalBrain.Modules");
-        var mcp = File.ReadAllText(Path.Combine(root.FullName, "src", "DigitalBrain.Mcp", "DigitalBrain.Mcp", "DigitalBrain.Mcp.csproj"));
+        var projects = System.Xml.Linq.XDocument.Load(Path.Combine(SolutionProjects.Root, "DigitalBrain.slnx"))
+            .Descendants("Project").Select(project => Path.GetFileNameWithoutExtension(project.Attribute("Path")!.Value))
+            .ToHashSet(StringComparer.Ordinal);
+        var mcp = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("DigitalBrain.Mcp"), "DigitalBrain.Mcp.csproj"));
         foreach (var module in OsCatalog.Modules)
         {
             var assembly = module.GetType().Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
-            if (Directory.GetFiles(modules, contracts + ".csproj", SearchOption.AllDirectories).Length == 0) { continue; }
+            if (!projects.Contains(contracts)) { continue; }
             // Referencing the module project itself carries its contracts too (Tools).
             Assert.True(mcp.Contains(contracts + ".csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
         }
     }
-
-    private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string source = "") => source;
 
     [Fact]
     public void TheOperatingSystemComposesTheAspireModule()

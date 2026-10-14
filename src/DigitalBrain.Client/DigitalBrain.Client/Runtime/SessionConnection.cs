@@ -155,8 +155,14 @@ public sealed class SessionConnection : IAsyncDisposable
         public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public Task ReportStatusAsync(BehaviorStatusReport status, CancellationToken cancellationToken)
-        => ReportAsync(new RuntimeReport(Status: status), "report status", cancellationToken);
+    public async Task ReportStatusAsync(BehaviorStatusReport status, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Report, new RuntimeReport(Status: status),
+            HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
+        if (status.Status == "Initialized" && ((int)response.StatusCode >= 500 || response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests))
+        { throw new HttpRequestException("Initialization report temporarily unavailable.", null, response.StatusCode); }
+        await EnsureSuccessAsync(response, "report status", cancellationToken).ConfigureAwait(false);
+    }
 
     public Task ReportLogsAsync(string request, string text, CancellationToken cancellationToken)
         => ReportAsync(new RuntimeReport(Logs: new(request, text)), "report logs", cancellationToken);

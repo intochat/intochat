@@ -5,6 +5,69 @@ namespace DigitalBrain.Architecture.Tests;
 public sealed class PersistedStateRulesFacts
 {
     [Fact]
+    public void PositionalRecordMembersUseTheirOwnImplicitSerializationLayer()
+    {
+        Assert.Empty(PersistedStateRules.ShapeViolations(typeof(PositionalState)));
+        Assert.Empty(PersistedStateRules.ShapeViolations(typeof(PositionalStruct)));
+        Assert.Empty(PersistedStateRules.ShapeViolations(typeof(MixedRecord)));
+        Assert.Contains(PersistedStateRules.ShapeViolations(typeof(RecordWithBodyMember)),
+            violation => violation.Contains("Unnumbered: persisted member has no Id", StringComparison.Ordinal));
+        Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(DisabledPositionalState)));
+        Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(OrdinaryConstructorState)));
+    }
+
+    [Fact]
+    public void ImplicitRecordMembersAreTraversedAndTheirCollectionsValidated()
+    {
+        Assert.Contains(PersistedStateRules.ShapeViolations(typeof(PositionalList)),
+            violation => violation.Contains("persisted collections", StringComparison.Ordinal));
+        var states = PersistedStateRules.Discover([typeof(PositionalOwner), typeof(PositionalState), typeof(GrainState)]);
+        Assert.Contains(typeof(PositionalState), states);
+        Assert.Contains(typeof(GrainState), states);
+        Assert.Contains(states.SelectMany(PersistedStateRules.ShapeViolations),
+            violation => violation.Contains("GrainState.Values: persisted collections", StringComparison.Ordinal));
+    }
+
+    private sealed class PositionalOwner(IPersistentState<PositionalState> state)
+    {
+        public IPersistentState<PositionalState> State { get; } = state;
+    }
+
+    [GenerateSerializer]
+    internal sealed record PositionalState(GrainState Nested);
+
+    [GenerateSerializer]
+    internal readonly record struct PositionalStruct(int Value);
+
+    [GenerateSerializer]
+    internal sealed record MixedRecord(string Positional)
+    {
+        [Id(0)] public int Explicit { get; init; }
+    }
+
+    #pragma warning disable ORLEANS0004 // Deliberately invalid shapes exercise the architectural guard.
+    [GenerateSerializer]
+    internal sealed record RecordWithBodyMember(string Positional)
+    {
+        public int Unnumbered { get; init; }
+    }
+
+    [GenerateSerializer(IncludePrimaryConstructorParameters = false)]
+    internal sealed record DisabledPositionalState(string Value)
+    {
+        [Id(0)] public int Explicit { get; init; }
+    }
+    #pragma warning restore ORLEANS0004
+
+    [GenerateSerializer]
+    internal sealed record PositionalList(IReadOnlyList<string> Values);
+
+    private sealed class OrdinaryConstructorState(string value)
+    {
+        public string Value { get; set; } = value;
+    }
+
+    [Fact]
     public void PublishedMessageContentIsTheOnlyCompatibleCollectionException()
     {
         Assert.Empty(PersistedStateRules.ShapeViolations(typeof(AiMessage)));

@@ -18,7 +18,7 @@ public sealed class PackedCompositionFacts
         Directory.CreateDirectory(feed);
         TestContext.Current.TestOutputHelper!.WriteLine("Package diagnostics: " + scratch);
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var aspireVersion = XDocument.Load(Path.Combine(root, "Directory.Packages.props")).Descendants("AspireVersion").Single().Value;
+        var appHostSdk = XDocument.Load(ProjectPath(root, "DigitalBrain.AppHost")).Root!.Attribute("Sdk")!.Value;
         const string version = "0.0.0-integration";
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roots = new[]
@@ -77,10 +77,12 @@ public sealed class PackedCompositionFacts
         { File.Copy(source, Path.Combine(consumer, Path.GetFileNameWithoutExtension(source))); }
         await File.WriteAllTextAsync(Path.Combine(consumer, "Consumer.csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk.Web">
+              <Sdk Name="{{appHostSdk.Split('/')[0]}}" Version="{{appHostSdk.Split('/')[1]}}" />
               <PropertyGroup>
                 <TargetFramework>net11.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
+                <AspireUseCliBundle>true</AspireUseCliBundle>
                 <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
                 <RestorePackagesPath>{{Path.Combine(scratch, "packages")}}</RestorePackagesPath>
               </PropertyGroup>
@@ -90,8 +92,6 @@ public sealed class PackedCompositionFacts
                 <PackageReference Include="DigitalBrain.Aspire.Client" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting" Version="{{version}}" />
-                <PackageReference Include="Aspire.Hosting.Orchestration.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
-                <PackageReference Include="Aspire.Dashboard.Sdk.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
               </ItemGroup>
             </Project>
             """, ct);
@@ -138,6 +138,7 @@ public sealed class PackedCompositionFacts
         {
             var start = new ProcessStartInfo("dotnet")
             { WorkingDirectory = workingDirectory, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            DotNetTestProcess.DisableBuildServerReuse(start);
             foreach (var argument in arguments) { start.ArgumentList.Add(argument); }
             using var process = Process.Start(start) ?? throw new IOException("dotnet did not start.");
             var output = process.StandardOutput.ReadToEndAsync();

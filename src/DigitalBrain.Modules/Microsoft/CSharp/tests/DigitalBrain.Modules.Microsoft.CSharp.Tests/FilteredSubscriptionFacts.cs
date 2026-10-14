@@ -6,6 +6,23 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class FilteredSubscriptionFacts
 {
+    [Fact]
+    public async Task AddingASourceDoesNotRewatchUnchangedSources()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var edge = RuntimeBrain.Edge(brain, "acc-brain");
+        var runtime = RuntimeBrain.Runtime(brain, "acc-brain");
+        await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        var session = (await runtime.Inspect(ct)).SessionId!;
+        var sources = Enumerable.Range(0, 8).Select(i => brain.Get<IExpansionSource>("source-" + i)).ToArray();
+        foreach (var source in sources)
+        {
+            await edge.Subscribed(session, "acc-brain/csharp/a", source.GetGrainId().ToString(), nameof(FirstKind));
+        }
+        foreach (var source in sources) { Assert.Equal(1, await source.WatchCount()); }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -60,6 +77,7 @@ public interface IExpansionSource : INeuron
     Task FailNextWatch();
     Task<string[]> Selection();
     Task EmitSecond();
+    Task<int> WatchCount();
 }
 
 [GrainType("test-expansion-source")]
@@ -67,11 +85,14 @@ public sealed class ExpansionSource : Neuron, IExpansionSource
 {
     private bool _fail;
     private string[] _selection = [];
+    private int _watches;
+    public Task<int> WatchCount() => Task.FromResult(_watches);
     public Task FailNextWatch() { _fail = true; return Task.CompletedTask; }
     public Task<string[]> Selection() => Task.FromResult(_selection);
     public Task EmitSecond() => PublishAsync(new SecondKind());
     public override Task<Guid> Watch(INeuronObserver observer, string[] signals)
     {
+        _watches++;
         if (_fail) { _fail = false; throw new InvalidOperationException("Filter registration failed"); }
         _selection = signals;
         return base.Watch(observer, signals);

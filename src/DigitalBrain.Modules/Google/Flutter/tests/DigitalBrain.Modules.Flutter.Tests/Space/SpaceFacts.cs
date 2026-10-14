@@ -8,12 +8,245 @@ using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Orleans;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Space;
 
 public sealed class SpaceFacts
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OneAppChangeReadsOnlyTheChangedAppAndNavigationReadsNone(bool presentation)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new AppReads();
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s => { s.RemoveAll<IAppRuntime>(); s.AddSingleton<IOutgoingGrainCallFilter>(calls); }).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("count-home", 0);
+        var apps = new List<IApp>();
+        for (var i = 0; i < 15; i++) { apps.Add(await App(brain, "count-" + i)); }
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Count(node => node.Id.Contains("/apps/count-", StringComparison.Ordinal)) == 15,
+            TimeSpan.FromSeconds(10), ct);
+        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        calls.Count = 0;
+        calls.Armed = true;
+        if (presentation)
+        {
+            using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "count-7")))
+            { await apps[7].Present(0, new(new Sphere("changed-icon", []))); }
+        }
+        else { await apps[7].SaveManifest(new("Only changed", "description", [], [], []), Guid.NewGuid()); }
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Parameters.GetValueOrDefault(presentation ? "icon" : "title") == (presentation ? "changed-icon" : "Only changed")),
+            TimeSpan.FromSeconds(10), ct);
+        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        calls.Armed = false;
+        Assert.Equal(1, calls.Count);
+        calls.Count = 0;
+        calls.Armed = true;
+        await brain.Get<IWorkspace>(brain.Owner.BrainId).Show(IApp.Key(brain.Owner.BrainId, "count-7"), "navigate", 1);
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Parameters.GetValueOrDefault("focused") == "true"),
+            TimeSpan.FromSeconds(10), ct);
+        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        calls.Armed = false;
+        Assert.Equal(0, calls.Count);
+        var beforeActivation = (await scene.Read()).Revision;
+        await brain.DeactivateAsync(brain.Get<ISpace>(brain.Owner.BrainId), ct);
+        calls.Count = 0;
+        calls.Armed = true;
+        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Revision > beforeActivation, TimeSpan.FromSeconds(10), ct);
+        calls.Armed = false;
+        Assert.Equal(15, calls.Count);
+        Assert.Contains((await scene.Read()).Definition.Nodes, node =>
+            node.Parameters.GetValueOrDefault(presentation ? "icon" : "title") == (presentation ? "changed-icon" : "Only changed"));
+    }
+
+    [Fact]
+    public async Task AFailedAppReadIsRetriedByTheNextComposition()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new AppReads();
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s => { s.RemoveAll<IAppRuntime>(); s.AddSingleton<IOutgoingGrainCallFilter>(calls); }).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        await App(brain, "retry");
+        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("retry-home", 0);
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        var key = IApp.Key(brain.Owner.BrainId, "retry");
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == key), TimeSpan.FromSeconds(10), ct);
+        calls.Armed = true;
+        calls.FailNext = true;
+        await brain.Get<ISpace>(brain.Owner.BrainId).RefreshApp(key);
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.All(node => node.Id != key), TimeSpan.FromSeconds(10), ct);
+        calls.Count = 0;
+        await brain.Get<ISpace>(brain.Owner.BrainId).Recompose();
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == key), TimeSpan.FromSeconds(10), ct);
+        calls.Armed = false;
+        Assert.Equal(1, calls.Count);
+    }
+
+    private sealed class AppReads : IOutgoingGrainCallFilter
+    {
+        public bool Armed, FailNext;
+        public int Count;
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IApp) && context.InterfaceMethod.Name == nameof(IApp.Read))
+            {
+                Interlocked.Increment(ref Count);
+                if (FailNext) { FailNext = false; throw new InvalidOperationException("Transient app read failure."); }
+            }
+            return context.Invoke();
+        }
+    }
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ARebuildBurstSharesOneScanAndOneTrailingScan(bool firstScanFails, bool targeted)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new RebuildGate(firstScanFails);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s =>
+            {
+                s.RemoveAll<IAppRuntime>();
+                // This regression supplies exact invalidations. Other Space facts
+                // retain the real watcher and verify automatic lifecycle updates.
+                s.Remove(s.Single(service => service.ServiceType == typeof(IHostedService)
+                    && service.ImplementationType == typeof(SpaceWatcher)));
+                s.AddSingleton<IIncomingGrainCallFilter>(gate);
+                s.AddSingleton<IOutgoingGrainCallFilter>(gate);
+            }).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("burst-home", 0);
+        var app = await App(brain, "burst");
+        if (targeted) { for (var i = 0; i < 14; i++) { await App(brain, "unrelated-" + i); } }
+        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        // Reconcile apps created after Workspace.Home activated the space.
+        // The watcher is removed, so these creations supply no invalidations.
+        await space.Rebuild();
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Count(node => node.Id.Contains("/apps/", StringComparison.Ordinal)) == (targeted ? 15 : 1), TimeSpan.FromSeconds(10), ct);
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        gate.Armed = true;
+        try
+        {
+            await Invalidate();
+            await gate.Blocked.Task.WaitAsync(ct);
+            for (var i = 0; i < 12; i++) { await Invalidate(); }
+            await app.SaveManifest(new("Final title", "description", [], [], []), Guid.NewGuid());
+            // Rebuild must accept invalidations while its existing scan is suspended.
+            await gate.BurstArrived.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        }
+        finally { gate.Release.TrySetResult(); }
+        await gate.WorkerFinished.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        await TestWait.UntilAsync(_ => scene.Read(), snapshot => snapshot.Definition.Nodes.Any(node =>
+            node.Id == IApp.Key(brain.Owner.BrainId, "burst") && node.Parameters["title"] == "Final title"), TimeSpan.FromSeconds(10), ct);
+        Assert.InRange(gate.Reads, 1, 2);
+        Assert.Equal(1, gate.MaximumActive);
+        Task Invalidate() => targeted ? space.RefreshApp(IApp.Key(brain.Owner.BrainId, "burst")) : space.Rebuild();
+    }
+
+    private sealed class RebuildGate(bool firstScanFails) : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
+    {
+        public bool Armed;
+        public int Reads, MaximumActive;
+        private int _active, _rebuilds;
+        public TaskCompletionSource Blocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource BurstArrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource WorkerFinished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task Invoke(IIncomingGrainCallContext context)
+        {
+            var first = false;
+            if (Armed && context.InterfaceMethod?.Name is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp))
+            {
+                var count = Interlocked.Increment(ref _rebuilds);
+                first = count == 1;
+                if (count >= 13) { BurstArrived.TrySetResult(); }
+            }
+            try { await context.Invoke(); }
+            finally { if (first) { WorkerFinished.TrySetResult(); } }
+        }
+        public async Task Invoke(IOutgoingGrainCallContext context)
+        {
+            var contract = firstScanFails ? typeof(IWorkspace) : typeof(IApp);
+            if (!Armed || context.InterfaceMethod?.DeclaringType != contract || context.InterfaceMethod.Name != "Read")
+            { await context.Invoke(); return; }
+            var active = Interlocked.Increment(ref _active);
+            MaximumActive = Math.Max(MaximumActive, active);
+            try
+            {
+                await context.Invoke();
+                if (Interlocked.Increment(ref Reads) == 1)
+                {
+                    Blocked.TrySetResult();
+                    await Release.Task;
+                    if (firstScanFails) { throw new InvalidOperationException("The first space scan failed."); }
+                }
+            }
+            finally { Interlocked.Decrement(ref _active); }
+        }
+    }
+
+    [Fact]
+    public async Task RepeatedActivityOnlyInvalidatesThroughChangedPresentation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new ActivityCalls();
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s =>
+            {
+                s.RemoveAll<IAppRuntime>();
+                s.Remove(s.Single(service => service.ServiceType == typeof(IHostedService)
+                    && service.ImplementationType == typeof(SpaceWatcher)));
+                s.AddSingleton<IOutgoingGrainCallFilter>(calls);
+            }).StartAsync(ct);
+        var app = await App(brain, "activity");
+        var grains = brain.Services.GetRequiredService<IGrainFactory>();
+        await using var activities = await brain.Observe<DigitalBrain.Apps.Signals.AppActivity>(app, ct);
+        await using var presentations = await brain.Observe<DigitalBrain.Apps.Signals.PresentationChanged>(app, ct);
+        await app.Progress("working", "first detail");
+        await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
+        await presentations.NextAsync(ct: ct);
+        var first = (await app.Read()).Presentation!;
+        Assert.Equal("true", first.Blackboard["running"]);
+        Assert.Equal("false", first.Blackboard["attention"]);
+        calls.Armed = true;
+        for (var i = 0; i < 5; i++)
+        {
+            await app.Progress("reading", $"detail {i}");
+            await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
+        }
+        calls.Armed = false;
+        Assert.Equal(0, calls.Rebuilds);
+        Assert.Equal(first.Revision, (await app.Read()).Presentation!.Revision);
+        await app.Progress("attention", "needs input");
+        await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
+        var last = (await app.Read()).Presentation!;
+        Assert.Equal("false", last.Blackboard["running"]);
+        Assert.Equal("true", last.Blackboard["attention"]);
+        Assert.True(last.Revision > first.Revision);
+    }
+
+    private sealed class ActivityCalls : IOutgoingGrainCallFilter
+    {
+        public bool Armed;
+        public int Rebuilds;
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(ISpace)
+                && context.InterfaceMethod.Name == nameof(ISpace.Rebuild)) { Interlocked.Increment(ref Rebuilds); }
+            return context.Invoke();
+        }
+    }
+
     [Fact]
     public async Task IdleAppLifecycleRefreshesTheSceneWithoutNavigation()
     {
@@ -165,7 +398,6 @@ public sealed class SpaceFacts
         await using var presentation = await brain.Observe<DigitalBrain.Apps.Signals.PresentationChanged>(app, ct);
         await app.Progress("working", "reading files");
         await presentation.NextAsync(ct: ct);
-        await brain.Services.GetRequiredService<Orleans.IGrainFactory>().GetGrain<ISpace>(brain.Owner.BrainId).Rebuild();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(10));
         SceneState state;

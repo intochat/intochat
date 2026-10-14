@@ -68,14 +68,16 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.Equal("Open", host.LastRunEnvironment[DockerCandidateHost.Env(AuthOptions.PostureKey)]);
         Assert.Equal("1000", host.LastRunEnvironment[DockerCandidateHost.ExportCadence[0]]);
         // The candidate silo stores through the orleans integration only; its MCP client finds it by the same tables.
-        Assert.DoesNotContain(host.LastRunEnvironment.Keys, key => key.StartsWith("Orleans__", StringComparison.Ordinal)
-            && key is not ("Orleans__ServiceId" or "Orleans__ClusterId" or "Orleans__EnableDistributedTracing"));
-        Assert.DoesNotContain(host.LastRunEnvironment.Keys, key => key.StartsWith("ConnectionStrings__", StringComparison.Ordinal));
+        var siloConfiguration = EnvironmentProjection.Configuration(host.LastRunEnvironment);
+        var mcpConfiguration = EnvironmentProjection.Configuration(host.LastMcpEnvironment);
+        Assert.DoesNotContain(siloConfiguration.Keys, key => key.StartsWith("Orleans:", StringComparison.Ordinal)
+            && key is not ("Orleans:ServiceId" or "Orleans:ClusterId" or "Orleans:EnableDistributedTracing"));
+        Assert.DoesNotContain(siloConfiguration.Keys, key => key.StartsWith("ConnectionStrings:", StringComparison.Ordinal));
         foreach (var field in new[] { "Clustering", "GrainState", "Reminders" })
         { Assert.Contains("candidate-abc1234", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("orleans", field)], StringComparison.Ordinal); }
         Assert.Equal(host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("orleans", "Clustering")],
             host.LastMcpEnvironment[DockerCandidateHost.ConnectionVariable(DigitalBrainNames.Clustering)]);
-        Assert.Equal(host.LastRunEnvironment["Orleans__ClusterId"], host.LastMcpEnvironment["Orleans__ClusterId"]);
+        Assert.Equal(siloConfiguration["Orleans:ClusterId"], mcpConfiguration["Orleans:ClusterId"]);
         Assert.DoesNotContain(processes.Commands, command => command.Contains("model-key", StringComparison.Ordinal));
     }
 

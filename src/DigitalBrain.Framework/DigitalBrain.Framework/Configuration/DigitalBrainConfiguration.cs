@@ -48,6 +48,14 @@ public static class DigitalBrainConfiguration
         return configurationKey.Replace(":", "__", StringComparison.Ordinal);
     }
 
+    // The environment configuration provider's inverse projection; ordinary underscore names
+    // and already-canonical keys are unchanged.
+    public static string ConfigurationName(string environmentName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentName);
+        return environmentName.Replace("__", ":", StringComparison.Ordinal);
+    }
+
     public static string EnvironmentName(string configurationRoot, string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationRoot);

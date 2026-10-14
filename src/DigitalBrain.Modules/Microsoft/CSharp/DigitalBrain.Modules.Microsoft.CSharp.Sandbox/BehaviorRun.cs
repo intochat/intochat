@@ -46,7 +46,7 @@ internal sealed class BehaviorRun : IAsyncDisposable
     private async Task<int> ExecuteAsync(SessionConnection session, Dictionary<string, string> settings, MethodInfo entry, ILogger logger)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object> { ["Behavior"] = Id, ["Hash"] = Hash });
-        using var ambient = AmbientSession.Enter(session, Id, settings, _stopping.Token);
+        using var ambient = AmbientSession.Enter(session, Id, settings, _stopping.Token, Hash, Assignment.Revision);
         using var output = BehaviorConsole.Capture(line => { _log.Append(line); logger.LogInformation("{Behavior}: {Line}", Id, line); });
         try
         {

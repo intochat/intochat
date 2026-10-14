@@ -5,14 +5,14 @@ namespace DigitalBrain.Testing.Aspire;
 
 public static class AspireTestBrainExtensions
 {
-    // The collector plugs into the AppHost's own OTLP setting; Aspire projects it to every resource.
-    public static TestBrain ExportingTelemetryTo(this TestBrain brain, TestTelemetryCollector collector)
+    public static TestBrain WithDashboardTelemetry(this TestBrain brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        ArgumentNullException.ThrowIfNull(collector);
-        return brain.WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL", collector.Endpoint.AbsoluteUri)
-            .WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL", "");
+        return brain.ConfigureExecution(options => options with { EnableDashboardTelemetry = true });
     }
+
+    public static TestTelemetry Telemetry(this ITestBrain brain) => AspireBrainExtensions.Of(brain).Session.Telemetry
+        ?? throw new InvalidOperationException("Enable WithDashboardTelemetry on this host before querying telemetry.");
 
     public static TestBrain InEnvironment(this TestBrain brain, string environmentName)
     {

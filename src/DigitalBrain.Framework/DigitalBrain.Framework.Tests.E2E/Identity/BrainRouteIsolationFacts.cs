@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace DigitalBrain.Framework.Tests.E2E.Identity;
 
+[Collection("ReferenceBrainFixture")]
 public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
 {
     [Fact(Timeout = 180_000)]
@@ -19,15 +20,15 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         var aliceBrain = alicePerson.BrainId;
         var bobBrain = bobPerson.BrainId;
         // Bob reaches his own workspace but is forbidden from Alice's scoped value and app node.
-        using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/ui/sliders/volume", ct);
+        using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/apps/node?kind=text&name={bobBrain}/apps/assistant/status", ct);
         Assert.Equal(HttpStatusCode.OK, ownUi.StatusCode);
 
         using var foreignWorkspace = await bob.GetAsync($"/brains/{aliceBrain}", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignWorkspace.StatusCode);
-        using var foreignSources = await bob.PostAsJsonAsync($"/brains/{aliceBrain}/connected-sources", new { sources = new[] { "stolen" } }, ct);
+        using var foreignSources = await bob.PostAsJsonAsync($"/brains/{aliceBrain}/apps/workspace/request", new { operation = "open", input = "" }, ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignSources.StatusCode);
 
-        using var foreignUi = await bob.GetAsync($"/brains/{aliceBrain}/ui/sliders/volume", ct);
+        using var foreignUi = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/assistant/status", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignUi.StatusCode);
 
         using var foreignNode = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/forms/intake", ct);

@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
@@ -12,6 +13,13 @@ public static class AspireCompositionTest
 
     public static IDistributedApplicationBuilder CreatePublishBuilder()
         => DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--publisher", "manifest"], DisableDashboard = true });
+
+    // Inspect the configuration consumed by .NET after environment-provider normalization.
+    // Non-configuration variables (for example SYSTEMONE_MODEL) retain their original names.
+    public static async Task<Dictionary<string, object>> ConfigurationOf(
+        IDistributedApplicationBuilder builder, IResource resource, CancellationToken cancellationToken = default)
+        => (await EnvironmentOf(builder, resource, cancellationToken))
+            .ToDictionary(pair => DigitalBrainConfiguration.ConfigurationName(pair.Key), pair => pair.Value, StringComparer.OrdinalIgnoreCase);
 
     public static async Task<Dictionary<string, object>> EnvironmentOf(
         IDistributedApplicationBuilder builder, IResource resource, CancellationToken cancellationToken = default)

@@ -17,9 +17,9 @@ namespace DigitalBrain.Modules.AI.Tests.Hosting;
 
 public sealed class SystemOneHostingFacts
 {
-    private static readonly string EndpointKey = DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "Endpoint"));
-    private static readonly string ApiKeyKey = DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "ApiKey"));
-    private static readonly string DefaultKey = DigitalBrainConfiguration.EnvironmentName(AIKeys.DefaultSystemOne);
+    private static readonly string EndpointKey = IntegrationSchema.Key("typesafe", "Endpoint");
+    private static readonly string ApiKeyKey = IntegrationSchema.Key("typesafe", "ApiKey");
+    private static readonly string DefaultKey = AIKeys.DefaultSystemOne;
 
     [Fact]
     public async Task WithDefaultSystemOneLocalJevAddsTheAdapterAndPointsTheTypesafeIntegrationAtIt()
@@ -40,7 +40,7 @@ public sealed class SystemOneHostingFacts
         Assert.Equal("llama3.1", Assert.IsType<string>(adapterEnvironment["SYSTEMONE_MODEL"]));
         Assert.IsType<ReferenceExpression>(adapterEnvironment["OPENAI_BASE_URL"]);
 
-        var environment = await EnvironmentOf(builder, consumer.Resource, ct);
+        var environment = await ConfigurationOf(builder, consumer.Resource, ct);
         Assert.IsType<EndpointReference>(environment[EndpointKey]);
         Assert.Equal(AIHostingExtensions.SystemOneApiKeyLocal, Assert.IsType<string>(environment[ApiKeyKey]));
         Assert.Equal("ILocalJev", Assert.IsType<string>(environment[DefaultKey]));
@@ -58,7 +58,7 @@ public sealed class SystemOneHostingFacts
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         Assert.DoesNotContain(builder.Resources, resource => resource.Name == AIHostingExtensions.SystemOneResourceName);
-        var environment = await EnvironmentOf(builder, consumer.Resource, ct);
+        var environment = await ConfigurationOf(builder, consumer.Resource, ct);
         var key = Assert.IsType<ParameterResource>(environment[ApiKeyKey]);
         Assert.True(key.Secret);
         Assert.Equal("IJev", Assert.IsType<string>(environment[DefaultKey]));

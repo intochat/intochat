@@ -99,7 +99,10 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     public async Task<IResult> ReportAsync(string brainId, string? token, RuntimeReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        var claims = ValidateToken(brainId, token);
+        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        // Each runtime mutation validates the session in the same turn as its write.
+        // A separate preflight doubles the calls and cannot authorize a later turn.
         var members = (report.Fingerprint is null ? 0 : 1) + (report.Subscribe is null ? 0 : 1)
             + (report.Acknowledge is null ? 0 : 1) + (report.Acknowledgements is null ? 0 : 1)
             + (report.Status is null ? 0 : 1) + (report.Logs is null ? 0 : 1) + (report.Heartbeat ? 1 : 0);
@@ -125,7 +128,14 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         if (report.Acknowledge is { } acknowledge) { await runtime.Acknowledge(claims.Session, acknowledge.Subscription, acknowledge.Watermark).ConfigureAwait(false); return Results.Ok(); }
         if (report.Acknowledgements is { } acknowledgements) { await runtime.AcknowledgeMany(claims.Session, acknowledgements).ConfigureAwait(false); return Results.Ok(); }
         if (report.Status is { } status) { await runtime.Reported(claims.Session, status).ConfigureAwait(false); return Results.Ok(); }
-        if (report.Logs is { } logs) { streams.CompleteLogs(logs.Request, logs.Text); return Results.Ok(); }
+        if (report.Logs is { } logs)
+        {
+            // Logs complete locally rather than on the runtime's guarded mutation turn.
+            if (!(await runtime.Authorize(claims.Session).ConfigureAwait(false)).Active)
+            { throw new UnauthorizedAccessException("This session no longer speaks for its brain."); }
+            streams.CompleteLogs(logs.Request, logs.Text);
+            return Results.Ok();
+        }
         if (report.Heartbeat) { await runtime.Heartbeat(claims.Session).ConfigureAwait(false); return Results.Ok(); }
         return Results.BadRequest("A report carries exactly one member.");
     }

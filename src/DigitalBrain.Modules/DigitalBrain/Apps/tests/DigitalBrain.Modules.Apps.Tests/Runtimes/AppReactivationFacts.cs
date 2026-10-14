@@ -38,7 +38,7 @@ public sealed class AppReactivationFacts
             Assert.Equal(alice.PrincipalId, restored.Caller?.PrincipalId);
             Assert.Equal("// saved source", restored.Sources["view.cs"]);
             Assert.Equal("chosen", restored.Configuration["Feed"]);
-            Assert.Equal("saved-binding", restored.Configuration["Account__tables"]);
+            Assert.Equal("saved-binding", restored.Configuration[AppRuntimeConfiguration.AccountBindingKey("tables")]);
             // Runtime callbacks and ordinary app reads cannot be blocked behind the restore assignment.
             await using var watch = await brain.Observe<AppChanged>(app, ct).WaitAsync(TimeSpan.FromSeconds(2), ct);
             var whileRestoring = await app.Read().WaitAsync(TimeSpan.FromSeconds(2), ct);

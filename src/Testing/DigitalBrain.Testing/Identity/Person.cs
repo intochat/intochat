@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Framework.Platform.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Testing;
 
@@ -45,6 +47,29 @@ public sealed class Person : IDisposable
             Kind = CallerKind.User,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
+
+    // Direct-call identity fixture: add another principal to the same account and brain through
+    // the real membership authority. It has no authenticated HTTP session of its own.
+    public async Task<Person> AddAccountMemberAsync(ITestBrain brain, string principalId)
+    {
+        var identity = brain.Services.GetRequiredService<IIdentityClient>();
+        var membership = await identity.Membership(BrainId, PrincipalId)
+            ?? throw new InvalidOperationException("The fixture person must already be a member.");
+        await identity.EnsureMember(membership with { PrincipalId = principalId, DisplayName = principalId });
+        return new(principalId, AccountId, BrainId, new HttpClient { BaseAddress = Http.BaseAddress }, ownsHttp: true);
+    }
+
+    // Security facts deliberately present a model conversation carrying a user's caller kind.
+    // This verifies model-origin rejection even when the kind alone would allow the operation.
+    public IDisposable AsModelImpersonatingCaller(string conversationId) => Enter(new CallerContext
+    {
+        PrincipalId = PrincipalId,
+        AccountId = AccountId,
+        BrainId = BrainId,
+        Kind = CallerKind.User,
+        ConversationId = conversationId,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
+    });
 
     // One of this person's installed apps, as the app proxy re-stamps a script's calls: the app key is its AppId.
     // With a conversation, the call is the app's model reading on that conversation's behalf.

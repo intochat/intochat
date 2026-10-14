@@ -45,13 +45,15 @@ public sealed record SubscribeReport([property: Id(0)] string Behavior, [propert
 public sealed record AcknowledgeReport([property: Id(0)] string Subscription, [property: Id(1)] long Watermark, [property: Id(2)] long CpuMicroseconds = 0,
     [property: Id(3)] long WallMicroseconds = 0, [property: Id(4)] int Batches = 1, [property: Id(5)] bool Skipped = false);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.behavior-status-report")]
-public sealed record BehaviorStatusReport([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] string Status, [property: Id(3)] int? ExitCode, [property: Id(4)] string? Error);
+public sealed record BehaviorStatusReport([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] string Status, [property: Id(3)] int? ExitCode, [property: Id(4)] string? Error,
+    [property: Id(5)] string? AssignmentRevision = null);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.logs-report")]
 public sealed record LogsReport([property: Id(0)] string Request, [property: Id(1)] string Text);
 
 // Stream events: the event name is the record's Kind.
 [GenerateSerializer, Alias("microsoft.csharp.runtime.assignment-event")]
-public sealed record AssignmentEvent([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] Uri Assembly, [property: Id(3)] Uri Symbols, [property: Id(4)] Dictionary<string, string> Settings) { public const string Kind = "assign"; }
+public sealed record AssignmentEvent([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] Uri Assembly, [property: Id(3)] Uri Symbols, [property: Id(4)] Dictionary<string, string> Settings,
+    [property: Id(5)] string? Revision = null) { public const string Kind = "assign"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.retire-event")]
 public sealed record RetireEvent([property: Id(0)] string Behavior) { public const string Kind = "retire"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribed-event")]

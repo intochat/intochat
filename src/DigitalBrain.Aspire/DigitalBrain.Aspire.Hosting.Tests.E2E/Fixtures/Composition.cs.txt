@@ -8,6 +8,8 @@ using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using Azure.Storage.Blobs;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Aspire;
@@ -24,6 +26,7 @@ TestBrain Scenario(string scenario, string brain, TestExecutionOptions? executio
     .WithExecution(execution ?? new TestExecutionOptions())
     .WithHostConfiguration(CompositionAppHost.ScenarioKey, scenario)
     .WithHostConfiguration(CompositionAppHost.VolumeKey, compositionVolume.Name)
+    .WithHostConfiguration(CompositionAppHost.StorageRootKey, Path.Combine(AppContext.BaseDirectory, "brain-stores"))
     .WithConfiguration($"Parameters:{brain}-digitalbrain-master-key", key);
 
 // Package-based AppHost -> server -> client, including explicit selection among two brains.
@@ -57,12 +60,15 @@ internal static class CompositionAppHost
 {
     internal const string ScenarioKey = "Composition:Scenario";
     internal const string VolumeKey = "Composition:Volume";
+    internal const string StorageRootKey = "Composition:StorageRoot";
 
     internal static void Run(string[] args)
     {
         var builder = DistributedApplication.CreateBuilder(args);
         var scenario = builder.Configuration[ScenarioKey];
         var volume = builder.Configuration[VolumeKey];
+        var storageRoot = builder.Configuration[StorageRootKey]
+            ?? throw new InvalidOperationException("Composition storage must be owned by the package test run.");
         var candidate = Assembly.GetExecutingAssembly().Location;
         if (scenario == "two-brains")
         {
@@ -75,6 +81,8 @@ internal static class CompositionAppHost
                         azurite.DataVolume = name == "second" ? volume : null;
                     }));
                 var server = builder.AddExecutable(name + "-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, name))
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                     .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
                     .WithHttpHealthCheck("/health");
                 if (name == "second")
@@ -94,12 +102,17 @@ internal static class CompositionAppHost
                     azurite.DataVolume = volume;
                 }));
             builder.AddExecutable("renamed-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
+                // Persistence belongs to the brain, independently of its Aspire resource name.
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "second"))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                 .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
         }
         else
         {
             var brain = builder.AddDigitalBrain("memory");
             builder.AddExecutable("memory-server", "dotnet", AppContext.BaseDirectory, candidate, "memory-server")
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "memory"))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                 .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
         }
         builder.Build().Run();

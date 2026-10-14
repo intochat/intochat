@@ -32,7 +32,8 @@ internal static class CompositionHost
             await client.RunAsync();
             return;
         }
-        builder.AddDigitalBrainServer(server => { if (mode == "server") { server.AddModule<DigitalBrain.Microsoft.Orleans.OrleansModule>(); } });
+        // The Orleans module owns clustering and providers in both Azure and local compositions.
+        builder.AddDigitalBrainServer(server => server.AddModule<DigitalBrain.Microsoft.Orleans.OrleansModule>());
         if (mode == "memory-server")
         {
             builder.UseOrleans(silo => silo.AddDigitalBrainPlatform());

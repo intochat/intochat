@@ -28,7 +28,7 @@ public sealed class SaveToSourceFacts : IDisposable
         .WithModule<AppsModule, AppsOptions>(options => options.Features = _root)
         .WithFakeAppRuntime(new())
         // This production-mode fixture deliberately uses its isolated test key, not a machine TPM.
-        .WithConfiguration("DigitalBrain:Platform:Storage:ConfiguredCustodyAcknowledged", "true")
+        .WithConfiguration(DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
         // The test host runs as "Testing"; save-to-source and a writable features folder are development-only.
         .ConfigureServices(services => services.AddSingleton<IHostEnvironment>(new Environment(environment)))
         .StartAsync(Ct);

@@ -5,20 +5,27 @@ namespace DigitalBrain.Client;
 
 // One behavior's view of its session: its settings, its stop signal, and neuron calls and signal
 // subscriptions made in its name. Disposing it ends nothing shared; the host owns the session.
-public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
+public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable, IInitialSignalWait
 {
     private readonly SessionConnection _session;
     private readonly string _behavior;
     private readonly IReadOnlyDictionary<string, string> _settings;
     private readonly BehaviorTrace _trace;
+    private readonly string? _assignmentHash;
+    private readonly string? _assignmentRevision;
+    private readonly AsyncLocal<int> _nestedWait = new();
+    private readonly Lock _initialGate = new();
+    private Task? _initialized;
 
-    internal DigitalBrainConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, BehaviorTrace trace)
+    internal DigitalBrainConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, BehaviorTrace trace, string? assignmentHash = null, string? assignmentRevision = null)
     {
         _session = session;
         _behavior = behavior;
         _settings = settings;
         Stopping = stopping;
         _trace = trace;
+        _assignmentHash = assignmentHash;
+        _assignmentRevision = assignmentRevision;
     }
 
     public CancellationToken Stopping { get; }
@@ -45,7 +52,12 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         {
             var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
-        }, cancellationToken, Stopping, onSubscribed);
+        }, cancellationToken, Stopping, async () =>
+        {
+            await onSubscribed().ConfigureAwait(false);
+            using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Stopping);
+            await ((IInitialSignalWait)this).ReachedInitialWaitAsync(wait.Token).ConfigureAwait(false);
+        });
     }
 
     // Scripts hold this class, not the interface, so the vocabulary's set and rebuild entry points are reachable here.
@@ -59,4 +71,42 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         => Sources.React<T>(this, sources, rebuild, cancellationToken);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    IDisposable IInitialSignalWait.SuppressInitialWait()
+    {
+        var previous = _nestedWait.Value;
+        _nestedWait.Value = previous + 1;
+        return new RestoreWait(() => _nestedWait.Value = previous);
+    }
+
+    Task IInitialSignalWait.ReachedInitialWaitAsync(CancellationToken cancellationToken)
+    {
+        if (_nestedWait.Value != 0 || _assignmentHash is null) { return Task.CompletedTask; }
+        lock (_initialGate)
+        {
+            return _initialized ??= ReportInitialWaitAsync(cancellationToken);
+        }
+    }
+
+    private async Task ReportInitialWaitAsync(CancellationToken cancellationToken)
+    {
+        var delay = TimeSpan.FromMilliseconds(100);
+        while (true)
+        {
+            try
+            {
+                await _session.ReportStatusAsync(new(_behavior, _assignmentHash!, "Initialized", null, null, _assignmentRevision), cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                // Pending signals remain durable while the initialized script retries its marker.
+                // Bound the backoff, not delivery attempts: an idle script may never get another signal.
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 1000));
+            }
+        }
+    }
+
+    private sealed class RestoreWait(Action restore) : IDisposable { public void Dispose() => restore(); }
 }

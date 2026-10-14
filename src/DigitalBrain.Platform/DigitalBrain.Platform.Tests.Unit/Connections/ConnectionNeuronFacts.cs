@@ -211,7 +211,7 @@ public sealed class ConnectionNeuronFacts
         await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
             .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
-            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:example", tokens.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ConnectionsTokenEndpointKey("example"), tokens.TokenEndpoint.AbsoluteUri)
             .StartAsync(ct);
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();

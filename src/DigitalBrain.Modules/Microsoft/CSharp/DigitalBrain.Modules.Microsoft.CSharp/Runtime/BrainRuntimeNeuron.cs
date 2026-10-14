@@ -40,6 +40,7 @@ internal sealed class BrainRuntimeNeuron(
     SessionRunner runner,
     SessionTokens tokens,
     SessionStreams streams,
+    DeferredRuntimeStarts deferredStarts,
     IBehaviorAssemblies assemblies,
     CSharpScriptCheck compiler,
     CompiledTypes types,
@@ -115,7 +116,17 @@ internal sealed class BrainRuntimeNeuron(
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
             Snapshot.Session?.Fingerprint, Snapshot.Session?.LastHeartbeat,
-            [.. Snapshot.Programs.SelectMany(program => View(program).Behaviors)]));
+            [.. Snapshot.Programs.SelectMany(program => View(program).Behaviors)], IsReady(), IsReady() && _pricing.IsCompleted));
+
+    // Initialization is the supported persistent script's single outer On/React wait, plus its
+    // drained durable signals. Independent parallel initializers and downstream projections are not covered.
+    private bool IsReady() => Snapshot.Session?.Status == SessionStatus.Connected
+        && Snapshot.Programs.Any(program => program.Behaviors.Length > 0)
+        && _assigning.Count == 0 && _compiled.Count == 0 && _nudged.Count == 0 && _started.Count == 0
+        && Snapshot.Subscriptions.All(subscription => subscription.Pending.Length == 0)
+        && Snapshot.Programs.All(program => program.Behaviors.All(behavior =>
+            Snapshot.Initialized.GetValueOrDefault(behavior.Id(program.Owner)) == AssignmentRevision(program, behavior)
+            && Snapshot.Subscriptions.Any(subscription => subscription.Behavior == behavior.Id(program.Owner))));
 
     public async Task Touch(CancellationToken cancellationToken = default)
     {
@@ -212,10 +223,26 @@ internal sealed class BrainRuntimeNeuron(
         var program = new ProgramAssignment(owner, hash, compiled.Settings, compiled.Caller ?? previous?.Principal, behaviors);
         var replaced = previous?.Behaviors.Except(behaviors).Select(b => b.Id(owner)).ToArray() ?? [];
         var removed = replaced.Except(behaviors.Select(b => b.Id(owner)), StringComparer.Ordinal).ToArray();
+        var revisions = new Dictionary<string, string>(Snapshot.AssignmentRevisions, StringComparer.Ordinal);
+        var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal);
+        foreach (var gone in removed) { revisions.Remove(gone); initialized.Remove(gone); }
+        foreach (var behavior in behaviors)
+        {
+            var id = behavior.Id(owner);
+            var unchanged = previous is not null && previous.Principal == program.Principal
+                && previous.Settings.Count == program.Settings.Count
+                && previous.Settings.All(pair => program.Settings.TryGetValue(pair.Key, out var value) && value == pair.Value)
+                && previous.Behaviors.Contains(behavior);
+            if (unchanged && revisions.ContainsKey(id)) { continue; }
+            revisions[id] = Guid.NewGuid().ToString("N");
+            initialized.Remove(id);
+        }
         await Save(Snapshot with
         {
             Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner), program],
             Subscriptions = [.. Snapshot.Subscriptions.Where(s => !replaced.Contains(s.Behavior, StringComparer.Ordinal))],
+            AssignmentRevisions = revisions,
+            Initialized = initialized,
         }, Changed());
         foreach (var gone in replaced) { Forget(gone); }
         if (replaced.Length > 0 || (previous is not null && previous.Principal != program.Principal)) { await WatchSourcesAsync(); }
@@ -240,6 +267,8 @@ internal sealed class BrainRuntimeNeuron(
         {
             Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner)],
             Subscriptions = [.. Snapshot.Subscriptions.Where(s => !ids.Contains(s.Behavior, StringComparer.Ordinal))],
+            Initialized = Snapshot.Initialized.Where(pair => !ids.Contains(pair.Key, StringComparer.Ordinal)).ToDictionary(StringComparer.Ordinal),
+            AssignmentRevisions = Snapshot.AssignmentRevisions.Where(pair => !ids.Contains(pair.Key, StringComparer.Ordinal)).ToDictionary(StringComparer.Ordinal),
         }, Changed());
         foreach (var id in ids) { Forget(id); }
         await WatchSourcesAsync();
@@ -350,9 +379,10 @@ internal sealed class BrainRuntimeNeuron(
             // The log after the watermark comes first; a source whose part is leased elsewhere fails the subscribe here.
             await CatchUpAsync(neuron, push: false);
             existing = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
-            // A reloaded behavior gets what waited while it was down without another arrival.
-            if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected }) { Push(session, existing); }
         }
+        // Both a retained initial seed and a reloaded behavior's backlog must reach an already
+        // connected session without another arrival. The client buffers batches before its reader joins.
+        if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected }) { Push(session, existing); }
         logger.LogInformation("BehaviorSubscribed {Behavior} {Neuron} {Signal}", behavior, neuron, signal);
         Flush();
         return existing.Id;
@@ -446,18 +476,34 @@ internal sealed class BrainRuntimeNeuron(
 
     // The status the sandbox last reported for an assigned behavior. An exit is remembered, never disarmed:
     // the sandbox restarts an exited behavior itself while its assignment stands.
-    public Task Reported(string session, BehaviorStatusReport status)
+    public async Task Reported(string session, BehaviorStatusReport status)
     {
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(status);
         _facts.Clear();
         if (Find(status.Behavior) is { } program && program.Behaviors.FirstOrDefault(b => b.Id(program.Owner) == status.Behavior && b.Hash == status.Hash) is { } assembly)
         {
+            if (status.AssignmentRevision is { } reportedRevision && reportedRevision != AssignmentRevision(program, assembly)) { return; }
+            if (status.Status == "Initialized")
+            {
+                var revision = AssignmentRevision(program, assembly);
+                if (status.AssignmentRevision == revision)
+                {
+                    var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal) { [status.Behavior] = revision };
+                    await Save(Snapshot with { Initialized = initialized }, Changed());
+                }
+                return;
+            }
+            if (status.Status is "Exited" or "Stopped")
+            {
+                var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal);
+                initialized.Remove(status.Behavior);
+                await Save(Snapshot with { Initialized = initialized }, Changed());
+            }
             _reported[status.Behavior] = (status.Status, status.Error);
             if (status is { Status: "Exited", ExitCode: not (null or 0) }) { Failed(program.Owner, assembly.Hash, status); }
         }
         Flush();
-        return Task.CompletedTask;
     }
 
     // A behavior that exited while batches were in flight failed those runs. They are no longer started, so
@@ -645,7 +691,7 @@ internal sealed class BrainRuntimeNeuron(
     // a new one (the old token stops speaking); a live one is ensured again, refreshing its token or
     // restoring it if the host lost it. Heartbeats are the detector; nothing here probes the host.
     // A brain created while its silo is still starting has no address a sandbox can dial yet: the program
-    // is already assigned, and the reminder registered with the session starts it once the silo listens.
+    // is already assigned; ApplicationStarted retries it as soon as the HTTP edge listens.
     // A silo that listens, but on no http:// address, with no EdgeUrl configured, never will: that is a
     // misconfiguration, reported on every reminder, and the assignment still stands.
     private async Task EnsureSessionAsync(bool restart = false)
@@ -653,7 +699,11 @@ internal sealed class BrainRuntimeNeuron(
         if (await PrepareSessionAsync(restart) is { } start) { OffTurn(runner.Ensure, start, "start"); }
         else if (ServerAddresses() is { Count: > 0 } addresses)
         { logger.LogError("Brain {Brain}'s sandbox session cannot start on {Addresses}: {Reason}", Brain, string.Join(", ", addresses), NotListening().Message); }
-        else { logger.LogInformation("Brain {Brain}'s sandbox session waits until this silo listens; its reminder starts it.", Brain); }
+        else
+        {
+            deferredStarts.Defer(this.GetGrainId());
+            logger.LogInformation("Brain {Brain}'s sandbox session waits until this silo listens; HTTP startup retries it and its reminder is the fallback.", Brain);
+        }
     }
 
     private async Task<SessionStart?> PrepareSessionAsync(bool restart)
@@ -662,7 +712,7 @@ internal sealed class BrainRuntimeNeuron(
         if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
         {
             session = new(Guid.NewGuid().ToString("N"), SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow());
-            await Save(Snapshot with { Session = session }, Changed());
+            await Save(Snapshot with { Session = session, Initialized = new(StringComparer.Ordinal) }, Changed());
             await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         }
         return EdgeUrl() is { } edge ? new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), edge) : null;
@@ -709,7 +759,18 @@ internal sealed class BrainRuntimeNeuron(
         => new(behavior.Id(program.Owner), behavior.Hash,
             Reachable(await assemblies.ReadUrl(behavior.Hash, AssemblyUrlLifetime, CancellationToken.None)),
             Reachable(await assemblies.ReadUrl(behavior.Hash + ".pdb", AssemblyUrlLifetime, CancellationToken.None)),
-            program.Settings);
+            program.Settings, AssignmentRevision(program, behavior));
+
+    private string AssignmentRevision(ProgramAssignment program, BehaviorAssembly behavior)
+        // Pre-generation persisted assignments get a stable legacy identity until their first Apply.
+        // Every Apply thereafter uses a durable generation, so A -> B -> A cannot revive A's old marker.
+        => Snapshot.AssignmentRevisions.GetValueOrDefault(behavior.Id(program.Owner))
+        ?? "legacy-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            behavior.Hash,
+            Settings = program.Settings.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray(),
+            program.Principal,
+        }))));
 
     // Local blob storage answers on this machine's loopback, which no sandbox can reach; the Docker host
     // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
@@ -857,8 +918,17 @@ internal sealed class BrainRuntimeNeuron(
     private async Task WatchSourcesAsync(Subscription? required = null)
     {
         foreach (var gone in SyncWatched()) { _ = WatchOffTurn(gone); }
-        foreach (var key in _watched.Keys.Where(key => key != required?.Neuron).ToArray()) { _ = WatchOffTurn(key); }
-        if (required is not null) { await WatchAsync(required.Neuron, _watched[required.Neuron], this.AsReference<INeuronObserver>(), required); }
+        if (required is not null)
+        {
+            // Adding a subscription changes only this source's selection. Rewatching all
+            // previous sources here makes registration quadratic and repeats authorization.
+            // Full reconciliation still runs on program changes and periodic lease renewal.
+            await WatchAsync(required.Neuron, _watched[required.Neuron], this.AsReference<INeuronObserver>(), required);
+        }
+        else
+        {
+            foreach (var key in _watched.Keys.ToArray()) { _ = WatchOffTurn(key); }
+        }
     }
 
     // A source's lane: one watch of a source at a time, so a source that hangs holds only its own lane until its call

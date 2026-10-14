@@ -36,6 +36,7 @@ public static class ServiceDefaultsExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
         app.MapHealthProbes();
+        app.MapTelemetryExportBarrier();
         return app;
     }
 
@@ -127,11 +128,15 @@ public static class ServiceDefaultsExtensions
                 .AddSource("Experimental.ModelContextProtocol")
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
+                        !context.Request.Path.Equals(TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase)
+                        &&
                         !context.Request.Path.StartsWithSegments(HealthProbes.HealthPath, StringComparison.OrdinalIgnoreCase)
-                        && !context.Request.Path.StartsWithSegments(HealthProbes.AlivePath, StringComparison.OrdinalIgnoreCase))
+                        && !context.Request.Path.StartsWithSegments(HealthProbes.AlivePath, StringComparison.OrdinalIgnoreCase)
+                        && !context.Request.Path.StartsWithSegments(HealthProbes.ReadyPath, StringComparison.OrdinalIgnoreCase))
                 .AddHttpClientInstrumentation(options =>
                 {
-                    options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request);
+                    options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request)
+                        && !string.Equals(request.RequestUri?.AbsolutePath, TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase);
                 }));
 
         AddOpenTelemetryExporters(builder, integration);

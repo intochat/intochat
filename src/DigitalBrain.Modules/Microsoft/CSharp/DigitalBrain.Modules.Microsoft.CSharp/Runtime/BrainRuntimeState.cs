@@ -35,4 +35,6 @@ internal sealed record BrainRuntimeState
     [Id(0)] public ProgramAssignment[] Programs { get; init; } = [];
     [Id(1)] public Subscription[] Subscriptions { get; init; } = [];
     [Id(2)] public SessionRecord? Session { get; init; }
+    [Id(3)] public Dictionary<string, string> Initialized { get; init; } = new(StringComparer.Ordinal);
+    [Id(4)] public Dictionary<string, string> AssignmentRevisions { get; init; } = new(StringComparer.Ordinal);
 }

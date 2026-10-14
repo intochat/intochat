@@ -14,12 +14,39 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RuntimeEdgeFacts
 {
     [Fact]
+    public async Task AReportChecksTheSessionInItsMutationTurnWithoutAPreflightCall()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new RuntimeCalls();
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
+            .ConfigureServices(services => services.AddSingleton<IIncomingGrainCallFilter>(calls)).StartAsync(ct);
+        var session = await Assigned(brain, ct);
+        calls.Methods.Clear();
+
+        using var response = await Report(brain, session, new RuntimeReport(Heartbeat: true), ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([nameof(IBrainRuntimeEdge.Heartbeat)], calls.Methods.ToArray());
+    }
+
+    private sealed class RuntimeCalls : IIncomingGrainCallFilter
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Methods { get; } = new();
+        public async Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (context.InterfaceMethod.DeclaringType == typeof(IBrainRuntimeEdge))
+            { Methods.Enqueue(context.InterfaceMethod.Name); }
+            await context.Invoke();
+        }
+    }
+
+    [Fact]
     public async Task AStampedBehaviorKeepsItsRecordedCrossBrainConnectionBinding()
     {
         var ct = TestContext.Current.CancellationToken;
         var binding = new RecordedBinding();
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
-            .WithConfiguration("DigitalBrain:Auth:Posture", "Secured")
+            .WithConfiguration(DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey, "Secured")
             .ConfigureServices(services => services.AddSingleton<IConnectionBindings>(binding)).StartAsync(ct);
         var alice = await brain.PersonAsync("alice", ct);
         var behavior = Key(alice, "bound");
@@ -53,7 +80,7 @@ public sealed class RuntimeEdgeFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
-            .WithConfiguration("DigitalBrain:Auth:Posture", "Secured").StartAsync(ct);
+            .WithConfiguration(DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey, "Secured").StartAsync(ct);
         await brain.Get<IBrain>("acc-brain").Create(new Owner("acc"));
         await brain.Get<IBrain>("another-brain").Create(new Owner("another"));
         var session = await Assigned(brain, ct);

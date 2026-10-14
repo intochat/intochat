@@ -16,6 +16,29 @@ public sealed class SubscribedRetentionFacts
     private const string Behavior = Echo + "/synapses/a.cs";
 
     [Fact]
+    public async Task ANewSubscriptionPushesItsRetainedSeedToTheAlreadyConnectedSession()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartWithAppsAsync(new FakeSessionHost(), ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "echo"));
+        await app.Create(new AppManifest("Echo", "", [new("open", "")], [], []), "spec");
+        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
+        var request = await app.Request("open", "before subscription");
+        var stream = brain.Services.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+
+        var subscription = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+
+        Assert.True(stream.Reader.TryRead(out var pushed), "The retained seed must reach the live stream without another signal or reconnect.");
+        var batch = Assert.IsType<DigitalBrain.Client.Runtime.V1.SignalBatchEvent>(pushed.Payload);
+        Assert.Equal(subscription, batch.Subscription);
+        Assert.Equal(request, SignalJson.RequestId(Assert.Single(batch.Signals)));
+        await Edge(brain).Acknowledge(session, subscription, batch.Watermark);
+        Assert.Empty(await Edge(brain).PendingBatches(session));
+    }
+
+    [Fact]
     public async Task ARequestPostedBeforeTheSynapseSubscribesIsSeededIntoPending()
     {
         var ct = TestContext.Current.CancellationToken;

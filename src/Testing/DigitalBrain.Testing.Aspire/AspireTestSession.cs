@@ -11,6 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
+using System.Net.Http.Json;
+using DigitalBrain.ServiceDefaults;
+using DigitalBrain.Testing.Aspire.Diagnostics;
 
 namespace DigitalBrain.Testing.Aspire;
 
@@ -34,6 +37,7 @@ public sealed class AspireTestSession : IAsyncDisposable
     public Uri? BrowserServer { get; private set; }
     public TestExecutionOptions Options => _options;
     public TestSessionLifetime Lifetime => _lifetime;
+    public TestTelemetry? Telemetry { get; private set; }
 
     public ValueTask<string?> GetConnectionStringAsync(string resourceName, CancellationToken cancellationToken = default)
         => App.GetConnectionStringAsync(_brain.ResourceName(resourceName), cancellationToken);
@@ -42,12 +46,62 @@ public sealed class AspireTestSession : IAsyncDisposable
         IReadOnlyList<string> args, TestExecutionOptions options, CancellationToken cancellationToken,
         BrowserLocation browser = BrowserLocation.Local)
         where TAppHost : class
-        => StartCoreAsync(ct => DistributedApplicationTestingBuilder.CreateAsync<TAppHost>([.. args], (_, settings) =>
+        => StartCoreAsync(async ct =>
+        {
+            var telemetryEnabled = options.EnableDashboardTelemetry;
+            var dashboardConfiguration = telemetryEnabled ? CreateDashboardTestingConfiguration() : null;
+            var builder = await DistributedApplicationTestingBuilder.CreateAsync<TAppHost>([.. args], (applicationOptions, settings) =>
             {
                 settings.Configuration ??= new ConfigurationManager();
                 settings.Configuration.AddInMemoryCollection(options.PrivateConfiguration);
-            }, ct),
-            options, cancellationToken, browser);
+                if (dashboardConfiguration is not null)
+                {
+                    applicationOptions.DisableDashboard = false;
+                    applicationOptions.AllowUnsecuredTransport = true;
+                    settings.Configuration.AddInMemoryCollection(dashboardConfiguration);
+                    // These must win before the AppHost builder selects authentication services.
+                    settings.Args = [.. settings.Args ?? [], .. dashboardConfiguration.Select(pair => $"{pair.Key}={pair.Value}")];
+                    applicationOptions.Args = settings.Args;
+                }
+            }, ct).ConfigureAwait(false);
+            if (dashboardConfiguration is not null)
+            {
+                builder.Configuration.AddInMemoryCollection(dashboardConfiguration);
+                builder.Services.Configure<ResourceNotificationServiceOptions>(notificationOptions =>
+                    notificationOptions.DefaultWaitBehavior = WaitBehavior.StopOnResourceUnavailable);
+            }
+            return builder;
+        }, options, cancellationToken, browser);
+
+    private static Dictionary<string, string?> CreateDashboardTestingConfiguration()
+    {
+        // Mirrors Aspire 13.6.1's EnableDashboard testing defaults while retaining the
+        // configureBuilder callback needed for private configuration during AppHost composition.
+        static string Token() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        var browserToken = Token();
+        var resourceKey = Token();
+        return new Dictionary<string, string?>
+        {
+            ["ASPNETCORE_URLS"] = string.Empty,
+            ["ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL"] = string.Empty,
+            ["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"] = string.Empty,
+            ["ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL"] = "http://127.0.0.1:0",
+            ["ASPIRE_ALLOW_UNSECURED_TRANSPORT"] = "true",
+            ["ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS"] = "false",
+            ["ASPIRE_INTERACTIVITY_ENABLED"] = "false",
+            ["ASPIRE_DASHBOARD_FRONTEND_BROWSERTOKEN"] = browserToken,
+            ["ASPIRE_DASHBOARD_RESOURCESERVICE_APIKEY"] = resourceKey,
+            ["AppHost:BrowserToken"] = browserToken,
+            ["AppHost:ResourceService:AuthMode"] = "ApiKey",
+            ["AppHost:ResourceService:ApiKey"] = resourceKey,
+            ["AppHost:DashboardApiKey"] = Token(),
+            ["AppHost:OtlpApiKey"] = Token(),
+            ["AppHost:SuppressDashboardLoginUrlInStartupSummary"] = "true",
+            ["ASPIRE_DASHBOARD_SUPPRESS_BROWSER_TOKEN_IN_OUTPUT"] = "true",
+            ["ASPIRE_DASHBOARD_PERSISTENCE_MODE"] = "None",
+            ["ASPIRE_DASHBOARD_API_DISABLED"] = "false"
+        };
+    }
 
     internal static void AllocateProjectHttpPorts(IEnumerable<IResource> resources)
     {
@@ -107,6 +161,21 @@ public sealed class AspireTestSession : IAsyncDisposable
             builder.Configuration.AddInMemoryCollection(options.HostConfiguration);
             builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
             var hosts = SiloHosts.Find(builder.Resources);
+            var telemetryEnabled = options.EnableDashboardTelemetry;
+            var telemetryResources = telemetryEnabled
+                ? hosts.Cast<IResource>().Concat(builder.Resources.Where(resource => resource.Annotations.OfType<TelemetryExportBarrierAnnotation>().Any())).Distinct().ToArray()
+                : [];
+            var telemetryCapability = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            foreach (var resource in telemetryResources)
+            {
+                resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                {
+                    context.EnvironmentVariables[TelemetryExportBarrier.CapabilityEnvironmentVariable] = telemetryCapability;
+                    context.EnvironmentVariables[DigitalBrainConfiguration.EnvironmentName(ServiceTelemetryOptions.SectionName, nameof(ServiceTelemetryOptions.SampleRatio))] = "1";
+                    context.EnvironmentVariables["OTEL_BSP_MAX_QUEUE_SIZE"] = "65536";
+                    context.EnvironmentVariables["OTEL_BLRP_MAX_QUEUE_SIZE"] = "65536";
+                }));
+            }
             var selectedHost = SiloHosts.Select(builder.Resources, options.ServerResourceName);
             var selectedBrain = SiloHosts.BrainOf(selectedHost);
             if (hosts.Count == 0)
@@ -146,11 +215,55 @@ public sealed class AspireTestSession : IAsyncDisposable
                 && builder.Resources.Any(r => r.Annotations.OfType<BrainBrowserAnnotation>().Any());
             if (containerBrowser) { BrowserContainer.AddTo(builder); }
             Advance("build");
+            if (telemetryEnabled)
+            {
+                builder.Eventing.Subscribe<BeforeResourceStartedEvent>((started, _) =>
+                {
+                    if (started.Resource.Name == "aspire-dashboard")
+                    {
+                        started.Resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                        {
+                            context.EnvironmentVariables["Dashboard__TelemetryLimits__MaxLogCount"] = TestTelemetry.RetentionLimit.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            context.EnvironmentVariables["Dashboard__TelemetryLimits__MaxTraceCount"] = TestTelemetry.RetentionLimit.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            context.EnvironmentVariables["Dashboard__TelemetryLimits__MaxAttributeCount"] = "4096";
+                            context.EnvironmentVariables["Dashboard__TelemetryLimits__MaxAttributeLength"] = "1048576";
+                            context.EnvironmentVariables["Dashboard__TelemetryLimits__MaxSpanEventCount"] = "4096";
+                        }));
+                    }
+                    return Task.CompletedTask;
+                });
+            }
             var app = await builder.BuildAsync(ct).ConfigureAwait(false);
             lifetime.Own("application", app);
             var session = new AspireTestSession(app, lifetime, options, selectedBrain, selectedHost.Name);
             Advance("start");
             await app.StartAsync(ct).WaitAsync(ct).ConfigureAwait(false);
+            if (telemetryEnabled)
+            {
+                var dashboardUrl = await app.GetDashboardUrlAsync(ct).ConfigureAwait(false);
+                var dashboardHttp = new HttpClient { BaseAddress = new Uri(dashboardUrl, "/") };
+                dashboardHttp.DefaultRequestHeaders.Add("X-API-Key", builder.Configuration["AppHost:DashboardApiKey"]
+                    ?? throw new InvalidOperationException("The dashboard API key was not configured."));
+                lifetime.Own("dashboard-http", new AsyncAction(() => { dashboardHttp.Dispose(); return ValueTask.CompletedTask; }));
+                var exporters = telemetryResources.Select(resource =>
+                {
+                    var client = app.CreateHttpClient(resource.Name, "http");
+                    client.DefaultRequestHeaders.Add(TelemetryExportBarrier.CapabilityHeader, telemetryCapability);
+                    lifetime.Own("exporter-http", new AsyncAction(() => { client.Dispose(); return ValueTask.CompletedTask; }));
+                    return client;
+                }).ToArray();
+                session.Telemetry = new TestTelemetry(new DashboardTelemetryClient(dashboardHttp), async token =>
+                {
+                    using var suppressed = OpenTelemetry.SuppressInstrumentationScope.Begin();
+                    return await Task.WhenAll(exporters.Select(async client =>
+                    {
+                        using var response = await client.PostAsync(TelemetryExportBarrier.Path, null, token).ConfigureAwait(false);
+                        response.EnsureSuccessStatusCode();
+                        return await response.Content.ReadFromJsonAsync<TelemetryExportReceipt>(token).ConfigureAwait(false)
+                            ?? throw new InvalidDataException("An exporter returned no completion receipt.");
+                    })).ConfigureAwait(false);
+                });
+            }
             Advance("readiness");
             foreach (var host in hosts)
             { await app.ResourceNotifications.WaitForResourceHealthyAsync(host.Name, ct).ConfigureAwait(false); }

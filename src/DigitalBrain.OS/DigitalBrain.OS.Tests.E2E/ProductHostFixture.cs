@@ -17,9 +17,7 @@ public sealed class ProductHostFixture : ReferenceBrainFixture
     protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ProductE2E.Create()
             .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
-            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
-            .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
-            .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .ExportingTelemetryTo(Collector)
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 }

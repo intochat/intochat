@@ -6,11 +6,11 @@ using DigitalBrain.Testing.Model;
 
 namespace DigitalBrain.OS.Testing;
 
-// The reference module composition plus a web shell, an echoing model endpoint and OTLP collector. Facts isolate through their lease's WorkspaceId and
+// The reference module composition plus a web shell, an echoing model endpoint and shared Aspire dashboard. Facts isolate through their lease's WorkspaceId and
 // fact-owned neuron ids; only a fact that needs a different composition boots its own host.
 public class ReferenceBrainFixture : SharedAspireBrain, IAsyncLifetime
 {
-    // xUnit initializes the assembly fixture before any fact runs, so the boot (web shell
+    // xUnit initializes the collection or class fixture before its facts run, so the boot (web shell
     // compile) never counts against a fact's timeout.
     public async ValueTask InitializeAsync() => await WarmUpAsync();
 
@@ -18,14 +18,11 @@ public class ReferenceBrainFixture : SharedAspireBrain, IAsyncLifetime
     public static BrowserOptions Browser { get; } = new() { AssertionTimeout = TimeSpan.FromMinutes(2) };
 
     private FakeModelServer? _model;
-    private TestTelemetryCollector? _collector;
 
     public FakeModelServer Model => _model ?? throw new InvalidOperationException("The shared host has not booted yet.");
-    public TestTelemetryCollector Collector => _collector ?? throw new InvalidOperationException("The shared host has not booted yet.");
 
     protected override async Task<ITestBrain> StartHostAsync(CancellationToken cancellationToken)
     {
-        _collector = TestTelemetryCollector.Start();
         _model = await FakeModelServer.StartAsync(cancellationToken);
         return await StartBrainAsync(cancellationToken);
     }
@@ -41,12 +38,11 @@ public class ReferenceBrainFixture : SharedAspireBrain, IAsyncLifetime
             // covers a cold runner's one-time in-docker Flutter compile and container pulls.
             // A boot that needs longer is starved or broken - fail it and say so.
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .ExportingTelemetryTo(Collector)
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 
     protected override async ValueTask OnDisposedAsync()
     {
         if (_model is not null) { await _model.DisposeAsync(); }
-        if (_collector is not null) { await _collector.DisposeAsync(); }
     }
 }

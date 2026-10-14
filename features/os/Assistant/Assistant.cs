@@ -152,16 +152,18 @@ public static class Assistant
             return [brain.Get<IAgent>(Key(brain) + "/conversations/" + (selected.Length == 0 ? "main" : selected))];
         });
 
-    // Projects the selected conversation into the composer and transcript and returns the agent state,
+    // Projects the selected conversation into the transcript and returns the agent state,
     // so a synapse can tell on a rebuild whether its signal's side effect still applies.
     // IChat.Project ignores an unchanged (source, generation, version), so repeating it writes nothing.
-    public static async Task<AgentState> Project(DigitalBrainConnection brain)
+    public static async Task<AgentState> Project(DigitalBrainConnection brain, bool selectionChanged = false)
     {
         var appKey = Key(brain);
         var pointer = await brain.Get<IText>(appKey + "/conversation").Read();
         var source = appKey + "/conversations/" + (pointer.Markdown.Length == 0 ? "main" : pointer.Markdown);
         var state = await brain.Get<IAgent>(source).Read();
-        await brain.Get<IComposer>(appKey + "/composer").Configure(source, pointer.Version);
+        // Composer identity follows selection, not every token/progress update. The
+        // selection subscriber reconciles at startup too; ComposeAsync covers opening.
+        if (selectionChanged) { await brain.Get<IComposer>(appKey + "/composer").Configure(source, pointer.Version); }
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         await brain.Get<IChat>(appKey + "/transcript").Project(new(source, pointer.Version, state.Version, [.. runs.SelectMany(run => new[]

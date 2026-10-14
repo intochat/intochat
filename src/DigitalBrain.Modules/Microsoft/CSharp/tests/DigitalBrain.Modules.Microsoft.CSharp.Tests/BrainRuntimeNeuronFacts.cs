@@ -10,11 +10,87 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class BrainRuntimeNeuronFacts
 {
+    [Fact]
+    public async Task HttpStartupImmediatelyRetriesDeferredSessions()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        var ct = deadline.Token;
+        var host = new FakeSessionHost();
+        var server = new FakeServer();
+        using var lifetime = new RuntimeHostLifetime();
+        await using var brain = await RuntimeBrain.Create(host)
+            .ConfigureServices(services => services.AddSingleton<IServer>(server)
+                .AddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule), lifetime)).StartAsync(ct);
+        server.Addresses.Clear();
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        server.Addresses.Add("http://127.0.0.1:5099");
+        lifetime.Started.Cancel();
+        var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
+    }
+
+    private sealed class RuntimeHostLifetime : IHostApplicationLifetime, IDisposable
+    {
+        public CancellationTokenSource Started { get; } = new();
+        public CancellationToken ApplicationStarted => Started.Token;
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+        public void StopApplication() { }
+        public void Dispose() => Started.Dispose();
+    }
+
+    [Fact]
+    public async Task ReadinessRequiresCurrentAssignmentInitializationAndDrainedSubscriptions()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var edge = Edge(brain);
+        await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var assignment = Assert.Single(await edge.Assignments(session));
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        Assert.False((await Runtime(brain).Inspect(ct)).IsReady); // No subscription is not an idle persistent script.
+        var source = brain.Get<IPinger>("readiness");
+        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await source.Ping(1);
+        await changes.NextAsync(ct: ct);
+        Assert.False((await Runtime(brain).Inspect(ct)).IsReady);
+        await edge.Acknowledge(session, subscription, 1);
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+        await Programs(brain).Assign(Owner, Synapse(), new() { ["changed"] = "settings" });
+        var updated = Assert.Single(await edge.Assignments(session));
+        Assert.NotEqual(assignment.Revision, updated.Revision);
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        Assert.False((await Runtime(brain).Inspect(ct)).IsReady);
+        await edge.Reported(session, new(Behavior, "previous-build-hash", "Initialized", null, null, updated.Revision));
+        Assert.False((await Runtime(brain).Inspect(ct)).IsReady);
+        await edge.Reported(session, new(Behavior, updated.Hash, "Initialized", null, null, updated.Revision));
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var restored = Assert.Single(await edge.Assignments(session));
+        Assert.NotEqual(assignment.Revision, restored.Revision);
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        Assert.False((await Runtime(brain).Inspect(ct)).IsReady);
+        await edge.Reported(session, new(Behavior, restored.Hash, "Initialized", null, null, restored.Revision));
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Exited", 1, "old process", assignment.Revision));
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        Assert.Equal(restored.Revision, Assert.Single(await edge.Assignments(session)).Revision);
+        Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
+    }
+
     private const string Brain = "acc-brain";
     private const string Owner = "acc-brain/apps/x";
     private const string Behavior = "acc-brain/apps/x/synapses/a.cs";
@@ -99,8 +175,10 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost();
         var server = new FakeServer();
         var logs = new RecordingLogs();
+        using var lifetime = new RuntimeHostLifetime();
         await using var brain = await RuntimeBrain.Create(host)
-            .ConfigureServices(services => services.AddSingleton<IServer>(server).AddSingleton<ILoggerProvider>(logs))
+            .ConfigureServices(services => services.AddSingleton<IServer>(server).AddSingleton<ILoggerProvider>(logs)
+                .AddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule), lifetime))
             .StartAsync(ct);
         // A silo still starting has bound nothing yet.
         server.Addresses.Clear();

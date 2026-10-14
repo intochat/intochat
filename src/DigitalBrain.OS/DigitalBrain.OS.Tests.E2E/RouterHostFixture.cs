@@ -17,16 +17,15 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
     {
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
         Model.ChatFallback = Fill;
+        Model.SystemOneOverride = request => Choose(request, "timer", "Start", 0.95);
         return ReferenceBrain.Create(privateConfiguration: new Dictionary<string, string?>
         {
             [IntegrationSchema.Key("typesafe", "ApiKey")] = "fixture-key",
             [IntegrationSchema.Key("typesafe", "Endpoint")] = root,
         })
             .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
-            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
-            .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
-            .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .ExportingTelemetryTo(Collector)
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
     }
 
@@ -55,8 +54,17 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
         var answers = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var question in request.GetProperty("questions").EnumerateObject())
         {
+            var type = question.Value.GetProperty("type").GetString();
+            if (type != "choice")
+            {
+                answers[question.Name] = type == "noul"
+                    ? new { type = "noul", noul = 1.0 }
+                    : new { type = "score", score = 0, confidence = 1.0 };
+                continue;
+            }
             var options = question.Value.GetProperty("criteria").EnumerateObject().Select(option => option.Name).ToArray();
-            var pick = options.Contains(contractId) ? contractId : options.Contains(method) ? method : options[0];
+            var pick = options.Contains(contractId) ? contractId : options.Contains(method) ? method
+                : options.Contains("something else") ? "something else" : options[0];
             var probabilities = options.ToDictionary(option => option, option => option == pick ? confidence : (options.Length > 1 ? (1 - confidence) / (options.Length - 1) : 0.0));
             answers[question.Name] = new { type = "choice", choice = pick, probabilities, confidence };
         }

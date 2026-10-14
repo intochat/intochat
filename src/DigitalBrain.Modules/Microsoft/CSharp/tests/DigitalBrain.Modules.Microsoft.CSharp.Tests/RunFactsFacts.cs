@@ -29,6 +29,55 @@ public sealed class RunFactsFacts
     private static readonly Trace Second = new() { TraceId = "0af7651916cd43dd8448eb211c80319c", PayerAccountId = "account-a", BrainId = Acc, Origin = new NeuronId("acc-brain/edge") };
 
     [Fact]
+    public async Task RunSnapshotsSurviveReactivationAndReplayDoesNotChangeStatistics()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("snapshot");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 1_500)]);
+        await rig.Ran.NextAsync(ct: ct);
+        var before = await rig.Runs.Read();
+        Assert.Equal(First.TraceId, Assert.Single(before.Recent).TraceId);
+        Assert.Equal(1_500, Assert.Single(before.Statistics).P50Microseconds);
+        await rig.Brain.DeactivateAsync(rig.Runs, ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 1_500)]);
+        var after = await rig.Runs.Read();
+        Assert.Equal(before.Revision, after.Revision);
+        Assert.Equal(before.Recent, after.Recent);
+        Assert.Single(Assert.Single(after.Statistics).Samples);
+        Assert.Empty((await rig.Runs.Read(Owner)).Recent);
+        await Assert.ThrowsAsync<ArgumentException>(() => rig.Runs.Read(OtherOwner));
+    }
+
+    [Fact]
+    public async Task IdleWaitsForAcknowledgedRunPricingAfterSubscriptionsDrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var assignment = Assert.Single(await rig.Edge.Assignments(rig.Session));
+        await rig.Edge.Reported(rig.Session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        var pinger = rig.Brain.Get<IPinger>("idle-pricing");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        Assert.True((await rig.Runtime.Inspect(ct)).IsIdle);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Meter.Held = release.Task;
+        try
+        {
+            await PingAsync(pinger, 1, First);
+            await rig.Started.NextAsync(ct: ct);
+            await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, CpuMicroseconds: 300)]);
+            var state = await rig.Runtime.Inspect(ct);
+            Assert.True(state.IsReady);
+            Assert.False(state.IsIdle);
+        }
+        finally { release.TrySetResult(); }
+        await TestWait.UntilAsync(rig.Runtime.Inspect, state => state.IsIdle, TimeSpan.FromSeconds(10), ct);
+    }
+
+    [Fact]
     public async Task AnAcknowledgedBatchProducesOneBehaviorRan()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -437,7 +486,7 @@ public sealed class RunFactsFacts
                 var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
                     && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
                 services.Remove(storage);
-                services.AddSingleton(provider => new RecordingWrites((IGrainStorage)storage.KeyedImplementationFactory!(provider, DigitalBrainNames.ClusterGrainStorage)));
+                services.AddSingleton(provider => new RecordingWrites((IGrainStorage)storage.KeyedImplementationFactory!(provider, DigitalBrainNames.ClusterGrainStorage), journal));
                 services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) => provider.GetRequiredService<RecordingWrites>());
             })
             .StartAsync(ct);
@@ -513,14 +562,21 @@ public sealed class RunFactsFacts
         public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => Task.FromResult<PartSignals?>(null);
     }
 
-    private sealed class RecordingWrites(IGrainStorage inner) : IGrainStorage
+    private sealed class RecordingWrites(IGrainStorage inner, RunJournal journal) : IGrainStorage
     {
         private readonly ConcurrentDictionary<GrainId, int> writes = new();
         public int Count(GrainId id) => writes.GetValueOrDefault(id);
         public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
         public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
+            // The durable journal now also receives facts attached to a read-model state write.
+            // Observe that commit without consuming the attachment before the real storage does.
+            var pending = SignalJournal.TakePending(id);
+            SignalJournal.Restore(id, pending);
             await inner.WriteStateAsync(name, id, state);
+            var remaining = SignalJournal.TakePending(id);
+            SignalJournal.Restore(id, remaining);
+            if (pending.Length > 0 && remaining.Length == 0) { await journal.Append(id, pending); }
             writes.AddOrUpdate(id, 1, (_, count) => count + 1);
         }
         public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
@@ -531,12 +587,14 @@ public sealed class RunFactsFacts
     private sealed class RecordingMeter : ICostMeter
     {
         public ConcurrentQueue<Recorded> Calls { get; } = new();
+        public Task? Held { get; set; }
 
-        public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
+        public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
             string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
             Calls.Enqueue(new Recorded(kind, item, quantity, costId, TraceContext.Current?.TraceId, subject));
-            return ValueTask.FromResult(new Cost { TraceId = TraceContext.Current?.TraceId ?? "", CostId = costId, Kind = kind, Item = item, Quantity = quantity, Unit = unit, Micros = 0 });
+            if (Held is { } held) { await held.WaitAsync(cancellationToken); }
+            return new Cost { TraceId = TraceContext.Current?.TraceId ?? "", CostId = costId, Kind = kind, Item = item, Quantity = quantity, Unit = unit, Micros = 0 };
         }
     }
 }

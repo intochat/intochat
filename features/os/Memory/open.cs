@@ -4,6 +4,7 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
@@ -11,6 +12,7 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var scope = Memory.Scope(brain);
 var runs = brain.Get<ITable>(Memory.RunsKey(appKey));
+var legacyRuns = LoadLegacyRuns();
 var requests = brain.Get<ITable>(Memory.RequestsKey(appKey));
 await Compose();
 
@@ -41,15 +43,22 @@ async Task<bool> Answered(AppRequested request)
     catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return false; }
 }
 
-// The p50s are a view over runs.cs's table: missing until it records a run, never a reason not to open.
+// Old tables are read once, never rewritten. New samples belong to the runtime.
+async Task<Dictionary<string, (string Hash, Memory.Sample[] Recent)>> LoadLegacyRuns()
+{
+    try { return await Memory.LegacyRuns(runs, brain.Stopping); }
+    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return []; }
+}
+
 async Task<Dictionary<string, (long P50, int Samples)>> Medians()
 {
     try
     {
-        await runs.Define(Memory.RunsDefinition);
-        return await Memory.Medians(runs, brain.Stopping);
+        var snapshot = await brain.Get<IBrainRuns>(BrainRunsKeys.For(scope)).Read();
+        return Memory.Medians(await legacyRuns, snapshot.Statistics);
     }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return []; }
+    catch (Exception) when (!brain.Stopping.IsCancellationRequested)
+    { return Memory.Medians(await legacyRuns, []); }
 }
 
 async Task Compose()

@@ -1,11 +1,12 @@
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Time.Reminders.Signals;
 using Orleans.Runtime;
 using Orleans.Timers;
 namespace DigitalBrain.Time.Reminders;
 
 [GrainType("reminder")]
-internal sealed class ReminderNeuron(TimeProvider time, IReminderRegistry reminders) : Neuron, IReminder, IRemindable
+internal sealed class ReminderNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time, IReminderRegistry reminders) : Neuron, IReminder, IRemindable
 {
     private const string Name = "tick";
 

@@ -707,7 +707,7 @@ internal sealed partial class AppNeuron(
     private Dictionary<string, string> Configuration(AppState state)
     {
         var values = new Dictionary<string, string>(state.Settings, StringComparer.Ordinal);
-        foreach (var (slot, id) in state.Connections) { values["Account__" + slot] = id; }
+        foreach (var (slot, id) in state.Connections) { values[AppRuntimeConfiguration.AccountBindingKey(slot)] = id; }
         values["App"] = this.GetPrimaryKeyString();
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);

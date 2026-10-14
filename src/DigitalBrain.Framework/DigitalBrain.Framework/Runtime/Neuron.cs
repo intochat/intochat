@@ -92,11 +92,20 @@ public abstract class Neuron : Grain, INeuron
     // The signals a state change caused ride in its storage write when the storage takes them (a part log);
     // otherwise they are journaled after it. Either way a failed write publishes nothing.
     private protected async Task Announce(Func<Task> write, Signal[] signals)
+        => await Announce(write, [.. signals.Select(signal => (signal, (Trace?)null))]);
+
+    // Preserve each fact's causal trace while attaching the whole batch to its state write.
+    private protected async Task Announce(Func<Task> write, (Signal Signal, Trace? Trace)[] signals)
     {
         // Stamping needs the grain's identity. A neuron constructed outside a silo has none: its write runs
         // first, so a storage failure surfaces as itself rather than as the missing identity.
         if (((IGrainBase)this).GrainContext is null) { await write(); }
-        Signal[] stamped = [.. signals.Select(Stamp)];
+        var stamped = new Signal[signals.Length];
+        for (var i = 0; i < signals.Length; i++)
+        {
+            using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
+            stamped[i] = Stamp(signals[i].Signal);
+        }
         bool taken;
         using (SignalJournal.Attach(this.GetGrainId(), stamped))
         {
@@ -119,6 +128,9 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
 
     protected Task Save(TState next, Signal changed, Signal? acted = null) =>
         Announce(() => SaveQuietly(next), acted is null ? [changed] : [changed, acted]);
+
+    protected Task Save(TState next, (Signal Signal, Trace? Trace)[] signals) =>
+        Announce(() => SaveQuietly(next), signals);
 
     // Writes without announcing: for plumbing that no watcher observes. A neuron keeps all of its
     // persisted state in this one record, so its first write is the one that registers it.

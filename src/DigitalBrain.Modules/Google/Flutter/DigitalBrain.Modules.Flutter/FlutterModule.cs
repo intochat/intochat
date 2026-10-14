@@ -7,6 +7,7 @@ using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Flutter;
@@ -19,6 +20,7 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.AddSingleton<CircleMembers>();
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<SpaceNeuron>, SpaceActivation>());
         silo.Services.AddHostedService<SpaceWatcher>();
     }
 

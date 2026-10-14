@@ -11,11 +11,15 @@ internal sealed class DeploymentNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<DeploymentState> store,
     IClusterHost host,
     ICandidateHost candidates,
+    global::DigitalBrain.Microsoft.Orleans.IClusterMembershipFeed membership,
     IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
     : Neuron<DeploymentState>(store), IDeployment, IDeploymentDriver, IRemindable, IRetainsSignals
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
+    private readonly Guid activation = Guid.NewGuid();
+    private IAsyncDisposable? membershipSubscription;
+    private long membershipVersion = long.MinValue;
 
     public Task<DeploymentSnapshot> Read() => Task.FromResult(Describe());
 
@@ -248,14 +252,6 @@ internal sealed class DeploymentNeuron(
     // Runs on every activation: completes a restart the previous build began, and sweeps container orphans.
     internal async Task Reconcile(CancellationToken ct)
     {
-        this.RegisterGrainTimer(Sample, new GrainTimerCreationOptions
-        {
-            DueTime = options.Value.ClusterSampling,
-            Period = options.Value.ClusterSampling,
-            // A roll holds the grain for minutes per instance; sampling meanwhile is what shows a silo restarting.
-            Interleave = true,
-            KeepAlive = true,
-        });
         var current = await host.CurrentSha(ct);
         string? finished = null;
         string? abandoned = null;
@@ -288,6 +284,14 @@ internal sealed class DeploymentNeuron(
         }
         await Guarded(() => GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId)).Heal(), "heal the candidate queue");
         await Guarded(async () => await candidates.Orphans(await GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId)).Known(), ct), "sweep orphan candidate containers");
+        var receiver = this.AsReference<IDeploymentDriver>();
+        membershipSubscription = membership.Subscribe(snapshot => receiver.MembershipChanged(activation, snapshot));
+        try { await MembershipChanged(activation, membership.Current); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            log.LogWarning(error, "Cluster {Deployment} could not read its initial membership.", this.GetPrimaryKeyString());
+            await MembershipChanged(activation, null);
+        }
     }
 
     private async Task Guarded(Func<Task> work, string what)
@@ -299,13 +303,12 @@ internal sealed class DeploymentNeuron(
         }
     }
 
-    // The last silos this activation read and the last DeploymentChanged it published; both are rebuilt by the first
-    // sample after an activation, which publishes once.
+    // The last silos this activation read and the last DeploymentChanged it published; both are rebuilt by the initial
+    // membership snapshot after an activation, which publishes once.
     private SiloState[] silos = [];
     private DeploymentChanged? last;
     private long sequence = DateTimeOffset.UtcNow.Ticks;
     private long lastSequence;
-    private bool unreadable;
 
     private DeploymentChanged Changed(string sha, DeploymentStage stage) => new(stage.ToString(), sha, silos);
 
@@ -322,30 +325,31 @@ internal sealed class DeploymentNeuron(
             ? [new RetainedSignal(lastSequence, current with { Publisher = Id })]
             : []);
 
-    // The membership is read here, once per deployment, and the strip hears about it only when it moved.
-    internal async Task Sample(CancellationToken ct)
+    // Membership enters on the grain scheduler only when Orleans reports a change.
+    // An old callback queued during deactivation cannot overwrite the next activation.
+    public async Task MembershipChanged(Guid expectedActivation, global::DigitalBrain.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
     {
-        SiloState[] read;
-        try
-        {
-            // The membership is the orleans module's: this neuron reads it, it does not ask the AppHost who is up.
-            var membership = await GrainFactory.GetGrain<global::DigitalBrain.Microsoft.Orleans.ICluster>(global::DigitalBrain.Microsoft.Orleans.ICluster.Key(BrainId)).Read();
-            read = [.. membership.Silos.OrderBy(silo => silo.Name, StringComparer.Ordinal).Select(silo => new SiloState(silo.Name, silo.Sha, silo.Status, ""))];
-            unreadable = false;
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            // No membership to read means no silos to show; the strip empties once and the warning is logged once.
-            if (!unreadable) { log.LogWarning(error, "Cluster {Deployment} could not read its silos.", this.GetPrimaryKeyString()); }
-            unreadable = true;
-            read = [];
-        }
+        if (expectedActivation != activation) { return; }
+        if (membershipSnapshot is not null && membershipSnapshot.Version < membershipVersion) { return; }
+        SiloState[] read = [.. (membershipSnapshot?.Silos ?? []).OrderBy(silo => silo.Name, StringComparer.Ordinal)
+            .Select(silo => new SiloState(silo.Name, silo.Sha, silo.Status, ""))];
         var next = new DeploymentChanged(Snapshot.Stage.ToString(), Snapshot.CurrentSha, read);
-        if (last is { } previous && previous.Stage == next.Stage && previous.Sha == next.Sha && previous.Silos.SequenceEqual(next.Silos)) { return; }
+        if (last is { } previous && previous.Stage == next.Stage && previous.Sha == next.Sha && previous.Silos.SequenceEqual(next.Silos))
+        {
+            if (membershipSnapshot is not null) { membershipVersion = membershipSnapshot.Version; }
+            return;
+        }
+        await PublishAsync(next);
         silos = read;
         last = next;
         lastSequence = ++sequence;
-        await PublishAsync(next);
+        if (membershipSnapshot is not null) { membershipVersion = membershipSnapshot.Version; }
+    }
+
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        if (membershipSubscription is not null) { await membershipSubscription.DisposeAsync(); }
+        await base.OnDeactivateAsync(reason, cancellationToken);
     }
 
     private DeploymentSnapshot Describe() => new(Snapshot.CurrentSha, Snapshot.Stage, Snapshot.TargetSha, Snapshot.Remaining, Snapshot.Failure);

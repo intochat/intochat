@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Framework.Tests.E2E.Identity;
 
+[Collection("ReferenceBrainFixture")]
 public sealed class CookieProtectionFacts(ReferenceBrainFixture host)
 {
     [Fact(Timeout = 180_000)]

@@ -9,7 +9,7 @@ namespace DigitalBrain.Flutter.Aspire.Hosting;
 
 internal static partial class LocalDesktopAccount
 {
-    internal const string ConfigurationKey = "DigitalBrain:Shell:LocalAccount";
+    internal static readonly string ConfigurationKey = FlutterHostOptions.LocalAccountKey;
     internal const string FileEnvironmentVariable = "DIGITALBRAIN_LOCAL_ACCOUNT_FILE";
 
     internal static bool Enabled(bool run, bool development, bool desktop, bool windows, string? principal)

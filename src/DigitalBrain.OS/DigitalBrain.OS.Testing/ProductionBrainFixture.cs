@@ -20,6 +20,6 @@ public class ProductionBrainFixture : ReferenceBrainFixture
             .InEnvironment("Production")
             // R81: the AppHost's own machines share one configured custody root (R74); production accepts it only acknowledged.
             .WithConfiguration(DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
-            .ExportingTelemetryTo(Collector)
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 }

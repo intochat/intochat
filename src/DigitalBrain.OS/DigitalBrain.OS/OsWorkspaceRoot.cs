@@ -12,7 +12,7 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
     public async Task<UiChildRef> Connect(CancellationToken cancellationToken)
     {
         var scope = BrainScope.CurrentId();
-        foreach (var required in new[] { "usage", "circle", "workspace" })
+        foreach (var required in new[] { "usage", "circle", "workspace", "filmcraft", "photocraft" })
         {
             var app = grains.GetGrain<IApp>(IApp.Key(scope, required));
             if ((await app.Read()).Manifest.Title.Length != 0) { continue; }

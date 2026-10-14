@@ -16,16 +16,30 @@ internal interface IBrainRunsRecorder : IGrainWithStringKey
 [GenerateSerializer, Alias("microsoft.csharp.run-fact")]
 internal sealed record RunFact([property: Id(0)] Signal Fact, [property: Id(1)] Trace? Trace);
 
-// Holds no state: what it publishes is journaled under it, and a subscription catches up from that journal.
+// Facts and their read model share the storage write. Apps read snapshots instead of copying every run.
 [GrainType(GrainTypeName)]
-internal sealed class BrainRunsNeuron : Neuron, IBrainRuns, IBrainRunsRecorder
+internal sealed class BrainRunsNeuron(
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainRunsState> store)
+    : Neuron<BrainRunsState>(store), IBrainRuns, IBrainRunsRecorder
 {
     internal const string GrainTypeName = "microsoft.csharp.runs";
+
+    public Task<BrainRunsSnapshot> Read(string? excludedOwner = null)
+    {
+        var prefix = BrainKey.BrainOf(this.GetPrimaryKeyString()) + "/apps/";
+        if (excludedOwner is not null && (!excludedOwner.StartsWith(prefix, StringComparison.Ordinal)
+            || excludedOwner.Length == prefix.Length || excludedOwner[prefix.Length..].Contains('/')))
+        { throw new ArgumentException("Exclude an app owner in this brain.", nameof(excludedOwner)); }
+        return Task.FromResult(new BrainRunsSnapshot(Snapshot.Revision,
+            [.. Snapshot.Recent.Where(item => item.Owner != excludedOwner).TakeLast(200)], Snapshot.Statistics));
+    }
 
     public Task Record(RunFact[] facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
-        return PublishAsync([.. facts.Select(fact => (fact.Fact, fact.Trace))]);
+        var next = Snapshot.Apply(facts);
+        (Signal Signal, Trace? Trace)[] signals = [.. facts.Select(fact => (fact.Fact, fact.Trace))];
+        return ReferenceEquals(next, Snapshot) ? PublishAsync(signals) : Save(next, signals);
     }
 }
 

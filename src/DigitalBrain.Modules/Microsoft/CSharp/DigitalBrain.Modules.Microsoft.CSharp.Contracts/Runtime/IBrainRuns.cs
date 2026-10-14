@@ -5,6 +5,9 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 
 // One per brain, keyed BrainRunsKeys.For(scope): where the brain's synapse runs become facts. It publishes
 // BehaviorStarted and BehaviorRan for the brain runtime, which cannot publish them itself because no
-// behavior may subscribe to it. A signal source only: brain.On<BehaviorRan>(brain.Get<IBrainRuns>(...)).
+// behavior may subscribe to it. Its durable snapshots accompany the existing public signals.
 [Alias("microsoft.csharp.runs"), DefaultGrainType("microsoft.csharp.runs")]
-public interface IBrainRuns : INeuron;
+public interface IBrainRuns : INeuron
+{
+    Task<BrainRunsSnapshot> Read(string? excludedOwner = null);
+}
