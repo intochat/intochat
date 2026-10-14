@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Space;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;

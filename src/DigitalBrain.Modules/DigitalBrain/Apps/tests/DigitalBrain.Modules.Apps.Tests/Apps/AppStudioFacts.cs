@@ -1,8 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
-using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing;
+using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Apps.Tests.Apps;

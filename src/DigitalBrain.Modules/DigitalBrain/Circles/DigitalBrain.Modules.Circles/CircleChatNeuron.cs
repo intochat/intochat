@@ -1,7 +1,7 @@
+using DigitalBrain.Apps;
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Apps;
 using DigitalBrain.Platform.Identity;
 
 namespace DigitalBrain.Circles;

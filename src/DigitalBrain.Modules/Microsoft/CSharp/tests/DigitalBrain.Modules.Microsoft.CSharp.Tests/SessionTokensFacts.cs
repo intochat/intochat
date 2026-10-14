@@ -1,7 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Sessions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,6 +1,6 @@
-using DigitalBrain.Framework;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.Extensions.DependencyInjection;

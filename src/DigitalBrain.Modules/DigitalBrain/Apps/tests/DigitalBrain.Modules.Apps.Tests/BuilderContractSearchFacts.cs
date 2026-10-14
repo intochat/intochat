@@ -1,10 +1,10 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Testing;
 using DigitalBrain.Time;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Testing;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 

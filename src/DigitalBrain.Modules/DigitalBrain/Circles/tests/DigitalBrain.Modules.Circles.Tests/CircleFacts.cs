@@ -1,8 +1,8 @@
+using System.Net.Http.Json;
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Platform.Identity;
-using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 

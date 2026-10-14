@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using DigitalBrain.Testing;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Testing;
 using DigitalBrain.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

@@ -1,13 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Integrations;
 using DigitalBrain.Framework.Surface;
-using DigitalBrain.Framework.Contracts;
-using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Integrations;
 using DigitalBrain.Platform.Tests.Unit.Connections;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;

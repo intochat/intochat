@@ -1,12 +1,12 @@
-using DigitalBrain.Microsoft.Orleans;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
-using Orleans.Serialization;
 using Orleans.Hosting;
+using Orleans.Serialization;
 using Orleans.Storage;
 
 namespace DigitalBrain.Modules.Microsoft.Orleans.Tests;

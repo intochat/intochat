@@ -44,7 +44,7 @@ public sealed class CSharpContractDiscovery(IKernelView kernel)
         // Discovery with no modules selected lists the module ids only; select ids to read their contracts.
         var contracts = moduleIds.SelectMany(id => installed[id]
                 .OrderBy(type => type.Name, StringComparer.Ordinal)
-                .Select(type => $"{type.Name} [neuron id: {type.Alias}/<key>] — {type.Description} {{ {string.Join("; ", type.Shape)} }}")
+                .Select(type => $"{type.Name} [neuron id: {type.Alias}/<key>] â€” {type.Description} {{ {string.Join("; ", type.Shape)} }}")
                 .Concat(types.Where(type => type.Kind == TypeKind.Signal && string.Equals(type.Provider, id, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(signal => signal.Name, StringComparer.Ordinal)
                     .Select(signal => signal.Name + " { " + string.Join("; ", signal.Shape) + " }")))

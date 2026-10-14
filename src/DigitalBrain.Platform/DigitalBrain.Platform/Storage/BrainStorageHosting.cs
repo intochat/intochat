@@ -1,9 +1,9 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using DigitalBrain.Framework.Parts;
 using Orleans.Storage;
 
 namespace DigitalBrain.Platform.Storage;

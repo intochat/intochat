@@ -1,9 +1,9 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Circles;
 

@@ -1,5 +1,5 @@
-using DigitalBrain.Microsoft.Aspire.Candidates;
 using System.Net;
+using DigitalBrain.Microsoft.Aspire.Candidates;
 using DigitalBrain.Microsoft.Aspire.Deployment;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;

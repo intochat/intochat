@@ -1,6 +1,6 @@
+using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Apps;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Circles;

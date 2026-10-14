@@ -11,9 +11,9 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Time.Timers;
-using ITimer = DigitalBrain.Time.Timers.ITimer;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 namespace DigitalBrain.Modules.AI.Tests;
 

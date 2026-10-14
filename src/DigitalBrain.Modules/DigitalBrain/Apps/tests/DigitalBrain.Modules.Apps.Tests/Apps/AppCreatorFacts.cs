@@ -4,8 +4,8 @@ using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing;
+using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

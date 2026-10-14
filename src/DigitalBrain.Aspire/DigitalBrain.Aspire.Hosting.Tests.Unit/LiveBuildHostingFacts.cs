@@ -1,5 +1,5 @@
-using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Testing;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.Orleans;

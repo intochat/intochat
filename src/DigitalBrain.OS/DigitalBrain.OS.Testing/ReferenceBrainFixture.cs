@@ -1,8 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
-using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing.Aspire.Diagnostics;
+using DigitalBrain.Testing.Model;
 
 namespace DigitalBrain.OS.Testing;
 

@@ -1,6 +1,6 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 

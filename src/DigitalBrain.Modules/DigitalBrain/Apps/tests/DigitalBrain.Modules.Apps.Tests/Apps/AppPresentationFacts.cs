@@ -1,8 +1,8 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flame.Scene;
 using DigitalBrain.Framework;
-using DigitalBrain.Testing;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Apps;

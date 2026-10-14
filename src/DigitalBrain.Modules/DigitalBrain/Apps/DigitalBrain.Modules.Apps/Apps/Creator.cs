@@ -3,9 +3,9 @@ using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
-using DigitalBrain.Flutter;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;

@@ -4,9 +4,9 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Features;
 

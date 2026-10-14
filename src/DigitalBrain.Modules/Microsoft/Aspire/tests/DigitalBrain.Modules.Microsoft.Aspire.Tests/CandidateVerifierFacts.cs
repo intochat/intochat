@@ -1,7 +1,7 @@
 using DigitalBrain.Mcp;
-using DigitalBrain.Tools;
 using DigitalBrain.Microsoft.Aspire.Deployment;
 using DigitalBrain.Microsoft.Aspire.Verification;
+using DigitalBrain.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;

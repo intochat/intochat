@@ -19,19 +19,19 @@ public sealed class ReminderFacts
         await using var brain = await StartAsync(ct, control);
         var reminder = brain.Get<IReminder>("registration");
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
-        var initial = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        var initial = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         foreach (var due in new[] { TimeSpan.FromTicks(-1), Timeout.InfiniteTimeSpan, TimeSpan.MaxValue })
         { await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => reminder.Start(due, TimeSpan.FromMinutes(1))); }
         foreach (var period in new[] { TimeSpan.Zero, TimeSpan.FromMilliseconds(99), Timeout.InfiniteTimeSpan })
         { await Assert.ThrowsAnyAsync<ArgumentException>(() => reminder.Start(TimeSpan.Zero, period)); }
-        Assert.Equal(initial.ETag, Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders).ETag);
+        Assert.Equal(initial.ETag, Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders).ETag);
         await reminder.Start(TimeSpan.FromDays(2), TimeSpan.FromMinutes(2));
-        var updated = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        var updated = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         Assert.Equal(initial.ReminderName, updated.ReminderName);
         Assert.Equal(TimeSpan.FromMinutes(2), updated.Period);
         await reminder.Stop();
         await reminder.Stop();
-        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
     [Fact]
@@ -42,17 +42,17 @@ public sealed class ReminderFacts
         await using var brain = await StartAsync(ct, control);
         var reminder = brain.Get<IReminder>("failures");
         await Assert.ThrowsAsync<IOException>(() => reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1)));
-        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
         control.FailUnregister = true;
-        var committed = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders).ETag;
+        var committed = Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders).ETag;
         control.FailRegister = true;
         await Assert.ThrowsAsync<IOException>(() => reminder.Start(TimeSpan.Zero, TimeSpan.FromMinutes(2)));
-        Assert.Equal(committed, Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders).ETag);
+        Assert.Equal(committed, Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders).ETag);
         await Assert.ThrowsAsync<IOException>(reminder.Stop);
-        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         await reminder.Stop();
-        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
     [Fact]
@@ -63,15 +63,15 @@ public sealed class ReminderFacts
         await using var brain = await StartAsync(ct, control);
         var reminder = brain.Get<IReminder>("ambiguous");
         await Assert.ThrowsAsync<IOException>(() => reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1)));
-        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(2));
-        Assert.Equal(TimeSpan.FromMinutes(2), Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders).Period);
+        Assert.Equal(TimeSpan.FromMinutes(2), Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders).Period);
         control.FailRead = true;
         await Assert.ThrowsAsync<IOException>(reminder.Stop);
-        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Single((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         control.FailAfterUnregister = true;
         await Assert.ThrowsAsync<IOException>(reminder.Stop);
-        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
         await reminder.Stop();
     }
 
@@ -87,13 +87,13 @@ public sealed class ReminderFacts
         await reminder.Stop();
         // Inject already-queued deliveries through Orleans, without invoking a grain object directly.
         var receiver = reminder.AsReference<IRemindable>();
-        await receiver.ReceiveReminder("unrelated", default);
-        await receiver.ReceiveReminder("tick", default);
+        await receiver.ReceiveReminder("unrelated", default, TestContext.Current.CancellationToken);
+        await receiver.ReceiveReminder("tick", default, TestContext.Current.CancellationToken);
         Assert.Equal("queued", (await ticks.NextAsync(ct: ct)).ReminderId);
-        await receiver.ReceiveReminder("tick", default);
+        await receiver.ReceiveReminder("tick", default, TestContext.Current.CancellationToken);
         await ticks.NextAsync(ct: ct);
         Assert.Equal(2, ticks.Snapshot.Count);
-        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId())).Reminders);
+        Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
     [Fact]

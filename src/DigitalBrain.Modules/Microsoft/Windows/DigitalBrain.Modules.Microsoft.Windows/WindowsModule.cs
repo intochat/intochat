@@ -1,13 +1,13 @@
 using System.Reflection;
-using DigitalBrain.Framework;
 using System.Runtime.Versioning;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Windows.Signals;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Microsoft.Windows;
 

@@ -1,10 +1,10 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Circles.Signals;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Flutter.Workspace.Signals;
-using DigitalBrain.Flutter.Person.Signals;
 using DigitalBrain.Flutter.Card.Signals;
+using DigitalBrain.Flutter.Person.Signals;
+using DigitalBrain.Flutter.Workspace.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
