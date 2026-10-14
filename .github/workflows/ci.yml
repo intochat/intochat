@@ -31,6 +31,11 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Free space for native dependencies and container builds
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          df -h /
+
       - name: Restore NuGet package cache
         id: nuget-cache
         uses: actions/cache/restore@v6

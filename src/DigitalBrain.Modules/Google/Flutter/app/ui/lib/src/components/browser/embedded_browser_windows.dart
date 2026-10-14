@@ -14,6 +14,9 @@ typedef EnvironmentFactory = Future<int> Function();
 @visibleForTesting
 EnvironmentFactory environmentFactory = _defaultEnvironmentFactory;
 
+@visibleForTesting
+bool? debugBrowserPlatformSupported;
+
 Future<int> _defaultEnvironmentFactory() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final port = socket.port;
@@ -60,7 +63,8 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
   bool _connected = false;
   bool _controllerDisposed = false;
   bool get _supported =>
-      Platform.isWindows && defaultTargetPlatform == TargetPlatform.windows;
+      debugBrowserPlatformSupported ??
+      (Platform.isWindows && defaultTargetPlatform == TargetPlatform.windows);
 
   @override
   void initState() {

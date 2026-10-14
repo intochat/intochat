@@ -5,6 +5,12 @@ import 'package:digitalbrain_ui/src/components/browser/embedded_browser_windows.
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final originalEnvironmentFactory = environmentFactory;
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+    debugBrowserPlatformSupported = null;
+    environmentFactory = originalEnvironmentFactory;
+  });
   testWidgets('browser composition is explicit on unsupported platforms', (
     tester,
   ) async {
@@ -86,6 +92,7 @@ void main() {
   });
 
   testWidgets('aFailedEnvironmentIsReportedAsUnavailable', (tester) async {
+    debugBrowserPlatformSupported = true;
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
 
     environmentFactory = () async => throw StateError('WebView2 missing');
@@ -112,6 +119,7 @@ void main() {
   });
 
   testWidgets('aFailedEnvironmentIsRetriedByTheNextBrowser', (tester) async {
+    debugBrowserPlatformSupported = true;
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
 
     var calls = 0;
