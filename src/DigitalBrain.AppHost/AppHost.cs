@@ -85,22 +85,8 @@ var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
-// Stage B (Task 18): the trust cluster (sequencer, node directory, keyrings, identity, ledger and the Marketplace
-// catalog) is its own host and Orleans cluster on the orleans integration's tables and blobs, under its own
-// cluster id and container; each OS silo below, and each MCP, is a machine that reaches it only over its QUIC
-// link (H2, T20-7, R93). The trust host gets no other credential (R30) and no features copy (R56).
-// R96: the AppHost owns the trust identity (created once under the workdir) and pins every machine and MCP to it.
-var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust")
-    .AsTrustCluster(digitalBrain, builder.Configuration, Path.Combine(AspireModuleHosting.WorkdirOf(builder), "machines", "trust", "identity.key"));
-// One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
-var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
-
-// Each role runs named instances ({role}-a, {role}-b) on dynamic ports behind a YARP front on the fixed port;
-// the MCP role runs two, the OS role one (below). First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
-// published build every instance runs, and a restart moves an instance onto the next one.
+// One runtime owns this deployment; devices are connections to external capabilities.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
-// While the part log is on, one OS silo is the own machine (R23): two Role=Own silos with separate machine
-// identities would contest every part's lease. A second instance returns with Stage B's host shape.
 var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
@@ -110,22 +96,10 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(
             .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
 
-// The second machine (R40): its own directory, identity and Orleans cluster, fixed silo and gateway ports allocated
-// per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind the front: it is reached
-// directly. Task 22: it is the release's cloud machine (R82), refused the core, whose calls it forwards to A; Task 18's
-// own↔own handover stays covered by MachineHandoverFacts.
-var machineB = AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b"))
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features);
-Silo(machineB);
-// R77: after the brain reference, whose cluster id and ports would otherwise join B to A's cluster.
-machineB.AsSeparateCluster().AsCloudMachine();
-// Task 24 (T23-1): B offers 1 GiB as a volunteer storage node. A and B serve the same owner account, so placement never
-// puts A's shards on B (T23-6): live, B shows a signed registration and heartbeats on trust, and A writes to seeds only.
-machineB.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:StorageNode:OfferedBytes"), "1073741824");
-// The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
+// The front keeps a stable TLS endpoint across a single-runtime restart.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 
-var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Select(name =>
+var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Take(1).Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "DigitalBrain.Mcp.dll") is { } live
         ? Mcp(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
         : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_Mcp>(name)))).ToArray();
@@ -138,7 +112,8 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
-        .AsTrustMachine(trust, pairingSecret, Path.Combine(workdir, "machines", silo.Resource.Name), builder.Configuration)
+        .WithEnvironment("DigitalBrain__Platform__Parts__Role", "Own")
+        .WithEnvironment("DigitalBrain__Platform__Parts__MachineDirectory", Path.Combine(workdir, "runtime"))
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
@@ -163,8 +138,6 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-        // R93: the MCP is a machine of the deployment that holds no part; it reads trust over its own link.
-        .AsTrustClientMachine(trust, pairingSecret, Path.Combine(workdir, "machines", mcp.Resource.Name))
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var silo in silos) { mcp.WaitFor(silo); }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
