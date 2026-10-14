@@ -1,3 +1,5 @@
+> Historical design: distributed runtime portions are superseded for the local-PC deployment by [single-runtime devices](../specs/2026-10-14-single-runtime-devices-design.md). Windows connector functionality remains.
+
 # Mesh Storage Core Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

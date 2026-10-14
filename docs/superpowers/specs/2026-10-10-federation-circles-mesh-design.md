@@ -1,3 +1,5 @@
+> Historical design: distributed runtime portions are superseded for the local-PC deployment by [single-runtime devices](../specs/2026-10-14-single-runtime-devices-design.md). Windows connector functionality remains.
+
 # Brain as data: parts, leases, circles and the mesh — design (phase 2)
 
 Status: ratified 2026-10-10 through a grilling session (decisions Q1–Q22 below). Supersedes the owner-cluster

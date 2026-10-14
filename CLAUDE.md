@@ -31,6 +31,25 @@ scope are per brain: `BrainScope.CurrentId()` reads the brain from the kernel-st
 module endpoints mount under `BrainRoutes.Group` → `/brains/{brainId}` (id validation + membership
 filter applied once).
 
+## Local runtime deployment
+
+The default AppHost runs one OS runtime on the Windows PC and one MCP client host.
+Devices are connectors; they do not host a second brain. Windows keeps its stable device ID,
+explicit connection and allowed folders. Identity, circles and marketplace authorities run locally.
+There is no network trust host, machine admission, part lease, cross-machine forwarding or volunteer mesh.
+
+Neuron state and durable signals share an encrypted local journal under
+`DigitalBrain:Platform:Storage:Directory` (default `.digitalbrain/brain-store`). Platform identity and
+credentials retain their configured persistent store. Back up both stores and the configured custody
+key together while stopped. Never point two runtimes at the same directory. Missing or mismatched keys
+refuse startup; do not replace keys to bypass that refusal. Previous distributed stores require an
+explicit migration; this change does not convert them automatically.
+
+An update restarts the sole runtime and interrupts active calls. Front URLs remain stable; clients
+reconnect. Candidates use fresh isolated data and keys, so their tests do not prove migration of live
+state. Rollback is only safe between builds with compatible persisted formats.
+See `docs/superpowers/specs/2026-10-14-single-runtime-devices-design.md`.
+
 ## Repo map
 
 Three framework rings, one per consumer — the project graph mirrors script visibility.

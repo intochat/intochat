@@ -1,6 +1,6 @@
 # One brain runtime; devices are connectors
 
-Status: proposed design for review, 2026-10-14. Investigation and planning only; no runtime changes made.
+Status: implemented on `codex/single-runtime-devices`, 2026-10-14. Validated in an isolated local deployment; existing deployment data is unchanged.
 
 ## Brief and scope
 
@@ -93,6 +93,13 @@ The file groups in the implementation plan are deletion candidates, not permissi
 Apps no longer migrate among PCs, friends' machines or cloud workers. Circles run in this runtime and are unavailable when it is off. There is no volunteer storage earning or distributed redundancy in the proposed end state. Those capabilities were independent product scope, not consequences required for Windows access.
 
 The runtime holds plaintext for the brains it serves and is their execution trust boundary. Local encryption protects stored brain data; it does not turn this runtime into an untrusted host. Members' authorization remains enforced. This explicitly supersedes the previous untrusted-host/per-machine-key architecture within this deployment.
+
+## Candidate validation
+
+Candidates use fresh isolated platform storage, local brain directories and custody/run-token keys.
+The previous Azurite-only live copy was incomplete once neuron state moved to local journals.
+Candidate checks establish fresh-boot behavior; they do not establish migration compatibility with
+live state. A coherent export/import and live promotion remain explicit release operations.
 
 ## Cutover and completion
 

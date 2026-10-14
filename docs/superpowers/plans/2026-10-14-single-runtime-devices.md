@@ -1,6 +1,6 @@
 # Single Runtime and Device Connectors Implementation Plan
 
-> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. This document proposes work; implementation has not started.
+> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Implementation is recorded below and in `../reviews/2026-10-14-single-runtime-verification.md`. Original task checkboxes remain the detailed acceptance checklist; the execution record distinguishes automated, live, and unexecuted checks.
 
 **Goal:** Run one authoritative brain runtime on the user's Windows PC, preserve its Windows connector, and remove the distributed execution infrastructure from the normal application.
 
@@ -145,15 +145,21 @@ Task<byte[]> BrainStorageKeys.GetOrCreate(string brainId, CancellationToken ct);
 
 ## Completion checklist
 
-- [ ] Runtime on the Windows PC; no new device agent.
-- [ ] One OS and one MCP client host; no separate trust host or OS B.
-- [ ] Windows connection, device ID and public operations preserved.
-- [ ] Durable encrypted state/signals and restart/replay checks pass.
-- [ ] Membership/credential isolation and ordinary circle workflows preserved.
-- [ ] Distributed ownership, forwarding and machine admission removed from production composition.
-- [ ] Volunteer mesh services removed or independently isolated with explicit surviving consumers.
-- [ ] Single-runtime update behavior honest about interruption and tested.
+- [x] Runtime on the Windows PC; no new device agent.
+- [x] One OS and one MCP client host; no separate trust host or OS B.
+- [x] Windows connection, device ID and public operations preserved.
+- [x] Durable encrypted state/signals and restart/replay checks pass.
+- [x] Membership/credential isolation and ordinary circle workflows preserved.
+- [x] Distributed ownership, forwarding and machine admission removed from production composition.
+- [x] Volunteer mesh services removed or independently isolated with explicit surviving consumers.
+- [x] Single-runtime update behavior honest about interruption and tested.
 
-## Planning status
+## Execution status
+
+The single-runtime implementation is committed on `codex/single-runtime-devices`. Tasks 2–6 are implemented. Windows production-path verification uses the reusable `scripts/verify-single-runtime.py` against the actual Aspire/MCP fronts instead of introducing another heavyweight E2E fixture. The Windows unit suite retains connection, authorization, device-identity and TPM tests. Task 7 has repeated cold boots, MCP device operations and durable recovery checks; candidate promotion/rollback is covered by deployment tests, not a live release. Existing distributed data is preserved for a separately scoped cutover.
+
+Candidates now use fresh isolated data and keys rather than copying an incomplete live snapshot. Runtime durability and replay are tested independently. See the verification record for exact results and remaining repository-wide failures.
+
+## Original planning status
 
 The scope and local-PC choice came directly from the user. New local-storage signatures and the seven tasks are proposed implementation decisions, not claims of existing APIs. No code was changed, no test suite was run and no live resource was restarted while preparing this plan. Execute sequentially because the deletion tasks depend on the storage and identity replacements; a topology-only change is an intermediate milestone, not the completed simplification.

@@ -1,3 +1,5 @@
+> Historical design: distributed runtime portions are superseded for the local-PC deployment by [single-runtime devices](../specs/2026-10-14-single-runtime-devices-design.md). Windows connector functionality remains.
+
 # Windows module and launcher profiles — design (phase 1)
 
 Status: ratified 2026-10-10; revised the same day by the phase 2 grilling
