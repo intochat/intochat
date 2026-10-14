@@ -1,11 +1,11 @@
+using DigitalBrain.Apps;
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
-using Microsoft.Extensions.Logging;
-using DigitalBrain.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Circles;
 
@@ -97,8 +97,12 @@ internal sealed class CircleNeuron(
         { throw new InvalidOperationException($"{caller.AccountId} has no invitation to {record.Name}."); }
         await identity.EnsureMember(new Member
         {
-            PrincipalId = caller.PrincipalId, AccountId = caller.AccountId, BrainId = CircleBrain,
-            Role = MemberRole.Member, DisplayName = caller.PrincipalId, JoinedAt = DateTimeOffset.UtcNow,
+            PrincipalId = caller.PrincipalId,
+            AccountId = caller.AccountId,
+            BrainId = CircleBrain,
+            Role = MemberRole.Member,
+            DisplayName = caller.PrincipalId,
+            JoinedAt = DateTimeOffset.UtcNow,
         });
         var next = record.Clone();
         next.Invited = [.. next.Invited.Where(invited => invited != caller.AccountId)];

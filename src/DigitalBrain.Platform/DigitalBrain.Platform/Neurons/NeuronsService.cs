@@ -103,7 +103,10 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain,
 
     private static SignalEnvelope Envelope(string key, Signal signal, long sequence) => new()
     {
-        Source = key, Type = signal.GetType().Name, Publisher = signal.Publisher.ToString(), Sequence = sequence,
+        Source = key,
+        Type = signal.GetType().Name,
+        Publisher = signal.Publisher.ToString(),
+        Sequence = sequence,
         Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(signal, signal.GetType(), Json)),
         ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     };

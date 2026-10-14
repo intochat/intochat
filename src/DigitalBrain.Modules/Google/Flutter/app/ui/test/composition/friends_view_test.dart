@@ -18,13 +18,14 @@ void main() {
             kind: 'person',
             name: 'bob/profile',
             load: (_, _) async {
-              if (removed)
+              if (removed) {
                 throw UiRequestException(
                   'GET',
                   '/apps/node',
                   403,
                   'No shared circle',
                 );
+              }
               return {'version': 1, 'displayName': 'Bob', 'avatarUrl': ''};
             },
             watch: (_, _) => changes.stream,

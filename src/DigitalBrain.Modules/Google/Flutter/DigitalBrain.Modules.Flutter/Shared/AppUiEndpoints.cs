@@ -1,11 +1,7 @@
-using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
-using DigitalBrain.Flutter;
 using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Viewport;
+using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Space;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Chat;
@@ -15,16 +11,20 @@ using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.ImageCanvas;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Select;
+using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Table;
 using DigitalBrain.Flutter.Tabs;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.Viewport;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.WebBrowser;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Flutter;
@@ -60,8 +60,13 @@ internal static class AppUiEndpoints
                 var presentation = app.Presentation;
                 var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
                 if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
-                return Results.Ok(new { viewport.Revision, viewport.Target, Root = root,
-                    Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null) });
+                return Results.Ok(new
+                {
+                    viewport.Revision,
+                    viewport.Target,
+                    Root = root,
+                    Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null)
+                });
             }
             return kind switch
             {

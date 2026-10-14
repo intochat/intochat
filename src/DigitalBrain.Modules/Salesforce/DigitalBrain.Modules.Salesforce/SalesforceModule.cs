@@ -15,7 +15,7 @@ public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new Mod
 {
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Salesforce.ISalesforce).Assembly;
 
-    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("salesforce", "Salesforce").RequiresSecret("ConsumerKey").RequiresSecret("ConsumerSecret");    public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("salesforce", "Salesforce").RequiresSecret("ConsumerKey").RequiresSecret("ConsumerSecret"); public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {
         Neurons = [typeof(ISalesforce)],
         Signals = [typeof(Signals.SalesforceWritePrepared), typeof(Signals.SalesforceWriteFailed), typeof(Signals.SalesforceWriteUncertain), typeof(Signals.RecordWritten)],

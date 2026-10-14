@@ -31,14 +31,18 @@ public sealed class SelectedBrainFacts
         using var channel = GrpcChannel.ForAddress(http.BaseAddress!, new GrpcChannelOptions
         {
             HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, handler),
-            HttpVersion = new Version(1, 1), HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            HttpVersion = new Version(1, 1),
+            HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
         });
         var client = new DigitalBrain.Platform.Neurons.Proto.Neurons.NeuronsClient(channel);
         var key = destination + "/selected-pulse";
         await client.CallAsync(new CallRequest
         {
-            BrainId = destination, Contract = typeof(IPulse).FullName, Key = key,
-            Method = nameof(IPulse.Pulse), Arguments = ByteString.CopyFromUtf8("[7]"),
+            BrainId = destination,
+            Contract = typeof(IPulse).FullName,
+            Key = key,
+            Method = nameof(IPulse.Pulse),
+            Arguments = ByteString.CopyFromUtf8("[7]"),
         }, cancellationToken: ct);
         var watch = new WatchRequest { BrainId = destination };
         watch.Sources.Add(new WatchSource { Contract = typeof(IPulse).FullName, Key = key, SignalTypes = { nameof(Pulsed) } });

@@ -82,7 +82,7 @@ public static partial class AIHostingExtensions
 
         private static string? RepositoryRoot()
         {
-            for ( var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
             { if (File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx"))) { return directory.FullName; } }
             return null;
         }

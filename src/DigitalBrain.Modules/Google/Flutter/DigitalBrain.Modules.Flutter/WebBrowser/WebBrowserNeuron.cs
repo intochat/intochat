@@ -185,7 +185,8 @@ internal sealed class WebBrowserNeuron(
         await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(navigated);
     }
 
-    [ReadOnly] public Task<WebBrowserView> Read() => Task.FromResult(new WebBrowserView
+    [ReadOnly]
+    public Task<WebBrowserView> Read() => Task.FromResult(new WebBrowserView
     {
         Name = this.GetPrimaryKeyString(),
         Version = Snapshot.Version,

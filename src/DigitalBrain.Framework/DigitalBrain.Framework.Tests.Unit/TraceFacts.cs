@@ -100,7 +100,7 @@ public sealed class TraceSource : Neuron, ITraceSource
 {
     public Task Emit(Trace? forged = null)
     {
-        var signal = forged is null ? new TraceSignal() : new TraceSignal()with { Trace = forged };
+        var signal = forged is null ? new TraceSignal() : new TraceSignal() with { Trace = forged };
         return PublishAsync(signal);
     }
 }

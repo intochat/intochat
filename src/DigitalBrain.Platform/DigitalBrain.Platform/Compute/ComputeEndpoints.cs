@@ -34,8 +34,17 @@ internal static class ComputeEndpoints
             var recent = await grains.GetGrain<IUsageGrain>(BrainScope.CurrentId()).Recent(take ?? 50);
             return Results.Ok(recent.Select(cost => new
             {
-                cost.TraceId, cost.CostId, Kind = cost.Kind.ToString().ToLowerInvariant(), cost.Item, cost.Quantity,
-                cost.Unit, cost.Micros, cost.Synapse, cost.App, cost.Neuron, cost.At,
+                cost.TraceId,
+                cost.CostId,
+                Kind = cost.Kind.ToString().ToLowerInvariant(),
+                cost.Item,
+                cost.Quantity,
+                cost.Unit,
+                cost.Micros,
+                cost.Synapse,
+                cost.App,
+                cost.Neuron,
+                cost.At,
             }));
         });
 

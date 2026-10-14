@@ -1,9 +1,9 @@
-using DigitalBrain.Flutter.Space;
-using DigitalBrain.Flutter.Workspace.Signals;
-using DigitalBrain.Framework;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Flutter.Space;
+using DigitalBrain.Flutter.Workspace.Signals;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Flutter.Workspace;
 
@@ -34,8 +34,11 @@ internal sealed class WorkspaceNeuron(
         }
         await Commit(operationId, expectedRevision, state => state with
         {
-            OpenViews = next.OpenViews, FocusedViewId = next.FocusedViewId, Pins = next.Pins,
-            Path = [Brain], Open = [],
+            OpenViews = next.OpenViews,
+            FocusedViewId = next.FocusedViewId,
+            Pins = next.Pins,
+            Path = [Brain],
+            Open = [],
             Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
         }, state => new WorkspaceChanged(Brain, state.Revision));
         return await Read();

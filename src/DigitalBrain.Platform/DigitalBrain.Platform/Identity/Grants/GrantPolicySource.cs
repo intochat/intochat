@@ -38,8 +38,11 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, IOptions<
         {
             await identity.ProvisionOwner(new Member
             {
-                PrincipalId = AccountSession.DefaultLogin, AccountId = AccountSession.DefaultLogin, BrainId = caller.BrainId,
-                Role = MemberRole.Owner, DisplayName = AccountSession.DefaultLogin,
+                PrincipalId = AccountSession.DefaultLogin,
+                AccountId = AccountSession.DefaultLogin,
+                BrainId = caller.BrainId,
+                Role = MemberRole.Owner,
+                DisplayName = AccountSession.DefaultLogin,
             }).WaitAsync(cancellationToken);
         }
         catch (InvalidOperationException) { return decision; }

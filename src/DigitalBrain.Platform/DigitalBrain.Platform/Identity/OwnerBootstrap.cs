@@ -14,8 +14,12 @@ internal sealed class OwnerBootstrap(IIdentityClient identity, BrainBirths birth
         await identity.EnsureAccount(new Account { AccountId = principal, OwnerPrincipalId = principal, Name = principal, CreatedAt = clock.GetUtcNow() });
         var provision = await identity.EnsureBrain(new Member
         {
-            PrincipalId = principal, AccountId = principal, BrainId = AccountSession.DefaultLogin,
-            Role = MemberRole.Owner, DisplayName = principal, JoinedAt = clock.GetUtcNow(),
+            PrincipalId = principal,
+            AccountId = principal,
+            BrainId = AccountSession.DefaultLogin,
+            Role = MemberRole.Owner,
+            DisplayName = principal,
+            JoinedAt = clock.GetUtcNow(),
         });
         await births.Born(provision);
     }

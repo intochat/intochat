@@ -2,9 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Circles;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Parts;
-using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using DigitalBrain.Flame.Scene.Signals;
@@ -13,6 +10,9 @@ using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Person;
 using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
+using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans;
@@ -310,8 +310,11 @@ public sealed class FriendsSpaceFacts
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
         return TestBrain.Create().WithModule<AppsModule, AppsOptions>(o => o.Features = Path.Combine(root!.FullName, "features"))
             .WithModule<CirclesModule>().WithModule<FlutterModule>().WithModule<FlameModule>()
-            .ConfigureServices(s => {
-            if (checkCreation) { s.AddSingleton<CreationFriends>(); s.AddSingleton<ICreationHandler>(p => p.GetRequiredService<CreationFriends>()); } s.RemoveAll<IAppRuntime>(); s.AddSingleton<IAppRuntime, NoRuntime>(); }).StartAsync(ct);
+            .ConfigureServices(s =>
+            {
+                if (checkCreation) { s.AddSingleton<CreationFriends>(); s.AddSingleton<ICreationHandler>(p => p.GetRequiredService<CreationFriends>()); }
+                s.RemoveAll<IAppRuntime>(); s.AddSingleton<IAppRuntime, NoRuntime>();
+            }).StartAsync(ct);
     }
 
     private sealed class NoRuntime : IAppRuntime

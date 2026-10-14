@@ -1,6 +1,6 @@
 using DigitalBrain.Framework.Compute;
-using DigitalBrain.Platform.Compute;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Compute;
 
 namespace DigitalBrain.Platform.Tests.Unit;
 
@@ -20,8 +20,15 @@ public sealed class ComputeReaderFacts
         await usage.Recent(0);
         await usage.Add(new Cost
         {
-            TraceId = "trace", CostId = "cost", Kind = CostKind.Model, Item = "model",
-            Quantity = 1, Unit = "token", Micros = 1_250, App = "example", At = DateTimeOffset.UtcNow,
+            TraceId = "trace",
+            CostId = "cost",
+            Kind = CostKind.Model,
+            Item = "model",
+            Quantity = 1,
+            Unit = "token",
+            Micros = 1_250,
+            App = "example",
+            At = DateTimeOffset.UtcNow,
         }, "test");
         var reader = new ComputeReader(brain.Grains);
         using (brain.Owner.AsApp(brain.Owner.BrainId + "/apps/usage"))

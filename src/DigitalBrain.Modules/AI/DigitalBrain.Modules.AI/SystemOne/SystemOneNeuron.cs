@@ -30,6 +30,6 @@ internal sealed class SystemOneNeuron(HttpSystemOne client) : Neuron, ISystemOne
             };
             if (confidence > best) { best = confidence; }
         }
-        return best;;
+        return best; ;
     }
 }

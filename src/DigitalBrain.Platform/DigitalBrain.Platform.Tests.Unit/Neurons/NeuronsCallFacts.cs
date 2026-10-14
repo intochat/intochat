@@ -14,12 +14,16 @@ public sealed class NeuronsCallFacts
         => new(GrpcChannel.ForAddress(brain.HttpClient.BaseAddress!, new GrpcChannelOptions
         {
             HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
-            HttpVersion = new Version(1, 1), HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            HttpVersion = new Version(1, 1),
+            HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
         }));
 
     private static CallRequest Read(string brainId, string arguments = "[]") => new()
     {
-        BrainId = brainId, Contract = typeof(IBrain).FullName, Key = "owner", Method = nameof(IBrain.Read),
+        BrainId = brainId,
+        Contract = typeof(IBrain).FullName,
+        Key = "owner",
+        Method = nameof(IBrain.Read),
         Arguments = ByteString.CopyFromUtf8(arguments),
     };
 

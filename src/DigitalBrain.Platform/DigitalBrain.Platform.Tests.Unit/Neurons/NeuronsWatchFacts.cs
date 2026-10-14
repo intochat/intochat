@@ -11,7 +11,10 @@ public sealed class NeuronsWatchFacts
 
     private static CallRequest Call(string key) => new()
     {
-        BrainId = "owner", Contract = typeof(IPulse).FullName, Key = key, Method = nameof(IPulse.Pulse),
+        BrainId = "owner",
+        Contract = typeof(IPulse).FullName,
+        Key = key,
+        Method = nameof(IPulse.Pulse),
         Arguments = Google.Protobuf.ByteString.CopyFromUtf8("[1]"),
     };
 
