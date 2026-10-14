@@ -64,7 +64,7 @@ public sealed class ShippedAppFacts(ReferenceBrainFixture host) : BrainFact(host
             }
         }
 
-        if (string.IsNullOrWhiteSpace(snapshot.Presentation!.Root!.Sphere.Icon))
+        if (string.IsNullOrWhiteSpace(snapshot.Presentation!.Root!.Sphere?.Icon))
         { throw new InvalidOperationException("presented without an icon"); }
     }
 }
