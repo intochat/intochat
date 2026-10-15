@@ -27,10 +27,12 @@
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Contracts/DigitalBrain.Modules.Salesforce.Contracts.csproj" />
+    <!-- SV spikes are not in the operating system, so this host does not carry their contracts.
     <ProjectReference Include="../../DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet.Contracts/DigitalBrain.Modules.Monnet.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Equifax/DigitalBrain.Modules.Equifax.Contracts/DigitalBrain.Modules.Equifax.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal.Contracts/DigitalBrain.Modules.RiskSeal.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio.Contracts/DigitalBrain.Modules.Twilio.Contracts.csproj" />
+    -->
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>
