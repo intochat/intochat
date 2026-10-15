@@ -11,3 +11,7 @@ public interface IBrainRuns : INeuron
 {
     Task<BrainRunsSnapshot> Read(string? excludedOwner = null);
 }
+
+// Snapshot consumers need one invalidation per committed revision, not every execution fact.
+[GenerateSerializer, Alias("microsoft.csharp.runs-changed")]
+public sealed record BrainRunsChanged([property: Id(0)] long Revision) : Signal;

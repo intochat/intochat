@@ -23,7 +23,6 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         try
         {
             await fixture.PrepareAsync(name, ct);
-            if (name == "ino") { await fixture.LoadAsync(Feature("os", "assistant"), ct); }
             await fixture.LoadAsync(Feature(owner, name), ct);
             await fixture.ShowAsync(name, ct);
             await ShippedAppJourneys.ExerciseAsync(fixture, name, ct);

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Chat;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
@@ -60,12 +61,26 @@ internal static class ShippedAppJourneys
                 break;
             case "brainview": await Text("Recent behavior runs"); break;
             case "datavisualizer": await Text("No views yet. Ask the assistant to show a table or a chart."); break;
-            case "assistant":
             case "ino":
-                var conversation = fixture.Brain.Get<IText>(fixture.Person.BrainId + "/apps/assistant/conversation");
-                var previous = (await conversation.Read()).Markdown;
+                var conversation = fixture.Brain.Get<IChat>(fixture.Person.BrainId + "/apps/ino/transcript");
+                var previous = (await conversation.Read()).Selection;
+                Assert.NotNull(previous);
                 await Button("New conversation").ClickAsync();
-                await TestWait.UntilAsync(_ => conversation.Read(), state => state.Markdown.Length > 0 && state.Markdown != previous, TimeSpan.FromSeconds(15), ct);
+                var changed = await TestWait.UntilAsync(_ => conversation.Read(),
+                    state => state.Selection is { } selected && selected.Agent.Length > 0 && selected.Agent != previous.Agent,
+                    TimeSpan.FromSeconds(15), ct);
+                Assert.True(changed.Selection!.Revision > previous.Revision);
+                foreach (var (activity, mood) in new[]
+                {
+                    ("listening", "listening"), ("working", "thinking"), ("reading", "acting"),
+                    ("completed", "speaking"), ("attention", "error"), ("idle", "idle"),
+                })
+                {
+                    await fixture.App(name).Progress(activity, "Checking Ino presence");
+                    await TestWait.UntilAsync(_ => fixture.App(name).Read(),
+                        state => state.Presentation?.Blackboard.GetValueOrDefault("mood") == mood,
+                        TimeSpan.FromSeconds(15), ct);
+                }
                 break;
             case "router":
                 await Assertions.Expect(page.GetByRole(AriaRole.Textbox, new() { Name = "Ask Jev to do something…" })).ToBeVisibleAsync();

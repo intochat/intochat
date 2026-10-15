@@ -25,13 +25,14 @@ public sealed class OsBootFacts
         var person = await brain.PersonAsync("ada", ct);
 
         using var caller = person.AsCaller();
-        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer", "friends", "circle", "workspace" })
+        foreach (var name in new[] { "settings", "ino", "router", "calculator", "datavisualizer", "friends", "circle", "workspace" })
         {
             var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);
             Assert.Equal("os", installed.Origin!.Publisher);
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "assistant")).Read()).Manifest.Title);
         var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
         var before = await calculator.Read();

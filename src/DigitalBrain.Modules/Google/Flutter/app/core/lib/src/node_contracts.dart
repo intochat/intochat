@@ -6,6 +6,7 @@ final class NodeContract {
 
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
+    'view': NodeContract('DigitalBrain.Flutter.Views.IView', 'ViewChanged'),
     'scene': NodeContract('DigitalBrain.Flame.Scene.IScene', 'SceneChanged'),
     'text': NodeContract('DigitalBrain.Flutter.Text.IText', 'TextChanged'),
     'button': NodeContract(

@@ -104,11 +104,14 @@ public sealed class DashboardTelemetryFacts
     [Fact]
     public void DroppedEventAttributesInvalidateAbsenceAssertions()
     {
-        var data = new DashboardTelemetryData { ResourceSpans = [new DashboardResourceSpans
+        var data = new DashboardTelemetryData
+        {
+            ResourceSpans = [new DashboardResourceSpans
         {
             ScopeSpans = [new DashboardScopeSpans { Spans = [new DashboardSpan
             { Events = [new DashboardSpanEvent { DroppedAttributesCount = 1 }] }] }],
-        }] };
+        }]
+        };
         Assert.Throws<InvalidDataException>(() => TestTelemetry.ValidateComplete(data, new()));
     }
 

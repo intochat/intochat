@@ -28,6 +28,10 @@ public sealed class AppRuleFacts
         var rejection = await rejected.NextAsync(ct: ct);
         Assert.Equal(("ask", "Curfew", "too late"), (rejection.Operation, rejection.Rule, rejection.Reason));
         Assert.Equal("attention", (await activity.NextAsync(ct: ct)).State);
+        var presentation = (await app.Read()).Presentation;
+        Assert.NotNull(presentation);
+        Assert.Equal("false", presentation.Blackboard["running"]);
+        Assert.Equal("true", presentation.Blackboard["attention"]);
         Assert.IsType<AppRequested>(Assert.Single(sandbox.Judged));
         // The next allowed request is the first AppRequested: the rejected one was never published.
         var later = await app.Request("ask", "later");

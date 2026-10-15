@@ -8,6 +8,11 @@ void main() {
       'DigitalBrain.Flutter.Button.IButton',
     );
     expect(NodeContracts.of('button').changed, 'ButtonChanged');
+    expect(
+      NodeContracts.of('view').contract,
+      'DigitalBrain.Flutter.Views.IView',
+    );
+    expect(NodeContracts.of('view').changed, 'ViewChanged');
     expect(NodeContracts.of('surface').changed, 'SurfaceChanged');
     expect(
       NodeContracts.of('scene').contract,

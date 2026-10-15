@@ -44,7 +44,9 @@ internal sealed record BrainRunsState
         }
         return changed ? new BrainRunsState
         {
-            Revision = Revision + 1, Sequence = sequence, Recent = [.. recent],
+            Revision = Revision + 1,
+            Sequence = sequence,
+            Recent = [.. recent],
             Statistics = [.. statistics.Values.OrderBy(item => item.Behavior, StringComparer.Ordinal)],
         } : this;
     }

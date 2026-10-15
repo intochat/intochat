@@ -1,4 +1,3 @@
-using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Circles.Signals;
@@ -15,7 +14,6 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
 {
     private readonly LocalSignalHub.Subscription<WorkspaceChanged> _workspace = hub.Subscribe<WorkspaceChanged>();
     private readonly LocalSignalHub.Subscription<PresentationChanged> _presentation = hub.Subscribe<PresentationChanged>();
-    private readonly LocalSignalHub.Subscription<AppActivity> _activity = hub.Subscribe<AppActivity>();
     private readonly LocalSignalHub.Subscription<AppChanged> _apps = hub.Subscribe<AppChanged>();
 
     private readonly LocalSignalHub.Subscription<CircleChanged> _circles = hub.Subscribe<CircleChanged>();
@@ -38,21 +36,7 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
             await RebuildMembers(circle.Members);
         }, stoppingToken),
         Consume(_workspace, change => Rebuild(change.WorkspaceId), stoppingToken),
-        Consume(_presentation, change => RefreshApp(change.App), stoppingToken),
-        Consume(_activity, activity => ApplyActivity(grains, activity), stoppingToken));
-
-    internal static async Task ApplyActivity(IGrainFactory grains, AppActivity activity)
-    {
-        var publisher = activity.Publisher.Name;
-        var key = publisher[(publisher.IndexOf('/') + 1)..];
-        var brain = BrainOf(key);
-        if (brain is null) { return; }
-        var app = grains.GetGrain<IApp>(key);
-        await app.Stamp("running", activity.State is "working" or "reading" or "searching" or "listening" ? "true" : "false");
-        await app.Stamp("attention", activity.State == "attention" ? "true" : "false");
-        // Stamp publishes PresentationChanged only when a visible blackboard value changes.
-        // Repeated progress details must not rescan every app in the space.
-    }
+        Consume(_presentation, change => RefreshApp(change.App), stoppingToken));
 
     private async Task Consume<T>(LocalSignalHub.Subscription<T> subscription, Func<T, Task> handle, CancellationToken ct) where T : Signal
     {

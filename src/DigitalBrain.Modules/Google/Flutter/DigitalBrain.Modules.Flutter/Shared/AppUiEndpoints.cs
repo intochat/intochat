@@ -18,6 +18,7 @@ using DigitalBrain.Flutter.Tabs;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Viewport;
+using DigitalBrain.Flutter.Views;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.WebBrowser;
 using DigitalBrain.Flutter.Workspace;
@@ -50,6 +51,7 @@ internal static class AppUiEndpoints
             if (kind == "collection" && name.EndsWith("/posts", StringComparison.Ordinal))
             { return Results.Ok(await space.ReadPosts(name).WaitAsync(ct)); }
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
+            if (kind == UIVocabulary.ViewType) { name = await ResolveViewAlias(brain, scope, name, ct); }
             if (kind == "viewport")
             {
                 var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
@@ -57,6 +59,11 @@ internal static class AppUiEndpoints
                 { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
                 if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
                 var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
+                if (app.MigrationTarget is { } migrated)
+                {
+                    if (!OwnsUi(scope, migrated)) { throw new UnauthorizedAccessException(); }
+                    app = await brain.Get<IApp>(migrated).Read().WaitAsync(ct);
+                }
                 var presentation = app.Presentation;
                 var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
                 if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
@@ -70,6 +77,7 @@ internal static class AppUiEndpoints
             }
             return kind switch
             {
+                UIVocabulary.ViewType => Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), new JsonSerializerOptions(JsonSerializerDefaults.Web) { MaxDepth = 128 }),
                 "text" => Results.Ok(await brain.Get<IText>(name).Read().WaitAsync(ct)),
                 "button" => Results.Ok(await brain.Get<IButton>(name).Read().WaitAsync(ct)),
                 "textfield" => Results.Ok(await brain.Get<ITextField>(name).Read().WaitAsync(ct)),
@@ -104,8 +112,13 @@ internal static class AppUiEndpoints
                 return Results.Accepted();
             }
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
+            if (input.Kind == UIVocabulary.ViewType)
+            { input = input with { Name = await ResolveViewAlias(brain, scope, input.Name, ct) }; }
             switch (input.Kind)
             {
+                case UIVocabulary.ViewType:
+                    await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
+                    break;
                 case UIVocabulary.ChatType:
                     var chat = brain.Get<IChat>(input.Name);
                     if (input.Read is { } read)
@@ -119,9 +132,9 @@ internal static class AppUiEndpoints
                     var composer = brain.Get<IComposer>(input.Name);
                     switch (input.Action)
                     {
-                        case "edit": await composer.Edit(input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
-                        case "submit": await composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
-                        case "voice-begin": await composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "").WaitAsync(ct); break;
+                        case "edit": await (input.SelectionRevision is { } editGeneration ? composer.Edit(input.Context ?? "", editGeneration, input.Value ?? "") : composer.Edit(input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                        case "submit": await (input.SelectionRevision is { } submitGeneration ? composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", submitGeneration, input.Value ?? "") : composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                        case "voice-begin": await (input.SelectionRevision is { } voiceGeneration ? composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "", voiceGeneration) : composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "")).WaitAsync(ct); break;
                         case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
                         case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
                         case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
@@ -196,8 +209,19 @@ internal static class AppUiEndpoints
         catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
     }
 
+    private static async Task<string> ResolveViewAlias(IDigitalBrain brain, string scope, string name, CancellationToken ct)
+    {
+        if (!name.EndsWith("/view", StringComparison.Ordinal)) { return name; }
+        var appKey = name[..^5];
+        if (IApp.NameOf(scope, appKey) is null) { return name; }
+        var app = await brain.Get<IApp>(appKey).Read().WaitAsync(ct);
+        if (app.MigrationTarget is not { } target) { return name; }
+        if (!OwnsUi(scope, target)) { throw new UnauthorizedAccessException(); }
+        return target + "/view";
+    }
+
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
-        string? Context = null, Guid? OperationId = null, ChatReadInput? Read = null);
+        string? Context = null, Guid? OperationId = null, ChatReadInput? Read = null, long? SelectionRevision = null);
     internal sealed record ChatReadInput(long Version, string[] MessageIds);
     private sealed record BrowserConnect(int Port, string SessionId);
 }

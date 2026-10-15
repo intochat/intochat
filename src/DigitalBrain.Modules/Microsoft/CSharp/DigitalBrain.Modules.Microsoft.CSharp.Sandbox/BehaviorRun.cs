@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
@@ -15,6 +16,7 @@ internal sealed class BehaviorRun : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private readonly RunLog _log;
     private AssemblyLoadContext? _context;
+    private MethodInfo? _entry;
 
     private BehaviorRun(AssignmentEvent assignment, AssemblyLoadContext context, int logLines)
     {
@@ -37,27 +39,35 @@ internal sealed class BehaviorRun : IAsyncDisposable
 
     public static BehaviorRun Start(SessionConnection session, AssignmentEvent assignment, AssemblyLoadContext context, Assembly assembly, int logLines, ILogger logger)
     {
-        var run = new BehaviorRun(assignment, context, logLines);
-        var entry = assembly.EntryPoint ?? throw new InvalidOperationException($"{assignment.Behavior} has no entry point.");
-        run.Completion = Task.Run(() => run.ExecuteAsync(session, assignment.Settings, entry, logger));
+        var run = new BehaviorRun(assignment, context, logLines)
+        {
+            _entry = assembly.EntryPoint ?? throw new InvalidOperationException($"{assignment.Behavior} has no entry point."),
+        };
+        run.Completion = Task.Run(() => run.ExecuteAsync(session, assignment.Settings, logger));
         return run;
     }
 
-    private async Task<int> ExecuteAsync(SessionConnection session, Dictionary<string, string> settings, MethodInfo entry, ILogger logger)
+    // Reflection must return before awaiting script work: a retained host task must not root MethodInfo.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private object? InvokeEntry()
+    {
+        var entry = Interlocked.Exchange(ref _entry, null)!;
+        object?[] arguments = entry.GetParameters().Length == 0 ? [] : [Array.Empty<string>()];
+        return entry.Invoke(null, arguments);
+    }
+
+    private async Task<int> ExecuteAsync(SessionConnection session, Dictionary<string, string> settings, ILogger logger)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object> { ["Behavior"] = Id, ["Hash"] = Hash });
         using var ambient = AmbientSession.Enter(session, Id, settings, _stopping.Token, Hash, Assignment.Revision);
         using var output = BehaviorConsole.Capture(line => { _log.Append(line); logger.LogInformation("{Behavior}: {Line}", Id, line); });
+        object? result = null;
         try
         {
-            object?[] arguments = entry.GetParameters().Length == 0 ? [] : [Array.Empty<string>()];
-            switch (entry.Invoke(null, arguments))
-            {
-                case Task<int> exit: return await exit.ConfigureAwait(false);
-                case Task task: await task.ConfigureAwait(false); return 0;
-                case int exit: return exit;
-                default: return 0;
-            }
+            result = InvokeEntry();
+            if (result is Task<int>) { return await ((Task<int>)result).ConfigureAwait(false); }
+            if (result is Task) { await ((Task)result).ConfigureAwait(false); return 0; }
+            return result is int code ? code : 0;
         }
         catch (Exception error) when (Unwrap(error) is OperationCanceledException && _stopping.IsCancellationRequested) { return 0; }
         catch (Exception error)
@@ -67,6 +77,7 @@ internal sealed class BehaviorRun : IAsyncDisposable
             logger.LogWarning(Unwrap(error), "Behavior {Behavior} {Hash} failed", Id, Hash);
             return 1;
         }
+        finally { result = null; }
     }
 
     private static Exception Unwrap(Exception error) => error is TargetInvocationException { InnerException: { } inner } ? inner : error;
@@ -74,10 +85,18 @@ internal sealed class BehaviorRun : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         // A session's disposal and the run's own exit can both dispose it; the first one in does.
-        if (Interlocked.Exchange(ref _context, null) is not { } context) { return; }
-        await _stopping.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(Completion, Task.Delay(StopGrace)).ConfigureAwait(false);
-        context.Unload();
-        _stopping.Dispose();
+        var context = Interlocked.Exchange(ref _context, null);
+        if (context is null) { return; }
+        try
+        {
+            await _stopping.CancelAsync().ConfigureAwait(false);
+            await Task.WhenAny(Completion, Task.Delay(StopGrace)).ConfigureAwait(false);
+        }
+        finally
+        {
+            context.Unload();
+            context = null;
+            _stopping.Dispose();
+        }
     }
 }

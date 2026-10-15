@@ -4,7 +4,7 @@ using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.AI.Tests.Scenarios;
 
-// The contracts the os assistant feature (features/os/Assistant beside the solution) composes,
+// The contracts the os Ino feature (features/os/Ino beside the solution) composes,
 // read from its program and resolved to full names against the deployed contracts.
 internal static class ShippedAssistant
 {
@@ -12,7 +12,7 @@ internal static class ShippedAssistant
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (!File.Exists(Path.Combine(directory!.FullName, "DigitalBrain.slnx"))) { directory = directory.Parent; }
-        var lib = File.ReadAllText(Path.Combine(directory.FullName, "features", "os", "Assistant", "Assistant.cs"));
+        var lib = File.ReadAllText(Path.Combine(directory.FullName, "features", "os", "Ino", "Ino.cs"));
         var list = Regex.Match(lib, @"string\[\] Contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
         // The contract assemblies built beside this test stand in for the deployed host's compiled layer.
         var deployed = new DigitalBrain.Framework.CompiledTypes(Directory.GetFiles(AppContext.BaseDirectory, "DigitalBrain.Modules.*.Contracts.dll")

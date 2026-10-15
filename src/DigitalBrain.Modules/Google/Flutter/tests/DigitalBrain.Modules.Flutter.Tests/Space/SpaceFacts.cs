@@ -15,6 +15,63 @@ namespace DigitalBrain.Modules.Flutter.Tests.Space;
 
 public sealed class SpaceFacts
 {
+    [Fact]
+    public async Task MigratedAliasRemainsStoredButOnlyItsTargetAppearsAndLegacyFocusResolves()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new AppReads();
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s =>
+            {
+                s.RemoveAll<IAppRuntime>();
+                s.Remove(s.Single(service => service.ServiceType == typeof(IHostedService)
+                    && service.ImplementationType == typeof(SpaceWatcher)));
+                s.AddSingleton<IOutgoingGrainCallFilter>(calls);
+            }).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        var old = await App(brain, "assistant");
+        var target = await App(brain, "ino");
+        var oldKey = IApp.Key(brain.Owner.BrainId, "assistant");
+        var targetKey = IApp.Key(brain.Owner.BrainId, "ino");
+        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        await workspace.Home("alias-home", 0);
+        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        await space.Rebuild();
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == oldKey), TimeSpan.FromSeconds(10), ct);
+        var migration = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppMigration>(oldKey);
+        await migration.Pause("alias-test");
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppMigration>(targetKey).Pause("alias-test");
+        await migration.Redirect("alias-test", targetKey);
+        var beforeRefresh = (await scene.Read()).Revision;
+        await space.RefreshApp(oldKey);
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Revision > beforeRefresh, TimeSpan.FromSeconds(10), ct);
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        Assert.DoesNotContain((await scene.Read()).Definition.Nodes, node => node.Id == oldKey);
+        Assert.Contains((await scene.Read()).Definition.Nodes, node => node.Id == targetKey);
+        var retained = await old.Read();
+        Assert.Equal("assistant", retained.Manifest.Title);
+        Assert.Equal(targetKey, retained.MigrationTarget);
+        calls.Count = 0;
+        calls.Armed = true;
+        beforeRefresh = (await scene.Read()).Revision;
+        await space.RefreshApp(targetKey);
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Revision > beforeRefresh, TimeSpan.FromSeconds(10), ct);
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        calls.Armed = false;
+        Assert.Equal(1, calls.Count);
+        await workspace.Show(oldKey, "legacy-focus", 1);
+        await space.Recompose();
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Parameters.GetValueOrDefault("focused") == "true"), TimeSpan.FromSeconds(10), ct);
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        Assert.Equal(oldKey, (await workspace.Read()).Path[^1]);
+        Assert.Contains((await scene.Read()).Definition.Nodes, node => node.Id == targetKey && node.Parameters.GetValueOrDefault("focused") == "true");
+        await brain.DeactivateAsync(space, ct);
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        Assert.DoesNotContain((await scene.Read()).Definition.Nodes, node => node.Id == oldKey);
+        Assert.Equal("ino", (await target.Read()).Manifest.Title);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -209,30 +266,25 @@ public sealed class SpaceFacts
                 s.AddSingleton<IOutgoingGrainCallFilter>(calls);
             }).StartAsync(ct);
         var app = await App(brain, "activity");
-        var grains = brain.Services.GetRequiredService<IGrainFactory>();
-        await using var activities = await brain.Observe<DigitalBrain.Apps.Signals.AppActivity>(app, ct);
         await using var presentations = await brain.Observe<DigitalBrain.Apps.Signals.PresentationChanged>(app, ct);
         await app.Progress("working", "first detail");
-        await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
-        await presentations.NextAsync(ct: ct);
         var first = (await app.Read()).Presentation!;
         Assert.Equal("true", first.Blackboard["running"]);
         Assert.Equal("false", first.Blackboard["attention"]);
+        await presentations.NextAsync(ct: ct);
         calls.Armed = true;
         for (var i = 0; i < 5; i++)
         {
             await app.Progress("reading", $"detail {i}");
-            await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
         }
         calls.Armed = false;
         Assert.Equal(0, calls.Rebuilds);
         Assert.Equal(first.Revision, (await app.Read()).Presentation!.Revision);
         await app.Progress("attention", "needs input");
-        await SpaceWatcher.ApplyActivity(grains, await activities.NextAsync(ct: ct));
         var last = (await app.Read()).Presentation!;
         Assert.Equal("false", last.Blackboard["running"]);
         Assert.Equal("true", last.Blackboard["attention"]);
-        Assert.True(last.Revision > first.Revision);
+        Assert.Equal(first.Revision + 1, last.Revision);
     }
 
     private sealed class ActivityCalls : IOutgoingGrainCallFilter

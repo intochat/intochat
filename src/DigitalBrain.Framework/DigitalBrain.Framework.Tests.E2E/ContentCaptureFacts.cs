@@ -31,9 +31,9 @@ public sealed class ContentCaptureOnFacts(ProductionBrainFixture host) : BrainFa
     internal static async Task SendAsync(ITestBrain brain, string workspace, TelemetryOperation operation, CancellationToken ct, Person? person = null)
     {
         using var caller = person?.AsCaller();
-        var chat = brain.Get<IChat>(workspace + "/apps/assistant/transcript");
+        var chat = brain.Get<IChat>(workspace + "/apps/ino/transcript");
         await using var changes = await brain.Observe<ChatChanged>(chat, ct);
-        using var request = operation.Request(HttpMethod.Post, $"/brains/{workspace}/apps/assistant/request",
+        using var request = operation.Request(HttpMethod.Post, $"/brains/{workspace}/apps/ino/request",
             JsonContent.Create(new { operation = "send", input = "Show active leads" }));
         using var response = await operation.SendAsync(person?.Http ?? brain.HttpClient, request, ct);
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));

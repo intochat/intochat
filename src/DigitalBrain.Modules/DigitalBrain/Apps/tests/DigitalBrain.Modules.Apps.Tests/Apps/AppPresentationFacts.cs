@@ -146,4 +146,55 @@ public sealed class AppPresentationFacts
             Assert.Equal("boom", state.Error);
         }
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProgressCommitsBothReservedFlagsOnceAndRepeatedDetailsDoNotChangePresentation(bool published)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = await Create(brain);
+        if (published)
+        {
+            using var caller = brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files"));
+            await app.Present(0, Root());
+            await app.WriteBlackboard(0, new() { ["mood"] = "custom" });
+        }
+        var revision = (await app.Read()).Presentation?.Revision ?? 0;
+        using var changes = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<PresentationChanged>();
+        using var activities = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<AppActivity>();
+        await app.Progress("working", "first detail");
+        var first = (await app.Read()).Presentation;
+        Assert.NotNull(first);
+        Assert.Equal("true", first.Blackboard["running"]);
+        Assert.Equal("false", first.Blackboard["attention"]);
+        Assert.Equal(revision + 1, first.Revision);
+        Assert.True(changes.Reader.TryRead(out var initial));
+        Assert.Equal(first.Revision, initial.Revision);
+        Assert.False(changes.Reader.TryRead(out _));
+
+        await app.Progress("reading", "different detail");
+        Assert.Equal(first.Revision, (await app.Read()).Presentation!.Revision);
+        Assert.False(changes.Reader.TryRead(out _));
+        Assert.True(activities.Reader.TryRead(out var working));
+        Assert.Equal("first detail", working.Detail);
+        Assert.True(activities.Reader.TryRead(out var reading));
+        Assert.Equal("different detail", reading.Detail);
+
+        await app.Progress("attention", "needs input");
+        var last = (await app.Read()).Presentation!;
+        Assert.Equal("false", last.Blackboard["running"]);
+        Assert.Equal("true", last.Blackboard["attention"]);
+        Assert.Equal(first.Revision + 1, last.Revision);
+        Assert.True(changes.Reader.TryRead(out var attention));
+        Assert.Equal(last.Revision, attention.Revision);
+        Assert.False(changes.Reader.TryRead(out _));
+        if (published) { Assert.Equal("custom", last.Blackboard["mood"]); }
+        await brain.DeactivateAsync(app, ct);
+        var restored = (await app.Read()).Presentation!;
+        Assert.Equal(last.Revision, restored.Revision);
+        Assert.Equal("false", restored.Blackboard["running"]);
+        Assert.Equal("true", restored.Blackboard["attention"]);
+    }
 }

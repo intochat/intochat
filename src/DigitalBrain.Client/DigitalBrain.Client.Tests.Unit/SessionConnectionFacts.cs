@@ -44,12 +44,15 @@ public sealed class SessionConnectionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var attempts = 0;
-        var remote = new FakeBrain { ReportStatus = () => Interlocked.Increment(ref attempts) switch
+        var remote = new FakeBrain
+        {
+            ReportStatus = () => Interlocked.Increment(ref attempts) switch
         {
             1 => throw new HttpRequestException("transient connection failure"),
             <= 3 => HttpStatusCode.ServiceUnavailable,
             _ => HttpStatusCode.OK
-        } };
+        }
+        };
         await using var session = await remote.OpenAsync(ct);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var ambient = AmbientSession.Enter(session, "acc-brain/csharp/ready", new Dictionary<string, string>(), stop.Token, "hash", "revision");

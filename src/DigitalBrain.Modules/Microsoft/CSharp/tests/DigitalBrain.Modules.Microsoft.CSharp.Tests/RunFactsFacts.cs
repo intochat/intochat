@@ -29,6 +29,32 @@ public sealed class RunFactsFacts
     private static readonly Trace Second = new() { TraceId = "0af7651916cd43dd8448eb211c80319c", PayerAccountId = "account-a", BrainId = Acc, Origin = new NeuronId("acc-brain/edge") };
 
     [Fact]
+    public async Task HistoryInvalidatesOnlyWhenItsDurableSnapshotChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("history-invalidation");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await rig.Brain.Observe<BrainRunsChanged>(rig.Runs, ct);
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        Assert.Empty(rig.Journal.Facts<BrainRunsChanged>(rig.Runs.GetGrainId()));
+        await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 1_500)]);
+        await rig.Ran.NextAsync(ct: ct);
+        Assert.Single(rig.Journal.Facts<BrainRunsChanged>(rig.Runs.GetGrainId()));
+        var change = await changes.NextAsync(ct: ct);
+        Assert.Equal((await rig.Runs.Read()).Revision, change.Revision);
+        Assert.Equal(First.TraceId, change.Trace?.TraceId);
+        await PingAsync(pinger, 2, Second);
+        await rig.Started.NextAsync(ct: ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 2, Skipped: true)]);
+        await rig.Ran.NextAsync(ct: ct);
+        // Both completed/skipped facts remain observable, but skipped work is not history.
+        await TestWait.UntilAsync(_ => Task.FromResult(rig.Journal.Facts<BehaviorRan>(rig.Runs.GetGrainId()).Count()), count => count == 2, TimeSpan.FromSeconds(10), ct);
+        Assert.Single(rig.Journal.Facts<BrainRunsChanged>(rig.Runs.GetGrainId()));
+    }
+
+    [Fact]
     public async Task RunSnapshotsSurviveReactivationAndReplayDoesNotChangeStatistics()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -75,6 +101,36 @@ public sealed class RunFactsFacts
         }
         finally { release.TrySetResult(); }
         await TestWait.UntilAsync(rig.Runtime.Inspect, state => state.IsIdle, TimeSpan.FromSeconds(10), ct);
+    }
+
+    [Fact]
+    public async Task IdleWaitsForAcknowledgedRunHistoryToCommitWithoutBlockingTheRuntime()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var assignment = Assert.Single(await rig.Edge.Assignments(rig.Session));
+        await rig.Edge.Reported(rig.Session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        var pinger = rig.Brain.Get<IPinger>("idle-history");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        var storage = rig.Brain.Services.GetRequiredService<RecordingWrites>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        storage.HeldRuns = release.Task;
+        storage.RunsWriteEntered = entered;
+        try
+        {
+            await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 1_500)])
+                .WaitAsync(TimeSpan.FromSeconds(10), ct);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            var state = await rig.Runtime.Inspect(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Assert.True(state.IsReady);
+            Assert.False(state.IsIdle);
+        }
+        finally { release.TrySetResult(); }
+        await TestWait.UntilAsync(rig.Runtime.Inspect, state => state.IsIdle, TimeSpan.FromSeconds(10), ct);
+        Assert.Equal(1_500, Assert.Single((await rig.Runs.Read()).Recent).DurationMicroseconds);
     }
 
     [Fact]
@@ -409,7 +465,8 @@ public sealed class RunFactsFacts
         var forged = new BehaviorRan(BrainRuntimeKeys.For(Acc), Owner, Owner + "/synapses/forged.cs", "forged", pinger.GetGrainId().ToString(),
             nameof(Pinged), 1, RunOutcome.Succeeded, 1, 0, 0, null);
 
-        await rig.Brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Acc)).Record([new RunFact(forged, First)]);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => rig.Brain.Services.GetRequiredService<IGrainFactory>()
+            .GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Acc)).Record([new RunFact(forged, First)]));
         // The runtime's own next fact is the barrier: the runs neuron took the forged call before it.
         await PingAsync(pinger, 1, First);
         await rig.Started.NextAsync(ct: ct);
@@ -427,6 +484,70 @@ public sealed class RunFactsFacts
         Assert.False(BrainRunsGuard.Admits(null, runs));
         Assert.False(BrainRunsGuard.Admits(GrainId.Create(BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.For("other-brain")), runs));
         Assert.False(BrainRunsGuard.Admits(GrainId.Create("apps.app", Owner), runs));
+    }
+
+    [Fact]
+    public async Task RunFactsQueuedBehindACommitShareTheNextOrderedDurableAppend()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var assignment = Assert.Single(await rig.Edge.Assignments(rig.Session));
+        await rig.Edge.Reported(rig.Session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        var pinger = rig.Brain.Get<IPinger>("queued-history");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await NextBatchAsync(rig, subscription, ct);
+        await rig.Started.NextAsync(ct: ct);
+        var storage = rig.Brain.Services.GetRequiredService<RecordingWrites>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        storage.HeldRuns = release.Task;
+        storage.RunsWriteEntered = entered;
+        try
+        {
+            await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 100)]);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            await PingAsync(pinger, 2, Second);
+            await NextBatchAsync(rig, subscription, ct);
+            await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 2, WallMicroseconds: 200)]);
+            Assert.False((await rig.Runtime.Inspect(ct)).IsIdle);
+        }
+        finally { release.TrySetResult(); }
+        await TestWait.UntilAsync(rig.Runtime.Inspect, state => state.IsIdle, TimeSpan.FromSeconds(10), ct);
+        var appends = rig.Journal.Of(rig.Runs.GetGrainId());
+        Assert.Equal(3, appends.Length);
+        Assert.Collection(appends[^1].Signals.Where(signal => signal is BehaviorStarted or BehaviorRan),
+            signal => Assert.Equal((2L, Second.TraceId), (Assert.IsType<BehaviorStarted>(signal).Watermark, signal.Trace?.TraceId)),
+            signal => Assert.Equal((2L, Second.TraceId), (Assert.IsType<BehaviorRan>(signal).Watermark, signal.Trace?.TraceId)));
+        Assert.Equal([First.TraceId, Second.TraceId], (await rig.Runs.Read()).Recent.Select(run => run.TraceId));
+    }
+
+    [Fact]
+    public async Task GracefulRuntimeDeactivationWaitsForItsHistoryCommit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("deactivation-history");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        var storage = rig.Brain.Services.GetRequiredService<RecordingWrites>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        storage.HeldRuns = release.Task;
+        storage.RunsWriteEntered = entered;
+        Task deactivating;
+        try
+        {
+            await rig.Edge.AcknowledgeMany(rig.Session, [new(subscription, 1, WallMicroseconds: 100)]);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            deactivating = rig.Activations[Acc].OnDeactivateAsync(
+                new DeactivationReason(DeactivationReasonCode.ApplicationRequested, "Retiring the runtime"), ct);
+            Assert.False(deactivating.IsCompleted);
+        }
+        finally { release.TrySetResult(); }
+        await deactivating.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        Assert.Equal(First.TraceId, Assert.Single((await rig.Runs.Read()).Recent).TraceId);
     }
 
     // Synapse a.cs reacts to the pinger; runs.cs reacts to a.cs's run facts. Returns the reaction's
@@ -565,10 +686,17 @@ public sealed class RunFactsFacts
     private sealed class RecordingWrites(IGrainStorage inner, RunJournal journal) : IGrainStorage
     {
         private readonly ConcurrentDictionary<GrainId, int> writes = new();
+        public Task? HeldRuns { get; set; }
+        public TaskCompletionSource? RunsWriteEntered { get; set; }
         public int Count(GrainId id) => writes.GetValueOrDefault(id);
         public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
         public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
+            if (id.Type.ToString() == BrainRunsNeuron.GrainTypeName && HeldRuns is { } held)
+            {
+                RunsWriteEntered?.TrySetResult();
+                await held;
+            }
             // The durable journal now also receives facts attached to a read-model state write.
             // Observe that commit without consuming the attachment before the real storage does.
             var pending = SignalJournal.TakePending(id);

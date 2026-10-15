@@ -20,7 +20,7 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         var aliceBrain = alicePerson.BrainId;
         var bobBrain = bobPerson.BrainId;
         // Bob reaches his own workspace but is forbidden from Alice's scoped value and app node.
-        using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/apps/node?kind=text&name={bobBrain}/apps/assistant/status", ct);
+        using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/apps/node?kind=text&name={bobBrain}/apps/ino/status", ct);
         Assert.Equal(HttpStatusCode.OK, ownUi.StatusCode);
 
         using var foreignWorkspace = await bob.GetAsync($"/brains/{aliceBrain}", ct);
@@ -28,7 +28,7 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         using var foreignSources = await bob.PostAsJsonAsync($"/brains/{aliceBrain}/apps/workspace/request", new { operation = "open", input = "" }, ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignSources.StatusCode);
 
-        using var foreignUi = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/assistant/status", ct);
+        using var foreignUi = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/ino/status", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignUi.StatusCode);
 
         using var foreignNode = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/forms/intake", ct);

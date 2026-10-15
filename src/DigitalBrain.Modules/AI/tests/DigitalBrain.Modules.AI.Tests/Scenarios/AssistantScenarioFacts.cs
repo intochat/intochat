@@ -79,7 +79,7 @@ public sealed class AssistantScenarioFacts
 
     private static string Database(Person person) => ConnectionKeys.For(person.BrainId, "postgres", "supabase");
 
-    private static string Assistant(Person person) => IApp.Key(person.BrainId, "assistant");
+    private static string Assistant(Person person) => IApp.Key(person.BrainId, "ino");
 
     // The turn runs on the assistant app's conversation, as the app would start it.
     private static async Task<List<AgentTurnEvent>> Turn(ITestBrain host, Person person, string message, CancellationToken ct)
@@ -154,5 +154,3 @@ public sealed class AssistantScenarioFacts
         public void Dispose() { }
     }
 }
-
-

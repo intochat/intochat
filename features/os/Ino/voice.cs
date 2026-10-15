@@ -1,11 +1,30 @@
-using DigitalBrain.Apps;
+using DigitalBrain.AI.Media;
 using DigitalBrain.Client;
+using DigitalBrain.Flutter.Chat;
 
+// A captured recording is transcribed; the composer's state when recognition returns decides the outcome.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
-var ledger = await RequestLedger.LoadAsync(brain, "voice");
-await foreach (var request in brain.On(brain.Get<IApp>(Ino.Key(brain)), "voice", brain.Stopping))
+var appKey = Ino.DataKey(brain);
+var composer = brain.Get<IComposer>(appKey + "/composer");
+await foreach (var captured in brain.On<ComposerVoiceCaptured>(composer, () => Transcribe(brain.Stopping), brain.Stopping))
 {
-    if (ledger.Handled(request.RequestId)) { continue; }
-    await brain.Get<IApp>(Ino.AssistantKey(brain)).Request("voice", request.Input);
-    await ledger.Record(request.RequestId);
+    await Transcribe(brain.Stopping);
+}
+
+async Task Transcribe(CancellationToken ct)
+{
+    if ((await composer.Read()).Voice is not { Status: "transcribing" } voice) { return; }
+    var audio = await composer.ReadAudio(voice.Id);
+    if (audio is null) { return; }
+    try
+    {
+        var result = await brain.Get<ISpeechRecognizer>(appKey + "/recognizer")
+            .Recognize(new SpeechRecognitionRequest(new MediaPayload(audio.Bytes, audio.MimeType), "voice.wav"), ct);
+        // The person may have cleared or re-recorded meanwhile: the composer's state decides.
+        var current = (await composer.Read()).Voice;
+        if (current?.Id == voice.Id && current.Status == "transcribing") { await composer.CompleteVoice(voice.Id, result.Text); }
+        else { await composer.CancelVoice(voice.Id); }
+    }
+    catch (Exception) when (!ct.IsCancellationRequested)
+    { await composer.CompleteVoice(voice.Id, null, "Transcription failed. Your draft is unchanged. Try recording again or type your message."); }
 }

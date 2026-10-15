@@ -26,4 +26,5 @@ public sealed record AppSnapshot(
     [property: Id(13)] AppSynapse[]? Synapses = null,
     [property: Id(14)] AppInstallReceipt? Installation = null,
     [property: Id(15)] AppPresentation? Presentation = null,
-    [property: Id(16)] long ProgramRevision = 0);
+    [property: Id(16)] long ProgramRevision = 0,
+    [property: Id(17)] string? MigrationTarget = null);

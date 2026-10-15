@@ -54,8 +54,11 @@ public static class Workspace
                 { throw new ArgumentException("Choose an installed app."); }
                 var installed = await brain.Get<IApp>(app).Read();
                 if (string.IsNullOrEmpty(installed.Manifest.Title)) { throw new ArgumentException("This app is not installed."); }
-                if (!views.Any(view => view.Id == command.Id)) { views.Add(new(command.Id, app, "full", "")); }
-                focus = command.Id;
+                if (installed.MigrationTarget is { } migrated) { app = migrated; }
+                var existing = views.FirstOrDefault(view => view.App == app);
+                var viewId = existing?.Id ?? IApp.NameOf(Scope(brain), app) ?? command.Id;
+                if (existing is null) { views.Add(new(viewId, app, "full", "")); }
+                focus = viewId;
                 break;
             case "profile":
                 await Activate(brain, JsonSerializer.Serialize(new Activation(Scope(brain), "circle", null, "navigate", "{\"page\":\"profile\"}")), operation);
@@ -111,6 +114,7 @@ public static class Workspace
         }
         // The launcher lists views, not background services or controls already in the dock.
         var launcher = installed.Where(pair => pair.Key is not ("router" or "selfimprove" or "circleroom" or "ino" or "usage")
+            && pair.Value.MigrationTarget is null
             && !string.IsNullOrWhiteSpace(pair.Value.Manifest.Title)
             && (pair.Value.Presentation?.Root?.Main is not null
                 || pair.Value.Presentation?.Root?.Views?.Any(view => view.Id == "full") == true
@@ -139,6 +143,9 @@ public static class Workspace
                 visual: Artwork(IApp.NameOf(Scope(brain), view.App) ?? view.Id, state.FocusedViewId == view.Id, true)));
         }
         var focused = state.OpenViews.FirstOrDefault(view => view.Id == state.FocusedViewId);
+        // Keep persisted IDs, pins and closed-view receipts; resolve only the presentation target.
+        if (focused is not null && installed.GetValueOrDefault(IApp.NameOf(Scope(brain), focused.App) ?? "")?.MigrationTarget is { } replacement)
+        { focused = focused with { App = replacement }; }
         var supported = focused is null || string.IsNullOrEmpty(focused.Context);
         var canvas = brain.Get<IViewport>(key + "/canvas");
         await canvas.Set(supported ? focused : null, (await canvas.Read()).Revision);

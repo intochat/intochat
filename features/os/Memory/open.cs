@@ -12,7 +12,6 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var scope = Memory.Scope(brain);
 var runs = brain.Get<ITable>(Memory.RunsKey(appKey));
-var legacyRuns = LoadLegacyRuns();
 var requests = brain.Get<ITable>(Memory.RequestsKey(appKey));
 await Compose();
 
@@ -43,7 +42,7 @@ async Task<bool> Answered(AppRequested request)
     catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return false; }
 }
 
-// Old tables are read once, never rewritten. New samples belong to the runtime.
+// Read the old table only on open, never rewrite it. A failed read retries on the next open.
 async Task<Dictionary<string, (string Hash, Memory.Sample[] Recent)>> LoadLegacyRuns()
 {
     try { return await Memory.LegacyRuns(runs, brain.Stopping); }
@@ -52,13 +51,14 @@ async Task<Dictionary<string, (string Hash, Memory.Sample[] Recent)>> LoadLegacy
 
 async Task<Dictionary<string, (long P50, int Samples)>> Medians()
 {
+    var legacyRuns = await LoadLegacyRuns();
     try
     {
         var snapshot = await brain.Get<IBrainRuns>(BrainRunsKeys.For(scope)).Read();
-        return Memory.Medians(await legacyRuns, snapshot.Statistics);
+        return Memory.Medians(legacyRuns, snapshot.Statistics);
     }
     catch (Exception) when (!brain.Stopping.IsCancellationRequested)
-    { return Memory.Medians(await legacyRuns, []); }
+    { return Memory.Medians(legacyRuns, []); }
 }
 
 async Task Compose()

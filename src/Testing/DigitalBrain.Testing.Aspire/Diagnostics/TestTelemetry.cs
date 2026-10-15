@@ -130,14 +130,26 @@ public sealed class TestTelemetry
     internal static IEnumerable<TelemetrySpan> Flatten(DashboardTelemetryData data)
         => data.ResourceSpans.SelectMany(resource => resource.ScopeSpans.SelectMany(scope =>
             scope.Spans.Select(span => new TelemetrySpan(resource.Resource, scope.Scope, span,
-                TelemetryText.Of(new { data.AdditionalFields, ResourceSchema = resource.SchemaUrl, ResourceFields = resource.AdditionalFields,
-                    ScopeSchema = scope.SchemaUrl, ScopeFields = scope.AdditionalFields })))));
+                TelemetryText.Of(new
+                {
+                    data.AdditionalFields,
+                    ResourceSchema = resource.SchemaUrl,
+                    ResourceFields = resource.AdditionalFields,
+                    ScopeSchema = scope.SchemaUrl,
+                    ScopeFields = scope.AdditionalFields
+                })))));
 
     internal static IEnumerable<TelemetryLog> FlattenLogs(DashboardTelemetryData data)
         => data.ResourceLogs.SelectMany(resource => resource.ScopeLogs.SelectMany(scope =>
             scope.LogRecords.Select(log => new TelemetryLog(resource.Resource, scope.Scope, log,
-                TelemetryText.Of(new { data.AdditionalFields, ResourceSchema = resource.SchemaUrl, ResourceFields = resource.AdditionalFields,
-                    ScopeSchema = scope.SchemaUrl, ScopeFields = scope.AdditionalFields })))));
+                TelemetryText.Of(new
+                {
+                    data.AdditionalFields,
+                    ResourceSchema = resource.SchemaUrl,
+                    ResourceFields = resource.AdditionalFields,
+                    ScopeSchema = scope.SchemaUrl,
+                    ScopeFields = scope.AdditionalFields
+                })))));
 
     private static ulong UnixNanoseconds(DateTimeOffset timestamp)
         => checked((ulong)(timestamp.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100);

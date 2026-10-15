@@ -7,6 +7,7 @@ import '../composition/renderer_registry.dart';
 
 /// Fixtures use the same kind/name references and definitions as NeuronView.
 const neuronDescriptions = <String, String>{
+  'view': 'Compose text, actions, and layout in one immutable view.',
   'surface': 'An app root that brings named child neurons into one window.',
   'layout': 'Arrange child neurons in a column, row, split, or stack.',
   'collection':
@@ -62,6 +63,24 @@ String compositionGuidance(String kind) => switch (kind) {
 };
 
 Map<String, dynamic> neuronExample(String kind) => switch (kind) {
+  'view' => {
+    'generation': 1,
+    'version': 1,
+    'root': {
+      'kind': 2,
+      'key': 'reading',
+      'children': [
+        {'kind': 0, 'key': 'welcome', 'text': 'Your reading space'},
+        {
+          'kind': 1,
+          'key': 'add',
+          'text': 'Add a book',
+          'action': 'add-book',
+          'enabled': true,
+        },
+      ],
+    },
+  },
   'person' => {'displayName': 'Alex', 'avatarUrl': ''},
   'surface' => {
     'title': 'Reading app',
@@ -229,6 +248,7 @@ class _NeuronGalleryPreviewState extends State<NeuronGalleryPreview> {
           revision: revision,
           load: (kind, name) async => {
             'revision': revision,
+            if (kind == 'view') ...neuronExample(kind),
             'definition': {
               ...neuronExample(kind),
               if (kind == 'tabs' && selectedTab != null)

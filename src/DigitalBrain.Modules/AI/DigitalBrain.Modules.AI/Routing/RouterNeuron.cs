@@ -138,6 +138,7 @@ internal sealed class RouterNeuron(
             AppSnapshot snapshot;
             try { snapshot = await factory.GetGrain<IApp>(IApp.Key(Scope, name)).Read(); }
             catch (Exception error) when (error is not OperationCanceledException) { continue; }
+            if (snapshot.MigrationTarget is not null) { continue; }
             foreach (var operation in snapshot.Manifest.Operations)
             { criteria[name + "." + operation.Name] = string.IsNullOrWhiteSpace(operation.Description) ? null : Trim(operation.Description); }
         }

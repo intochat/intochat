@@ -21,7 +21,7 @@ public sealed class AssistantGateFacts
     private const string SystemPrompt = "You are the user's assistant.";
 
     private static string Calculator(Person person) => IApp.Key(person.BrainId, "calculator");
-    private static string Conversation(Person person) => IApp.Key(person.BrainId, "assistant") + "/conversations/main";
+    private static string Conversation(Person person) => IApp.Key(person.BrainId, "ino") + "/conversations/main";
 
     [Fact]
     public async Task AboveTheGateTheAssistantAnswersWithoutAnAgentTurn()

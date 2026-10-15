@@ -64,11 +64,6 @@ internal static class Memory
         new("request", "text"), new("operation", "text"), new("answered_at", "timestamptz"),
     ], ["request"]);
 
-    public static readonly TableDefinition RunsDefinition = new(
-    [
-        new("behavior", "text"), new("hash", "text"), new("recent", "jsonb"), new("p50", "number"), new("updated_at", "timestamptz"),
-    ], ["behavior"]);
-
     private static readonly HashSet<string> Stop = new(StringComparer.Ordinal)
     {
         "a", "an", "and", "are", "as", "at", "be", "by", "do", "does", "for", "from", "has", "have", "if", "in", "into",
@@ -292,21 +287,13 @@ internal static class Memory
             => json.TryGetValue(column, out var literal) && literal != "null" ? JsonSerializer.Deserialize<T>(literal) : default;
     }
 
-    // Legacy run-table schema, retained for read-only compatibility with installed brains.
-    public static TableValue[] RunKey(string behavior) => [new("behavior", JsonSerializer.Serialize(behavior))];
-
+    // Legacy run-table rows, retained for read-only compatibility with installed brains.
     public static (string Hash, Sample[] Recent) ParseRuns(TableValue[]? cells)
     {
         if (cells is null) { return ("", []); }
         var cell = new Cells(cells);
         return (cell.Text("hash"), cell.Json<Sample[]>("recent") ?? []);
     }
-
-    public static TableValue[] RunValues(string hash, Sample[] recent) =>
-    [
-        new("hash", JsonSerializer.Serialize(hash)), new("recent", JsonSerializer.Serialize(recent)),
-        new("p50", Median(recent).ToString(CultureInfo.InvariantCulture)), new("updated_at", Time(DateTimeOffset.UtcNow)),
-    ];
 
     private static long Median(Sample[] recent)
     {

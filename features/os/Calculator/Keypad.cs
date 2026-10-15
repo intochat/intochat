@@ -1,6 +1,8 @@
 using System.Data;
 using System.Globalization;
+using DigitalBrain.Client;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Views;
 
 // Shared by the calculator's synapses. The keypad neuron is the truth: its first line is the
 // expression, the other lines are the clicks already applied, so a click delivered again is not
@@ -11,6 +13,15 @@ public static class Keypad
     public static readonly string[] Labels = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+"];
 
     private const int RememberedClicks = 32;
+
+    // A view is a value. Creating the keypad does not create sixteen remote buttons.
+    public static UiNode Render(string expression) => Ui.Column("calculator",
+        [Ui.Text("display", expression), .. Enumerable.Range(0, 4).Select(row =>
+            Ui.Row("row-" + row, [.. Enumerable.Range(0, 4).Select(column =>
+            {
+                var index = row * 4 + column;
+                return Ui.Button("key-" + index, Labels[index], Keys[index]);
+            })]))], extents: [96, 80, 80, 80, 80]);
 
     public static async Task Press(DigitalBrainConnection brain, string action, Guid click)
     {

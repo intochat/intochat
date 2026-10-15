@@ -1,15 +1,15 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Button;
+using DigitalBrain.Flutter.Views;
 
 // The dock's Clear button presses the keypad's "C" key, so every change to the expression goes through
-// the one keypad synapse in click order and the display empties whatever it held. Before "open" has
-// composed the keypad there is no key to press, so the request clears the keypad neuron itself.
+// the one keypad synapse in click order. Before the first view exists, clear the durable state directly.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var clearKey = brain.Get<IButton>(appKey + "/key-" + Array.IndexOf(Keypad.Keys, "C"));
+var view = brain.Get<IView>(appKey + "/view");
 await foreach (var request in brain.On(app, "clear", brain.Stopping))
 {
-    if ((await clearKey.Read()).Action == "C") { await clearKey.Click(); }
+    if (await view.Read() is { } current)
+    { await view.Activate(current.Generation, "key-" + Array.IndexOf(Keypad.Keys, "C"), "C", request.RequestId); }
     else { await Keypad.Press(brain, "C", request.RequestId); }
 }

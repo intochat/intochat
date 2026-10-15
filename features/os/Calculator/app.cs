@@ -1,8 +1,8 @@
 /*
 # Calculator
 
-A keypad that evaluates arithmetic. Startup composes a display and a grid of buttons in its main layout. Each button click updates the expression; "=" evaluates it. The buttons are edge neurons
-whose clicks reach this app's behavior, so the keypad is part of the brain like any other surface.
+A keypad that evaluates arithmetic. The script renders a display and a grid of inline buttons in
+one immutable view. Each button action updates the expression; "=" evaluates it.
 The keypad neuron holds the expression and the clicks already applied, so a click delivered twice is
 pressed once; the display mirrors the expression. The dock's Clear presses the "C" key, so every
 change goes through the keypad in click order. A result that is not a number (dividing by zero, a
@@ -10,7 +10,7 @@ malformed expression) shows "Error", and the next digit starts a new expression.
 
 ## Scenario: Opening the calculator shows the keypad
 
-Invoking "open" composes a display and sixteen buttons in its main layout.
+Invoking "open" presents the script-generated view with its display and sixteen buttons.
 
 ## Scenario: A digit grows the expression
 
@@ -39,7 +39,7 @@ Invoking "add" with "2+3" sets the sum neuron to "5".
 ## Scenario: Add answers Error for what is not a sum
 
 Invoking "add" with "two+three" sets the sum neuron to "Error"; invoking "add" with "4+4" next sets it to "8".
-Presentation: startup publishes one sphere and its main content using stable neuron identities.
+Presentation: startup publishes one sphere and an immutable /view tree with stable component keys.
 Workspace navigation owns focus; composition never changes it.
 
 */
@@ -49,7 +49,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "calculator";
-    public const string Version = "1.2.5";
+    public const string Version = "1.3.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Calculator",

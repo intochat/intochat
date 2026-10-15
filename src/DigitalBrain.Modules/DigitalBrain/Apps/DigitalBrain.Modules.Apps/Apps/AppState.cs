@@ -36,6 +36,12 @@ public sealed class AppState
 
     [Id(30)] public long ProgramRevision { get; set; }
     [Id(31)] public AppPresentation? Presentation { get; set; }
+    [Id(32)] public string? Migration { get; set; }
+    [Id(33)] public bool MigrationPaused { get; set; }
+    [Id(34)] public AppState? MigrationArchive { get; set; }
+    [Id(35)] public string? MigrationSource { get; set; }
+    [Id(36)] public string? MigrationTarget { get; set; }
+    [Id(37)] public Signals.AppRequested[] MigrationRequests { get; set; } = [];
 
     public AppState Clone() => new()
     {
@@ -67,6 +73,12 @@ public sealed class AppState
         Installation = Installation,
         ProgramRevision = ProgramRevision,
         Presentation = Presentation,
+        Migration = Migration,
+        MigrationPaused = MigrationPaused,
+        MigrationArchive = MigrationArchive,
+        MigrationSource = MigrationSource,
+        MigrationTarget = MigrationTarget,
+        MigrationRequests = [.. MigrationRequests],
     };
 }
 

@@ -5,6 +5,7 @@ import '../theme/ui_tokens.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,8 @@ import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
+
+part 'immutable_view.dart';
 
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String kind,
@@ -279,6 +282,7 @@ class _NeuronViewState extends State<NeuronView> {
           if ((definition['extents'] as List?)?.elementAtOrNull(i)
               case final num extent when extent > 0)
             SizedBox(
+              key: children[i].key,
               width: horizontal ? extent.toDouble() : null,
               height: horizontal ? null : extent.toDouble(),
               child: children[i],
@@ -291,7 +295,7 @@ class _NeuronViewState extends State<NeuronView> {
               }.contains((rawChildren[i] as Map)['kind']))
             children[i]
           else
-            Expanded(child: children[i]),
+            Expanded(key: children[i].key, child: children[i]),
       ],
     );
     final extents = definition['extents'] as List? ?? const [];
@@ -376,8 +380,8 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
-  Widget _child(Map child) => NeuronView(
-    key: ValueKey('${child['kind']}:${child['name']}'),
+  Widget _child(Map child, {Key? key}) => NeuronView(
+    key: key ?? ValueKey('${child['kind']}:${child['name']}'),
     kind: child['kind'] as String,
     name: child['name'] as String,
     load: widget.load,
@@ -469,6 +473,19 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'view':
+        final root = data['root'];
+        if (root is! Map) return const SizedBox.shrink();
+        return _ImmutableView(
+          name: widget.name,
+          generation: (data['generation'] as num?)?.toInt() ?? 0,
+          root: root,
+          enabled: enabled && widget.onAction != null,
+          dispatch: _dispatch,
+          markdown: _markdown,
+          reference: (node, key) => _child(node, key: key),
+          layout: _layout,
+        );
       case 'viewport':
         final root = data['root'];
         if (root is Map && root['kind'] is String && root['name'] is String) {

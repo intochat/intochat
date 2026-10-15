@@ -21,13 +21,15 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         var scope = WorkspaceId;
-        var appKey = scope + "/apps/assistant";
+        var appKey = scope + "/apps/ino";
         Assert.Equal(AppStatus.Live, (await Brain.Get<IApp>(appKey).Read()).Status);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
-        var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
         var chat = Brain.Get<IChat>(appKey + "/transcript");
+        var selection = (await chat.Read()).Selection;
+        Assert.NotNull(selection);
+        var agent = Brain.Get<IAgent>(selection.Agent);
         await using var changes = await Brain.Observe<ChatChanged>(chat, ct);
-        using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/assistant/request",
+        using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/ino/request",
             new { operation = "send", input = "Remember this conversation" }, ct);
         sent.EnsureSuccessStatusCode();
         ChatProjection? before;

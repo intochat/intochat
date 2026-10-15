@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using Orleans.Concurrency;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -9,7 +8,7 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 [Alias("microsoft.csharp.runs-recorder"), DefaultGrainType(BrainRunsNeuron.GrainTypeName)]
 internal interface IBrainRunsRecorder : IGrainWithStringKey
 {
-    [OneWay] Task Record(RunFact[] facts);
+    Task Record(RunFact[] facts);
 }
 
 // A run fact and the trace it is published under: its batch's, or the one the runtime's turn ran in.
@@ -39,7 +38,9 @@ internal sealed class BrainRunsNeuron(
         ArgumentNullException.ThrowIfNull(facts);
         var next = Snapshot.Apply(facts);
         (Signal Signal, Trace? Trace)[] signals = [.. facts.Select(fact => (fact.Fact, fact.Trace))];
-        return ReferenceEquals(next, Snapshot) ? PublishAsync(signals) : Save(next, signals);
+        if (ReferenceEquals(next, Snapshot)) { return PublishAsync(signals); }
+        var changedBy = facts.Last(fact => fact.Fact is Signals.BehaviorRan { Outcome: not Signals.RunOutcome.Skipped });
+        return Save(next, [.. signals, (new BrainRunsChanged(next.Revision), changedBy.Trace)]);
     }
 }
 

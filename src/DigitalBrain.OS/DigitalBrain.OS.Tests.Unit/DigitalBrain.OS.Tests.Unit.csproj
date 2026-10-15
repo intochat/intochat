@@ -4,6 +4,8 @@
     <Compile Include="../../../features/os/Memory/Memory.cs" Link="Features/Memory.cs" />
     <Compile Include="../../../features/os/Memory/Shape.cs" Link="Features/Shape.cs" />
     <Compile Include="../../../features/os/BrainView/BrainView.cs" Link="Features/BrainView.cs" />
+    <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
+    <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />
     <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
     <ProjectReference Include="../DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />

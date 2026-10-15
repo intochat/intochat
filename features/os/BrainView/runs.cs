@@ -1,12 +1,11 @@
 using DigitalBrain.Microsoft.CSharp.Runtime;
-using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 
 // Coalesce invalidations, then read every retained run from the runtime. No app-owned
-// history is written; the live panel changes only when its newest ten lines change.
+// history is written; one immutable tree replaces separate card, text and layout neurons.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
-await brain.React<BehaviorRan>(brain.Get<IBrainRuns>(BrainRunsKeys.For(BrainView.Scope(brain))), async _ =>
+await brain.React<BrainRunsChanged>(brain.Get<IBrainRuns>(BrainRunsKeys.For(BrainView.Scope(brain))), async _ =>
 {
-    try { await BrainView.ShowRuns(brain, await BrainView.ReadRecent(brain)); }
+    try { await BrainView.PublishRecent(brain, await BrainView.ReadRecent(brain)); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { Console.Error.WriteLine("The recent runs could not be displayed: " + error.Message); }
 }, brain.Stopping);

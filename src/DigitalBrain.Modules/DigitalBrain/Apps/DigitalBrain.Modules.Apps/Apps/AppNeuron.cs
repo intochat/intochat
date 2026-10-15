@@ -15,7 +15,7 @@ internal sealed partial class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
-    : Neuron<AppState>(store), IApp, IAppDeploy, IRetainsSignals
+    : Neuron<AppState>(store), IApp, IAppDeploy, IRetainsSignals, IAppMigration
 {
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
@@ -50,6 +50,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveSpec(string spec, Guid operationId)
     {
+        RequireRunningProgram();
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(spec);
         if (Replayed(operationId)) { return Describe(Snapshot); }
@@ -65,6 +66,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId)
     {
+        RequireRunningProgram();
         RequireCreated();
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(Snapshot); }
@@ -85,6 +87,7 @@ internal sealed partial class AppNeuron(
     public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
     {
         RequireCreated();
+        RequireRunningProgram();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
         if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
         if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
@@ -114,6 +117,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> WriteFile(string path, string source, Guid operationId)
     {
+        RequireRunningProgram();
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
@@ -131,6 +135,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
+        RequireRunningProgram();
         RequireCreated();
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
@@ -152,6 +157,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Rollback(string version)
     {
+        RequireRunningProgram();
         RequireCreated();
         var record = Snapshot.History.FirstOrDefault(item => item.Version == version)
             ?? throw new ArgumentException($"No version {version}. This app has: {string.Join(", ", Snapshot.History.Select(item => item.Version))}.");
@@ -171,6 +177,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> BeginBuild(string? instruction)
     {
+        RequireRunningProgram();
         RequireCreated();
         if (Snapshot.Status == AppStatus.Building
             && clock.GetUtcNow() - Snapshot.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds))
@@ -187,7 +194,8 @@ internal sealed partial class AppNeuron(
     private static readonly string[] LiveStates = ["working", "reading", "searching", "accepted"];
 
     // A turn-in-progress activity (not listening or waiting, which an idle app on a live synapse keeps) retained across a deactivation belongs to a turn that died with the process; a late
-    // listener must not see it as current. Retention only: nothing is published.
+    // listener must not see it as current. Do not republish the activity; reconcile its reserved
+    // presentation flags in the same durable write so the visible presence is not left running.
     internal Task Interrupt()
     {
         if (!Exists || Snapshot.ActivityRetention is not [{ Signal: AppActivity { State: var state } retained }]
@@ -196,7 +204,8 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         next.ActivitySequence++;
         next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, retained with { State = "attention", Detail = "interrupted" })];
-        return SaveQuietly(next);
+        var presentation = ApplyActivityPresentation(next, "attention");
+        return presentation is null ? SaveQuietly(next) : Save(next, presentation);
     }
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(Snapshot.BuildAttempt);
@@ -215,12 +224,30 @@ internal sealed partial class AppNeuron(
         var activity = new AppActivity(Name(), state, detail);
         next.ActivitySequence++;
         next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, activity with { Publisher = Id })];
-        if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
+        var presentation = ApplyActivityPresentation(next, state);
+        if (building && presentation is not null)
+        { await Save(next, [(new AppChanged(Name(), next.Version, next.Status), null), (activity, null), (presentation, null)]); }
+        else if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
+        else if (presentation is not null) { await Save(next, activity, presentation); }
         else { await Save(next, activity); }
+    }
+
+    private PresentationChanged? ApplyActivityPresentation(AppState next, string state)
+    {
+        var running = state is "working" or "reading" or "searching" or "listening" ? "true" : "false";
+        var attention = state == "attention" ? "true" : "false";
+        var current = next.Presentation ?? new(next.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
+        if (current.Blackboard.GetValueOrDefault("running") == running && current.Blackboard.GetValueOrDefault("attention") == attention)
+        { return null; }
+        var board = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal)
+        { ["running"] = running, ["attention"] = attention };
+        next.Presentation = current with { Revision = checked(current.Revision + 1), Blackboard = board };
+        return new(this.GetPrimaryKeyString(), next.ProgramRevision, next.Presentation.Revision);
     }
 
     public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
     {
+        if (Snapshot.MigrationPaused) { return Describe(Snapshot); }
         if (Snapshot.Status != AppStatus.Building || attempt != Snapshot.BuildAttempt) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         if (error is not null || files is not { Count: > 0 })
@@ -275,6 +302,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Publish()
     {
+        RequireRunningProgram();
         RequireCreated();
         await RequireCompiles();
         if (!CallerContextStamper.TryGet(out var caller))
@@ -440,6 +468,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveToSource()
     {
+        RequireRunningProgram();
         RequireCreated();
         if (ServiceProvider.GetService<IHostEnvironment>() is not { } environment || !environment.IsDevelopment())
         { throw new InvalidOperationException("Save to source is only available in development."); }
@@ -464,6 +493,7 @@ internal sealed partial class AppNeuron(
 
     public async Task Delete()
     {
+        RequireRunningProgram();
         if (Snapshot.Manifest is null) { return; }
         var key = this.GetPrimaryKeyString();
         // Only this app's own listing comes down with it.
@@ -497,11 +527,16 @@ internal sealed partial class AppNeuron(
         }
         if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
         var id = Guid.NewGuid();
+        if (Snapshot.MigrationTarget is { } target)
+        {
+            await GrainFactory.GetGrain<IAppMigration>(target).Accept(operation, input, id);
+            return id;
+        }
         var requested = new AppRequested(operation, input, id) with { Publisher = Id };
         if (await Rejection(requested) is { } rejected)
         {
             await PublishAsync(new AppRejected(operation, rejected));
-            await PublishAsync(new AppActivity(Name(), "attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}"));
+            await Progress("attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}");
             throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}");
         }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
@@ -509,13 +544,17 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         var retained = new RetainedSignal(next.RequestSequence + 1, requested);
         next.RequestSequence = retained.Sequence;
-        next.RequestRetention = [.. next.RequestRetention.TakeLast(RetainedCapacity - 1), retained];
+        // During cutover two independent retained windows are combined. Do not immediately
+        // truncate half of that adopted window when the first new command arrives.
+        var capacity = next.Migration is null ? RetainedCapacity : 2 * RetainedCapacity;
+        next.RequestRetention = [.. next.RequestRetention.TakeLast(capacity - 1), retained];
         await Save(next, new AppRequested(operation, input, id));
         return id;
     }
 
     public async Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
     {
+        RequireRunningProgram();
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
         if (sentence.Length > MaxSentenceLength) { throw new ArgumentException($"Say the synapse in at most {MaxSentenceLength} characters."); }
@@ -536,6 +575,7 @@ internal sealed partial class AppNeuron(
     public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
     {
         RequireCreated();
+        RequireRunningProgram();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
         if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
         if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
@@ -559,7 +599,7 @@ internal sealed partial class AppNeuron(
     // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
     public async Task<StagedProgram> Program()
     {
-        if (!Exists) { return new([], Configuration(Snapshot), Snapshot.Principal); }
+        if (!Exists || Snapshot.MigrationPaused) { return new([], Configuration(Snapshot), Snapshot.Principal); }
         var next = Snapshot.Clone();
         AdvanceProgram(next);
         await Persist(next);
@@ -580,6 +620,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null)
     {
+        if (Snapshot.MigrationPaused) { return Describe(Snapshot); }
         var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
         if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested) { return Describe(Snapshot); }
         var entry = Snapshot.Synapses[index];
@@ -637,13 +678,13 @@ internal sealed partial class AppNeuron(
         });
 
     internal Task RestoreAfterActivation()
-        => Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram)
+        => !Snapshot.MigrationPaused && Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram)
             ? this.AsReference<IAppDeploy>().Restore()
             : Task.CompletedTask;
 
     public async Task Restore()
     {
-        if (Snapshot.Manifest is null || Runtime is not { } runtime) { return; }
+        if (Snapshot.MigrationPaused || Snapshot.Manifest is null || Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { return; }
         var configuration = Configuration(Snapshot);
@@ -678,6 +719,7 @@ internal sealed partial class AppNeuron(
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
     {
+        if (Snapshot.MigrationPaused) { return; }
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
@@ -734,6 +776,11 @@ internal sealed partial class AppNeuron(
     {
         if (Snapshot.Manifest is null)
         { throw new InvalidOperationException($"No app named {Name()} exists in this brain."); }
+    }
+
+    private void RequireRunningProgram()
+    {
+        if (Snapshot.MigrationPaused) { throw new InvalidOperationException("The app program is paused for migration."); }
     }
 
     // The publish gate: every script in the bundle compiles against the installed contracts. A host
@@ -811,7 +858,8 @@ internal sealed partial class AppNeuron(
         [.. state.Synapses],
         state.Installation,
         state.Presentation,
-        state.ProgramRevision);
+        state.ProgramRevision,
+        state.MigrationTarget);
 }
 
 internal sealed class AppActivation : IActivationHandler<AppNeuron>

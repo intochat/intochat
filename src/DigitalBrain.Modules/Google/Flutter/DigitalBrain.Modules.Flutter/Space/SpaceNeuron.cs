@@ -61,6 +61,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
     private bool _rebuilding, _rebuildPending, _fullRefresh;
     private readonly HashSet<string> _dirtyApps = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SpaceComposer.SpaceEntry> _entries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
 
     public Task RefreshApp(string key)
     {
@@ -128,23 +129,35 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
                 { members.Add(instance.Key); }
                 foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _entries.Remove(key); }
-                var refresh = fullRefresh ? members : members.Where(key => !_entries.ContainsKey(key) || dirtyApps.Contains(key, StringComparer.Ordinal));
+                foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
+                { _aliases.Remove(key); }
+                var refresh = fullRefresh ? members : members.Where(key => (!_entries.ContainsKey(key) && !_aliases.ContainsKey(key)) || dirtyApps.Contains(key, StringComparer.Ordinal));
                 foreach (var key in refresh)
                 {
                     try
                     {
                         var app = await grains.GetGrain<IApp>(key).Read();
+                        if (app.MigrationTarget is { } target)
+                        {
+                            _entries.Remove(key);
+                            _aliases[key] = target;
+                            continue;
+                        }
+                        _aliases.Remove(key);
                         _entries[key] = new(key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []);
                     }
                     catch (Exception error)
                     {
                         _entries.Remove(key);
+                        _aliases.Remove(key);
                         // Retry transient failures on the next event, without a hot retry loop.
                         _dirtyApps.Add(key);
                         logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
                     }
                 }
             }
+            // Resolve presentation only; retained workspace paths and migration source data stay intact.
+            workspace = workspace with { Path = workspace.Path.Select(ResolveAlias).ToArray() };
             List<SpaceComposer.SpaceEntry> entries = [.. _entries.Values];
             if (types.Any(type => type.Name == typeof(DigitalBrain.Circles.ICircle).FullName))
             { entries.AddRange(await friends.Entries(brain, workspace.Path[^1])); }
@@ -156,6 +169,13 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         {
             if (inherited is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
         }
+    }
+
+    private string ResolveAlias(string key)
+    {
+        HashSet<string> visited = new(StringComparer.Ordinal);
+        while (visited.Add(key) && _aliases.TryGetValue(key, out var target)) { key = target; }
+        return key;
     }
 }
 

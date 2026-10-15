@@ -21,7 +21,8 @@ public static class RuntimeProtocol
     public const string HeartbeatReport = "heartbeat";
     public const int MaximumAcknowledgements = 256;
     public static readonly HttpRequestOptionsKey<string> ReportKind = new(ReportKindTag);
-    public static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
+    // A bounded UI tree can contain 32 nodes, each with a children array, inside an invocation envelope.
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { MaxDepth = 128 };
 }
 
 [GenerateSerializer, Alias("microsoft.csharp.runtime.runtime-invocation")]
@@ -53,7 +54,8 @@ public sealed record LogsReport([property: Id(0)] string Request, [property: Id(
 // Stream events: the event name is the record's Kind.
 [GenerateSerializer, Alias("microsoft.csharp.runtime.assignment-event")]
 public sealed record AssignmentEvent([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] Uri Assembly, [property: Id(3)] Uri Symbols, [property: Id(4)] Dictionary<string, string> Settings,
-    [property: Id(5)] string? Revision = null) { public const string Kind = "assign"; }
+    [property: Id(5)] string? Revision = null)
+{ public const string Kind = "assign"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.retire-event")]
 public sealed record RetireEvent([property: Id(0)] string Behavior) { public const string Kind = "retire"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribed-event")]

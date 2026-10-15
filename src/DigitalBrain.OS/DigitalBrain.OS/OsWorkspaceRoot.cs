@@ -5,13 +5,20 @@ using DigitalBrain.Framework;
 namespace DigitalBrain.OS;
 
 // Deployment/migration only. The installed Workspace program composes every visible control.
-internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain, AppInstaller installer, ILogger<OsWorkspaceRoot> logger) : IUiRootProvider
+internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain, AppInstaller installer, ILogger<OsWorkspaceRoot> logger,
+    IEnumerable<IFeatureMigration> migrations) : IUiRootProvider
 {
     public string ActivationApp => "workspace";
 
     public async Task<UiChildRef> Connect(CancellationToken cancellationToken)
     {
         var scope = BrainScope.CurrentId();
+        foreach (var migration in migrations)
+        {
+            try { await migration.PrepareBrain(scope, cancellationToken); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
+        }
         foreach (var required in new[] { "usage", "circle", "workspace", "filmcraft", "photocraft" })
         {
             var app = grains.GetGrain<IApp>(IApp.Key(scope, required));

@@ -6,6 +6,10 @@ namespace DigitalBrain.Flutter.Chat;
 [Alias("composer"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ComposerType)]
 public interface IComposer : INeuron
 {
+    Task Follow(string chat);
+    Task Edit(string context, long selectionRevision, string value);
+    Task<Guid?> Submit(Guid requestId, string context, long selectionRevision, string value);
+    Task BeginVoice(Guid captureId, string context, long selectionRevision);
     Task Configure(string context, long generation, string label = "Message");
     Task Edit(string context, string value);
     Task<Guid?> Submit(Guid requestId, string context, string value);
@@ -26,7 +30,8 @@ public sealed record ComposerSubmission(
     [property: Id(2)] string Text,
     [property: Id(3)] long DraftVersion,
     [property: Id(4)] string Status = "pending",
-    [property: Id(5)] string? Error = null);
+    [property: Id(5)] string? Error = null,
+    [property: Id(6)] long Generation = -1);
 
 [GenerateSerializer, Alias("ui.composer-voice")]
 public sealed record ComposerVoice(
@@ -52,6 +57,7 @@ public sealed record ComposerState
     [Id(7)] public ComposerSubmission[] Submissions { get; init; } = [];
     [Id(8)] public string? Error { get; init; }
     [Id(9)] public ComposerVoice? Voice { get; init; }
+    [Id(10)] public string? FollowedChat { get; init; }
 }
 
 [GenerateSerializer, Alias("ui.composer-changed")]

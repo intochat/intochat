@@ -6,6 +6,25 @@ namespace DigitalBrain.OS.Tests.Unit;
 public sealed class RunHistoryCompatibilityFacts
 {
     [Fact]
+    public async Task AFailedLegacyReadCanRecoverAndOnlySuccessfulReadsAreCached()
+    {
+        var history = new BrainView.LegacyHistory();
+        var expected = new BrainView.Run("brain/apps/old/run", "run", "Succeeded", 42, "trace", "legacy-mark");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => history.Read(() => throw new InvalidOperationException("Storage unavailable")));
+        var recovered = await history.Read(() => Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new[] { expected })));
+        Assert.Equal(expected, Assert.Single(recovered));
+        Assert.Same(recovered, await history.Read(() => throw new InvalidOperationException("A successful read must be cached")));
+    }
+
+    [Fact]
+    public async Task AnEmptyLegacyLogIsASuccessfulCachedRead()
+    {
+        var history = new BrainView.LegacyHistory();
+        Assert.Empty(await history.Read(() => Task.FromResult("")));
+        Assert.Empty(await history.Read(() => throw new InvalidOperationException("Empty history must be cached")));
+    }
+
+    [Fact]
     public void LegacyMediansSurviveAnEmptyNativeSnapshotAndMatchingHashesExtendTheWindow()
     {
         Dictionary<string, (string Hash, Memory.Sample[] Recent)> legacy = new()

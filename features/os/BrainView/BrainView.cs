@@ -2,9 +2,8 @@ using DigitalBrain.Apps;
 using System.Text.Json;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Views;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 
 // Shared by every BrainView synapse: keys, the panel (always rebuilt whole), and the
@@ -16,38 +15,43 @@ public static class BrainView
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
     public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
 
-    public static IText Runs(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs");
     public static IText Recent(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs/recent");
-    private static Task<Run[]>? legacy;
-    private static string? shown;
+    private static readonly LegacyHistory legacy = new();
+    private static ViewPublisher? publisher;
 
-    // Rebuild from durable history so opening or restarting the app restores the brain-wide activity.
-    public static async Task Compose(DigitalBrainConnection brain)
+    // Opening advertises the root; the runs reaction alone publishes its immutable tree.
+    public static Task Compose(DigitalBrainConnection brain)
     {
         var app = Key(brain);
-        await brain.Get<ICard>(app + "/cards/activity").Set("Recent behavior runs", "The latest runs across this brain, newest first.");
-        await ShowRuns(brain, await ReadRecent(brain));
-        var column = brain.Get<ILayout>(app + "/panel");
-        await column.Set(new("column", [new(UIVocabulary.CardType, app + "/cards/activity"), new(UIVocabulary.TextType, app + "/runs")]), (await column.Read()).Revision);
-        var main = brain.Get<ILayout>(app + "/main");
-        await main.Set(new("column", [new("layout", app + "/panel")]), (await main.Read()).Revision);
-        await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main"), Views: [new("full", new("layout", app + "/main"))]));
+        return brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new(UIVocabulary.ViewType, app + "/view"),
+                Views: [new("full", new(UIVocabulary.ViewType, app + "/view"))]));
     }
 
     public static async Task<Run[]> ReadRecent(DigitalBrainConnection brain)
     {
-        legacy ??= ReadLegacy(brain);
         var snapshot = await brain.Get<IBrainRuns>(BrainRunsKeys.For(Scope(brain))).Read(Key(brain));
-        return Merge(await legacy, snapshot.Recent, Key(brain));
+        return Merge(await ReadLegacy(brain), snapshot.Recent, Key(brain));
+    }
+
+    public sealed class LegacyHistory
+    {
+        private Run[]? cached;
+
+        public async Task<Run[]> Read(Func<Task<string>> read) => cached ??= await Load(read);
+
+        private static async Task<Run[]> Load(Func<Task<string>> read)
+        {
+            var json = await read();
+            return json.Length == 0 ? [] : JsonSerializer.Deserialize<Run[]>(json) ?? [];
+        }
     }
 
     private static async Task<Run[]> ReadLegacy(DigitalBrainConnection brain)
     {
         try
         {
-            var json = (await Recent(brain).Read()).Markdown;
-            return json.Length == 0 ? [] : JsonSerializer.Deserialize<Run[]>(json) ?? [];
+            return await legacy.Read(async () => (await Recent(brain).Read()).Markdown);
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
@@ -64,13 +68,22 @@ public static class BrainView
             .GroupBy(run => run.Mark, StringComparer.Ordinal).Select(group => group.Last()).TakeLast(200)];
 
     // The panel's run list: the last 10 brain-wide runs, newest first.
-    public static async Task ShowRuns(DigitalBrainConnection brain, IEnumerable<Run> recent)
+    public static UiNode Render(IEnumerable<Run> recent)
     {
         var lines = recent.Reverse().Take(10)
             .Select(run => $"- {run.Behavior} · {run.Outcome} · {run.DurationMicroseconds / 1000.0:0.#} ms · {run.Trace}").ToArray();
         var markdown = lines.Length == 0 ? "No runs seen yet." : string.Join("\n", lines);
-        if (shown == markdown) { return; }
-        await Runs(brain).Set(markdown);
-        shown = markdown;
+        return Ui.Column("activity",
+        [
+            Ui.Card("heading", "Recent behavior runs", "The latest runs across this brain, newest first."),
+            Ui.Text("runs", markdown),
+        ]);
+    }
+
+    public static Task PublishRecent(DigitalBrainConnection brain, IEnumerable<Run> recent)
+    {
+        publisher ??= new(brain.Get<IView>(Key(brain) + "/view"),
+            long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture));
+        return publisher.Publish(Render(recent));
     }
 }

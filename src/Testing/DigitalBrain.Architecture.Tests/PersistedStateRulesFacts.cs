@@ -45,7 +45,7 @@ public sealed class PersistedStateRulesFacts
         [Id(0)] public int Explicit { get; init; }
     }
 
-    #pragma warning disable ORLEANS0004 // Deliberately invalid shapes exercise the architectural guard.
+#pragma warning disable ORLEANS0004 // Deliberately invalid shapes exercise the architectural guard.
     [GenerateSerializer]
     internal sealed record RecordWithBodyMember(string Positional)
     {
@@ -57,7 +57,7 @@ public sealed class PersistedStateRulesFacts
     {
         [Id(0)] public int Explicit { get; init; }
     }
-    #pragma warning restore ORLEANS0004
+#pragma warning restore ORLEANS0004
 
     [GenerateSerializer]
     internal sealed record PositionalList(IReadOnlyList<string> Values);

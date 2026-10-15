@@ -106,6 +106,10 @@ public sealed class AppRetentionFacts
         var item = Assert.Single(await retains.Retained(nameof(AppActivity), 0));
         var activity = Assert.IsType<AppActivity>(item.Signal);
         Assert.Equal(("crashed", "attention", "interrupted"), (activity.App, activity.State, activity.Detail));
+        var presentation = (await app.Read()).Presentation;
+        Assert.NotNull(presentation);
+        Assert.Equal("false", presentation.Blackboard["running"]);
+        Assert.Equal("true", presentation.Blackboard["attention"]);
     }
 
     [Theory]

@@ -82,6 +82,10 @@ internal sealed class BrainRuntimeNeuron(
     private Task _sandboxCalls = Task.CompletedTask;
     // The tail of this activation's pricing of acknowledged runs, priced one after another off the acks' turns.
     private Task _pricing = Task.CompletedTask;
+    // Recording runs off-turn: publication may call this runtime back. Idle includes its durable completion.
+    private Task _recording = Task.CompletedTask;
+    private readonly List<RunFact> _pendingRecords = [];
+    private bool _recordingFailed;
     // Sources a live signal nudged about that no read of their log has covered since: a nudge whose arrival
     // expired in the queue or failed is read by the next reminder, not left until the source publishes again.
     private readonly HashSet<string> _nudged = new(StringComparer.Ordinal);
@@ -116,7 +120,16 @@ internal sealed class BrainRuntimeNeuron(
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
             Snapshot.Session?.Fingerprint, Snapshot.Session?.LastHeartbeat,
-            [.. Snapshot.Programs.SelectMany(program => View(program).Behaviors)], IsReady(), IsReady() && _pricing.IsCompleted));
+            [.. Snapshot.Programs.SelectMany(program => View(program).Behaviors)], IsReady(),
+            IsReady() && _pricing.IsCompleted && _recording.IsCompletedSuccessfully && !_recordingFailed));
+
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        // Graceful retirement keeps this activation alive until all queued history has committed.
+        // A process crash or canceled shutdown still needs durable replay; this lane is not an outbox.
+        await _recording.WaitAsync(cancellationToken);
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
 
     // Initialization is the supported persistent script's single outer On/React wait, plus its
     // drained durable signals. Independent parallel initializers and downstream projections are not covered.
@@ -843,17 +856,37 @@ internal sealed class BrainRuntimeNeuron(
         activity.SetEndTime(end.UtcDateTime);
     }
 
-    // One one-way call carries the turn's facts. Unstamped: the runtime is their author, whoever's call
-    // produced them; the caller is restored for whatever the turn still does.
+    // Hand the turn's facts to the recording lane. Unstamped: the runtime is their author, whoever's call
+    // produced them; the caller is restored for whatever the turn still does. The turn never waits
+    // on publication, which can nudge this runtime back; Inspect includes the recording lane instead.
     private void Flush()
     {
         if (_facts.Count == 0) { return; }
-        RunFact[] facts = [.. _facts];
+        _pendingRecords.AddRange(_facts);
         _facts.Clear();
+        if (!_recording.IsCompleted) { return; }
         var caller = RequestContext.Get(CallerContextStamper.RequestContextKey);
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        try { _ = GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain)).Record(facts); }
+        try { _recording = RecordAsync(); }
         finally { if (caller is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, caller); } }
+    }
+
+    private async Task RecordAsync()
+    {
+        // Send immediately when idle. Facts queued while a commit is in flight share the next
+        // ordered append, retaining every fact's own trace without a timer or delaying a turn.
+        while (_pendingRecords.Count > 0)
+        {
+            RunFact[] facts = [.. _pendingRecords];
+            _pendingRecords.Clear();
+            try { await GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain)).Record(facts); }
+            catch (Exception error)
+            {
+                // Later facts must still be recorded, but a failed commit cannot become successful idle.
+                _recordingFailed = true;
+                logger.LogError(error, "Brain {Brain} could not record its synapse runs.", Brain);
+            }
+        }
     }
 
     private readonly record struct RunCounts(long Runs, long Failures, long LastDurationMicroseconds);

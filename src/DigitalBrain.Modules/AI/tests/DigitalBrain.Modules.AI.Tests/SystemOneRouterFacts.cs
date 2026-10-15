@@ -13,6 +13,7 @@ using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Time.Timers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 namespace DigitalBrain.Modules.AI.Tests;
@@ -417,14 +418,16 @@ public sealed class SystemOneRouterFacts
 
     // Seen live ("hello" sent to the assistant): Jev was offered the assistant's own operations and routed the
     // message back to assistant.open. The asking app, known from the stamped caller, is never offered to itself.
-    [Fact]
-    public async Task TheAskingAppIsNeverOfferedItsOwnOperations()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheAskingAppIsNeverOfferedItsOwnOperations(bool migrated)
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
         const string Back = """{"model":"jev","answers":{"app_0":{"type":"choice","choice":"assistant.open","confidence":0.9,"probabilities":{"assistant.open":0.9,"something else":0.1}}}}""";
         var reply = server.ReplyOnce("application/json", Back, ct);
-        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct);
+        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct, services => services.RemoveAll<IAppRuntime>());
         var alice = await host.PersonAsync("alice", ct);
         var scope = alice.BrainId;
         var router = host.Get<IRouter>(scope);
@@ -433,11 +436,21 @@ public sealed class SystemOneRouterFacts
         {
             await host.Get<IApp>(IApp.Key(scope, "assistant")).Create(new AppManifest("Assistant", "talk to your brain",
                 [new("open", "compose the assistant surface"), new("send", "start a turn with this message")], [], []), "spec");
+            if (migrated)
+            {
+                await host.Get<IApp>(IApp.Key(scope, "ino")).Create(new AppManifest("Ino", "talk to your brain",
+                    [new("open", "compose the assistant surface"), new("send", "start a turn with this message")], [], []), "spec");
+                var grains = host.Services.GetRequiredService<IGrainFactory>();
+                var old = grains.GetGrain<IAppMigration>(IApp.Key(scope, "assistant"));
+                await old.Pause("test");
+                await grains.GetGrain<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
+                await old.Redirect("test", IApp.Key(scope, "ino"));
+            }
             await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");
             routed = await host.Observe<Routed>(router, ct);
         }
         await using var observed = routed;
-        using var assistant = alice.AsApp(IApp.Key(scope, "assistant"));
+        using var assistant = alice.AsApp(IApp.Key(scope, migrated ? "ino" : "assistant"));
         var id = Guid.NewGuid();
 
         await router.Ask(new RouteRequest(id, "hello"), ct);
@@ -446,6 +459,7 @@ public sealed class SystemOneRouterFacts
         Assert.Equal((id, "", NotClear), (signal.Id, signal.Contract, signal.Error));
         var asked = (await reply).Body;
         Assert.DoesNotContain("assistant.", asked, StringComparison.Ordinal);
+        Assert.DoesNotContain("ino.", asked, StringComparison.Ordinal);
         Assert.Contains("calculator.open", asked, StringComparison.Ordinal);
     }
 

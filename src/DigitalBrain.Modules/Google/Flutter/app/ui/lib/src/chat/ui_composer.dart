@@ -49,6 +49,7 @@ class _UiComposerState extends State<UiComposer> {
   }) => widget.dispatch({
     'action': action,
     'context': widget.state['context'],
+    'selectionRevision': widget.state['generation'],
     'value': value,
     'operationId': id,
     'mimeType': mimeType,

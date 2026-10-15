@@ -19,7 +19,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
         using var caller = User.AsCaller();
         var scope = WorkspaceId;
 
-        var status = Brain.Get<IText>(scope + "/apps/assistant/status");
+        var status = Brain.Get<IText>(scope + "/apps/ino/status");
         var workspace = Brain.Get<IWorkspace>(scope);
         await using var changes = await Brain.Observe<TextChanged>(status, ct);
         await using var windows = await Brain.Observe<WorkspaceChanged>(workspace, ct);
@@ -27,7 +27,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
         Host.Model.SystemOneOverride = request => RouterHostFixture.Choose(request, "calculator.open", "open", 0.95);
         try
         {
-            using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/assistant/request",
+            using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/ino/request",
                 new { operation = "send", input = "open calculator" }, ct);
             sent.EnsureSuccessStatusCode();
 
