@@ -42,7 +42,14 @@ public sealed class RuntimeMachineAuthenticationFacts
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<BrainBirths>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<PrincipalPasswords>());
-        if (attachStorage) { builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Storage.BrainLogs>()); }
+        if (attachStorage)
+        {
+            builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Storage.BrainLogs>());
+            builder.Services.AddSingleton(brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+            builder.Services.AddKeyedSingleton<Orleans.Storage.IGrainStorage>(DigitalBrain.Framework.DigitalBrainNames.PlatformGrainStorage,
+                (services, _) => ActivatorUtilities.CreateInstance<DigitalBrain.Platform.Storage.HostedPlatformGrainStorage>(services));
+            builder.Services.AddSingleton<IReminderTable, DigitalBrain.Platform.Storage.HostedReminderTable>();
+        }
         builder.Services.AddIdentity();
         builder.WebHost.ConfigureKestrel(server => server.ConfigureHttpsDefaults(https =>
         {

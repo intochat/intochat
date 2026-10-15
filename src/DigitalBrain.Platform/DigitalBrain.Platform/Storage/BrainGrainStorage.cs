@@ -5,7 +5,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Platform.Storage;
 
-internal sealed class BrainGrainStorage(BrainLogs logs, Serializer serializer) : IGrainStorage
+internal sealed class BrainGrainStorage(BrainLogs logs, Serializer serializer, string? fixedBrainScope = null) : IGrainStorage
 {
     public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
@@ -31,7 +31,7 @@ internal sealed class BrainGrainStorage(BrainLogs logs, Serializer serializer) :
         grainState.ETag = null;
     }
 
-    private Task<BrainLog> Log(GrainId grainId) => logs.For(BrainKey.BrainOf(grainId.Key.ToString()!));
+    private Task<BrainLog> Log(GrainId grainId) => logs.For(fixedBrainScope ?? BrainKey.BrainOf(grainId.Key.ToString()!));
 
     private async Task<long> Append(string stateName, GrainId grainId, string? etag, BrainRecordChange change, byte[] record)
     {

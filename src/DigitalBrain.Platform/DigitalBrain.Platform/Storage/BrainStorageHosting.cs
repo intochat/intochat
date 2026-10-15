@@ -29,6 +29,19 @@ public static class BrainStorageHosting
         foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage)).ToArray())
         { services.Remove(descriptor); }
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) => ActivatorUtilities.CreateInstance<BrainGrainStorage>(provider));
+        if (!string.IsNullOrEmpty(silo.Configuration[Hosting.HostedRuntimeOptions.SectionName + ":RuntimeId"]))
+        {
+            if (!string.IsNullOrWhiteSpace(silo.Configuration[DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("orleans", "GrainState")]))
+            {
+                throw new InvalidOperationException("Hosted journal storage requires an explicit migration from the configured Orleans grain-state store; existing authority and secrets must not be replaced.");
+            }
+            foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.PlatformGrainStorage)).ToArray())
+            { services.Remove(descriptor); }
+            services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
+                (provider, _) => ActivatorUtilities.CreateInstance<HostedPlatformGrainStorage>(provider));
+            services.RemoveAll<IReminderTable>();
+            services.AddSingleton<IReminderTable, HostedReminderTable>();
+        }
         silo.TryAddKernelRegistration();
         silo.AddStartupTask((provider, cancellationToken) =>
         {

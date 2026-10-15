@@ -64,7 +64,9 @@ internal static class HostedRuntimeEndpoints
             await identity.BrainExists(BrainScope.Create(scope.AccountId, scope.BrainId).Id).WaitAsync(ct);
         var version = typeof(HostedRuntimeEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
         var logs = services.GetService<BrainLogs>();
-        var storageAttached = registered && logs is not null &&
+        var platform = services.GetKeyedService<Orleans.Storage.IGrainStorage>(DigitalBrainNames.PlatformGrainStorage) as HostedPlatformGrainStorage;
+        var storageAttached = registered && logs is not null && services.GetService<IReminderTable>() is HostedReminderTable &&
+            platform?.Scope == BrainScope.Create(scope.AccountId, scope.BrainId).Id &&
             await logs.CheckStorageAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
         var lifetime = services.GetService<IHostApplicationLifetime>();
         var healthy = registered && storageAttached && lifetime?.ApplicationStarted.IsCancellationRequested == true &&
