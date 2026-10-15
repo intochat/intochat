@@ -1,36 +1,11 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using DigitalBrain.AI;
-using DigitalBrain.AI.Aspire.Hosting;
-using DigitalBrain.AI.Models.FoundryLocal;
-using DigitalBrain.AI.Models.Ollama;
-using DigitalBrain.AI.Models.OpenAI;
-using DigitalBrain.AI.Models.OpenRouter;
-using DigitalBrain.ArtCraft;
-using DigitalBrain.ArtCraft.Aspire.Hosting;
+using DigitalBrain.AppHost;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.ClickHouse;
-using DigitalBrain.ClickHouse.Aspire.Hosting;
-using DigitalBrain.Equifax.Aspire.Hosting;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
-using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Microsoft.GitHub;
-using DigitalBrain.Microsoft.Orleans;
-using DigitalBrain.Microsoft.Playwright;
-using DigitalBrain.Monnet.Aspire.Hosting;
-using DigitalBrain.Postgres;
-using DigitalBrain.Postgres.Aspire.Hosting;
-using DigitalBrain.Qdrant;
-using DigitalBrain.Qdrant.Aspire.Hosting;
-using DigitalBrain.RiskSeal.Aspire.Hosting;
-using DigitalBrain.Salesforce;
-using DigitalBrain.Salesforce.Aspire.Hosting;
-using DigitalBrain.Supabase;
-using DigitalBrain.Supabase.Aspire.Hosting;
-using DigitalBrain.Twilio.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
 // The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
@@ -40,42 +15,14 @@ const string McpPortKey = "DigitalBrain:Http:McpPort";
 var featuresKey = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
-// `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
+// The profile symbol in this file is the selection: RunProfile.Cloud or RunProfile.Local.
 builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
-var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"))
-    .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
-    .WithHttpIdentity()
-    .WithHosting<AIModuleHosting, AIOptions>(ai =>
-    {
-        ai.WithLlm<IGpt56Luna>();
-        ai.WithDefaultLlm<IDeepSeekV41Flash>();
-        ai.WithDefaultEmbedding<ITextEmbedding3Small>();
-        ai.WithVoiceToText<IWhisperLargeV3Turbo>();
-        ai.WithDefaultSystemOne<ILocalJev>();
-        ai.WithTavilySearch();
-    })
-    .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())
-    .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(database => database.WithClickHouse())
-    .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(database => database.WithConnection("supabase"))
-    .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
-    .WithHosting<GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
-    .WithHosting<SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
-    // SV integration spikes (docs/superpowers/specs/2026-10-11-sv-integrations-design.md): each asks for its sandbox credentials.
-    .WithHosting<MonnetModuleHosting>()
-    .WithHosting<EquifaxModuleHosting>()
-    .WithHosting<RiskSealModuleHosting>()
-    .WithHosting<TwilioModuleHosting>()
-    .WithHosting<GitHubModuleHosting>();
+var digitalBrain = AppHostDigitalBrain.Add(builder, "Modules", RunProfile.Cloud, DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"))
+    .WithHttpIdentity();
 if (shellEnabled) { digitalBrain = digitalBrain.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
-digitalBrain = digitalBrain
-    .WithHosting<AspireModuleHosting>()
-    .WithHosting<CSharpModuleHosting>()
-    // PhotoCraft and FilmCraft: headless MCP servers plus their web builds, which the shell's browser may drive.
-    .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps())
-    .WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 

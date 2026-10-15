@@ -70,8 +70,13 @@ public sealed class ProductCompositionFacts
         Assert.Contains("qdrant", productModules);
         Assert.DoesNotContain("memory", productModules);
         Assert.DoesNotContain("registry", catalogModules);
-        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"
-            && resource is ParameterResource { Secret: true });
+        Assert.DoesNotContain(appHost.Resources.OfType<ParameterResource>(), resource =>
+            resource.Name.Contains("api-key", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("client-secret", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("consumer-key", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("consumer-secret", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
+        Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("ollama", StringComparison.OrdinalIgnoreCase));
         var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
@@ -80,7 +85,5 @@ public sealed class ProductCompositionFacts
             await callback.Callback(context);
         }
         Assert.Equal("IDeepSeekV41Flash", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Model")]);
-        Assert.True(environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(
-            DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("openrouter", "ApiKey"))));
     }
 }

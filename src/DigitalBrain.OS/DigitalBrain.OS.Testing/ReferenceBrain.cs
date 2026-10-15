@@ -30,8 +30,12 @@ public static class ReferenceBrain
         var brain = TestBrain.Create().On(new AspireTarget<Projects.DigitalBrain_AppHost>())
             // The AppHost runs two machines; A holds the core and is the one the fronts and MCPs route to.
             .WithExecution(new TestExecutionOptions { ServerResourceName = "OperatingSystem-a" })
-            .WithOptions<AIModule, AIOptions>(ai => ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
-                .WithDefaultLlm<IGpt56Luna>().WithModelEndpoint(AiProvider.OpenAI, new(UnconfiguredProvider, "v1/")))
+            .WithOptions<AIModule, AIOptions>(ai =>
+            {
+                ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
+                    .WithDefaultLlm<IGpt56Luna>()
+                    .WithModelEndpoint(AiProvider.OpenAI, new Uri(UnconfiguredProvider, "v1/"));
+            })
             .WithOptions<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)
             .WithOptions<PostgresModule, PostgresModuleOptions>(database => database.WithPostgres(options =>
             {
@@ -54,14 +58,10 @@ public static class ReferenceBrain
             .WithHostConfiguration(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)), new IdentityHostOptions().ProtectionContainerName);
         foreach (var (key, value) in Merge(new Dictionary<string, string?>
         {
-            ["Parameters:modules-openai-api-key"] = modelApiKey,
+            [IntegrationSchema.Key("openai", "ApiKey")] = modelApiKey,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
-            ["Parameters:modules-gmail-client-id"] = "fixture-client",
-            ["Parameters:modules-gmail-client-secret"] = "fixture-secret",
             [DigitalBrainConfiguration.ConnectionsTokenEndpointKey("gmail")] = new Uri(UnconfiguredProvider, "token").AbsoluteUri,
-            ["Parameters:modules-salesforce-consumer-key"] = "fixture-client",
-            ["Parameters:modules-salesforce-consumer-secret"] = "fixture-secret",
         }, privateConfiguration))
         { brain.WithConfiguration(key, value); }
         return brain;

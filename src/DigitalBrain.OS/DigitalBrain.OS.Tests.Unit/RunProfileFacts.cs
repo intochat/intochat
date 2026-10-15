@@ -1,8 +1,10 @@
 extern alias AppHost;
 using AppHost::DigitalBrain.AppHost;
+using Aspire.Hosting.Testing;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
+[Collection(AppHostComposition.Collection)]
 public sealed class RunProfileFacts
 {
     [Fact]
@@ -20,5 +22,15 @@ public sealed class RunProfileFacts
         Assert.True(RunProfile.Cloud.Ai.Tavily.Enabled);
         Assert.Equal("http://127.0.0.1:1/v1/", RunProfile.Reference.Ai.OpenAI.Endpoint);
         Assert.False(RunProfile.Reference.Ai.Tavily.Enabled);
+    }
+
+    [Fact]
+    public async Task TheProductEntryPointAppliesCloudAndKeepsTheMasterKey()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
+            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
+        Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("gmail-client", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("salesforce-consumer", StringComparison.OrdinalIgnoreCase));
     }
 }
