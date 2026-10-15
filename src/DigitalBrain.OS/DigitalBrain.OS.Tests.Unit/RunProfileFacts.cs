@@ -1,6 +1,7 @@
 extern alias AppHost;
 using AppHost::DigitalBrain.AppHost;
 using Aspire.Hosting.Testing;
+using DigitalBrain.AI;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
@@ -32,5 +33,22 @@ public sealed class RunProfileFacts
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("gmail-client", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("salesforce-consumer", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TheReferenceOverlayCarriesRunProfileReference()
+    {
+        var overlaid = new AIOptions();
+        ReferenceBrain.ApplyReferenceAi(overlaid);
+        var reference = RunProfile.Reference.Ai;
+        Assert.Equal(reference.Default.Model, overlaid.Default.Model);
+        Assert.Equal(reference.Default.Embedding, overlaid.Default.Embedding);
+        Assert.Equal(reference.Default.Transcription, overlaid.Default.Transcription);
+        Assert.Equal(reference.Default.SystemOne, overlaid.Default.SystemOne);
+        Assert.Equal(reference.Tavily.Enabled, overlaid.Tavily.Enabled);
+        Assert.Equal(reference.OpenAI.Endpoint, overlaid.OpenAI.Endpoint);
+        Assert.Equal(reference.Hosting.Llms, overlaid.Hosting.Llms);
+        Assert.Equal(reference.Hosting.Embeddings, overlaid.Hosting.Embeddings);
+        Assert.Equal(reference.Hosting.SystemOnes, overlaid.Hosting.SystemOnes);
     }
 }

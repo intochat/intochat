@@ -44,6 +44,26 @@ public static class RunProfile
         Ai = CloudAi().WithoutWebSearch().WithModelEndpoint(AiProvider.OpenAI, new Uri("http://127.0.0.1:1/v1/")),
     };
 
+    public static void CopyOnto(AIOptions target, AIOptions source)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(source);
+        target.Default = source.Default;
+        target.Telemetry = source.Telemetry;
+        target.OpenAI = source.OpenAI;
+        target.Anthropic = source.Anthropic;
+        target.Google = source.Google;
+        target.XAI = source.XAI;
+        target.OpenRouter = source.OpenRouter;
+        target.Ollama = source.Ollama;
+        target.Tavily = source.Tavily;
+        target.SystemOne = source.SystemOne;
+        target.Hosting = source.Hosting;
+        target.ModelProfiles.Clear();
+        foreach (var (key, value) in source.ModelProfiles)
+        { target.ModelProfiles[key] = value; }
+    }
+
     public static DigitalBrainBuilder Apply(DigitalBrainBuilder brain, BrainProfile profile)
     {
         ArgumentNullException.ThrowIfNull(brain);

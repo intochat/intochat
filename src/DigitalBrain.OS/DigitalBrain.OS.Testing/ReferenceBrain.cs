@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using DigitalBrain.AI;
-using DigitalBrain.AI.Models;
-using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AppHost;
 using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;
@@ -30,12 +29,7 @@ public static class ReferenceBrain
         var brain = TestBrain.Create().On(new AspireTarget<Projects.DigitalBrain_AppHost>())
             // The AppHost runs two machines; A holds the core and is the one the fronts and MCPs route to.
             .WithExecution(new TestExecutionOptions { ServerResourceName = "OperatingSystem-a" })
-            .WithOptions<AIModule, AIOptions>(ai =>
-            {
-                ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
-                    .WithDefaultLlm<IGpt56Luna>()
-                    .WithModelEndpoint(AiProvider.OpenAI, new Uri(UnconfiguredProvider, "v1/"));
-            })
+            .WithOptions<AIModule, AIOptions>(ApplyReferenceAi)
             .WithOptions<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)
             .WithOptions<PostgresModule, PostgresModuleOptions>(database => database.WithPostgres(options =>
             {
@@ -65,6 +59,12 @@ public static class ReferenceBrain
         }, privateConfiguration))
         { brain.WithConfiguration(key, value); }
         return brain;
+    }
+
+    public static void ApplyReferenceAi(AIOptions ai)
+    {
+        ArgumentNullException.ThrowIfNull(ai);
+        RunProfile.CopyOnto(ai, RunProfile.Reference.Ai);
     }
 
     internal static Dictionary<string, string?> Merge(Dictionary<string, string?> defaults, Dictionary<string, string?>? extra)
