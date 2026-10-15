@@ -38,6 +38,26 @@ internal sealed class BrainLog : IDisposable
 
     public long LastSignal { get { lock (gate) { return lastSignal; } } }
 
+    internal bool CheckStorage(CancellationToken ct)
+    {
+        lock (gate)
+        {
+            RequireOpen();
+            ct.ThrowIfCancellationRequested();
+            var path = Path.Combine(directory, ".readiness-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var probe = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
+                    4096, FileOptions.DeleteOnClose | FileOptions.WriteThrough);
+                probe.WriteByte(0x5A);
+                probe.Flush(flushToDisk: true);
+                probe.Position = 0;
+                return probe.ReadByte() == 0x5A;
+            }
+            finally { File.Delete(path); }
+        }
+    }
+
     public BrainRecord? Read(string grainId, string stateName)
     {
         lock (gate)

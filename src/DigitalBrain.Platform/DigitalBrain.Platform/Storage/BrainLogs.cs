@@ -33,6 +33,13 @@ internal sealed class BrainLogs : IAsyncDisposable
     private async Task<BrainLog> Open(string brainId)
         => new(keys.DirectoryOf(brainId), brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer);
 
+    internal async Task<bool> CheckStorageAsync(string brainId, CancellationToken ct)
+    {
+        try { return (await For(brainId).WaitAsync(ct)).CheckStorage(ct); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
+        { return false; }
+    }
+
     public async ValueTask DisposeAsync()
     {
         Task<BrainLog>[] opening;

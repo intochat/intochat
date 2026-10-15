@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using DigitalBrain.Platform.Storage;
 
 namespace DigitalBrain.Platform.Hosting;
 
@@ -31,7 +33,7 @@ internal static class HostedRuntimeEndpoints
 
     private static async Task<IResult> EnsureAsync([FromServices] IOptions<HostedRuntimeOptions> options,
         [FromServices] IIdentityClient identity, [FromServices] BrainBirths births,
-        [FromServices] TimeProvider clock, CancellationToken ct)
+        [FromServices] TimeProvider clock, [FromServices] IServiceProvider services, CancellationToken ct)
     {
         var scope = options.Value;
         var existing = await identity.OwnerOfBrain(scope.BrainId).WaitAsync(ct);
@@ -50,17 +52,24 @@ internal static class HostedRuntimeEndpoints
             Role = MemberRole.Owner, DisplayName = scope.BrainId, JoinedAt = clock.GetUtcNow()
         }).WaitAsync(ct);
         await births.Born(provision).WaitAsync(ct);
-        return await ObserveAsync(options, identity, ct);
+        return await ObserveAsync(options, identity, services, ct);
     }
 
     private static async Task<IResult> ObserveAsync([FromServices] IOptions<HostedRuntimeOptions> options,
-        [FromServices] IIdentityClient identity, CancellationToken ct)
+        [FromServices] IIdentityClient identity, [FromServices] IServiceProvider services, CancellationToken ct)
     {
         var scope = options.Value;
         var owner = await identity.OwnerOfBrain(scope.BrainId).WaitAsync(ct);
         var registered = owner?.AccountId == scope.AccountId && owner.OwnerPrincipalId == scope.AccountId &&
             await identity.BrainExists(BrainScope.Create(scope.AccountId, scope.BrainId).Id).WaitAsync(ct);
         var version = typeof(HostedRuntimeEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
-        return Results.Ok(new HostedRuntimeObservation(1, version, scope.AccountId, scope.BrainId, scope.RuntimeId, registered));
+        var logs = services.GetService<BrainLogs>();
+        var storageAttached = registered && logs is not null &&
+            await logs.CheckStorageAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
+        var lifetime = services.GetService<IHostApplicationLifetime>();
+        var healthy = registered && storageAttached && lifetime?.ApplicationStarted.IsCancellationRequested == true &&
+            !lifetime.ApplicationStopping.IsCancellationRequested;
+        return Results.Ok(new HostedRuntimeObservation(1, version, scope.AccountId, scope.BrainId, scope.RuntimeId, registered,
+            healthy, storageAttached));
     }
 }

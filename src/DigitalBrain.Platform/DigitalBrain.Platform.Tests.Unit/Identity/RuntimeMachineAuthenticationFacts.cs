@@ -15,8 +15,10 @@ namespace DigitalBrain.Platform.Tests.Unit.Identity;
 
 public sealed class RuntimeMachineAuthenticationFacts
 {
-    [Fact]
-    public async Task MachineCertificateCanEnsureOnlyConfiguredScopeAndCannotEnterWorkspace()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MachineCertificateCanEnsureOnlyConfiguredScopeAndCannotEnterWorkspace(bool attachStorage)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
@@ -40,6 +42,7 @@ public sealed class RuntimeMachineAuthenticationFacts
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<BrainBirths>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<PrincipalPasswords>());
+        if (attachStorage) { builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Storage.BrainLogs>()); }
         builder.Services.AddIdentity();
         builder.WebHost.ConfigureKestrel(server => server.ConfigureHttpsDefaults(https =>
         {
@@ -69,6 +72,8 @@ public sealed class RuntimeMachineAuthenticationFacts
         Assert.Equal("hosted-account", body.AccountId);
         Assert.Equal("allocation-one", body.RuntimeId);
         Assert.True(body.Registered);
+        Assert.Equal(attachStorage, body.RuntimeHealthy);
+        Assert.Equal(attachStorage, body.StorageAttached);
         using var workspace = await client.GetAsync("/workspace-probe", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, workspace.StatusCode);
         using var anonymousHandler = new HttpClientHandler();
