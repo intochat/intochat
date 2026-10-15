@@ -43,6 +43,7 @@ internal static class AIClients
 
     internal static void Add(IServiceCollection services)
     {
+        services.TryAddSingleton<ProviderExecutionGate>();
         foreach (var model in LLMModel.All)
         {
             services.AddKeyedSingleton<IChatClient>(
@@ -60,9 +61,10 @@ internal static class AIClients
                         ct => Factories[model.Provider].CreateEmbeddingGenerator(
                             model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
                         GenerationOf(provider, model.Provider));
+                    IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
                     return provider.GetService<ICostMeter>() is { } meter
-                        ? new MeteringEmbeddingGenerator(inner, meter, FundingOf(model.Provider), model.Id)
-                        : inner;
+                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(model.Provider), model.Id)
+                        : limited;
                 });
         }
 
@@ -142,6 +144,8 @@ internal static class AIClients
         {
             pipeline = pipeline.Use(inner => new MeteringChatClient(inner, meter, FundingOf(meterProvider), meterModel));
         }
+        if (provider.GetService<ProviderExecutionGate>() is { } execution)
+        { pipeline = pipeline.Use(inner => new LimitedChatClient(inner, execution)); }
         return pipeline.Build(provider);
     }
 

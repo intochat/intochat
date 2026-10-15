@@ -109,6 +109,9 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         ArgumentNullException.ThrowIfNull(resolved);
         if (!string.Equals(resolved.Revision, Revision(resolved), StringComparison.Ordinal))
         { throw new ArgumentException("The resolved model configuration does not match its revision.", nameof(resolved)); }
+        // Pinned options are applied inside the normal pipeline. Validate them before they
+        // can overwrite the per-call ceiling at the provider boundary.
+        _ = services.GetService<ProviderExecutionGate>()?.Bound(new ChatOptions { MaxOutputTokens = resolved.MaxOutputTokens });
         if (resolved.Provider == AiProvider.Host) { return new NonDisposing(services.GetRequiredService<IChatClient>()); }
         var configuration = new AIOptions();
         configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
