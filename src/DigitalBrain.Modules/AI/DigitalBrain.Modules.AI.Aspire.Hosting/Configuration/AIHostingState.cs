@@ -5,9 +5,7 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.FoundryLocal;
 using DigitalBrain.AI.Voice;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 
@@ -21,11 +19,9 @@ public static partial class AIHostingExtensions
 
         private readonly HashSet<Type> _markers = [];
         private readonly Dictionary<Type, IResourceBuilder<OllamaModelResource>> _ollamaModels = [];
-        private readonly Dictionary<AiProvider, IResourceBuilder<ParameterResource>> _providerApiKeys = [];
         private IResourceBuilder<OllamaResource>? _ollama;
         private Type? _defaultLlmMarker;
         private Type? _defaultEmbeddingMarker;
-        private IResourceBuilder<ParameterResource>? _tavilyApiKey;
 
         internal bool EnableSensitiveData { get; set; }
 
@@ -71,24 +67,12 @@ public static partial class AIHostingExtensions
                 .WithEnvironment("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
                     EnableSensitiveData ? "true" : "false");
 
-            if (_tavilyApiKey is not null)
-            {
-                builder
-                    .WithEnvironment(TavilyEnabledEnvironmentKey, "true")
-                    .WithEnvironment(TavilyApiKeyEnvironmentKey, _tavilyApiKey);
-            }
-
             foreach (var (marker, resource) in _ollamaModels)
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                     .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
                     .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.Ollama, $"{marker.Name}:Model"), resource.Resource.ModelName);
-            }
-
-            foreach (var (provider, apiKey) in _providerApiKeys)
-            {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key(provider.ToString().ToLowerInvariant(), "ApiKey")), apiKey);
             }
 
             if (_defaultLlmMarker is { } llmMarker)
@@ -114,10 +98,6 @@ public static partial class AIHostingExtensions
             {
                 _ollamaModels[marker] = EnsureOllama().AddModel(brain.ResourceName(OllamaResourceName(id)), id);
             }
-            else
-            {
-                EnsureProviderApiKey(provider);
-            }
         }
 
         // An Ollama model that backs something other than an LLM/embedding neuron (the System One
@@ -132,42 +112,6 @@ public static partial class AIHostingExtensions
                 throw new InvalidOperationException(
                     $"{marker.Name} must be added with WithLlm/WithEmbedding before it can become the default.");
             }
-        }
-
-        internal void EnsureProviderApiKey(AiProvider provider)
-        {
-            if (_providerApiKeys.ContainsKey(provider))
-            {
-                return;
-            }
-
-            var apiKey = brain.ApplicationBuilder.AddParameter(
-                brain.ResourceName($"{provider.ToString().ToLowerInvariant()}-api-key"),
-                secret: true);
-
-            if (provider is AiProvider.OpenAI)
-            {
-                apiKey.WithDescription(
-                    "Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).",
-                    enableMarkdown: true);
-            }
-
-            if (provider is AiProvider.OpenRouter)
-            {
-                apiKey.WithDescription(
-                    "Create an API key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).",
-                    enableMarkdown: true);
-            }
-
-            _providerApiKeys[provider] = apiKey.WithParentRelationship(module);
-        }
-
-        internal void EnableTavilySearch()
-        {
-            _tavilyApiKey ??= brain.ApplicationBuilder
-                .AddParameter(brain.ResourceName("tavily-api-key"), secret: true)
-                .WithDescription(TavilyApiKeyDescription, enableMarkdown: true)
-                .WithParentRelationship(module);
         }
 
         private static string OllamaResourceName(string id)

@@ -38,7 +38,6 @@ public static partial class AIHostingExtensions
             var model = TranscriptionModel.FindByMarkerName(nameOfVoice) ?? throw new InvalidOperationException(
                 $"'{nameOfVoice}' is not a catalogued transcription model. Known: {string.Join(", ", TranscriptionModel.All.Select(static m => m.Marker.Name))}.");
             var voice = module.GetOrAddProjection(b => new VoiceToTextHostingState(b, module.Resource));
-            if (!model.IsLocal) { state.EnsureProviderApiKey(model.Provider); }
             voice.SetModel(model);
         }
         foreach (var name in options.Hosting.SystemOnes)
@@ -48,8 +47,7 @@ public static partial class AIHostingExtensions
             if (!string.Equals(options.Default.SystemOne, name, StringComparison.Ordinal)) { continue; }
             var systemOne = module.GetOrAddProjection(b => new SystemOneHostingState(b, module.Resource));
             if (model.Provider is AiProvider.Ollama) { systemOne.SetDefault(model, state.AddOllamaBackingModel(model.Id)); }
-            else { state.EnsureProviderApiKey(model.Provider); systemOne.SetDefault(model, null); }
+            else { systemOne.SetDefault(model, null); }
         }
-        if (options.Tavily.Enabled) { state.EnableTavilySearch(); }
     }
 }

@@ -13,7 +13,7 @@ using static DigitalBrain.Aspire.Testing.AspireCompositionTest;
 namespace DigitalBrain.Modules.AI.Tests.Hosting;
 
 // WithDefaultSystemOne<ILocalJev>() hosts the systemone-adapter as the `systemone` container and points the
-// OS's `typesafe` integration at it; WithDefaultSystemOne<IJev>() asks for the hosted key instead.
+// OS's `typesafe` integration at it; WithDefaultSystemOne<IJev>() hosts no container and no merchant key.
 
 public sealed class SystemOneHostingFacts
 {
@@ -59,8 +59,8 @@ public sealed class SystemOneHostingFacts
 
         Assert.DoesNotContain(builder.Resources, resource => resource.Name == AIHostingExtensions.SystemOneResourceName);
         var environment = await ConfigurationOf(builder, consumer.Resource, ct);
-        var key = Assert.IsType<ParameterResource>(environment[ApiKeyKey]);
-        Assert.True(key.Secret);
+        Assert.DoesNotContain(ApiKeyKey, environment.Keys);
+        Assert.DoesNotContain(builder.Resources.OfType<ParameterResource>(), resource => resource.Name.Contains("api-key", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("IJev", Assert.IsType<string>(environment[DefaultKey]));
         Assert.DoesNotContain(EndpointKey, environment.Keys);
     }

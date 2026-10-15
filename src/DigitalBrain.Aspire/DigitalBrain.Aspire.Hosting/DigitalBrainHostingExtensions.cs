@@ -5,6 +5,7 @@ using Aspire.Hosting.Azure;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -106,6 +107,19 @@ public static class DigitalBrainHostingExtensions
 
         foreach (var pair in brain.Settings)
         { builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
+
+        foreach (var pair in brain.ApplicationBuilder.Configuration.GetSection(IntegrationSchema.SectionName).AsEnumerable())
+        {
+            if (string.IsNullOrWhiteSpace(pair.Value) || pair.Key.Equals(IntegrationSchema.SectionName, StringComparison.OrdinalIgnoreCase))
+            { continue; }
+            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value);
+        }
+        builder.WithEnvironment(context =>
+        {
+            var origin = DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey);
+            if (!context.EnvironmentVariables.ContainsKey(origin))
+            { context.EnvironmentVariables[origin] = builder.GetEndpoint("http"); }
+        });
 
         // Aspire's OTLP injection prefers gRPC; a host that names only an HTTP collector gets http/protobuf.
         // Run mode only: a published manifest never carries the local dashboard's collector URL.
