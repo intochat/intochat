@@ -39,42 +39,39 @@ internal sealed class BrainRunsNeuron(
             [.. Snapshot.Recent.Where(item => item.Owner != excludedOwner).TakeLast(200)], Snapshot.Statistics));
     }
 
-    // Behaviors recorded while a later one was still starting. Memory of this activation: the facts
-    // themselves are already durable, and the next announce publishes one revision for all of them.
-    private string[] _unannounced = [];
-
     public Task Record(RunFact[] facts, bool announce = true)
     {
         ArgumentNullException.ThrowIfNull(facts);
         var next = Snapshot.Apply(facts);
         (Signal Signal, Trace? Trace)[] signals = [.. facts.Select(fact => (fact.Fact, fact.Trace))];
         var behaviors = Behaviors(facts);
-        var announced = _unannounced.Concat(behaviors).Distinct(StringComparer.Ordinal).ToArray();
-        var changed = !ReferenceEquals(next, Snapshot);
+        var announced = Snapshot.Unannounced.Concat(behaviors).Distinct(StringComparer.Ordinal).ToArray();
         if (!announce)
         {
-            _unannounced = announced;
-            return changed ? Save(next, signals) : PublishAsync(signals);
+            var held = Same(announced, Snapshot.Unannounced) ? next : next with { Unannounced = announced };
+            return ReferenceEquals(held, Snapshot) ? PublishAsync(signals) : Save(held, signals);
         }
-        _unannounced = [];
-        if (announced.Length == 0) { return changed ? Save(next, signals) : PublishAsync(signals); }
+        var cleared = Snapshot.Unannounced.Length == 0 ? next : next with { Unannounced = [] };
+        if (announced.Length == 0) { return ReferenceEquals(cleared, Snapshot) ? PublishAsync(signals) : Save(cleared, signals); }
         Trace? trace = null;
         for (var index = facts.Length - 1; index >= 0 && trace is null; index--)
         {
             if (facts[index].Fact is BehaviorRan { Outcome: not RunOutcome.Skipped }) { trace = facts[index].Trace; }
         }
-        var revision = changed ? next.Revision : Snapshot.Revision;
+        var revision = ReferenceEquals(next, Snapshot) ? Snapshot.Revision : next.Revision;
         (Signal Signal, Trace? Trace)[] published = [.. signals, (new BrainRunsChanged(revision, announced), trace)];
-        return changed ? Save(next, published) : PublishAsync(published);
+        return ReferenceEquals(cleared, Snapshot) ? PublishAsync(published) : Save(cleared, published);
     }
 
     public Task Announce()
     {
-        if (_unannounced.Length == 0) { return Task.CompletedTask; }
-        var behaviors = _unannounced;
-        _unannounced = [];
-        return PublishAsync([(new BrainRunsChanged(Snapshot.Revision, behaviors), null)]);
+        if (Snapshot.Unannounced.Length == 0) { return Task.CompletedTask; }
+        var behaviors = Snapshot.Unannounced;
+        return Save(Snapshot with { Unannounced = [] }, [(new BrainRunsChanged(Snapshot.Revision, behaviors), null)]);
     }
+
+    private static bool Same(string[] left, string[] right)
+        => left.Length == right.Length && left.AsSpan().SequenceEqual(right);
 
     private static string[] Behaviors(RunFact[] facts)
         => [.. facts.Select(fact => fact.Fact).OfType<BehaviorRan>().Where(ran => ran.Outcome != RunOutcome.Skipped)

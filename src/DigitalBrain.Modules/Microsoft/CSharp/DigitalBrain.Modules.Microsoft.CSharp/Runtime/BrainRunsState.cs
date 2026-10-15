@@ -10,6 +10,9 @@ internal sealed record BrainRunsState
     [Id(1)] public long Sequence { get; init; }
     [Id(2)] public BrainRunEntry[] Recent { get; init; } = [];
     [Id(3)] public BrainRunStatistics[] Statistics { get; init; } = [];
+    // Behaviors saved while a later one was still running. They ride the next changed signal, including
+    // one published by a new activation, so a crash cannot forget a revision the snapshot already holds.
+    [Id(4)] public string[] Unannounced { get; init; } = [];
 
     public BrainRunsState Apply(RunFact[] facts)
     {
@@ -48,6 +51,7 @@ internal sealed record BrainRunsState
             Sequence = sequence,
             Recent = [.. recent],
             Statistics = [.. statistics.Values.OrderBy(item => item.Behavior, StringComparer.Ordinal)],
+            Unannounced = Unannounced,
         } : this;
     }
 }

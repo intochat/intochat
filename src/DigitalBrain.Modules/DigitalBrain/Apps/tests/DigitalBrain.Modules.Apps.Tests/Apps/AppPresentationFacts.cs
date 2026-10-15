@@ -197,4 +197,27 @@ public sealed class AppPresentationFacts
         Assert.Equal("false", restored.Blackboard["running"]);
         Assert.Equal("true", restored.Blackboard["attention"]);
     }
+
+    [Fact]
+    public async Task ProgressBeforeTheSphereExistsKeepsTheActivityAndDropsUndeclaredMood()
+    {
+        await using var brain = await Start();
+        var app = await Create(brain);
+        using var activities = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<AppActivity>();
+        await app.Progress("listening", "heard", new() { ["mood"] = "listening" });
+        var early = (await app.Read()).Presentation!;
+        Assert.Equal("true", early.Blackboard["running"]);
+        Assert.False(early.Blackboard.ContainsKey("mood"));
+        Assert.True(activities.Reader.TryRead(out var heard));
+        Assert.Equal("heard", heard.Detail);
+
+        using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files")))
+        { await app.Present(0, new(new Sphere("icon.svg", []))); }
+        await Assert.ThrowsAsync<ArgumentException>(() => app.Progress("working", "later", new() { ["mood"] = "thinking" }));
+
+        using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files")))
+        { await app.Present(0, Root()); }
+        await app.Progress("working", "later", new() { ["mood"] = "thinking" });
+        Assert.Equal("thinking", (await app.Read()).Presentation!.Blackboard["mood"]);
+    }
 }

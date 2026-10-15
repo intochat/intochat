@@ -240,13 +240,20 @@ internal sealed partial class AppNeuron(
         var running = state is "working" or "reading" or "searching" or "listening" ? "true" : "false";
         var attention = state == "attention" ? "true" : "false";
         var current = next.Presentation ?? new(next.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
+        var declared = current.Root?.Sphere?.BlackboardKeys;
         if (extra is { Count: > 0 })
         {
-            foreach (var key in extra.Keys)
+            // The sphere is published by another behavior. Until it exists, the activity still commits
+            // and keys that have nowhere to go wait for a later write.
+            if (declared is null) { extra = null; }
+            else
             {
-                if (FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)
-                    || current.Root?.Sphere?.BlackboardKeys.Contains(key, StringComparer.Ordinal) != true)
-                { throw new ArgumentException($"'{key}' is not a script-writable declared blackboard key.", nameof(extra)); }
+                foreach (var key in extra.Keys)
+                {
+                    if (FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)
+                        || !declared.Contains(key, StringComparer.Ordinal))
+                    { throw new ArgumentException($"'{key}' is not a script-writable declared blackboard key.", nameof(extra)); }
+                }
             }
         }
         var board = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal)

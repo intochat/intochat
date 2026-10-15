@@ -32,7 +32,7 @@ internal sealed class AppMenuHost(LocalSignalHub hub, IGrainFactory grains, IKer
         var brain = key[..marker];
         if (!catalog.TryGet(brain, out _)) { await Scan(brain, cancellationToken); return; }
         if (IApp.NameOf(brain, key) is not { } name) { return; }
-        catalog.Upsert(brain, name, await Operations(key, name, cancellationToken));
+        if (await Operations(key, name, cancellationToken) is { } operations) { catalog.Upsert(brain, name, operations); }
     }
 
     private async Task Scan(string brain, CancellationToken cancellationToken)
@@ -41,16 +41,21 @@ internal sealed class AppMenuHost(LocalSignalHub hub, IGrainFactory grains, IKer
         await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp)), cancellationToken))
         {
             if (IApp.NameOf(brain, instance.Key) is not { } name) { continue; }
-            apps.Add((name, await Operations(instance.Key, name, cancellationToken)));
+            if (await Operations(instance.Key, name, cancellationToken) is not { } operations) { return; }
+            apps.Add((name, operations));
         }
         catalog.Replace(brain, apps);
     }
 
-    private async Task<MenuOperation[]> Operations(string key, string name, CancellationToken cancellationToken)
+    private async Task<MenuOperation[]?> Operations(string key, string name, CancellationToken cancellationToken)
     {
         AppSnapshot snapshot;
         try { snapshot = await grains.GetGrain<IApp>(key).Read().WaitAsync(cancellationToken); }
-        catch (Exception error) when (error is not OperationCanceledException) { return []; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogWarning(error, "The app menu could not read {App}.", name);
+            return null;
+        }
         if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { return []; }
         return snapshot.Manifest.Operations
             .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))

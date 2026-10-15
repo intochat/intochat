@@ -46,6 +46,43 @@ public sealed class ContinuationGateFacts
         Assert.StartsWith("agent:", gate.Token, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AskDropsTheRouteWhenTheContinuationCannotBeHeld()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>()
+            .ConfigureServices(services => services.AddSingleton<IWorkContinuation>(new RefusingContinuation()))
+            .StartAsync(ct);
+        var router = brain.Get<IRouter>("owner");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => router.Ask(new RouteRequest(id, "Show active leads"), ct));
+
+        Assert.Null(await router.Pending(id, ct));
+    }
+
+    [Fact]
+    public async Task StartClearsTheRunWhenTheContinuationCannotBeHeld()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await AgentFacts.Builder(StubChatClient.Replying("hello"))
+            .ConfigureServices(services => services.AddSingleton<IWorkContinuation>(new RefusingContinuation()))
+            .StartAsync(ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Start(AgentTurn.Text("hi")));
+
+        Assert.Null((await agent.Read()).ActiveRun);
+    }
+
+    private sealed class RefusingContinuation : IWorkContinuation
+    {
+        public Task Acquire(string brainScope, string token)
+            => throw new InvalidOperationException("This brain has too many outstanding continuations.");
+
+        public Task Release(string brainScope, string token) => Task.CompletedTask;
+    }
+
     private sealed class BlockingContinuation : IWorkContinuation
     {
         private readonly TaskCompletionSource _block = new(TaskCreationOptions.RunContinuationsAsynchronously);

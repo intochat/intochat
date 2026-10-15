@@ -146,7 +146,8 @@ Presentation: startup publishes one sphere and its main content using stable neu
 Workspace navigation owns focus; composition never changes it.
 
 Progress states are Ino's mood source: listening when input arrives, working while answering,
-completed after an answer, and attention on failure. Ino follows AppActivity and writes its mood key.
+completed after an answer, and attention on failure. Each of those writes publishes mood on the
+same activity call. No second script watches AppActivity.
 
 */
 using DigitalBrain.Apps;

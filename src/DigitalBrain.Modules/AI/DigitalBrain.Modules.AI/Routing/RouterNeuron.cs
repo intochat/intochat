@@ -42,11 +42,21 @@ internal sealed class RouterNeuron(
         await Save(Snapshot with { Asked = [.. asked, new PendingRoute(request.Id, Clip(request.State), "Routing", request.Allowed)] }, new RouterDecided(Key, Snapshot.Recent.Length));
         var token = "route:" + request.Id.ToString("N");
         var gate = ServiceProvider.GetService<IWorkContinuation>();
-        if (gate is not null) { await gate.Acquire(Scope, token); }
-        try { await this.AsReference<IRouterWork>().Decide(request.Id); }
-        catch
+        try
         {
-            if (gate is not null) { await gate.Release(Scope, token); }
+            if (gate is not null) { await gate.Acquire(Scope, token); }
+            await this.AsReference<IRouterWork>().Decide(request.Id);
+        }
+        catch (Exception error)
+        {
+            try
+            {
+                if (gate is not null) { await gate.Release(Scope, token); }
+                var remaining = Snapshot.Asked.Where(item => item.Id != request.Id).ToArray();
+                await Save(Snapshot with { Asked = remaining }, new RouterDecided(Key, Snapshot.Recent.Length));
+            }
+            catch (Exception rollback)
+            { throw new InvalidOperationException(error.Message, rollback); }
             throw;
         }
     }
@@ -174,7 +184,7 @@ internal sealed class RouterNeuron(
                 if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
                 AppSnapshot snapshot;
                 try { snapshot = await factory.GetGrain<IApp>(instance.Key).Read(); }
-                catch (Exception error) when (error is not OperationCanceledException) { continue; }
+                catch (Exception error) when (error is not OperationCanceledException) { return []; }
                 if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { continue; }
                 loaded.Add((name, snapshot.Manifest.Operations
                     .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))

@@ -68,6 +68,8 @@ public sealed class BrainRunsStateFacts
         var first = new Trace { TraceId = "first", PayerAccountId = "account", BrainId = "brain", Origin = new("brain/edge") };
         var second = first with { TraceId = "second" };
         var state = new BrainRunsState().Apply([Fact(1, 10) with { Trace = first }, Fact(2, 20) with { Trace = second }]);
+        var owed = new BrainRunsState { Unannounced = ["brain/apps/app/synapses/a.cs"] }.Apply([Fact(1, 10)]);
+        Assert.Equal(["brain/apps/app/synapses/a.cs"], owed.Unannounced);
         Assert.Equal(["first", "second"], state.Recent.Select(entry => entry.TraceId));
         Assert.Equal("brain/apps/app/synapses/a.cs|source|Changed|1|Succeeded", state.Recent[0].Mark);
         Assert.Equal("source|Changed|1", state.Statistics[0].Samples[0].Mark);

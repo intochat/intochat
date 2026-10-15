@@ -164,8 +164,11 @@ internal sealed class AgentNeuron(
             return runId;
         }
         await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) });
-        await AcquireContinuation(runId);
-        try { await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId); }
+        try
+        {
+            await AcquireContinuation(runId);
+            await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId);
+        }
         catch
         {
             // The caller learns why the hand-off failed; a failure to undo it must not replace that.

@@ -135,6 +135,11 @@ internal sealed class BrainRuntimeNeuron(
         // Graceful retirement keeps this activation alive until all queued history has committed.
         // A process crash or canceled shutdown still needs durable replay; this lane is not an outbox.
         await _recording.WaitAsync(cancellationToken);
+        if (_pendingRecords.Count > 0 || _announceOwed)
+        {
+            BeginRecording();
+            await _recording.WaitAsync(cancellationToken);
+        }
         await base.OnDeactivateAsync(reason, cancellationToken);
     }
 
@@ -746,6 +751,8 @@ internal sealed class BrainRuntimeNeuron(
     internal Task ResumeAsync()
     {
         directory.Publish(RuntimeId, Snapshot);
+        // Off this activation turn: publishing a run the previous process saved can wake a subscriber here.
+        _ = PublishOwedRuns();
         if (Snapshot.Subscriptions.Length > 0)
         {
             SyncWatched();
@@ -755,6 +762,12 @@ internal sealed class BrainRuntimeNeuron(
         // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
         // their subscribe-then-read recovery runs against durable state, with fresh credentials.
         return Snapshot.Programs.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
+    }
+
+    private async Task PublishOwedRuns()
+    {
+        try { await GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain)).Announce(); }
+        catch (Exception error) { logger.LogDebug(error, "Brain {Brain} could not publish a run revision saved before it woke.", Brain); }
     }
 
     // A new session id per launch: the previous session's token stops speaking for this brain.
@@ -953,31 +966,40 @@ internal sealed class BrainRuntimeNeuron(
     {
         // Send immediately when idle. Facts queued while a commit is in flight share the next
         // ordered append, retaining every fact's own trace without a timer or delaying a turn.
+        // Announce yields, so a completion that lands during it has to be written before this lane ends.
         var runs = GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain));
-        while (_pendingRecords.Count > 0)
+        while (true)
         {
-            RunFact[] facts = [.. _pendingRecords];
-            _pendingRecords.Clear();
-            var announce = _announceRuns;
-            _announceRuns = false;
-            if (announce) { _announceOwed = false; }
-            try { await runs.Record(facts, announce); }
+            if (_pendingRecords.Count > 0)
+            {
+                RunFact[] facts = [.. _pendingRecords];
+                _pendingRecords.Clear();
+                var announce = _announceRuns;
+                _announceRuns = false;
+                if (announce) { _announceOwed = false; }
+                try { await runs.Record(facts, announce); }
+                catch (Exception error)
+                {
+                    // The batch stays queued for the next completion or for shutdown. Retrying here would spin.
+                    _recordingFailed = true;
+                    _announceOwed = true;
+                    _pendingRecords.InsertRange(0, facts);
+                    if (announce) { _announceRuns = true; }
+                    logger.LogError(error, "Brain {Brain} could not record its synapse runs.", Brain);
+                    return;
+                }
+                continue;
+            }
+            if (!_announceOwed || !ChainIdle()) { return; }
+            _announceOwed = false;
+            try { await runs.Announce(); }
             catch (Exception error)
             {
-                // Later facts must still be recorded, but a failed commit cannot become successful idle.
                 _recordingFailed = true;
-                if (!announce) { _announceOwed = true; }
-                logger.LogError(error, "Brain {Brain} could not record its synapse runs.", Brain);
+                _announceOwed = true;
+                logger.LogError(error, "Brain {Brain} could not publish its run revision.", Brain);
+                return;
             }
-        }
-        if (!_announceOwed || !ChainIdle()) { return; }
-        _announceOwed = false;
-        try { await runs.Announce(); }
-        catch (Exception error)
-        {
-            _recordingFailed = true;
-            _announceOwed = true;
-            logger.LogError(error, "Brain {Brain} could not publish its run revision.", Brain);
         }
     }
 

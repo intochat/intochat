@@ -140,6 +140,39 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.True((await runtime.Inspect(ct)).IsReady);
     }
 
+    [Fact]
+    public async Task ASavedRunAnnouncesAfterTheRunsNeuronWakesAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var programs = RuntimeBrain.Programs(brain, Brain);
+        var runtime = RuntimeBrain.Runtime(brain, Brain);
+        var edge = RuntimeBrain.Edge(brain, Brain);
+        await programs.Assign(Owner, Synapse(), []);
+        var session = (await runtime.Inspect(ct)).SessionId!;
+        await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var assignment = Assert.Single(await edge.Assignments(session));
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        var source = brain.Get<IPinger>("owed-runs");
+        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var continuations = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        await continuations.Acquire("route:owed");
+        var runs = brain.Get<IBrainRuns>(BrainRunsKeys.For(Brain));
+        await using var revisions = await brain.Observe<BrainRunsChanged>(runs, ct);
+        await source.Ping(1);
+        await edge.Acknowledge(session, subscription, 1);
+        while (!(await runs.Read()).Recent.Any(entry => entry.Behavior == Behavior))
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(20, ct);
+        }
+
+        await brain.DeactivateAsync(runs, ct);
+        await continuations.Release("route:owed");
+        var changed = await revisions.NextAsync(ct: ct);
+        Assert.Contains(Behavior, changed.Behaviors!);
+    }
+
     private const string Brain = "acc-brain";
     private const string Owner = "acc-brain/apps/x";
     private const string Behavior = "acc-brain/apps/x/synapses/a.cs";

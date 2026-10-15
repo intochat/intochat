@@ -27,8 +27,7 @@ internal sealed class RuntimeDirectory
         identity = null;
         if (!_entries.TryGetValue(runtimeKey, out var entry) || entry.SessionId != session || entry.Status is null or SessionStatus.Refused)
         { return false; }
-        entry.Behaviors.TryGetValue(behavior, out identity);
-        return true;
+        return entry.Behaviors.TryGetValue(behavior, out identity);
     }
 
     private sealed record Entry(string? SessionId, SessionStatus? Status, Dictionary<string, BehaviorIdentity> Behaviors);

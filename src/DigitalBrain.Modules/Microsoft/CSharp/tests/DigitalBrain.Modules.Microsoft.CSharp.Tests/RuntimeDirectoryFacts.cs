@@ -14,7 +14,7 @@ public sealed class RuntimeDirectoryFacts
 
         Assert.True(directory.TryIdentity("acc-brain/runtime", speaking.Id, "owner/synapses/a.cs", out var identity));
         Assert.Equal("owner", identity!.Owner);
-        Assert.True(directory.TryIdentity("acc-brain/runtime", speaking.Id, "missing", out var missing));
+        Assert.False(directory.TryIdentity("acc-brain/runtime", speaking.Id, "missing", out var missing));
         Assert.Null(missing);
         Assert.False(directory.TryIdentity("acc-brain/runtime", "other-session", "owner/synapses/a.cs", out _));
 
