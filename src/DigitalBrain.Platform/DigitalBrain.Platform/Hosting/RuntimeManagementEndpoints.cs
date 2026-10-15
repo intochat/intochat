@@ -12,6 +12,7 @@ internal static class RuntimeManagementEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
+        HostedRuntimeEndpoints.Map(endpoints);
         // SessionGroup avoids the normal membership filter's create-on-access behavior.
         BrainRoutes.SessionGroup(endpoints, "/management/v1")
             .MapGet("/observation", ObserveAsync);
