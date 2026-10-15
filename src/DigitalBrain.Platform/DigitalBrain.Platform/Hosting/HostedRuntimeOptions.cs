@@ -8,6 +8,7 @@ public sealed class HostedRuntimeOptions
     public string RuntimeId { get; set; } = "";
     public string ControllerCertificateSha256 { get; set; } = "";
     public string StateDirectory { get; set; } = "";
+    public bool RecoveryOnly { get; set; }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(AccountId) &&
         !string.IsNullOrWhiteSpace(BrainId) && !string.IsNullOrWhiteSpace(RuntimeId) &&

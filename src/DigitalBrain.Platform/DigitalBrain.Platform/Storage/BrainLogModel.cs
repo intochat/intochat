@@ -2,6 +2,9 @@ namespace DigitalBrain.Platform.Storage;
 
 public enum BrainRecordChange { None, Write, Clear }
 
+internal sealed record BrainExport(int FormatVersion, string BrainScope, long Sequence, BrainExportRecord[] Records, int OmittedRecords);
+internal sealed record BrainExportRecord(string GrainId, string StateName, string Type, System.Text.Json.JsonElement Data);
+
 [GenerateSerializer, Alias("storage.brain-record")]
 public sealed record BrainRecord([property: Id(0)] byte[] Record, [property: Id(1)] long ETag);
 

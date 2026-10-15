@@ -38,6 +38,29 @@ internal sealed class BrainLog : IDisposable
 
     public long LastSignal { get { lock (gate) { return lastSignal; } } }
 
+    internal BrainExport Export(Func<string, string, byte[], object?> decode)
+    {
+        lock (gate)
+        {
+            RequireOpen();
+            var exported = new List<BrainExportRecord>();
+            var omitted = 0;
+            foreach (var grain in records)
+            {
+                foreach (var state in grain.Value)
+                {
+                    if (state.Key is "vault" or "credential" or "registration" or "access" or "account" or "principal" or "reminders")
+                    { omitted++; continue; }
+                    var value = decode(grain.Key, state.Key, state.Value.Record);
+                    if (value is null || value.GetType().Assembly == typeof(BrainLog).Assembly || value is DigitalBrain.Framework.Platform.Connections.ConnectionState)
+                    { omitted++; continue; }
+                    exported.Add(new(grain.Key, state.Key, value.GetType().FullName!, System.Text.Json.JsonSerializer.SerializeToElement(value, value.GetType())));
+                }
+            }
+            return new(1, brainId, sequence, exported.ToArray(), omitted);
+        }
+    }
+
     internal bool CheckStorage(CancellationToken ct)
     {
         lock (gate)
