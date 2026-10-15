@@ -49,8 +49,9 @@ internal sealed class BrainRuntimeNeuron(
     ISignalJournal journal,
     IOptions<CSharpOptions> options,
     IOptions<CSharpDeploymentSettings> deployment,
-    ILogger<BrainRuntimeNeuron> logger)
-    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeSession, IRemindable, INeuronObserver
+    ILogger<BrainRuntimeNeuron> logger,
+    RuntimeDirectory directory)
+    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeContinuations, IBrainRuntimeSession, IRemindable, INeuronObserver
 {
     internal const string GrainTypeName = "microsoft.csharp.runtime";
     internal const string ReconcileReminder = "reconcile";
@@ -85,7 +86,13 @@ internal sealed class BrainRuntimeNeuron(
     // Recording runs off-turn: publication may call this runtime back. Idle includes its durable completion.
     private Task _recording = Task.CompletedTask;
     private readonly List<RunFact> _pendingRecords = [];
-    private bool _recordingFailed;
+    private bool _announceRuns, _announceOwed, _recordingFailed;
+    // Signals accepted by OnSignalAsync whose Arrived turn has not finished. Arrived is one-way, so a
+    // completion can otherwise look idle before the behavior that signal starts is marked started.
+    private int _arrivals;
+    // Tokens for work a neuron detached from its caller. The turn stays open until that work signals.
+    private readonly HashSet<string> _continuations = new(StringComparer.Ordinal);
+    private const int MaximumContinuations = 64;
     // Sources a live signal nudged about that no read of their log has covered since: a nudge whose arrival
     // expired in the queue or failed is read by the next reminder, not left until the source publishes again.
     private readonly HashSet<string> _nudged = new(StringComparer.Ordinal);
@@ -132,10 +139,12 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     // Initialization is the supported persistent script's single outer On/React wait, plus its
-    // drained durable signals. Independent parallel initializers and downstream projections are not covered.
+    // drained durable signals. A continuation is work a neuron detached that has not signaled yet.
+    // Independent parallel initializers and downstream projections are not covered.
     private bool IsReady() => Snapshot.Session?.Status == SessionStatus.Connected
         && Snapshot.Programs.Any(program => program.Behaviors.Length > 0)
         && _assigning.Count == 0 && _compiled.Count == 0 && _nudged.Count == 0 && _started.Count == 0
+        && _arrivals == 0 && _continuations.Count == 0
         && Snapshot.Subscriptions.All(subscription => subscription.Pending.Length == 0)
         && Snapshot.Programs.All(program => program.Behaviors.All(behavior =>
             Snapshot.Initialized.GetValueOrDefault(behavior.Id(program.Owner)) == AssignmentRevision(program, behavior)
@@ -151,6 +160,31 @@ internal sealed class BrainRuntimeNeuron(
         var start = await PrepareSessionAsync(restart: false) ?? throw NotListening();
         await _sandboxCalls;
         await runner.Ensure(start, cancellationToken);
+    }
+
+    public Task Acquire(string token)
+    {
+        RequireContinuation(token);
+        if (_continuations.Contains(token)) { return Task.CompletedTask; }
+        if (_continuations.Count >= MaximumContinuations)
+        { throw new InvalidOperationException("This brain has too many outstanding continuations."); }
+        _continuations.Add(token);
+        return Task.CompletedTask;
+    }
+
+    public Task Release(string token)
+    {
+        RequireContinuation(token);
+        if (_continuations.Remove(token)) { Flush(); }
+        return Task.CompletedTask;
+    }
+
+    private void RequireContinuation(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 128)
+        { throw new ArgumentException("A continuation token is required.", nameof(token)); }
+        if (CallerContextStamper.TryGet(out var caller) && !string.Equals(caller.BrainId, Brain, StringComparison.Ordinal))
+        { throw new UnauthorizedAccessException("A continuation belongs to its own brain."); }
     }
 
     // Interleaved (its contract says so): compiling is seconds of CPU, off this runtime's scheduler, and storing
@@ -353,8 +387,12 @@ internal sealed class BrainRuntimeNeuron(
         return Save(Snapshot with { Session = Snapshot.Session! with { LastHeartbeat = time.GetUtcNow() } }, Changed());
     }
 
-    public async Task<string> Subscribed(string session, string behavior, string neuron, string signal)
+    public Task<string> Subscribed(string session, string behavior, string neuron, string signal)
+        => Subscribed(session, behavior, neuron, signal, selector: null);
+
+    public async Task<string> Subscribed(string session, string behavior, string neuron, string signal, string? selector)
     {
+        selector = string.IsNullOrEmpty(selector) ? null : selector;
         RequireSpeaking(session);
         if (Find(behavior) is null) { throw new ArgumentException($"{behavior} is not assigned to this brain.", nameof(behavior)); }
         if (!GrainId.TryParse(neuron, out _)) { throw new ArgumentException($"'{neuron}' is not a neuron id such as time.timer/tea.", nameof(neuron)); }
@@ -367,14 +405,14 @@ internal sealed class BrainRuntimeNeuron(
         {
             // A new subscription starts at its source's current seq; what came before is the retained seed's to give.
             var position = await journal.SignalsOf(GrainId.Parse(neuron), long.MaxValue);
-            existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0, position?.Last ?? 0);
+            existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0, position?.Last ?? 0, selector);
             // A source that retains the signal seeds the new subscription with the backlog the synapse
             // missed. Watch before seeding: anything published between the seed and the watch arrives
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             try { await WatchSourcesAsync(required: existing); }
             catch (Exception error) when (IsRefusal(error)) { await RefuseAsync(existing); throw; }
-            var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
+            var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark, selector);
             if (seeded.Length > 0)
             {
                 var current = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
@@ -385,6 +423,12 @@ internal sealed class BrainRuntimeNeuron(
         }
         else
         {
+            if (!string.Equals(existing.Selector, selector, StringComparison.Ordinal))
+            {
+                // The row stays the subscription: a second row would keep delivering what this selector now excludes.
+                existing = existing with { Selector = selector };
+                await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Select(item => item.Id == existing.Id ? existing : item)] }, Changed());
+            }
             // Persistence can succeed before source registration fails. A retry is ready only
             // after the source has accepted the current selection, including the saved addition.
             try { await WatchAsync(neuron, GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)), this.AsReference<INeuronObserver>(), required: existing); }
@@ -559,42 +603,52 @@ internal sealed class BrainRuntimeNeuron(
     Task INeuronObserver.OnSignalAsync(Signal signal)
     {
         var source = signal.Publisher.Name;
-        if (!Snapshot.Subscriptions.Any(s => s.Signal == signal.GetType().Name && s.Neuron == source)) { return Task.CompletedTask; }
+        var name = signal.GetType().Name;
+        if (!Snapshot.Subscriptions.Any(s => s.Signal == name && s.Neuron == source && SubscriptionFilter.Delivers(s.Behavior, s.Selector, signal))) { return Task.CompletedTask; }
         _nudged.Add(source);
+        _arrivals++;
         return this.AsReference<IBrainRuntimeArrivals>().Arrived(signal);
     }
 
     public async Task Arrived(Signal signal)
     {
-        _facts.Clear();
-        var source = signal.Publisher.Name;
-        // Read now: a nudge that comes while the read is in flight marks the source again, a failed read keeps it marked.
-        _nudged.Remove(source);
-        bool journaled;
-        try { journaled = await CatchUpAsync(source); }
-        catch { _nudged.Add(source); throw; }
-        if (journaled) { Flush(); return; }
-        var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
-        var name = signal.GetType().Name;
-        var cap = options.Value.MaximumPending;
-        var arrived = new List<Subscription>();
-        var drops = new List<(Subscription Buffered, long Count)>();
-        var next = Snapshot.Subscriptions.Select(s =>
+        try
         {
-            if (s.Signal != name || s.Neuron != signal.Publisher.Name || !Accepted(s)) { return s; }
-            var buffered = s.Arrive(json, cap);
-            arrived.Add(buffered);
-            if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
-            return buffered;
-        }).ToArray();
-        if (arrived.Count == 0) { return; }
-        await Save(Snapshot with { Subscriptions = next }, Changed());
-        foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
-        if (Snapshot.Session is { Status: SessionStatus.Connected } session)
-        {
-            foreach (var subscription in arrived) { Push(session.Id, subscription); }
+            _facts.Clear();
+            var source = signal.Publisher.Name;
+            // Read now: a nudge that comes while the read is in flight marks the source again, a failed read keeps it marked.
+            _nudged.Remove(source);
+            bool journaled;
+            try { journaled = await CatchUpAsync(source); }
+            catch { _nudged.Add(source); throw; }
+            if (journaled) { Flush(); return; }
+            var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
+            var name = signal.GetType().Name;
+            var cap = options.Value.MaximumPending;
+            var arrived = new List<Subscription>();
+            var drops = new List<(Subscription Buffered, long Count)>();
+            var next = Snapshot.Subscriptions.Select(s =>
+            {
+                if (s.Signal != name || s.Neuron != signal.Publisher.Name || !Accepted(s) || !SubscriptionFilter.Delivers(s.Behavior, s.Selector, signal)) { return s; }
+                var buffered = s.Arrive(json, cap);
+                arrived.Add(buffered);
+                if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
+                return buffered;
+            }).ToArray();
+            if (arrived.Count == 0) { return; }
+            await Save(Snapshot with { Subscriptions = next }, Changed());
+            foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
+            if (Snapshot.Session is { Status: SessionStatus.Connected } session)
+            {
+                foreach (var subscription in arrived) { Push(session.Id, subscription); }
+            }
+            Flush();
         }
-        Flush();
+        finally
+        {
+            if (_arrivals > 0) { _arrivals--; }
+            Flush();
+        }
     }
 
     // A reactivated runtime has no source's acceptance yet: each source is watched on its lane, off every turn,
@@ -651,7 +705,10 @@ internal sealed class BrainRuntimeNeuron(
             { logger.LogWarning("SubscriptionGap {Subscription} {Neuron}: its watermark {Watermark} is below seq {Floor}, the oldest its source's log still serves.", s.Id, neuron, s.SourceSeq, read.Floor); }
             var buffered = s;
             foreach (var item in read.Signals.Where(j => j.Sequence > s.SourceSeq && j.Signal.GetType().Name == s.Signal))
-            { buffered = buffered.Arrive(JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json), cap); }
+            {
+                if (!SubscriptionFilter.Delivers(s.Behavior, s.Selector, item.Signal)) { continue; }
+                buffered = buffered.Arrive(JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json), cap);
+            }
             var through = Math.Max(Math.Max(s.SourceSeq, read.Floor), read.Signals.Length == 0 ? 0 : read.Signals[^1].Sequence);
             buffered = buffered with { SourceSeq = through };
             if (buffered.Pending.Length != s.Pending.Length || buffered.Delivered != s.Delivered) { arrived.Add(buffered); }
@@ -688,6 +745,7 @@ internal sealed class BrainRuntimeNeuron(
     // the catch-up watches every source on its lane, off the activation turn, before it reads the source's log.
     internal Task ResumeAsync()
     {
+        directory.Publish(RuntimeId, Snapshot);
         if (Snapshot.Subscriptions.Length > 0)
         {
             SyncWatched();
@@ -859,11 +917,31 @@ internal sealed class BrainRuntimeNeuron(
     // Hand the turn's facts to the recording lane. Unstamped: the runtime is their author, whoever's call
     // produced them; the caller is restored for whatever the turn still does. The turn never waits
     // on publication, which can nudge this runtime back; Inspect includes the recording lane instead.
+    // Nothing accepted is still being delivered, nothing delivered is still running, no batch is
+    // waiting on a behavior, and no neuron still owes this brain a signal. A buffered subscription is
+    // the next script, even before the sandbox pulls it.
+    private bool ChainIdle() => _arrivals == 0 && _started.Count == 0 && _continuations.Count == 0
+        && !Snapshot.Subscriptions.Any(subscription => subscription.Pending.Length > 0);
+
     private void Flush()
     {
-        if (_facts.Count == 0) { return; }
+        var idle = ChainIdle();
+        if (_facts.Count == 0)
+        {
+            if (_announceOwed && idle) { BeginRecording(); }
+            return;
+        }
+        // A completion with nothing else started, and no accepted signal still on its way, is the end
+        // of this chain. Intermediate completions stay in the snapshot and wake nobody until then.
+        if (idle) { _announceRuns = true; _announceOwed = false; }
+        else { _announceOwed = true; }
         _pendingRecords.AddRange(_facts);
         _facts.Clear();
+        BeginRecording();
+    }
+
+    private void BeginRecording()
+    {
         if (!_recording.IsCompleted) { return; }
         var caller = RequestContext.Get(CallerContextStamper.RequestContextKey);
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
@@ -875,17 +953,31 @@ internal sealed class BrainRuntimeNeuron(
     {
         // Send immediately when idle. Facts queued while a commit is in flight share the next
         // ordered append, retaining every fact's own trace without a timer or delaying a turn.
+        var runs = GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain));
         while (_pendingRecords.Count > 0)
         {
             RunFact[] facts = [.. _pendingRecords];
             _pendingRecords.Clear();
-            try { await GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain)).Record(facts); }
+            var announce = _announceRuns;
+            _announceRuns = false;
+            if (announce) { _announceOwed = false; }
+            try { await runs.Record(facts, announce); }
             catch (Exception error)
             {
                 // Later facts must still be recorded, but a failed commit cannot become successful idle.
                 _recordingFailed = true;
+                if (!announce) { _announceOwed = true; }
                 logger.LogError(error, "Brain {Brain} could not record its synapse runs.", Brain);
             }
+        }
+        if (!_announceOwed || !ChainIdle()) { return; }
+        _announceOwed = false;
+        try { await runs.Announce(); }
+        catch (Exception error)
+        {
+            _recordingFailed = true;
+            _announceOwed = true;
+            logger.LogError(error, "Brain {Brain} could not publish its run revision.", Brain);
         }
     }
 
@@ -893,13 +985,16 @@ internal sealed class BrainRuntimeNeuron(
 
     // A source that retains the signal seeds a new subscription with the backlog the synapse missed. Any other
     // source, a runs neuron among them, contributes nothing and is not asked.
-    private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since)
+    private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since, string? selector)
     {
         var source = GrainId.Parse(neuron);
         if (!Retains(source)) { return []; }
         var retained = await GrainFactory.GetGrain<IRetainsSignals>(source).Retained(signal, since);
-        return [.. retained.Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
+        return [.. retained.Where(item => SubscriptionFilter.Accepts(selector, item.Signal))
+            .Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
     }
+
+    protected override void OnCommitted() => directory.Publish(RuntimeId, Snapshot);
 
     // Whether the source's grain type implements IRetainsSignals is the cluster manifest's to say; asking a
     // source that does not would cross the cluster only to fail a cast.

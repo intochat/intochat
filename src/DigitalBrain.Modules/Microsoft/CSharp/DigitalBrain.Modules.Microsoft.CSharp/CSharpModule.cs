@@ -66,6 +66,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
             (services, _) => services.GetRequiredService<IHostApplicationLifetime>());
         builder.Services.TryAddSingleton<DeferredRuntimeStarts>();
         builder.Services.AddHostedService(services => services.GetRequiredService<DeferredRuntimeStarts>());
+        builder.Services.TryAddSingleton<RuntimeDirectory>();
+        builder.Services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         builder.AddIncomingGrainCallFilter<BrainRunsGuard>();

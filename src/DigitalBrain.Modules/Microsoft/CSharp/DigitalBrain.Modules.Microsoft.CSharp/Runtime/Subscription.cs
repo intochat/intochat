@@ -14,7 +14,8 @@ internal sealed record Subscription(
     [property: Id(4)] string[] Pending,
     [property: Id(5)] long Delivered,
     [property: Id(6)] long Dropped,
-    [property: Id(7)] long SourceSeq = 0)
+    [property: Id(7)] long SourceSeq = 0,
+    [property: Id(8)] string? Selector = null)
 {
     public long Watermark => Delivered + Pending.Length;
 

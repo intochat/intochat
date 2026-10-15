@@ -24,6 +24,8 @@ public interface IApp : INeuron
     Task<Guid> CurrentBuildAttempt();
     // Publishes AppActivity (State is one of AppActivity.States) and, while building, appends Detail to the activity feed.
     Task Progress(string state, string detail);
+    // The same activity write, plus declared blackboard values, in one presentation revision.
+    Task Progress(string state, string detail, Dictionary<string, string> blackboard);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
     Task<AppBundle> Export();
     // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the

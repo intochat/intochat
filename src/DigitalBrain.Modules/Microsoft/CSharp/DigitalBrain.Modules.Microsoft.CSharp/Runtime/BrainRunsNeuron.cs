@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -8,7 +9,12 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 [Alias("microsoft.csharp.runs-recorder"), DefaultGrainType(BrainRunsNeuron.GrainTypeName)]
 internal interface IBrainRunsRecorder : IGrainWithStringKey
 {
-    Task Record(RunFact[] facts);
+    // announce is false while another behavior is still running. The facts are kept either way;
+    // the changed signal waits until a record that finishes the last in-flight behavior.
+    Task Record(RunFact[] facts, bool announce);
+
+    // Publishes the changed signal for facts already recorded while later behavior was still starting.
+    Task Announce();
 }
 
 // A run fact and the trace it is published under: its batch's, or the one the runtime's turn ran in.
@@ -33,15 +39,46 @@ internal sealed class BrainRunsNeuron(
             [.. Snapshot.Recent.Where(item => item.Owner != excludedOwner).TakeLast(200)], Snapshot.Statistics));
     }
 
-    public Task Record(RunFact[] facts)
+    // Behaviors recorded while a later one was still starting. Memory of this activation: the facts
+    // themselves are already durable, and the next announce publishes one revision for all of them.
+    private string[] _unannounced = [];
+
+    public Task Record(RunFact[] facts, bool announce = true)
     {
         ArgumentNullException.ThrowIfNull(facts);
         var next = Snapshot.Apply(facts);
         (Signal Signal, Trace? Trace)[] signals = [.. facts.Select(fact => (fact.Fact, fact.Trace))];
-        if (ReferenceEquals(next, Snapshot)) { return PublishAsync(signals); }
-        var changedBy = facts.Last(fact => fact.Fact is Signals.BehaviorRan { Outcome: not Signals.RunOutcome.Skipped });
-        return Save(next, [.. signals, (new BrainRunsChanged(next.Revision), changedBy.Trace)]);
+        var behaviors = Behaviors(facts);
+        var announced = _unannounced.Concat(behaviors).Distinct(StringComparer.Ordinal).ToArray();
+        var changed = !ReferenceEquals(next, Snapshot);
+        if (!announce)
+        {
+            _unannounced = announced;
+            return changed ? Save(next, signals) : PublishAsync(signals);
+        }
+        _unannounced = [];
+        if (announced.Length == 0) { return changed ? Save(next, signals) : PublishAsync(signals); }
+        Trace? trace = null;
+        for (var index = facts.Length - 1; index >= 0 && trace is null; index--)
+        {
+            if (facts[index].Fact is BehaviorRan { Outcome: not RunOutcome.Skipped }) { trace = facts[index].Trace; }
+        }
+        var revision = changed ? next.Revision : Snapshot.Revision;
+        (Signal Signal, Trace? Trace)[] published = [.. signals, (new BrainRunsChanged(revision, announced), trace)];
+        return changed ? Save(next, published) : PublishAsync(published);
     }
+
+    public Task Announce()
+    {
+        if (_unannounced.Length == 0) { return Task.CompletedTask; }
+        var behaviors = _unannounced;
+        _unannounced = [];
+        return PublishAsync([(new BrainRunsChanged(Snapshot.Revision, behaviors), null)]);
+    }
+
+    private static string[] Behaviors(RunFact[] facts)
+        => [.. facts.Select(fact => fact.Fact).OfType<BehaviorRan>().Where(ran => ran.Outcome != RunOutcome.Skipped)
+            .Select(ran => ran.Behavior).Distinct(StringComparer.Ordinal)];
 }
 
 // Nobody publishes runs as someone else: the grain the kernel runs a Record for must be the runtime of the

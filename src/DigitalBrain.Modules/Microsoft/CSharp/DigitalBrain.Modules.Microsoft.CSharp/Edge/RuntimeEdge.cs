@@ -16,7 +16,7 @@ namespace DigitalBrain.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, Kernel kernel)
+internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, Kernel kernel, RuntimeDirectory directory)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
 
@@ -33,10 +33,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     {
         ArgumentNullException.ThrowIfNull(invocation);
         var claims = ValidateToken(brainId, token);
-        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
-        // Identity checks the current session and assignment together on the runtime's turn.
-        var identity = await runtime.Identity(claims.Session, invocation.Behavior).ConfigureAwait(false)
-            ?? throw new ArgumentException($"{invocation.Behavior} is not a behavior of this brain.");
+        var identity = await IdentityOf(brainId, claims.Session, invocation.Behavior).ConfigureAwait(false);
         if (invocation.Contract == RuntimeProtocol.KernelContract) { return await AskKernelAsync(brainId, identity, invocation, cancellationToken).ConfigureAwait(false); }
         var contract = Callable(invocation.Contract);
         var method = contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
@@ -119,10 +116,9 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
             // Registered before the first batch is sent, so a refusal surfaces here and not on the stream.
             var contract = Callable(subscribe.Contract);
             if (grains.GetGrain(contract, subscribe.Key) is not INeuron source) { throw new ArgumentException($"{subscribe.Contract} is not a neuron."); }
-            var identity = await runtime.Identity(claims.Session, subscribe.Behavior).ConfigureAwait(false)
-                ?? throw new ArgumentException($"{subscribe.Behavior} is not a behavior of this brain.");
+            var identity = await IdentityOf(brainId, claims.Session, subscribe.Behavior).ConfigureAwait(false);
             RequireTargetBrain(brainId, subscribe.Key, nameof(INeuron.Watch), identity, contract.GetCustomAttribute<AccessAttribute>());
-            var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, source.GetGrainId().ToString(), subscribe.Signal).ConfigureAwait(false);
+            var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, source.GetGrainId().ToString(), subscribe.Signal, subscribe.Selector).ConfigureAwait(false);
             return Results.Ok(new { subscription = id });
         }
         if (report.Acknowledge is { } acknowledge) { await runtime.Acknowledge(claims.Session, acknowledge.Subscription, acknowledge.Watermark).ConfigureAwait(false); return Results.Ok(); }
@@ -171,6 +167,15 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     private Type Callable(string name)
         // Only neuron contracts are kernel types; kernel grains and inbound plumbing are not neurons.
         => types.Contract(name);
+
+    // The directory answers once this process has published the session. Anything it has not seen is the grain's.
+    private async Task<BehaviorIdentity> IdentityOf(string brainId, string session, string behavior)
+    {
+        var key = BrainRuntimeKeys.For(brainId);
+        if (!directory.TryIdentity(key, session, behavior, out var identity))
+        { identity = await grains.GetGrain<IBrainRuntimeEdge>(key).Identity(session, behavior).ConfigureAwait(false); }
+        return identity ?? throw new ArgumentException($"{behavior} is not a behavior of this brain.");
+    }
 
     private SessionClaims ValidateToken(string brainId, string? token)
     {

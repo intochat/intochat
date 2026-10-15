@@ -70,7 +70,7 @@ public static class Ino
                 await Status(brain, kept
                     ? "A response is already running; your message is in the draft, send it when the response finishes."
                     : "A response is already running; send your message again when it finishes.");
-                await brain.Get<IApp>(Key(brain)).Progress("attention", "A response is already running");
+                await Advance(brain, "attention", "A response is already running");
                 return;
             }
             var choice = snapshot.Settings.GetValueOrDefault("Model", "");
@@ -81,7 +81,7 @@ public static class Ino
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             await Status(brain, "Could not start the answer: " + Clip(error.Message));
-            await brain.Get<IApp>(Key(brain)).Progress("attention", "Could not start the answer");
+            await Advance(brain, "attention", "Could not start the answer");
         }
     }
 
@@ -142,4 +142,9 @@ public static class Ino
         "listening" or "accepted" => "listening", "working" or "waiting" => "thinking",
         "reading" or "searching" => "acting", "completed" => "speaking", "attention" => "error", _ => "idle",
     };
+
+    // Mood is part of the activity write. A second script that watches the activity and writes the
+    // blackboard again starts another behavior for every state the sphere already received.
+    public static Task Advance(DigitalBrainConnection brain, string state, string detail)
+        => brain.Get<IApp>(Key(brain)).Progress(state, detail, new() { ["mood"] = MoodOf(state) });
 }

@@ -22,8 +22,16 @@ internal sealed record BrainAuthorityState
 [GrainType("identity.brain-access.v2")]
 internal sealed class BrainAuthorityGrain(
     [PersistentState("access", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<BrainAuthorityState> storage,
-    TimeProvider clock, IOptions<AuthOptions> auth) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
+    TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
+    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    {
+        await base.OnActivateAsync(cancellationToken);
+        mirror.Publish(this.GetPrimaryKeyString(), State);
+    }
+
+    protected override void OnPersisted() => mirror.Publish(this.GetPrimaryKeyString(), State);
+
     public async Task Initialize(string accountId, string brainId)
     {
         if (BrainScope.Create(accountId, brainId).Id != this.GetPrimaryKeyString()) { throw new InvalidOperationException("Brain authority key mismatch."); }
@@ -110,15 +118,7 @@ internal sealed class BrainAuthorityGrain(
         return decision;
     }
 
-    private CallDecision? Decide(CallRequest request)
-    {
-        var caller = request.Caller;
-        // T26-8: a circle's member calls under its own account, which its member record carries.
-        var circleMember = State.Kind == BrainKind.Circle && State.Members.GetValueOrDefault(caller.PrincipalId)?.AccountId == caller.AccountId;
-        if (State.AccountId != caller.AccountId && !circleMember || State.BrainId != caller.BrainId)
-        { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        return GrantRules.Evaluate(request, State.Members.GetValueOrDefault(caller.PrincipalId), State.Grants);
-    }
+    private CallDecision? Decide(CallRequest request) => BrainAuthorityDecisions.Decide(State, request);
     public async Task<Grant> GrantAsOwner(CallerContext caller, Grant grant)
     {
         await RequireOwner(caller);

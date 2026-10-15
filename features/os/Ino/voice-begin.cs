@@ -20,7 +20,7 @@ await foreach (var request in brain.On(app, "voice", brain.Stopping))
         if (state.Voice is not { Status: "transcribing" })
         {
             await composer.BeginVoice(request.RequestId, state.Context, state.Generation);
-            await app.Progress("listening", "Listening");
+            await Ino.Advance(brain, "listening", "Listening");
         }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

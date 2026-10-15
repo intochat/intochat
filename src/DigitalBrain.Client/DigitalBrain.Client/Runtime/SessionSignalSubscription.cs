@@ -21,9 +21,9 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
         _trace = trace;
     }
 
-    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken)
+    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken, string? selector = null)
     {
-        var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, typeof(T).Name), cancellationToken).ConfigureAwait(false);
+        var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, typeof(T).Name, selector), cancellationToken).ConfigureAwait(false);
         return new SessionSignalSubscription<T>(session.Join(id), trace);
     }
 

@@ -14,6 +14,8 @@ using DigitalBrain.Time.Timers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Orleans;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 namespace DigitalBrain.Modules.AI.Tests;
@@ -576,6 +578,53 @@ public sealed class SystemOneRouterFacts
         { return """{"model":"jev","answers":{"method":{"type":"choice","choice":"Set","confidence":0.95,"probabilities":{"Set":0.95}}}}"""; }
         var next = (request.RootElement.GetProperty("state").GetString() ?? "").Contains("IText.Set", StringComparison.Ordinal) ? "finish" : "text";
         return $$$$$"""{"model":"jev","answers":{"next":{"type":"choice","choice":"{{{{{next}}}}}","confidence":0.95,"probabilities":{"{{{{{next}}}}}":0.95}}}}""";
+    }
+
+    [Fact]
+    public async Task ALaterRouteUsesTheAppMenuWithoutReadingTheAppsAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        const string Open = """{"model":"jev","answers":{"app_0":{"type":"choice","choice":"calculator.open","confidence":0.95,"probabilities":{"calculator.open":0.95,"something else":0.05}}}}""";
+        const string Clear = """{"model":"jev","answers":{"app_0":{"type":"choice","choice":"calculator.clear","confidence":0.95,"probabilities":{"calculator.clear":0.95,"something else":0.05}}}}""";
+        var first = server.ReplyOnce("application/json", Open, ct);
+        var second = server.ReplyOnce("application/json", Clear, ct);
+        var reads = new AppMenuReads();
+        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct, services =>
+        {
+            services.Remove(services.Single(service => service.ServiceType == typeof(IHostedService)
+                && service.ImplementationType == typeof(AppMenuHost)));
+            services.AddSingleton<IOutgoingGrainCallFilter>(reads);
+        });
+        var alice = await host.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
+        var catalog = host.Services.GetRequiredService<AppOperationCatalog>();
+        catalog.Replace(alice.BrainId, [("calculator", [new MenuOperation("calculator", "open", "open the keypad")])]);
+        var router = host.Get<IRouter>(alice.BrainId);
+        reads.Armed = true;
+
+        await router.Ask(new RouteRequest(Guid.NewGuid(), "open the calculator"), ct);
+        Assert.Contains("calculator.open", (await first).Body, StringComparison.Ordinal);
+        Assert.Equal(0, reads.Reads);
+
+        catalog.Upsert(alice.BrainId, "calculator", [new MenuOperation("calculator", "clear", "empty the display")]);
+        await router.Ask(new RouteRequest(Guid.NewGuid(), "clear the calculator"), ct);
+        var asked = (await second).Body;
+        Assert.Contains("calculator.clear", asked, StringComparison.Ordinal);
+        Assert.DoesNotContain("calculator.open", asked, StringComparison.Ordinal);
+        Assert.Equal(0, reads.Reads);
+    }
+
+    private sealed class AppMenuReads : IOutgoingGrainCallFilter
+    {
+        public bool Armed;
+        public int Reads;
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IApp) && context.InterfaceMethod.Name == nameof(IApp.Read))
+            { Interlocked.Increment(ref Reads); }
+            return context.Invoke();
+        }
     }
 
     private const string NotClear = "The request was not clear enough to route.";

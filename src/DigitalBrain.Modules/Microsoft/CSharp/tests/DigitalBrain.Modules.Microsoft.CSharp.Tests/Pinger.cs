@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Apps.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
@@ -17,6 +18,8 @@ public sealed class PingerModule() : Module(new ModuleId("tests-pinger"))
 public interface IPinger : INeuron
 {
     Task Ping(int number);
+
+    Task Request(string operation);
 
     Task<int> Double(int number, CancellationToken cancellationToken = default);
 
@@ -45,6 +48,8 @@ public sealed class Pinger : Neuron, IPinger
         await PublishAsync(new Ignored(number));
         await PublishAsync(new Pinged(number));
     }
+
+    public Task Request(string operation) => PublishAsync(new AppRequested(operation, "", Guid.NewGuid()));
 
     public Task<int> Double(int number, CancellationToken cancellationToken = default) => Task.FromResult(number * 2);
 

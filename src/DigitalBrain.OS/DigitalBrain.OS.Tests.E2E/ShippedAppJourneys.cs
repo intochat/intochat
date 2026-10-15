@@ -76,7 +76,7 @@ internal static class ShippedAppJourneys
                     ("completed", "speaking"), ("attention", "error"), ("idle", "idle"),
                 })
                 {
-                    await fixture.App(name).Progress(activity, "Checking Ino presence");
+                    await fixture.App(name).Progress(activity, "Checking Ino presence", new() { ["mood"] = mood });
                     await TestWait.UntilAsync(_ => fixture.App(name).Read(),
                         state => state.Presentation?.Blackboard.GetValueOrDefault("mood") == mood,
                         TimeSpan.FromSeconds(15), ct);

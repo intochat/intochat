@@ -38,7 +38,7 @@ public sealed record RuntimeReport(
     bool Heartbeat = false,
     AcknowledgeReport[]? Acknowledgements = null);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribe-report")]
-public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal);
+public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal, [property: Id(4)] string? Selector = null);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.acknowledge-report")]
 // CpuMicroseconds is the whole sandbox process's processor time spent while the synapse handled the acknowledged
 // batches, WallMicroseconds the time it took, Batches how many batches this report acknowledges at once, Skipped

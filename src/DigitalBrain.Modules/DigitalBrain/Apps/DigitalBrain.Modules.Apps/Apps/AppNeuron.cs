@@ -1,4 +1,5 @@
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Flame;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -210,7 +211,9 @@ internal sealed partial class AppNeuron(
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(Snapshot.BuildAttempt);
 
-    public async Task Progress(string state, string detail)
+    public Task Progress(string state, string detail) => Progress(state, detail, []);
+
+    public async Task Progress(string state, string detail, Dictionary<string, string> blackboard)
     {
         // A background writer may report after deletion; activity must not recreate its app record.
         if (Snapshot.Manifest is null) { return; }
@@ -224,7 +227,7 @@ internal sealed partial class AppNeuron(
         var activity = new AppActivity(Name(), state, detail);
         next.ActivitySequence++;
         next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, activity with { Publisher = Id })];
-        var presentation = ApplyActivityPresentation(next, state);
+        var presentation = ApplyActivityPresentation(next, state, blackboard);
         if (building && presentation is not null)
         { await Save(next, [(new AppChanged(Name(), next.Version, next.Status), null), (activity, null), (presentation, null)]); }
         else if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
@@ -232,15 +235,26 @@ internal sealed partial class AppNeuron(
         else { await Save(next, activity); }
     }
 
-    private PresentationChanged? ApplyActivityPresentation(AppState next, string state)
+    private PresentationChanged? ApplyActivityPresentation(AppState next, string state, Dictionary<string, string>? extra = null)
     {
         var running = state is "working" or "reading" or "searching" or "listening" ? "true" : "false";
         var attention = state == "attention" ? "true" : "false";
         var current = next.Presentation ?? new(next.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
-        if (current.Blackboard.GetValueOrDefault("running") == running && current.Blackboard.GetValueOrDefault("attention") == attention)
-        { return null; }
+        if (extra is { Count: > 0 })
+        {
+            foreach (var key in extra.Keys)
+            {
+                if (FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)
+                    || current.Root?.Sphere?.BlackboardKeys.Contains(key, StringComparer.Ordinal) != true)
+                { throw new ArgumentException($"'{key}' is not a script-writable declared blackboard key.", nameof(extra)); }
+            }
+        }
         var board = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal)
         { ["running"] = running, ["attention"] = attention };
+        if (extra is not null)
+        { foreach (var (key, value) in extra) { board[key] = value; } }
+        if (board.Count == current.Blackboard.Count && board.All(pair => current.Blackboard.TryGetValue(pair.Key, out var held) && held == pair.Value))
+        { return null; }
         next.Presentation = current with { Revision = checked(current.Revision + 1), Blackboard = board };
         return new(this.GetPrimaryKeyString(), next.ProgramRevision, next.Presentation.Revision);
     }

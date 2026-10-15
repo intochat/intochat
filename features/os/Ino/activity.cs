@@ -1,31 +1,43 @@
-using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Chat;
 
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
-var app = brain.Get<IApp>(Ino.Key(brain));
 var chat = brain.Get<IChat>(Ino.DataKey(brain) + "/transcript");
 long delivered = -1;
-await foreach (var change in brain.On<ChatRunChanged>(chat, Reconcile, brain.Stopping))
+await foreach (var change in brain.On<ChatRunChanged>(chat, () => Reconcile(null), brain.Stopping))
 {
-    await Reconcile();
+    await Reconcile(change);
 }
 
-async Task Reconcile()
+// The signal carries the status, so a turn does not read the transcript to discover it.
+// Advance publishes the mood with the activity, so no second script watches this write.
+async Task Reconcile(ChatRunChanged? change)
 {
-    var state = await chat.Read();
-    if (state.ActivityRevision <= delivered) { return; }
-    switch (state.Run?.Status)
+    long revision;
+    ChatRunStatus? status;
+    if (change is { Status: { } known })
     {
-        case ChatRunStatus.Running:
-            await app.Progress("working", "Working on your message");
-            break;
-        case ChatRunStatus.Completed:
-            await app.Progress("completed", "Answered");
-            break;
-        case ChatRunStatus.Failed:
-            await app.Progress("attention", "The turn failed");
-            break;
+        if (change.ActivityRevision <= delivered) { return; }
+        revision = change.ActivityRevision;
+        status = known;
     }
-    delivered = state.ActivityRevision;
+    else
+    {
+        var state = await chat.Read();
+        if (state.ActivityRevision <= delivered) { return; }
+        revision = state.ActivityRevision;
+        status = state.Run?.Status;
+    }
+    var step = status switch
+    {
+        ChatRunStatus.Running => ("working", "Working on your message"),
+        ChatRunStatus.Completed => ("completed", "Answered"),
+        ChatRunStatus.Failed => ("attention", "The turn failed"),
+        _ => ((string State, string Detail)?)null,
+    };
+    if (step is { } activity)
+    {
+        await Ino.Advance(brain, activity.State, activity.Detail);
+    }
+    delivered = revision;
 }

@@ -58,7 +58,10 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         return await read();
     }
 
-    private bool _rebuilding, _rebuildPending, _fullRefresh;
+    private bool _rebuilding, _rebuildPending, _fullRefresh, _sourcesStale, _friendsFresh;
+    private string? _friendFocus;
+    private WorkspaceState? _workspace;
+    private SpaceComposer.SpaceEntry[] _friendEntries = [];
     private readonly HashSet<string> _dirtyApps = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SpaceComposer.SpaceEntry> _entries = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
@@ -68,18 +71,27 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         if (!key.StartsWith(this.GetPrimaryKeyString() + "/apps/", StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("An app must belong to this space."); }
         _dirtyApps.Add(key);
-        return Recompose();
+        return Schedule();
     }
 
     public Task Rebuild()
     {
         _fullRefresh = true;
-        return Recompose();
+        _sourcesStale = true;
+        return Schedule();
+    }
+
+    // Workspace, circle and profile changes compose again from those sources. They do not
+    // rescan every app. A single app refresh keeps the last workspace and friend entries.
+    public Task Recompose()
+    {
+        _sourcesStale = true;
+        return Schedule();
     }
 
     // Invalidations may arrive while the scan awaits another grain. They share
     // one worker; snapshot pending keys before awaits so later changes are retained.
-    public async Task Recompose()
+    private async Task Schedule()
     {
         _rebuildPending = true;
         if (_rebuilding) { return; }
@@ -90,13 +102,16 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
             {
                 _rebuildPending = false;
                 var fullRefresh = _fullRefresh;
+                var sourcesStale = _sourcesStale;
                 var dirtyApps = _dirtyApps.ToArray();
                 _fullRefresh = false;
+                _sourcesStale = false;
                 _dirtyApps.Clear();
-                try { await RebuildOnce(fullRefresh, dirtyApps); }
+                try { await RebuildOnce(fullRefresh, sourcesStale, dirtyApps); }
                 catch (Exception error)
                 {
                     _fullRefresh |= fullRefresh;
+                    _sourcesStale |= sourcesStale;
                     _dirtyApps.UnionWith(dirtyApps);
                     if (!_rebuildPending) { throw; }
                     // An accepted invalidation must survive a failed scan even
@@ -109,7 +124,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         finally { _rebuilding = false; }
     }
 
-    private async Task RebuildOnce(bool fullRefresh, string[] dirtyApps)
+    private async Task RebuildOnce(bool fullRefresh, bool sourcesStale, string[] dirtyApps)
     {
         var brain = this.GetPrimaryKeyString();
         var types = compiled.Entries;
@@ -119,11 +134,12 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
-            var workspace = await grains.GetGrain<IWorkspace>(brain).Read();
-            if (fullRefresh || dirtyApps.Length > 0)
+            // A presentation change rewrites one app. Workspace, circle and profile changes
+            // mark the sources stale and read them again. Membership is a full rebuild.
+            if (fullRefresh || sourcesStale || _workspace is null) { _workspace = await grains.GetGrain<IWorkspace>(brain).Read(); }
+            var held = _workspace ?? throw new InvalidOperationException("The space has no workspace.");
+            if (fullRefresh)
             {
-                // Membership is authoritative: a delayed presentation must not
-                // resurrect a deleted app, and deletion must remove its cached entry.
                 HashSet<string> members = new(StringComparer.Ordinal);
                 await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
                 { members.Add(instance.Key); }
@@ -131,43 +147,66 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
                 { _entries.Remove(key); }
                 foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _aliases.Remove(key); }
-                var refresh = fullRefresh ? members : members.Where(key => (!_entries.ContainsKey(key) && !_aliases.ContainsKey(key)) || dirtyApps.Contains(key, StringComparer.Ordinal));
-                foreach (var key in refresh)
+                foreach (var key in members) { await ReadApp(brain, key); }
+            }
+            else if (dirtyApps.Length > 0)
+            {
+                // Membership is what removes a deleted app. Its grain can still be read after it leaves the directory.
+                HashSet<string> members = new(StringComparer.Ordinal);
+                await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
+                { members.Add(instance.Key); }
+                foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
+                { _entries.Remove(key); }
+                foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
+                { _aliases.Remove(key); }
+                foreach (var key in dirtyApps)
                 {
-                    try
-                    {
-                        var app = await grains.GetGrain<IApp>(key).Read();
-                        if (app.MigrationTarget is { } target)
-                        {
-                            _entries.Remove(key);
-                            _aliases[key] = target;
-                            continue;
-                        }
-                        _aliases.Remove(key);
-                        _entries[key] = new(key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []);
-                    }
-                    catch (Exception error)
-                    {
-                        _entries.Remove(key);
-                        _aliases.Remove(key);
-                        // Retry transient failures on the next event, without a hot retry loop.
-                        _dirtyApps.Add(key);
-                        logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
-                    }
+                    if (members.Contains(key)) { await ReadApp(brain, key); }
                 }
             }
-            // Resolve presentation only; retained workspace paths and migration source data stay intact.
-            workspace = workspace with { Path = workspace.Path.Select(ResolveAlias).ToArray() };
-            List<SpaceComposer.SpaceEntry> entries = [.. _entries.Values];
-            if (types.Any(type => type.Name == typeof(DigitalBrain.Circles.ICircle).FullName))
-            { entries.AddRange(await friends.Entries(brain, workspace.Path[^1])); }
+            var workspace = held with { Path = held.Path.Select(ResolveAlias).ToArray() };
+            var focus = workspace.Path[^1];
+            if (fullRefresh || sourcesStale || !_friendsFresh || focus != _friendFocus)
+            {
+                _friendEntries = types.Any(type => type.Name == typeof(DigitalBrain.Circles.ICircle).FullName)
+                    ? await friends.Entries(brain, focus) : [];
+                _friendFocus = focus;
+                _friendsFresh = true;
+            }
+            SpaceComposer.SpaceEntry[] entries = [.. _entries.Values, .. _friendEntries];
             var scene = grains.GetGrain<IScene>(brain + "/space");
             var current = await scene.Read();
-            await scene.Set(SpaceComposer.Compose(workspace, [.. entries]), current.Revision);
+            // Always publish. A refresh whose picture matches still moves the revision, which is
+            // how a caller knows the composition finished. The cost that repeats is the source reads above.
+            await scene.Set(SpaceComposer.Compose(workspace, entries), current.Revision);
         }
         finally
         {
             if (inherited is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+        }
+    }
+
+    private async Task ReadApp(string brain, string key)
+    {
+        try
+        {
+            var app = await grains.GetGrain<IApp>(key).Read();
+            if (app.MigrationTarget is { } target)
+            {
+                _entries.Remove(key);
+                _aliases[key] = target;
+                return;
+            }
+            _aliases.Remove(key);
+            _entries[key] = new(key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []);
+        }
+        catch (Exception error)
+        {
+            _entries.Remove(key);
+            _aliases.Remove(key);
+            // Retry transient failures on the next event, without a hot retry loop.
+            _dirtyApps.Add(key);
+            logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
         }
     }
 

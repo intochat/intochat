@@ -73,7 +73,10 @@ public sealed record ChatRunSnapshot(
 public sealed record ChatSelectionChanged([property: Id(0)] string Name, [property: Id(1)] ChatSelection Selection) : Signal;
 
 [GenerateSerializer, Alias("ui.chat-run-changed")]
-public sealed record ChatRunChanged([property: Id(0)] string Name, [property: Id(1)] long ActivityRevision) : Signal;
+public sealed record ChatRunChanged(
+    [property: Id(0)] string Name,
+    [property: Id(1)] long ActivityRevision,
+    [property: Id(2)] ChatRunStatus? Status = null) : Signal;
 
 [GenerateSerializer, Alias("ui.chat-read-receipt")]
 public sealed record ChatReadReceipt(

@@ -147,7 +147,7 @@ internal sealed partial class ChatNeuron
         }
         catch
         {
-            // A failed snapshot never advances the successful watermark; Read/renewal recovers it.
+            // A failed snapshot never advances the successful watermark; the renewal recovers it.
             _dirty = true;
             throw;
         }

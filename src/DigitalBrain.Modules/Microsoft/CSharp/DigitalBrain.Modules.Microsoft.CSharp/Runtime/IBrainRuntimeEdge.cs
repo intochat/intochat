@@ -35,6 +35,7 @@ internal interface IBrainRuntimeEdge : IGrainWithStringKey
     Task Connected(string session, string fingerprint);
     Task Heartbeat(string session);
     Task<string> Subscribed(string session, string behavior, string neuron, string signal);
+    Task<string> Subscribed(string session, string behavior, string neuron, string signal, string? selector);
     Task Acknowledge(string session, string subscription, long watermark);
     Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements);
     Task Reported(string session, BehaviorStatusReport status);

@@ -140,7 +140,11 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
         store.State = next;
         try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
+        OnCommitted();
     }
+
+    // Runs only after the write has succeeded, and before the caller of Save is resumed.
+    protected virtual void OnCommitted() { }
 
     // Clearing the record is what ends the neuron's existence: the kernel retires the instance.
     protected Task Clear(Signal changed) => Announce(store.ClearStateAsync, [changed]);

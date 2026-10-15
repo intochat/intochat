@@ -154,7 +154,7 @@ public sealed class RuntimeEdgeFacts
     }
 
     [Fact]
-    public async Task AnInvocationChecksTheSessionAndBehaviorInOneRuntimeRoundTrip()
+    public async Task AnInvocationReadsIdentityFromTheRuntimeDirectory()
     {
         var ct = TestContext.Current.CancellationToken;
         var calls = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
@@ -174,7 +174,7 @@ public sealed class RuntimeEdgeFacts
             new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]), ct);
 
         Assert.Equal(42, result!.Value.GetInt32());
-        Assert.Single(calls, call => call.TraceId == invocation.TraceId
+        Assert.DoesNotContain(calls, call => call.TraceId == invocation.TraceId
             && call.Kind == System.Diagnostics.ActivityKind.Client
             && call.OperationName is "IBrainRuntimeEdge/Authorize" or "IBrainRuntimeEdge/Identity");
     }

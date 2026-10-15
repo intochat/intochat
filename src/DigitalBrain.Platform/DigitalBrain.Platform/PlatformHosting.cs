@@ -56,6 +56,7 @@ public static class PlatformHosting
         services.AddGrpc();
         services.TryAddSingleton<DigitalBrain.Framework.Surface.NeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
+        services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());

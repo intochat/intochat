@@ -21,6 +21,7 @@ public sealed class VocabularyRingFacts
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(Sources)] = "A set of neurons for IDigitalBrain.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
+        [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IDigitalBrain keep that filter.",
     };
 
     private static readonly string[] Namespaces = ["DigitalBrain"];

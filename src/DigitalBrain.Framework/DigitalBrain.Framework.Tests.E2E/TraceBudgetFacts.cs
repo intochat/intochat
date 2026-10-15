@@ -59,15 +59,17 @@ public sealed class TraceBudgetFacts(ReferenceBrainFixture host) : BrainFact(hos
         var capture = await operation.CompleteAsync(ct);
         var intentSpans = capture.AllSpans.ToArray();
         TestContext.Current.TestOutputHelper?.WriteLine($"J1 {intentSpans.Length} spans total.\n{DescribeTree(intentSpans)}");
-        // Plan P0.4 (docs/superpowers/plans/2026-09-23-intochat-product-delivery.md:248) measured
-        // the whole intent at <= 25 spans. Features since then legitimately raised the floor:
-        // the /agent stream flows through an Orleans async enumerable (one MoveNext pair per
-        // emitted event, ~24 spans for J1), the intent's usage persists through
-        // the former intent-usage meter and the compute records grain, and target authorization added
-        // the discover-select-invoke registry flow plus integration registration and secret
-        // resolution to the tool path (~20 spans; measured 131 on 2026-10-04). 140 holds that
-        // measurement with headroom of one event.
-        const int J1SpanBudget = 140;
+        // Plan P0.4 measured an in-process agent stream at <= 25, later 131 (2026-10-04: MoveNext
+        // pairs, usage, authorization). 140 was that stream plus one event. This turn is scripts
+        // joined by signals. Each sandbox neuron call is an HTTP invoke plus an Orleans call, and
+        // each behavior completion is a report, an acknowledgement, a run record and a usage write.
+        // Both ends are counted, the same rule as OneGrainCallEmitsExactlyTwoSpans. Collapsing the
+        // false idle between one-way route/agent work and its signal took the window from 717 to
+        // 302 (2026-10-15). What remains is the turn: eight behavior completions, their invokes,
+        // signal delivery, four streamed chat reconciles, three presentation refreshes, three run
+        // projections, the model call, and this fact's compute read. 320 keeps that floor and one
+        // extra streamed step.
+        const int J1SpanBudget = 320;
         Assert.True(intentSpans.Length <= J1SpanBudget, $"J1 exported {intentSpans.Length} spans in total (budget <= {J1SpanBudget}).\n{DescribeTree(intentSpans)}");
         Assert.Contains(capture.Spans, span => span.IsGenAi);
         Assert.Contains(capture.Spans, span => string.Equals(span.Name, "IUsageGrain/Add", StringComparison.Ordinal));

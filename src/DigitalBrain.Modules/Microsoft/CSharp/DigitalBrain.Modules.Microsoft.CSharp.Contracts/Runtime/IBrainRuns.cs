@@ -13,5 +13,9 @@ public interface IBrainRuns : INeuron
 }
 
 // Snapshot consumers need one invalidation per committed revision, not every execution fact.
+// Behaviors names the runs committed in that revision. A subscriber does not wake for a revision
+// that only records itself: its own completion is not a new fact about the other runs it displays.
 [GenerateSerializer, Alias("microsoft.csharp.runs-changed")]
-public sealed record BrainRunsChanged([property: Id(0)] long Revision) : Signal;
+public sealed record BrainRunsChanged(
+    [property: Id(0)] long Revision,
+    [property: Id(1)] string[]? Behaviors = null) : Signal;

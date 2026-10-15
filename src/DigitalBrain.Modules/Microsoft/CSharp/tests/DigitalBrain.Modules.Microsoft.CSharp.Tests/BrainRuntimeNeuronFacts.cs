@@ -91,6 +91,55 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
     }
 
+    [Fact]
+    public async Task AContinuationHoldsTheTurnUntilTheDetachedWorkSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var programs = RuntimeBrain.Programs(brain, Brain);
+        var runtime = RuntimeBrain.Runtime(brain, Brain);
+        var edge = RuntimeBrain.Edge(brain, Brain);
+        await programs.Assign(Owner, Synapse(), []);
+        var session = (await runtime.Inspect(ct)).SessionId!;
+        await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var assignment = Assert.Single(await edge.Assignments(session));
+        await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
+        var source = brain.Get<IPinger>("continuations");
+        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        Assert.True((await runtime.Inspect(ct)).IsReady);
+
+        var continuations = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => continuations.Acquire(" "));
+        await continuations.Acquire("route:1");
+        await continuations.Acquire("route:1");
+        Assert.False((await runtime.Inspect(ct)).IsReady);
+
+        var runs = brain.Get<IBrainRuns>(BrainRunsKeys.For(Brain));
+        await using var revisions = await brain.Observe<BrainRunsChanged>(runs, ct);
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
+        await source.Ping(1);
+        await changes.NextAsync(ct: ct);
+        await edge.Acknowledge(session, subscription, 1);
+        while (!(await runs.Read()).Recent.Any(entry => entry.Behavior == Behavior))
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(20, ct);
+        }
+
+        using (var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            quiet.CancelAfter(TimeSpan.FromSeconds(1));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await revisions.NextAsync(ct: quiet.Token));
+        }
+
+        await continuations.Release("route:1");
+        var changed = await revisions.NextAsync(ct: ct);
+        Assert.Contains(Behavior, changed.Behaviors!);
+        Assert.True((await runtime.Inspect(ct)).IsReady);
+        await continuations.Release("route:1");
+        Assert.True((await runtime.Inspect(ct)).IsReady);
+    }
+
     private const string Brain = "acc-brain";
     private const string Owner = "acc-brain/apps/x";
     private const string Behavior = "acc-brain/apps/x/synapses/a.cs";

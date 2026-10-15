@@ -67,7 +67,7 @@ internal sealed partial class ChatNeuron(
             },
         };
         await Save(next, new ChatChanged(this.GetPrimaryKeyString(), next.Revision),
-            activityChanged ? new ChatRunChanged(this.GetPrimaryKeyString(), next.ActivityRevision) : null);
+            activityChanged ? new ChatRunChanged(this.GetPrimaryKeyString(), next.ActivityRevision, run?.Status) : null);
     }
 
     public async Task Activate(string source, long generation, string actionId)
@@ -110,7 +110,6 @@ internal sealed partial class ChatNeuron(
 
     public Task<ChatState> Read()
     {
-        _ = QueueReconciliation();
         var principal = CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null;
         var projection = Snapshot.Projection;
         var unread = projection is null || principal is null ? [] : projection.Messages

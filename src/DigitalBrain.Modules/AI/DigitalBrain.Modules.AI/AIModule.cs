@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
+using DigitalBrain.AI.Routing;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Pricing;
 using DigitalBrain.Framework;
@@ -43,6 +44,8 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         AIClients.Add(services);
         services.AddHttpClient();
         services.TryAddSingleton<HttpSystemOne>();
+        services.TryAddSingleton<AppOperationCatalog>();
+        services.AddHostedService<AppMenuHost>();
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
         services.TryAddSingleton<NeuronSurface>();

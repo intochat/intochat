@@ -40,6 +40,9 @@ internal sealed class AgentNeuron(
     private CancellationTokenSource? _active;
     private string? _cancelBeforeDrive;
     private bool _mutating;
+    // Set only after Acquire has returned, and cleared only after Release has returned, so Drive's
+    // tail does not pay a second grain call for a token the first signal already released.
+    private bool _continuationHeld;
     private AgentStorage State => store.State;
     // Commands still see the in-flight reservation (for admission and cancellation), but
     // interleaving readers must not expose a version before its write has committed.
@@ -49,6 +52,21 @@ internal sealed class AgentNeuron(
     private string Key => this.GetPrimaryKeyString();
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
+
+    private async Task AcquireContinuation(string runId)
+    {
+        if (ServiceProvider.GetService<IWorkContinuation>() is not { } gate) { return; }
+        await gate.Acquire(Scope, "agent:" + runId);
+        _continuationHeld = true;
+    }
+
+    private async Task ReleaseContinuation(string runId)
+    {
+        if (!_continuationHeld || ServiceProvider.GetService<IWorkContinuation>() is not { } gate) { return; }
+        await gate.Release(Scope, "agent:" + runId);
+        _continuationHeld = false;
+    }
+
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
 
@@ -146,10 +164,13 @@ internal sealed class AgentNeuron(
             return runId;
         }
         await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) });
+        await AcquireContinuation(runId);
         try { await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId); }
         catch
         {
             // The caller learns why the hand-off failed; a failure to undo it must not replace that.
+            try { await ReleaseContinuation(runId); }
+            catch (Exception error) { Abandon(error, runId); }
             try { await Persist(State with { ActiveRun = null }); }
             catch (Exception error) { Abandon(error, runId); }
             throw;
@@ -161,6 +182,7 @@ internal sealed class AgentNeuron(
     {
         try { await foreach (var _ in Execute(turn, runId, CancellationToken.None)) { } }
         catch (Exception error) { Logger.LogWarning(error, "Agent turn {RunId} ended with an error.", runId); }
+        finally { await ReleaseContinuation(runId); }
     }
 
     public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => Execute(turn, null, ct);
@@ -239,6 +261,9 @@ internal sealed class AgentNeuron(
             // Start already stored this run; only a Run admits it here.
             if (State.ActiveRun != run) { await Persist(State with { ActiveRun = run }); }
             await Notify(new TurnStarted(Key, runId, run.UserText));
+            // The caller's script can finish as soon as Start returns. Release once the turn's first
+            // signal is published, so later streamed progress still reaches the projection.
+            await ReleaseContinuation(runId);
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, definition.Contexts,

@@ -40,7 +40,15 @@ internal sealed class RouterNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.State);
         var asked = Snapshot.Asked.Where(item => item.Id != request.Id).TakeLast(MaxAsked - 1);
         await Save(Snapshot with { Asked = [.. asked, new PendingRoute(request.Id, Clip(request.State), "Routing", request.Allowed)] }, new RouterDecided(Key, Snapshot.Recent.Length));
-        await this.AsReference<IRouterWork>().Decide(request.Id);
+        var token = "route:" + request.Id.ToString("N");
+        var gate = ServiceProvider.GetService<IWorkContinuation>();
+        if (gate is not null) { await gate.Acquire(Scope, token); }
+        try { await this.AsReference<IRouterWork>().Decide(request.Id); }
+        catch
+        {
+            if (gate is not null) { await gate.Release(Scope, token); }
+            throw;
+        }
     }
 
     public Task<PendingRoute?> Pending(Guid id, CancellationToken ct) => Task.FromResult(Snapshot.Asked.FirstOrDefault(item => item.Id == id));
@@ -49,27 +57,34 @@ internal sealed class RouterNeuron(
     // HTTP call is made here directly rather than through a grain call bounded by the response timeout.
     public async Task Decide(Guid id)
     {
-        if (Snapshot.Asked.FirstOrDefault(item => item.Id == id) is not { Status: "Routing" } asked) { return; }
-        var http = ServiceProvider.GetRequiredService<HttpSystemOne>();
-        PendingRoute settled;
-        Routed routed;
         try
         {
-            var result = await Decide(asked.State, asked.Allowed, request => http.Ask(request, CancellationToken.None), CancellationToken.None);
-            // No route fits: the request is decided with no result (a result is a route, and its hint names it)
-            // and the reason, so a reader never shows an empty route as a likely capability.
-            (settled, routed) = result.Contract.Length > 0
-                ? (asked with { Status = "Routed", Result = result }, new Routed(id, result.Contract, result.Method, result.Confidence))
-                : (asked with { Status = "Routed", Error = NotClear }, new Routed(id, "", "", 0, NotClear));
+            if (Snapshot.Asked.FirstOrDefault(item => item.Id == id) is not { Status: "Routing" } asked) { return; }
+            var http = ServiceProvider.GetRequiredService<HttpSystemOne>();
+            PendingRoute settled;
+            Routed routed;
+            try
+            {
+                var result = await Decide(asked.State, asked.Allowed, request => http.Ask(request, CancellationToken.None), CancellationToken.None);
+                // No route fits: the request is decided with no result (a result is a route, and its hint names it)
+                // and the reason, so a reader never shows an empty route as a likely capability.
+                (settled, routed) = result.Contract.Length > 0
+                    ? (asked with { Status = "Routed", Result = result }, new Routed(id, result.Contract, result.Method, result.Confidence))
+                    : (asked with { Status = "Routed", Error = NotClear }, new Routed(id, "", "", 0, NotClear));
+            }
+            catch (Exception error)
+            {
+                settled = asked with { Status = "Failed", Error = error.Message };
+                routed = new Routed(id, "", "", 0, error.Message);
+            }
+            var recent = settled.Result is { } route ? Recorded(asked.State, route.Contract, route.Method) : Snapshot.Recent;
+            await Save(Snapshot with { Recent = recent, Asked = [.. Snapshot.Asked.Select(item => item.Id == id ? settled : item)] },
+                new RouterDecided(Key, recent.Length), routed);
         }
-        catch (Exception error)
+        finally
         {
-            settled = asked with { Status = "Failed", Error = error.Message };
-            routed = new Routed(id, "", "", 0, error.Message);
+            if (ServiceProvider.GetService<IWorkContinuation>() is { } gate) { await gate.Release(Scope, "route:" + id.ToString("N")); }
         }
-        var recent = settled.Result is { } route ? Recorded(asked.State, route.Contract, route.Method) : Snapshot.Recent;
-        await Save(Snapshot with { Recent = recent, Asked = [.. Snapshot.Asked.Select(item => item.Id == id ? settled : item)] },
-            new RouterDecided(Key, recent.Length), routed);
     }
 
     public async Task<RouteResult> Route(string state, string[]? allowed, CancellationToken ct)
@@ -121,26 +136,12 @@ internal sealed class RouterNeuron(
     // route carries the app and operation, so Dispatch has no contract to fill and no language model runs.
     private async Task<RouteResult?> AppTier(string state, Func<SystemOneRequest, Task<SystemOneResult>> ask)
     {
-        var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
         var asker = Asker();
         var criteria = new Dictionary<string, string?>(StringComparer.Ordinal);
-        List<string> names = [];
-        // A host without the Apps module has no app tier.
-        try
+        foreach (var operation in await MenuOperations())
         {
-            var kernel = ServiceProvider.GetRequiredService<IKernel>();
-            await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
-            { if (IApp.NameOf(Scope, instance.Key) is { } app && app != asker) { names.Add(app); } }
-        }
-        catch (Exception error) when (error is not OperationCanceledException) { return null; }
-        foreach (var name in names)
-        {
-            AppSnapshot snapshot;
-            try { snapshot = await factory.GetGrain<IApp>(IApp.Key(Scope, name)).Read(); }
-            catch (Exception error) when (error is not OperationCanceledException) { continue; }
-            if (snapshot.MigrationTarget is not null) { continue; }
-            foreach (var operation in snapshot.Manifest.Operations)
-            { criteria[name + "." + operation.Name] = string.IsNullOrWhiteSpace(operation.Description) ? null : Trim(operation.Description); }
+            if (operation.App == asker) { continue; }
+            criteria[operation.App + "." + operation.Name] = string.IsNullOrWhiteSpace(operation.Description) ? null : Trim(operation.Description);
         }
         if (criteria.Count == 0) { return null; }
         criteria["something else"] = "The request is not about an installed app.";
@@ -156,6 +157,33 @@ internal sealed class RouterNeuron(
         if (split <= 0 || split >= chosen.Length - 1) { return null; }
         return new RouteResult(typeof(IApp).FullName!, nameof(IApp.Request), confidence, probabilities,
             App: chosen[..split], Operation: chosen[(split + 1)..]);
+    }
+
+    // Reads every installed app only until the menu exists. Later changes arrive through AppMenuHost.
+    private async Task<MenuOperation[]> MenuOperations()
+    {
+        var catalog = ServiceProvider.GetRequiredService<AppOperationCatalog>();
+        if (catalog.TryGet(Scope, out var cached)) { return cached; }
+        List<(string App, MenuOperation[] Operations)> loaded = [];
+        try
+        {
+            var kernel = ServiceProvider.GetRequiredService<IKernel>();
+            var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
+            await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
+            {
+                if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
+                AppSnapshot snapshot;
+                try { snapshot = await factory.GetGrain<IApp>(instance.Key).Read(); }
+                catch (Exception error) when (error is not OperationCanceledException) { continue; }
+                if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { continue; }
+                loaded.Add((name, snapshot.Manifest.Operations
+                    .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))
+                    .ToArray()));
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return []; }
+        catalog.Replace(Scope, loaded);
+        return loaded.SelectMany(item => item.Operations).ToArray();
     }
 
     // The second tier's menu: the runtime tools this brain's sources registered (each a concrete instance

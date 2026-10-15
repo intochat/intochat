@@ -14,5 +14,9 @@ internal abstract class IdentityStateGrain<T>(IPersistentState<T> storage) : Gra
         storage.State = next;
         try { await storage.WriteStateAsync(); }
         catch { storage.State = previous; DeactivateOnIdle(); throw; }
+        OnPersisted();
     }
+
+    // Runs only after the write has succeeded, before Persist returns to its caller.
+    protected virtual void OnPersisted() { }
 }

@@ -5,7 +5,7 @@ namespace DigitalBrain.Client;
 
 // One behavior's view of its session: its settings, its stop signal, and neuron calls and signal
 // subscriptions made in its name. Disposing it ends nothing shared; the host owns the session.
-public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable, IInitialSignalWait
+public sealed class DigitalBrainConnection : IDigitalBrain, ISelectiveWatch, IAsyncDisposable, IInitialSignalWait
 {
     private readonly SessionConnection _session;
     private readonly string _behavior;
@@ -45,12 +45,21 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable, II
 
     // Reconcile after registration: a state change either precedes the snapshot or is queued.
     public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        => Watch<T>(source, onSubscribed, selector: null, cancellationToken);
+
+    public IAsyncEnumerable<T> On<T>(INeuron source, string selector, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selector);
+        return Watch<T>(source, onSubscribed, selector, cancellationToken);
+    }
+
+    private IAsyncEnumerable<T> Watch<T>(INeuron source, Func<Task> onSubscribed, string? selector, CancellationToken cancellationToken) where T : Signal
     {
         ArgumentNullException.ThrowIfNull(onSubscribed);
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
         return new WatchStream<T>(async ct =>
         {
-            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct).ConfigureAwait(false);
+            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct, selector).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
         }, cancellationToken, Stopping, async () =>
         {

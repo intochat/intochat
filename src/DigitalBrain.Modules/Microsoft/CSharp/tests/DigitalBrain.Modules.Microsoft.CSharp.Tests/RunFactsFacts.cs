@@ -466,7 +466,7 @@ public sealed class RunFactsFacts
             nameof(Pinged), 1, RunOutcome.Succeeded, 1, 0, 0, null);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => rig.Brain.Services.GetRequiredService<IGrainFactory>()
-            .GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Acc)).Record([new RunFact(forged, First)]));
+            .GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Acc)).Record([new RunFact(forged, First)], true));
         // The runtime's own next fact is the barrier: the runs neuron took the forged call before it.
         await PingAsync(pinger, 1, First);
         await rig.Started.NextAsync(ct: ct);

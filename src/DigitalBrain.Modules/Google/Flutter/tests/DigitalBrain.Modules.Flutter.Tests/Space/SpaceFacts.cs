@@ -168,7 +168,7 @@ public sealed class SpaceFacts
     public async Task ARebuildBurstSharesOneScanAndOneTrailingScan(bool firstScanFails, bool targeted)
     {
         var ct = TestContext.Current.CancellationToken;
-        var gate = new RebuildGate(firstScanFails);
+        var gate = new RebuildGate(firstScanFails, targeted);
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
             .ConfigureServices(s =>
             {
@@ -210,7 +210,7 @@ public sealed class SpaceFacts
         Task Invalidate() => targeted ? space.RefreshApp(IApp.Key(brain.Owner.BrainId, "burst")) : space.Rebuild();
     }
 
-    private sealed class RebuildGate(bool firstScanFails) : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
+    private sealed class RebuildGate(bool firstScanFails, bool targeted) : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
     {
         public bool Armed;
         public int Reads, MaximumActive;
@@ -233,7 +233,8 @@ public sealed class SpaceFacts
         }
         public async Task Invoke(IOutgoingGrainCallContext context)
         {
-            var contract = firstScanFails ? typeof(IWorkspace) : typeof(IApp);
+            // A single-app refresh reuses the workspace, so its scan waits on the app read.
+            var contract = firstScanFails && !targeted ? typeof(IWorkspace) : typeof(IApp);
             if (!Armed || context.InterfaceMethod?.DeclaringType != contract || context.InterfaceMethod.Name != "Read")
             { await context.Invoke(); return; }
             var active = Interlocked.Increment(ref _active);
@@ -363,6 +364,57 @@ public sealed class SpaceFacts
         public Task Invoke(IIncomingGrainCallContext context)
         {
             if (context.TargetId.Type.ToString() == "kernel.typetable" && context.TargetId.Key.ToString() == "/") { Interlocked.Increment(ref Count); }
+            return context.Invoke();
+        }
+    }
+
+    [Fact]
+    public async Task RefreshingOneAppDoesNotRereadTheWorkspace()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var reads = new WorkspaceReads();
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.Remove(services.Single(service => service.ServiceType == typeof(IHostedService)
+                    && service.ImplementationType == typeof(SpaceWatcher)));
+                services.AddSingleton<IOutgoingGrainCallFilter>(reads);
+            }).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        var key = IApp.Key(brain.Owner.BrainId, "panel");
+        var app = await App(brain, "panel");
+        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("panel-home", 0);
+        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        // Home queues a one-way recompose, and activation may still be composing. The app
+        // appearing in the scene is not the end of that work, so drain two revisions that
+        // were each requested after the previous one landed.
+        await using var drained = await brain.Observe<SceneChanged>(scene, ct);
+        var revision = (await scene.Read()).Revision;
+        await space.Rebuild();
+        do { await drained.NextAsync(ct: ct); }
+        while ((await scene.Read()).Revision <= revision || !(await scene.Read()).Definition.Nodes.Any(node => node.Id == key));
+        revision = (await scene.Read()).Revision;
+        await space.Rebuild();
+        do { await drained.NextAsync(ct: ct); }
+        while ((await scene.Read()).Revision <= revision);
+        reads.Armed = true;
+        await app.SaveManifest(new("Renamed", "description", [], [], []), Guid.NewGuid());
+        await space.RefreshApp(key);
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node =>
+            node.Id == key && node.Parameters["title"] == "Renamed"), TimeSpan.FromSeconds(10), ct);
+        Assert.Equal(0, reads.Count);
+    }
+
+    private sealed class WorkspaceReads : IOutgoingGrainCallFilter
+    {
+        public bool Armed;
+        public int Count;
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IWorkspace) && context.InterfaceMethod.Name == nameof(IWorkspace.Read))
+            { Interlocked.Increment(ref Count); }
             return context.Invoke();
         }
     }

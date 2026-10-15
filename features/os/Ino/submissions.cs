@@ -22,7 +22,7 @@ async Task Reconcile()
     {
         try
         {
-            await app.Progress("listening", "Heard you");
+            await Ino.Advance(brain, "listening", "Heard you");
             var agent = brain.Get<IAgent>(request.Context);
             var state = await agent.Read();
             var runId = request.Id.ToString("N");
