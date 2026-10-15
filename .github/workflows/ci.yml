@@ -21,7 +21,8 @@ jobs:
   dotnet:
     name: .NET build and unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Image warm plus the suite overran 20 minutes and the test step was cancelled mid-run.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:

@@ -153,7 +153,7 @@ internal sealed class ActivationIndex : IActivationWorkingSetObserver
     }
 }
 
-internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
+internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDelivery
 {
     private readonly TestBrainPlan _plan;
     private readonly InProcessSession _session;
@@ -211,6 +211,9 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
 
     public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
         => Brains.On<T>(neuron, onSubscribed, cancellationToken);
+
+    Task ISignalDelivery.DeliveredAsync(CancellationToken cancellationToken)
+        => Services.GetService<ILocalSignalHub>() is { } hub ? hub.FlushAsync(cancellationToken) : Task.CompletedTask;
 
     public async Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default)
     {

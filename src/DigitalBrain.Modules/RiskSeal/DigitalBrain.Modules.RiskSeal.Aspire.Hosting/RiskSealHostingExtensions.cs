@@ -25,7 +25,7 @@ public static class RiskSealHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            _apiKey ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("riskseal-api-key"), secret: true)
+            _apiKey ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("riskseal-api-key"), secret: true)
                 .WithDescription(
                     "API key from your RiskSeal account. It scores email, phone and IP risk for every "
                     + "`riskseal` connection using the `deployment` method; users can still paste their own key (`api-key`).",

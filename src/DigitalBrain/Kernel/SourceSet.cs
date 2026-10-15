@@ -59,15 +59,25 @@ internal static class SourceSet
                 }
                 if (!_channel.Reader.TryPeek(out _) && brain is IInitialSignalWait readiness)
                 { await readiness.ReachedInitialWaitAsync(ct).ConfigureAwait(false); }
-                while (await _channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+                while (true)
                 {
-                    if (!_channel.Reader.TryRead(out var signal)) { continue; }
-                    // A rebuild reads authoritative state, so one element covers everything queued behind it.
-                    if (coalesce) { while (_channel.Reader.TryRead(out _)) { } }
+                    if (coalesce && brain is ISignalDelivery delivery)
+                    { await delivery.DeliveredAsync(ct).ConfigureAwait(false); }
+                    if (!_channel.Reader.TryRead(out var signal))
+                    {
+                        if (!await _channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false)) { return false; }
+                        continue;
+                    }
+                    // A rebuild reads authoritative state, so one element covers everything queued behind it,
+                    // including a signal posted during the rebuild that had not reached this channel yet.
+                    if (coalesce)
+                    {
+                        if (brain is ISignalDelivery again) { await again.DeliveredAsync(ct).ConfigureAwait(false); }
+                        while (_channel.Reader.TryRead(out _)) { }
+                    }
                     _current = signal;
                     return true;
                 }
-                return false;
             }
             catch (OperationCanceledException) when (_disposing)
             {

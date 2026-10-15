@@ -26,16 +26,16 @@ public static class MonnetHostingExtensions
         {
             ArgumentNullException.ThrowIfNull(builder);
             var app = brain.ApplicationBuilder;
-            _apiKey ??= app.AddParameter(brain.ResourceName("monnet-api-key"), secret: true)
+            _apiKey ??= app.AddOptionalParameter(brain.ResourceName("monnet-api-key"), secret: true)
                 .WithDescription(
                     "API key of your Monnet merchant (sandbox credentials from Monnet while the integration is being certified). "
                     + "Sent as the `X-Api-Key` header; only the host receives it.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
-            _merchantId ??= app.AddParameter(brain.ResourceName("monnet-merchant-id"))
+            _merchantId ??= app.AddOptionalParameter(brain.ResourceName("monnet-merchant-id"))
                 .WithDescription("Merchant id Monnet assigned to your account (sent as `X-Merchant-Id`).", enableMarkdown: true)
                 .WithParentRelationship(module);
-            _webhookSecret ??= app.AddParameter(brain.ResourceName("monnet-webhook-secret"), secret: true)
+            _webhookSecret ??= app.AddOptionalParameter(brain.ResourceName("monnet-webhook-secret"), secret: true)
                 .WithDescription(
                     "Secret Monnet signs payment notifications with (HMAC-SHA256 of the body, hex, in `X-Monnet-Signature`). "
                     + "Register `<your deployment origin>/monnet/webhook/{brainId}` (the brain whose connection receives it) as the notification URL at Monnet. "

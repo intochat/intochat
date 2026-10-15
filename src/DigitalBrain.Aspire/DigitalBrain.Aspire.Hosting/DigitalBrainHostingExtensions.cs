@@ -14,6 +14,19 @@ public static class DigitalBrainHostingExtensions
 {
     private const string OrleansResourceSuffix = "digitalbrain";
 
+    // A vendor credential the host can run without. An empty value is not seeded, so the integration
+    // stays unconfigured instead of the whole operating system refusing to start.
+    public static IResourceBuilder<ParameterResource> AddOptionalParameter(this IDistributedApplicationBuilder builder, string name, bool secret = false)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return builder.AddParameter(name, () =>
+        {
+            var configured = builder.Configuration[$"Parameters:{name}"];
+            return string.IsNullOrEmpty(configured) ? "" : configured;
+        }, secret);
+    }
+
     public static IResourceBuilder<AzureBlobStorageContainerResource> AddBlobContainer(this DigitalBrainBuilder brain, string name)
     {
         ArgumentNullException.ThrowIfNull(brain);

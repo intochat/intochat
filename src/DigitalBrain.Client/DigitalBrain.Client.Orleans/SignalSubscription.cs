@@ -9,7 +9,9 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     ILogger logger, Action<IAsyncDisposable> closed, ILocalSignalHub? hub, CancellationToken cancellationToken)
     : ISignalSubscription<T>, INeuronObserver, ILocalSignalFaultSink where T : Signal
 {
-    private readonly Channel<T> _messages = Channel.CreateBounded<T>(new BoundedChannelOptions(options.BufferCapacity) { SingleReader = true });
+    // The waiting reader runs inside OnSignalAsync, so a hub flush that follows this write has already
+    // copied the signal onward. The publisher's own turn only queues; it does not run that reader.
+    private readonly Channel<T> _messages = Channel.CreateBounded<T>(new BoundedChannelOptions(options.BufferCapacity) { SingleReader = true, AllowSynchronousContinuations = true });
     private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Lock _gate = new();

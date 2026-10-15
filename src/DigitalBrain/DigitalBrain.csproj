@@ -11,5 +11,6 @@
     <InternalsVisibleTo Include="DigitalBrain.Client" />
     <InternalsVisibleTo Include="DigitalBrain.Client.Tests.Unit" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Apps.Contracts" />
+    <InternalsVisibleTo Include="DigitalBrain.Testing" />
   </ItemGroup>
 </Project>

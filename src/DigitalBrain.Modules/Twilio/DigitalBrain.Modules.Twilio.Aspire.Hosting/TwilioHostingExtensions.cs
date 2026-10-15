@@ -27,19 +27,19 @@ public static class TwilioHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            _accountSid ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("twilio-account-sid"))
+            _accountSid ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("twilio-account-sid"))
                 .WithDescription(
                     "Account SID (starts with `AC`) from the [Twilio console](https://console.twilio.com/) home page, under Account Info. "
                     + "Set the messaging status webhook to `<your deployment origin>/twilio/status/{brainId}`; this host also passes it on every send.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
-            _authToken ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("twilio-auth-token"), secret: true)
+            _authToken ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("twilio-auth-token"), secret: true)
                 .WithDescription(
                     "Auth Token from the same [Twilio console](https://console.twilio.com/) Account Info panel. "
                     + "It authenticates sends and verifies the `X-Twilio-Signature` of status callbacks; only the host receives it.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
-            _fromNumber ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("twilio-from-number"))
+            _fromNumber ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("twilio-from-number"))
                 .WithDescription(
                     "The sending number in E.164 (`+15005550006`), from Phone Numbers > Active numbers. "
                     + "A trial account's number works, but only to verified recipients.",

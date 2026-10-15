@@ -27,13 +27,13 @@ public static class EquifaxHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            _clientId ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("equifax-client-id"), secret: true)
+            _clientId ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("equifax-client-id"), secret: true)
                 .WithDescription(
                     "Client ID of your Equifax Peru application from the [Equifax developer portal](https://developer.equifax.com/). "
                     + "Use the sandbox credentials issued with the Equifax Peru contract.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
-            _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("equifax-client-secret"), secret: true)
+            _clientSecret ??= brain.ApplicationBuilder.AddOptionalParameter(brain.ResourceName("equifax-client-secret"), secret: true)
                 .WithDescription(
                     "Client secret of the same Equifax application (OAuth2 client credentials). Only the host receives it.",
                     enableMarkdown: true)
