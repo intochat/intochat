@@ -122,7 +122,15 @@ internal static class HostedWorkspaceEndpoints
                 !path.StartsWithSegments("/health") && !path.StartsWithSegments("/alive") && !path.StartsWithSegments("/ready") &&
                 !HttpMethods.IsOptions(http.Request.Method))
             { http.Response.StatusCode = 401; return; }
-            await next(http);
+            if (http.User.FindFirstValue(GrantClaim) is { } grantId)
+            {
+                var ticket = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                if (ticket.Properties?.ExpiresUtc is not { } expires) { http.Response.StatusCode = 401; return; }
+                await HostedWorkspaceRequestLifetime.RunAsync(http, grantId, expires,
+                    http.RequestServices.GetRequiredService<HostedWorkspaceStore>(),
+                    http.RequestServices.GetRequiredService<TimeProvider>(), next);
+            }
+            else { await next(http); }
         });
     }
 }
