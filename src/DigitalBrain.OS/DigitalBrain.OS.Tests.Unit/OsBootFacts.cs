@@ -32,6 +32,10 @@ public sealed class OsBootFacts
             Assert.Equal("os", installed.Origin!.Publisher);
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
+        var researcher = await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read();
+        Assert.Equal(AppStatus.Live, researcher.Status);
+        Assert.Equal("intochat", researcher.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(researcher.Origin.Source);
         Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "assistant")).Read()).Manifest.Title);
         var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
@@ -65,6 +69,32 @@ public sealed class OsBootFacts
         var installed = await circle.Read();
         Assert.Equal(AppStatus.Live, installed.Status);
         Assert.Equal("os", installed.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
+    }
+
+    [Fact]
+    public async Task ConnectingAnExistingWorkspaceInstallsAMissingCustomerResearcher()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps(options => options.Apps.Remove(new("intochat", "customer-researcher")));
+            })
+            .StartAsync(ct);
+        using var person = await brain.PersonAsync("ada", ct);
+        using var caller = person.AsCaller();
+        var researcher = brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher"));
+        Assert.Empty((await researcher.Read()).Manifest.Title);
+
+        await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
+
+        var installed = await researcher.Read();
+        Assert.Equal(AppStatus.Live, installed.Status);
+        Assert.Equal("intochat", installed.Origin!.Publisher);
         Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
     }
 

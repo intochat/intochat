@@ -5,8 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.OS;
 
-// The operating system's default apps: features (features/os in the repository) every new brain
-// installs from the Marketplace. The list is deployment configuration; a distribution names its own.
+// The operating system's default apps: features every new brain installs from the Marketplace.
+// The list is deployment configuration; a distribution names its own.
 public sealed record OsApp(string Publisher, string Name);
 
 public sealed class OsAppsOptions
@@ -38,7 +38,7 @@ public static class OsAppsHosting
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
             // does not install a default twice.
-            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "router"), new OsApp("os", "calculator"), new OsApp("os", "filmcraft"), new OsApp("os", "photocraft"), new OsApp("os", "datavisualizer"), new OsApp("os", "selfimprove"), new OsApp("os", "memory"), new OsApp("os", "ino"), new OsApp("os", "brainview"), new OsApp("os", "friends"), new OsApp("os", "circle"), new OsApp("os", "workspace"), new OsApp("os", "usage") })
+            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "router"), new OsApp("os", "calculator"), new OsApp("os", "filmcraft"), new OsApp("os", "photocraft"), new OsApp("intochat", "customer-researcher"), new OsApp("os", "datavisualizer"), new OsApp("os", "selfimprove"), new OsApp("os", "memory"), new OsApp("os", "ino"), new OsApp("os", "brainview"), new OsApp("os", "friends"), new OsApp("os", "circle"), new OsApp("os", "workspace"), new OsApp("os", "usage") })
             { if (!os.Apps.Contains(app)) { os.Apps.Add(app); } }
         });
         return services.AddOperatingSystemBoot(configure);

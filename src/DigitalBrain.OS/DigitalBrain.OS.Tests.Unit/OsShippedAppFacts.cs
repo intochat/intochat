@@ -24,10 +24,10 @@ public sealed class OsShippedAppFacts
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "customer-researcher")));
+        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "word-count")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/usage", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
+        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "intochat/customer-researcher", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/usage", "intochat/word-count"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]
@@ -46,6 +46,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Equal(14, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
+        Assert.Equal(15, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
     }
 }

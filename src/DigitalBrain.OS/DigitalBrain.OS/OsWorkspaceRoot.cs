@@ -19,11 +19,11 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        foreach (var required in new[] { "usage", "circle", "workspace", "filmcraft", "photocraft" })
+        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "circle"), new("os", "workspace"), new("os", "filmcraft"), new("os", "photocraft"), new("intochat", "customer-researcher") })
         {
-            var app = grains.GetGrain<IApp>(IApp.Key(scope, required));
+            var app = grains.GetGrain<IApp>(IApp.Key(scope, required.Name));
             if ((await app.Read()).Manifest.Title.Length != 0) { continue; }
-            try { await installer.Install("os", required, cancellationToken); }
+            try { await installer.Install(required.Publisher, required.Name, cancellationToken); }
             catch (InvalidOperationException)
             { if ((await app.Read()).Manifest.Title.Length == 0) { throw; } }
         }
