@@ -3,12 +3,14 @@
     <!-- Local runs write grain state under this folder. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);.digitalbrain/**</DefaultItemExcludes>
     <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <IsPackable>true</IsPackable>
+    <PackageId>DigitalBrain.OS</PackageId>
     <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
   </PropertyGroup>
   <ItemGroup>
     <!-- The repository's features folder rides in the published image at {publish}/features, where
          Properties/PublishProfiles/Container.pubxml points AppsOptions.Features. Never compiled here. -->
-    <None Include="../../../features/**/*" LinkBase="features" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../../../features/**/*" LinkBase="features" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" Pack="false" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.OS.Tests.E2E" />
