@@ -14,5 +14,7 @@ internal sealed class OrleansBrain(BrainClient client, string brainId) : IDigita
     public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
         => client.On<T>(neuron, onSubscribed, cancellationToken);
 
-    public IKernel Self => client.Grain<IKernel>(brainId);
+    public IBrain Self => client.Grain<IBrain>(brainId);
+
+    public IKernelView Kernel => new DigitalBrain.Framework.Kernel(client.Grains);
 }

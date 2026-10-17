@@ -1,6 +1,7 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Testing;
 using DigitalBrain.Time;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,10 +14,11 @@ public sealed class BuilderContractSearchFacts
     public async Task BuilderSearchPreservesTheTimerQueryResult()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new TimerEmbeddings()))
+        await using var brain = await TestBrain.Create().WithModule<TimeModule>()
+            // The fake model server speaks chat only; a fixed embedder stands in for an embeddings endpoint.
+            .ConfigureServices(services => services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new TimerEmbeddings()))
             .StartAsync(ct);
-        var result = await BuilderTools.Search(brain.SiloServices.GetRequiredService<NeuronTypeSearch>(), "schedule a timer", ct);
+        var result = await BuilderTools.Search(brain.Services.GetRequiredService<NeuronTypeSearch>(), "schedule a timer", ct);
         Assert.Equal(new BuilderTools.ContractHit("time", "DigitalBrain.Time.Timers.ITimer", "Timer"), result[0]);
     }
 

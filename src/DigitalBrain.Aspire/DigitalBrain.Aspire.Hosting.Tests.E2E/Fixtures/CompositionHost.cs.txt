@@ -14,6 +14,9 @@ using Orleans.Hosting;
 
 internal static class CompositionHost
 {
+    // The password Person registration gives "packed-user" (principal + "-password-123").
+    internal const string Password = "packed-user-password-123";
+
     internal static async Task Run(string mode)
     {
         var builder = WebApplication.CreateBuilder([]);
@@ -23,13 +26,14 @@ internal static class CompositionHost
             builder.AddDigitalBrainClient(useAzureClustering: true);
             await using var client = builder.Build();
             client.MapGet("/health", () => Results.Ok());
-            client.MapGet("/verify", async (IDigitalBrains brains) =>
-                await brains.Grain<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("packed-user", "package-test-password") is not null
+            client.MapGet("/verify", async (Orleans.IClusterClient cluster) =>
+                await cluster.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("packed-user", Password) is not null
                     ? Results.Ok() : Results.Unauthorized());
             await client.RunAsync();
             return;
         }
-        builder.AddDigitalBrainServer(server => { if (mode == "server") { server.UseAzureStorage(); } });
+        // The Orleans module owns clustering and providers in both Azure and local compositions.
+        builder.AddDigitalBrainServer(server => server.AddModule<DigitalBrain.Microsoft.Orleans.OrleansModule>());
         if (mode == "memory-server")
         {
             builder.UseOrleans(silo => silo.AddDigitalBrainPlatform());

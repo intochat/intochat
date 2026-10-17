@@ -1,8 +1,7 @@
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -13,8 +12,10 @@ public sealed class AppNeuronFacts
     private static AppManifest Manifest(string title = "Echo") =>
         new(title, "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], []);
 
-    private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ITestBrain> Start(FakeAppRuntime? runtime = null, int buildFreshForSeconds = 900)
+        => TestBrain.Create().WithModule<AppsModule, AppsOptions>(options => options.BuildFreshForSeconds = buildFreshForSeconds)
+            .WithFakeAppRuntime(runtime ?? new())
+            .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task CreatingAnAppMintsVersionZeroOneZeroAndPublishesAppChanged()
@@ -22,14 +23,34 @@ public sealed class AppNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "echo"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
         var created = await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
         Assert.Equal("0.1.0", created.Version);
         Assert.Equal(AppStatus.Drafted, created.Status);
         Assert.Equal("echo", created.Name);
-        await using var stream = changes.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(("echo", "0.1.0", AppStatus.Drafted), (stream.Current.Name, stream.Current.Version, stream.Current.Status));
+        var changed = await changes.NextAsync(ct: ct);
+        Assert.Equal(("echo", "0.1.0", AppStatus.Drafted), (changed.Name, changed.Version, changed.Status));
+    }
+
+    // A writer whose app was deleted mid-deploy reconciles the runtime to an empty program, which retires it,
+    // and an Unsettle that lands afterwards changes nothing: neither recreates the app.
+    [Fact]
+    public async Task ADeletedAppAnswersItsWriterAnEmptyProgramAndIgnoresAnUnsettle()
+    {
+        await using var brain = await Start();
+        var key = IApp.Key(Brain, "deleted");
+        var app = brain.Get<IApp>(key);
+        await app.Create(Manifest(), "spec");
+        await app.WriteBehavior("synapses/echo.cs", "// echo", Guid.NewGuid());
+        await app.Delete();
+        var deploy = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key);
+
+        var program = await deploy.Program();
+        var unsettled = await deploy.Unsettle(Guid.NewGuid(), "late", 1, 1, null);
+
+        Assert.Empty(program.Sources);
+        Assert.Empty(unsettled.Synapses ?? []);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.SaveSpec("again", Guid.NewGuid()));
     }
 
     [Fact]
@@ -84,9 +105,7 @@ public sealed class AppNeuronFacts
     public async Task AStaleBuildingAppReArmsAndTheOldWorkersCompleteBuildIsIgnored()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0))
-            .StartAsync(ct);
+        await using var brain = await Start(buildFreshForSeconds: 0);
         var app = brain.Get<IApp>(IApp.Key(Brain, "stale"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
@@ -119,6 +138,29 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
+    public async Task ABuildWhoseProgramDoesNotCompileGoesFailedAndKeepsItsFiles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeAppRuntime { Refuse = sources => sources.ContainsKey("synapses/bad.cs") ? new InvalidOperationException("The program does not compile: synapses/bad.cs line 1 CS0029") : null };
+        await using var brain = await Start(runtime);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "uncompilable"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+
+        const string Bad = """
+            await using var brain = await DigitalBrainClient.ConnectAsync(args);
+            await foreach (var request in brain.On<DigitalBrain.Apps.Signals.AppRequested>(brain.Get<DigitalBrain.Apps.IApp>(brain.Setting("App")!), brain.Stopping))
+            { int x = "no"; }
+            """;
+
+        var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/bad.cs"] = Bad }, null);
+
+        Assert.Equal(AppStatus.Failed, failed.Status);
+        Assert.Contains(failed.Activity, line => line.Contains("CS0029", StringComparison.Ordinal));
+        Assert.Equal(Bad, failed.Files["synapses/bad.cs"]);
+    }
+
+    [Fact]
     public async Task TheFirstBuildBumpsMinorAndLaterBuildsBumpPatch()
     {
         await using var brain = await Start();
@@ -139,9 +181,53 @@ public sealed class AppNeuronFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "progress"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
-        await app.Progress("round 1: compile-checking synapses/echo.cs");
+        await app.Progress("working", "round 1: compile-checking synapses/echo.cs");
         var snapshot = await app.Read();
         Assert.Contains("round 1: compile-checking synapses/echo.cs", snapshot.Activity);
+    }
+
+    [Fact]
+    public async Task ProgressAnnouncesAChangeOnlyWhenTheActivityLineChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "quiet"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+        var building = (await app.Read()).Version;
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+        await app.Progress("working", "round 1");
+        await app.Progress("working", "round 1");
+        await app.Progress("reading", "round 2");
+        // A file write is the next change after the progress ones: everything before it is what progress announced.
+        await app.WriteFile("notes.md", "sentinel", Guid.NewGuid());
+
+        var announced = 0;
+        while ((await changes.NextAsync(ct: ct)).Version == building) { announced++; }
+        Assert.Equal(2, announced);
+    }
+
+    [Fact]
+    public async Task ProgressPublishesAppActivityEvenWhenTheAppIsNotBuilding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "activity"));
+        await app.Create(Manifest(), "spec");
+        await using var activity = await brain.Observe<AppActivity>(app, ct);
+        await app.Progress("listening", "Heard you");
+        var heard = await activity.NextAsync(ct: ct);
+        Assert.Equal(("activity", "listening", "Heard you"), (heard.App, heard.State, heard.Detail));
+        Assert.DoesNotContain("Heard you", (await app.Read()).Activity);
+    }
+
+    [Fact]
+    public async Task ProgressRefusesAStateOutsideTheTen()
+    {
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "badstate"));
+        await app.Create(Manifest(), "spec");
+        await Assert.ThrowsAsync<ArgumentException>(() => app.Progress("dancing", "x"));
     }
 
     [Fact]
@@ -175,9 +261,7 @@ public sealed class AppNeuronFacts
     [Fact]
     public async Task AStaleWorkersManifestIsIgnoredWithItsFiles()
     {
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0))
-            .StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await Start(buildFreshForSeconds: 0);
         var app = brain.Get<IApp>(IApp.Key(Brain, "stale-manifest"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
@@ -189,18 +273,18 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
-    public async Task ABuildThatRewritesTheSpecFailsTheSpecBelongsToTheAuthor()
+    public async Task ABuildThatRewritesTheDeclarationFailsItBelongsToTheAuthor()
     {
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "spec-guard"));
         await app.Create(Manifest(), "the authored spec");
         await app.BeginBuild(null);
         var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { [AppFiles.SpecPath] = "hijacked" }, null);
+            new() { [AppFiles.DeclarationPath] = "// hijacked" }, null);
         Assert.Equal(AppStatus.Failed, failed.Status);
         Assert.Equal("the authored spec", failed.Spec);
-        Assert.False(failed.Files.ContainsKey(AppFiles.SpecPath));
-        Assert.Contains(failed.Activity, line => line.Contains("app.spec.md", StringComparison.Ordinal));
+        Assert.False(failed.Files.ContainsKey(AppFiles.DeclarationPath));
+        Assert.Contains(failed.Activity, line => line.Contains("app.cs", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -208,12 +292,9 @@ public sealed class AppNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var moment = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<TimeProvider>();
-                silo.Services.AddSingleton<TimeProvider>(new FixedClock(moment));
-            })
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
+            // The version history stamps the host clock; a fixed one makes the stamp exact.
+            .ConfigureServices(services => services.AddSingleton<TimeProvider>(new FixedClock(moment)))
             .StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "clocked"));
         var created = await app.Create(Manifest(), "spec");
@@ -238,20 +319,19 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
-    public async Task ASynapseIsKeyedUnderTheAppsSynapsesFolderAndTheOldFolderIsRefused()
+    public async Task AProgramIsAnyCsFileButTheDeclarationIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start();
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(runtime);
         var app = brain.Get<IApp>(IApp.Key(Brain, "keyed"));
         await app.Create(Manifest(), "## Scenario: Keys\nIt keys.");
-        var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("behaviors/old.cs", "// p", Guid.NewGuid()));
-        Assert.Contains("synapses/", refused.Message, StringComparison.Ordinal);
-        var snapshot = await app.WriteBehavior("synapses/new.cs", "// p", Guid.NewGuid());
-        Assert.Contains("synapses/new.cs", snapshot.Files.Keys);
-        // Deployed programs are keyed by the app runtime's hashed file key, never by their bundle path.
-        var deployed = Assert.Single(RecordingCSharpFile.Files.Values, file => file.Source == "// p");
-        Assert.Contains(deployed.Id, Enumerable.Range(0, 3).Select(generation => AppProgramKey.For(IApp.Key(Brain, "keyed"), generation, "synapses/new.cs")));
-        Assert.StartsWith(Brain + "/csharp/app-", deployed.Id, StringComparison.Ordinal);
-        Assert.DoesNotContain("keyed", deployed.Id, StringComparison.Ordinal);   // unguessable from the app's name
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("app.cs", "// p", Guid.NewGuid()));
+        Assert.Contains("SaveManifest", refused.Message, StringComparison.Ordinal);
+        var snapshot = await app.WriteBehavior("new.cs", "// p", Guid.NewGuid());
+        Assert.Contains("new.cs", snapshot.Files.Keys);
+        var deployment = Assert.Single(runtime.Deployed);
+        Assert.Equal(["new.cs"], deployment.Sources.Keys);
+        Assert.Equal("// p", deployment.Sources["new.cs"]);
     }
 }

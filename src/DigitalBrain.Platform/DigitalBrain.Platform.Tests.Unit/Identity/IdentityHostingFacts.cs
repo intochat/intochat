@@ -19,14 +19,18 @@ public sealed class IdentityHostingFacts
     public async Task SharedBrainSessionRequiresMembershipAndUsesTheOwningAccount()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var directory = brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var directory = brain.Grains.GetGrain<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory);
         var alice = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         await directory.RegisterAsync("bob", "correct-password", "Bob", ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IBrainAccess>());
+        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -67,6 +71,24 @@ public sealed class IdentityHostingFacts
             .Get(CookieAuthenticationDefaults.AuthenticationScheme).Cookie.Name);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void CookieKeysPersistInTheGrainStateStoreWheneverTheBuiltHostHasOne(bool hasStore, bool storeRegisteredAfter)
+    {
+        var services = new ServiceCollection();
+        void AddStore() => services.AddKeyedSingleton(DigitalBrain.Framework.DigitalBrainNames.GrainState, (_, _) =>
+            new Azure.Storage.Blobs.BlobServiceClient("UseDevelopmentStorage=true"));
+        if (hasStore && !storeRegisteredAfter) { AddStore(); }
+        services.AddCookieProtection();
+        if (hasStore && storeRegisteredAfter) { AddStore(); }
+        using var provider = services.BuildServiceProvider();
+        var repository = provider.GetRequiredService<IOptions<global::Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>().Value.XmlRepository;
+        if (hasStore) { Assert.IsType<CookieProtectionStorage.BlobKeyRepository>(repository); }
+        else { Assert.Null(repository); }
+    }
+
     [Fact]
     public void TheHostProtectionIdentityOverridesTheWebApplicationsDefault()
     {
@@ -105,13 +127,17 @@ public sealed class IdentityHostingFacts
     public async Task LoginUsesTheHostCookieAndTheAccountGateKeepsCorsOnUnauthorizedResponses()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "bootstrap";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "bootstrap-password";
         builder.Configuration[KernelCors.AllowedOriginConfigurationKey] = "http://localhost:27880";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
+        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         builder.Services.AddIdentity();
         builder.Services.Configure<IdentityHostOptions>(options => options.CookieName = "another-host.session");
         await using var app = builder.Build();

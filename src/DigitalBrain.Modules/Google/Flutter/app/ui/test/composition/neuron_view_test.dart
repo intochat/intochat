@@ -116,13 +116,14 @@ void main() {
                 },
               },
             },
-            onActivate: (item) => activated = item['id'] as String,
+            onAction: (event) async => activated = event['value'] as String,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Untitled.png'));
+    await tester.pumpAndSettle();
     expect(activated, 'image');
   });
   testWidgets('recursive child is isolated instead of recurring forever', (

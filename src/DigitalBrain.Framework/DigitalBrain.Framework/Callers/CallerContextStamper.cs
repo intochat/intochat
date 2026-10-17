@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Framework;
 
@@ -10,6 +11,10 @@ public static class CallerContextStamper
 {
     public const string RequestContextKey = "digitalbrain.caller-context";
 
+    // A call a module relays inside the cluster (a contributed machine serving a circle member's own brain): the
+    // filter admits it as module plumbing, the same a call made through an injected client after leaving a grain.
+    public const string ModuleCallKey = "digitalbrain.trusted-module-call";
+
     public static CallerContext Stamp(CallerContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -20,6 +25,11 @@ public static class CallerContextStamper
         }
 
         RequestContext.Set(RequestContextKey, context);
+        if (TraceContext.Current is null)
+        {
+            var origin = new NeuronId($"{context.BrainId}/edge");
+            TraceContext.Enter(TraceContext.Begin(context.AccountId, context.BrainId, origin));
+        }
         return context;
     }
 

@@ -10,15 +10,17 @@ public sealed class TableOwnerFacts
     {
         var owner = new TableOwner("brain-1", "brain-1/apps/notes");
         Assert.Equal(owner, TableOwner.Parse(owner.Key));
-        Assert.Equal("[\"brain-1\",\"brain-1/apps/notes\"]", owner.Key);
+        Assert.Equal("brain-1/tables/brain-1%2Fapps%2Fnotes", owner.Key);
     }
 
     [Theory]
-    [InlineData("not json")]
-    [InlineData("[\"one\"]")]
-    [InlineData("[\"one\",\"two\",\"three\"]")]
-    [InlineData("[\"\",\"app\"]")]
-    [InlineData("[\"brain\",null]")]
+    [InlineData("brain")]
+    [InlineData("brain/tables")]
+    [InlineData("brain/tables/app/extra")]
+    [InlineData("/tables/app")]
+    [InlineData("brain/tables/")]
+    [InlineData("brain/apps/app")]
+    [InlineData("brain/tables/a%2fb")]
     public void AMalformedKeyIsRefusedAsUnauthorized(string key)
         => Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Parse(key));
 

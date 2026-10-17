@@ -5,7 +5,7 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-// One repository connection, keyed connection/{brain}/github/{id}. The user's OAuth token proves
+// One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
 // access once; installation tokens minted from the App key do the ongoing work.
 [GrainType("github")]
 internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
@@ -22,7 +22,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     public GitHubRepositoryNeuron(IGitHubRepositorySource source, IGitHubUserAccess access, IGitHubInstallationVerifier verifier,
         GitHubAppRegistration registration,
-        [PersistentState("github", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GitHubRepositoryState> state)
+        [PersistentState("github", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GitHubRepositoryState> state)
         : base(state)
     {
         _source = source;

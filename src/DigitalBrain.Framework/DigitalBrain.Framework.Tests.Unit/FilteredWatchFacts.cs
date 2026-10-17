@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Framework.Tests.Unit;
 
 public sealed class FilteredWatchFacts
@@ -6,10 +7,10 @@ public sealed class FilteredWatchFacts
     public async Task SourceFiltersSignalsAndRenewalReplacesTheSelection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<IFilteredSource>("filtered-source");
-        var selected = brain.Grains.GetGrain<IFilteredObserver>("selected");
-        var all = brain.Grains.GetGrain<IFilteredObserver>("all");
+        var selected = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IFilteredObserver>("selected");
+        var all = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IFilteredObserver>("all");
         var activation = await source.Watch(selected, [nameof(SelectedSignal)]);
         Assert.Equal(activation, await source.Watch(all));
         await source.Emit();
@@ -33,6 +34,7 @@ public sealed class FilteredWatchFacts
 
 [GenerateSerializer] public sealed record SelectedSignal : Signal;
 [GenerateSerializer] public sealed record OtherSignal : Signal;
+[Alias("test.filtered-source")]
 public interface IFilteredSource : INeuron { Task Emit(); }
 public interface IFilteredObserver : INeuronObserver, IGrainWithStringKey { Task<string[]> Heard(); }
 

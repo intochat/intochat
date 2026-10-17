@@ -8,7 +8,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Table;
 
 [GrainType(UIVocabulary.TableType)]
-internal sealed class TableNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableState> store)
+internal sealed class TableNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TableState> store)
     : Neuron<TableState>(store), ITable
 {
     public Task Replace(string title, IReadOnlyList<TableColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows)

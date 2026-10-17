@@ -1,4 +1,5 @@
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -8,10 +9,10 @@ public sealed class AppSharingFacts
     private static AppManifest Manifest() =>
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [new("gmail", "gmail")]);
 
-    private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ITestBrain> Start() =>
+        TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
 
-    private static async Task<IApp> LiveApp(ModuleBrain brain, string key)
+    private static async Task<IApp> LiveApp(ITestBrain brain, string key)
     {
         var app = brain.Get<IApp>(key);
         await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");

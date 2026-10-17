@@ -15,6 +15,7 @@ public sealed class ConnectionRouteFacts
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Services.AddSingleton(typeof(IGrainFactory), _ => null!);
         builder.Services.AddSingleton(typeof(IDigitalBrain), _ => null!);
+        builder.Services.AddGrpc(); // the platform maps the Neurons channel beside its routes
         await using var web = builder.Build();
         IEndpointRouteBuilder app = web;
         PlatformHosting.MapDigitalBrainPlatform(app);

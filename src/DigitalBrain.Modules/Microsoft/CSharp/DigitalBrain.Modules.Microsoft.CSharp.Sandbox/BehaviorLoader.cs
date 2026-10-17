@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using DigitalBrain.Client.Runtime;
@@ -17,14 +18,25 @@ internal sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptio
         ArgumentNullException.ThrowIfNull(assignment);
         var assembly = await CachedAsync(assignment.Hash, assignment.Assembly, verify: true, cancellationToken).ConfigureAwait(false);
         var symbols = await CachedAsync(assignment.Hash + ".pdb", assignment.Symbols, verify: false, cancellationToken).ConfigureAwait(false);
-        var context = new BehaviorContext(assignment.Behavior);
-        using var image = new MemoryStream(assembly);
-        using var pdb = new MemoryStream(symbols);
-        var loaded = context.LoadFromStream(image, pdb);
-        return BehaviorRun.Start(session, assignment, context, loaded, options.Value.LogLines, logger);
+        return Load(session, assignment, assembly, symbols, logger);
     }
 
-    private async Task<byte[]> CachedAsync(string name, Uri url, bool verify, CancellationToken cancellationToken)
+    // Collectible types stay on this synchronous stack, never in the completed download task's state.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private BehaviorRun Load(SessionConnection session, AssignmentEvent assignment, byte[] assembly, byte[] symbols, ILogger logger)
+    {
+        var context = new BehaviorContext(assignment.Behavior);
+        try
+        {
+            using var image = new MemoryStream(assembly);
+            using var pdb = new MemoryStream(symbols);
+            var loaded = context.LoadFromStream(image, pdb);
+            return BehaviorRun.Start(session, assignment, context, loaded, options.Value.LogLines, logger);
+        }
+        catch { context.Unload(); throw; }
+    }
+
+    internal async Task<byte[]> CachedAsync(string name, Uri url, bool verify, CancellationToken cancellationToken)
     {
         var path = Path.Combine(options.Value.CacheRoot, name);
         if (File.Exists(path))
@@ -45,7 +57,7 @@ internal sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptio
     // other. Everything the host already carries (the client, the contracts, the framework) is shared from
     // the default context, so a behavior's types are the host's types; anything else in the host's
     // directory is loaded there once.
-    private sealed class BehaviorContext(string behavior) : AssemblyLoadContext("behavior " + behavior, isCollectible: true)
+    internal sealed class BehaviorContext(string behavior) : AssemblyLoadContext("behavior " + behavior, isCollectible: true)
     {
         protected override Assembly? Load(AssemblyName name)
         {

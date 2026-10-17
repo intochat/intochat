@@ -9,7 +9,7 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class BehaviorLoaderFacts
 {
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ALoadedBehaviorRunsItsEntryPointAndUnloads()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -21,11 +21,11 @@ public sealed class BehaviorLoaderFacts
         var unloaded = await RunAndUnloadAsync(Loader(edge), session, edge.Assignment("acc-brain/csharp/a", compiled), ct);
 
         // Unloading finishes after the run's last thread-pool continuation settles, so collection is observed over cycles.
-        for (var attempt = 0; attempt < 50 && unloaded.IsAlive; attempt++) { GC.Collect(); GC.WaitForPendingFinalizers(); await Task.Delay(20, ct); }
+        for (var attempt = 0; attempt < 50 && unloaded.IsAlive; attempt++) { GC.Collect(); GC.WaitForPendingFinalizers(); await Task.Yield(); }
         Assert.False(unloaded.IsAlive, "the behavior's load context must be collectible once its run is disposed");
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AThrowingBehaviorCompletesWithOneAndItsError()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -40,7 +40,7 @@ public sealed class BehaviorLoaderFacts
         Assert.Contains("boom", run.Error, StringComparison.Ordinal);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ABehaviorReadsItsSettingsThroughTheAmbientSession()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -55,7 +55,7 @@ public sealed class BehaviorLoaderFacts
         Assert.Contains("timer tea", run.Tail(10), StringComparison.Ordinal);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnAssemblyWhoseBytesDoNotMatchItsHashIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;

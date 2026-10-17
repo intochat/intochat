@@ -12,6 +12,8 @@ public enum AiProvider
     Ollama,
     FoundryLocal,
     OpenRouter,
+    // TypeSafe's hosted System One (Jev). Decisions only; never a chat provider.
+    TypeSafe,
     // The deployment's registered IChatClient, used when nothing names a model and no provider is configured.
     Host,
 }

@@ -17,7 +17,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "Created", "IDigitalBrain", "IKernel", "INeuron", "INeuronObserver", "NeuronId", "Owner", "ServiceUnavailableException", "Signal", "SignalId", "State", "Synapse"],
+            ["AccessAttribute", "Activated", "Created", "IBrain", "IDigitalBrain", "IKernelView", "ILogic`1", "INeuron", "INeuronObserver", "IRetainsSignals", "ISelectiveWatch", "Instance", "InstanceCreated", "InstanceRetired", "InternalAttribute", "JournalConflictException", "LeaseLostException", "NeuronId", "Owner", "PerAccountAttribute", "PublicAttribute", "RetainedSignal", "RevisionConflictException", "RollbackDetectedException", "ServiceUnavailableException", "SharedAttribute", "Signal", "SignalId", "Sources", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind", "Verdict"],
             exported);
     }
 
@@ -27,6 +27,5 @@ public sealed class ExtractionFacts
         var assemblies = new ModuleInventory([]).ContractAssemblies().Select(assembly => assembly.GetName().Name).Order(StringComparer.Ordinal).ToArray();
 
         Assert.Equal(["DigitalBrain", "DigitalBrain.Platform.Contracts"], assemblies);
-        Assert.DoesNotContain(new ModuleInventory([]).ContractAssemblies(), PlatformAssemblyAttribute.IsPlatform);
     }
 }

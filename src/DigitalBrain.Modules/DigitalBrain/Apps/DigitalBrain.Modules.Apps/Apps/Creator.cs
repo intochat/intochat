@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using Microsoft.Extensions.Options;
@@ -35,25 +36,42 @@ internal sealed class Creator(
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var existing = name is null ? null : await brain.Get<IApp>(IApp.Key(brainId, name)).Read();
-        var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
-            ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
-            : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
-        var authored = await Authored(prompt, cancellationToken);
-        var manifest = new AppManifest(authored.Title, authored.Description,
-            authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
-        var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
-        if (name is null)
+        var target = name is null ? null : brain.Get<IApp>(IApp.Key(brainId, name));
+        var existing = target is null ? null : await target.Read();
+        var exists = existing is { Manifest.Title.Length: > 0 };
+        IApp? reporting = null;
+        try
         {
-            ValidateName(authored.Name);
-            await app.Create(manifest, authored.Spec);
+            if (exists) { reporting = target; await target!.Progress("working", "Revising the specification"); }
+            var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
+                ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
+                : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
+            var authored = await Authored(brainId, prompt, cancellationToken);
+            var manifest = new AppManifest(authored.Title, authored.Description,
+                authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? [],
+                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar);
+            var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
+            if (name is null)
+            {
+                ValidateName(authored.Name);
+                await app.Create(manifest, authored.Spec);
+                reporting = app;
+                await app.Progress("accepted", $"Drafting {authored.Title}");
+            }
+            else
+            {
+                await app.SaveManifest(manifest, Guid.NewGuid());
+                await app.SaveSpec(authored.Spec, Guid.NewGuid());
+            }
+            await app.Progress("completed", $"Specified {authored.Title}");
+            return await app.Read();
         }
-        else
+        catch (Exception error) when (reporting is not null && error is not OperationCanceledException)
         {
-            await app.SaveManifest(manifest, Guid.NewGuid());
-            await app.SaveSpec(authored.Spec, Guid.NewGuid());
+            // Reporting must not mask the Author's own error.
+            try { await reporting.Progress("attention", error.Message); } catch (Exception) { }
+            throw;
         }
-        return await app.Read();
     }
 
     // Flips the app to Building and returns; the Builder loop lands the files in the background.
@@ -78,42 +96,57 @@ internal sealed class Creator(
             var task = new StringBuilder()
                 .AppendLine($"App: {snapshot.Manifest.Title}")
                 .AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
+            task.AppendLine().AppendLine("Manifest:").AppendLine(JsonSerializer.Serialize(snapshot.Manifest, Json));
             if (!string.IsNullOrWhiteSpace(instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(instruction.Trim()); }
             if (snapshot.Files.Count > 0)
             {
                 task.AppendLine().AppendLine("Current files:");
                 foreach (var (path, source) in snapshot.Files) { task.AppendLine($"--- {path} ---").AppendLine(source); }
             }
-            var built = Parse<BuiltApp>(await BuilderConversation(app, task.ToString(), cancellationToken));
+            await app.Progress("working", $"Building {snapshot.Manifest.Title}");
+            var built = Parse<BuiltApp>(await BuilderConversation(BrainKey.BrainOf(appKey), app, task.ToString(), snapshot.Files, cancellationToken));
             var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (files.Count == 0)
-            { await app.CompleteBuild(attempt, null, "the Builder produced no files"); return; }
+            {
+                await app.CompleteBuild(attempt, null, "the Builder produced no files");
+                await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files");
+                return;
+            }
             // Manifest changes land with the files, inside the attempt check: a stale
             // worker's manifest is discarded with its files.
-            var manifest = built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 }
-                ? new AppManifest(snapshot.Manifest.Title, snapshot.Manifest.Description,
-                    built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
-                    built.Settings is { Count: > 0 }
+            var manifest = snapshot.Manifest with
+            {
+                Operations = built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
+                Settings = built.Settings is { Count: > 0 }
                         ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
                         : snapshot.Manifest.Settings,
-                    snapshot.Manifest.Slots)
-                : null;
-            await app.CompleteBuild(attempt, files, null, manifest);
+            };
+            var completed = await app.CompleteBuild(attempt, files, null, manifest);
+            if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}"); }
+            else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete"); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
+            // Reporting must not mask the build's own error.
+            try { await ReportIfCurrent(app, attempt, "attention", error.Message); } catch (Exception) { }
         }
     }
 
-    private async Task<AuthoredApp> Authored(string prompt, CancellationToken cancellationToken)
+    // A stale worker's outcome was discarded by the neuron; it must not show as the app's activity either.
+    private static async Task ReportIfCurrent(IApp app, Guid attempt, string state, string detail)
+    {
+        if (await app.CurrentBuildAttempt() == attempt) { await app.Progress(state, detail); }
+    }
+
+    private async Task<AuthoredApp> Authored(string brainId, string prompt, CancellationToken cancellationToken)
     {
         for (var retry = 0; ; retry++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0).Complete(AuthorModel, AgentPrompts.Author, prompt));
+                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0).Complete(brainId, AuthorModel, AgentPrompts.Author, prompt));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
             {
@@ -124,7 +157,7 @@ internal sealed class Creator(
 
     // The Builder works with tools: it searches the contract catalog, reads details and
     // compile-checks its C# before answering. Each round lands on the app's activity feed.
-    private async Task<string> BuilderConversation(IApp app, string task, CancellationToken cancellationToken)
+    private async Task<string> BuilderConversation(string brainId, IApp app, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -134,20 +167,40 @@ internal sealed class Creator(
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await grains.GetGrain<ICreatorModel>(0).Generate(BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
+            var result = await grains.GetGrain<ICreatorModel>(0).Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)
             {
-                return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+                var reply = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+                var built = Parse<BuiltApp>(reply);
+                // CompleteBuild merges the files. Check that exact program, including retained shared
+                // classes; a previous tool check may have checked different or incomplete source.
+                if (built.Files is not { Count: > 0 } || built.Files.ContainsKey(AppFiles.DeclarationPath)) { return reply; }
+                var files = new Dictionary<string, string>(existingFiles, StringComparer.Ordinal);
+                foreach (var (path, source) in built.Files) { files[path] = source; }
+                var program = files.Where(file => AppFiles.IsProgram(file.Key))
+                    .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+                if (program.Count == 0) { return reply; }
+                var check = await Checked(program, cancellationToken);
+                if (check.Success) { return reply; }
+                await app.Progress("working", $"round {round + 1}: correcting final compile errors");
+                messages.Add(new AiMessage("user", [new AiText("The exact final program does not compile. Fix these diagnostics and return the corrected implementation JSON:\n"
+                    + JsonSerializer.Serialize(check, Json))]));
+                continue;
             }
-            await app.Progress($"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
+            await app.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
-        throw new InvalidDataException($"The Builder used tools for {MaxBuilderRounds} rounds without producing the implementation.");
+        throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a valid implementation.");
     }
+
+    private static string BuilderState(AiToolCall[] calls)
+        => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
+         : calls.Any(call => call.Name == BuilderTools.ReadContracts) ? "reading"
+         : "working";
 
     private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
     {
@@ -160,7 +213,7 @@ internal sealed class Creator(
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(
-                    await Require(csharp).Compile(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
+                    await Checked(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
@@ -174,6 +227,14 @@ internal sealed class Creator(
             => service ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing);
     }
 
+    // check_csharp answers what the app gates will: the compile errors plus every synapse that is not one reaction.
+    private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+    {
+        var compiled = await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
+        var shape = SynapseShape.Check(files);
+        return shape.Length == 0 ? compiled : compiled with { Success = false, Errors = [.. compiled.Errors, .. shape] };
+    }
+
     private static void ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
@@ -181,7 +242,7 @@ internal sealed class Creator(
     }
 
     // Models sometimes wrap the JSON in a code fence or add prose around it; read the first complete object.
-    private static T Parse<T>(string reply)
+    internal static T Parse<T>(string reply)
     {
         var start = reply.IndexOf('{', StringComparison.Ordinal);
         if (start < 0) { throw new InvalidDataException("The reply contains no JSON object."); }
@@ -191,8 +252,8 @@ internal sealed class Creator(
     }
 
     private sealed record AuthoredApp(string Name, string Title, string Description, string Spec,
-        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null);
+        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null, UiChildRef? Entry = null);
     private sealed record BuiltApp(IReadOnlyDictionary<string, string>? Files,
-        IReadOnlyList<BuiltSetting>? Settings = null, AppOperation[]? Operations = null);
+        IReadOnlyList<BuiltSetting>? Settings = null, AppOperation[]? Operations = null, UiChildRef? Entry = null);
     private sealed record BuiltSetting(string Name, string? Description, string? Default);
 }

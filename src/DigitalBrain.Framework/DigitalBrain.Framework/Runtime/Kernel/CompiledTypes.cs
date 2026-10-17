@@ -1,0 +1,98 @@
+using System.ComponentModel;
+using System.Reflection;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
+
+namespace DigitalBrain.Framework;
+
+// The kernel's compiled type layer: every neuron contract, signal and connector the composed modules
+// bring, built once per host. Kernel grains are not neurons, so they never enter it. A brain client has no layer of its own: it asks the kernel over the wire.
+public sealed class CompiledTypes
+{
+    private readonly Dictionary<string, Type> _neurons;
+    private TypeEntry[]? _addressed;
+
+    public CompiledTypes(ModuleInventory modules)
+        : this(modules.ContractAssemblies(), assembly => modules.Declaring(assembly)?.Id.ToString() ?? assembly.GetName().Name!, modules.Modules) { }
+
+    // Without a module composition an assembly names itself and no connectors are declared.
+    public CompiledTypes(IEnumerable<Assembly> assemblies) : this(assemblies, assembly => assembly.GetName().Name!, []) { }
+
+    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<DigitalBrain.Framework.Modules.Module> modules)
+    {
+        var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes()).ToArray();
+        _neurons = visible.Where(IsNeuron).ToDictionary(type => type.FullName!, StringComparer.Ordinal);
+        var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var contract in _neurons.Values)
+        {
+            var alias = contract.GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias;
+            if (string.IsNullOrWhiteSpace(alias)) { throw new InvalidOperationException($"Public neuron contract {contract.FullName} requires an Orleans alias."); }
+            if (!aliases.TryAdd(alias, contract)) { throw new InvalidOperationException($"Duplicate neuron alias '{alias}'."); }
+        }
+        Entries =
+        [
+            .. aliases.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => Neuron(pair.Value, pair.Key, provider(pair.Value.Assembly))),
+            .. visible.Where(IsSignal).OrderBy(type => type.FullName, StringComparer.Ordinal).Select(signal => Signal(signal, provider(signal.Assembly))),
+            .. modules.SelectMany(module => ConnectorDefinition.DeclaredBy(module.GetType()).Select(connector => Connector(connector, module.Id.ToString()))),
+        ];
+        Assemblies = [.. new[] { typeof(Signal).Assembly }.Concat(_neurons.Values.Select(type => type.Assembly)).Distinct()];
+    }
+
+    // Unaddressed: a neuron's Alias is its contract alias. The kernel serves Addressed.
+    public TypeEntry[] Entries { get; }
+
+    // The vocabulary and every assembly a compiled neuron contract lives in: what a script must carry.
+    public Assembly[] Assemblies { get; }
+
+    public Type Contract(string name) => _neurons.TryGetValue(name, out var contract)
+        ? contract
+        : throw new ArgumentException($"{name} is not a neuron contract of this brain.");
+
+    // A neuron's Alias becomes the grain type its contract resolves to, as instances record it; a
+    // contract several grains implement keeps its contract alias.
+    public TypeEntry[] Addressed(IGrainFactory grains)
+    {
+        ArgumentNullException.ThrowIfNull(grains);
+        return _addressed ??= [.. Entries.Select(entry => entry.Kind == TypeKind.Neuron && GrainType(grains, _neurons[entry.Name]) is { } type ? entry with { Alias = type } : entry)];
+    }
+
+    private static string? GrainType(IGrainFactory grains, Type contract)
+    {
+        try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString(); }
+        catch (ArgumentException) { return null; }
+    }
+
+    private static bool IsNeuron(Type type) => type.IsInterface && type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type);
+
+    private static bool IsSignal(Type type) => typeof(Signal).IsAssignableFrom(type) && type != typeof(Signal) && !type.IsAbstract;
+
+    private static TypeEntry Neuron(Type contract, string alias, string provider)
+    {
+        var name = contract.Name.StartsWith('I') ? contract.Name[1..] : contract.Name;
+        string[] methods = [.. new[] { contract }.Concat(contract.GetInterfaces())
+            .Where(type => !type.IsAssignableFrom(typeof(INeuron)))
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Where(method => !method.IsSpecialName)
+            .Select(method => method + (method.GetCustomAttribute<DescriptionAttribute>() is { } description ? " — " + description.Description : ""))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        return new(contract.FullName!, alias, TypeKind.Neuron, provider,
+            contract.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name, methods,
+            [.. contract.GetInterfaces().Where(IsNeuron).Select(type => type.FullName!).Order(StringComparer.Ordinal)]);
+    }
+
+    private static TypeEntry Signal(Type signal, string provider)
+        => new(signal.FullName!, signal.GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
+            signal.GetCustomAttribute<DescriptionAttribute>()?.Description ?? signal.Name,
+            [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(property => property.DeclaringType != typeof(Signal))
+                .Select(property => TypeName(property.PropertyType) + " " + property.Name)], []);
+
+    private static TypeEntry Connector(ConnectorDefinition connector, string provider)
+        => new(connector.Id, connector.Id, TypeKind.Connector, provider, connector.DisplayName,
+            [.. connector.Neurons.Concat(connector.Signals).Select(type => type.FullName!)], []);
+
+    private static string TypeName(Type type) => type.IsGenericType
+        ? type.Name.Split('`')[0] + "<" + string.Join(",", type.GetGenericArguments().Select(TypeName)) + ">"
+        : type.Name;
+}

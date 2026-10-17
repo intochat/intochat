@@ -1,13 +1,28 @@
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans;
 
 namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
 
 public sealed class PlaywrightNeuronFacts
 {
+    [Fact]
+    public async Task Starting_after_desktop_attachment_replaces_it_with_a_managed_session()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new Provider();
+        await using var brain = await Start(provider);
+        using var caller = brain.Owner.AsCaller();
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
+        await browser.Start(ct);
+        await browser.Attach(new(1234, new string('d', 32)), ct);
+        Assert.Equal(new string('d', 32), (await browser.Read()).SessionId);
+        await browser.Start(ct);
+        Assert.NotEqual(new string('d', 32), (await browser.Read()).SessionId);
+        Assert.True(provider.Pages[1].Disposed);
+        Assert.Equal(3, provider.Pages.Count);
+    }
+
     [Fact]
     public async Task Attaching_publishes_ready_from_the_browser_and_deactivation_releases_the_page()
     {
@@ -127,8 +142,9 @@ public sealed class PlaywrightNeuronFacts
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
     }
 
-    private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<PlaywrightModule>()
-        .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
+    // The browser session host stands in for a CDP-attached page whose attach and navigation timing the facts script.
+    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<PlaywrightModule>()
+        .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
 
     private sealed class Provider : IBrowserSessionProvider
@@ -137,6 +153,8 @@ public sealed class PlaywrightNeuronFacts
         public TaskCompletionSource? Release;
         public List<Page> Pages { get; } = [];
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<IBrowserPageSession> StartAsync(string accountId, string sessionId, CancellationToken ct)
+            => AttachAsync(new(1234, sessionId), ct);
         public async Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
         {
             Started.TrySetResult();
@@ -163,6 +181,7 @@ public sealed class PlaywrightNeuronFacts
         public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
         public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
+        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new { expression }));
         public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 }

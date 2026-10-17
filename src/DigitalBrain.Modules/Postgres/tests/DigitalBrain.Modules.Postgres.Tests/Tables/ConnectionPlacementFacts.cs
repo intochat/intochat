@@ -1,7 +1,6 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,10 +22,9 @@ public sealed class ConnectionPlacementFacts
         var slot = new BoundSlot();
         await using var brain = await Start(shared, connection, slot);
         await Connect(brain, "c1");
-        slot.Bind(App, "c1");
+        slot.Bind(App(brain), "c1");
 
-        StampApp();
-        await brain.AuthorizeCallerAsync();
+        using var app = brain.Owner.AsApp(App(brain));
         var table = brain.Get<ITable>("placed");
         await table.Define(Definition);
         await table.Upsert(Key, Values);
@@ -42,8 +40,7 @@ public sealed class ConnectionPlacementFacts
         var shared = new PostgresWriteTableFacts.MemoryTables();
         var connection = new ConnectionTables();
         await using var brain = await Start(shared, connection, new BoundSlot());
-        StampApp();
-        await brain.AuthorizeCallerAsync();
+        using var app = brain.Owner.AsApp(App(brain));
         await brain.Get<ITable>("fallback").Define(Definition);
 
         Assert.Equal([("Define", TablePlacement.Shared)], shared.Placements);
@@ -56,19 +53,14 @@ public sealed class ConnectionPlacementFacts
         var shared = new PostgresWriteTableFacts.MemoryTables();
         var slot = new BoundSlot();
         await using var brain = await Start(shared, new ConnectionTables(), slot);
-        await Connect(brain, "c1");
-        slot.Bind(App, "c1");
-        StampApp();
-        await brain.AuthorizeCallerAsync();
+        var key = await Connect(brain, "c1");
+        slot.Bind(App(brain), "c1");
         var table = brain.Get<ITable>("revoked");
-        await table.Define(Definition);
+        using (brain.Owner.AsApp(App(brain))) { await table.Define(Definition); }
 
-        StampUser();
-        await brain.Get<IConnection>(ConnectionKeys.For(BrainScope.CurrentId(), "postgres", "c1")).Disconnect();
-        StampApp();
-        await brain.AuthorizeCallerAsync();
+        using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(key).Disconnect(); }
 
-        await Assert.ThrowsAnyAsync<ServiceUnavailableException>(() => table.Upsert(Key, Values));
+        using (brain.Owner.AsApp(App(brain))) { await Assert.ThrowsAnyAsync<ServiceUnavailableException>(() => table.Upsert(Key, Values)); }
         Assert.Empty(shared.Placements);
     }
 
@@ -78,52 +70,46 @@ public sealed class ConnectionPlacementFacts
         var shared = new PostgresWriteTableFacts.MemoryTables();
         var slot = new BoundSlot();
         await using var brain = await Start(shared, new ConnectionTables(), slot);
-        await Connect(brain, "c1");
-        slot.Bind(App, "c1");
-        StampApp();
-        await brain.AuthorizeCallerAsync();
-        await brain.Get<ITable>("in-connection").Define(Definition);
-        slot.Unbind(App);
-        var kept = await brain.Get<ITable>("in-shared").Define(Definition);
+        var key = await Connect(brain, "c1");
+        slot.Bind(App(brain), "c1");
+        AcceptedTable kept;
+        using (brain.Owner.AsApp(App(brain)))
+        {
+            await brain.Get<ITable>("in-connection").Define(Definition);
+            slot.Unbind(App(brain));
+            kept = await brain.Get<ITable>("in-shared").Define(Definition);
+        }
 
-        StampUser();
-        await brain.Get<IConnection>(ConnectionKeys.For(BrainScope.CurrentId(), "postgres", "c1")).Disconnect();
-        await brain.Get<IPostgresLifecycleTestApp>("uninstall").Uninstall("brain", App);
+        using (brain.Owner.AsCaller())
+        {
+            await brain.Get<IConnection>(key).Disconnect();
+            await brain.Get<IPostgresLifecycleTestApp>("uninstall").Uninstall(App(brain));
+        }
 
         Assert.Equal([(TablePlacement.Shared, kept.Table)], shared.Drops);
     }
 
-    private static string App => IApp.Key(BrainScope.Create("alice", "brain").Id, "a");
+    private static string App(ITestBrain brain) => IApp.Key(brain.Owner.BrainId, "a");
 
-    private static async Task Connect(ModuleBrain brain, string id)
+    private static async Task<string> Connect(ITestBrain brain, string id)
     {
-        StampUser();
-        await brain.AuthorizeCallerAsync();
-        await brain.Get<IConnection>(ConnectionKeys.For(BrainScope.CurrentId(), "postgres", id)).Connect("connection-string", UserDatabase);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, "postgres", id);
+        using var owner = brain.Owner.AsCaller();
+        await brain.Get<IConnection>(key).Connect("connection-string", UserDatabase);
+        return key;
     }
 
-    private static void StampUser()
-        => CallerContextStamper.Stamp(new() { PrincipalId = "alice", AccountId = "alice", BrainId = "brain", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-
-    private static void StampApp()
-        => CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain",
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-            AppId = App
-        });
-
-    private static Task<ModuleBrain> Start(ITableStore shared, ConnectionTables connection, BoundSlot slot)
-        => ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
-        {
-            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton(shared);
-            silo.Services.AddSingleton<IConnectionTableStores>(connection);
-            silo.Services.AddSingleton<ITablesSlot>(slot);
-        }).StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ITestBrain> Start(ITableStore shared, ConnectionTables connection, BoundSlot slot)
+        => TestBrain.Create().WithModule<PostgresModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
+            // Rule 4: a wire-level fake would need a loopback Postgres; the stores stand in for the databases,
+            // and the slot stands in for an installed app's tables binding.
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(shared);
+                services.AddSingleton<IConnectionTableStores>(connection);
+                services.AddSingleton<ITablesSlot>(slot);
+            }).StartAsync(TestContext.Current.CancellationToken);
 
     private sealed class BoundSlot : ITablesSlot
     {

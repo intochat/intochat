@@ -10,7 +10,7 @@ public interface ICounter : INeuron
 [GenerateSerializer]
 public sealed class CounterState { [Id(0)] public int Value { get; set; } }
 [GrainType("test-counter")]
-public sealed class CounterNeuron([PersistentState("state", "Default")] IPersistentState<CounterState> state) : Neuron, ICounter
+public sealed class CounterNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CounterState> state) : Neuron, ICounter
 {
     public Task<int> Read() => Task.FromResult(state.State.Value);
     public async Task Set(int value)
@@ -36,7 +36,7 @@ public interface IProbe : INeuron
 }
 
 [GrainType("test-probe")]
-public sealed class ProbeNeuron([PersistentState("state", "Default")] IPersistentState<ProbeState> state) : Neuron<ProbeState>(state), IProbe
+public sealed class ProbeNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ProbeState> state) : Neuron<ProbeState>(state), IProbe
 {
     public int Value => Snapshot.Value;
     public Task<bool> Saved() => Task.FromResult(Exists);
@@ -82,7 +82,7 @@ public sealed class PersistenceFacts
     public async Task ExistsIsFalseUntilTheFirstSaveAndSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var probe = brain.Get<IProbe>("fresh");
         Assert.False(await probe.Saved());
         await probe.Set(2);
@@ -95,7 +95,7 @@ public sealed class PersistenceFacts
     public async Task DeactivationKeepsStateAndDoesNotReplaySignals()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var counter = brain.Get<ICounter>("saved");
         await counter.SetWithoutPublishing(23);
         await brain.DeactivateAsync(counter, ct);

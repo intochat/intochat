@@ -33,6 +33,11 @@ public class NeuronProxy : DispatchProxy
         return proxy;
     }
 
+    // A neuron name is unique within its brain, so two proxies for one name are one neuron (a set member).
+    public override bool Equals(object? obj) => obj is NeuronProxy other && string.Equals(Key, other.Key, StringComparison.Ordinal);
+
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Key);
+
     protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
     {
         ArgumentNullException.ThrowIfNull(targetMethod);

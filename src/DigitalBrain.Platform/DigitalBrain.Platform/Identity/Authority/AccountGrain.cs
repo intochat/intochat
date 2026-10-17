@@ -12,7 +12,7 @@ internal sealed record AccountState
 
 [GrainType("identity.account.v2")]
 internal sealed class AccountGrain(
-    [PersistentState("account", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AccountState> storage,
+    [PersistentState("account", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<AccountState> storage,
     TimeProvider clock) : IdentityStateGrain<AccountState>(storage), IAccount
 {
     public async Task EnsureCreated(Account account)
@@ -26,7 +26,7 @@ internal sealed class AccountGrain(
         await Persist(State with { Account = account });
     }
     public Task<Account?> Read() => Task.FromResult(State.Account);
-    public async Task<Member> CreateBrain(string principalId, string operationId, string displayName)
+    public async Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName, BrainKind kind)
     {
         if (State.Account?.OwnerPrincipalId != principalId) { throw new UnauthorizedAccessException("Only the account owner can create a brain."); }
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
@@ -36,26 +36,24 @@ internal sealed class AccountGrain(
             {
                 PrincipalId = principalId,
                 AccountId = this.GetPrimaryKeyString(),
-                BrainId = "workspace-" + Guid.NewGuid().ToString("N"),
+                BrainId = (kind == BrainKind.Circle ? "circle-" : "workspace-") + Guid.NewGuid().ToString("N"),
                 DisplayName = displayName,
                 Role = MemberRole.Owner,
                 JoinedAt = clock.GetUtcNow()
             };
             await Persist(State with { BrainOperations = new(State.BrainOperations) { [operationId] = member } });
         }
-        await EnsureBrain(member);
-        return member;
+        await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id).Classify(kind);
+        return new(member, await EnsureBrain(member));
     }
-    public async Task EnsureBrain(Member owner)
+    public async Task<bool> EnsureBrain(Member owner)
     {
         if (State.Account is null || owner.AccountId != this.GetPrimaryKeyString() || State.Account.OwnerPrincipalId != owner.PrincipalId)
         { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
         var scope = BrainScope.Create(owner.AccountId, owner.BrainId);
         var authority = GrainFactory.GetGrain<IBrainAuthority>(scope.Id);
         await authority.Initialize(owner.AccountId, owner.BrainId);
-        await authority.ProvisionOwner(owner);
-        // The brain is born only once its owner is on record: creation handlers, and the behaviors
-        // they install, act inside a brain that already knows who it belongs to.
-        await GrainFactory.GetGrain<IKernel>(scope.Id).Create(new Owner(owner.AccountId));
+        // The brain neuron is born on the machine once its owner is on record here (R57).
+        return await authority.ProvisionOwner(owner);
     }
 }

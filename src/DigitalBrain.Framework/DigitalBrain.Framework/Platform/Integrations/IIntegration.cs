@@ -14,9 +14,8 @@ public enum IntegrationStatus
 // Key: "integration/{id}". One deployment-level provider registration (a Google OAuth app, an AI key);
 // every value lives in the vault and never appears in state, snapshots or signals.
 [Alias("integration.registration")]
-[PlatformOnly]
 [Orleans.Metadata.DefaultGrainType("integration.registration")]
-public interface IIntegration : INeuron
+public interface IIntegration : IGrainWithStringKey
 {
     [ReadOnly]
     Task<IntegrationSnapshot> Read();
@@ -25,8 +24,10 @@ public interface IIntegration : INeuron
 
     Task<IntegrationSnapshot> Clear(string field);
 
-    // Checks and writes atomically inside the grain: applies only while the registration is Unconfigured.
-    Task<IntegrationSnapshot> SeedIfUnconfigured(ConfigureIntegration request);
+    // Reconciles deployment-provided values: applies a field when it is absent from state, or when the
+    // stored value also came from the deployment and now differs. A value a person set or cleared is
+    // never touched.
+    Task<IntegrationSnapshot> Seed(ConfigureIntegration request);
 
     Task<ReleasedIntegration> Release(CallerContext caller);
 }
@@ -60,5 +61,3 @@ public sealed record ReleasedIntegration
     private bool PrintMembers(StringBuilder builder) => builder.Append("Values = <redacted>") is not null;
 }
 
-[GenerateSerializer, Alias("integration.registered")]
-public sealed record IntegrationChanged(string IntegrationId, IntegrationStatus Status) : Signal;

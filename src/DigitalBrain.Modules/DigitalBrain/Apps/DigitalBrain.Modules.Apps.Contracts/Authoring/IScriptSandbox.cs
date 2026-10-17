@@ -7,6 +7,9 @@ public interface IScriptSandbox
     Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken);
     // Compiles and stores every file; Hashes maps each path to its stored assembly when Success.
     Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken);
+    // Runs every ILogic<T> among the bundle's shared classes whose T matches the signal, in the brain's
+    // sandbox session; each verdict names its rule. Rules fail closed: a sandbox that cannot run them rejects.
+    Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken);
 }
 
 public sealed record ScriptContractModule(string Id);

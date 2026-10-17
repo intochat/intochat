@@ -1,24 +1,23 @@
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Time.Timers.Signals;
 using Orleans.Runtime;
 namespace DigitalBrain.Time.Timers;
 
 [GrainType("timer")]
-internal sealed class TimerNeuron(TimeProvider time, TimeInventoryWriter inventory) : Neuron, ITimer
+internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time) : Neuron, ITimer
 {
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
     private IGrainTimer? _timer;
     private object? _schedule;
-    private ITimeInventory? _inventory;
 
-    public async Task Start(TimeSpan dueTime, TimeSpan? period = null)
+    public Task Start(TimeSpan dueTime, TimeSpan? period = null)
     {
         if (dueTime < TimeSpan.Zero || dueTime > MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
         if (period is { } interval && (interval <= TimeSpan.Zero || interval > MaximumDelay))
         { throw new ArgumentOutOfRangeException(nameof(period)); }
 
-        _inventory = await inventory.Track(new("timer", this.GetPrimaryKeyString(), time.GetUtcNow() + dueTime, period));
         var schedule = new object();
         var next = this.RegisterGrainTimer(
             (_, ct) => TickAsync(schedule, period is null, ct),
@@ -35,15 +34,16 @@ internal sealed class TimerNeuron(TimeProvider time, TimeInventoryWriter invento
         _schedule = schedule;
         // KeepAlive extends lifetime on ticks; a long initial delay also needs protection.
         DelayDeactivation(Timeout.InfiniteTimeSpan);
+        return Task.CompletedTask;
     }
 
-    public async Task Stop()
+    public Task Stop()
     {
         _schedule = null;
         _timer?.Dispose();
         _timer = null;
         DelayDeactivation(TimeSpan.Zero);
-        await inventory.Remove(_inventory, "timer", this.GetPrimaryKeyString());
+        return Task.CompletedTask;
     }
 
     private async Task TickAsync(object schedule, bool once, CancellationToken ct)

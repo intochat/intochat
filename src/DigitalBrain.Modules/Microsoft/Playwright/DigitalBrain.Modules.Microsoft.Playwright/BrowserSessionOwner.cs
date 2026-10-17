@@ -16,9 +16,17 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         { throw new ArgumentException("A loopback port and 32 hex character session marker are required.", nameof(attachment)); }
     }
 
-    public async Task Attach(BrowserAttachment attachment, CancellationToken ct = default)
+    public Task Attach(BrowserAttachment attachment, CancellationToken ct = default)
     {
         Validate(attachment);
+        return Connect(attachment.SessionId, token => provider.AttachAsync(attachment, token), ct);
+    }
+
+    public Task Start(string accountId, string sessionId, CancellationToken ct = default)
+        => Connect(sessionId, token => provider.StartAsync(accountId, sessionId, token), ct);
+
+    private async Task Connect(string sessionId, Func<CancellationToken, Task<IBrowserPageSession>> connect, CancellationToken ct)
+    {
         ct.ThrowIfCancellationRequested();
         Lease next;
         Lease? previous;
@@ -26,7 +34,7 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             previous = _lease;
-            next = new Lease(attachment.SessionId);
+            next = new Lease(sessionId);
             _lease = next;
         }
         previous?.Lifetime.Cancel();
@@ -36,7 +44,7 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
         {
             if (previous?.Page is { } old) { await old.DisposeAsync().ConfigureAwait(false); }
             linked.Token.ThrowIfCancellationRequested();
-            var page = await provider.AttachAsync(attachment, linked.Token).ConfigureAwait(false);
+            var page = await connect(linked.Token).ConfigureAwait(false);
             next.Page = page;
             linked.Token.ThrowIfCancellationRequested();
         }
@@ -79,14 +87,15 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
 
     public Task<BrowserObservation> Navigate(string url, CancellationToken ct = default)
     {
-        PublicBrowserNetwork.PublicUri(url);
+        if (!provider.IsAppPage(url)) { PublicBrowserNetwork.PublicUri(url); }
         return Run((page, token) => page.NavigateAsync(url, token), ct);
     }
     public Task<BrowserObservation> Snapshot(CancellationToken ct = default) => Run((page, token) => page.SnapshotAsync(token), ct);
     public Task<BrowserObservation> Click(string selector, CancellationToken ct = default) => Run((page, token) => page.ClickAsync(selector, token), ct);
     public Task<BrowserObservation> Fill(string selector, string value, CancellationToken ct = default) => Run((page, token) => page.FillAsync(selector, value, token), ct);
+    public Task<string> Evaluate(string expression, CancellationToken ct = default) => Run((page, token) => page.EvaluateAsync(expression, token), ct);
 
-    private async Task<BrowserObservation> Run(Func<IBrowserPageSession, CancellationToken, Task<BrowserObservation>> action, CancellationToken ct)
+    private async Task<T> Run<T>(Func<IBrowserPageSession, CancellationToken, Task<T>> action, CancellationToken ct)
     {
         Lease lease;
         lock (_sync) { lease = _lease is { Page.Connected: true } current ? current : throw new BrowserNotConnectedException(); }

@@ -61,20 +61,20 @@ public sealed class AuthPostureFacts
     public async Task Registering_the_reserved_bootstrap_username_conflicts()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithExecution(new DigitalBrain.Testing.TestExecutionOptions
-        {
-            PrivateConfiguration = new Dictionary<string, string?>
-            {
-                [AuthOptions.PostureKey] = "Secured",
-                [AuthOptions.Key(nameof(AuthOptions.Username))] = "ops",
-                [AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password",
-            },
-        }).StartAsync(ct);
+        await using var brain = await TestBrain.Create()
+            .WithConfiguration(AuthOptions.PostureKey, "Secured")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Username)), "ops")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Password)), "a-long-operator-password")
+            .StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
+        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

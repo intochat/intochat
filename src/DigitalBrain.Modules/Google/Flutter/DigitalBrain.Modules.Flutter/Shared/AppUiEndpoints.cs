@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Card;
@@ -10,16 +11,21 @@ using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.ImageCanvas;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Select;
+using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Table;
 using DigitalBrain.Flutter.Tabs;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.Viewport;
+using DigitalBrain.Flutter.Views;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.WebBrowser;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Flutter;
@@ -29,12 +35,49 @@ internal static class AppUiEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
-        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, CancellationToken ct) =>
+        apps.MapPost("/connect", async ([FromServices] IEnumerable<IUiRootProvider> providers, CancellationToken ct) =>
+        {
+            var provider = providers.SingleOrDefault();
+            return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
+        });
+        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            var space = grains.GetGrain<ISpace>(scope);
+            if (kind == "person" && name.EndsWith("/profile", StringComparison.Ordinal))
+            { return Results.Ok(await space.ReadProfile(name).WaitAsync(ct)); }
+            if (kind == "card" && CircleMembers.PostBrain(name) is not null)
+            { return Results.Ok(await space.ReadPost(name).WaitAsync(ct)); }
+            if (kind == "collection" && name.EndsWith("/posts", StringComparison.Ordinal))
+            { return Results.Ok(await space.ReadPosts(name).WaitAsync(ct)); }
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
+            if (kind == UIVocabulary.ViewType) { name = await ResolveViewAlias(brain, scope, name, ct); }
+            if (kind == "viewport")
+            {
+                var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
+                if (viewport.Target is not { } target)
+                { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
+                if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
+                var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
+                if (app.MigrationTarget is { } migrated)
+                {
+                    if (!OwnsUi(scope, migrated)) { throw new UnauthorizedAccessException(); }
+                    app = await brain.Get<IApp>(migrated).Read().WaitAsync(ct);
+                }
+                var presentation = app.Presentation;
+                var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
+                if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
+                return Results.Ok(new
+                {
+                    viewport.Revision,
+                    viewport.Target,
+                    Root = root,
+                    Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null)
+                });
+            }
             return kind switch
             {
+                UIVocabulary.ViewType => Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), new JsonSerializerOptions(JsonSerializerDefaults.Web) { MaxDepth = 128 }),
                 "text" => Results.Ok(await brain.Get<IText>(name).Read().WaitAsync(ct)),
                 "button" => Results.Ok(await brain.Get<IButton>(name).Read().WaitAsync(ct)),
                 "textfield" => Results.Ok(await brain.Get<ITextField>(name).Read().WaitAsync(ct)),
@@ -56,22 +99,42 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, CancellationToken ct) =>
+        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
+            {
+                var posts = await grains.GetGrain<ISpace>(scope).ReadPosts(input.Name).WaitAsync(ct);
+                if (input.Action != "activate" || !posts.Definition.Items.Any(item => item.Id == input.Value))
+                { throw new UnauthorizedAccessException("Only a visible post can be opened."); }
+                var workspace = grains.GetGrain<IWorkspace>(scope);
+                await workspace.Show(input.Value!, input.OperationId?.ToString() ?? Guid.NewGuid().ToString(), (await workspace.Read()).Revision).WaitAsync(ct);
+                return Results.Accepted();
+            }
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
+            if (input.Kind == UIVocabulary.ViewType)
+            { input = input with { Name = await ResolveViewAlias(brain, scope, input.Name, ct) }; }
             switch (input.Kind)
             {
+                case UIVocabulary.ViewType:
+                    await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
+                    break;
                 case UIVocabulary.ChatType:
-                    await brain.Get<IChat>(input.Name).Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct);
+                    var chat = brain.Get<IChat>(input.Name);
+                    if (input.Read is { } read)
+                    {
+                        if (input.Action is not null) { throw new ArgumentException("Choose a chat action or a read acknowledgement."); }
+                        await chat.MarkRead(input.Context ?? "", input.Revision, read.Version, read.MessageIds).WaitAsync(ct);
+                    }
+                    else { await chat.Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct); }
                     break;
                 case UIVocabulary.ComposerType:
                     var composer = brain.Get<IComposer>(input.Name);
                     switch (input.Action)
                     {
-                        case "edit": await composer.Edit(input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
-                        case "submit": await composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
-                        case "voice-begin": await composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "").WaitAsync(ct); break;
+                        case "edit": await (input.SelectionRevision is { } editGeneration ? composer.Edit(input.Context ?? "", editGeneration, input.Value ?? "") : composer.Edit(input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                        case "submit": await (input.SelectionRevision is { } submitGeneration ? composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", submitGeneration, input.Value ?? "") : composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                        case "voice-begin": await (input.SelectionRevision is { } voiceGeneration ? composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "", voiceGeneration) : composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "")).WaitAsync(ct); break;
                         case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
                         case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
                         case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
@@ -79,15 +142,20 @@ internal static class AppUiEndpoints
                     }
                     break;
                 case UIVocabulary.WebBrowserType:
-                    BrowserConnection connection;
-                    try { connection = JsonSerializer.Deserialize<BrowserConnection>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
+                    var browser = grains.GetGrain<IWebBrowserConnector>(input.Name);
+                    if (input.Action == "unavailable")
+                    {
+                        await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);
+                        break;
+                    }
+                    BrowserConnect connection;
+                    try { connection = JsonSerializer.Deserialize<BrowserConnect>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
                     catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
-                    var browser = brain.Get<IWebBrowserConnector>(input.Name);
                     if (input.Action == "connect") { await browser.Connect(connection.Port, connection.SessionId).WaitAsync(ct); }
                     else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
                     else { throw new ArgumentException("Unknown browser action."); }
                     break;
-                case "button": await brain.Get<IButton>(input.Name).Click().WaitAsync(ct); break;
+                case "button": await brain.Get<IButton>(input.Name).ClickCurrent(input.Action ?? "").WaitAsync(ct); break;
                 case "textfield": await brain.Get<ITextField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
                 case "select": await brain.Get<ISelect>(input.Name).Choose(input.Value ?? "").WaitAsync(ct); break;
                 case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;
@@ -123,6 +191,13 @@ internal static class AppUiEndpoints
             }
             return Results.Ok(new { delivered = true });
         });
+
+        UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
+        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, IGrainFactory grains, CancellationToken ct) =>
+        {
+            await grains.GetGrain<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
+            return Results.Accepted();
+        });
     }
 
     private static bool OwnsUi(string scope, string name) =>
@@ -134,7 +209,19 @@ internal static class AppUiEndpoints
         catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
     }
 
+    private static async Task<string> ResolveViewAlias(IDigitalBrain brain, string scope, string name, CancellationToken ct)
+    {
+        if (!name.EndsWith("/view", StringComparison.Ordinal)) { return name; }
+        var appKey = name[..^5];
+        if (IApp.NameOf(scope, appKey) is null) { return name; }
+        var app = await brain.Get<IApp>(appKey).Read().WaitAsync(ct);
+        if (app.MigrationTarget is not { } target) { return name; }
+        if (!OwnsUi(scope, target)) { throw new UnauthorizedAccessException(); }
+        return target + "/view";
+    }
+
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
-        string? Context = null, Guid? OperationId = null);
-    private sealed record BrowserConnection(int Port, string SessionId);
+        string? Context = null, Guid? OperationId = null, ChatReadInput? Read = null, long? SelectionRevision = null);
+    internal sealed record ChatReadInput(long Version, string[] MessageIds);
+    private sealed record BrowserConnect(int Port, string SessionId);
 }

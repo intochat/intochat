@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Expander;
 
 [GrainType(UIVocabulary.ExpanderType)]
-internal sealed class ExpanderNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ExpanderState> store)
+internal sealed class ExpanderNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ExpanderState> store)
     : Neuron<ExpanderState>(store), IExpander
 {
     public Task Set(string header, bool expanded, IReadOnlyList<UiChildRef>? children = null)

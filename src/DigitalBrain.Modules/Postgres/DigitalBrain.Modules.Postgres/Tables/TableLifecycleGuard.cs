@@ -21,7 +21,7 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
         {
             var source = context.SourceId;
             var expected = contract == typeof(ITableLifetime) ? TableIndexNeuron.GrainType
-                : context.InterfaceMethod.Name == nameof(ITableIndex.Retire) ? AppGrainType.Name : TableNeuron.GrainType;
+                : context.InterfaceMethod.Name is nameof(ITableIndex.Retire) or nameof(ITableIndex.Reopen) ? AppGrainType.Name : TableNeuron.GrainType;
             if (source is null || source.Value.Type.ToString() != expected)
             { throw new UnauthorizedAccessException("Only the owning module may change table lifetime."); }
             var ownerKey = contract == typeof(ITableIndex) ? context.TargetId.Key.ToString()! : (string)context.Request.GetArgument(0)!;

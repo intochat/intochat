@@ -1,8 +1,11 @@
 import 'dart:convert';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+export 'package:digitalbrain_ui/digitalbrain_ui.dart' show shellIcon;
 
 typedef IconLoader = Future<Uint8List?> Function(String path);
 

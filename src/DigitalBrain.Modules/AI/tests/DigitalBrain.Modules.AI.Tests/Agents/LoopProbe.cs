@@ -58,11 +58,10 @@ internal static class Probe
         => new(callId, NeuronSurfaceTools.CallName, new Dictionary<string, object?>
         { ["contract"] = Contract, ["key"] = key, ["method"] = method, ["arguments"] = arguments });
 
-    // The probe's contract joins what the turns may compose. The caller is stamped here, outside any
-    // async method, so the stamp stays on the fact's own flow and actions run as someone.
-    public static Task<ModuleBrain> Brain(IChatClient client, CancellationToken ct)
-    {
-        AgentFacts.StampUser();
-        return AgentFacts.Brain(client, ct, services => services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])));
-    }
+    // The probe's contract joins what the turns may compose: the host's compiled layer carries the
+    // test assembly too, which has no module of its own to register it.
+    public static Task<ITestBrain> Brain(IChatClient model, CancellationToken ct)
+        => AgentFacts.Builder(model)
+            .ConfigureServices(services => services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
+            .StartAsync(ct);
 }

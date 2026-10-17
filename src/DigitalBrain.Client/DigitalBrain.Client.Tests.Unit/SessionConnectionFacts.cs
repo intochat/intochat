@@ -10,7 +10,67 @@ namespace DigitalBrain.Client.Tests.Unit;
 
 public sealed class SessionConnectionFacts
 {
-    [Fact(Timeout = 30_000)]
+    [Fact]
+    public async Task ReadinessWaitsForTheOutermostInitialReaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var remote = new FakeBrain();
+        await using var session = await remote.OpenAsync(ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var ambient = AmbientSession.Enter(session, "acc-brain/csharp/ready", new Dictionary<string, string>(), stop.Token, "hash", "revision");
+        await using var connection = await DigitalBrainClient.ConnectAsync([], ct);
+        Assert.Empty(remote.Reports("status")); // Connecting a computational program does not initialize it.
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reaction = connection.React<Changed>(Sources.Of(connection.Get<ISource>("source")), async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        }, stop.Token);
+        await entered.Task.WaitAsync(ct);
+        Assert.NotEmpty(remote.Reports("subscribe"));
+        Assert.Empty(remote.Reports("status"));
+        release.SetResult();
+        var report = await remote.StatusReports.Reader.ReadAsync(ct);
+        Assert.Equal("Initialized", report["status"]!.GetValue<string>());
+        Assert.Equal("hash", report["hash"]!.GetValue<string>());
+        Assert.Equal("revision", report["assignmentRevision"]!.GetValue<string>());
+        await stop.CancelAsync();
+        await reaction.WaitAsync(ct);
+    }
+
+    [Fact]
+    public async Task InitialReadinessRetriesTransientDeliveryWithoutRestartingTheReaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var attempts = 0;
+        var remote = new FakeBrain
+        {
+            ReportStatus = () => Interlocked.Increment(ref attempts) switch
+        {
+            1 => throw new HttpRequestException("transient connection failure"),
+            <= 3 => HttpStatusCode.ServiceUnavailable,
+            _ => HttpStatusCode.OK
+        }
+        };
+        await using var session = await remote.OpenAsync(ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var ambient = AmbientSession.Enter(session, "acc-brain/csharp/ready", new Dictionary<string, string>(), stop.Token, "hash", "revision");
+        await using var connection = await DigitalBrainClient.ConnectAsync([], ct);
+        var rebuilds = 0;
+        var reaction = connection.React<Changed>(Sources.Of(connection.Get<ISource>("source")), _ =>
+        {
+            Interlocked.Increment(ref rebuilds);
+            return Task.CompletedTask;
+        }, stop.Token);
+        await remote.StatusReports.Reader.ReadAsync(ct);
+        Assert.Equal(4, attempts);
+        Assert.Equal(1, rebuilds);
+        await stop.CancelAsync();
+        await reaction.WaitAsync(ct);
+    }
+
+    [Fact]
     public async Task AStalledAcknowledgementTimesOutAndReleasesTheNextSubscription()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -57,7 +117,7 @@ public sealed class SessionConnectionFacts
         }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task AcknowledgementReportsRemainBoundedWhenManySubscriptionsComplete()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -90,7 +150,7 @@ public sealed class SessionConnectionFacts
         finally { gate.TrySetResult(HttpStatusCode.OK); }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task FailedBatchesFaultEveryWaiterAndKeepUnrelatedTraceParentsSeparate()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -134,7 +194,7 @@ public sealed class SessionConnectionFacts
         finally { gate.TrySetResult(HttpStatusCode.OK); }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task QueuedAcknowledgementsShareAReportAndWaitForItsResponse()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -175,7 +235,50 @@ public sealed class SessionConnectionFacts
         finally { firstGate.TrySetResult(HttpStatusCode.OK); nextGate.TrySetResult(HttpStatusCode.OK); }
     }
 
-    [Fact(Timeout = 30_000)]
+    // One report covers every batch queued for a subscription: the highest watermark, and the time and
+    // batches of all of them, so the brain records what the runs cost together.
+    [Fact]
+    public async Task CoalescedAcknowledgementsSumTheirTimeAndBatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var firstGate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var received = System.Threading.Channels.Channel.CreateUnbounded<JsonArray>();
+        var count = 0;
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (items, token) =>
+            {
+                var index = Interlocked.Increment(ref count);
+                received.Writer.TryWrite(items);
+                return index == 1 ? await firstGate.Task.WaitAsync(token) : HttpStatusCode.OK;
+            }
+        };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var first = session.AcknowledgeAsync("first", 1, ct);
+            await received.Reader.ReadAsync(ct);
+            var queued = new[]
+            {
+                session.AcknowledgeAsync("second", 2, ct, cpuMicroseconds: 100, wallMicroseconds: 1_000),
+                session.AcknowledgeAsync("second", 3, ct, cpuMicroseconds: 20, wallMicroseconds: 300),
+            };
+            firstGate.SetResult(HttpStatusCode.OK);
+            await first;
+
+            var report = Assert.Single(await received.Reader.ReadAsync(ct))!;
+            await Task.WhenAll(queued);
+
+            Assert.Equal("second", report["subscription"]!.GetValue<string>());
+            Assert.Equal(3, report["watermark"]!.GetValue<long>());
+            Assert.Equal(120, report["cpuMicroseconds"]!.GetValue<long>());
+            Assert.Equal(1_300, report["wallMicroseconds"]!.GetValue<long>());
+            Assert.Equal(2, report["batches"]!.GetValue<int>());
+        }
+        finally { firstGate.TrySetResult(HttpStatusCode.OK); }
+    }
+
+    [Fact]
     public async Task AFailedAcknowledgementCanBeRetriedAndDisposalSettlesOutstandingWaiters()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -208,7 +311,7 @@ public sealed class SessionConnectionFacts
         finally { gate.TrySetResult(HttpStatusCode.OK); await session.DisposeAsync(); }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task CancellingOneAcknowledgementWaitDoesNotCancelAnother()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -238,7 +341,7 @@ public sealed class SessionConnectionFacts
     public sealed record Changed(int Value) : Signal;
     public interface ISource : INeuron { Task<int> Double(int value); Task Refuse(); }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task InvokeGoesToTheInvokeRouteWithTheBehaviorId()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -255,7 +358,7 @@ public sealed class SessionConnectionFacts
         Assert.Equal("Bearer token-1", invoke.Authorization);
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task OnSubscribesThenYieldsBatchSignalsThenAcknowledges()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -277,7 +380,7 @@ public sealed class SessionConnectionFacts
         Assert.Equal(2, (await brain.Acknowledged.Reader.ReadAsync(ct))["watermark"]!.GetValue<long>());
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ReconciliationRunsAfterRegistrationAndBeforeQueuedSignals()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -306,7 +409,7 @@ public sealed class SessionConnectionFacts
     }
 
     // A click's trace continues through the stream into the calls the behavior makes in reaction.
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ASignalsTraceTravelsWithTheCallsItCauses()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -325,7 +428,7 @@ public sealed class SessionConnectionFacts
         Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", invoke.TraceParent!.Split('-')[1]);
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ReconnectResumesFromTheLastAcknowledgedWatermark()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -344,7 +447,7 @@ public sealed class SessionConnectionFacts
         Assert.Equal([1, 2, 3], seen);
     }
 
-    [Theory(Timeout = 30_000)]
+    [Theory]
     [InlineData("argument")]
     [InlineData("enumerator")]
     [InlineData("behavior")]
@@ -363,7 +466,7 @@ public sealed class SessionConnectionFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(3), ct));
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ARefusedFingerprintFailsTheSession()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -371,7 +474,7 @@ public sealed class SessionConnectionFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => brain.OpenAsync(ct));
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task CapacityRefusalTravelsThroughTheClientVerbatim()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -384,14 +487,14 @@ public sealed class SessionConnectionFacts
         Assert.Equal(("The brain is at capacity.", "CapacityUnavailableException"), (error.Message, error.Code));
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ConnectAsyncOutsideASessionThrows()
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => DigitalBrainClient.ConnectAsync([], TestContext.Current.CancellationToken));
         Assert.Contains("sandbox session", error.Message, StringComparison.Ordinal);
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ConnectAsyncInsideASessionReadsTheBehaviorsSettings()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -419,11 +522,13 @@ public sealed class SessionConnectionFacts
     // after a ready event, then ends; once the script runs out, a stream stays open until cancelled.
     private sealed class FakeBrain : HttpMessageHandler
     {
+        public Func<HttpStatusCode>? ReportStatus { get; init; }
         public List<string> Streams { get; } = [];
         public bool RefuseFingerprint { get; init; }
         public Func<JsonArray, CancellationToken, Task<HttpStatusCode>>? Acknowledge { get; init; }
         public ConcurrentQueue<(string Path, string? Authorization, JsonNode? Body, string? TraceParent)> Requests { get; } = new();
         public System.Threading.Channels.Channel<JsonNode> Acknowledged { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
+        public System.Threading.Channels.Channel<JsonNode> StatusReports { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
         private int _streams;
 
         public Task<SessionConnection> OpenAsync(CancellationToken ct)
@@ -458,6 +563,12 @@ public sealed class SessionConnectionFacts
             }
             if (body?["fingerprint"] is not null) { return new(RefuseFingerprint ? HttpStatusCode.Conflict : HttpStatusCode.OK); }
             if (body?["subscribe"] is not null) { return new(HttpStatusCode.OK) { Content = new StringContent("{\"subscription\":\"s1\"}") }; }
+            if (body?["status"] is { } statusReport)
+            {
+                var status = ReportStatus?.Invoke() ?? HttpStatusCode.OK;
+                if (status == HttpStatusCode.OK) { StatusReports.Writer.TryWrite(statusReport.DeepClone()); }
+                return new(status);
+            }
             var acknowledgements = body?["acknowledgements"] as JsonArray
                 ?? (body?["acknowledge"] is { } single ? new JsonArray(single.DeepClone()) : null);
             if (acknowledgements is not null)

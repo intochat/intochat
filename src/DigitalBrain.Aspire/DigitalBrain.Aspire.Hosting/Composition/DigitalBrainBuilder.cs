@@ -42,6 +42,28 @@ public sealed class DigitalBrainBuilder
         return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
+    public DigitalBrainBuilder WithHosting<THosting, TOptions>(TOptions options)
+        where THosting : IDigitalBrainModuleHosting, new()
+        where TOptions : class, DigitalBrain.Framework.Modules.IModuleOptions, new()
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var hosting = new THosting();
+        options.Validate();
+        return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
+    }
+
+    // A module the deployment configures but does not host (no containers): its typed options only.
+    public DigitalBrainBuilder WithModule<TModule, TOptions>(Action<TOptions> configure)
+        where TModule : Module, new() where TOptions : class, IModuleOptions, new()
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var module = new TModule();
+        var options = new TOptions();
+        configure(options);
+        options.Validate();
+        return WithModule(module, null, HostingModuleOptions.Flatten(options, module.Id.ToString()));
+    }
+
     private DigitalBrainBuilder Register(ModuleId id, IDigitalBrainModuleHosting? hosting,
         IReadOnlyDictionary<string, string?>? settings)
     {
@@ -82,23 +104,20 @@ public sealed class DigitalBrainBuilder
 
     internal DigitalBrainBuilder(
         IDistributedApplicationBuilder builder, string name,
-        IResourceBuilder<DigitalBrainResource> resource, OrleansService orleans,
-        IResourceBuilder<AzureStorageResource>? storage,
-        IResourceBuilder<AzureBlobStorageResource>? grainState)
+        IResourceBuilder<DigitalBrainResource> resource, OrleansService orleans)
     {
         ApplicationBuilder = builder;
         Name = name;
         Resource = resource;
         Orleans = orleans;
-        Storage = storage;
-        GrainState = grainState;
     }
 
     public string Name { get; }
     public string ServiceId { get; internal init; } = null!;
     public string ClusterId { get; internal init; } = null!;
+    public string GrainStateContainer { get; internal init; } = null!;
     public string? Environment { get; internal init; }
-    public string? ClusteringResourceName { get; internal init; }
+    public string? ClusteringResourceName { get; set; }
 
     public string ResourceName(string name) => $"{Name}-{name}";
 
@@ -106,13 +125,13 @@ public sealed class DigitalBrainBuilder
 
     public IResourceBuilder<DigitalBrainResource> Resource { get; }
 
-    internal IResourceBuilder<AzureBlobStorageResource>? GrainState { get; }
+    public IResourceBuilder<AzureBlobStorageResource>? GrainState { get; set; }
 
-    internal IResourceBuilder<AzureStorageResource>? Storage { get; }
+    public IResourceBuilder<AzureStorageResource>? Storage { get; set; }
 
-    internal OrleansService Orleans { get; }
-    internal IResourceBuilder<AzureTableStorageResource>? Clustering { get; init; }
-    internal IResourceBuilder<AzureTableStorageResource>? Reminders { get; init; }
+    public OrleansService Orleans { get; }
+    public IResourceBuilder<AzureTableStorageResource>? Clustering { get; set; }
+    public IResourceBuilder<AzureTableStorageResource>? Reminders { get; set; }
 
     internal IReadOnlyList<DigitalBrainModuleProjection> Projections => _projections;
 
@@ -150,7 +169,7 @@ public sealed class DigitalBrainBuilder
         _projections.Add(projection);
     }
 
-    internal void RequireHealthyBeforeStart(IResource dependency)
+    public void RequireHealthyBeforeStart(IResource dependency)
     {
         ArgumentNullException.ThrowIfNull(dependency);
 

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../components/workspace/ui_workspace_components.dart';
+
 /// Shared bounded collection presentation for files and read-only activity.
 class UiCollectionView extends StatelessWidget {
   const UiCollectionView({
     super.key,
     required this.items,
+    this.breadcrumbs = const [],
+    this.onBreadcrumb,
     this.fileMode = true,
     this.selectionEnabled = true,
     this.selectedId,
@@ -18,6 +22,8 @@ class UiCollectionView extends StatelessWidget {
   });
 
   final List<Map<String, dynamic>> items;
+  final List<UiBreadcrumbEntry> breadcrumbs;
+  final ValueChanged<String>? onBreadcrumb;
   final bool fileMode, selectionEnabled, loadingMore;
   final String? selectedId, emptyLabel, error;
   final ValueChanged<String>? onSelect;
@@ -47,6 +53,20 @@ class UiCollectionView extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (breadcrumbs.isNotEmpty)
+            UiBreadcrumbs(entries: breadcrumbs, onSelected: onBreadcrumb),
+          if (selectionEnabled && onActivate != null)
+            for (final item in items.where(
+              (item) => item['id'] == selectedId && item['canActivate'] == true,
+            ))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => onActivate!(item),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open selected'),
+                ),
+              ),
           if (error != null)
             Padding(
               padding: const EdgeInsets.all(12),

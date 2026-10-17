@@ -1,6 +1,5 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
@@ -11,28 +10,55 @@ namespace DigitalBrain.Platform.Tests.Unit.Identity;
 public sealed class ScopedAuthorityFacts
 {
     [Fact]
+    public async Task SignInFinishesLocalHostingAfterTrustRegistrationAlreadyCompleted()
+    {
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var identity = brain.Services.GetRequiredService<IIdentityClient>();
+        var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
+        const string principal = "interrupted-hosting";
+        const string password = "long-test-password";
+        var hash = new global::Microsoft.AspNetCore.Identity.PasswordHasher<string>().HashPassword(principal, password);
+        Assert.True(await brain.Grains.GetGrain<IPrincipalCredential>(principal).TryCreate(hash));
+        var provision = await identity.RegisterPrincipal(principal, "Interrupted hosting");
+        Assert.True(provision.NewBrain);
+        Assert.True(await identity.IsRegistered(principal));
+
+        Assert.Null(await passwords.Authenticate(principal, "wrong-password"));
+        Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
+        var created = brain.Grains.GetGrain<IBrain>(provision.Member.BrainId);
+        var original = await created.Read();
+        Assert.Equal(provision.Member.AccountId, original.Owner.AccountId);
+        Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
+        Assert.Equal(original, await created.Read());
+    }
+
+    [Fact]
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
-        await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage,
+        await using var brain = await TestBrain.Create().ConfigureServices(services =>
+            services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
-        var principal = brain.Get<IPrincipal>("recoverable");
-        var failure = await Assert.ThrowsAsync<OrleansException>(() => principal.Register("long-test-password", "Recoverable"));
+        // Interrupt the registration under test, after the harness owner has bootstrapped.
+        ((FailOnceStorage)brain.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage)).Arm();
+        var principal = brain.Grains.GetGrain<IPrincipal>("recoverable");
+        var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
+        var failure = await Assert.ThrowsAsync<OrleansException>(() => passwords.Register("recoverable", "long-test-password", "Recoverable"));
         Assert.IsType<IOException>(failure.InnerException);
         var allocated = await principal.DefaultMembership();
         Assert.NotNull(allocated);
-        Assert.Null(await principal.Authenticate("wrong-password"));
-        var resumed = await principal.Register("long-test-password", "Recoverable");
+        Assert.Null(await passwords.Authenticate("recoverable", "wrong-password"));
+        var resumed = await passwords.Register("recoverable", "long-test-password", "Recoverable");
         Assert.Equal(allocated, resumed);
-        Assert.Equal(resumed, await principal.Authenticate("long-test-password"));
-        Assert.NotNull(await brain.Get<IBrainAuthority>(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
+        Assert.Equal(resumed, await passwords.Authenticate("recoverable", "long-test-password"));
+        Assert.NotNull(await brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
     private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, GrainId), BinaryData> _data = new();
-        private int _failed;
+        private int _armed;
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
         public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
             if (_data.TryGetValue((name, id), out var bytes)) { state.State = serializer.Deserialize<T>(bytes); state.RecordExists = true; }
@@ -40,7 +66,7 @@ public sealed class ScopedAuthorityFacts
         }
         public Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
         {
-            if (typeof(T) == typeof(AccountState) && Interlocked.Exchange(ref _failed, 1) == 0)
+            if (typeof(T) == typeof(AccountState) && Interlocked.Exchange(ref _armed, 0) == 1)
             { throw new IOException("Interrupted account provisioning."); }
             _data[(name, id)] = serializer.Serialize(state.State);
             state.RecordExists = true;
@@ -53,8 +79,8 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task RevokedOwnerCannotMutateGrantsWithAnOldSession()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
         var caller = new DigitalBrain.Framework.CallerContext
         {
@@ -74,14 +100,14 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task BasicBootstrapOwnsOnlyItsExplicitDefaultScope()
     {
-        await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.Configure<DigitalBrain.Platform.Identity.Configuration.AuthOptions>(options =>
+        await using var brain = await TestBrain.Create().ConfigureServices(services =>
+            services.Configure<DigitalBrain.Platform.Identity.Configuration.AuthOptions>(options =>
             {
                 options.Posture = DigitalBrain.Platform.Identity.Configuration.IdentityPosture.Secured;
                 options.Username = "operator";
                 options.Password = "configured-bootstrap-password";
             })).StartAsync(TestContext.Current.CancellationToken);
-        var access = brain.SiloServices.GetRequiredService<IBrainAccess>();
+        var access = brain.Services.GetRequiredService<IBrainAccess>();
         Assert.True(await access.CanAccessAsync("operator", "operator", "owner", TestContext.Current.CancellationToken));
         Assert.False(await access.CanAccessAsync("operator", "operator", "another-brain", TestContext.Current.CancellationToken));
         Assert.False(await access.CanAccessAsync("operator", "another-account", "owner", TestContext.Current.CancellationToken));
@@ -91,12 +117,12 @@ public sealed class ScopedAuthorityFacts
     public async Task ABrainIdBelongsToOneAccountAndAnotherCannotClaimOrReachIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
-        var access = brain.SiloServices.GetRequiredService<IBrainAccess>();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
+        var access = brain.Services.GetRequiredService<IBrainAccess>();
         Assert.True(await access.CanAccessAsync("alice", "first", "shared-name", ct));
         Assert.False(await access.CanAccessAsync("alice", "second", "shared-name", ct));
     }
@@ -104,15 +130,15 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task RetryingBrainCreationKeepsItsIdAndDoesNotRestoreRevokedMembership()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var member = await brain.Get<IPrincipal>("alice").Register("long-test-password", "Alice");
-        var account = brain.Get<IAccount>(member.AccountId);
-        var first = await account.CreateBrain("alice", "operation-1", "First");
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var member = await brain.Services.GetRequiredService<PrincipalPasswords>().Register("alice", "long-test-password", "Alice");
+        var account = brain.Grains.GetGrain<IAccount>(member.AccountId);
+        var first = (await account.CreateBrain("alice", "operation-1", "First", BrainKind.Personal)).Member;
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
         await authority.RemoveMember("alice");
-        Assert.Equal(first, await account.CreateBrain("alice", "operation-1", "First"));
+        Assert.Equal(first, (await account.CreateBrain("alice", "operation-1", "First", BrainKind.Personal)).Member);
         Assert.Null(await authority.Membership("alice"));
-        Assert.NotEqual(first.BrainId, (await account.CreateBrain("alice", "operation-2", "Second")).BrainId);
+        Assert.NotEqual(first.BrainId, (await account.CreateBrain("alice", "operation-2", "Second", BrainKind.Personal)).Member.BrainId);
     }
 
 }

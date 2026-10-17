@@ -22,12 +22,18 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
+        silo.Services.TryAddSingleton(FeatureCatalog.From);
+        silo.Services.TryAddSingleton<FeatureLoader>();
         silo.Services.TryAddSingleton<MarketplaceView>();
         silo.Services.TryAddSingleton<AppInstaller>();
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.TryAddSingleton<Creator>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());
+        silo.Services.TryAddSingleton(SynapseExamples.Create);
+        silo.Services.TryAddSingleton<SynapseWriter>();
+        silo.AddStartupTask<FeatureBoot>();
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AppNeuron>, AppActivation>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

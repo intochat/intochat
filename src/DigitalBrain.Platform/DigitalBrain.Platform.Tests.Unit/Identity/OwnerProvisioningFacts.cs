@@ -17,29 +17,31 @@ public sealed class OwnerProvisioningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var handler = new AppCallerAtBirth();
-        await using var brain = await ModuleTest.Create()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(services => handler.Using(services.GetRequiredService<IGrainFactory>())))
+        await using var brain = await TestBrain.Create()
+            // The OS's own seam at brain birth (it installs default apps there): the handler stands in for it.
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(provider => handler.Using(provider.GetRequiredService<IGrainFactory>())))
             .StartAsync(ct);
-        var directory = brain.Get<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
         foreach (var person in new[] { "alice", "bob", "carol" })
         {
             var member = await directory.RegisterAsync(person, "correct-password-123", person, ct);
-            var authority = brain.Get<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
+            var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
             var owner = await authority.Membership(person);
             Assert.NotNull(owner);
             Assert.Equal(MemberRole.Owner, owner.Role);
             Assert.Null(await authority.Membership("os"));
         }
-        // The handler reached every brain's authority while the brain was being born.
-        Assert.Equal(3, handler.Decisions.Count);
+        // The handler reached every brain's authority while the brain was being born: the three people's and the
+        // owner brain the machine bears at boot (R59).
+        Assert.Equal(4, handler.Decisions.Count);
     }
 
     [Fact]
     public async Task AnAppCallerReachingAnUnprovisionedAuthorityIsDeniedAndNotCrowned()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var decision = await authority.Authorize(AppCallerAtBirth.Request("account", "brain"));
         Assert.NotNull(decision);
         Assert.False(decision.Allowed);
@@ -54,9 +56,11 @@ public sealed class OwnerProvisioningFacts
     public async Task AnAppCallerInTheSyntheticOwnersBrainFindsTheSyntheticOwnerOnRecord()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
-        var decision = await authority.Authorize(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"));
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
+        // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
+        var decision = await brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.Grants.IGrantPolicySource>()
+            .AuthorizeAsync(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"), ct);
         Assert.True(decision is null || decision.Allowed);
         Assert.Null(await authority.Membership("os"));
         Assert.Equal(MemberRole.Owner, (await authority.Membership(AccountSession.DefaultLogin))!.Role);
@@ -66,8 +70,8 @@ public sealed class OwnerProvisioningFacts
     public async Task ASecondOwnerIsRefusedLoudly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var alice = new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner };
         await authority.ProvisionOwner(alice);
         await authority.ProvisionOwner(alice);
@@ -82,7 +86,7 @@ public sealed class OwnerProvisioningFacts
 
         public AppCallerAtBirth Using(IGrainFactory grains) { _grains = grains; return this; }
 
-        public async Task Created(IKernel kernel, Created created, CancellationToken cancellationToken)
+        public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
         {
             var scope = kernel.GetPrimaryKeyString();
             var authority = _grains!.GetGrain<IBrainAuthority>(scope);

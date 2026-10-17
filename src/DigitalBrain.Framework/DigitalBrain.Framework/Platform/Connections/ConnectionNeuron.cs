@@ -27,10 +27,8 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         return key;
     }
 
-    // The brain in the key decides who may call; a connector cannot widen it.
-    public sealed override NeuronAccess Access(string operation) => base.Access(operation);
-
     private ISecretSealer Sealer => ServiceProvider.GetRequiredService<ISecretSealer>();
+    private IBrainSecretSealer? BrainSealer => ServiceProvider.GetService<IBrainSecretSealer>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
     private ConnectorDefinition Connector => ServiceProvider.GetRequiredService<IReadOnlyList<ConnectorDefinition>>()
         .FirstOrDefault(c => c.Id == Key.Connector) ?? throw new InvalidOperationException($"No composed module declares connector '{Key.Connector}'.");
@@ -61,7 +59,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         if (Connector.OAuthMethods.Any(method => method.Id == authMethodId))
         { throw new ArgumentException($"Authentication method '{authMethodId}' of connector '{Key.Connector}' is a browser login; start it from the login route.", nameof(authMethodId)); }
         Snapshot.AuthMethodId = authMethodId;
-        Snapshot.Secrets = [Sealer.Seal(ValueSecret, value)];
+        Snapshot.Secrets = [await SealAsync(ValueSecret, value)];
         Snapshot.ExpiresAt = null;
         Snapshot.Scopes = "";
         await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
@@ -78,7 +76,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         RequireAuthMethod(grant.AuthMethodId);
         // The module's override sets Snapshot.Account (mailbox, instance url, owner/repo) and may throw.
         var accepted = await AcceptGrantAsync(grant);
-        Seal(accepted, keepRefresh: false);
+        await SealAsync(accepted, keepRefresh: false);
         Snapshot.AuthMethodId = accepted.AuthMethodId;
         await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
         await Track();
@@ -92,7 +90,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         RequireMember();
         if (Snapshot.Status == ConnectionStatus.Disconnected) { throw new InvalidOperationException("The connection is not configured."); }
         ConnectionProbeResult result;
-        try { result = await ProbeAsync(Open(), CancellationToken.None); }
+        try { result = await ProbeAsync(await OpenAsync(), CancellationToken.None); }
         // The message may carry a provider URL with a token in it; only the type is kept.
         catch (Exception error) when (error is not OperationCanceledException)
         { result = ConnectionProbeResult.Failing($"The connector probe failed ({error.GetType().Name})."); }
@@ -119,19 +117,77 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         await NotifyCatalog();
     }
 
+    public async Task<ConnectionView> Adopt(string authMethodId, string? account)
+    {
+        RequireAuthMethod(authMethodId);
+        if (Snapshot.Status != ConnectionStatus.Disconnected || Snapshot.Secrets.Length > 0) { return View(); }
+        Snapshot.AuthMethodId = authMethodId;
+        Snapshot.Account = account;
+        await Transition(ConnectionStatus.Disconnected, "Shared into this brain; its credential is not sealed here yet.", notifyCatalog: false);
+        await Track();
+        await NotifyCatalog();
+        return View();
+    }
+
+    // R130: this connection's own credential, opened here and re-sealed under the target brain's core part key. The
+    // plaintext lives only inside this turn; what leaves is ciphertext.
+    public async Task<SealedSecret[]> ExportFor(string brainId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        if (Snapshot.Secrets.Length == 0) { return []; }
+        var part = BrainSealer ?? throw new InvalidOperationException("Re-sealing a shared credential needs this machine's part keys.");
+        var reSealed = new List<SealedSecret>(Snapshot.Secrets.Length);
+        foreach (var secret in Snapshot.Secrets) { reSealed.Add(await part.Seal(brainId, secret.Name, Sealer.Open(secret))); }
+        return [.. reSealed];
+    }
+
+    // R130/R147: fills the shared copy's credential from secrets already sealed under this brain's core part key.
+    public async Task<ConnectionView> Import(string authMethodId, string? account, SealedSecret[] secrets, ConnectionStatus status, string? detail)
+    {
+        ArgumentNullException.ThrowIfNull(secrets);
+        RequireAuthMethod(authMethodId);
+        Snapshot.AuthMethodId = authMethodId;
+        Snapshot.Account = account;
+        Snapshot.Secrets = secrets;
+        await Transition(status, detail, notifyCatalog: false);
+        await Track();
+        await NotifyCatalog();
+        return View();
+    }
+
+    public async Task ShareInto(string brainId, string app)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(app);
+        var entry = $"{brainId}/{app}";
+        if (Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
+        Snapshot.SharedInto = [.. Snapshot.SharedInto, entry];
+        await SaveQuietly(Snapshot);
+    }
+
+    public async Task UnshareFrom(string brainId, string app)
+    {
+        var entry = $"{brainId}/{app}";
+        if (!Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
+        Snapshot.SharedInto = [.. Snapshot.SharedInto.Where(shared => shared != entry)];
+        await SaveQuietly(Snapshot);
+    }
+
+    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(Snapshot.SharedInto.Contains($"{brainId}/{app}", StringComparer.Ordinal));
+
     // Opens the credential for one call; refreshes first when the access token is about to expire.
     protected async Task<T> UseCredentialAsync<T>(Func<Credential, CancellationToken, Task<T>> call, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(call);
         if (Snapshot.Status == ConnectionStatus.Disconnected || Snapshot.Secrets.Length == 0)
         { throw new InvalidOperationException($"{Key.Connector}/{Key.Connection} is not connected."); }
-        var credential = Open();
+        var credential = await OpenAsync();
         if (Snapshot.ExpiresAt is { } expiry && expiry <= Clock.GetUtcNow() + RefreshLead && credential.Refresh is not null)
         {
             var refreshed = await RefreshAsync(credential, ct);
-            Seal(refreshed, keepRefresh: true);
+            await SealAsync(refreshed, keepRefresh: true);
             await Transition(ConnectionStatus.Connected, null);
-            credential = Open();
+            credential = await OpenAsync();
         }
         return await call(credential, ct);
     }
@@ -139,27 +195,43 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     protected Task MarkExpired(string detail) => Transition(ConnectionStatus.Expired, detail);
     protected Task MarkFailing(string detail) => Transition(ConnectionStatus.Failing, detail);
 
-    private Credential Open()
+    private async Task<Credential> OpenAsync()
     {
         string? value = null, refresh = null;
         foreach (var secret in Snapshot.Secrets)
         {
-            if (secret.Name is ValueSecret or AccessSecret) { value = Sealer.Open(secret); }
-            else if (secret.Name == RefreshSecret) { refresh = Sealer.Open(secret); }
+            var opened = await OpenSecret(secret);
+            if (secret.Name is ValueSecret or AccessSecret) { value = opened; }
+            else if (secret.Name == RefreshSecret) { refresh = opened; }
         }
         return new(value ?? throw new InvalidOperationException("The connection holds no credential."), refresh);
     }
 
+    // R130: a shared copy's secret is sealed under its brain's core part key; the owner's own under the master key.
+    private async Task<string> OpenSecret(SealedSecret secret)
+        => BrainSeal.IsBrainSealed(secret) && BrainSealer is { } part
+            ? await part.Open(Key.Brain, secret)
+            : Sealer.Open(secret);
+
+    // R130: a shared copy's secrets are sealed under its brain's core part key; the owner's own under the master
+    // key. Every write that replaces them stays under the same key the copy already carries.
+    private bool BrainSealed => BrainSealer is not null && Snapshot.Secrets.Any(BrainSeal.IsBrainSealed);
+
+    private async Task<SealedSecret> SealAsync(string name, string plaintext)
+    {
+        if (BrainSealed && BrainSealer is { } part) { return await part.Seal(Key.Brain, name, plaintext); }
+        return Sealer.Seal(name, plaintext);
+    }
+
     // A refresh response usually omits the refresh token (Google does), so a refresh keeps the sealed
     // one unless the provider rotates it. A new grant replaces both, and without one clears it.
-    private void Seal(OAuthGrant grant, bool keepRefresh)
+    private async Task SealAsync(OAuthGrant grant, bool keepRefresh)
     {
-        var refresh = grant.RefreshToken is { } rotated ? Sealer.Seal(RefreshSecret, rotated)
+        var refresh = grant.RefreshToken is { } rotated ? await SealAsync(RefreshSecret, rotated)
             : keepRefresh ? Snapshot.Secrets.FirstOrDefault(secret => secret.Name == RefreshSecret)
             : null;
-        Snapshot.Secrets = refresh is null
-            ? [Sealer.Seal(AccessSecret, grant.AccessToken)]
-            : [Sealer.Seal(AccessSecret, grant.AccessToken), refresh];
+        var access = await SealAsync(AccessSecret, grant.AccessToken);
+        Snapshot.Secrets = refresh is null ? [access] : [access, refresh];
         Snapshot.ExpiresAt = grant.ExpiresAt;
         Snapshot.Scopes = grant.Scopes;
     }

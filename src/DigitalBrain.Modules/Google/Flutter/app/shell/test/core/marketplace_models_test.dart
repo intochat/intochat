@@ -69,28 +69,50 @@ void main() {
     expect(entry.updateAvailable, isTrue);
   });
 
-  test('a docked open asks the app for its surface reference', () async {
-    Object? sent;
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        sent = jsonDecode(request.body);
-        expect(request.url.path, '/brains/b1/apps/assistant/ask');
-        return http.Response(
-          jsonEncode({
-            'id': 'b1/apps/assistant/window',
-            'title': 'Assistant',
-            'surface': 'b1/apps/assistant/surface',
-          }),
-          200,
-        );
-      }),
-    );
-    final surface = await client.openDockedApp('b1', 'assistant');
-    expect(sent, {'operation': 'open', 'input': 'docked'});
-    expect(surface, {'kind': 'surface', 'name': 'b1/apps/assistant/surface'});
-    client.close();
-  });
+  test(
+    'showing a neuron uses workspace state without app preparation',
+    () async {
+      final requests = <String>[];
+      Map<String, dynamic>? opened;
+      final client = DigitalBrainUiClient(
+        baseUri: Uri.parse('http://test'),
+        httpClient: MockClient((request) async {
+          requests.add('${request.method} ${request.url.path}');
+          if (request.url.path.endsWith('/show')) {
+            opened = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'revision': 4,
+                'path': ['b1', 'b1/apps/ino'],
+                'open': ['b1/apps/ino'],
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'revision': 3,
+              'path': ['b1'],
+              'open': [],
+            }),
+            200,
+          );
+        }),
+      );
+      final before = await client.readWorkspace('b1');
+      final state = await client.showNeuron(
+        'b1',
+        'b1/apps/ino',
+        'open',
+        before.revision,
+      );
+      expect(opened!['app'], 'b1/apps/ino');
+      expect(opened!['expectedRevision'], 3);
+      expect(state.path.last, 'b1/apps/ino');
+      expect(requests.where((r) => r.endsWith('/request')), isEmpty);
+      client.close();
+    },
+  );
 
   test('a missing icon reads as null', () async {
     final client = DigitalBrainUiClient(

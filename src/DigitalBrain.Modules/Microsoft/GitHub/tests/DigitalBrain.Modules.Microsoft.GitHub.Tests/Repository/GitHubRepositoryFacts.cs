@@ -1,57 +1,62 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Connections.Signals;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Microsoft.GitHub.Signals;
 using DigitalBrain.Microsoft.GitHub.Webhook;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Repository;
 
 public sealed class GitHubRepositoryFacts
 {
-    private static readonly string Scope = BrainScope.Create("owner", "owner").Id;
-    private static readonly string Key = ConnectionKeys.For(Scope, "github", "digitalbrain");
-    private static readonly string OtherKey = ConnectionKeys.For(BrainScope.Create("other", "other").Id, "github", "digitalbrain");
-    private static readonly CallerContext Owner = new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
-    private static readonly CallerContext Other = new() { PrincipalId = "other", AccountId = "other", BrainId = "other", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
+    private const string WebhookSecret = "0123456789abcdef";
+    private static readonly string Key = ConnectionKeys.For(BrainScope.Create("owner", "owner").Id, "github", "digitalbrain");
 
-    private static Task<ModuleBrain> StartAsync(CancellationToken ct, IGitHubRepositorySource? source = null, DurableGrainStorage? storage = null, FakeInstallationVerifier? verifier = null) => ModuleTest.Create()
-        .WithExecution(new() { PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("github", "AppId")] = "7", [IntegrationSchema.Key("github", "PrivateKeyPem")] = "unused", [IntegrationSchema.Key("github", "WebhookSecret")] = "0123456789abcdef" } })
+    private static Task<ITestBrain> StartAsync(CancellationToken ct, IGitHubRepositorySource? source = null, FakeInstallationVerifier? verifier = null) => TestBrain.Create()
         .WithModule<GitHubModule>()
-        .ConfigureSilo(silo =>
+        .WithIntegration(GitHubModule.Integration, "AppId", "7")
+        .WithIntegration(GitHubModule.Integration, "PrivateKeyPem", "unused")
+        .WithIntegration(GitHubModule.Integration, "WebhookSecret", WebhookSecret)
+        .ConfigureServices(services =>
         {
-            silo.Services.AddSingleton<IGitHubRepositorySource>(source ?? new FakeGitHubRepositorySource());
-            silo.Services.AddSingleton<IGitHubUserAccess>(new FakeUserAccess());
-            silo.Services.AddSingleton<IGitHubInstallationVerifier>(verifier ?? new FakeInstallationVerifier());
-            storage?.Register(silo);
+            services.AddSingleton<IGitHubRepositorySource>(source ?? new FakeGitHubRepositorySource());
+            services.AddSingleton<IGitHubUserAccess>(new FakeUserAccess());
+            services.AddSingleton<IGitHubInstallationVerifier>(verifier ?? new FakeInstallationVerifier());
         })
         .StartAsync(ct);
 
-    // A stamp set inside this awaited helper does not flow back to the caller.
-    private static async Task<RepositoryView> ConnectAsync(ModuleBrain brain, CallerContext? caller = null, string? key = null)
+    private static string KeyOf(Person person) => ConnectionKeys.For(BrainScope.Create(person.AccountId, person.BrainId).Id, "github", "digitalbrain");
+
+    private static async Task<string> ConnectAsync(ITestBrain brain, Person? person = null)
     {
-        CallerContextStamper.Stamp(caller ?? Owner);
-        await brain.AuthorizeCallerAsync();
-        await brain.Grains.GetConnectionInbound(key ?? Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/digitalbrain", "{}"));
-        return await brain.Get<IRepository>(key ?? Key).Read();
+        person ??= brain.Owner;
+        var key = KeyOf(person);
+        using (person.AsCaller())
+        {
+            await Grains(brain).GetConnectionInbound(key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/digitalbrain", "{}"));
+        }
+        return key;
     }
+
+    private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+
+    private static GitHubWebhookIngress Ingress(ITestBrain brain) => brain.Services.GetRequiredService<GitHubWebhookIngress>();
+
+    private static byte[] PullRequestOpened(int number) => System.Text.Encoding.UTF8.GetBytes(
+        "{\"action\":\"opened\",\"number\":" + number + ",\"installation\":{\"id\":9},\"repository\":{\"id\":11,\"name\":\"digitalbrain\",\"owner\":{\"login\":\"intochat\"}}}");
 
     [Fact]
     public async Task AcceptGrantResolvesTheInstallationAndConnects()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
-        {
-            await using var connected = await brain.Observe<ConnectionConnected>(brain.Get<IRepository>(Key), ct);
-            var view = await ConnectAsync(brain);
-            Assert.True(view.Connected);
-            Assert.Equal("intochat/digitalbrain", (await connected.NextAsync(ct: ct)).Account);
-            Assert.Equal([Key], await brain.Grains.GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await using var connected = await brain.Observe<ConnectionConnected>(brain.Get<IRepository>(Key), ct);
+        await ConnectAsync(brain);
+        Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
+        Assert.Equal("intochat/digitalbrain", (await connected.NextAsync(ct: ct)).Account);
+        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
     }
 
     [Fact]
@@ -59,15 +64,11 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
-        {
-            await ConnectAsync(brain);
-            var view = await brain.Get<IConnection>(Key).Read();
-            Assert.Equal(ConnectionStatus.Connected, view.Status);
-            Assert.Null(view.ExpiresAt);
-            Assert.DoesNotContain("user-token", System.Text.Json.JsonSerializer.Serialize(view), StringComparison.Ordinal);
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await ConnectAsync(brain);
+        var view = await brain.Get<IConnection>(Key).Read();
+        Assert.Equal(ConnectionStatus.Connected, view.Status);
+        Assert.Null(view.ExpiresAt);
+        Assert.DoesNotContain("user-token", System.Text.Json.JsonSerializer.Serialize(view), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -75,17 +76,12 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
-        {
-            await ConnectAsync(brain);
-            await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
-            var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":1,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, "pull_request", "0123456789abcdef", sameDelivery: true), ct));
-            Assert.Equal(1, (await changed.NextAsync(ct: ct)).Number);
-            Assert.Equal(GitHubWebhookAcceptance.Duplicate, await ingress.HandleAsync(body, Headers(body, "pull_request", "0123456789abcdef", sameDelivery: true), ct));
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await ConnectAsync(brain);
+        await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
+        var body = PullRequestOpened(1);
+        Assert.Equal(GitHubWebhookAcceptance.Accepted, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret, sameDelivery: true), ct));
+        Assert.Equal(1, (await changed.NextAsync(ct: ct)).Number);
+        Assert.Equal(GitHubWebhookAcceptance.Duplicate, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret, sameDelivery: true), ct));
     }
 
     [Fact]
@@ -93,32 +89,23 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
-        {
-            await ConnectAsync(brain);
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":1,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Unauthorized, await brain.SiloServices.GetRequiredService<GitHubWebhookIngress>().HandleAsync(body, Headers(body, "pull_request", "not-the-webhook-secret"), ct));
-            Assert.Null((await brain.Get<IRepository>(Key).Read()).LastWebhookAt);
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await ConnectAsync(brain);
+        var body = PullRequestOpened(1);
+        Assert.Equal(GitHubWebhookAcceptance.Unauthorized, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", "not-the-webhook-secret"), ct));
+        Assert.Null((await brain.Get<IRepository>(Key).Read()).LastWebhookAt);
     }
 
     [Fact]
-    public async Task AReactivatedRepositoryStillReceivesWebhooks()
+    public async Task ARestartedBrainStillRoutesWebhooksToTheRepository()
     {
         var ct = TestContext.Current.CancellationToken;
-        // The restart drops every activation and silo singleton; only stored state routes the delivery.
-        await using var brain = await StartAsync(ct, storage: new DurableGrainStorage());
-        try
-        {
-            await ConnectAsync(brain);
-            await brain.RestartSiloAsync(ct);
-            await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":2,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Accepted, await brain.SiloServices.GetRequiredService<GitHubWebhookIngress>().HandleAsync(body, Headers(body, "pull_request", "0123456789abcdef"), ct));
-            Assert.Equal(2, (await changed.NextAsync(ct: ct)).Number);
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await using var brain = await StartAsync(ct);
+        await ConnectAsync(brain);
+        await brain.RestartAsync(ct);
+        await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
+        var body = PullRequestOpened(2);
+        Assert.Equal(GitHubWebhookAcceptance.Accepted, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret), ct));
+        Assert.Equal(2, (await changed.NextAsync(ct: ct)).Number);
     }
 
     [Fact]
@@ -127,22 +114,18 @@ public sealed class GitHubRepositoryFacts
         var ct = TestContext.Current.CancellationToken;
         var verifier = new FakeInstallationVerifier();
         await using var brain = await StartAsync(ct, verifier: verifier);
-        try
-        {
-            await ConnectAsync(brain);
-            await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"deleted","installation":{"id":9}}""");
-            await brain.SiloServices.GetRequiredService<GitHubWebhookIngress>().HandleAsync(body, Headers(body, "installation", "0123456789abcdef"), ct);
-            await failing.NextAsync(ct: ct);
-            Assert.False((await brain.Get<IRepository>(Key).Read()).Connected);
-            await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => brain.Get<IRepository>(Key).ReadPullRequests());
-            Assert.Equal([Key], verifier.Forgotten);
-            // The index keeps the key; the status alone keeps deliveries away from a revoked connection.
-            Assert.Equal([Key], await brain.Grains.GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
-            var delivery = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":1,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Ignored, await brain.SiloServices.GetRequiredService<GitHubWebhookIngress>().HandleAsync(delivery, Headers(delivery, "pull_request", "0123456789abcdef"), ct));
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await ConnectAsync(brain);
+        await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
+        var revoked = System.Text.Encoding.UTF8.GetBytes("""{"action":"deleted","installation":{"id":9}}""");
+        await Ingress(brain).HandleAsync(revoked, Headers(revoked, "installation", WebhookSecret), ct);
+        await failing.NextAsync(ct: ct);
+        Assert.False((await brain.Get<IRepository>(Key).Read()).Connected);
+        await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => brain.Get<IRepository>(Key).ReadPullRequests());
+        Assert.Equal([Key], verifier.Forgotten);
+        // The index keeps the key; the status alone keeps deliveries away from a revoked connection.
+        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        var delivery = PullRequestOpened(1);
+        Assert.Equal(GitHubWebhookAcceptance.Ignored, await Ingress(brain).HandleAsync(delivery, Headers(delivery, "pull_request", WebhookSecret), ct));
     }
 
     [Fact]
@@ -150,22 +133,18 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
+        await ConnectAsync(brain);
+        var suspended = System.Text.Encoding.UTF8.GetBytes("""{"action":"suspend","installation":{"id":9}}""");
+        await Ingress(brain).HandleAsync(suspended, Headers(suspended, "installation", WebhookSecret), ct);
+        Assert.Equal(ConnectionStatus.Failing, (await brain.Get<IConnection>(Key).Read()).Status);
+        using (brain.Owner.AsCaller())
         {
-            await ConnectAsync(brain);
-            var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
-            var suspended = System.Text.Encoding.UTF8.GetBytes("""{"action":"suspend","installation":{"id":9}}""");
-            await ingress.HandleAsync(suspended, Headers(suspended, "installation", "0123456789abcdef"), ct);
-            Assert.Equal(ConnectionStatus.Failing, (await brain.Get<IConnection>(Key).Read()).Status);
-            CallerContextStamper.Stamp(Owner);
             Assert.Equal(ConnectionStatus.Connected, (await brain.Get<IConnection>(Key).Probe()).Status);
-            Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-            await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":4,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, "pull_request", "0123456789abcdef"), ct));
-            Assert.Equal(4, (await changed.NextAsync(ct: ct)).Number);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(Key), ct);
+        var body = PullRequestOpened(4);
+        Assert.Equal(GitHubWebhookAcceptance.Accepted, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret), ct));
+        Assert.Equal(4, (await changed.NextAsync(ct: ct)).Number);
     }
 
     [Fact]
@@ -174,15 +153,13 @@ public sealed class GitHubRepositoryFacts
         var ct = TestContext.Current.CancellationToken;
         var verifier = new FakeInstallationVerifier();
         await using var brain = await StartAsync(ct, verifier: verifier);
-        try
+        await ConnectAsync(brain);
+        using (brain.Owner.AsCaller())
         {
-            await ConnectAsync(brain);
-            CallerContextStamper.Stamp(Owner);
             await brain.Get<IConnection>(Key).Disconnect();
-            Assert.Empty(await brain.Grains.GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
-            Assert.Equal([Key], verifier.Forgotten);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        Assert.Empty(await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key], verifier.Forgotten);
     }
 
     [Fact]
@@ -190,20 +167,16 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct, new DenyingSource(Key));
-        try
-        {
-            await ConnectAsync(brain);
-            await ConnectAsync(brain, Other, OtherKey);
-            Assert.Equal([Key, OtherKey], await brain.Grains.GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
-            await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
-            await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(OtherKey), ct);
-            var body = System.Text.Encoding.UTF8.GetBytes("""{"action":"opened","number":3,"installation":{"id":9},"repository":{"id":11,"name":"digitalbrain","owner":{"login":"intochat"}}}""");
-            Assert.Equal(GitHubWebhookAcceptance.Accepted, await brain.SiloServices.GetRequiredService<GitHubWebhookIngress>().HandleAsync(body, Headers(body, "pull_request", "0123456789abcdef"), ct));
-            Assert.Equal(3, (await changed.NextAsync(ct: ct)).Number);
-            Assert.Equal(DenyingSource.Reason, (await failing.NextAsync(ct: ct)).Detail);
-            Assert.Equal(ConnectionStatus.Failing, (await brain.Get<IConnection>(Key).Read()).Status);
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await ConnectAsync(brain);
+        var otherKey = await ConnectAsync(brain, await brain.PersonAsync("other", ct));
+        Assert.Equal([Key, otherKey], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
+        await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(otherKey), ct);
+        var body = PullRequestOpened(3);
+        Assert.Equal(GitHubWebhookAcceptance.Accepted, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret), ct));
+        Assert.Equal(3, (await changed.NextAsync(ct: ct)).Number);
+        Assert.Equal(DenyingSource.Reason, (await failing.NextAsync(ct: ct)).Detail);
+        Assert.Equal(ConnectionStatus.Failing, (await brain.Get<IConnection>(Key).Read()).Status);
     }
 
     [Fact]
@@ -211,20 +184,20 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        try
+        await ConnectAsync(brain);
+        var other = await brain.PersonAsync("other", ct);
+        var inbound = Grains(brain).GetConnectionGrain<IGitHubInbound>(Key);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 99, 11, null), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 9, 12, null), ct));
+        using (other.AsCaller())
         {
-            await ConnectAsync(brain);
-            var inbound = brain.Grains.GetConnectionGrain<IGitHubInbound>(Key);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 99, 11, null), ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 9, 12, null), ct));
-            CallerContextStamper.Stamp(Other);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "installation", "revoked", null, "hash", 9, null, null), ct));
-            CallerContextStamper.Stamp(Owner);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.Revoke("a user asked"));
-            Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-            Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        using (brain.Owner.AsCaller())
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.Revoke("a user asked"));
+        }
+        Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
     }
 
     [Fact]
@@ -232,14 +205,11 @@ public sealed class GitHubRepositoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        CallerContextStamper.Stamp(Owner);
-        try
+        using (brain.Owner.AsCaller())
         {
-            await brain.AuthorizeCallerAsync();
-            await Assert.ThrowsAsync<GitHubUnavailableException>(() => brain.Grains.GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
-            Assert.Equal(ConnectionStatus.Disconnected, (await brain.Get<IConnection>(Key).Read()).Status);
+            await Assert.ThrowsAsync<GitHubUnavailableException>(() => Grains(brain).GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        Assert.Equal(ConnectionStatus.Disconnected, (await brain.Get<IConnection>(Key).Read()).Status);
     }
 
     private static Dictionary<string, string[]> Headers(byte[] body, string eventName, string secret, bool sameDelivery = false) => new()

@@ -2,6 +2,7 @@ namespace DigitalBrain.Flutter;
 
 public static class UIVocabulary
 {
+    public const string ViewType = "view";
     public const string ChatType = "chat";
     public const string ComposerType = "composer";
     public const string SurfaceType = "surface";
@@ -20,6 +21,7 @@ public static class UIVocabulary
     public const string VideoType = "video";
     public const string WebBrowserType = "webbrowser";
     public const string ChartType = "chart";
+    public const string SceneType = "scene";
     public const string GraphType = "graph";
     public const string TableType = "table";
     public const string CalendarType = "calendar";

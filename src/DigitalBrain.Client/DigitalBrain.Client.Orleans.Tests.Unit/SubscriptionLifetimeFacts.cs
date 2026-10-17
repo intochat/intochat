@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -7,7 +6,7 @@ namespace DigitalBrain.Client.Orleans.Tests.Unit;
 
 public sealed class SubscriptionLifetimeFacts
 {
-    internal static ModuleTestBuilder Options(int capacity = 256) => ModuleTest.Create().WithFastSubscriptions(capacity);
+    private static TestBrain Options(int capacity = 256) => TestBrain.Create().WithFastSubscriptions(capacity);
 
     [Fact]
     public async Task OverflowIsVisibleEvenWithoutDrainingTheBuffer()
@@ -56,35 +55,20 @@ public sealed class SubscriptionLifetimeFacts
     }
 
     [Fact]
-    public async Task ReactivationFaultsTheOldSubscriptionAndANewOneCanObserve()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
-        var source = brain.Get<ITestEmitter>("restart");
-        await using var old = await brain.SubscribeAsync<Number>(source, ct);
-        await source.Deactivate();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => old.Completion.WaitAsync(TimeSpan.FromSeconds(5), ct));
-        await using var fresh = await brain.SubscribeAsync<Number>(source, ct);
-        await source.Emit(8);
-        await using var reader = fresh.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct));
-        Assert.Equal(8, reader.Current.Value);
-    }
-
-    [Fact]
     public async Task OnClosesItsSubscriptionWhenTheConsumerCancelsMidStream()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Options().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("on-cancel");
-        var client = (BrainClient)brain.Client();
+        var client = brain.Services.GetRequiredService<BrainClient>();
         using var consumer = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reading = Task.Run(async () =>
         {
-            await foreach (var _ in brain.On<Number>(source, consumer.Token)) { }
+            await foreach (var _ in brain.On<Number>(source, () => { registered.TrySetResult(); return Task.CompletedTask; }, consumer.Token)) { }
         }, ct);
-        // The watch is tracked as soon as On opens it; cancel while its first read is pending.
-        while (client.TrackedSubscriptions == 0 && !reading.IsCompleted) { await Task.Delay(TimeSpan.FromMilliseconds(20), ct); }
+        await registered.Task.WaitAsync(ct);
+        Assert.Equal(1, client.TrackedSubscriptions);
         consumer.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
         Assert.Equal(0, client.TrackedSubscriptions);
@@ -96,11 +80,12 @@ public sealed class SubscriptionLifetimeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Options().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("in-flight");
-        var enumerator = brain.On<Number>(source, ct).GetAsyncEnumerator(ct);
+        var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var enumerator = brain.On<Number>(source, () => { registered.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
         var pending = enumerator.MoveNextAsync();
-        await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+        await registered.Task.WaitAsync(ct);
         await enumerator.DisposeAsync();
         try { await pending; } catch (OperationCanceledException) { }
-        Assert.Equal(0, ((BrainClient)brain.Client()).TrackedSubscriptions);
+        Assert.Equal(0, brain.Services.GetRequiredService<BrainClient>().TrackedSubscriptions);
     }
 }

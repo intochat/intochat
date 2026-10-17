@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:uuid/uuid.dart';
 
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
@@ -11,18 +11,21 @@ import 'session_http_client_io.dart'
     if (dart.library.html) 'session_http_client_web.dart'
     as transport;
 import 'host_environment.dart';
+import 'models/app_manifest.dart';
 import 'models/installed_app.dart';
+import 'models/cluster.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
 import 'models/grant_summary.dart';
+import 'neuron_channel.dart';
+import 'node_contracts.dart';
+import 'scene_client.dart';
 import 'models/session_capabilities.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
 
 final class DigitalBrainUiClient {
-  static const _uuid = Uuid();
-
   /// Gated on the kernel; 404 when the kernel runs ungated.
   static const authCheckPath = '/auth/check';
 
@@ -37,7 +40,8 @@ final class DigitalBrainUiClient {
                httpClient ?? transport.createSessionHttpClient(),
                credentials: credentials,
              ),
-       _ownsClient = httpClient == null;
+       _ownsClient = httpClient == null,
+       _credentials = credentials;
 
   factory DigitalBrainUiClient.fromEnvironment({
     http.Client? httpClient,
@@ -134,8 +138,106 @@ final class DigitalBrainUiClient {
     );
   }
 
+  Future<void> signInLocalAccount(String username, String password) async {
+    if (!['localhost', '127.0.0.1', '::1', '[::1]'].contains(baseUri.host) ||
+        !['http', 'https'].contains(baseUri.scheme)) {
+      throw StateError('Local accounts require a loopback server.');
+    }
+    http.Response response;
+    try {
+      response = await _request(
+        'POST',
+        '/identity/login',
+        body: {'principalId': username, 'password': password},
+        timeout: const Duration(seconds: 15),
+      );
+    } on UiRequestException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      response = await _request(
+        'POST',
+        '/identity/register',
+        body: {'principalId': username, 'password': password},
+        timeout: const Duration(seconds: 15),
+      );
+    }
+    final Object? session;
+    try {
+      session = jsonDecode(response.body);
+    } on FormatException {
+      throw StateError('Local sign-in did not return a valid session.');
+    }
+    if (session is! Map<String, dynamic> ||
+        session['principalId'] != username ||
+        session['accountId'] is! String ||
+        (session['accountId'] as String).isEmpty ||
+        session['brainId'] is! String ||
+        (session['brainId'] as String).isEmpty) {
+      throw StateError('Local sign-in did not return the requested account.');
+    }
+    _useSession(session);
+  }
+
   final CookieHttpClient _http;
   final bool _ownsClient;
+  final BasicCredentials? _credentials;
+
+  /// Live updates ride the neuron channel when the client owns its transport (a real kernel),
+  /// unless the build is told to keep HTTP polling (`--dart-define=DIGITALBRAIN_UI_TRANSPORT=http`)
+  /// so the comparison can run both. A test that injects its HTTP client keeps the HTTP path,
+  /// or supplies a [link] of its own.
+  static const liveTransportEnv = 'DIGITALBRAIN_UI_TRANSPORT';
+  static const _liveTransport = String.fromEnvironment(
+    liveTransportEnv,
+    defaultValue: 'grpc',
+  );
+  bool get grpcLive {
+    final live = _link != null || (_ownsClient && _liveTransport != 'http');
+    if (!live && !_pollingAnnounced) {
+      _pollingAnnounced = true;
+      developer.log(
+        'live updates stay on HTTP polling (transport=$_liveTransport, ownsClient=$_ownsClient)',
+        name: 'digitalbrain.channel',
+      );
+    }
+    return live;
+  }
+
+  bool _pollingAnnounced = false;
+
+  NeuronLink? _link;
+  set link(NeuronLink value) => _link = value;
+  NeuronLink get channel => _link ??= NeuronChannel(
+    baseUri,
+    authorization: _credentials?.authorizationHeader,
+    sessionHeaders: () => {
+      if (_http.cookies.isNotEmpty)
+        'cookie': _http.cookies.entries
+            .map((entry) => '${entry.key}=${entry.value}')
+            .join('; '),
+    },
+  );
+
+  /// The node's own change signal; the view reads the node once per event.
+  Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
+    final friendSlot =
+        (kind == 'person' && name.endsWith('/profile')) ||
+        (kind == 'collection' && name.endsWith('/posts')) ||
+        (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
+    final contract = NodeContracts.of(friendSlot ? 'scene' : kind);
+    final source = friendSlot ? '$brainId/space' : name;
+    return channel
+        .watch(brainId, [
+          WatchSourceSpec(contract.contract, source, [contract.changed]),
+        ])
+        .map((signal) {
+          // Delivery latency as the comparison measures it: envelope stamp to arrival.
+          developer.log(
+            'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
+            name: 'digitalbrain.channel',
+          );
+          return signal;
+        });
+  }
 
   /// Server-owned capabilities; the shell hides developer-only surfaces when this is off.
   Future<SessionCapabilities> readCapabilities() async {
@@ -177,33 +279,39 @@ final class DigitalBrainUiClient {
         .toList();
   }
 
+  static String appRequestPath(String brainId, String appId) =>
+      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/request';
+
+  /// The manifest an app declares, read from the same view its detail page uses.
+  Future<AppManifest> readAppManifest(String brainId, String appId) async {
+    final body = await jsonRequest(
+      'GET',
+      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}',
+    );
+    return AppManifest.fromJson(
+      Map<String, dynamic>.from((body as Map)['manifest'] as Map),
+    );
+  }
+
+  /// The route that publishes an open request; the app answers through neurons, never here.
   static String appOpenPath(String brainId, String appId) =>
-      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/ask';
+      appRequestPath(brainId, appId);
 
-  Future<dynamic> openApp(
-    String brainId,
-    String appId, [
-    Map<String, dynamic> arguments = const {},
-  ]) => jsonRequest('POST', appOpenPath(brainId, appId), {
-    'operation': 'open',
-    'input': jsonEncode(arguments),
-  });
+  /// The brain-scoped key of one installed app; its neurons live under it.
+  static String appKey(String brainId, String appId) => '$brainId/apps/$appId';
 
-  /// Asks an app to open in the side panel; answers the surface it declared.
-  Future<Map<String, dynamic>> openDockedApp(
+  /// Publishes a request to an app; the app answers through neurons, never through this call.
+  Future<String> requestApp(
     String brainId,
     String appId,
+    String operation,
+    String input,
   ) async {
-    final result = Map<String, dynamic>.from(
-      await jsonRequest('POST', appOpenPath(brainId, appId), {
-        'operation': 'open',
-        'input': 'docked',
-      }) as Map,
-    );
-    final surface = result['surface'];
-    return surface is String
-        ? {'kind': 'surface', 'name': surface}
-        : Map<String, dynamic>.from(surface as Map);
+    final body = await jsonRequest('POST', appRequestPath(brainId, appId), {
+      'operation': operation,
+      'input': input,
+    });
+    return (body as Map)['requestId'] as String;
   }
 
   /// Raw bytes of a served file such as an app icon; null when the server has none.
@@ -249,20 +357,6 @@ final class DigitalBrainUiClient {
     ),
   );
 
-  /// Declares which sources a workspace is connected to; the first-run prompts follow them.
-  Future<WorkspaceSnapshot> setConnectedSources(
-    String workspaceId,
-    List<String> sources,
-  ) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/connected-sources',
-        body: {'sources': sources},
-      ) as Map,
-    ),
-  );
-
   Future<WorkspaceSnapshot> readWorkspace(
     String workspaceId, {
     Future<void>? cancelled,
@@ -276,37 +370,49 @@ final class DigitalBrainUiClient {
     ),
   );
 
-  Future<WorkspaceSnapshot> closeWorkspaceWindow(
-    String workspaceId,
-    String windowId,
-    int revision,
-  ) async => WorkspaceSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/close',
-        body: {'windowId': windowId, 'expectedRevision': revision},
-      ) as Map,
-    ),
-  );
+  Future<WorkspaceSnapshot> showNeuron(
+    String workspace,
+    String key,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'show', operationId, expectedRevision, key);
+  Future<WorkspaceSnapshot> backNeuron(
+    String workspace,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'back', operationId, expectedRevision);
+  Future<WorkspaceSnapshot> homeNeuron(
+    String workspace,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'home', operationId, expectedRevision);
+  Future<WorkspaceSnapshot> closeNeuron(
+    String workspace,
+    String key,
+    String operationId,
+    int expectedRevision,
+  ) => _navigateNeuron(workspace, 'close', operationId, expectedRevision, key);
 
-  Future<WorkspaceSnapshot> reopenWorkspaceWindow(
-    String workspaceId,
-    String windowId,
-    int revision,
-  ) async => WorkspaceSnapshot.fromJson(
+  Future<WorkspaceSnapshot> _navigateNeuron(
+    String workspace,
+    String command,
+    String operationId,
+    int expectedRevision, [
+    String? key,
+  ]) async => WorkspaceSnapshot.fromJson(
     Map<String, dynamic>.from(
       await _tableRequest(
         'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/reopen',
+        '/brains/${Uri.encodeComponent(workspace)}/$command',
         body: {
-          'windowId': windowId,
-          'operationId': _uuid.v4(),
-          'expectedRevision': revision,
+          'app': ?key,
+          'operationId': operationId,
+          'expectedRevision': expectedRevision,
         },
       ) as Map,
     ),
   );
+
   Future<void> reportProblem({
     required String workspaceId,
     required String intentId,
@@ -319,28 +425,99 @@ final class DigitalBrainUiClient {
     );
   }
 
-  Stream<WorkspaceRevision> watchWorkspace(String workspaceId) {
+  /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
+  /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
+  Stream<LiveEnvelope> watchLive(
+    String brainId,
+    List<String> types,
+  ) => _serverEvents(
+    '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}',
+    'Live signals are unavailable.',
+  ).map(LiveEnvelope.fromJson);
+
+  Stream<DeploymentChanged> watchDeployment(String brainId) =>
+      watchLive(brainId, ['DeploymentChanged'])
+          .where((envelope) => !envelope.isReady)
+          .map((envelope) => DeploymentChanged.fromJson(envelope.payload));
+
+  Stream<AppActivity> watchActivity(String brainId) =>
+      watchLive(brainId, ['AppActivity'])
+          .where((envelope) => !envelope.isReady)
+          .map((envelope) => AppActivity.fromJson(envelope.payload));
+
+  /// The brains the signed-in person is in, with their kind.
+  Future<List<BrainEntry>> listBrains() async {
+    final body = await _tableRequest('GET', '/identity/brains');
+    return (body as List)
+        .map(
+          (item) => BrainEntry.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList();
+  }
+
+  /// R126: every circle brain the person is in, each watched on its own `/live` feed, merged. The circles are
+  /// listed once per subscription; with none the stream ends, and a listener that resubscribes lists again.
+  Stream<CircleActivity> watchCircleActivity() {
+    late StreamController<CircleActivity> controller;
+    final subscriptions = <StreamSubscription<CircleActivity>>[];
+    controller = StreamController<CircleActivity>(
+      onListen: () async {
+        try {
+          final circles = (await listBrains())
+              .where((brain) => brain.isCircle)
+              .map((brain) => brain.id)
+              .toList();
+          if (circles.isEmpty) {
+            await controller.close();
+            return;
+          }
+          var open = circles.length;
+          for (final circle in circles) {
+            subscriptions.add(
+              watchLive(circle, ['CircleSpoke', 'CircleChanged'])
+                  .map(
+                    (envelope) => CircleActivity.fromEnvelope(circle, envelope),
+                  )
+                  .listen(
+                    controller.add,
+                    onError: controller.addError,
+                    onDone: () {
+                      if (--open == 0) controller.close();
+                    },
+                  ),
+            );
+          }
+        } catch (error, stack) {
+          controller.addError(error, stack);
+          await controller.close();
+        }
+      },
+      onCancel: () async {
+        for (final subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
+
+  Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
     final abort = Completer<void>();
     StreamSubscription<String>? incoming;
-    late StreamController<WorkspaceRevision> controller;
-    controller = StreamController<WorkspaceRevision>(
+    late StreamController<Map<String, dynamic>> controller;
+    controller = StreamController<Map<String, dynamic>>(
       onListen: () async {
         try {
           final request = http.AbortableRequest(
             'GET',
-            baseUri.resolve(
-              '/brains/${Uri.encodeComponent(workspaceId)}/events',
-            ),
+            baseUri.resolve(path),
             abortTrigger: abort.future,
           )..headers['accept'] = 'text/event-stream';
           final response = await _http.send(request);
           if (abort.isCompleted || response.statusCode != 200) {
             await response.stream.listen(null).cancel();
             if (!abort.isCompleted) {
-              throw TableRequestException(
-                response.statusCode,
-                'Workspace events are unavailable.',
-              );
+              throw TableRequestException(response.statusCode, unavailable);
             }
             return;
           }
@@ -352,10 +529,8 @@ final class DigitalBrainUiClient {
                   if (!line.startsWith('data:')) return;
                   try {
                     controller.add(
-                      WorkspaceRevision.fromJson(
-                        jsonDecode(line.substring(5).trimLeft())
-                            as Map<String, dynamic>,
-                      ),
+                      jsonDecode(line.substring(5).trimLeft())
+                          as Map<String, dynamic>,
                     );
                   } catch (error, stack) {
                     controller.addError(error, stack);
@@ -426,7 +601,14 @@ final class DigitalBrainUiClient {
     return response.body.isEmpty ? null : jsonDecode(response.body);
   }
 
-  Stream<BrainSnapshot> watchBrain({required String chatName}) {
+  /// The brain's neurons as snapshots: the whole brain with [brainId], or one chat's view with [chatName].
+  Stream<BrainSnapshot> watchBrain({String? chatName, String? brainId}) {
+    if ((chatName == null) == (brainId == null)) {
+      throw ArgumentError('Name a chat or a brain, not both.');
+    }
+    final path = brainId != null
+        ? '/brains/${Uri.encodeComponent(brainId)}/brain/events'
+        : '/chats/${Uri.encodeComponent(chatName!)}/brain/events';
     final abort = Completer<void>();
     late StreamController<BrainSnapshot> controller;
     controller = StreamController<BrainSnapshot>(
@@ -434,9 +616,7 @@ final class DigitalBrainUiClient {
         try {
           final request = http.AbortableRequest(
             'GET',
-            baseUri.replace(
-              path: '/chats/${Uri.encodeComponent(chatName)}/brain/events',
-            ),
+            baseUri.replace(path: path),
             abortTrigger: abort.future,
           )..headers['accept'] = 'text/event-stream';
           final response = await _http.send(request);
@@ -481,50 +661,38 @@ final class DigitalBrainUiClient {
     return controller.stream;
   }
 
-  Future<ComputeUsagePage> readComputeUsage(
-    String workspaceId, {
-    String? cursor,
-    int limit = 20,
+  /// Spend and balance for one brain, grouped by [by]; rows are most expensive first.
+  Future<ComputeSummary> readCompute(
+    String brainId, {
+    String by = 'app',
+    DateTime? since,
   }) async {
-    final query = Uri(queryParameters: {'limit': '$limit', 'cursor': ?cursor})
-        .query;
-    return ComputeUsagePage.fromJson(
+    final query = Uri(
+      queryParameters: {'by': by, 'since': ?since?.toUtc().toIso8601String()},
+    ).query;
+    return ComputeSummary.fromJson(
       Map<String, dynamic>.from(
         await _tableRequest(
           'GET',
-          '/brains/${Uri.encodeComponent(workspaceId)}/compute/usage?$query',
+          '/brains/${Uri.encodeComponent(brainId)}/compute?$query',
         ) as Map,
       ),
     );
   }
 
-  Future<ComputeAccountSummary> readComputeSummary() async =>
-      ComputeAccountSummary.fromJson(
-        Map<String, dynamic>.from(
-          await _tableRequest('GET', '/compute/summary') as Map,
-        ),
-      );
-
-  Future<Map<String, dynamic>> readComputeLimits() async {
-    final response = await _request(
+  /// The most recent individual costs for one brain, newest [take] first.
+  Future<List<ComputeCost>> readComputeRecent(
+    String brainId, {
+    int take = 50,
+  }) async {
+    final body = await _tableRequest(
       'GET',
-      '/compute/limits',
-      timeout: const Duration(seconds: 10),
+      '/brains/${Uri.encodeComponent(brainId)}/compute/recent?take=$take',
     );
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> readUi(
-    String workspace,
-    String collection,
-    String name,
-  ) async {
-    final response = await _request(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspace)}/ui/$collection/${Uri.encodeComponent(name)}',
-      timeout: const Duration(seconds: 10),
-    );
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    return [
+      for (final item in body as List)
+        ComputeCost.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
   }
 
   Future<void> postUi(String path, {Map<String, Object?>? body}) async {
@@ -546,6 +714,10 @@ final class DigitalBrainUiClient {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
   }
+
+  /// The brain's scenes over this client's authenticated session.
+  SceneClient scenes(String workspace) =>
+      SceneClient(_http, baseUri, workspace);
 
   Future<http.Response> _request(
     String method,
@@ -675,6 +847,16 @@ final class DigitalBrainUiClient {
     body,
   );
 
+  Future<Object?> workspaceWindowsRequest(
+    String workspaceId,
+    String path, {
+    Map<String, Object?>? body,
+  }) => jsonRequest(
+    body == null ? 'GET' : 'POST',
+    '/brains/${Uri.encodeComponent(workspaceId)}/windows/$path',
+    body,
+  );
+
   /// The live grants an owner has given to apps in this workspace.
   Future<List<GrantSummary>> listGrants(String workspace) async {
     final response = await _request(
@@ -717,6 +899,8 @@ final class DigitalBrainUiClient {
     if (_ownsClient) {
       _http.close();
     }
+    unawaited(_link?.shutdown() ?? Future.value());
+    _link = null;
   }
 
   Future<dynamic> jsonRequest(

@@ -14,7 +14,7 @@ public enum ConnectionStatus
     Disconnected = 3,
 }
 
-// The connector's edge neuron is the connection: keyed connection/{brain}/{connector}/{id}, it owns
+// The connector's edge neuron is the connection: keyed {brain}/connection/{connector}/{id}, it owns
 // its credential as sealed state. The shell, the assistant and module tools talk to this face.
 [Alias("connection")]
 public interface IConnection : INeuron
@@ -23,11 +23,30 @@ public interface IConnection : INeuron
     Task<ConnectionView> Connect(string authMethodId, string value);
     Task<ConnectionView> Probe();
     Task Disconnect();
+
+    // R147: a circle brain's copy of a shared connection: its definition, no credential, not connected (Task 28 seals one).
+    [Internal] Task<ConnectionView> Adopt(string authMethodId, string? account);
+
+    // R130: re-seals this connection's credential under the target brain's core part key, so a machine holding that
+    // part opens it. No plaintext crosses this call: the returned secrets are ciphertext only.
+    [Internal] Task<SealedSecret[]> ExportFor(string brainId);
+
+    // R130/R147: fills a shared copy's credential from secrets already sealed under this brain's core part key.
+    [Internal] Task<ConnectionView> Import(string authMethodId, string? account, SealedSecret[] secrets, ConnectionStatus status, string? detail);
+
+    // R146: the owner's connection records an app of another brain it is shared into; that record is what the call
+    // gate admits the app's use operations by (IConnectionBindings).
+    [Internal] Task ShareInto(string brainId, string app);
+
+    [Internal, AlwaysInterleave] Task<bool> IsSharedInto(string brainId, string app);
+
+    // R155: the sharing is withdrawn (its sharer left the brain it was shared into).
+    [Internal] Task UnshareFrom(string brainId, string app);
 }
 
-// Reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
-[PlatformOnly, Alias("connection.inbound")]
-public interface IConnectionInbound : INeuron
+// Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
+[Alias("connection.inbound")]
+public interface IConnectionInbound : IGrainWithStringKey
 {
     Task<ConnectionView> AcceptGrant(OAuthGrant grant);
 }

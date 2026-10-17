@@ -1,6 +1,5 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Image;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Image;
@@ -11,7 +10,7 @@ public sealed class ImageFacts
     public async Task SetWritesUrlMediaTypeAndPrompt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         await brain.Get<IImage>("logo").Set("https://example.com/a.png", "image/png", "logo");
         var state = await brain.Get<IImage>("logo").Read();

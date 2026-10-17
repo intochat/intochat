@@ -14,13 +14,11 @@ public sealed class AgentModelTurnFacts
 {
     private const string Luna = "gpt-5.6-luna";
 
-    private static Task<ModuleBrain> Brain(FakeModelServer model, CancellationToken ct)
-    {
-        AgentFacts.StampUser();
-        return ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model)
-            .ConfigureSilo(silo => silo.Services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
+    // The probe's contract is in the host's compiled layer, which no module of the test assembly registers.
+    private static Task<ITestBrain> Brain(FakeModelServer model, CancellationToken ct)
+        => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
+            .ConfigureServices(services => services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
-    }
 
     [Fact]
     public async Task AModelPlaysAToolCallThenAnswers()
@@ -28,9 +26,10 @@ public sealed class AgentModelTurnFacts
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
         model.Script(Luna,
-            FakeReply.Tool("neurons_call", $$"""{"contract":"{{Probe.Contract}}","key":"research/probes/main","method":"Echo","arguments":"[\"ping\"]"}"""),
+            FakeReply.Tool("neurons_call", $$"""{"contract":"{{Probe.Contract}}","key":"{{AgentFacts.Scope}}/probes/main","method":"Echo","arguments":"[\"ping\"]"}"""),
             "Done.");
         await using var brain = await Brain(model, ct);
+        using var caller = brain.Owner.AsCaller();
 
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("tool-turn")),
             AgentTurn.Text("go", model: nameof(IGpt56Luna), contracts: [Probe.Contract]), ct);

@@ -35,7 +35,7 @@ public sealed class ExampleState : ConnectionState
 
 [GrainType("example")]
 internal sealed class ExampleConnectionNeuron(
-    [PersistentState("example", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ExampleState> store)
+    [PersistentState("example", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ExampleState> store)
     : ConnectionNeuron<ExampleState>(store), IExample
 {
     public const string LeakedToken = "tok-4f1c9e-secret";
@@ -99,7 +99,7 @@ public sealed class SampleState : ConnectionState { }
 
 [GrainType("sample")]
 internal sealed class SampleConnectionNeuron(
-    [PersistentState("sample", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SampleState> store)
+    [PersistentState("sample", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SampleState> store)
     : ConnectionNeuron<SampleState>(store), ISample
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)

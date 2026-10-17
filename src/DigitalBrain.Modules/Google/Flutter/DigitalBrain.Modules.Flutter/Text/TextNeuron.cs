@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Text;
 
 [GrainType(UIVocabulary.TextType)]
-internal sealed class TextNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TextState> store)
+internal sealed class TextNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TextState> store)
     : Neuron<TextState>(store), IText
 {
     public Task Set(string markdown)

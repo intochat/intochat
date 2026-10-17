@@ -6,4 +6,5 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 internal static class SignalJson
 {
     public static int Number(string json) => JsonDocument.Parse(json).RootElement.GetProperty("number").GetInt32();
+    public static Guid RequestId(string json) => JsonDocument.Parse(json).RootElement.GetProperty("requestId").GetGuid();
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Framework.Configuration;
 
@@ -12,6 +13,8 @@ public static class DigitalBrainConfiguration
     // The module composition's configuration home: enablement flags and per-module options
     // live under these sections, and a brain-scoped overlay may restate options per brain.
     public const string ModulesSectionName = "DigitalBrain:Modules";
+
+    public const string WorkshopSectionName = "DigitalBrain:Workshop";
 
     public static string ModuleSection(ModuleId moduleId) => $"{ModulesSectionName}:{moduleId}";
 
@@ -45,12 +48,26 @@ public static class DigitalBrainConfiguration
         return configurationKey.Replace(":", "__", StringComparison.Ordinal);
     }
 
+    // The environment configuration provider's inverse projection; ordinary underscore names
+    // and already-canonical keys are unchanged.
+    public static string ConfigurationName(string environmentName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentName);
+        return environmentName.Replace("__", ":", StringComparison.Ordinal);
+    }
+
     public static string EnvironmentName(string configurationRoot, string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return EnvironmentName($"{configurationRoot}:{name}");
     }
+
+    // An Integration field's environment name, for a deployer composing another process's environment
+    // (a candidate silo's own, freshly generated values). Reading a deployment's credentials still goes
+    // through IModuleIntegrations; this only names the variable.
+    public static string IntegrationEnvironmentName(string integrationId, string field)
+        => EnvironmentName(IntegrationSchema.Key(integrationId, field));
 
     // omitDefaults: a cross-process projection sends only values the sender decided, so a leaf
     // equal to the type's default cannot pin the receiver's own configuration. An in-process

@@ -39,18 +39,36 @@ public sealed class LocalSignalHub(ILogger<LocalSignalHub> logger) : ILocalSigna
         foreach (var entry in _observers)
         { if (entry.Key.Item1 == source) { entry.Value.Post(signal); } }
     }
+
+    public Task FlushAsync(CancellationToken cancellationToken)
+        => Task.WhenAll(_observers.Values.Select(delivery => delivery.Idle(cancellationToken)));
+
     private sealed class Delivery
     {
         private readonly Channel<Signal> _queue = Channel.CreateBounded<Signal>(new BoundedChannelOptions(1024) { SingleReader = true, AllowSynchronousContinuations = false });
         private readonly CancellationTokenSource _lifetime = new();
         private readonly Action<Exception> _failed;
+        private readonly Lock _idle = new();
+        private TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _pending;
         private int _closed;
         public Delivery(INeuronObserver observer, Action<Exception> failed)
         { _failed = failed; _ = Pump(observer); }
         public void Post(Signal signal)
         {
-            if (Volatile.Read(ref _closed) == 0 && !_queue.Writer.TryWrite(signal))
-            { _failed(new InvalidOperationException("Local observer buffer overflowed.")); }
+            if (Volatile.Read(ref _closed) != 0) { return; }
+            lock (_idle) { _pending++; }
+            if (Volatile.Read(ref _closed) != 0 || !_queue.Writer.TryWrite(signal))
+            {
+                FinishOne();
+                if (Volatile.Read(ref _closed) == 0)
+                { _failed(new InvalidOperationException("Local observer buffer overflowed.")); }
+            }
+        }
+        public Task Idle(CancellationToken cancellationToken)
+        {
+            lock (_idle)
+            { return _pending == 0 ? Task.CompletedTask : _drained.Task.WaitAsync(cancellationToken); }
         }
         public void Close()
         {
@@ -58,12 +76,27 @@ public sealed class LocalSignalHub(ILogger<LocalSignalHub> logger) : ILocalSigna
             _queue.Writer.TryComplete();
             _lifetime.Cancel();
         }
+        private void FinishOne()
+        {
+            lock (_idle)
+            {
+                _pending--;
+                if (_pending == 0)
+                {
+                    _drained.TrySetResult();
+                    _drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+            }
+        }
         private async Task Pump(INeuronObserver observer)
         {
             try
             {
                 await foreach (var signal in _queue.Reader.ReadAllAsync(_lifetime.Token))
-                { await observer.OnSignalAsync(signal).WaitAsync(_lifetime.Token); }
+                {
+                    try { await observer.OnSignalAsync(signal).WaitAsync(_lifetime.Token); }
+                    finally { FinishOne(); }
+                }
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
             catch (Exception error) { _failed(error); }

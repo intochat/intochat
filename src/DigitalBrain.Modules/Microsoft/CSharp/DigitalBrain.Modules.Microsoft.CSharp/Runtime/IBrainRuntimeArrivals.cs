@@ -9,4 +9,10 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 internal interface IBrainRuntimeArrivals : IGrainWithStringKey
 {
     [OneWay] Task Arrived(Signal signal);
+
+    // Reads every source's part log from its subscriptions' watermarks; sent by a reactivated runtime to itself.
+    [OneWay] Task CatchUp();
+
+    // Reads one source's part log from its subscriptions' watermarks, once the catch-up watched it.
+    [OneWay] Task Read(string source);
 }

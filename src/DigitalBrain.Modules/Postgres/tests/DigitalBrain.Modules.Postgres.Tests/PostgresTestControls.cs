@@ -1,15 +1,6 @@
 using DigitalBrain.Postgres;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Orleans.Hosting;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
-
-internal sealed class PostgresTestSiloBuilder(IServiceCollection services, IConfiguration configuration) : ISiloBuilder
-{
-    public IServiceCollection Services => services;
-    public IConfiguration Configuration => configuration;
-}
 
 internal sealed class PostgresTestControls : IPostgresProvider
 {

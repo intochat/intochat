@@ -27,6 +27,21 @@ void main() {
     }
   });
 
+  testWidgets('immutable view preview renders its inline content and action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: NeuronGalleryPreview(kind: 'view')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your reading space'), findsOneWidget);
+    await tester.tap(find.text('Add a book'));
+    await tester.pumpAndSettle();
+    expect(find.text('Local view action: add-book'), findsOneWidget);
+  });
+
   testWidgets('search, select, and return on narrow settings panel', (
     tester,
   ) async {

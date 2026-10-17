@@ -18,19 +18,23 @@ public sealed class PackedCompositionFacts
         Directory.CreateDirectory(feed);
         TestContext.Current.TestOutputHelper!.WriteLine("Package diagnostics: " + scratch);
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var aspireVersion = XDocument.Load(Path.Combine(root, "Directory.Packages.props")).Descendants("AspireVersion").Single().Value;
+        var appHostSdk = XDocument.Load(ProjectPath(root, "DigitalBrain.AppHost")).Root!.Attribute("Sdk")!.Value;
         const string version = "0.0.0-integration";
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roots = new[]
         {
-            "DigitalBrain.Testing.E2E",
-            "DigitalBrain.Testing.Module",
+            "DigitalBrain.Testing",
+            "DigitalBrain.Testing.Aspire",
+            "DigitalBrain.Testing.Playwright",
             // The harness no longer drags modules in; one contracts package proves module
             // contracts stay consumable from the feed on their own.
             "DigitalBrain.Modules.AI.Contracts",
             "DigitalBrain.Client",
             "DigitalBrain.Aspire.Server",
             "DigitalBrain.Aspire.Client",
+            // The composition's storage: the orleans module and its Azurite hosting.
+            "DigitalBrain.Modules.Microsoft.Orleans",
+            "DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting",
         };
         foreach (var project in roots) { Collect(ProjectPath(root, project)); }
         foreach (var project in projects.Order())
@@ -73,19 +77,21 @@ public sealed class PackedCompositionFacts
         { File.Copy(source, Path.Combine(consumer, Path.GetFileNameWithoutExtension(source))); }
         await File.WriteAllTextAsync(Path.Combine(consumer, "Consumer.csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk.Web">
+              <Sdk Name="{{appHostSdk.Split('/')[0]}}" Version="{{appHostSdk.Split('/')[1]}}" />
               <PropertyGroup>
                 <TargetFramework>net11.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
+                <AspireUseCliBundle>true</AspireUseCliBundle>
                 <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
                 <RestorePackagesPath>{{Path.Combine(scratch, "packages")}}</RestorePackagesPath>
               </PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="DigitalBrain.Testing.E2E" Version="{{version}}" />
+                <PackageReference Include="DigitalBrain.Testing.Playwright" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Server" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Client" Version="{{version}}" />
-                <PackageReference Include="Aspire.Hosting.Orchestration.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
-                <PackageReference Include="Aspire.Dashboard.Sdk.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
+                <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans" Version="{{version}}" />
+                <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting" Version="{{version}}" />
               </ItemGroup>
             </Project>
             """, ct);
@@ -98,8 +104,8 @@ public sealed class PackedCompositionFacts
         {
             ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.Models.ILLM);"),
             ("DigitalBrain.Client", "_ = typeof(DigitalBrain.Client.DigitalBrainClient);"),
-            ("DigitalBrain.Testing.Module", "await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().StartAsync();"),
-            ("DigitalBrain.Aspire.Server", "var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
+            ("DigitalBrain.Testing", "await using var brain = await DigitalBrain.Testing.TestBrain.Create().StartAsync();"),
+            ("DigitalBrain.Aspire.Server", "var builder = global::Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
         })
         {
             var profile = Path.Combine(scratch, id);
@@ -132,6 +138,7 @@ public sealed class PackedCompositionFacts
         {
             var start = new ProcessStartInfo("dotnet")
             { WorkingDirectory = workingDirectory, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            DotNetTestProcess.DisableBuildServerReuse(start);
             foreach (var argument in arguments) { start.ArgumentList.Add(argument); }
             using var process = Process.Start(start) ?? throw new IOException("dotnet did not start.");
             var output = process.StandardOutput.ReadToEndAsync();

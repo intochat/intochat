@@ -6,6 +6,7 @@ namespace DigitalBrain.AI.Models;
 // The deployment's model list as a neuron, so other modules and the shell read it without
 // referencing the AI module. Never carries endpoints or secrets.
 [Alias("ai.models"), Orleans.Metadata.DefaultGrainType("ai.models")]
+[Public]
 public interface IModelCatalog : INeuron
 {
     [ReadOnly, AlwaysInterleave] Task<ModelChoices> List(string? defaultModel = null);

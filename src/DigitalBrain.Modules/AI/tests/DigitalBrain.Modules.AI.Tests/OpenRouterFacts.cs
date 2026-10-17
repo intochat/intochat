@@ -12,20 +12,16 @@ public sealed class OpenRouterFacts
     public async Task DeepSeekPresetUsesRegisteredOpenRouterCredentialsAndDefaultEndpoint()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithRegistrations(new TestExecutionOptions
-        {
-            PrivateConfiguration = new Dictionary<string, string?>
-            { [IntegrationSchema.Key("openrouter", "ApiKey")] = "test-only" },
-        }).WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options =>
-                options.Default.Model = nameof(IDeepSeekV41Flash))).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithProvider("OpenRouter").WithModule<AIModule>()
+            .WithOptions<AIModule, AIOptions>(options =>
+                options.Default.Model = nameof(IDeepSeekV41Flash)).StartAsync(ct);
 
-        var resolved = await brain.SiloServices.GetRequiredService<ModelCatalog>().Resolve(null, requiresTools: true, ct);
+        var resolved = await brain.Services.GetRequiredService<ModelCatalog>().Resolve(null, requiresTools: true, ct);
         Assert.Equal(AiProvider.OpenRouter, resolved.Provider);
         Assert.Equal("deepseek/deepseek-v4.1-flash", resolved.Model);
         Assert.Null(resolved.Endpoint);
         Assert.Equal(IntegrationStatus.Ready,
-            (await brain.Get<IIntegration>("integration/openrouter").Read()).Status);
+            (await brain.Integration("openrouter").Read()).Status);
         await brain.Get<IDeepSeekV41Flash>("preset").Describe();
         var defaultModel = await brain.Get<ILLM>("default").Describe();
         Assert.Equal("deepseek/deepseek-v4.1-flash", defaultModel.Model);

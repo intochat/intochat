@@ -12,6 +12,26 @@ namespace DigitalBrain.Mcp.Tests.Unit;
 
 public sealed class McpIdentityFacts
 {
+    // The shell reads the same seam through /identity/session (DefaultBrainFacts in Platform).
+    [Theory]
+    [InlineData("Open", false)]
+    [InlineData("Secured", true)]
+    public async Task TheDefaultMcpRouteActsInTheOwnersDefaultBrain(string posture, bool credentials)
+    {
+        await using var app = await Start(posture, credentials: credentials);
+        using var client = Client(app);
+        if (credentials)
+        {
+            client.DefaultRequestHeaders.Authorization = new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes("operator:test-password")));
+        }
+        using var response = await Call(client, "/mcp");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var result = JsonDocument.Parse(body.Split('\n').Single(line => line.StartsWith("data: ", StringComparison.Ordinal))[6..]);
+        using var caller = JsonDocument.Parse(result.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString()!);
+        Assert.Equal(AccountSession.DefaultLogin, caller.RootElement.GetProperty("brainId").GetString());
+    }
+
     [Fact]
     public async Task OpenMcpStampsTheOwnerAndRequestedBrainForEachToolCall()
     {
@@ -80,6 +100,8 @@ public sealed class McpIdentityFacts
             builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "operator";
             builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "test-password";
         }
+        // No silo here: the kernel answers with no brains, so neurons_context shows the stamp alone.
+        builder.Services.AddSingleton<IKernelView>(new FixedKernel());
         builder.Services.AddDigitalBrainMcp();
         builder.Services.AddSingleton<IBrainAccess>(new Access(!deny));
         var app = builder.Build();

@@ -7,7 +7,6 @@ using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -22,7 +21,7 @@ public sealed class AppAuthFacts
         using var appKey = RSA.Create(2048);
         await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
         var handler = new CapturingHandler();
-        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
+        using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
         await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => tokens.GetTokenAsync(Repository(appId: 7), refresh: true, ct));
 
@@ -38,7 +37,7 @@ public sealed class AppAuthFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(null, null, ct);
         var handler = new CapturingHandler();
-        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
+        using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
         await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(appId: 7), refresh: true, ct));
 
@@ -52,7 +51,7 @@ public sealed class AppAuthFacts
         using var appKey = RSA.Create(2048);
         await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
         var handler = new CapturingHandler();
-        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
+        using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
         await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(appId: 8), refresh: true, ct));
 
@@ -65,7 +64,7 @@ public sealed class AppAuthFacts
         var ct = TestContext.Current.CancellationToken;
         using var appKey = RSA.Create(2048);
         await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
-        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), new MintingHandler(), null, capacity: 2);
+        using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), new MintingHandler(), null, capacity: 2);
 
         for (var connection = 0; connection < 5; connection++)
         {
@@ -85,24 +84,21 @@ public sealed class AppAuthFacts
         var ct = TestContext.Current.CancellationToken;
         using var appKey = RSA.Create(2048);
         await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
-        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), new RateLimitedHandler(), null);
+        using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), new RateLimitedHandler(), null);
 
         await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(7), refresh: true, ct));
     }
 
-    private static Task<ModuleBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
+    private static Task<ITestBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
     {
-        var seeds = new Dictionary<string, string?>();
-        if (privateKeyPem is not null)
+        var brain = TestBrain.Create().WithModule<GitHubModule>();
+        if (privateKeyPem is not null && appId is not null)
         {
-            seeds[IntegrationSchema.Key("github", "PrivateKeyPem")] = privateKeyPem;
-            seeds[IntegrationSchema.Key("github", "AppId")] = appId;
+            brain.WithIntegration(GitHubModule.Integration, "PrivateKeyPem", privateKeyPem)
+                .WithIntegration(GitHubModule.Integration, "AppId", appId);
         }
 
-        return ModuleTest.Create()
-            .WithExecution(new TestExecutionOptions { PrivateConfiguration = seeds })
-            .WithModule<GitHubModule>()
-            .StartAsync(cancellationToken);
+        return brain.StartAsync(cancellationToken);
     }
 
     private static GitHubRepository Repository(long appId)

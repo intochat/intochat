@@ -15,14 +15,23 @@ internal sealed record BrainAuthorityState
     [Id(3)] public Grant[] Grants { get; init; } = [];
     [Id(4)] public Invitation[] Invitations { get; init; } = [];
     [Id(6)] public bool OwnerProvisioned { get; init; }
+    [Id(7)] public BrainKind Kind { get; init; }
 }
 
 // Deliberately non-reentrant: a Once grant is checked and persisted in one turn.
 [GrainType("identity.brain-access.v2")]
 internal sealed class BrainAuthorityGrain(
-    [PersistentState("access", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<BrainAuthorityState> storage,
-    TimeProvider clock, IOptions<AuthOptions> auth) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
+    [PersistentState("access", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<BrainAuthorityState> storage,
+    TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
+    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    {
+        await base.OnActivateAsync(cancellationToken);
+        mirror.Publish(this.GetPrimaryKeyString(), State);
+    }
+
+    protected override void OnPersisted() => mirror.Publish(this.GetPrimaryKeyString(), State);
+
     public async Task Initialize(string accountId, string brainId)
     {
         if (BrainScope.Create(accountId, brainId).Id != this.GetPrimaryKeyString()) { throw new InvalidOperationException("Brain authority key mismatch."); }
@@ -30,8 +39,25 @@ internal sealed class BrainAuthorityGrain(
         { throw new InvalidOperationException("Brain authority scope conflict."); }
         if (State.AccountId is null) { await Persist(State with { AccountId = accountId, BrainId = brainId }); }
     }
+    public Task<string?> Account() => Task.FromResult(State.AccountId);
+    public Task<BrainKind> Kind() => Task.FromResult(State.Kind);
+    public Task<string[]> MemberAccounts()
+        => Task.FromResult<string[]>([.. State.Members.Values.Select(member => member.AccountId).Append(State.AccountId ?? "")
+            .Where(account => account.Length > 0).Distinct(StringComparer.Ordinal)]);
+    public async Task Classify(BrainKind kind)
+    {
+        if (State.Kind == kind) { return; }
+        if (State.OwnerProvisioned) { throw new InvalidOperationException($"Brain {this.GetPrimaryKeyString()} is a {State.Kind} brain; its kind is fixed."); }
+        await Persist(State with { Kind = kind });
+    }
+    public async Task RemoveAccount(string accountId)
+    {
+        if (accountId == State.AccountId) { throw new InvalidOperationException($"The owner of brain {this.GetPrimaryKeyString()} cannot be removed from it."); }
+        foreach (var principal in State.Members.Values.Where(member => member.AccountId == accountId).Select(member => member.PrincipalId).ToArray())
+        { await RemoveMember(principal); }
+    }
     public Task<Member?> Membership(string principalId) => Task.FromResult(State.Members.GetValueOrDefault(principalId));
-    public async Task ProvisionOwner(Member owner)
+    public async Task<bool> ProvisionOwner(Member owner)
     {
         await Initialize(owner.AccountId, owner.BrainId);
         if (owner.Role != MemberRole.Owner) { throw new ArgumentException("An owner is required."); }
@@ -40,50 +66,50 @@ internal sealed class BrainAuthorityGrain(
             // Provisioning happens once: a retry is a no-op, and a revoked owner stays revoked. A
             // different principal holding the owner role is the one thing that must not pass quietly.
             var current = State.Members.Values.FirstOrDefault(member => member.Role == MemberRole.Owner);
-            if (current is null || current.PrincipalId == owner.PrincipalId) { return; }
+            if (current is null || current.PrincipalId == owner.PrincipalId) { return false; }
             throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
         }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
+        await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId, State.Kind);
+        return true;
     }
     public async Task EnsureMember(Member member)
     {
-        await Initialize(member.AccountId, member.BrainId);
+        // T26-2: a circle's members are other accounts; their records keep their own account, which GrantRules matches.
+        if (State.Kind == BrainKind.Circle && State.AccountId is { } owner && owner != member.AccountId)
+        {
+            if (member.BrainId != State.BrainId) { throw new InvalidOperationException("Brain authority scope conflict."); }
+            if (member.Role == MemberRole.Owner) { throw new InvalidOperationException("A circle has one owner, its creator."); }
+        }
+        else { await Initialize(member.AccountId, member.BrainId); }
         if (State.Members.TryGetValue(member.PrincipalId, out var existing))
         {
             if (existing.Role != member.Role) { throw new InvalidOperationException("Membership role conflict."); }
             return;
         }
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
+        await GrainFactory.GetGrain<IPrincipal>(member.PrincipalId).Joined(member.BrainId, State.Kind);
     }
-    public Task RemoveMember(string principalId)
+    public async Task RemoveMember(string principalId)
     {
         var members = new Dictionary<string, Member>(State.Members);
         members.Remove(principalId);
-        return Persist(State with { Members = members });
+        await Persist(State with { Members = members });
+        if (State.BrainId is { } brain) { await GrainFactory.GetGrain<IPrincipal>(principalId).Left(brain); }
     }
-    public async Task<CallDecision?> Authorize(CallRequest request)
+    // R68: the decision is a read. The Open posture's synthetic owner is provisioned at boot or by the machine's
+    // signed ProvisionOwner, never here; a Once grant is spent only by Consume.
+    public Task<CallDecision?> Authorize(CallRequest request)
     {
-        var caller = request.Caller;
-        // The grain-side mirror of OpenOwnerBrainAccess at the HTTP edge: with the declared Open
-        // posture, an untouched brain under the synthetic owner's account belongs to the synthetic
-        // owner, whoever reaches it first. A caller is never crowned: a registered account's brain
-        // is provisioned by its account before it is born, so it never arrives here untouched.
-        if (State.AccountId is null && auth.Value.Posture == IdentityPosture.Open
-            && caller.AccountId == AccountSession.DefaultLogin
-            && BrainScope.Create(caller.AccountId, caller.BrainId).Id == this.GetPrimaryKeyString())
-        {
-            await ProvisionOwner(new Member
-            {
-                PrincipalId = AccountSession.DefaultLogin,
-                AccountId = AccountSession.DefaultLogin,
-                BrainId = caller.BrainId,
-                Role = MemberRole.Owner,
-                DisplayName = AccountSession.DefaultLogin,
-            });
-        }
-        if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)
-        { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var decision = GrantRules.Evaluate(request, State.Members.GetValueOrDefault(caller.PrincipalId), State.Grants);
+        var decision = Decide(request);
+        return Task.FromResult(decision is { Allowed: true } && GrantRules.OnceToConsume(request, State.Grants).Count > 0
+            ? decision with { ConsumesOnce = true }
+            : decision);
+    }
+
+    public async Task<CallDecision?> Consume(CallRequest request)
+    {
+        var decision = Decide(request);
         if (decision is { Allowed: true })
         {
             var consumed = GrantRules.OnceToConsume(request, State.Grants);
@@ -91,6 +117,8 @@ internal sealed class BrainAuthorityGrain(
         }
         return decision;
     }
+
+    private CallDecision? Decide(CallRequest request) => BrainAuthorityDecisions.Decide(State, request);
     public async Task<Grant> GrantAsOwner(CallerContext caller, Grant grant)
     {
         await RequireOwner(caller);

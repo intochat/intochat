@@ -1,12 +1,11 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Framework.Tests.E2E.Identity;
 
 // The grants list and revoke routes at the HTTP edge are scoped to the caller's workspace.
 // Enforcement of a grant on a call is covered by Identity's GrantFacts.
+[Collection("ReferenceBrainFixture")]
 public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
 {
     [Fact(Timeout = 300_000)]
@@ -16,11 +15,11 @@ public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
-        using var alicePerson = await People.SignedIn(brain.HttpClient, "alice-" + suffix, ct);
-        using var bobPerson = await People.SignedIn(brain.HttpClient, "bob-" + suffix, ct);
-        var alice = alicePerson.Client;
-        var bob = bobPerson.Client;
-        var workspace = alicePerson.Workspace;
+        using var alicePerson = await brain.PersonAsync("alice-" + suffix, ct);
+        using var bobPerson = await brain.PersonAsync("bob-" + suffix, ct);
+        var alice = alicePerson.Http;
+        var bob = bobPerson.Http;
+        var workspace = alicePerson.BrainId;
         using var create = await alice.PostAsJsonAsync(
             $"/brains/{workspace}/grants",
             new { appId = "app-1", semanticTypeId = "person.birthDate", mode = 2, workspaceId = workspace },
@@ -46,5 +45,4 @@ public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
         using var emptied = await alice.GetAsync($"/brains/{workspace}/grants", ct);
         Assert.Empty(JsonSerializer.Deserialize<JsonElement[]>(await emptied.Content.ReadAsStringAsync(ct))!);
     }
-
 }

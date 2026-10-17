@@ -1,6 +1,5 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Table;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Table;
@@ -11,7 +10,7 @@ public sealed class TableFacts
     public async Task ReplaceIsTheWholeTableAndReadAnswersItBack()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var table = brain.Get<ITable>("grid");
 
         await table.Replace("People", [new("country", "Country"), new("n", "N")], [["us", "2"], ["uk", "1"]]);

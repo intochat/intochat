@@ -2,7 +2,5 @@
   "LegacyModuleTestProjects": [],
   "LegacyEndToEndReferencers": [],
   "LegacyAspireReferencingModuleTests": [],
-  "LegacyFullStackBootFacts": [
-    "DigitalBrain.Framework.Tests.E2E/E2EBoundaryFacts.cs"
-  ]
+  "LegacyFullStackBootFacts": []
 }

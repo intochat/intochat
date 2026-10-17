@@ -18,15 +18,20 @@ class WorkspaceSettings extends StatefulWidget {
     this.onOpen,
     this.connectionsRequest,
     this.connectorRequest,
+    this.windowsRequest,
     this.loadModels,
+    this.sectionBuilder,
   });
   final WorkspaceStore store;
   final String initialSection;
   final VoidCallback onClose;
   final Uri? kernelBaseUri;
   final OpenUrl? onOpen;
-  final ConnectionsRequest? connectionsRequest, connectorRequest;
+  final ConnectionsRequest? connectionsRequest,
+      connectorRequest,
+      windowsRequest;
   final ModelCatalogLoader? loadModels;
+  final Widget Function(String section)? sectionBuilder;
   @override
   State<WorkspaceSettings> createState() => _WorkspaceSettingsState();
 }
@@ -83,16 +88,19 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         settings: RouteSettings(name: '/settings/$section'),
-        builder: (_) => WorkspaceSettings(
-          store: widget.store,
-          initialSection: section,
-          onClose: widget.onClose,
-          kernelBaseUri: widget.kernelBaseUri,
-          onOpen: widget.onOpen,
-          connectionsRequest: widget.connectionsRequest,
-          connectorRequest: widget.connectorRequest,
-          loadModels: widget.loadModels,
-        ),
+        builder: (_) =>
+            widget.sectionBuilder?.call(section) ??
+            WorkspaceSettings(
+              store: widget.store,
+              initialSection: section,
+              onClose: widget.onClose,
+              kernelBaseUri: widget.kernelBaseUri,
+              onOpen: widget.onOpen,
+              connectionsRequest: widget.connectionsRequest,
+              connectorRequest: widget.connectorRequest,
+              windowsRequest: widget.windowsRequest,
+              loadModels: widget.loadModels,
+            ),
       ),
     );
   }
@@ -200,6 +208,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
         return ConnectionsSettings(
           request: widget.connectionsRequest,
           connectorRequest: widget.connectorRequest,
+          windowsRequest: widget.windowsRequest,
           onOpen: widget.onOpen,
         );
       case 'models':
@@ -233,7 +242,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
               leading: Icon(Icons.storage_outlined),
               title: Text('Local workspace storage'),
               subtitle: Text(
-                'Projects, conversations, drafts and preferences are saved automatically on this device. Credentials are managed separately. This local copy is not a cloud backup.',
+                'Appearance and personal preferences are saved on this device. Workspace navigation and app content are held by your brain.',
               ),
             ),
             const SizedBox(height: 16),
@@ -296,17 +305,16 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
             Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              initialValue: ['system', 'light', 'dark'].contains(prefs.theme)
-                  ? prefs.theme
-                  : 'system',
+              key: const Key('theme_picker'),
+              initialValue: UiTheme.paletteName(prefs.theme),
               decoration: const InputDecoration(
                 labelText: 'Theme',
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'system', child: Text('Follow system')),
-                DropdownMenuItem(value: 'light', child: Text('Light')),
-                DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                DropdownMenuItem(value: 'midnight', child: Text('Midnight')),
+                DropdownMenuItem(value: 'paper', child: Text('Paper')),
+                DropdownMenuItem(value: 'lumen', child: Text('Lumen')),
               ],
               onChanged: (v) {
                 if (v != null) {
@@ -337,24 +345,6 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
               value: prefs.reducedMotion,
               onChanged: (v) {
                 prefs.reducedMotion = v;
-                widget.store.save();
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Dock at top'),
-              value: prefs.dockTop,
-              onChanged: (v) {
-                prefs.dockTop = v;
-                widget.store.save();
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Side panel on the right'),
-              value: prefs.assistantRight,
-              onChanged: (v) {
-                prefs.assistantRight = v;
                 widget.store.save();
               },
             ),

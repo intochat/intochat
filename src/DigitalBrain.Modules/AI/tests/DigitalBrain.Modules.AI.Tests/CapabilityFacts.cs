@@ -20,10 +20,10 @@ public sealed class CapabilityFacts
     public async Task CapabilitiesListOnlyReadyProvidersModels()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
-            .WithRegistrations(AiRegistrationSeeds.OpenAI())
+        await using var brain = await TestBrain.Create()
+            .WithProvider("OpenAI")
             .WithModule<AIModule>().StartAsync(ct);
-        var capabilities = brain.SiloServices.GetRequiredService<ICapabilities>();
+        var capabilities = brain.Services.GetRequiredService<ICapabilities>();
 
         var first = await capabilities.List(Caller, "llm", ct);
 
@@ -31,7 +31,7 @@ public sealed class CapabilityFacts
         Assert.All(first, capability => Assert.Equal("openai", capability.IntegrationId));
         Assert.All(first, capability => Assert.Equal("llm", capability.Kind));
 
-        await brain.Get<IIntegration>("integration/anthropic")
+        await brain.Integration("anthropic")
             .Configure(new() { Values = { ["ApiKey"] = "test-only", ["Endpoint"] = "https://api.anthropic.com" } });
         var second = await capabilities.List(Caller, "llm", ct);
 

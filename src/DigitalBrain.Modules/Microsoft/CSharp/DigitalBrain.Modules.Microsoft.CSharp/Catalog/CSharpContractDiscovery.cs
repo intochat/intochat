@@ -1,8 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Contracts;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
@@ -10,8 +8,8 @@ public sealed record CSharpContractModule(string Id);
 
 public sealed record CSharpContractCatalogSnapshot(IReadOnlyList<CSharpContractModule> Modules, IReadOnlyList<string> Contracts, string Example, bool Truncated = false);
 
-// What a script author (human or agent) sees: the shared neuron catalog by module.
-public sealed class CSharpContractDiscovery(ContractCatalog catalog)
+// What a script author (human or agent) sees: the kernel's types for the caller's brain, by provider.
+public sealed class CSharpContractDiscovery(IKernelView kernel)
 {
     private const int ResponseBudget = 24000;
 
@@ -32,12 +30,11 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog)
         // Console output is the log. Settings arrive through brain.Setting(name).
         """;
 
-    public Task<CSharpContractCatalogSnapshot> Read(IReadOnlyList<string> moduleIds, CancellationToken cancellationToken = default)
+    public async Task<CSharpContractCatalogSnapshot> Read(IReadOnlyList<string> moduleIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(moduleIds);
-        cancellationToken.ThrowIfCancellationRequested();
-        var types = catalog.Read();
-        var installed = types.GroupBy(type => type.ModuleId, StringComparer.OrdinalIgnoreCase)
+        var types = (await kernel.Types(cancellationToken).ConfigureAwait(false)).Where(type => type.Kind != TypeKind.Connector).ToArray();
+        var installed = types.Where(type => type.Kind == TypeKind.Neuron).GroupBy(type => type.Provider, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(module => module.Key, module => module.ToArray(), StringComparer.OrdinalIgnoreCase);
         var unknown = moduleIds.Where(id => !installed.ContainsKey(id)).ToArray();
         if (unknown.Length > 0)
@@ -46,9 +43,11 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog)
             .Select(module => new CSharpContractModule(module.Key)).ToArray();
         // Discovery with no modules selected lists the module ids only; select ids to read their contracts.
         var contracts = moduleIds.SelectMany(id => installed[id]
-                .OrderBy(type => type.Contract, StringComparer.Ordinal)
-                .Select(type => $"{type.Contract} [neuron id: {type.Id}/<key>] — {type.Description} {{ {string.Join("; ", type.Methods)} }}")
-                .Concat(catalog.Signals.Where(signal => string.Equals(signal.ModuleId, id, StringComparison.OrdinalIgnoreCase)).Select(signal => signal.Shape)))
+                .OrderBy(type => type.Name, StringComparer.Ordinal)
+                .Select(type => $"{type.Name} [neuron id: {type.Alias}/<key>] — {type.Description} {{ {string.Join("; ", type.Shape)} }}")
+                .Concat(types.Where(type => type.Kind == TypeKind.Signal && string.Equals(type.Provider, id, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(signal => signal.Name, StringComparer.Ordinal)
+                    .Select(signal => signal.Name + " { " + string.Join("; ", signal.Shape) + " }")))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var snapshot = new CSharpContractCatalogSnapshot(modules, contracts, Example);
@@ -57,6 +56,6 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog)
             contracts.RemoveAt(contracts.Count - 1);
             snapshot = snapshot with { Contracts = [.. contracts], Truncated = true };
         }
-        return Task.FromResult(snapshot);
+        return snapshot;
     }
 }

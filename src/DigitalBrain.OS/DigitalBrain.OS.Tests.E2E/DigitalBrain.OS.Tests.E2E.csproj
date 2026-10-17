@@ -6,8 +6,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Playwright" />
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
+    <ProjectReference Include="../DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
     <ProjectReference Include="../../DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
     <None Update="testconfig.json" CopyToOutputDirectory="PreserveNewest" />

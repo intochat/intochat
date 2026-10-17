@@ -21,8 +21,6 @@ import '../components/sheet/ui_sheet.dart';
 import '../components/table/ui_data_table.dart';
 import '../components/table/ui_table_controller.dart';
 import '../components/video/ui_video.dart';
-import '../lumen/ino_presence.dart';
-import '../lumen/lumen_brain_graph.dart';
 import '../lumen/lumen_controls.dart';
 import '../lumen/lumen_palette.dart';
 import '../models/ui_part.dart';
@@ -161,24 +159,6 @@ final galleryEntries = [
     ['Normal', 'Loading', 'Error'],
   ),
   const GalleryEntry(
-    'presence',
-    'IntoCaht presence',
-    'Foundations',
-    Icons.face_outlined,
-    'The shared IntoCaht face expresses observed activity and attention.',
-    'InoPresence(state: InoPresenceState.…)',
-    'These presentation examples do not start work or record audio. The component respects reduced motion.',
-    [
-      'Idle',
-      'Listening',
-      'Working',
-      'Waiting',
-      'Completed',
-      'Attention',
-      'Disconnected',
-    ],
-  ),
-  const GalleryEntry(
     'button',
     'Action button',
     'Inputs & actions',
@@ -295,16 +275,6 @@ final galleryEntries = [
     'Drag to rotate and select a sample node or edge. Empty provides no nodes or links.',
     ['Normal', 'Empty'],
     true,
-  ),
-  const GalleryEntry(
-    'brain-graph',
-    'Lumen brain graph',
-    'Graphs',
-    Icons.account_tree_outlined,
-    'The product’s pannable whiteboard of neurons and signal relationships.',
-    'LumenBrainGraph(snapshot: …, onNeuron: …, onSynapse: …)',
-    'This is a fixture snapshot. Select a neuron or relationship to inspect it locally. Stale uses the renderer’s disconnected presentation.',
-    ['Normal', 'Empty', 'Stale'],
   ),
 ];
 
@@ -603,21 +573,6 @@ final class _GalleryPreviewState extends State<GalleryPreview> {
                 ),
                 subtitle: const Text('This is an example of status feedback.'),
               );
-      case 'presence':
-        return Center(
-          child: InoPresence(
-            size: 140,
-            state: switch (_state) {
-              'Listening' => InoPresenceState.listening,
-              'Working' => InoPresenceState.working,
-              'Waiting' => InoPresenceState.waiting,
-              'Completed' => InoPresenceState.completed,
-              'Attention' => InoPresenceState.attention,
-              'Disconnected' => InoPresenceState.disconnected,
-              _ => InoPresenceState.idle,
-            },
-          ),
-        );
       case 'button':
         return _stack([
           UiButton(
@@ -766,60 +721,6 @@ final class _GalleryPreviewState extends State<GalleryPreview> {
             ),
           ),
           Text(_lastAction, style: UiType.bodyMuted),
-        ]);
-      case 'brain-graph':
-        return _stack([
-          SizedBox(
-            height: 380,
-            child: LumenBrainGraph(
-              snapshot: BrainSnapshot(
-                rootId: 'ino',
-                observedAt: DateTime.utc(2026, 1, 1),
-                nodes: _state == 'Empty'
-                    ? const []
-                    : const [
-                        BrainNeuron(
-                          id: 'ino',
-                          type: 'assistant',
-                          name: 'ino',
-                          label: 'IntoCaht',
-                          module: 'AI',
-                        ),
-                        BrainNeuron(
-                          id: 'memory',
-                          type: 'memory',
-                          name: 'memory',
-                          label: 'Memory',
-                          module: 'Memory',
-                        ),
-                        BrainNeuron(
-                          id: 'view',
-                          type: 'view',
-                          name: 'view',
-                          label: 'View',
-                          module: 'UI',
-                        ),
-                      ],
-                synapses: _state == 'Empty'
-                    ? const []
-                    : const [
-                        BrainSynapse(
-                          id: 'ino-memory',
-                          sourceId: 'ino',
-                          targetId: 'memory',
-                          signalType: 'SampleSignal',
-                          kind: 'Subscription',
-                        ),
-                      ],
-              ),
-              stale: _state == 'Stale',
-              onNeuron: (node) =>
-                  setState(() => _lastAction = 'Selected ${node.label}'),
-              onSynapse: (edge) =>
-                  setState(() => _lastAction = edge.signalType),
-            ),
-          ),
-          Text(_lastAction),
         ]);
       default:
         return const SizedBox.shrink();

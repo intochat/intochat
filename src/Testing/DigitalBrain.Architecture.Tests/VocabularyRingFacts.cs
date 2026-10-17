@@ -2,21 +2,27 @@ using System.Reflection;
 
 namespace DigitalBrain.Architecture.Tests;
 
-// The DigitalBrain assembly is what ScriptContracts ships into the sandbox: the four words and the
+// The DigitalBrain assembly is what the kernel's compiled layer ships into the sandbox: the four words and the
 // shapes they carry, nothing else. Anything that fits none of the clauses below belongs in a ring
 // behind it (Framework, Platform, Client); widening the allowlist or the namespace list is a design decision.
 public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IKernel), typeof(Synapse), typeof(IDigitalBrain), typeof(INeuronObserver)];
+    // IKernelView is the ratified script-visible kernel slice (kernel design Q8). ILogic<> is what a rule
+    // implements (spec 2026-10-10 section 6): like Synapse, a shape scripts build on, not one a contract carries.
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(ILogic<>), typeof(IDigitalBrain), typeof(INeuronObserver), typeof(IKernelView)];
 
     // The Contracts ring: DigitalBrain plus every production assembly whose DigitalBrain references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
     // are what scripts compile against, so they root reachability for the vocabulary's shapes.
     private static readonly Assembly[] Ring = ContractsRing();
 
-    private static readonly Dictionary<Type, string> Allowlist = new();
+    private static readonly Dictionary<Type, string> Allowlist = new()
+    {
+        [typeof(Sources)] = "A set of neurons for IDigitalBrain.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
+        [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IDigitalBrain keep that filter.",
+    };
 
     private static readonly string[] Namespaces = ["DigitalBrain"];
 
@@ -26,6 +32,20 @@ public sealed class VocabularyRingFacts
         var reachable = Reachable();
         var offenders = PublicTypes().Where(t => !Fits(t, reachable)).Select(t => Describe(t, reachable)).Order().ToArray();
         Assert.True(offenders.Length == 0, "Types outside the vocabulary rule:\n" + string.Join("\n", offenders));
+    }
+
+    // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
+    // adding one is a design decision, made here.
+    private static readonly string[] InternalsConsumers =
+        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans.Tests.Unit", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts", "DigitalBrain.Testing"];
+
+    [Fact]
+    public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()
+    {
+        var granted = Vocabulary.GetCustomAttributes<System.Runtime.CompilerServices.InternalsVisibleToAttribute>()
+            .Select(attribute => attribute.AssemblyName).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(InternalsConsumers, granted);
     }
 
     [Fact]
@@ -63,16 +83,20 @@ public sealed class VocabularyRingFacts
     }
 
     [Fact]
-    public void TheBrainSeenByAProgramHasExactlyGetOnAndSelf()
+    public void TheBrainSeenByAProgramHasExactlyGetOnSelfAndKernel()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
-        Assert.Equal(["Get", "On", "On"], methods);
-        var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ToArray();
+        Assert.Equal(["Get", "On", "On", "On", "React", "React"], methods);
+        var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ThenBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
         Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
-        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
-        var self = Assert.Single(typeof(IDigitalBrain).GetProperties());
-        Assert.Equal("Self", self.Name);
-        Assert.Equal(typeof(IKernel), self.PropertyType);
+        Assert.Equal([typeof(Sources), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[2].GetParameters().Select(p => p.ParameterType));
+        var reacts = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "React").OrderBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
+        Assert.Equal([typeof(INeuron), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[0].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(Sources), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[1].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal(["Kernel", "Self"], typeof(IDigitalBrain).GetProperties().Select(p => p.Name).Order());
+        Assert.Equal(typeof(IKernelView), typeof(IDigitalBrain).GetProperty("Kernel")!.PropertyType);
+        Assert.Equal(typeof(IBrain), typeof(IDigitalBrain).GetProperty("Self")!.PropertyType);
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());

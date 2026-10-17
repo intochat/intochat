@@ -1,6 +1,5 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Slider;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Slider;
@@ -11,7 +10,7 @@ public sealed class SliderFacts
     public async Task AnotherBrainCannotReadOrChangeTheFirstBrainsSlider()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var first = brain.Get<ISlider>(UiScope.Key("first-brain", "volume"));
         var second = brain.Get<ISlider>(UiScope.Key("second-brain", "volume"));
         await first.Configure(0, 10, 1);
@@ -26,7 +25,7 @@ public sealed class SliderFacts
     public async Task ConfigureAndSetValue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         var slider = brain.Get<ISlider>("vol");
         await slider.Configure(0, 10, 1);

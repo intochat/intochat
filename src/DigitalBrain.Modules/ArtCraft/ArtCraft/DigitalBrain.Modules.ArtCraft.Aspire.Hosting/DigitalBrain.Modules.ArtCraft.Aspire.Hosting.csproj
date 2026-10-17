@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration: PhotoCraft and FilmCraft MCP servers and web builds as containers.</Description>
+    <RootNamespace>DigitalBrain.Modules.ArtCraft.Aspire.Hosting</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DigitalBrain.Modules.ArtCraft.Contracts/DigitalBrain.Modules.ArtCraft.Contracts.csproj" />
+    <ProjectReference Include="../DigitalBrain.Modules.ArtCraft/DigitalBrain.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+  </ItemGroup>
+</Project>

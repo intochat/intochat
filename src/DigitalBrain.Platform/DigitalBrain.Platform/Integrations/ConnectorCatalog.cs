@@ -3,7 +3,8 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Integrations;
 
-internal sealed record ConnectorCatalogEntry(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations, string[] OptionalIntegrations, string[] Neurons, string[] Signals, string ExternalSystem);
+// A connector's neurons and signals are its kernel type entry (TypeKind.Connector, named by Id), not copied here.
+internal sealed record ConnectorCatalogEntry(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations, string[] OptionalIntegrations, string ExternalSystem);
 
 internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connectors, IGrainFactory grains, ILogger<ConnectorCatalog> logger)
 {
@@ -40,7 +41,7 @@ internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connec
                 if (!_entries.TryGetValue(connector.Id, out var entry))
                 {
                     entry = new(connector.Id, connector.DisplayName, connector.AuthMethods, connector.RequiredIntegrations,
-                        connector.OptionalIntegrations, connector.Neurons.Select(t => t.Name).ToArray(), connector.Signals.Select(t => t.Name).ToArray(), connector.ExternalSystem);
+                        connector.OptionalIntegrations, connector.ExternalSystem);
                     _entries.Add(connector.Id, entry);
                 }
                 result.Add(entry);

@@ -14,9 +14,9 @@ public sealed class FakeModelFacts
     private const string Luna = "gpt-5.6-luna";
     private const string Sol = "gpt-5.6-sol";
 
-    private static async Task<IChatClient> Client(ModuleBrain brain, string marker, CancellationToken ct)
+    private static async Task<IChatClient> Client(ITestBrain brain, string marker, CancellationToken ct)
     {
-        var catalog = brain.SiloServices.GetRequiredService<ModelCatalog>();
+        var catalog = brain.Services.GetRequiredService<ModelCatalog>();
         return await catalog.CreateClient(await catalog.Resolve(new(marker), requiresTools: false, ct), ct);
     }
 
@@ -25,7 +25,7 @@ public sealed class FakeModelFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
         var answer = await brain.Get<IGpt56Luna>("default").Generate(new([new("user", [new AiText("hello")])]), ct);
 
@@ -39,7 +39,7 @@ public sealed class FakeModelFacts
         await using var model = await FakeModelServer.StartAsync(ct);
         model.Script(Luna, "from luna");
         model.Script(Sol, "from sol");
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
         using var sol = await Client(brain, nameof(IGpt56Sol), ct);
         using var luna = await Client(brain, nameof(IGpt56Luna), ct);
@@ -56,7 +56,7 @@ public sealed class FakeModelFacts
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
         model.Script(Luna, "streamed");
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
         using var client = await Client(brain, nameof(IGpt56Luna), ct);
 
         var updates = await client.GetStreamingResponseAsync("hi", cancellationToken: ct).ToListAsync(ct);
@@ -72,7 +72,7 @@ public sealed class FakeModelFacts
         var ct = TestContext.Current.CancellationToken;
         await using var model = await FakeModelServer.StartAsync(ct);
         model.Script(Luna, FakeReply.Tool("lookup", """{"q":"x"}"""));
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
         using var client = await Client(brain, nameof(IGpt56Luna), ct);
 
         var response = (await client.GetStreamingResponseAsync("hi", cancellationToken: ct).ToListAsync(ct)).ToChatResponse();

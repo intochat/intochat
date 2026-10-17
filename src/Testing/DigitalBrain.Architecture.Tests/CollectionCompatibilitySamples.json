@@ -98,34 +98,6 @@
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.Compute.Allowance",
-    "Member": "Permissions",
-    "Representation": "array",
-    "Payload": "MAFG7vWRI2NvbXB1dGUuYWxsb3dhbmNl6MABwQHBAcEBwQEJAwEJAwFBIQAAAAAAAAAAAAAAAAAAAABBIQAAAAAAAAAAAAAAAAAAAAApNQADQRlsZWdhY3ktdmFsdWXgwQEhgAAAAAAAAAAAgQAAAAAAAAAA4MEBAQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.Allowance",
-    "Member": "Permissions",
-    "Representation": "list",
-    "Payload": "MAFG7vWRI2NvbXB1dGUuYWxsb3dhbmNl6MABwQHBAcEBwQEJAwEJAwFBIQAAAAAAAAAAAAAAAAAAAABBIQAAAAAAAAAAAAAAAAAAAAAxAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgwQEhgAAAAAAAAAAAgQAAAAAAAAAA4MEBAQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.PendingApproval",
-    "Member": "Permissions",
-    "Representation": "array",
-    "Payload": "MAEdc+mEMWNvbXB1dGUucGVuZGluZy1hcHByb3ZhbOjAAcEBwQHBAUEhAAAAAAAAAAAAAAAAAAAAAMEBIYAAAAAAAAAAAIEAAAAAAAAAAODBASk1AANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.PendingApproval",
-    "Member": "Permissions",
-    "Representation": "list",
-    "Payload": "MAEdc+mEMWNvbXB1dGUucGVuZGluZy1hcHByb3ZhbOjAAcEBwQHBAUEhAAAAAAAAAAAAAAAAAAAAAMEBIYAAAAAAAAAAAIEAAAAAAAAAAODBATEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
     "Type": "DigitalBrain.Flutter.Collection.CollectionDefinition",
     "Member": "Items",
     "Representation": "array",
@@ -200,14 +172,14 @@
     "Member": "Options",
     "Representation": "array",
     "Payload": "MAGarJRXH3VpLnNlbGVjdC1zdGF0ZcABAQHBATEBRBkCayV1aS5zZWxlY3Qtb3B0aW9uW10AAyHoQBlsZWdhY3ktdmFsdWXBEQEB4ODBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false}]"
+    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false,\"Visual\":null}]"
   },
   {
     "Type": "DigitalBrain.Flutter.Select.SelectState",
     "Member": "Options",
     "Representation": "list",
     "Payload": "MAGarJRXH3VpLnNlbGVjdC1zdGF0ZcABAQHBATEBQx8d0GtTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3VpLnNlbGVjdC1vcHRpb25dXQADIehAGWxlZ2FjeS12YWx1ZcERAQHg4MEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false}]"
+    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Enabled\":false,\"Visual\":null}]"
   },
   {
     "Type": "DigitalBrain.Flutter.Surface.SurfaceDefinition",
@@ -263,20 +235,6 @@
     "Member": "Bcc",
     "Representation": "list",
     "Payload": "MAEFy99VLWRiLmdtYWlsLmRyYWZ0LXByZXZpZXfowAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgwQHBASGAAAAAAAAAAACBAAAAAAAAAADgwQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.Aspire.AspireResource",
-    "Member": "Urls",
-    "Representation": "array",
-    "Payload": "MAEBRXTOM21pY3Jvc29mdC5hc3BpcmUucmVzb3VyY2XowAHBAcEBwQEpNQADQRlsZWdhY3ktdmFsdWXg4A==",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.Aspire.AspireResource",
-    "Member": "Urls",
-    "Representation": "list",
-    "Payload": "MAEBRXTOM21pY3Jvc29mdC5hc3BpcmUucmVzb3VyY2XowAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {

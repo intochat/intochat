@@ -2,7 +2,7 @@ using DigitalBrain;
 
 namespace DigitalBrain.Salesforce;
 
-// One Salesforce org connection, keyed connection/{brain}/salesforce/{id}. Connecting, probing and
+// One Salesforce org connection, keyed {brain}/connection/salesforce/{id}. Connecting, probing and
 // disconnecting it are IConnection's; reads may refresh the token and persist it, so none is read-only.
 [Alias("salesforce")]
 [Orleans.Metadata.DefaultGrainType("salesforce")]

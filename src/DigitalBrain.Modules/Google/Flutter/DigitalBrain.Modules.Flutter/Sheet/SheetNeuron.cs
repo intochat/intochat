@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Sheet;
 
 [GrainType(UIVocabulary.SheetType)]
-internal sealed class SheetNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SheetState> store)
+internal sealed class SheetNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SheetState> store)
     : Neuron<SheetState>(store), ISheet
 {
     public Task Set(string title, IReadOnlyList<SheetCell> cells)

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace DigitalBrain.Client.Orleans.Tests.Unit;
 
 public sealed class SubscriptionReadinessFacts
@@ -6,7 +8,7 @@ public sealed class SubscriptionReadinessFacts
     public async Task RecoveryCanPublishTheFirstSignalAfterRegistration()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("ready-publication");
         var callbacks = 0;
         await using var reader = brain.On<Number>(source, async () =>
@@ -27,9 +29,9 @@ public sealed class SubscriptionReadinessFacts
     public async Task AFailedRecoveryReleasesItsRegisteredWatchOnDisposal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("failed-recovery");
-        var client = (BrainClient)brain.Client();
+        var client = brain.Services.GetRequiredService<BrainClient>();
         var failure = new InvalidOperationException("Recovery failed");
         var reader = brain.On<Number>(source, () => Task.FromException(failure), ct).GetAsyncEnumerator(ct);
         try

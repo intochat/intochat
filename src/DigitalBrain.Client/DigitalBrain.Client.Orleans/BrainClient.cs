@@ -24,6 +24,8 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
 
     // A connection key names its grain type (several connectors share IConnection); any other key
     // resolves by the contract's default grain type.
+    public IGrainFactory Grains => cluster;
+
     public T Grain<T>(string key) where T : INeuron => cluster.GetNeuronGrain<T>(cluster.ServiceProvider, key);
 
     // Either token ends the watch: the one given here, or the enumerator's. See WatchStream for

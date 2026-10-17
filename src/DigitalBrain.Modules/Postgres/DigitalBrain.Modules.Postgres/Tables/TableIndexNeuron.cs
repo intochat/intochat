@@ -11,8 +11,8 @@ internal sealed record TableIndexState
 
 [GrainType(GrainType)]
 internal sealed class TableIndexNeuron(
-    [PersistentState("tables", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableIndexState> state)
-    : Neuron, ITableIndex
+    [PersistentState("tables", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TableIndexState> state)
+    : Grain, ITableIndex
 {
     public const string GrainType = "postgres.tables";
 
@@ -47,6 +47,14 @@ internal sealed class TableIndexNeuron(
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
         foreach (var table in state.State.Tables)
         { await GrainFactory.GetGrain<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
+    }
+
+    // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.
+    public async Task Reopen()
+    {
+        await writes.WaitAsync();
+        try { if (state.State.Retired) { await Persist(new()); } }
+        finally { writes.Release(); }
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)

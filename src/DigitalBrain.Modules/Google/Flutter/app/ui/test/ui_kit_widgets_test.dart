@@ -38,7 +38,7 @@ void main() {
     expect(find.text('https://example.com/intro.mp4'), findsOneWidget);
   });
 
-  testWidgets('browser shows title and uri', (tester) async {
+  testWidgets('browser shows its title without a raw URL row', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -53,7 +53,7 @@ void main() {
       ),
     );
     expect(find.text('WinUI'), findsOneWidget);
-    expect(find.text('https://learn.microsoft.com/'), findsOneWidget);
+    expect(find.text('https://learn.microsoft.com/'), findsNothing);
   });
 
   testWidgets('expander shows collapsed status', (tester) async {

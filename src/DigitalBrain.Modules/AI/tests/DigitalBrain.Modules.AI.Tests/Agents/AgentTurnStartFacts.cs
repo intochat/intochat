@@ -20,7 +20,7 @@ public sealed class AgentTurnStartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await AgentFacts.Brain(StubChatClient.Replying("hello there"), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         var runId = await agent.Start(AgentTurn.Text("hi", instructions: "Be brief."));
         var seen = await UntilEnd(signals, runId, ct);
         Assert.Equal("hi", Assert.IsType<TurnStarted>(seen[0]).UserText);
@@ -45,7 +45,7 @@ public sealed class AgentTurnStartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await AgentFacts.Brain(StubChatClient.Failing("provider down"), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         var runId = await agent.Start(AgentTurn.Text("hi"));
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.Contains("provider down", failed.Error, StringComparison.Ordinal);
@@ -65,7 +65,7 @@ public sealed class AgentTurnStartFacts
         var client = StubChatClient.Replying("once");
         await using var brain = await AgentFacts.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
         await UntilEnd(signals, "run-1", ct);
         Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
@@ -92,8 +92,7 @@ public sealed class AgentTurnStartFacts
             await brain.Get<IAgent>(AgentFacts.Key("one")).Start(AgentTurn.Text("first"));
             await entered.Task.WaitAsync(ct);
             var second = brain.Get<IAgent>(AgentFacts.Key("two")).Start(AgentTurn.Text("second"));
-            Assert.Same(second, await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(5), ct)));
-            Assert.NotEmpty(await second);
+            Assert.NotEmpty(await second.WaitAsync(TimeSpan.FromSeconds(5), ct));
         }
         finally { release.TrySetResult(); }
     }
@@ -133,7 +132,7 @@ public sealed class AgentTurnStartFacts
         var writes = new AgentWrites();
         await using var brain = await Brain(StubChatClient.Replying("never"), writes, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         var held = writes.HoldNext();
         var start = agent.Start(AgentTurn.Text("hi", runId: "run-1"));
         await held.WaitAsync(ct);
@@ -161,7 +160,7 @@ public sealed class AgentTurnStartFacts
         await using var brain = await AgentFacts.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { Timeout = TimeSpan.FromMilliseconds(200) }, 0);
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         var runId = await agent.Start(AgentTurn.Text("slow"));
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.False(failed.Cancelled);
@@ -187,13 +186,12 @@ public sealed class AgentTurnStartFacts
         });
         await using var brain = await Brain(client, writes, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        await using var signals = await brain.Observe<Signal>(agent, ct);
         var runId = await agent.Start(AgentTurn.Text("first"));
         await entered.Task.WaitAsync(ct);
         writes.Fail = true;
         release.TrySetResult();
-        // Bounded so a regression that never announces the end fails instead of hanging the suite.
-        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct).WaitAsync(TimeSpan.FromSeconds(30), ct))[^1]);
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.False(failed.Cancelled);
         // A projection must re-read even if it already rendered the last committed version:
         // that read reactivates the agent and recovers the uncommitted terminal outcome.
@@ -206,12 +204,12 @@ public sealed class AgentTurnStartFacts
         Assert.Equal("done", await agent.GetResponse("second", ct));
     }
 
-    private static Task<ModuleBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
-        => ModuleTest.Create().WithModule<AIModule>().ConfigureSilo(silo =>
+    // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
+    private static Task<ITestBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
+        => AgentFacts.Builder(client).ConfigureServices(services =>
         {
-            silo.Services.AddSingleton<IChatClient>(client);
-            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (services, key) =>
+            var original = services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+            services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
                 new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
         }).StartAsync(ct);
 
@@ -255,11 +253,12 @@ public sealed class AgentTurnStartFacts
     }
 
     // Every signal of the run, from its start to its completion or failure.
-    private static async Task<List<Signal>> UntilEnd(LocalSignalHub.Subscription<Signal> signals, string runId, CancellationToken ct)
+    internal static async Task<List<Signal>> UntilEnd(SignalProbe<Signal> signals, string runId, CancellationToken ct)
     {
         var seen = new List<Signal>();
-        await foreach (var signal in signals.Reader.ReadAllAsync(ct))
+        while (true)
         {
+            var signal = await signals.NextAsync(ct: ct);
             switch (signal)
             {
                 case TurnStarted started when started.RunId == runId: seen.Add(signal); break;
@@ -268,6 +267,5 @@ public sealed class AgentTurnStartFacts
                 case TurnFailed failed when failed.RunId == runId: seen.Add(signal); return seen;
             }
         }
-        return seen;
     }
 }

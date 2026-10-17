@@ -9,8 +9,8 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Person;
 
 [GrainType(UIVocabulary.PersonType)]
-internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PersonState> store)
-    : Neuron<PersonState>(store), IPerson
+internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PersonState> store)
+    : Neuron<PersonState>(store), IPerson, ISharedPersonReader
 {
     public Task Set(string displayName, string avatarUrl)
     {
@@ -25,4 +25,11 @@ internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.D
     }
 
     [ReadOnly] public Task<PersonState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+}
+
+// Module-only leaf access after the viewer Space neuron authorizes the exact reference.
+[Orleans.Metadata.DefaultGrainType(UIVocabulary.PersonType)]
+internal interface ISharedPersonReader : IGrainWithStringKey
+{
+    Task<PersonState> Read();
 }

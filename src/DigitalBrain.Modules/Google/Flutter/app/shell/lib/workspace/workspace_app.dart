@@ -1,24 +1,24 @@
 import 'dart:async';
-import 'dart:ui' show SemanticsRole;
+import 'dart:convert';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
+import '../space/neuron_space.dart';
+import '../space/space_controller.dart';
+import 'home/app_detail_screen.dart';
 import 'workspace_store.dart';
-import 'neuron_workspace_persistence.dart';
-import 'workspace_remote_controller.dart';
-import 'workspace_desktop.dart';
+import 'workspace_link.dart';
 import 'workspace_settings.dart';
-import 'workspace_routes.dart';
-
 import 'compute_usage_panel.dart';
-import 'compute_usage_history.dart';
-import 'workspace_islands.dart';
 import 'csharp/csharp_manager.dart';
-import 'home/home_screen.dart';
+import 'workspace_preferences_io.dart'
+    if (dart.library.js_interop) 'workspace_preferences_web.dart'
+    as preferences;
 
 class WorkspaceApp extends StatefulWidget {
   const WorkspaceApp({
@@ -26,1144 +26,497 @@ class WorkspaceApp extends StatefulWidget {
     this.store,
     this.onSwitchAccount,
     this.initialLocation,
-    this.persistenceKey = 'intocaht.workspace.v1',
+    this.persistenceKey = 'digitalbrain.preferences.v1',
     this.onOpenUrl,
     this.kernelBaseUri,
     this.statusMessage,
-    this.onReadTable,
-    this.onUpdateTableView,
-    this.onListTables,
     this.programmingClient,
-    this.connectedSources = const [],
   });
   final WorkspaceStore? store;
   final Future<void> Function()? onSwitchAccount;
-  final Uri? initialLocation;
+  final Uri? initialLocation, kernelBaseUri;
   final String persistenceKey;
   final OpenUrl? onOpenUrl;
-  final Uri? kernelBaseUri;
   final String? statusMessage;
-  final ReadTable? onReadTable;
-  final UpdateTableView? onUpdateTableView;
-  final ListTables? onListTables;
   final DigitalBrainUiClient? programmingClient;
-
-  /// Sources the shell knows are connected; pushed to the workspace so first-run prompts match.
-  final List<String> connectedSources;
   @override
   State<WorkspaceApp> createState() => _WorkspaceAppState();
 }
 
-class _WorkspaceAppState extends State<WorkspaceApp> {
+class _WorkspaceAppState extends State<WorkspaceApp>
+    with WidgetsBindingObserver {
+  // A connector may mount any app-authored root. Product composition stays in that app.
+  static const _root = String.fromEnvironment('DIGITALBRAIN_ROOT');
+  static const _rootKind = String.fromEnvironment(
+    'DIGITALBRAIN_ROOT_KIND',
+    defaultValue: 'layout',
+  );
   late final WorkspaceStore store =
       widget.store ??
       WorkspaceStore(
-        seedProject: false,
-        persistence: widget.programmingClient == null
-            ? MemoryWorkspacePersistence()
-            : NeuronWorkspacePersistence(client: widget.programmingClient!),
+        readPreferences: () =>
+            preferences.readPreferences(widget.persistenceKey),
+        writePreferences: (value) =>
+            preferences.writePreferences(widget.persistenceKey, value),
       );
-  final _tables = <String, UiTableController>{};
-  final _remote = <String, WorkspaceRemoteController>{};
-  final _remoteCancelled = Completer<void>();
-  final _apps = <String, List<InstalledAppSummary>>{};
-  final _appsLoading = <String>{};
-  final _sourcesSynced = <String>{};
-  final _computeRefresh = ValueNotifier<int>(0);
+  final _navigator = GlobalKey<NavigatorState>();
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+  SpaceController? _space;
+  String? _rootName;
+  String? _activationApp;
+  String _renderKind = 'layout';
+  String? _brain;
+  Object? _startupError;
+  bool _developerMode = false;
+  bool _ready = false;
+  Uri? _pendingLocation;
+  @override
+  void initState() {
+    super.initState();
+    _pendingLocation = widget.initialLocation;
+    WidgetsBinding.instance.addObserver(this);
+    store.addListener(_changed);
+    unawaited(_start());
+  }
 
-  void _connectWorkspaces() {
-    final client = widget.programmingClient;
-    if (client == null || !_ready) return;
-    store.onRemoteWindowAction = (workspace, window, open) =>
-        unawaited(_remoteAction(workspace, window, open));
-    for (final project in store.projects) {
-      if (_remote.containsKey(project.id)) continue;
-      if (_sourcesSynced.add(project.id)) {
+  @override
+  Future<bool> didPushRouteInformation(
+    RouteInformation routeInformation,
+  ) async {
+    final action = workspaceLink(routeInformation.uri);
+    if (action == null) return false;
+    if (!_ready) {
+      _pendingLocation = routeInformation.uri;
+    } else {
+      await _openLink(routeInformation.uri, action);
+    }
+    return true;
+  }
+
+  Future<void> _openLink(Uri location, Map<String, dynamic> action) async {
+    await _activate(action);
+    if (!mounted) return;
+    final route = location.fragment.startsWith('/')
+        ? Uri.parse(location.fragment)
+        : location;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
         unawaited(
-          client
-              .setConnectedSources(project.id, widget.connectedSources)
-              .then((snapshot) {
-                if (mounted) store.reconcileWorkspace(project, snapshot);
-              })
-              .catchError((Object _) {}),
+          SystemNavigator.routeInformationUpdated(uri: route, replace: true),
         );
       }
-      final controller = WorkspaceRemoteController(
-        read: (id) =>
-            client.readWorkspace(id, cancelled: _remoteCancelled.future),
-        watch: client.watchWorkspace,
-        apply: (state) {
-          if (mounted) store.reconcileWorkspace(project, state);
-        },
-        onError: (error) {
-          if (mounted) {
-            _messenger.currentState?.showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Workspace connection interrupted. Reconnecting…',
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _start() async {
+    await store.load();
+    final client = widget.programmingClient;
+    if (client == null || !mounted) return;
+    try {
+      final brain = client.defaultBrainId;
+      if (brain == null) throw StateError('No brain selected.');
+      await _selectBrain(brain);
+      if (!mounted) return;
+      _ready = true;
+      final location = _pendingLocation;
+      _pendingLocation = null;
+      if (workspaceLink(location) case final action?) {
+        await _openLink(location!, action);
+      }
+      unawaited(
+        client
+            .readCapabilities()
+            .then((value) {
+              if (mounted) setState(() => _developerMode = value.developerMode);
+            })
+            .catchError((Object _) {}),
+      );
+      if (_rootName == null &&
+          widget.initialLocation?.path.startsWith('/settings') == true) {
+        await _space!.show('$brain/apps/settings');
+      }
+    } catch (error) {
+      if (mounted) setState(() => _startupError = error);
+    }
+  }
+
+  Future<void> _selectBrain(String brain, {String? show}) async {
+    if (_brain == brain) return;
+    if (_root.isNotEmpty) {
+      _space?.dispose();
+      _space = null;
+      setState(() {
+        _brain = brain;
+        _rootName = '$brain/$_root';
+        _renderKind = _rootKind;
+      });
+      return;
+    }
+    final client = widget.programmingClient!;
+    final connection = await client.appRequest(brain, 'connect', body: {});
+    if (connection['root'] case final Map root) {
+      final name = root['name'] as String;
+      final kind = root['kind'] as String;
+      if (!mounted) return;
+      _space?.dispose();
+      _space = null;
+      setState(() {
+        _brain = brain;
+        _rootName = name;
+        _activationApp = connection['activationApp'] as String?;
+        _renderKind = kind;
+      });
+      return;
+    }
+    _rootName = null;
+    _activationApp = null;
+    final old = _space;
+    final controller = SpaceController(
+      client: client,
+      scenes: client.scenes(brain),
+      brain: brain,
+    );
+    // Initial connection exposes its read error and retry on the space screen.
+    if (old == null) {
+      _brain = brain;
+      _space = controller;
+      if (mounted) setState(() {});
+      await controller.start();
+      return;
+    }
+    try {
+      await controller.start();
+      if (controller.error.value case final Object problem) throw problem;
+      if (show != null) await controller.show(show);
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      setState(() {
+        _brain = brain;
+        _space = controller;
+      });
+      old.dispose();
+    } catch (_) {
+      controller.dispose();
+      rethrow;
+    }
+  }
+
+  Future<Uint8List?> _icon(String neuron, String icon) async {
+    final client = widget.programmingClient;
+    if (client == null) return null;
+    final marker = neuron.indexOf('/apps/');
+    if (marker <= 0) return null;
+    final brain = neuron.substring(0, marker);
+    final app = neuron.substring(marker + 6).split('/').first;
+    final manifest = await client.readAppManifest(brain, app);
+    if (manifest.icon != icon || shellIcon(icon) != null) return null;
+    return client.readBytes(
+      '/brains/${Uri.encodeComponent(brain)}/apps/${Uri.encodeComponent(app)}/icon',
+    );
+  }
+
+  Future<void> _activate(Map<String, dynamic> action) async {
+    final client = widget.programmingClient;
+    if (client == null) return;
+    try {
+      if (action['kind'] == 'account') {
+        await widget.onSwitchAccount?.call();
+        return;
+      }
+      final brain = action['brainId'] as String? ?? _brain!;
+      final app = action['application'] as String?;
+      final neuron =
+          action['neuron'] as String? ??
+          (app == null ? null : '$brain/apps/$app');
+      final changingBrain = brain != _brain;
+      if (changingBrain) {
+        final brains = await client.listBrains();
+        if (!brains.any((entry) => entry.id == brain)) {
+          throw StateError('This account is not a member of that brain.');
+        }
+        if (!mounted) return;
+        await _selectBrain(
+          brain,
+          show:
+              action['view'] == 'configuration' ||
+                  action['kind'] == 'connections'
+              ? null
+              : neuron,
+        );
+      }
+      if (action['view'] == 'configuration' && app != null) {
+        if (!mounted) return;
+        _navigator.currentState?.push(
+          MaterialPageRoute<void>(
+            builder: (_) => AppDetailScreen(
+              workspaceId: brain,
+              installedName: app,
+              request: client.jsonRequest,
+              onOpen: (name) =>
+                  _activate({'brainId': brain, 'application': name}),
+              loadIcon: client.readBytes,
+            ),
+          ),
+        );
+        return;
+      }
+      if (action['kind'] == 'connections') {
+        if (!mounted) return;
+        showDialog<void>(
+          context: _navigator.currentContext!,
+          builder: (_) => Dialog(
+            child: SizedBox(
+              width: 560,
+              height: 520,
+              child: ConnectWindow(
+                request: (path, {body}) =>
+                    client.workspaceConnectionsRequest(brain, path, body: body),
+                connectorRequest: (path, {body}) =>
+                    client.connectorRequest(brain, path, body: body),
+                windowsRequest: (path, {body}) =>
+                    client.workspaceWindowsRequest(brain, path, body: body),
+                onOpen: widget.onOpenUrl,
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+      if (_rootName != null) {
+        final receiver = _activationApp;
+        if (receiver == null) {
+          throw StateError('This root has no navigation receiver.');
+        }
+        await client.requestApp(
+          brain,
+          receiver,
+          'activate',
+          jsonEncode(action),
+        );
+        return;
+      }
+      if (neuron != null && !changingBrain) await _space!.show(neuron);
+      if (action['operation'] case final String operation) {
+        if (app != null) {
+          await client.requestApp(
+            brain,
+            app,
+            operation,
+            action['input'] as String? ?? '',
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        _messenger.currentState?.showSnackBar(
+          SnackBar(content: Text('Could not navigate: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _request(String operation, String input) async {
+    final client = widget.programmingClient, space = _space;
+    if (client == null || space == null) return;
+    final prefix = '${space.brain}/apps/';
+    final focused = space.view.value.focused;
+    if (!focused.startsWith(prefix)) return;
+    try {
+      await client.requestApp(
+        space.brain,
+        focused.substring(prefix.length).split('/').first,
+        operation,
+        input,
+      );
+    } catch (error) {
+      if (mounted) {
+        _messenger.currentState?.showSnackBar(
+          SnackBar(content: Text('Could not run action: $error')),
+        );
+      }
+    }
+  }
+
+  Widget _settings(String section) => WorkspaceSettings(
+    store: store,
+    initialSection: section,
+    onClose: () => _navigator.currentState?.pop(),
+    kernelBaseUri: widget.kernelBaseUri,
+    onOpen: widget.onOpenUrl,
+    connectionsRequest: (path, {body}) => widget.programmingClient!
+        .workspaceConnectionsRequest(_brain!, path, body: body),
+    connectorRequest: (path, {body}) =>
+        widget.programmingClient!.connectorRequest(_brain!, path, body: body),
+    windowsRequest: (path, {body}) => widget.programmingClient!
+        .workspaceWindowsRequest(_brain!, path, body: body),
+    loadModels: widget.programmingClient!.readModelCatalog,
+    sectionBuilder: _settings,
+  );
+  Future<void> _tool(String name) async {
+    final client = widget.programmingClient!;
+    final navigator = _navigator.currentState!;
+    try {
+      switch (name) {
+        case 'preferences':
+          navigator.push(
+            MaterialPageRoute<void>(
+              settings: const RouteSettings(name: '/settings/general'),
+              builder: (_) => _settings('general'),
+            ),
+          );
+        case 'connections':
+          await _activate({'kind': 'connections'});
+        case 'compute':
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                body: ComputeUsagePanel(
+                  client: client,
+                  workspaceId: _brain!,
+                  workspaceName: _brain!,
+                  onClose: () => navigator.pop(),
+                ),
+              ),
+            ),
+          );
+        case 'csharp':
+          if (_developerMode) {
+            navigator.push(
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('C# files')),
+                  body: CSharpManager(
+                    request: (method, path, {body}) =>
+                        client.csharpRequest(_brain!, method, path, body: body),
+                    onAsk: (id, prompt) => unawaited(
+                      client.requestApp(_brain!, 'ino', 'ask', prompt),
+                    ),
+                    onSelected: (_) {},
+                  ),
                 ),
               ),
             );
           }
-        },
-      );
-      _remote[project.id] = controller;
-      controller.start(project.id);
-    }
-  }
-
-  Future<void> _remoteAction(String workspace, String window, bool open) async {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    try {
-      final revision = store.remoteRevisions[workspace] ?? 0;
-      final state = open
-          ? await client.reopenWorkspaceWindow(workspace, window, revision)
-          : await client.closeWorkspaceWindow(workspace, window, revision);
-      if (!mounted) return;
-      final project = store.projects.firstWhere((p) => p.id == workspace);
-      store.reconcileWorkspace(
-        project,
-        state,
-        openedWindowId: open ? window : null,
-      );
-      if (open && workspace == store.selectedProjectId) {
-        store.focusWindow(window);
+        case 'new':
+          final brain = await client.createWorkspace();
+          if (mounted) await _selectBrain(brain);
+        case 'switch':
+          await widget.onSwitchAccount?.call();
       }
     } catch (error) {
-      await _remote[workspace]?.refresh();
       if (mounted) {
         _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Window changed. Please try again. $error')),
+          SnackBar(content: Text('Could not open tool: $error')),
         );
       }
     }
   }
 
-  final _hydratingTables = <String>{};
-  final _tableErrors = <String, String>{};
-
-  final _messenger = GlobalKey<ScaffoldMessengerState>();
-  final _navigator = GlobalKey<NavigatorState>();
-  late final WorkspaceRouteBridge _routes;
-  late final Uri _initialLocation;
-  bool _ready = false, _directory = false, _mobileWork = false;
-  // Null follows the desktop: Home when nothing is open, the desktop when windows are.
-  // Opening something or the Home island makes it an explicit choice.
-  bool? _homeChoice;
-  bool get _home =>
-      _homeChoice ?? store.currentProject.presentation.openArtifactIds.isEmpty;
-  String _query = '';
-  @override
-  void initState() {
-    super.initState();
-    _initialLocation =
-        widget.initialLocation ??
-        Uri.parse(WidgetsBinding.instance.platformDispatcher.defaultRouteName);
-    _routes = WorkspaceRouteBridge(onNavigate: _navigateRoute);
-    store.addListener(_changed);
-    _load();
-  }
-
-  Future<void> _load() async {
-    await store.load();
-    if (!mounted) return;
-    if (store.loadFailed) {
-      setState(() {});
-      return;
-    }
-    if (store.projects.isEmpty) {
-      final owned = widget.programmingClient?.defaultBrainId;
-      if (owned == null) {
-        store.createProject('Personal');
-      } else {
-        final conversation = WorkspaceConversation(
-          id: 'initial',
-          title: 'New conversation',
-        );
-        store.projects.add(
-          WorkspaceProject(
-            id: owned,
-            title: 'Personal',
-            conversations: [conversation],
-            selectedConversationId: conversation.id,
-          ),
-        );
-        store.selectedProjectId = owned;
-        store.save();
-      }
-    }
-    if (!mounted) return;
-    setState(() => _ready = true);
-    _connectWorkspaces();
-    _loadApps(store.currentProject.id);
-    _loadCapabilities();
-    _navigateRoute(_initialLocation);
-  }
-
-  int _reloadGeneration = 0;
-  Future<void> _reloadSavedState(BuildContext context) async {
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reload saved state?'),
-        content: const Text(
-          'Unsaved changes in this session will be discarded. Copy any work you want to keep before reloading. The original device copy will be retained; its import will be skipped for this session.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep my changes'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Discard and reload'),
-          ),
-        ],
+  Widget _menu() => PopupMenuButton<String>(
+    tooltip: 'Profile',
+    icon: const Icon(Icons.person_outline),
+    onSelected: (value) => unawaited(_tool(value)),
+    itemBuilder: (_) => [
+      const PopupMenuItem(
+        value: 'preferences',
+        child: Text('Workspace configuration'),
       ),
-    );
-    if (discard != true || !mounted) return;
-    for (final controller in _remote.values) {
-      controller.dispose();
-    }
-    _remote.clear();
-    _sourcesSynced.clear();
-    for (final table in _tables.values) {
-      table.dispose();
-    }
-    _tables.clear();
-    setState(() {
-      _ready = false;
-      _reloadGeneration++;
-    });
-    await store.reload();
-    if (mounted) await _load();
-  }
-
-  void _loadCapabilities() {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    unawaited(
-      client
-          .readCapabilities()
-          .then((capabilities) {
-            if (mounted) store.developerMode = capabilities.developerMode;
-          })
-          .catchError((Object _) {}),
-    );
-  }
-
-  void _navigateRoute(Uri uri) {
-    if (!_ready || !mounted) return;
-    final segments = uri.pathSegments;
-    _navigator.currentState?.popUntil((route) => route.isFirst);
-    if (segments.firstOrNull == 'settings') {
-      if (segments.length == 1 && widget.programmingClient != null) {
-        unawaited(_openApplication('settings'));
-        return;
-      }
-      void showSettings() {
-        if (!mounted) return;
-        final section = segments.length > 2 && segments[2] == 'gallery'
-            ? 'ui-kit'
-            : segments.length > 1
-            ? segments[1]
-            : 'general';
-        _navigator.currentState?.push(
-          MaterialPageRoute<void>(
-            settings: RouteSettings(name: '/settings/$section'),
-            builder: (_) => _settingsApp(
-              () => _navigator.currentState?.pop(),
-              section: section,
-            ),
-          ),
-        );
-      }
-
-      if (_navigator.currentState != null) {
-        showSettings();
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) => showSettings());
-      }
-      return;
-    }
-    setState(() {
-      final id = segments.length > 1 ? segments[1] : null;
-      if (segments.firstOrNull == 'projects' &&
-          id != null &&
-          store.projects.any((project) => project.id == id)) {
-        store.selectProject(id);
-        _directory = false;
-      } else {
-        _directory = false;
-      }
-    });
-  }
-
-  String? _lastSelectedProject;
-
-  void _changed() {
-    _connectWorkspaces();
-    // A switch re-reads the workspace authoritatively, so a window opened remotely while this
-    // workspace was in the background appears even if its change event was missed.
-    if (store.selectedProjectId != _lastSelectedProject) {
-      _lastSelectedProject = store.selectedProjectId;
-      final controller = _remote[_lastSelectedProject];
-      if (controller != null) unawaited(controller.refresh());
-    }
-    if (store.projects.isNotEmpty) _loadApps(store.currentProject.id);
-    if (mounted) setState(() {});
-  }
-
-  void _loadApps(String workspaceId) {
-    final client = widget.programmingClient;
-    if (client == null ||
-        _apps.containsKey(workspaceId) ||
-        !_appsLoading.add(workspaceId)) {
-      return;
-    }
-    unawaited(
-      client
-          .listInstalledApps(workspaceId)
-          .then((apps) {
-            if (!mounted) return;
-            _apps[workspaceId] = apps;
-            setState(() {});
-          })
-          .catchError((Object _) {
-            _appsLoading.remove(workspaceId);
-          }),
-    );
-  }
-
+      const PopupMenuItem(value: 'connections', child: Text('Connections')),
+      const PopupMenuItem(value: 'compute', child: Text('Compute')),
+      if (_developerMode)
+        const PopupMenuItem(value: 'csharp', child: Text('C# files')),
+      const PopupMenuItem(value: 'new', child: Text('New workspace')),
+      if (widget.onSwitchAccount != null)
+        const PopupMenuItem(value: 'switch', child: Text('Switch account')),
+    ],
+  );
   @override
   void dispose() {
-    _computeRefresh.dispose();
-    _remoteCancelled.complete();
-    for (final controller in _remote.values) {
-      controller.dispose();
-    }
-    store.onRemoteWindowAction = null;
-    _routes.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _space?.dispose();
     store.removeListener(_changed);
-    for (final t in _tables.values) {
-      t.dispose();
-    }
     if (widget.store == null) store.dispose();
     super.dispose();
   }
 
-  void _accept(Map<String, dynamic> result, {WorkspaceProject? project}) {
-    final destination = project ?? store.currentProject;
-    if (result['remoteManaged'] == true) {
-      final window = result['windowId'] as String?;
-      if (window != null) {
-        unawaited(_remoteAction(destination.id, window, true));
-      }
-      return;
-    }
-    final id = result['id'] as String?;
-    if (id == null) return;
-    if (result['kind'] == 'table') {
-      try {
-        final snapshot = TableSnapshot.fromJson(result);
-        final existing = _tables[id];
-        if (existing == null) {
-          _tables[id] = UiTableController(
-            workspace: destination.id,
-            snapshot: snapshot,
-            read: widget.onReadTable,
-            update: widget.onUpdateTableView,
-          );
-          _tables[id]!.addListener(() {
-            final snapshot = _tables[id]!.snapshot;
-            for (final project in store.projects) {
-              for (final artifact in project.artifacts.where(
-                (a) => a.id == id,
-              )) {
-                artifact.data = {
-                  ...snapshot.toJson(),
-                  '_revision': snapshot.revision,
-                };
-                artifact.editorState = {
-                  ...artifact.editorState,
-                  'filters': snapshot.filters.map((f) => f.toJson()).toList(),
-                  'sort': snapshot.sort?.toJson(),
-                  'visibleColumns': snapshot.visibleColumns,
-                  'filteredRows': snapshot.filteredRows,
-                };
-              }
-            }
-            store.save();
-          });
-        } else if (snapshot.rows.isEmpty &&
-            snapshot.revision > existing.snapshot.revision &&
-            existing.read != null) {
-          unawaited(existing.acceptSavedView(snapshot));
-        } else {
-          existing.accept(snapshot);
-        }
-        result = _tables[id]!.snapshot.toJson();
-        _tableErrors.remove(id);
-      } catch (_) {
-        return;
-      }
-    }
-    final content = result['content'] is Map
-        ? Map<String, dynamic>.from(result['content'] as Map)
-        : result;
-    final artifact = WorkspaceArtifact(
-      id: id,
-      title: result['title'] as String? ?? 'Untitled work',
-      kind: result['kind'] as String? ?? 'document',
-      content: content['source'] as String? ?? '',
-      data: {
-        ...content,
-        if (result['revision'] != null) '_revision': result['revision'],
-      },
-      editorState: content['editorState'] is Map
-          ? Map<String, dynamic>.from(content['editorState'] as Map)
-          : result['kind'] == 'table'
-          ? {
-              'filters': result['filters'],
-              'sort': result['sort'],
-              'filteredRows': result['filteredRows'],
-              'visibleColumns': result['visibleColumns'],
-            }
-          : null,
-    );
-    final existing = destination.artifacts.where((a) => a.id == id).firstOrNull;
-    if (existing == null) {
-      destination.artifacts.add(artifact);
-      store.save();
-    } else if ((existing.data['_revision'] as num? ?? 0) <=
-        (artifact.data['_revision'] as num? ?? 0)) {
-      existing.title = artifact.title;
-      existing.kind = artifact.kind;
-      existing.content = artifact.content;
-      existing.data = artifact.data;
-      if (artifact.editorState.isNotEmpty) {
-        existing.editorState = {
-          ...existing.editorState,
-          ...artifact.editorState,
-        };
-      }
-      store.save();
-    }
-    if (destination.id == store.currentProject.id) store.openArtifact(id);
-  }
-
-  Future<void> _open(WorkspaceArtifact a) async {
-    if (_home) setState(() => _homeChoice = false);
-    final destination = store.currentProject;
-    if (a.kind == 'app') {
-      if (a.data['app'] == 'csharp' && !store.developerMode) return;
-      await _launchApp(a.data['app'] as String);
-      return;
-    }
-    store.openArtifact(a.id);
-    if (a.kind == 'table' && !_tables.containsKey(a.id)) {
-      if (widget.onReadTable != null) {
-        try {
-          final snapshot = await widget.onReadTable!(destination.id, a.id);
-          if (mounted) _accept(snapshot.toJson(), project: destination);
-        } catch (e) {
-          _messenger.currentState?.showSnackBar(
-            SnackBar(content: Text('Could not open table: $e')),
-          );
-        }
-      } else {
-        try {
-          _accept(a.data);
-        } catch (_) {}
-      }
-    }
-  }
-
-  IconData _icon(String kind) => switch (kind) {
-    'table' => Icons.table_chart_outlined,
-    'chart' => Icons.bar_chart_rounded,
-    'image' => Icons.image_outlined,
-    'brain' => Icons.hub_outlined,
-    'diagram' => Icons.draw_outlined,
-    _ => Icons.description_outlined,
-  };
-  Future<void> _hydrateTable(
-    WorkspaceArtifact artifact,
-    WorkspaceProject project,
-  ) async {
-    try {
-      final snapshot = widget.onReadTable == null
-          ? TableSnapshot.fromJson(artifact.data)
-          : await widget.onReadTable!(project.id, artifact.id);
-      if (mounted) _accept(snapshot.toJson(), project: project);
-    } catch (e) {
-      _tableErrors[artifact.id] = 'Could not load table: $e';
-    } finally {
-      _hydratingTables.remove(artifact.id);
-      if (mounted) setState(() {});
-    }
-  }
-
-  Widget _editor(WorkspaceArtifact a) {
-    if ((a.kind == 'surface' || a.data['surface'] is Map) &&
-        widget.programmingClient != null) {
-      final client = widget.programmingClient!;
-      final surface = Map<String, dynamic>.from(
-        a.data['surface'] as Map? ?? a.data,
-      );
-      final workspace = store.currentProject.id;
-      return _region(
-        a.title,
-        NeuronView(
-          kind: surface['kind'] as String? ?? 'surface',
-          name: surface['name'] as String,
-          load: (kind, name) => client.appRequest(
-            workspace,
-            'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-          ),
-          onActivate: (result) => _accept(result),
-          onAction: (event) async {
-            await client.appRequest(workspace, 'event', body: event);
-          },
-        ),
-      );
-    }
-    if (a.kind == 'app') {
-      final client = widget.programmingClient;
-      if (client == null) {
-        return const Center(
-          child: Text('Connect to IntoChat to open local apps.'),
-        );
-      }
-      if (a.data['app'] == 'csharp') {
-        if (!store.developerMode) {
-          return const Center(
-            child: Text('C# files are available in developer mode only.'),
-          );
-        }
-        final project = store.currentProject;
-        return CSharpManager(
-          key: ValueKey('${project.id}-${a.id}'),
-          initialId: a.data['selected'] as String?,
-          active: !project.presentation.minimizedArtifactIds.contains(a.id),
-          request: (method, path, {body}) =>
-              client.csharpRequest(project.id, method, path, body: body),
-          onSelected: (id) {
-            a.data['selected'] = id;
-            store.save();
-          },
-          onAsk: (id, prompt) => _openApplication(
-            'assistant',
-            arguments: {'draft': prompt, 'title': 'C# app: $id'},
-          ),
-        );
-      }
-      return const Center(child: Text('This application has been retired.'));
-    }
-
-    if (a.kind == 'table' && _tables[a.id] == null) {
-      if (!_hydratingTables.contains(a.id) && !_tableErrors.containsKey(a.id)) {
-        _hydratingTables.add(a.id);
-        final project = store.currentProject;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _hydrateTable(a, project);
-        });
-      }
-      return _region(
-        a.title,
-        Center(
-          child: _tableErrors[a.id] == null
-              ? const CircularProgressIndicator()
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_tableErrors[a.id]!),
-                    TextButton(
-                      onPressed: () {
-                        _tableErrors.remove(a.id);
-                        setState(() {});
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-        ),
-      );
-    }
-    if (a.kind == 'table') {
-      return _region(a.title, UiDataTable(controller: _tables[a.id]!));
-    }
-    return _region(
-      a.title,
-      Center(child: Text('This window type is not available yet: ${a.kind}')),
-    );
-  }
-
-  Widget _region(String title, Widget child) => Semantics(
-    container: true,
-    explicitChildNodes: true,
-    role: SemanticsRole.region,
-    label: title,
-    child: child,
-  );
-
-  Widget _pane(WorkspaceArtifact a) => _editor(a);
-  Future<void> _projectFiles(BuildContext context) async {
-    final project = store.currentProject;
-    final choice = await showDialog<(String, String)>(
-      context: context,
-      builder: (dialogContext) {
-        var query = '';
-        return StatefulBuilder(
-          builder: (context, update) => AlertDialog(
-            title: const Text('Saved work'),
-            content: SizedBox(
-              width: 560,
-              height: 400,
-              child: Column(
-                children: [
-                  TextField(
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Find a table, document or image',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (value) =>
-                        update(() => query = value.toLowerCase()),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        if (project.artifacts.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text('Your saved work will appear here.'),
-                          ),
-                        for (final a in project.artifacts.where(
-                          (a) => a.title.toLowerCase().contains(query),
-                        ))
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(_icon(a.kind), size: 22),
-                            title: Text(
-                              a.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(a.kind),
-                            onTap: () =>
-                                Navigator.pop(dialogContext, (a.id, 'open')),
-                            trailing: PopupMenuButton<String>(
-                              tooltip: 'Open options',
-                              onSelected: (mode) =>
-                                  Navigator.pop(dialogContext, (a.id, mode)),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'beside',
-                                  child: Text('Open beside'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'floating',
-                                  child: Text('Open as window'),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (!mounted || choice == null || store.currentProject.id != project.id) {
-      return;
-    }
-    if (choice.$2 == 'beside') {
-      store.openBeside(choice.$1);
-    } else if (choice.$2 == 'floating') {
-      store.openArtifact(choice.$1, placement: 'floating');
-    }
-    await _open(project.artifacts.firstWhere((a) => a.id == choice.$1));
-  }
-
-  // Home stands in for the desktop until something opens; the Home island brings it back.
-  Widget _main(BuildContext context) => _home ? _homeScreen() : _work(context);
-
-  Widget _homeScreen() {
-    final client = widget.programmingClient;
-    final project = store.currentProject;
-    return HomeScreen(
-      key: ValueKey('${client?.workspaceIdentity}/${project.id}'),
-      workspaceId: project.id,
-      request: client?.jsonRequest,
-      loadIcon: client?.readBytes,
-      localApps: [
-        if (store.developerMode)
-          const LocalApp(id: 'csharp', title: 'C# files', icon: Icons.code),
-      ],
-      onLaunchLocal: _launchApp,
-      onOpen: _openApplication,
-      dock: store.settings.dock,
-      onDock: (name) {
-        store.settings.dock = name;
-        store.save();
-        setState(() {});
-      },
-      onAppsChanged: () {
-        _apps.remove(project.id);
-        _appsLoading.remove(project.id);
-        _loadApps(project.id);
-      },
-    );
-  }
-
-  Widget _work(BuildContext context) => WorkspaceDesktop(
-    key: ValueKey('desktop-${store.currentProject.id}'),
-    store: store,
-    editorBuilder: _pane,
-    editorStateToken: (artifact) => Object.hash(
-      _tables[artifact.id],
-      _tableErrors[artifact.id],
-      artifact.data['selected'],
-      artifact.data['refresh'],
-    ),
-  );
-
-  // The side panel holds whichever installed app the person docked, if it can open.
-  String? get _dockedApp {
-    final name = store.settings.dock;
-    final apps = _apps[store.currentProject.id];
-    if (widget.programmingClient == null || name.isEmpty || apps == null) {
-      return null;
-    }
-    return apps.any((app) => app.id == name && app.operations.contains('open'))
-        ? name
-        : null;
-  }
-
-  Widget _workspace(BuildContext context) => LayoutBuilder(
-    builder: (context, c) {
-      final mobile = c.maxWidth < 760;
-      final client = widget.programmingClient;
-      final docked = _dockedApp;
-      if (docked == null) return _main(context);
-      // _dockedApp is non-null only with a client.
-      final api = client!;
-      final project = store.currentProject;
-      final panel = ApplicationSurface(
-        key: ValueKey('${project.id}/$docked'),
-        client: api,
-        workspace: project.id,
-        application: docked,
-        start: () => api.openDockedApp(project.id, docked),
-        onActivate: (result) => _accept(result),
-      );
-      if (mobile) {
-        return Column(
-          children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Side panel')),
-                ButtonSegment(value: true, label: Text('Workspace')),
-              ],
-              selected: {_mobileWork},
-              onSelectionChanged: (v) => setState(() => _mobileWork = v.first),
-            ),
-            Expanded(
-              child: IndexedStack(
-                index: _mobileWork ? 1 : 0,
-                children: [panel, _main(context)],
-              ),
-            ),
-          ],
-        );
-      }
-      final width = store.currentProject.presentation.chatWidth.clamp(
-        300.0,
-        c.maxWidth * .6,
-      );
-      return Row(
-        textDirection: store.settings.assistantRight
-            ? TextDirection.rtl
-            : TextDirection.ltr,
-        children: [
-          Offstage(
-            offstage: store.currentProject.presentation.chatCollapsed,
-            child: SizedBox(width: width, child: panel),
-          ),
-          if (!store.currentProject.presentation.chatCollapsed)
-            MouseRegion(
-              cursor: SystemMouseCursors.resizeColumn,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragUpdate: (d) => store.setChatWidth(
-                  (width + d.delta.dx).clamp(300.0, c.maxWidth * .6),
-                ),
-                child: const SizedBox(
-                  width: 8,
-                  child: Center(child: Icon(Icons.drag_indicator, size: 14)),
-                ),
-              ),
-            ),
-          Expanded(child: _main(context)),
-        ],
-      );
-    },
-  );
   @override
   Widget build(BuildContext context) => MaterialApp(
     navigatorKey: _navigator,
-    navigatorObservers: [_routes],
-    initialRoute: '/',
     scaffoldMessengerKey: _messenger,
-    title: 'IntoChat',
     debugShowCheckedModeBanner: false,
-    theme: UiTheme.workspace(Brightness.light).copyWith(
-      visualDensity: store.settings.compactDensity
-          ? VisualDensity.compact
-          : VisualDensity.standard,
+    theme: UiTheme.workspace(Brightness.light),
+    darkTheme: UiTheme.workspaceDark(store.settings.theme),
+    themeMode: UiTheme.modeFor(store.settings.theme),
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        disableAnimations:
+            store.settings.reducedMotion ||
+            MediaQuery.disableAnimationsOf(context),
+      ),
+      child: child!,
     ),
-    darkTheme: UiTheme.workspace(Brightness.dark).copyWith(
-      visualDensity: store.settings.compactDensity
-          ? VisualDensity.compact
-          : VisualDensity.standard,
-    ),
-    themeAnimationDuration: store.settings.reducedMotion
-        ? Duration.zero
-        : kThemeAnimationDuration,
-    builder: (context, child) {
-      if (_ready) {
-        _routes.sync(
-          _directory
-              ? '/projects'
-              : '/projects/${store.currentProject.id}/workspace',
-        );
-      }
-      return MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          disableAnimations:
-              store.settings.reducedMotion ||
-              MediaQuery.of(context).disableAnimations,
-        ),
-        child: UiThemeScope(
-          brightness: Theme.of(context).brightness,
-          child: Theme(data: Theme.of(context), child: child!),
-        ),
-      );
-    },
-    themeMode: switch (store.settings.theme) {
-      'dark' => ThemeMode.dark,
-      'light' => ThemeMode.light,
-      _ => ThemeMode.system,
-    },
-    home: Builder(
-      builder: (context) => Scaffold(
-        body: !_ready
-            ? Center(
-                child: store.loadFailed
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(store.persistenceError!),
-                          TextButton(
-                            onPressed: () async {
-                              await store.reload();
-                              if (mounted) await _load();
-                            },
-                            child: const Text('Retry loading'),
-                          ),
-                        ],
-                      )
-                    : const CircularProgressIndicator(),
-              )
-            : Column(
-                children: [
-                  if (widget.statusMessage != null)
-                    MaterialBanner(
-                      content: Text(widget.statusMessage!),
-                      actions: const [SizedBox.shrink()],
-                    ),
-                  if (store.persistenceError != null)
-                    MaterialBanner(
-                      content: Text(store.persistenceError!),
-                      actions: [
-                        TextButton(
-                          onPressed: store.save,
-                          child: const Text('Retry saving'),
-                        ),
-                        TextButton(
-                          onPressed: () => _reloadSavedState(context),
-                          child: const Text('Reload saved state'),
-                        ),
-                      ],
-                    ),
-                  if (widget.programmingClient == null && widget.store == null)
-                    const Text(
-                      'Offline session: changes are temporary and will be lost when this session closes.',
-                    ),
-                  if (store.settings.dockTop) _islands(context),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                      child: KeyedSubtree(
-                        key: ValueKey(_reloadGeneration),
-                        child: _workspace(context),
-                      ),
-                    ),
-                  ),
-                  if (!store.settings.dockTop) _islands(context),
-                ],
+    home: Scaffold(
+      body: _rootName != null && _brain != null
+          ? SafeArea(
+              child: NeuronView(
+                key: ValueKey(_rootName),
+                kind: _renderKind,
+                name: _rootName!,
+                load: (kind, name) => widget.programmingClient!.appRequest(
+                  _brain!,
+                  'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                ),
+                onAction: (event) async {
+                  await widget.programmingClient!.appRequest(
+                    _brain!,
+                    'event',
+                    body: event,
+                  );
+                },
+                onActivate: (action) => unawaited(_activate(action)),
+                scenes: widget.programmingClient!.scenes(_brain!),
               ),
-      ),
-    ),
-  );
-  Widget _islands(BuildContext context) => WorkspaceIslands(
-    store: store,
-    onHome: () => setState(() => _homeChoice = !_home),
-    home: _home,
-    sidePanel: _dockedApp != null,
-    onRestore: (id) =>
-        _open(store.currentProject.artifacts.firstWhere((a) => a.id == id)),
-    onNewWorkspace: () async {
-      final input = TextEditingController();
-      final name = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('New workspace'),
-          content: TextField(
-            controller: input,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Workspace name'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, input.text),
-              child: const Text('Create workspace'),
-            ),
-          ],
-        ),
-      );
-      if (name != null && mounted) {
-        try {
-          final client = widget.programmingClient;
-          final id = client?.accountId != null
-              ? await client!.createWorkspace()
-              : null;
-          if (!mounted) return;
-          store.createProject(
-            name.trim().isEmpty ? 'Untitled workspace' : name,
-            id: id,
-          );
-        } on Object {
-          if (mounted) {
-            _messenger.currentState?.showSnackBar(
-              const SnackBar(
-                content: Text('Could not create workspace. Please try again.'),
+            )
+          : _space == null
+          ? Center(
+              child: Text(
+                _startupError?.toString() ??
+                    widget.statusMessage ??
+                    'Connect to your brain to begin.',
               ),
-            );
-          }
-        }
-      }
-    },
-    onSwitchAccount: widget.onSwitchAccount,
-    onSavedWork: () => _projectFiles(context),
-    onSearch: () => _search(context),
-    onCompute: widget.programmingClient == null
-        ? null
-        : () => _openCompute(context),
-    onSettings: widget.programmingClient == null
-        ? () => _openConfiguration(context)
-        : () => _openApplication('settings'),
-    onConfiguration: widget.programmingClient == null
-        ? null
-        : () => _openConfiguration(context),
-  );
-
-  void _openConfiguration(BuildContext context) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      settings: const RouteSettings(name: '/settings/general'),
-      builder: (_) => _settingsApp(() => Navigator.of(context).pop()),
+            )
+          : NeuronSpace(
+              key: ValueKey(_brain),
+              controller: _space!,
+              load: (kind, name) => widget.programmingClient!.appRequest(
+                _brain!,
+                'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+              ),
+              watch: (kind, name) => widget.programmingClient!
+                  .watchNode(_brain!, kind, name)
+                  .map((_) {}),
+              onAction: (event) async {
+                await widget.programmingClient!.appRequest(
+                  _brain!,
+                  'event',
+                  body: event,
+                );
+              },
+              onActivate: (action) => unawaited(_activate(action)),
+              onRequest: _request,
+              loadIcon: _icon,
+              menu: _menu(),
+              onSettings: () => unawaited(
+                _space!.show('$_brain/apps/settings').catchError((Object _) {}),
+              ),
+            ),
     ),
   );
-
-  void _openCompute(BuildContext context) {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    final project = store.currentProject;
-    Widget panel(BuildContext dialogContext) => ComputeUsagePanel(
-      client: client,
-      workspaceId: project.id,
-      workspaceName: project.title,
-      refreshSignal: _computeRefresh,
-      savedHistory: () => savedComputeHistory(project),
-      onClose: () => Navigator.of(dialogContext).pop(),
-    );
-    final size = MediaQuery.sizeOf(context);
-    if (size.width < 600) {
-      showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (sheetContext) => SizedBox(
-          height: MediaQuery.sizeOf(sheetContext).height * .85,
-          child: panel(sheetContext),
-        ),
-      );
-      return;
-    }
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        alignment: store.settings.dockTop
-            ? Alignment.topRight
-            : Alignment.bottomRight,
-        insetPadding: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          top: store.settings.dockTop ? 76 : 12,
-          bottom: store.settings.dockTop ? 12 : 76,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          width: 480,
-          height: (size.height - 110).clamp(280.0, 680.0),
-          child: panel(dialogContext),
-        ),
-      ),
-    );
-  }
-
-  Widget _settingsApp(VoidCallback onClose, {String section = 'general'}) =>
-      WorkspaceSettings(
-        store: store,
-        initialSection: section,
-        onClose: onClose,
-        kernelBaseUri: widget.kernelBaseUri,
-        onOpen: widget.onOpenUrl,
-        connectionsRequest: _connectionsRequest,
-        connectorRequest: _connectorRequest,
-        loadModels: widget.programmingClient?.readModelCatalog,
-      );
-
-  ConnectionsRequest? get _connectorRequest {
-    final client = widget.programmingClient;
-    if (client == null) return null;
-    final workspaceId = store.currentProject.id;
-    return (path, {body}) =>
-        client.connectorRequest(workspaceId, path, body: body);
-  }
-
-  ConnectionsRequest? get _connectionsRequest {
-    final client = widget.programmingClient;
-    if (client == null) return null;
-    final workspaceId = store.currentProject.id;
-    return (path, {body}) =>
-        client.workspaceConnectionsRequest(workspaceId, path, body: body);
-  }
-
-  Future<void> _openApplication(
-    String application, {
-    Map<String, dynamic> arguments = const {},
-  }) async {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    final project = store.currentProject;
-    try {
-      final result = await client.openApp(project.id, application, arguments);
-      if (!mounted) return;
-      // The app may have committed its window before the watch invalidation
-      // reaches us. Reconcile that state before revealing a remote artifact.
-      final workspace = await client.readWorkspace(
-        project.id,
-        cancelled: _remoteCancelled.future,
-      );
-      if (!mounted) return;
-      store.reconcileWorkspace(
-        project,
-        workspace,
-        openedWindowId: result['id'] as String?,
-      );
-      final opened = Map<String, dynamic>.from(result as Map);
-      if (opened['surface'] is String) {
-        opened['surface'] = {'kind': 'surface', 'name': opened['surface']};
-      }
-      if (opened['surface'] is Map) opened['kind'] = 'surface';
-      _accept(opened, project: project);
-      setState(() => _homeChoice = false);
-      if (store.currentProject.id == project.id) {
-        store.openArtifact(result['id'] as String, placement: 'floating');
-      }
-    } catch (error) {
-      if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not open application: $error')),
-        );
-      }
-    }
-  }
-
-  Future<void> _launchApp(String appId) async {
-    switch (appId) {
-      case 'csharp':
-        if (store.developerMode) {
-          store.launchLocalApp(appId);
-          setState(() => _homeChoice = false);
-        }
-      default:
-        await _openApplication(appId);
-    }
-  }
-
-  void _search(BuildContext context) {
-    _query = '';
-    showDialog<void>(
-      context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, update) => AlertDialog(
-          title: TextField(
-            autofocus: true,
-            decoration: const InputDecoration(hintText: 'Search project work'),
-            onChanged: (v) => update(() => _query = v.toLowerCase()),
-          ),
-          content: SizedBox(
-            width: 480,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final a in store.currentProject.artifacts.where(
-                  (a) => a.title.toLowerCase().contains(_query),
-                ))
-                  ListTile(
-                    leading: Icon(_icon(a.kind)),
-                    title: Text(a.title),
-                    onTap: () {
-                      Navigator.pop(c);
-                      _open(a);
-                      setState(() => _mobileWork = true);
-                    },
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

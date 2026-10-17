@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,9 +11,10 @@ namespace DigitalBrain.Apps;
 internal static class AppsEndpoints
 {
     public sealed record TextRequest(string? Text);
-    public sealed record AskRequest(string? Operation, string? Input);
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
+    public sealed record RequestBody(string? Operation, string? Input);
+    public sealed record SynapseBody(string? Sentence, string[]? Focus, Guid? OperationId);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -23,7 +23,9 @@ internal static class AppsEndpoints
         apps.MapGet("", (IDigitalBrain brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
             var scope = BrainScope.CurrentId();
-            var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
+            List<string> names = [];
+            await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
+            names.Sort(StringComparer.Ordinal);
             var listings = await marketplace.List(ct);
             var items = new List<object>();
             foreach (var name in names)
@@ -58,8 +60,13 @@ internal static class AppsEndpoints
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapGet("/{name}", (string name, IDigitalBrain brain, CancellationToken ct)
-            => Respond(async () => Results.Ok(View(await App(brain, name).Read().WaitAsync(ct)))));
+        apps.MapGet("/{name}", (string name, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            return snapshot.Manifest.Title.Length == 0
+                ? throw new KeyNotFoundException($"No app named {name} exists in this brain.")
+                : Results.Ok(View(snapshot));
+        }));
 
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
         {
@@ -70,6 +77,22 @@ internal static class AppsEndpoints
         apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, IDigitalBrain brain) => Respond(async () =>
         {
             var snapshot = await creator.Implement(brain, Key(name), request?.Text);
+            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
+        }));
+
+        // A request is published for a synapse to react to; nothing waits for the app to answer.
+        apps.MapPost("/{name}/request", (string name, RequestBody? request, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            var id = await App(brain, name).Request(request?.Operation ?? "ask", request?.Input ?? "{}").WaitAsync(ct);
+            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", new { requestId = id });
+        }));
+
+        // The fast path: one sentence becomes one synapse of the app. The request is recorded and the app answers
+        // at once; the synapse, or why it was rejected, lands in the app's synapses.
+        apps.MapPost("/{name}/synapse", (string name, SynapseBody? body, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(body?.Sentence);
+            var snapshot = await App(brain, name).WriteSynapse(body.Sentence, body.Focus ?? [], body.OperationId ?? Guid.NewGuid()).WaitAsync(ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
@@ -85,7 +108,7 @@ internal static class AppsEndpoints
         apps.MapPost("/{name}/publish", (string name, IDigitalBrain brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
 
-        // Development only: writes an edited copy of a shipped app back into the vendor's folder.
+        // Development only: writes an edited copy of a feature back into its owner's features folder.
         apps.MapPost("/{name}/save-to-source", (string name, IDigitalBrain brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).SaveToSource()))));
 
@@ -97,9 +120,6 @@ internal static class AppsEndpoints
             var snapshot = await App(brain, name).Read().WaitAsync(ct);
             return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
         }));
-
-        apps.MapPost("/{name}/ask", (string name, AskRequest? request, IDigitalBrain brain, CancellationToken ct)
-            => Respond(() => Ask(App(brain, name), request?.Operation ?? "ask", request?.Input ?? "{}", ct)));
 
         apps.MapGet("/{name}/export", (string name, IDigitalBrain brain, CancellationToken ct)
             => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
@@ -166,25 +186,21 @@ internal static class AppsEndpoints
         publishedVersion = snapshot.PublishedVersion,
         origin = snapshot.Origin,
         edited = snapshot.Edited,
+        synapses = (snapshot.Synapses ?? []).Select(synapse => new
+        {
+            operationId = synapse.OperationId,
+            sentence = synapse.Sentence,
+            focus = synapse.Focus,
+            status = synapse.Status.ToString(),
+            requestedAt = synapse.RequestedAt,
+            errors = synapse.Errors,
+            path = synapse.Path,
+            hash = synapse.Hash,
+            elapsedMs = synapse.ElapsedMs,
+            attempts = synapse.Attempts,
+            @base = synapse.Base,
+        }).ToArray(),
     };
-
-    internal static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
-    {
-        var started = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
-        // The app's answer is pushed when it responds; the request's own abort is the only limit.
-        var invocation = await app.Await(started.Id).WaitAsync(ct);
-        if (invocation.Status != InvocationStatus.Completed || invocation.Output is null)
-        { return Results.UnprocessableEntity(new { error = invocation.Error ?? "The app returned no output.", invocationId = invocation.Id }); }
-        try
-        {
-            using var output = JsonDocument.Parse(invocation.Output);
-            return Results.Ok(output.RootElement.Clone());
-        }
-        catch (JsonException)
-        {
-            return Results.Text(invocation.Output);
-        }
-    }
 
     internal static async Task<IResult> Respond(Func<Task<IResult>> handler)
     {

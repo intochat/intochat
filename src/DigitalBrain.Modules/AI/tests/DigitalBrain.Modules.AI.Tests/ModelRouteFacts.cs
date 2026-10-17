@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models.OpenAI;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,19 +16,12 @@ public sealed class ModelRouteFacts
     {
         var ct = TestContext.Current.CancellationToken;
         const string apiKey = "model-catalog-secret-canary";
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .WithExecution(new()
-            {
-                PrivateConfiguration = new Dictionary<string, string?>
-                {
-                    [IntegrationSchema.Key("openai", "ApiKey")] = apiKey,
-                    [AuthOptions.PostureKey] = "Secured",
-                    [AuthOptions.Key(nameof(AuthOptions.Username))] = "owner",
-                    [AuthOptions.Key(nameof(AuthOptions.Password))] = "catalog-test-password",
-                },
-            })
-            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(ai => ai.WithLlm<IGpt56Luna>()))
-            .WithHttpEdge()
+        await using var brain = await TestBrain.Create().WithModule<AIModule>()
+            .WithProvider("OpenAI", apiKey: apiKey)
+            .WithConfiguration(AuthOptions.PostureKey, "Secured")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Username)), "owner")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Password)), "catalog-test-password")
+            .WithOptions<AIModule, AIOptions>(ai => ai.WithLlm<IGpt56Luna>())
             .StartAsync(ct);
 
         using var anonymous = await brain.HttpClient.GetAsync("/ai/models", ct);

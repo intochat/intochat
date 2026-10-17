@@ -6,12 +6,12 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
-using DigitalBrain.Testing.E2E;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
 // Builds the real AppHost model without starting any resource. The CSharp module owns
 // compilation and authoring; the product uses the same connector set as the reference composition.
+[Collection(AppHostComposition.Collection)]
 public sealed class ProductCompositionFacts
 {
     [Fact]
@@ -42,15 +42,17 @@ public sealed class ProductCompositionFacts
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
             ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
-        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
         var key = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SectionName, nameof(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SandboxUrl));
         Assert.IsType<EndpointReference>(environment[key]);
         var sandbox = appHost.Resources.Single(resource => resource.Name == DigitalBrain.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
-        // Always on: the OS never starts it on demand, and readiness never waits for it.
+        // Always on, and independently healthy before the OS bootstraps its persistent scripts.
         Assert.DoesNotContain(sandbox.Annotations, annotation => annotation.GetType().Name == "ExplicitStartupAnnotation");
+        Assert.Contains(runtime.Annotations.OfType<WaitAnnotation>(), wait => ReferenceEquals(wait.Resource, sandbox)
+            && wait.WaitType == WaitType.WaitUntilHealthy);
     }
 
     [Fact]
@@ -68,9 +70,14 @@ public sealed class ProductCompositionFacts
         Assert.Contains("qdrant", productModules);
         Assert.DoesNotContain("memory", productModules);
         Assert.DoesNotContain("registry", catalogModules);
-        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"
-            && resource is ParameterResource { Secret: true });
-        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
+        Assert.DoesNotContain(appHost.Resources.OfType<ParameterResource>(), resource =>
+            resource.Name.Contains("api-key", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("client-secret", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("consumer-key", StringComparison.OrdinalIgnoreCase)
+            || resource.Name.Contains("consumer-secret", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
+        Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("ollama", StringComparison.OrdinalIgnoreCase));
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>())
@@ -78,7 +85,5 @@ public sealed class ProductCompositionFacts
             await callback.Callback(context);
         }
         Assert.Equal("IDeepSeekV41Flash", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Model")]);
-        Assert.True(environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(
-            DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("openrouter", "ApiKey"))));
     }
 }

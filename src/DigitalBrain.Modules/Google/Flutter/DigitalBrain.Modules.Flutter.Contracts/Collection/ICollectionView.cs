@@ -15,7 +15,10 @@ public interface ICollectionView : INeuron
 [GenerateSerializer, Alias("ui.collection-definition")]
 public sealed record CollectionDefinition([property: Id(0)] CollectionItem[] Items, [property: Id(1)] string? Selection = null, [property: Id(2)] string? Cursor = null, [property: Id(3)] string? Error = null,
     [property: Id(4)] bool FileMode = true, [property: Id(5)] bool SelectionEnabled = true,
-    [property: Id(6)] string? EmptyLabel = null);
+    [property: Id(6)] string? EmptyLabel = null, [property: Id(7)] CollectionBreadcrumb[]? Breadcrumbs = null);
+
+[GenerateSerializer, Alias("ui.collection-breadcrumb")]
+public sealed record CollectionBreadcrumb([property: Id(0)] string Id, [property: Id(1)] string Label);
 
 [GenerateSerializer, Alias("ui.collection-state")]
 public sealed class CollectionState

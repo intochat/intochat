@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../DigitalBrain.OS/DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj" />
     <!-- Pack roots of PackedCompositionFacts: referenced so the CI build covers them before the no-build pack. -->
     <ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <None Update="Fixtures/*.cs.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

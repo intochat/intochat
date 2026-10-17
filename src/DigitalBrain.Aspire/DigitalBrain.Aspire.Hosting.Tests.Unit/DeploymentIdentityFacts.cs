@@ -4,9 +4,13 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Platform.Identity.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
@@ -19,7 +23,8 @@ public sealed class DeploymentIdentityFacts
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "custom.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName))] = "intochat-protection-v1";
-        var brain = builder.AddDigitalBrain("memory", options: new() { UseAzureStorage = true })
+        var brain = builder.AddDigitalBrain("memory", options: new())
+            .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
             .WithHttpIdentity();
         var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
         var client = builder.AddExecutable("mcp", "unused", ".").WithReference(brain.AsClient(shareHttpIdentity: true));
@@ -31,7 +36,10 @@ public sealed class DeploymentIdentityFacts
             Assert.Equal("custom.session", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))]);
             Assert.Equal("IntoChat.v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName)))]);
             Assert.Equal("intochat-protection-v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)))]);
-            Assert.Contains("ConnectionStrings__" + DigitalBrainNames.GrainState, values.Keys);
+            // The silo shares the client's cookie key store through the orleans integration; the client by reference.
+            Assert.Contains(resource == server.Resource
+                ? DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField)
+                : "ConnectionStrings__" + DigitalBrainNames.GrainState, values.Keys);
         }
     }
 
@@ -52,12 +60,51 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
+    public async Task SecuredHostsReceiveTheConfiguredBootstrapCredential()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "owner";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "test-only-bootstrap-password";
+        var brain = builder.AddDigitalBrain("memory");
+        var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
+        var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
+        foreach (var resource in new[] { server.Resource, client.Resource })
+        {
+            var values = new Dictionary<string, object>();
+            var context = new EnvironmentCallbackContext(builder.ExecutionContext, resource, values, TestContext.Current.CancellationToken);
+            foreach (var annotation in resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+            { await annotation.Callback(context); }
+            Assert.Equal("owner", values[DigitalBrainConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username)))]);
+            var password = Assert.IsType<ParameterResource>(values[DigitalBrainConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))]);
+            Assert.True(password.Secret);
+            Assert.Null(password.Default);
+            Assert.Equal("{digitalbrain-bootstrap-password.value}", password.ValueExpression);
+            Assert.Equal("test-only-bootstrap-password", await ((IValueProvider)password).GetValueAsync(TestContext.Current.CancellationToken));
+            Assert.Same(Assert.Single(builder.Resources.OfType<ParameterResource>(), parameter => parameter.Name == "digitalbrain-bootstrap-password"), password);
+        }
+    }
+
+    [Theory]
+    [InlineData("owner", null)]
+    [InlineData(null, "test-only-password")]
+    public void IncompleteBootstrapCredentialsAreRejected(string? username, string? password)
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = username;
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = password;
+        Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrain("memory"));
+    }
+    [Fact]
     public void BlobContainerIdentityDoesNotInheritTheAspireResourcePrefix()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var original = builder.AddDigitalBrain("Modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var original = builder.AddDigitalBrain("Modules", options: new() { PersistentStorage = false })
+            .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
             .AddBlobContainer("cookie-protection");
-        var renamed = builder.AddDigitalBrain("Renamed", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var renamed = builder.AddDigitalBrain("Renamed", options: new() { PersistentStorage = false })
+            .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
             .AddBlobContainer("cookie-protection");
         Assert.Equal("Modules-cookie-protection", original.Resource.Name);
         Assert.Equal("Renamed-cookie-protection", renamed.Resource.Name);
@@ -78,10 +125,10 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
-    public async Task ScopedResourcesProjectStableProviderServiceKeys()
+    public async Task TheSiloReadsTheOrleansIntegrationAndClientsAStableClusteringServiceKey()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddDigitalBrain("renamed", options: new() { UseAzureStorage = true });
+        var brain = builder.AddDigitalBrain("renamed", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
         var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
         foreach (var resource in new[] { server.Resource, client.Resource })
@@ -89,13 +136,27 @@ public sealed class DeploymentIdentityFacts
             var configuration = await ExecutionConfigurationBuilder.Create(resource).WithEnvironmentVariablesConfig()
                 .AddExecutionConfigurationGatherer(new ServiceKeys())
                 .BuildAsync(builder.ExecutionContext, NullLogger.Instance, TestContext.Current.CancellationToken);
-            Assert.Equal(DigitalBrainNames.Clustering, configuration.EnvironmentVariables.ToDictionary()["Orleans__Clustering__ServiceKey"]);
+            var keys = configuration.EnvironmentVariables.ToDictionary();
             if (resource == server.Resource)
             {
-                Assert.Equal(DigitalBrainNames.Reminders, configuration.EnvironmentVariables.ToDictionary()["Orleans__Reminders__ServiceKey"]);
-                Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
+                Assert.DoesNotContain(keys.Keys, key => key.StartsWith("Orleans__", StringComparison.Ordinal));
+                var environment = await DigitalBrain.Aspire.Testing.AspireCompositionTest.EnvironmentOf(builder, resource, TestContext.Current.CancellationToken);
+                foreach (var field in new[] { OrleansStorageHosting.ClusteringField, OrleansStorageHosting.GrainStateField, OrleansStorageHosting.RemindersField })
+                { Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", field), environment.Keys); }
             }
+            else { Assert.Equal(DigitalBrainNames.Clustering, keys["Orleans__Clustering__ServiceKey"]); }
         }
+    }
+
+    [Fact]
+    public void ASiloHostWaitsForAGracefulLeaveOnStop()
+    {
+        var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        host.Configuration[AuthOptions.PostureKey] = "Open";
+        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, _ => { });
+        using var provider = host.Services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<HostOptions>>().Get(null);
+        Assert.Equal(TimeSpan.FromSeconds(40), options.ShutdownTimeout);
     }
 
     private sealed class ServiceKeys : IExecutionConfigurationGatherer
@@ -122,11 +183,42 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
+    public void ServiceIdAndClusterIdComeFromConfigurationWithTheIntoChatDefault()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var defaults = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"));
+        Assert.Equal("intochat", defaults.ServiceId);
+        Assert.Equal("intochat", defaults.ClusterId);
+        Assert.Equal(DigitalBrainNames.GrainStateContainer, defaults.GrainStateContainer);
+
+        builder.Configuration[DigitalBrainHostingOptions.ServiceIdKey] = "intochat-rabc1234";
+        builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey] = "intochat-rabc1234";
+        builder.Configuration[DigitalBrainHostingOptions.GrainStateContainerKey] = "brain-rabc1234";
+        var revision = builder.AddDigitalBrain("Revision", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"));
+        Assert.Equal("intochat-rabc1234", revision.ServiceId);
+        Assert.Equal("intochat-rabc1234", revision.ClusterId);
+        Assert.Equal("brain-rabc1234", revision.GrainStateContainer);
+    }
+
+    [Fact]
+    public void ADevelopmentRunGetsAClusterOfItsOwnUnderTheStableServiceId()
+    {
+        var first = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--environment", "Development"], DisableDashboard = true });
+        var second = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--environment", "Development"], DisableDashboard = true });
+
+        var one = first.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(first.Configuration, "intochat"));
+        var two = second.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(second.Configuration, "intochat"));
+
+        Assert.Equal(("intochat", "intochat"), (one.ServiceId, two.ServiceId));
+        Assert.NotEqual(one.ClusterId, two.ClusterId);
+    }
+
+    [Fact]
     public void MultipleServersRequireExplicitSelectionAndResolveTheirOwnBrain()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", new DigitalBrainHostingOptions { ServiceId = "first-data", UseAzureStorage = true, ClusterId = "first-run" });
-        var second = builder.AddDigitalBrain("second", new DigitalBrainHostingOptions { ServiceId = "second-data", UseAzureStorage = true, ClusterId = "second-run" });
+        var first = builder.AddDigitalBrain("first", new DigitalBrainHostingOptions { ServiceId = "first-data", ClusterId = "first-run" }).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var second = builder.AddDigitalBrain("second", new DigitalBrainHostingOptions { ServiceId = "second-data", ClusterId = "second-run" }).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         builder.AddExecutable("first-server", "dotnet", ".").WithReference(first);
         builder.AddExecutable("second-server", "dotnet", ".").WithReference(second);
         Assert.Throws<InvalidOperationException>(() => SiloHosts.Select(builder.Resources));

@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using DigitalBrain;
-using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.WebBrowser.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Playwright;
@@ -9,40 +8,31 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.WebBrowser;
 
-[GenerateSerializer]
-internal sealed class BrowserBindingState
-{
-    [Id(0)] public string? PlaywrightKey { get; set; }
-    [Id(1)] public string? StatusTextName { get; set; }
-}
-
 [GrainType(UIVocabulary.WebBrowserType), Reentrant]
 internal sealed class WebBrowserNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WebBrowserState> store,
-    [PersistentState("binding", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<BrowserBindingState> binding)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WebBrowserState> store)
     : Neuron<WebBrowserState>(store), IWebBrowser, IWebBrowserConnector
 {
+    private const int ReasonClip = 200;
     private string? _session;
     private int _port;
-    private bool _ready;
+    private BrowserConnection _connection;
+    private string _error = "";
+    private string _actualUrl = "";
     private long _generation;
     private Task? _connecting;
     private Task? _disconnecting;
-    private string DriverKey => binding.State.PlaywrightKey ?? this.GetPrimaryKeyString();
+    private string DriverKey => Snapshot.PlaywrightKey ?? this.GetPrimaryKeyString();
     private IPlaywright Driver => GrainFactory.GetGrain<IPlaywright>(DriverKey);
 
-    public async Task Configure(string playwrightKey, string? statusTextName = null)
+    public async Task Configure(string playwrightKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playwrightKey);
-        if (statusTextName is not null) { ArgumentException.ThrowIfNullOrWhiteSpace(statusTextName); }
-        if (binding.State.PlaywrightKey == playwrightKey && binding.State.StatusTextName == statusTextName) { return; }
+        if (Snapshot.PlaywrightKey == playwrightKey) { return; }
         if (_session is not null && DriverKey != playwrightKey)
         { throw new InvalidOperationException("Disconnect the browser before changing its driver."); }
-        var previous = binding.State;
-        binding.State = new() { PlaywrightKey = playwrightKey, StatusTextName = statusTextName };
-        try { await binding.WriteStateAsync(); }
-        catch { binding.State = previous; throw; }
-        await Status(_ready ? "Ready" : "Waiting for browser…");
+        var current = Snapshot;
+        await SaveQuietly(new() { Name = current.Name, Version = current.Version, Uri = current.Uri, Title = current.Title, PlaywrightKey = playwrightKey });
     }
 
     public Task Connect(int port, string sessionId)
@@ -60,7 +50,7 @@ internal sealed class WebBrowserNeuron(
         var repeated = _session == sessionId && _port == port;
         _session = sessionId;
         _port = port;
-        if (!repeated) { _ready = false; }
+        if (!repeated) { await Observe(BrowserConnection.Waiting, ""); }
         DelayDeactivation(Timeout.InfiniteTimeSpan);
         try
         {
@@ -68,15 +58,14 @@ internal sealed class WebBrowserNeuron(
             if (generation != _generation) { return; }
             await Driver.Attach(new(port, sessionId));
         }
-        catch
+        catch (Exception error)
         {
             if (generation == _generation)
             {
                 _session = null;
                 _port = 0;
-                _ready = false;
+                await Observe(BrowserConnection.Unavailable, error.Message);
                 DelayDeactivation(TimeSpan.Zero);
-                await Status("Browser unavailable");
                 if (generation == _generation)
                 { await Announce(new BrowserDisconnected(this.GetPrimaryKeyString(), sessionId)); }
             }
@@ -84,10 +73,29 @@ internal sealed class WebBrowserNeuron(
         }
         finally { if (generation == _generation) { _connecting = null; } }
         if (generation != _generation) { return; }
-        _ready = true;
-        await Status("Ready");
+        await Observe(BrowserConnection.Attached, "");
+        await Show(Snapshot.Uri);
         if (generation == _generation)
         { await Announce(new BrowserConnected(this.GetPrimaryKeyString(), sessionId)); }
+    }
+
+    // The neuron's Uri is what the attached page shows; an empty Uri leaves the page to its driver.
+    private async Task Show(string uri)
+    {
+        if (_session is null) { return; }
+        try
+        {
+            var observed = uri.Length == 0 ? await Driver.Snapshot() : await Driver.Navigate(uri);
+            _actualUrl = observed.Url;
+            if (_connection is not BrowserConnection.Attached || _error.Length > 0)
+            { await Observe(BrowserConnection.Attached, ""); }
+        }
+        catch (Exception error)
+        {
+            await Observe(BrowserConnection.Failed,
+                uri.Length == 0 ? error.Message : $"Browser could not load {uri}: {error.Message}");
+            await Review();
+        }
     }
 
     public async Task Disconnect(string sessionId)
@@ -107,15 +115,30 @@ internal sealed class WebBrowserNeuron(
         if (generation != _generation) { return; }
         _session = null;
         _port = 0;
-        _ready = false;
+        await Observe(BrowserConnection.Waiting, "");
         DelayDeactivation(TimeSpan.Zero);
-        await Status("Browser disconnected");
         if (generation == _generation)
         { await Announce(new BrowserDisconnected(this.GetPrimaryKeyString(), sessionId)); }
     }
 
-    private Task Status(string value) => binding.State.StatusTextName is { } name
-        ? GrainFactory.GetGrain<IText>(name).Set(value) : Task.CompletedTask;
+    public async Task Unavailable(string reason)
+    {
+        var clipped = (reason ?? "").Length > ReasonClip ? reason![..ReasonClip] : reason ?? "";
+        await Observe(BrowserConnection.Unavailable, clipped);
+        await Review();
+    }
+
+    private async Task Observe(BrowserConnection connection, string error)
+    {
+        if (_connection == connection && _error == error) { return; }
+        _connection = connection;
+        _error = error;
+        if (connection is BrowserConnection.Waiting or BrowserConnection.Unavailable) { _actualUrl = ""; }
+    }
+
+    private async Task Review() =>
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString())
+            .Dispatch(new BrowserObservationChanged(this.GetPrimaryKeyString()));
 
     private async Task Announce(Signal signal)
     {
@@ -142,7 +165,7 @@ internal sealed class WebBrowserNeuron(
         { throw new ArgumentException("A browser session must be 32 lowercase hexadecimal characters.", nameof(sessionId)); }
     }
 
-    public Task Navigate(string uri, string? title = null)
+    public async Task Navigate(string uri, string? title = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uri);
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ||
@@ -156,8 +179,21 @@ internal sealed class WebBrowserNeuron(
         next.Version++;
         next.Uri = parsed.AbsoluteUri;
         next.Title = string.IsNullOrWhiteSpace(title) ? parsed.Host : title.Trim();
-        return Save(next, new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri));
+        var navigated = new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri);
+        await Save(next, navigated);
+        if (_session is not null) { await Show(next.Uri); }
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(navigated);
     }
 
-    [ReadOnly] public Task<WebBrowserState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnly]
+    public Task<WebBrowserView> Read() => Task.FromResult(new WebBrowserView
+    {
+        Name = this.GetPrimaryKeyString(),
+        Version = Snapshot.Version,
+        Uri = Snapshot.Uri,
+        Title = Snapshot.Title,
+        Connection = _connection,
+        Error = _error,
+        ActualUrl = _actualUrl,
+    });
 }

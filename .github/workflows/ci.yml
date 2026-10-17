@@ -21,7 +21,8 @@ jobs:
   dotnet:
     name: .NET build and unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Image warm plus the suite overran 20 minutes and the test step was cancelled mid-run.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,6 +31,11 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+
+      - name: Free space for native dependencies and container builds
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          df -h /
 
       - name: Restore NuGet package cache
         id: nuget-cache

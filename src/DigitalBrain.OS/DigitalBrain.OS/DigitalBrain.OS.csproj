@@ -6,7 +6,9 @@
     <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="../Apps/**/*" LogicalName="DigitalBrain.OS.Apps/%(RecursiveDir)%(Filename)%(Extension)" Link="Apps/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- The repository's features folder rides in the published image at {publish}/features, where
+         Properties/PublishProfiles/Container.pubxml points AppsOptions.Features. Never compiled here. -->
+    <None Include="../../../features/**/*" LinkBase="features" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.OS.Tests.E2E" />
@@ -14,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>

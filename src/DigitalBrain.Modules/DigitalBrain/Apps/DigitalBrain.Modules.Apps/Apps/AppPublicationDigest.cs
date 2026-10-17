@@ -1,0 +1,39 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace DigitalBrain.Apps;
+
+public static class AppPublicationDigest
+{
+    public static string Of(AppBundle bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("digitalbrain-release-v1");
+            Write(writer, JsonSerializer.SerializeToElement(new { bundle.Manifest, bundle.Spec, bundle.Files }));
+            writer.WriteEndArray();
+        }
+        return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));
+    }
+
+    private static void Write(Utf8JsonWriter writer, JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            writer.WriteStartObject();
+            foreach (var property in value.EnumerateObject().OrderBy(property => property.Name, StringComparer.Ordinal))
+            { writer.WritePropertyName(property.Name); Write(writer, property.Value); }
+            writer.WriteEndObject();
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+        {
+            writer.WriteStartArray();
+            foreach (var item in value.EnumerateArray()) { Write(writer, item); }
+            writer.WriteEndArray();
+        }
+        else { value.WriteTo(writer); }
+    }
+}

@@ -4,8 +4,7 @@ namespace DigitalBrain.Framework.Platform.Secrets;
 
 [Orleans.Metadata.DefaultGrainType("vault")]
 [Alias("vault")]
-[PlatformOnly]
-public interface ISecrets : INeuron
+public interface ISecrets : IGrainWithStringKey
 {
     Task<SecretRef> Set(CallerContext caller, string name, string label, string value, CancellationToken cancellationToken = default);
 

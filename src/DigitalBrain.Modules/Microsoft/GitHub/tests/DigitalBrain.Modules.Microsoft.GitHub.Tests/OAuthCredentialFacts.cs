@@ -26,22 +26,20 @@ public sealed class OAuthCredentialFacts
         var ct = TestContext.Current.CancellationToken;
         const string original = "original-webhook-secret";
         const string rotated = "rotated-webhook-secret";
-        await using var brain = await ModuleTest.Create().WithExecution(new TestExecutionOptions
-        {
-            PrivateConfiguration = new Dictionary<string, string?>
-            {
-                [IntegrationSchema.Key("github", "AppId")] = "7",
-                [IntegrationSchema.Key("github", "PrivateKeyPem")] = "test-key-not-used-by-webhooks",
-                [IntegrationSchema.Key("github", "WebhookSecret")] = original,
-            },
-        }).WithModule<GitHubModule>().StartAsync(ct);
-        var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
+        await using var brain = await TestBrain.Create().WithModule<GitHubModule>()
+            .WithIntegration(GitHubModule.Integration, "AppId", "7")
+            .WithIntegration(GitHubModule.Integration, "PrivateKeyPem", "test-key-not-used-by-webhooks")
+            .WithIntegration(GitHubModule.Integration, "WebhookSecret", original)
+            .StartAsync(ct);
+        var ingress = brain.Services.GetRequiredService<GitHubWebhookIngress>();
         var body = Encoding.UTF8.GetBytes("{\"hook\":{\"app_id\":7}}");
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, original), ct));
-        await brain.Get<IIntegration>("integration/github").Configure(new() { Values = { ["WebhookSecret"] = rotated } });
+        await Grains(brain).GetGrain<IIntegration>("integration/github").Configure(new() { Values = { ["WebhookSecret"] = rotated } });
         Assert.Equal(GitHubWebhookAcceptance.Unauthorized, await ingress.HandleAsync(body, Headers(body, original), ct));
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, rotated), ct));
     }
+
+    private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 
     private static Dictionary<string, string[]> Headers(byte[] body, string secret) => new()
     {

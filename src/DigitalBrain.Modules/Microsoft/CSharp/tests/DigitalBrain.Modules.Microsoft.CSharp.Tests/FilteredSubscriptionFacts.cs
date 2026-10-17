@@ -6,39 +6,43 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class FilteredSubscriptionFacts
 {
-    [Theory]
-    [InlineData("subscriber-brain")]
-    [InlineData("publisher-brain")]
-    public async Task APublicSourceDeliversToASubscribedRuntime(string publisherBrain)
+    [Fact]
+    public async Task AddingASourceDoesNotRewatchUnchangedSources()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        var edge = brain.Grains.GetGrain<IBrainRuntimeEdge>("subscriber-brain/runtime");
-        var runtime = brain.Get<IBrainRuntime>("subscriber-brain/runtime");
-        await edge.Assign("subscriber-brain/csharp/a", "hash-a", [], null, null);
+        var edge = RuntimeBrain.Edge(brain, "acc-brain");
+        var runtime = RuntimeBrain.Runtime(brain, "acc-brain");
+        await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        var session = (await runtime.Inspect(ct)).SessionId!;
+        var sources = Enumerable.Range(0, 8).Select(i => brain.Get<IExpansionSource>("source-" + i)).ToArray();
+        foreach (var source in sources)
+        {
+            await edge.Subscribed(session, "acc-brain/csharp/a", source.GetGrainId().ToString(), nameof(FirstKind));
+        }
+        foreach (var source in sources) { Assert.Equal(1, await source.WatchCount()); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task APublicSourceDeliversToASubscribedRuntime(bool publishedFromAnotherBrain)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var subscriber = brain.Owner.BrainId;
+        var edge = RuntimeBrain.Edge(brain, subscriber);
+        var runtime = RuntimeBrain.Runtime(brain, subscriber);
+        await RuntimeBrain.Programs(brain, subscriber).Assign(subscriber + "/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
         var source = brain.Get<IPinger>("public-pinger");
-        await edge.Subscribed(session, "subscriber-brain/csharp/a", source.GetGrainId().ToString(), nameof(Pinged));
+        await edge.Subscribed(session, subscriber + "/csharp/a", source.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
-        var caller = CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "publisher-owner",
-            AccountId = "publisher-account",
-            BrainId = publisherBrain,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
-        try
-        {
-            await brain.AuthorizeCallerAsync();
-            await source.Ping(7);
-            Assert.Equal(caller, CallerContextStamper.Require());
-        }
-        finally
-        {
-            Orleans.Runtime.RequestContext.Clear();
-        }
-        await changes.NextAsync(ct: ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
+        var publisher = publishedFromAnotherBrain ? await brain.PersonAsync("publisher", ct) : brain.Owner;
+
+        using (publisher.AsCaller()) { await source.Ping(7); }
+
+        await changes.NextAsync(ct: ct);
         Assert.Single(await edge.PendingBatches(session));
     }
 
@@ -47,9 +51,9 @@ public sealed class FilteredSubscriptionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        var edge = brain.Grains.GetGrain<IBrainRuntimeEdge>("acc-brain/runtime");
-        var runtime = brain.Get<IBrainRuntime>("acc-brain/runtime");
-        await edge.Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var edge = RuntimeBrain.Edge(brain, "acc-brain");
+        var runtime = RuntimeBrain.Runtime(brain, "acc-brain");
+        await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
         var source = brain.Get<IExpansionSource>("expansion");
         var key = source.GetGrainId().ToString();
@@ -73,6 +77,7 @@ public interface IExpansionSource : INeuron
     Task FailNextWatch();
     Task<string[]> Selection();
     Task EmitSecond();
+    Task<int> WatchCount();
 }
 
 [GrainType("test-expansion-source")]
@@ -80,11 +85,14 @@ public sealed class ExpansionSource : Neuron, IExpansionSource
 {
     private bool _fail;
     private string[] _selection = [];
+    private int _watches;
+    public Task<int> WatchCount() => Task.FromResult(_watches);
     public Task FailNextWatch() { _fail = true; return Task.CompletedTask; }
     public Task<string[]> Selection() => Task.FromResult(_selection);
     public Task EmitSecond() => PublishAsync(new SecondKind());
     public override Task<Guid> Watch(INeuronObserver observer, string[] signals)
     {
+        _watches++;
         if (_fail) { _fail = false; throw new InvalidOperationException("Filter registration failed"); }
         _selection = signals;
         return base.Watch(observer, signals);

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using Orleans.Concurrency;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -8,7 +9,8 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 [Alias("microsoft.csharp.runtime"), DefaultGrainType("microsoft.csharp.runtime")]
 public interface IBrainRuntime : INeuron
 {
-    Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default);
+    // A pure read: it never waits for a turn in progress.
+    [AlwaysInterleave] Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default);
     // Sign-in and the shell call this: ensures a session when anything is assigned, otherwise nothing.
     Task Touch(CancellationToken cancellationToken = default);
 }

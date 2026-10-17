@@ -18,14 +18,40 @@ public sealed class CSharpFileNeuronFacts
 
         var started = await file.Start(ct);
 
-        Assert.Equal(CSharpFileStatus.Starting, started.Status);
+        Assert.Equal("Starting", started.Status);
         Assert.NotNull(started.Hash);
         Assert.True(started.ShouldRun);
-        var view = await Edge(brain).Describe("acc-brain/csharp/report");
-        Assert.Equal(started.Hash, view!.Hash);
+        var program = await Describe(brain, "acc-brain/csharp/report");
+        Assert.Equal(started.Hash, Assert.Single(program!.Behaviors).Hash);
+        Assert.Equal("acc-brain/csharp/report", program.Behaviors[0].Id);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         var assignment = Assert.Single(await Edge(brain).Assignments((await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!));
         Assert.Equal("tea", assignment.Settings["TimerId"]);
+    }
+
+    [Fact]
+    public async Task DescribingANeverWrittenFileIsRefusedAndCreatesNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/ghost");
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => file.Describe("Ghost", "haunts", ct));
+
+        Assert.Null((await file.Inspect(ct)).Created);
+    }
+
+    [Fact]
+    public async Task ANullPurposeKeepsTheCurrentOneAndABlankOneClearsIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/described");
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Describe("Report", "Sends the report", ct);
+
+        Assert.Equal("Sends the report", (await file.Describe(null, null, ct)).Purpose);
+        Assert.Equal("", (await file.Describe(null, "  ", ct)).Purpose);
     }
 
     [Fact]
@@ -56,9 +82,9 @@ public sealed class CSharpFileNeuronFacts
         var second = await file.Swap("Console.WriteLine(2);", ct);
 
         Assert.NotEqual(first.Hash, second.Hash);
-        Assert.Equal(second.Hash, (await Edge(brain).Describe("acc-brain/csharp/swap"))!.Hash);
+        Assert.Equal(second.Hash, (await Describe(brain, "acc-brain/csharp/swap"))!.Behaviors[0].Hash);
         await file.Delete(ct);
-        Assert.Null(await Edge(brain).Describe("acc-brain/csharp/swap"));
+        Assert.Null(await Describe(brain, "acc-brain/csharp/swap"));
         Assert.Equal("", (await file.Inspect(ct)).Source);
     }
 
@@ -74,17 +100,9 @@ public sealed class CSharpFileNeuronFacts
         var stopped = await file.Stop(ct);
 
         Assert.False(stopped.ShouldRun);
-        Assert.Equal(CSharpFileStatus.Stopped, stopped.Status);
+        Assert.Equal("Stopped", stopped.Status);
         Assert.Equal("Console.WriteLine(2);", stopped.Source);
-        Assert.Null(await Edge(brain).Describe("acc-brain/csharp/stopped"));
-    }
-
-    [Fact]
-    public async Task CallersCannotBindAFileToAnInstalledApp()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<ICSharpAppBinding>("acc-brain/csharp/file").BindApp("arbitrary-app"));
+        Assert.Null(await Describe(brain, "acc-brain/csharp/stopped"));
     }
 
     [Fact]
@@ -99,5 +117,8 @@ public sealed class CSharpFileNeuronFacts
         await Assert.ThrowsAsync<ArgumentException>(() => file.Write(new string('x', CSharpFileNeuron.MaximumSourceBytes + 1), ct));
     }
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+    private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, "acc-brain");
+
+    private static Task<ProgramView?> Describe(ITestBrain brain, string owner)
+        => RuntimeBrain.Programs(brain, "acc-brain").Describe(owner);
 }

@@ -13,44 +13,72 @@ public static class NeuronSurfaceTools
     public const string CallName = "neurons_call";
     public const string ContextName = "neurons_context";
 
-    public const string ListDescription = "List neuron contracts you can address. Pass the full type name to neurons_get and neurons_call.";
+    public const string ListDescription = "List the neurons that exist in your brain: each one's contract (a full type name for neurons_get and neurons_call), key, creation time and creator. Pass contract to list one type only. To find contracts by what they do, use neurons_search.";
     public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, and methods.";
-    public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is connection/{brain}/{connector}/{id}.";
-    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Invoke with {invocationId, operation, input}, then IApp.Await with that invocationId.";
-    public const string ContextDescription = "Read who you are acting as and the current brain id and scope, for forming neuron keys.";
+    public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is {brain}/connection/{connector}/{id}.";
+    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Request with [operation, input]; then read the neuron the app's spec names for the result.";
+    public const string ContextDescription = "Read who you are acting as, the current brain id and scope for forming neuron keys, and the brains you are a member of.";
 }
 
-// The caller is stamped by the host before any of these run; each neuron's own access decides.
-public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
+// The caller is stamped by the host before any of these run; each neuron's own access decides. What
+// exists is the kernel's answer for the caller's brain; this process only needs a contract to call it.
+public sealed class NeuronSurface(IDigitalBrain brain, IKernelView kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(IDigitalBrain).GetMethod(nameof(IDigitalBrain.Get))!;
 
     // The contracts one app composes: nothing outside them is listed, found or callable.
-    public NeuronSurface Restrict(IReadOnlyCollection<string> names)
+    public async Task<NeuronSurface> Restrict(IReadOnlyCollection<string> names, CancellationToken ct)
     {
-        foreach (var name in names) { _ = contracts.Find(name); }
-        return new(brain, contracts, search, names.ToHashSet(StringComparer.Ordinal));
+        var neurons = await Neurons(ct).ConfigureAwait(false);
+        foreach (var name in names)
+        {
+            if (!neurons.ContainsKey(name)) { throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the full type name from neurons_list."); }
+        }
+        return new(brain, kernel, search, names.ToHashSet(StringComparer.Ordinal));
     }
 
-    public IReadOnlyList<string> List() => [.. contracts.Neurons.Where(Allowed).Order(StringComparer.Ordinal)];
+    public async Task<IReadOnlyList<string>> Contracts(CancellationToken ct)
+        => [.. (await Neurons(ct).ConfigureAwait(false)).Keys.Where(Allowed).Order(StringComparer.Ordinal)];
+
+    // The caller's brain's instances, named by the contract that addresses them; a restricted surface
+    // lists only instances of the contracts it composes.
+    public async Task<IReadOnlyList<NeuronInstance>> List(string? contract, CancellationToken ct)
+    {
+        var neurons = await Neurons(ct).ConfigureAwait(false);
+        var byType = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in neurons.Values.Where(entry => Allowed(entry.Name)).OrderBy(entry => entry.Name, StringComparer.Ordinal)) { byType.TryAdd(entry.Alias, entry.Name); }
+        string? filter = null;
+        if (!string.IsNullOrWhiteSpace(contract)) { filter = Entry(neurons, contract).Alias; }
+        List<NeuronInstance> listed = [];
+        await foreach (var instance in kernel.Instances(filter, ct).ConfigureAwait(false))
+        {
+            if (byType.TryGetValue(instance.Type, out var name)) { listed.Add(new(name, instance.Key, instance.Created, instance.Creator)); }
+            else if (allowed is null) { listed.Add(new(instance.Type, instance.Key, instance.Created, instance.Creator)); }
+        }
+        return [.. listed.OrderBy(entry => entry.Contract, StringComparer.Ordinal).ThenBy(entry => entry.Key, StringComparer.Ordinal)];
+    }
 
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken ct)
-        => allowed is null ? await search.Search(query, ct: ct).ConfigureAwait(false)
-            : [.. (await search.Search(query, take: 50, ct: ct).ConfigureAwait(false)).Where(hit => Allowed(hit.Type.Contract)).Take(10)];
+    {
+        var entries = await search.Capabilities(ct).ConfigureAwait(false);
+        // Rank only what this app composes: ranking everything and filtering afterwards lets unrelated
+        // contracts crowd the allowed ones out of the window.
+        return await search.Search(query, allowed is null ? entries : [.. entries.Where(entry => Allowed(entry.Contract))], ct: ct).ConfigureAwait(false);
+    }
 
-    public string Get(string contract, string key)
+    public async Task<string> Get(string contract, string key, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        return Neuron(Contract(contract), key).GetGrainId().ToString();
+        return Neuron(await Contract(contract, ct).ConfigureAwait(false), key).GetGrainId().ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        var type = Contract(contract);
+        var type = await Contract(contract, ct).ConfigureAwait(false);
         JsonElement[] payload;
         try { payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
         catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
@@ -75,13 +103,38 @@ public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts
         return JsonSerializer.SerializeToElement(result, target.ReturnType.GetGenericArguments()[0], Json);
     }
 
+    // The neuron a contract and key name, as a reference: what a watch subscribes to.
+    public async Task<INeuron> Reference(string contract, string key, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return (INeuron)Neuron(await Contract(contract, ct).ConfigureAwait(false), key);
+    }
+
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
 
-    private Type Contract(string name) => Allowed(name) ? contracts.Find(name)
-        : throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.");
+    private async Task<Dictionary<string, TypeEntry>> Neurons(CancellationToken ct)
+        => (await kernel.Types(ct).ConfigureAwait(false)).Where(entry => entry.Kind == TypeKind.Neuron)
+            .ToDictionary(entry => entry.Name, StringComparer.Ordinal);
 
+    private TypeEntry Entry(IReadOnlyDictionary<string, TypeEntry> neurons, string name)
+        => !Allowed(name) ? throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.")
+            : neurons.TryGetValue(name, out var entry) ? entry
+            : throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the full type name from neurons_list.");
+
+    private async Task<Type> Contract(string name, CancellationToken ct)
+        => LoadedContracts.Find(Entry(await Neurons(ct).ConfigureAwait(false), name).Name);
+
+    // A contract several neurons implement (IToolSource) has no grain type of its own; the model gets
+    // the brain's reason, not a reflection wrapper, so it can switch to the hit's own contract.
     private IAddressable Neuron(Type contract, string key)
-        => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!;
+    {
+        try { return (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!; }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
+    }
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 }
+
+// One existing neuron as the surface lists it; Contract is the grain type when no deployed contract names it.
+public sealed record NeuronInstance(string Contract, string Key, DateTimeOffset Created, string? Creator);

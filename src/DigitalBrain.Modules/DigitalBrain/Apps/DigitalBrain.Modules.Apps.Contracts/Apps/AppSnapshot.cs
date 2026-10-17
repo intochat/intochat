@@ -1,6 +1,7 @@
 namespace DigitalBrain.Apps;
 
-public enum AppStatus { Drafted, Building, Live, Failed }
+// Deploying: the program and its origin are held, the runtime has not confirmed it yet.
+public enum AppStatus { Drafted, Building, Live, Failed, Deploying }
 
 [GenerateSerializer, Alias("apps.version")]
 public sealed record AppVersionSummary(
@@ -21,4 +22,9 @@ public sealed record AppSnapshot(
     [property: Id(9)] AppVersionSummary[] Versions,
     [property: Id(10)] string? PublishedVersion = null,
     [property: Id(11)] AppOrigin? Origin = null,
-    [property: Id(12)] bool Edited = false);
+    [property: Id(12)] bool Edited = false,
+    [property: Id(13)] AppSynapse[]? Synapses = null,
+    [property: Id(14)] AppInstallReceipt? Installation = null,
+    [property: Id(15)] AppPresentation? Presentation = null,
+    [property: Id(16)] long ProgramRevision = 0,
+    [property: Id(17)] string? MigrationTarget = null);

@@ -10,7 +10,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Button;
 
 [GrainType(UIVocabulary.ButtonType)]
-internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ButtonState> store)
+internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)
     : Neuron<ButtonState>(store), IButton
 {
     public Task Set(string label, string action, bool enabled = true)
@@ -24,6 +24,15 @@ internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.D
         next.Action = action.Trim();
         next.Enabled = enabled;
         next.Activation = null;
+        return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
+    }
+
+    public Task SetVisual(ControlVisual visual)
+    {
+        ControlVisualValidation.Check(visual);
+        var next = Snapshot;
+        next.Visual = visual;
+        next.Version++;
         return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
     }
 
@@ -46,6 +55,13 @@ internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.D
         next.Action = "activate";
         next.Activation = activationJson;
         return Save(next, new ButtonChanged(next.Name, next.Version));
+    }
+
+    public Task ClickCurrent(string expectedAction)
+    {
+        if (!string.Equals(expectedAction, Snapshot.Action, StringComparison.Ordinal))
+        { throw new InvalidOperationException("This button changed. Read it again before clicking."); }
+        return Click();
     }
 
     public async Task Click()

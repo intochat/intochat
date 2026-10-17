@@ -1,6 +1,5 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -8,13 +7,13 @@ namespace DigitalBrain.Modules.AI.Tests.Models;
 
 public sealed class ModelCatalogFacts
 {
-    private static ModelCatalog Catalog(ModuleBrain brain) => brain.SiloServices.GetRequiredService<ModelCatalog>();
+    private static ModelCatalog Catalog(ITestBrain brain) => brain.Services.GetRequiredService<ModelCatalog>();
 
     [Fact]
     public async Task AMarkerNameResolvesToItsProviderWhenCredentialsAreReady()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithRegistrations(AiRegistrationSeeds.OpenAI()).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI").StartAsync(ct);
         var resolved = await Catalog(brain).Resolve(new("IGpt56Sol"), requiresTools: true, ct);
         Assert.Equal((AiProvider.OpenAI, "gpt-5.6-sol"), (resolved.Provider, resolved.Model));
         Assert.True(resolved.Capabilities.HasFlag(LlmCapabilities.Tools));
@@ -25,9 +24,9 @@ public sealed class ModelCatalogFacts
     public async Task AProfileNameResolvesToTheProfilesProviderModelAndEndpoint()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule, AIOptions>(options =>
+        await using var brain = await TestBrain.Create().WithModule<AIModule, AIOptions>(options =>
             options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "private-chat", Endpoint = "https://private.example/v1", Capabilities = LlmCapabilities.Tools })
-            .WithRegistrations(AiRegistrationSeeds.OpenAI()).StartAsync(ct);
+            .WithProvider("OpenAI").StartAsync(ct);
         var resolved = await Catalog(brain).Resolve(new("work"), requiresTools: true, ct);
         Assert.Equal((AiProvider.OpenAI, "private-chat", "https://private.example/v1", "work"), (resolved.Provider, resolved.Model, resolved.Endpoint, resolved.Profile));
     }
@@ -36,7 +35,7 @@ public sealed class ModelCatalogFacts
     public async Task NoSelectionAndNoConfigurationResolvesToTheHostClient()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
         var resolved = await Catalog(brain).Resolve(null, requiresTools: false, ct);
         Assert.Equal(AiProvider.Host, resolved.Provider);
         Assert.False((await Catalog(brain).List(null, ct)).Automatic.Available);
@@ -46,7 +45,7 @@ public sealed class ModelCatalogFacts
     public async Task UnknownKeysAndUnconfiguredProvidersAreRefusedBeforeAnyProviderCall()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule, AIOptions>(options =>
+        await using var brain = await TestBrain.Create().WithModule<AIModule, AIOptions>(options =>
             options.ModelProfiles["remote"] = new() { Provider = "Google", Model = "remote-chat", Capabilities = LlmCapabilities.Tools }).StartAsync(ct);
         await Assert.ThrowsAsync<ArgumentException>(() => Catalog(brain).Resolve(new("INoSuchModel"), false, ct));
         await Assert.ThrowsAsync<ArgumentException>(() => Catalog(brain).Resolve(new("https://attacker.example/model"), false, ct));
@@ -58,11 +57,11 @@ public sealed class ModelCatalogFacts
     public async Task ListOffersOnlyConfiguredToolModelsAndSelectValidatesChoiceIds()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule, AIOptions>(options =>
+        await using var brain = await TestBrain.Create().WithModule<AIModule, AIOptions>(options =>
             {
                 options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "private-chat", Capabilities = LlmCapabilities.Tools };
                 options.ModelProfiles["no-tools"] = new() { Provider = "OpenAI", Model = "text-only", Capabilities = LlmCapabilities.None };
-            }).WithRegistrations(AiRegistrationSeeds.OpenAI("secret-api-key", "https://private.example/v1")).StartAsync(ct);
+            }).WithProvider("OpenAI", "https://private.example/v1", "secret-api-key").StartAsync(ct);
         var catalog = brain.Get<IModelCatalog>("default");
         var choices = await catalog.List();
         Assert.True(choices.Automatic.Available);

@@ -14,10 +14,23 @@ public sealed class FormFacts
     ]);
 
     [Fact]
+    public async Task ASubmitAgainstAStaleFormRevisionIsRefusedWithTheCurrentOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var form = brain.Get<IForm>("owner/a/apps/forms/stale");
+        var defined = await form.Define(Intake);
+
+        var conflict = await Assert.ThrowsAsync<RevisionConflictException>(() => form.Submit(new([new("name", "Ada")], defined.Revision + 5)));
+
+        Assert.Equal(defined.Revision, conflict.CurrentRevision);
+    }
+
+    [Fact]
     public async Task DefineAndMultiFieldSubmitLandInOneWriteEach()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/intake");
         var defined = await form.Define(Intake);
         Assert.Equal(1, defined.Revision);
@@ -41,7 +54,7 @@ public sealed class FormFacts
     public async Task InvalidDateNamesTheAllowedValues()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/intake");
         await form.Define(Intake);
         var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new(
@@ -58,7 +71,7 @@ public sealed class FormFacts
     public async Task ChoiceRejectsUndeclaredValueNamingTheChoices()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/plan");
         await form.Define(new("Plan", [new("tier", "Tier", FormFieldKind.Choice, true, ["free", "pro"])]));
         var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("tier", "gold")], 1)));
@@ -70,7 +83,7 @@ public sealed class FormFacts
     public async Task SecretFieldHoldsOnlyAReferenceAndRendersMasked()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/login");
         await form.Define(new("Login", [new("password", "Password", FormFieldKind.Secret)]));
         var secret = SecretReferences.For("owner", "login-password", "Password", isSet: true);
@@ -92,7 +105,7 @@ public sealed class FormFacts
     public async Task ReferenceKindDeclaresTheFallback()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/ref");
         var state = await form.Define(new("Ref", [new("customer", "Customer", FormFieldKind.Reference)]));
         var field = state.Fields.Single();
@@ -104,7 +117,7 @@ public sealed class FormFacts
     public async Task SubmittedValuesSurviveReactivationInOneGrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/intake");
         var defined = await form.Define(Intake);
         await form.Submit(new([new("name", "Ada"), new("surname", "Lovelace"), new("birthDate", "1815-12-10")], defined.Revision));
@@ -119,7 +132,7 @@ public sealed class FormFacts
     public async Task AnUnsupportedKindIsRejectedThroughTheFormContract()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("f");
         await form.Define(new("Sign up", [new("age", "Age", FormFieldKind.Number, Required: true)]));
         var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("age", "forty")])));

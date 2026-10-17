@@ -4,8 +4,8 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Identity.Authority;
 
-// Identity actors are neurons like everything else; the platform ring keeps them off every untrusted edge.
-internal abstract class IdentityStateGrain<T>(IPersistentState<T> storage) : Neuron where T : new()
+// Identity actors are kernel grains, not neurons: no edge can address them.
+internal abstract class IdentityStateGrain<T>(IPersistentState<T> storage) : Grain where T : new()
 {
     protected T State => storage.State;
     protected async Task Persist(T next)
@@ -14,5 +14,9 @@ internal abstract class IdentityStateGrain<T>(IPersistentState<T> storage) : Neu
         storage.State = next;
         try { await storage.WriteStateAsync(); }
         catch { storage.State = previous; DeactivateOnIdle(); throw; }
+        OnPersisted();
     }
+
+    // Runs only after the write has succeeded, before Persist returns to its caller.
+    protected virtual void OnPersisted() { }
 }

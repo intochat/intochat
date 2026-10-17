@@ -1,27 +1,35 @@
+using System.Net.Http.Json;
 using System.Xml.Linq;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
-// The real path a click takes, as the signed-in user: the brain compiles the app's behavior, the brain
-// runtime loads it into the brain's session in the csharp-sandbox container, and the behavior answers
-// through the runtime edge. Needs a Docker daemon with Linux containers.
+// The real path a request takes, as the signed-in user: the shell posts a request to the app, the brain
+// publishes it, the app's synapse reacts in the brain's session in the csharp-sandbox container, and the
+// answer is a neuron the caller reads. Needs a Docker daemon with Linux containers.
+[Collection("Reference host")]
 public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 240_000)]
     public async Task ClearingAConversationUpdatesItsRunningShippedProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
-        var appKey = scope + "/apps/assistant";
+        using var caller = User.AsCaller();
+        var scope = WorkspaceId;
+        var appKey = scope + "/apps/ino";
         Assert.Equal(AppStatus.Live, (await Brain.Get<IApp>(appKey).Read()).Status);
-        var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         var chat = Brain.Get<IChat>(appKey + "/transcript");
+        var selection = (await chat.Read()).Selection;
+        Assert.NotNull(selection);
+        var agent = Brain.Get<IAgent>(selection.Agent);
         await using var changes = await Brain.Observe<ChatChanged>(chat, ct);
-        using var sent = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/assistant/ask",
+        using var sent = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/ino/request",
             new { operation = "send", input = "Remember this conversation" }, ct);
         sent.EnsureSuccessStatusCode();
         ChatProjection? before;
@@ -43,37 +51,36 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     }
 
     [Fact(Timeout = 240_000)]
-    public async Task AClickReachesABehaviorAndBack()
+    public async Task ARequestReachesASynapseAndItsAnswerIsANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
-        var bundle = new DirectoryShippedAppSource(IntoChatApps(), "intochat")
-            .Load().Single(candidate => candidate.Name == "word-count");
-        (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
+        using var caller = User.AsCaller();
+        var scope = WorkspaceId;
+        var bundle = new FeatureDirectory(Features()).Load().Single(candidate => candidate.Owner == "intochat" && candidate.Bundle.Name == "word-count").Bundle;
+        (await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
+        // Import persists the assignment before the sandbox starts its new persistent script.
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
 
-        // A connected session answers in milliseconds; two minutes covers the brain's first session.
-        using var answer = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        answer.CancelAfter(TimeSpan.FromMinutes(2));
-        using var asked = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/ask",
-            new { operation = "ask", input = "a click reaches a behavior" }, answer.Token);
+        var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
 
-        Assert.Equal(HttpStatusCode.OK, asked.StatusCode);
-        Assert.Equal("5 words", await asked.Content.ReadAsStringAsync(ct));
-        Assert.Equal(SessionStatus.Connected, (await Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).Inspect(ct)).Session);
+        var answer = Brain.Get<IText>($"{scope}/apps/{bundle.Name}/answer");
+        await using var changes = await Brain.Observe<TextChanged>(answer, ct);
+
+        using var requested = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/request",
+            new { operation = "ask", input = "a click reaches a behavior" }, ct);
+
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        while ((await answer.Read()).Markdown != "5 words") { await changes.NextAsync(ct: ct); }
+        Assert.Equal(SessionStatus.Connected, (await runtime.Inspect(ct)).Session);
     }
 
-    // The AppHost hands the OS IntoChat's bundles from the directory beside its own (AppHost.cs);
-    // the AppHost project is found through the solution, never by a path literal.
-    private static string IntoChatApps()
+    // The AppHost hands the OS the repository's features folder, beside the solution (AppHost.cs).
+    private static string Features()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             var solution = Path.Combine(directory.FullName, "DigitalBrain.slnx");
-            if (!File.Exists(solution)) { continue; }
-            var appHost = XDocument.Load(solution).Descendants("Project")
-                .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
-                .Single(path => Path.GetFileNameWithoutExtension(path) == "DigitalBrain.AppHost");
-            return Path.GetFullPath(Path.Combine(directory.FullName, Path.GetDirectoryName(appHost)!, "..", "IntoChat", "Apps"));
+            if (File.Exists(solution)) { return Path.Combine(directory.FullName, "features"); }
         }
         throw new InvalidOperationException("The app bundle is read from the repository; run the test from inside it.");
     }

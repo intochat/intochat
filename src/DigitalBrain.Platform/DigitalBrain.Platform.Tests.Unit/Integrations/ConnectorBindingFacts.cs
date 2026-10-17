@@ -18,8 +18,8 @@ public sealed class ConnectorBindingFacts
     public async Task InfrastructureOnlyModulesCanAcquireTheirOwnSchemas()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<InfrastructureModule>().StartAsync(ct);
-        var bindings = brain.SiloServices.GetRequiredService<IModuleIntegrations<InfrastructureModule>>();
+        await using var brain = await TestBrain.Create().WithModule<InfrastructureModule>().StartAsync(ct);
+        var bindings = brain.Services.GetRequiredService<IModuleIntegrations<InfrastructureModule>>();
         Assert.Equal("infrastructure", bindings.Get("infrastructure").IntegrationId);
         Assert.Equal("additional", bindings.Get("additional").IntegrationId);
         Assert.Throws<UnauthorizedAccessException>(() => bindings.Get("other"));
@@ -29,12 +29,12 @@ public sealed class ConnectorBindingFacts
     public async Task CatalogAndTheConnectRouteFollowAvailabilityAndWarnOnlyOnTransitions()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(ct);
         Task<HttpResponseMessage> Connect() => brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/connect",
             new { connectorId = "example", authMethodId = "api-key", value = "secret-value-7d1" }, ct);
         var logger = new CatalogLogger();
         var catalog = new ConnectorCatalog([ExampleConnectionModule.Connector], brain.Grains, logger);
-        var grain = brain.Get<IIntegration>("integration/example-oauth");
+        var grain = brain.Grains.GetGrain<IIntegration>("integration/example-oauth");
         await grain.Configure(new() { Values = new() { ["ClientId"] = "test-client", ["ClientSecret"] = "test" } });
         var first = Assert.Single(await catalog.ListAsync(ct));
         Assert.Same(first, Assert.Single(await catalog.ListAsync(ct)));
@@ -87,19 +87,21 @@ public sealed class ConnectorBindingFacts
     public async Task MissingIntegrationHidesConnectorAndProvisioningMakesItAvailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
-        var catalog = brain.SiloServices.GetRequiredService<ConnectorCatalog>();
-        Assert.Empty(await catalog.ListAsync(ct));
-        var grain = brain.Get<IIntegration>("integration/example");
+        await using var brain = await TestBrain.Create().WithModule<ExampleModule>().StartAsync(ct);
+        var catalog = brain.Services.GetRequiredService<ConnectorCatalog>();
+        // The host always composes the orleans module: its connector is the one offered before provisioning.
+        async Task<string[]> Offered() => [.. (await catalog.ListAsync(ct)).Select(entry => entry.Id).Order(StringComparer.Ordinal)];
+        Assert.Equal(["orleans"], await Offered());
+        var grain = brain.Grains.GetGrain<IIntegration>("integration/example");
         await grain.Configure(new ConfigureIntegration { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test-secret" } });
-        Assert.Equal("example", Assert.Single(await catalog.ListAsync(ct)).Id);
-        var handle = brain.SiloServices.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");
+        Assert.Equal(["example", "orleans"], await Offered());
+        var handle = brain.Services.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");
         var release = await handle.ReleaseAsync(ct);
         Assert.Equal(IntegrationStatus.Ready, release.Snapshot.Status);
         Assert.Equal("test-secret", release.Values["ApiKey"]);
         Assert.DoesNotContain("test-secret", release.ToString());
         Assert.Equal(IntegrationStatus.Partial, (await grain.Clear("ApiKey")).Status);
-        Assert.Empty(await catalog.ListAsync(ct));
+        Assert.Equal(["orleans"], await Offered());
         await Assert.ThrowsAsync<InvalidOperationException>(() => handle.ReadSecretAsync("ApiKey", ct));
     }
 
@@ -128,9 +130,9 @@ public sealed class ConnectorBindingFacts
     [Fact]
     public void ConnectionKeysSeparateBrainsConnectorsAndEscapedSegments()
     {
-        Assert.NotEqual(ConnectionKeys.For("a", "gmail", "b/c"), ConnectionKeys.For("a/b", "gmail", "c"));
+        Assert.Throws<ArgumentException>(() => ConnectionKeys.For("a/b", "gmail", "c"));
         Assert.NotEqual(ConnectionKeys.For("a", "gmail", "c"), ConnectionKeys.For("b", "gmail", "c"));
-        Assert.Equal("connection/a/gmail/b%2Fc", ConnectionKeys.For("a", "gmail", "b/c"));
+        Assert.Equal("a/connection/gmail/b%2Fc", ConnectionKeys.For("a", "gmail", "b/c"));
     }
 
     [Fact]

@@ -1,10 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Signal probes, behavior runs, bounded waits and session lifetime shared by every DigitalBrain test kind.</Description>
+    <PackageTags>testing;orleans;aspire;digitalbrain</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>One harness for every DigitalBrain test: the TestBrain builder, targets that run the product recipe, signal probes, behavior runs, bounded waits and a fake model endpoint.</Description>
   </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Aspire" /></ItemGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans/DigitalBrain.Modules.Microsoft.Orleans.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
+  <ItemGroup><None Include="README.md" Pack="true" PackagePath="" /></ItemGroup>
 </Project>

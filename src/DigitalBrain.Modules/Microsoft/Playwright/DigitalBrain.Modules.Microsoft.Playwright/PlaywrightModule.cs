@@ -5,7 +5,7 @@ using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 namespace DigitalBrain.Microsoft.Playwright;
 
-public sealed class PlaywrightModule() : Module(new ModuleId("playwright"))
+public sealed class PlaywrightModule() : Module<PlaywrightModuleOptions>(new ModuleId("playwright"))
 {
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Playwright.IPlaywright).Assembly;
 

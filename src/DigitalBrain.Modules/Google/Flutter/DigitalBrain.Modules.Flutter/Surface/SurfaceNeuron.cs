@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.Surface;
 
 [GrainType(UIVocabulary.SurfaceType)]
 internal sealed class SurfaceNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SurfaceState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SurfaceState> store)
     : Neuron, ISurface
 {
     public async Task Set(SurfaceDefinition definition, long expectedRevision)
@@ -14,7 +14,7 @@ internal sealed class SurfaceNeuron(
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentException.ThrowIfNullOrWhiteSpace(definition.Title);
         CompositionValidation.Children(definition.Children);
-        if (store.State.Revision != expectedRevision) { throw new InvalidOperationException("The UI changed. Read its latest revision before retrying."); }
+        if (store.State.Revision != expectedRevision) { throw new RevisionConflictException("The UI changed. Read its latest revision before retrying.", store.State.Revision); }
         var previous = store.State;
         store.State = new() { Name = this.GetPrimaryKeyString(), Revision = checked(previous.Revision + 1), Definition = definition };
         try { await store.WriteStateAsync(); }

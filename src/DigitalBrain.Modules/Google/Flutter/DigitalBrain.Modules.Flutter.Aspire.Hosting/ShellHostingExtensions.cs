@@ -55,6 +55,16 @@ public static class ShellHostingExtensions
     internal static string ResolveFlutterWorkingDirectory(string appHostDirectory, string? configured)
         => ShellHostingState.ResolveFlutterWorkingDirectory(appHostDirectory, configured);
 
+    // The shell talks to the kernel through the front that owns its fixed port, not to one silo instance: a
+    // silo's restart (a roll) must not drop the shell. Without a front the shell binds to the first silo.
+    public static DigitalBrainBuilder WithShellFront(this DigitalBrainBuilder brain, IResourceBuilder<IResourceWithEndpoints> front)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        ArgumentNullException.ThrowIfNull(front);
+        brain.GetOrAddState(static brain => new ShellHostingState(brain), out _).BindFront(front);
+        return brain;
+    }
+
     private sealed class ShellHostingState(DigitalBrainBuilder brain) : DigitalBrainModuleProjection
     {
         private IResourceBuilder<ExecutableResource>? _flutterHost;
@@ -62,7 +72,19 @@ public static class ShellHostingExtensions
         private string? _servedConfigPath;
         private string? _flutterWebDirectory;
         private FlutterHostKind _flutterKind;
-        private bool _uiBaseBound;
+        private IResourceBuilder<IResourceWithEndpoints>? _front;
+        private EndpointReference? _firstKernel;
+
+        // Native gRPC needs TLS/ALPN through the front; the web shell uses gRPC-Web over HTTP.
+        private EndpointReference Kernel => _front?.GetEndpoint(_flutterKind == FlutterHostKind.Window ? "https" : ShellNames.HttpEndpointName) ?? _firstKernel!;
+
+        internal void BindFront(IResourceBuilder<IResourceWithEndpoints> front)
+        {
+            _front = front;
+            var wait = new WaitAnnotation(front.Resource, WaitType.WaitUntilHealthy, exitCode: 0);
+            _flutterHost?.WithAnnotation(wait);
+            _shellContainer?.WithAnnotation(wait);
+        }
 
         internal void EnsureFlutterHost(FlutterHostKind kind, FlutterHostOptions options)
         {
@@ -113,6 +135,17 @@ public static class ShellHostingExtensions
                 .WithEnvironment(ShellNames.ShellEnvironmentVariable, shell)
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
                 .WithParentRelationship(brain.Resource);
+
+            var localAccount = appHost.Configuration[LocalDesktopAccount.ConfigurationKey];
+            if (OperatingSystem.IsWindows() && LocalDesktopAccount.Enabled(appHost.ExecutionContext.IsRunMode,
+                appHost.Environment.IsDevelopment(), kind == FlutterHostKind.Window, true, localAccount))
+            {
+                var deployment = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(appHost.AppHostDirectory).ToUpperInvariant() + "|" + brain.Name)))[..24];
+                var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DigitalBrain", "local-accounts", deployment);
+                host.WithEnvironment(LocalDesktopAccount.FileEnvironmentVariable, LocalDesktopAccount.Ensure(directory, localAccount!));
+            }
 
             if (kind == FlutterHostKind.Web)
             {
@@ -267,18 +300,19 @@ public static class ShellHostingExtensions
         private string _pendingShell = ShellNames.DefaultShellName;
         private string _pendingChat = ShellNames.DefaultChatName;
 
+        // Applied to every silo instance: each one carries the shell's CORS origin, since the front may route the
+        // shell to any of them. The shell itself is bound once, to the front when there is one (Kernel, resolved
+        // when the shell starts), and waits for that and for the first instance.
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-
-            if (_uiBaseBound)
-            {
-                return;
-            }
+            var corsOrigin = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {
-                var kernelEndpoint = builder.GetEndpoint(ShellNames.HttpEndpointName);
+                builder.WithEnvironment(corsOrigin, _shellContainer.GetEndpoint(ShellNames.HttpEndpointName));
+                if (_firstKernel is not null) { return; }
+                _firstKernel = builder.GetEndpoint(ShellNames.HttpEndpointName);
                 var configPath = _servedConfigPath!;
                 var shellName = _pendingShell;
                 var chatName = _pendingChat;
@@ -286,11 +320,7 @@ public static class ShellHostingExtensions
                     .WithAnnotation(new WaitAnnotation(builder.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                     // Endpoints are allocated before any resource starts, so the kernel URL is real here.
                     .OnBeforeResourceStarted((_, _, ct) => File.WriteAllTextAsync(
-                        configPath, ShellServedConfig.Payload(kernelEndpoint.Url, shellName, chatName), ct));
-                builder.WithEnvironment(
-                    DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin)),
-                    _shellContainer.GetEndpoint(ShellNames.HttpEndpointName));
-                _uiBaseBound = true;
+                        configPath, ShellServedConfig.Payload(Kernel.Url, shellName, chatName), ct));
                 return;
             }
 
@@ -299,17 +329,19 @@ public static class ShellHostingExtensions
                 return;
             }
 
-            var uiEndpoint = builder.GetEndpoint(ShellNames.HttpEndpointName);
+            if (_flutterKind == FlutterHostKind.Web)
+            {
+                builder.WithEnvironment(corsOrigin, _flutterHost.GetEndpoint(ShellNames.HttpEndpointName));
+            }
+            if (_firstKernel is not null) { return; }
+            _firstKernel = builder.GetEndpoint(ShellNames.HttpEndpointName);
             // Flutter executable waits until the kernel HTTP surface is healthy.
             _flutterHost
-                .WithEnvironment(ShellNames.UIBaseEnvironmentVariable, uiEndpoint)
+                .WithEnvironment(context => context.EnvironmentVariables[ShellNames.UIBaseEnvironmentVariable] = Kernel)
                 .WithAnnotation(new WaitAnnotation(builder.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
 
             if (_flutterKind == FlutterHostKind.Web)
             {
-                builder.WithEnvironment(
-                    DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin)),
-                    _flutterHost.GetEndpoint(ShellNames.HttpEndpointName));
                 // The kernel endpoint must not be compiled into the bundle: a baked define
                 // differs every session and forces a full release recompile per boot. The dev
                 // web server serves web/config.json the same way the deployed container serves
@@ -319,10 +351,8 @@ public static class ShellHostingExtensions
                 var shellName = _pendingShell;
                 var chatName = _pendingChat;
                 _flutterHost.OnBeforeResourceStarted((_, _, ct) => File.WriteAllTextAsync(
-                    configPath, ShellServedConfig.Payload(uiEndpoint.Url, shellName, chatName), ct));
+                    configPath, ShellServedConfig.Payload(Kernel.Url, shellName, chatName), ct));
             }
-
-            _uiBaseBound = true;
         }
 
         internal static string ResolveFlutterWorkingDirectory(string appHostDirectory, string? configured)

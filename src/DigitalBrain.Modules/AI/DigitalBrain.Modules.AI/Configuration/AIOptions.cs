@@ -18,6 +18,7 @@ public sealed class AIOptions : IModuleOptions
     public AIProviderOptions OpenRouter { get; set; } = new();
     public OllamaOptions Ollama { get; set; } = new();
     public TavilyOptions Tavily { get; set; } = new();
+    public SystemOneOptions SystemOne { get; set; } = new();
     public AIHostingOptions Hosting { get; set; } = new();
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, AIModelProfileOptions> ModelProfiles { get; } = new(StringComparer.OrdinalIgnoreCase);

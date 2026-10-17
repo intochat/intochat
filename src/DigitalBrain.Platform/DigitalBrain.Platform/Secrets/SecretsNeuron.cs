@@ -4,14 +4,14 @@ using DigitalBrain.Framework.Platform.Secrets;
 namespace DigitalBrain.Platform.Secrets;
 
 [GrainType("vault")]
-internal sealed class SecretsNeuron : Neuron<SecretsState>, ISecrets
+internal sealed class SecretsNeuron : Grain, ISecrets
 {
     private readonly IPersistentState<SecretsState> _state;
     private readonly SecretsStore _secrets;
 
     public SecretsNeuron(
-        [PersistentState("vault", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SecretsState> state,
-        IKeyWrapper keys) : base(state)
+        [PersistentState("vault", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<SecretsState> state,
+        IKeyWrapper keys)
     {
         _state = state;
         _secrets = new SecretsStore(keys);
@@ -25,8 +25,8 @@ internal sealed class SecretsNeuron : Neuron<SecretsState>, ISecrets
             throw new InvalidOperationException("Only the owner can store a secret.");
         }
 
-        Snapshot.Owner = this.GetPrimaryKeyString();
-        var reference = _secrets.Set(Snapshot, name, label, value);
+        _state.State.Owner = this.GetPrimaryKeyString();
+        var reference = _secrets.Set(_state.State, name, label, value);
         await _state.WriteStateAsync();
         return reference;
     }
@@ -42,7 +42,7 @@ internal sealed class SecretsNeuron : Neuron<SecretsState>, ISecrets
             throw new InvalidOperationException("Only the owner or trusted platform code can remove a secret.");
         }
 
-        if (Snapshot.Fields.Remove(name))
+        if (_state.State.Fields.Remove(name))
         {
             await _state.WriteStateAsync();
         }
@@ -57,7 +57,7 @@ internal sealed class SecretsNeuron : Neuron<SecretsState>, ISecrets
             throw new UntrustedCallerException("Only a trusted outbound call can resolve a secret.");
         }
 
-        Snapshot.Owner = this.GetPrimaryKeyString();
-        return Task.FromResult(_secrets.Resolve(Snapshot, secret));
+        _state.State.Owner = this.GetPrimaryKeyString();
+        return Task.FromResult(_secrets.Resolve(_state.State, secret));
     }
 }

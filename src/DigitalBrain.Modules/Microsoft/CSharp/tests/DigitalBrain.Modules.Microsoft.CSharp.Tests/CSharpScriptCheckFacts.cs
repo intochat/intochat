@@ -30,7 +30,7 @@ public sealed class CSharpScriptCheckFacts
     [Theory]
     [InlineData("DigitalBrain.Framework.BrainScope.CurrentId();")]
     [InlineData("Console.WriteLine(typeof(Microsoft.CodeAnalysis.SyntaxTree));")]
-    [InlineData("Console.WriteLine(typeof(Microsoft.AspNetCore.Http.HttpContext));")]
+    [InlineData("Console.WriteLine(typeof(global::Microsoft.AspNetCore.Http.HttpContext));")]
     public void ABehaviorCompilesOnlyAgainstWhatTheSandboxCarries(string line)
     {
         var result = _check.Compile(new Dictionary<string, string> { ["synapses/reach.cs"] = line + "\nawait Task.CompletedTask;\n" });
@@ -82,6 +82,35 @@ public sealed class CSharpScriptCheckFacts
         var error = Assert.Single(result.Errors);
         Assert.Equal(("tests.cs", "CS0029", 2), (error.File, error.Id, error.Line));
     }
+
+    [Fact]
+    public void AFileOfOnlyTypesIsSharedIntoEverySynapseAndYieldsNoAssembly()
+    {
+        var result = _check.Compile(new Dictionary<string, string>
+        {
+            ["Greeting.cs"] = "public static class Greeting { public static string Of(string name) => \"hi \" + name; }\n",
+            ["a.cs"] = "Console.WriteLine(Greeting.Of(\"a\"));\n",
+            ["b.cs"] = "Console.WriteLine(Greeting.Of(\"b\"));\n",
+        });
+        Assert.True(result.Success, string.Join("; ", result.Errors.Select(error => error.Message)));
+        Assert.Equal(["a.cs", "b.cs"], result.Assemblies.Keys.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void AnErrorInASharedFileIsReportedAgainstThatFile()
+    {
+        var result = _check.Compile(new Dictionary<string, string>
+        {
+            ["Broken.cs"] = "public static class Broken { int x = \"no\"; }\n",
+            ["a.cs"] = "await Task.CompletedTask;\n",
+        });
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, error => error.File == "Broken.cs" && error.Id == "CS0029");
+    }
+
+    [Fact]
+    public void SharedFilesAloneCompileNothing()
+        => Assert.Throws<ArgumentException>(() => _check.Compile(new Dictionary<string, string> { ["Only.cs"] = "public static class Only {}\n" }));
 
     [Fact]
     public void CompilingNothingIsRefused()

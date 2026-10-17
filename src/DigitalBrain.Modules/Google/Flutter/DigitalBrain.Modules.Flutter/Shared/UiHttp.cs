@@ -5,11 +5,10 @@ using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Flutter;
 
-// UI-kit neurons hold per-brain window data, so every route is addressed under a
-// brain scope and the grain key carries that scope (C06 / P1.7).
+// UI-kit neurons hold per-brain window data: a route's {name} addresses the part at "{brain}/ui/{name}".
 public static class UiScope
 {
-    public static string Key(string scope, string name) => $"{scope}:{name}";
+    public static string Key(string scope, string name) => $"{scope}/ui/{name}";
 }
 
 internal static class UiHttp

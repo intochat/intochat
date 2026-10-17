@@ -2,8 +2,8 @@ using DigitalBrain.Framework;
 
 namespace DigitalBrain.Microsoft.CSharp.Files;
 
-// A behavior's record. Wanted says it should be loaded in the brain's session; Owner is the caller who
-// started it, whom the runtime edge speaks for as an app.
+// A file's record: its name and purpose, its program, its settings and the caller who started it. The runtime speaks for that
+// caller as the owner of the file's one-behavior program.
 [GenerateSerializer, Alias("microsoft.csharp.file-state")]
 internal sealed record CSharpFileState
 {
@@ -12,6 +12,7 @@ internal sealed record CSharpFileState
     [Id(2)] public string? Hash { get; init; }
     [Id(3)] public bool Wanted { get; init; }
     [Id(4)] public CallerContext? Owner { get; init; }
-    [Id(5)] public string? AppId { get; init; }
-    [Id(6)] public string? AppBrain { get; init; }
+    [Id(5)] public string Name { get; init; } = "";
+    [Id(6)] public string Purpose { get; init; } = "";
+    [Id(7)] public DateTimeOffset? Created { get; init; }
 }

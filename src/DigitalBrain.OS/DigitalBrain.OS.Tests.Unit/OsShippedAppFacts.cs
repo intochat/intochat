@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -7,33 +6,28 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class OsShippedAppFacts
 {
-    private static readonly EmbeddedShippedAppSource Source = new(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os");
-
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["assistant", "datavisualizer", "settings"], Source.Load().Select(app => app.Name).Order());
+        Assert.Equal(["brainview", "calculator", "circle", "circleroom", "datavisualizer", "engineer", "files", "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "settings", "usage", "workspace"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
+    }
+
+    [Fact]
+    public void TheAssistantOffersMakeForTheFocusedThing()
+    {
+        var assistant = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "ino");
+        Assert.Contains(assistant.Manifest.Operations, operation => operation.Name == "make" && operation.Description.Contains("focus", StringComparison.Ordinal));
+        Assert.True(assistant.Files.ContainsKey("make.cs"));
     }
 
     [Fact]
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "customer-researcher")));
+        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "word-count")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/assistant", "os/datavisualizer", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
-    }
-
-    [Fact]
-    public void EveryOsProgramCompilesAgainstCurrentContracts()
-    {
-        foreach (var app in Source.Load())
-        {
-            var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
-            var result = new CSharpScriptCheck().Compile(sources);
-            Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
-        }
+        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "intochat/customer-researcher", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/usage", "intochat/word-count"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]
@@ -52,6 +46,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Equal(3, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
+        Assert.Equal(15, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
     }
 }

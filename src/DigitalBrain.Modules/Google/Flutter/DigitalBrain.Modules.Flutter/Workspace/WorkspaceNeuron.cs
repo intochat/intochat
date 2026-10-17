@@ -1,165 +1,136 @@
-using DigitalBrain;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Workspace.Signals;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Options;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.Workspace;
 
 [GrainType("ui.workspace")]
 internal sealed class WorkspaceNeuron(
-    [PersistentState("workspace", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WorkspaceStorage> store, IOptions<FlutterModuleOptions> options)
-    : Neuron, IWorkspace
+    [PersistentState("workspace", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WorkspaceStorage> store)
+    : RevisionedNeuron<WorkspaceStorage>(store), IWorkspace
 {
-    public async Task<WorkspaceOpenResult> Open(OpenWindow request)
+    private string Brain => this.GetPrimaryKeyString();
+
+    public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        Validate(request.OperationId, 256, nameof(request.OperationId));
-        Validate(request.WindowId, 256, nameof(request.WindowId));
-        Validate(request.Title, 200, nameof(request.Title));
-        ArgumentNullException.ThrowIfNull(request.Reference);
-        Validate(request.Reference.Kind, 64, nameof(request.Reference));
-        Validate(request.Reference.NeuronId, 256, nameof(request.Reference));
-        var current = store.State;
-        if (current.OperationLog.TryGetValue(request.OperationId, out var previous))
+        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId != Brain + "/apps/workspace")
+        { throw new UnauthorizedAccessException("Only the workspace app may apply navigation state."); }
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters."); }
+        CheckViews(next.OpenViews);
+        CheckViews(next.Pins);
+        if (next.FocusedViewId is { } focus && !next.OpenViews.Any(view => view.Id == focus))
+        { throw new ArgumentException("Focus must name an open view."); }
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(next))));
+        var receipt = Snapshot.Receipts.FirstOrDefault(item => item.Id == operationId);
+        if (receipt is not null)
         {
-            if (previous.WindowId != request.WindowId || previous.Title != request.Title || previous.Reference != request.Reference)
-            { throw new InvalidOperationException("This operation ID already belongs to a different window request."); }
-            // An operation log entry recorded before the applied revision was persisted falls back
-            // to the revision the request itself proved it advanced from.
-            var applied = current.OperationRevisionLog.TryGetValue(request.OperationId, out var recorded)
-                ? recorded
-                : previous.ExpectedRevision + 1;
-            return new WorkspaceOpenResult(Snapshot(), applied);
+            if (receipt.Digest != digest) { throw new ArgumentException("An operation id cannot be reused for another update."); }
+            return await Read();
         }
-        if (current.SurfaceOperationLog.ContainsKey(request.OperationId)) { throw new InvalidOperationException("This operation ID belongs to a surface request."); }
-        RequireRevision(request.ExpectedRevision);
-        var windows = new Dictionary<string, WorkspaceWindow>(current.Windows, StringComparer.Ordinal);
-        if (windows.TryGetValue(request.WindowId, out var existing) && existing.Reference != request.Reference)
-        { throw new InvalidOperationException("A window ID cannot be reassigned to another neuron."); }
-        windows[request.WindowId] = new(request.WindowId, request.Title, request.Reference, true);
-        var revision = checked(current.Revision + 1);
-        var operationLog = new Dictionary<string, OpenWindow>(current.OperationLog, StringComparer.Ordinal) { [request.OperationId] = request };
-        var operationRevisionLog = new Dictionary<string, long>(current.OperationRevisionLog, StringComparer.Ordinal) { [request.OperationId] = revision };
-        await Save(new()
+        await Commit(operationId, expectedRevision, state => state with
         {
-            Revision = revision,
-            Windows = windows,
-            OperationLog = operationLog,
-            SurfaceOperationLog = current.SurfaceOperationLog,
-            OperationRevisionLog = operationRevisionLog,
-            ConnectedSources = current.ConnectedSources,
+            OpenViews = next.OpenViews,
+            FocusedViewId = next.FocusedViewId,
+            Pins = next.Pins,
+            Path = [Brain],
+            Open = [],
+            Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
+        }, state => new WorkspaceChanged(Brain, state.Revision));
+        return await Read();
+    }
+
+    private void CheckViews(WorkspaceViewRef[] views)
+    {
+        ArgumentNullException.ThrowIfNull(views);
+        if (views.Length > 64 || views.Any(view => view is null || string.IsNullOrWhiteSpace(view.Id) || view.Id.Length > 128
+            || string.IsNullOrWhiteSpace(view.Variant) || view.Variant.Length > 64 || view.Context is null || view.Context.Length > 1024
+            || string.IsNullOrWhiteSpace(view.App) || view.App.Length > 512 || !IsApp(view.App)
+            || view.App.Split('/').Any(part => part.Length == 0 || part is "." or ".."))
+            || views.Select(view => view.Id).Distinct(StringComparer.Ordinal).Count() != views.Length)
+        { throw new ArgumentException("Provide at most 64 uniquely identified views of apps in this brain."); }
+    }
+    private WorkspaceStorage Seed(WorkspaceStorage state) => state.Path.Length == 0
+        ? state with { Path = [Brain, Brain + "/apps/ino"], Open = [Brain + "/apps/ino"] } : state;
+
+    public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision)
+    {
+        ValidateKey(app);
+        return Change(operationId, expectedRevision, state => state with
+        {
+            Path = state.Path[^1] == app ? state.Path : [.. state.Path, app],
+            Open = IsApp(app) && !state.Open.Contains(app, StringComparer.Ordinal) ? [.. state.Open, app] : state.Open,
         });
-        return new WorkspaceOpenResult(Snapshot(), revision);
     }
 
-    public async Task<WorkspaceState> OpenSurface(OpenSurfaceWindow request)
+    public Task<WorkspaceState> Back(string operationId, long expectedRevision)
+        => Change(operationId, expectedRevision, state => state with { Path = state.Path.Length > 1 ? state.Path[..^1] : state.Path });
+
+    public Task<WorkspaceState> Home(string operationId, long expectedRevision)
+        => Change(operationId, expectedRevision, state => state with { Path = [Brain] });
+
+    public Task<WorkspaceState> Close(string app, string operationId, long expectedRevision)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        Validate(request.OperationId, 256, nameof(request.OperationId));
-        Validate(request.WindowId, 256, nameof(request.WindowId));
-        Validate(request.Title, 200, nameof(request.Title));
-        ArgumentNullException.ThrowIfNull(request.Reference);
-        if (request.Reference.Kind != UIVocabulary.SurfaceType
-            || !request.Reference.NeuronId.StartsWith(this.GetPrimaryKeyString() + "/", StringComparison.Ordinal))
-        { throw new ArgumentException("A workspace window must reference a surface in this workspace."); }
-        var current = store.State;
-        if (current.SurfaceOperationLog.TryGetValue(request.OperationId, out var previous))
+        ValidateKey(app);
+        return Change(operationId, expectedRevision, state =>
         {
-            if (previous.WindowId != request.WindowId || previous.Title != request.Title || previous.Reference != request.Reference)
-            { throw new InvalidOperationException("This operation ID already belongs to another surface request."); }
-            return Snapshot();
-        }
-        if (current.OperationLog.ContainsKey(request.OperationId)) { throw new InvalidOperationException("This operation ID belongs to a table request."); }
-        RequireRevision(request.ExpectedRevision);
-        if (current.Windows.TryGetValue(request.WindowId, out var existing) && existing.Reference.Kind == WindowReference.TableKind)
-        { throw new InvalidOperationException("A table window cannot be changed into an app window."); }
-        var windows = new Dictionary<string, WorkspaceWindow>(current.Windows, StringComparer.Ordinal)
-        { [request.WindowId] = new(request.WindowId, request.Title, request.Reference, true) };
-        await Save(new()
-        {
-            Revision = checked(current.Revision + 1),
-            Windows = windows,
-            OperationLog = current.OperationLog,
-            SurfaceOperationLog = new(current.SurfaceOperationLog) { [request.OperationId] = request },
-            OperationRevisionLog = current.OperationRevisionLog,
-            ConnectedSources = current.ConnectedSources,
+            var at = Array.FindIndex(state.Path, key => key == app || key.StartsWith(app + "/", StringComparison.Ordinal));
+            return state with
+            {
+                Open = [.. state.Open.Where(key => key != app)],
+                Path = at > 0 ? state.Path[..at] : state.Path,
+            };
         });
-        return Snapshot();
     }
 
-    public async Task<WorkspaceState> SetConnectedSources(IReadOnlyList<string> sources)
+    public Task<WorkspaceState> Read()
     {
-        ArgumentNullException.ThrowIfNull(sources);
-        var connected = sources
-            .Where(source => !string.IsNullOrWhiteSpace(source))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (connected.SequenceEqual(store.State.ConnectedSources, StringComparer.OrdinalIgnoreCase)) { return Snapshot(); }
-        await Save(new()
-        {
-            Revision = store.State.Revision,
-            Windows = store.State.Windows,
-            OperationLog = store.State.OperationLog,
-            SurfaceOperationLog = store.State.SurfaceOperationLog,
-            OperationRevisionLog = store.State.OperationRevisionLog,
-            ConnectedSources = connected,
-        });
-        return Snapshot();
+        var state = Seed(Snapshot);
+        return Task.FromResult(new WorkspaceState(state.Revision, state.Path, state.Open)
+        { OpenViews = state.OpenViews, FocusedViewId = state.FocusedViewId, Pins = state.Pins });
     }
 
-    public async Task<WorkspaceState> Close(string windowId, long expectedRevision)
+    private async Task<WorkspaceState> Change(string operationId, long expectedRevision, Func<WorkspaceStorage, WorkspaceStorage> change)
     {
-        Validate(windowId, 256, nameof(windowId));
-        RequireRevision(expectedRevision);
-        if (!store.State.Windows.TryGetValue(windowId, out var window))
-        { throw new KeyNotFoundException("The workspace has no such window."); }
-        if (!window.IsOpen) { return Snapshot(); }
-        var windows = new Dictionary<string, WorkspaceWindow>(store.State.Windows, StringComparer.Ordinal)
-        {
-            [windowId] = window with { IsOpen = false },
-        };
-        await Save(new() { Revision = checked(store.State.Revision + 1), Windows = windows, OperationLog = store.State.OperationLog, SurfaceOperationLog = store.State.SurfaceOperationLog, OperationRevisionLog = store.State.OperationRevisionLog, ConnectedSources = store.State.ConnectedSources });
-        return Snapshot();
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters.", nameof(operationId)); }
+        if (await Commit(operationId, expectedRevision, state => change(Seed(state)), state => new WorkspaceChanged(Brain, state.Revision)))
+        { await GrainFactory.GetGrain<ISpace>(Brain).Recompose(); }
+        return await Read();
     }
 
-    public Task<WorkspaceState> Read() => Task.FromResult(Snapshot());
+    private bool IsApp(string key) => key.StartsWith(Brain + "/apps/", StringComparison.Ordinal) && !key[(Brain.Length + 6)..].Contains('/');
 
-    private WorkspaceState Snapshot() => new(store.State.Revision, store.State.Windows.Values.ToArray(), FirstRun());
-
-    private FirstRunState? FirstRun() =>
-        store.State.OperationLog.Count == 0 && store.State.SurfaceOperationLog.Count == 0 && store.State.Windows.Count == 0
-            ? WorkspaceStarterCatalog.Build(store.State.ConnectedSources) with { AssistantTitle = options.Value.AssistantTitle }
-            : null;
-
-    private async Task Save(WorkspaceStorage next)
+    private void ValidateKey(string key)
     {
-        var previous = store.State;
-        store.State = next;
-        try { await store.WriteStateAsync(); }
-        catch { store.State = previous; throw; }
-        await PublishAsync(new WorkspaceChanged(this.GetPrimaryKeyString(), next.Revision));
-    }
-    private void RequireRevision(long revision)
-    {
-        if (store.State.Revision != revision)
-        { throw new WorkspaceRevisionConflictException($"Expected revision {revision}; current revision is {store.State.Revision}.", store.State.Revision); }
-    }
-    private static void Validate(string value, int limit, string name)
-    {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > limit)
-        { throw new ArgumentException($"Provide {name} with 1–{limit} characters.", name); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var segments = key.Split('/');
+        if (key.Length > 512 || segments.Any(segment => segment.Length == 0 || segment is "." or ".."))
+        { throw new ArgumentException("Provide a safe neuron key.", nameof(key)); }
+        var friend = key.EndsWith("/profile", StringComparison.Ordinal) || key.Contains("/posts/", StringComparison.Ordinal);
+        if (!key.StartsWith(Brain + "/", StringComparison.Ordinal) && !friend)
+        { throw new ArgumentException("A workspace shows its own neurons or a member profile or post.", nameof(key)); }
     }
 }
 
 [GenerateSerializer]
-internal sealed class WorkspaceStorage
+internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
 {
-    [Id(0)] public long Revision { get; set; }
-    [Id(1)] public Dictionary<string, WorkspaceWindow> Windows { get; set; } = new(StringComparer.Ordinal);
-    [Id(3)] public Dictionary<string, OpenSurfaceWindow> SurfaceOperationLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(2)] public Dictionary<string, OpenWindow> OperationLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(4)] public Dictionary<string, long> OperationRevisionLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(5)] public string[] ConnectedSources { get; set; } = [];
+    [Id(0)] public long Revision { get; init; }
+    [Id(1)] public string[] Operations { get; init; } = [];
+    [Id(2)] public string[] Path { get; init; } = [];
+    [Id(3)] public string[] Open { get; init; } = [];
+    [Id(4)] public WorkspaceViewRef[] OpenViews { get; init; } = [];
+    [Id(5)] public string? FocusedViewId { get; init; }
+    [Id(6)] public WorkspaceViewRef[] Pins { get; init; } = [];
+    [Id(7)] public WorkspaceReceipt[] Receipts { get; init; } = [];
+    public WorkspaceStorage Advanced(string operationId) => this with
+    { Revision = checked(Revision + 1), Operations = [.. Operations.TakeLast(63), operationId] };
 }
+
+[GenerateSerializer]
+internal sealed record WorkspaceReceipt([property: Id(0)] string Id, [property: Id(1)] string Digest);

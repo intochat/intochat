@@ -42,10 +42,13 @@ public sealed partial class RepositoryPathLiteralFacts
     private static readonly string[] ProjectionFacts =
     [
         "DigitalBrain.OS.Tests.Unit/TelemetryProjectionFacts.cs",
+        "DigitalBrain.OS.Tests.Unit/SingleRuntimeCompositionFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/DeploymentIdentityFacts.cs",
+        "DigitalBrain.Modules.Microsoft.Orleans.Tests.Hosting/OrleansHostingFacts.cs",
+        "DigitalBrain.Aspire.Hosting.Tests.Unit/LiveBuildHostingFacts.cs",
         "DigitalBrain.Deployment.Tests/DigitalBrainDeploymentFacts.cs",
         "DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting/GitHubAppHostingFacts.cs",
         "DigitalBrain.Modules.Postgres.Tests.Hosting/PostgresAspireHostingFacts.cs",
@@ -71,7 +74,7 @@ public sealed partial class RepositoryPathLiteralFacts
             .Where(key => !ProjectionFacts.Contains(key, StringComparer.Ordinal))
             .Order().ToArray();
         Assert.True(offenders.Length == 0,
-            "Test code names environment variables; speak through the E2E builder (ExportingTelemetryTo, InEnvironment, ConfigureModule, WithHostConfiguration with a typed key):\n"
+            "Test code names environment variables; speak through TestBrain (WithIntegration, WithOptions, WithDashboardTelemetry, InEnvironment, WithHostConfiguration with a typed key):\n"
             + string.Join('\n', offenders));
     }
 

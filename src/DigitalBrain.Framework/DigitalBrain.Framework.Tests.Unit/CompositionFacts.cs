@@ -1,7 +1,12 @@
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Orleans.Configuration;
+using Orleans.Versions.Compatibility;
+using Orleans.Versions.Selector;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -10,11 +15,23 @@ public sealed class CompositionFacts
     [Fact]
     public async Task HostInventoryListsTheSelectedModulesInDependencyOrder()
     {
-        await using var brain = await ModuleTest.Create().WithModule<Dependency>().WithModule<Dependent, DependentOptions>()
+        await using var brain = await TestBrain.Create().WithModule<Dependency>().WithModule<Dependent, DependentOptions>()
             .StartAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([typeof(Dependency), typeof(Dependent)],
-            brain.SiloServices.GetRequiredService<ModuleInventory>().Types);
+        // The in-process host composes the orleans module first: it owns the cluster's external systems.
+        Assert.Equal([typeof(OrleansModule), typeof(Dependency), typeof(Dependent)],
+            brain.Services.GetRequiredService<ModuleInventory>().Types);
+    }
+
+    [Fact]
+    public async Task EverySiloPrefersTheLatestCompatibleVersion()
+    {
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+
+        var versioning = brain.Services.GetRequiredService<IOptions<GrainVersioningOptions>>().Value;
+
+        Assert.Equal(nameof(BackwardCompatible), versioning.DefaultCompatibilityStrategy);
+        Assert.Equal(nameof(LatestVersion), versioning.DefaultVersionSelectorStrategy);
     }
 
     [Fact]
@@ -46,9 +63,10 @@ public sealed class CompositionFacts
     [Fact]
     public async Task TransitiveDependencyRegistersExactlyOnce()
     {
-        await using var brain = await ModuleTest.Create().WithModule<Dependency>().WithModule<Dependent>()
-            .ConfigureSilo(silo => Assert.Single(silo.Services, s => s.ServiceType == typeof(Marker)))
+        await using var brain = await TestBrain.Create().WithModule<Dependency>().WithModule<Dependent>()
             .StartAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(brain.Services.GetServices<Marker>());
     }
 
     [Fact]

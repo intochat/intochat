@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using Microsoft.AspNetCore.Identity;
 using Orleans;
 using Orleans.Runtime;
 
@@ -11,31 +10,24 @@ namespace DigitalBrain.Platform.Identity.Authority;
 internal sealed record PrincipalState
 {
     [Id(0)] public Member? DefaultMembership { get; init; }
-    [Id(1)] public string? PasswordHash { get; init; }
     [Id(2)] public bool RegistrationComplete { get; init; }
+    // The brains this principal is a member of, as their authorities announce it.
+    [Id(3)] public BrainEntry[] Brains { get; init; } = [];
 }
 
 [GrainType("identity.principal.v2")]
 internal sealed class PrincipalGrain(
-    [PersistentState("principal", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PrincipalState> storage,
+    [PersistentState("principal", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<PrincipalState> storage,
     TimeProvider clock) : IdentityStateGrain<PrincipalState>(storage), IPrincipal
 {
-    private static readonly PasswordHasher<string> Passwords = new();
-
-    public async Task<Member> Register(string password, string displayName)
+    // Password hashes are held by PrincipalPasswords.
+    public async Task<BrainProvision> Register(string displayName)
     {
         var principal = this.GetPrimaryKeyString();
         if (principal.Length is 0 or > 80 || !System.Text.RegularExpressions.Regex.IsMatch(principal, "^[a-z0-9][a-z0-9-]*$"))
         { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
-        if (password is null || password.Length is < 12 or > 256)
-        { throw new ArgumentException("Use a password between 12 and 256 characters."); }
-        if (principal is "owner" or "integrations") { throw new InvalidOperationException("That username is unavailable."); }
-        if (State.DefaultMembership is not null)
-        {
-            if (State.RegistrationComplete || Passwords.VerifyHashedPassword(principal, State.PasswordHash!, password) == PasswordVerificationResult.Failed)
-            { throw new InvalidOperationException("That username is unavailable."); }
-            return await CompleteRegistration();
-        }
+        if (principal is "owner" or "integrations" || State.DefaultMembership is not null)
+        { throw new InvalidOperationException("That username is unavailable."); }
         var accountId = Guid.NewGuid().ToString("N");
         var member = new Member
         {
@@ -46,13 +38,18 @@ internal sealed class PrincipalGrain(
             Role = MemberRole.Owner,
             JoinedAt = clock.GetUtcNow()
         };
-        await Persist(new() { DefaultMembership = member, PasswordHash = Passwords.HashPassword(principal, password) });
-        return await CompleteRegistration();
+        await Persist(new() { DefaultMembership = member });
+        return (await CompleteRegistration())!;
     }
 
-    private async Task<Member> CompleteRegistration()
+    public Task<bool> IsRegistered() => Task.FromResult(State.RegistrationComplete);
+
+
+    // Idempotent: a completed registration answers its membership again, with no new brain.
+    public async Task<BrainProvision?> CompleteRegistration()
     {
-        var member = State.DefaultMembership!;
+        if (State.DefaultMembership is not { } member) { return null; }
+        if (State.RegistrationComplete) { return new(member, false); }
         var account = GrainFactory.GetGrain<IAccount>(member.AccountId);
         await account.EnsureCreated(new Account
         {
@@ -61,21 +58,18 @@ internal sealed class PrincipalGrain(
             Name = member.DisplayName,
             CreatedAt = member.JoinedAt
         });
-        await account.EnsureBrain(member);
+        var created = await account.EnsureBrain(member);
         await Persist(State with { RegistrationComplete = true });
-        return member;
-    }
-
-    public async Task<Member?> Authenticate(string password)
-    {
-        if (string.IsNullOrEmpty(password) || password.Length > 256 || State.PasswordHash is null) { return null; }
-        var result = Passwords.VerifyHashedPassword(this.GetPrimaryKeyString(), State.PasswordHash, password);
-        if (result == PasswordVerificationResult.Failed) { return null; }
-        if (result == PasswordVerificationResult.SuccessRehashNeeded)
-        { await Persist(State with { PasswordHash = Passwords.HashPassword(this.GetPrimaryKeyString(), password) }); }
-        if (!State.RegistrationComplete) { return await CompleteRegistration(); }
-        return State.DefaultMembership;
+        return new(member, created);
     }
 
     public Task<Member?> DefaultMembership() => Task.FromResult(State.DefaultMembership);
+
+    public Task<BrainEntry[]> Brains() => Task.FromResult(State.Brains);
+
+    public Task Joined(string brainId, BrainKind kind)
+        => State.Brains.Any(known => known.Id == brainId) ? Task.CompletedTask : Persist(State with { Brains = [.. State.Brains, new BrainEntry(brainId, kind)] });
+
+    public Task Left(string brainId)
+        => State.Brains.Any(known => known.Id == brainId) ? Persist(State with { Brains = [.. State.Brains.Where(known => known.Id != brainId)] }) : Task.CompletedTask;
 }

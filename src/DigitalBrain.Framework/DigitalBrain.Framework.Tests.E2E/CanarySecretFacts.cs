@@ -1,15 +1,13 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Testing.E2E;
-using DigitalBrain.Testing.E2E.Diagnostics;
-using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
+using DigitalBrain.Testing.Aspire.Diagnostics;
 
 namespace DigitalBrain.Framework.Tests.E2E;
 
 // A secret must not appear in HTTP responses, traces, or logs. SecretsFacts inspects persisted state.
+[Collection("ReferenceBrainFixture")]
 public sealed class CanarySecretFacts(ReferenceBrainFixture host)
 {
-    private const string Owner = "owner";
     private const string Canary = "canary-secret-7f3a91";
 
     [Fact(Timeout = 300_000)]
@@ -17,23 +15,18 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await host.LeaseAsync(ct);
-        var collector = host.Collector;
+        using var operation = brain.Telemetry().BeginOperation(nameof(ASeededVaultSecretNeverAppearsInPlaintext));
 
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/secrets/{Owner}",
-            new { name = "me.apiKey", label = "API key", value = Canary },
-            ct);
+        using var request = operation.Request(HttpMethod.Post,
+            $"/secrets/{brain.Owner.BrainId}",
+            JsonContent.Create(new { name = "me.apiKey", label = "API key", value = Canary }));
+        using var seeded = await operation.SendAsync(brain.Owner.Http, request, ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var seedBody = await seeded.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(Canary, seedBody, StringComparison.Ordinal);
         Assert.Contains("secret://", seedBody, StringComparison.Ordinal);
 
-        await WaitForAsync(() => collector.Snapshot().Count > 0, ct);
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
-        Assert.DoesNotContain(collector.Snapshot(), span => TextOf(span).Contains(Canary, StringComparison.Ordinal));
-        Assert.DoesNotContain(collector.LogSnapshot(), log => TextOf(log).Contains(Canary, StringComparison.Ordinal));
-        Assert.Empty(collector.Errors());
-
+        await AssertPrivateAsync(operation, ct);
     }
 
     [Theory(Timeout = 300_000)]
@@ -42,25 +35,24 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await host.LeaseAsync(ct);
-        var collector = host.Collector;
+        using var operation = brain.Telemetry().BeginOperation(nameof(AConnectionTokenNeverAppearsInPlaintext));
 
         // POST /brains/{brainId}/connections/{connectionId}/connect with a ConnectInput body.
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/brains/{Owner}/connections/conn-{source}/connect",
-            new { connectorId = source, authMethodId = "connection-string", value = Canary },
-            ct);
+        using var request = operation.Request(HttpMethod.Post,
+            $"/brains/{brain.Owner.BrainId}/connections/conn-{source}/connect",
+            JsonContent.Create(new { connectorId = source, authMethodId = "connection-string", value = Canary }));
+        using var seeded = await operation.SendAsync(brain.Owner.Http, request, ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var seedBody = await seeded.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(Canary, seedBody, StringComparison.Ordinal);
 
-        var list = await brain.HttpClient.GetStringAsync($"/brains/{Owner}/connections", ct);
+        using var listRequest = operation.Request(HttpMethod.Get, $"/brains/{brain.Owner.BrainId}/connections");
+        using var listed = await operation.SendAsync(brain.Owner.Http, listRequest, ct);
+        Assert.True(listed.IsSuccessStatusCode);
+        var list = await listed.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(Canary, list, StringComparison.Ordinal);
 
-        await WaitForAsync(() => collector.Snapshot().Count > 0, ct);
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
-        Assert.DoesNotContain(collector.Snapshot(), span => TextOf(span).Contains(Canary, StringComparison.Ordinal));
-        Assert.DoesNotContain(collector.LogSnapshot(), log => TextOf(log).Contains(Canary, StringComparison.Ordinal));
-        Assert.Empty(collector.Errors());
+        await AssertPrivateAsync(operation, ct);
     }
 
     [Fact(Timeout = 300_000)]
@@ -68,27 +60,27 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await host.LeaseAsync(ct);
-        var collector = host.Collector;
+        using var operation = brain.Telemetry().BeginOperation(nameof(AFormSecretTravelsOnlyAsAVaultReference));
 
         // The brain id is the scope: a UI part named under it belongs to that brain.
         const string workspace = "form-canary";
         var form = brain.Get<DigitalBrain.Flutter.Form.IForm>(workspace + "/apps/forms/intake");
         await form.Define(new("Intake", [new("password", "Password", DigitalBrain.Flutter.Form.FormFieldKind.Secret)]));
 
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/secrets/{Owner}",
-            new { name = "forms.intake.password", label = "Password", value = Canary },
-            ct);
+        using var seedRequest = operation.Request(HttpMethod.Post,
+            $"/secrets/{brain.Owner.BrainId}",
+            JsonContent.Create(new { name = "forms.intake.password", label = "Password", value = Canary }));
+        using var seeded = await operation.SendAsync(brain.Owner.Http, seedRequest, ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var reference = (await seeded.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("reference").GetString();
         Assert.NotNull(reference);
         Assert.StartsWith("secret://", reference, StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, reference, StringComparison.Ordinal);
 
-        using var evented = await brain.HttpClient.PostAsJsonAsync(
+        using var eventRequest = operation.Request(HttpMethod.Post,
             $"/brains/{workspace}/apps/event",
-            new { kind = "form", name = workspace + "/apps/forms/intake", action = "secret", field = "password", value = reference },
-            ct);
+            JsonContent.Create(new { kind = "form", name = workspace + "/apps/forms/intake", action = "secret", field = "password", value = reference }));
+        using var evented = await operation.SendAsync(brain.Owner.Http, eventRequest, ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, evented.StatusCode);
 
         var state = await form.Read();
@@ -98,10 +90,14 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         Assert.Equal(reference, field.Secret!.Reference);
         Assert.DoesNotContain(Canary, System.Text.Json.JsonSerializer.Serialize(state), StringComparison.Ordinal);
 
-        await WaitForAsync(() => collector.Snapshot().Count > 0, ct);
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
-        Assert.DoesNotContain(collector.Snapshot(), span => TextOf(span).Contains(Canary, StringComparison.Ordinal));
-        Assert.DoesNotContain(collector.LogSnapshot(), log => TextOf(log).Contains(Canary, StringComparison.Ordinal));
-        Assert.Empty(collector.Errors());
+        await AssertPrivateAsync(operation, ct);
+    }
+
+    private static async Task AssertPrivateAsync(TelemetryOperation operation, CancellationToken ct)
+    {
+        var capture = await operation.CompleteAsync(ct);
+        Assert.NotEmpty(capture.Spans);
+        Assert.DoesNotContain(capture.PrivacySpans, span => span.Text.Contains(Canary, StringComparison.Ordinal));
+        Assert.DoesNotContain(capture.Logs, log => log.Text.Contains(Canary, StringComparison.Ordinal));
     }
 }

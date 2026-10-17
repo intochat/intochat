@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Flutter.Button;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Flutter.Select;
@@ -7,12 +8,13 @@ namespace DigitalBrain.Flutter.Select;
 public interface ISelect : INeuron
 {
     Task Set(string label, IReadOnlyList<SelectOption> options, string? selected);
+    Task SetVisual(ControlVisual visual);
     Task Choose(string value);
     [ReadOnly, Alias("read")] Task<SelectState> Read();
 }
 
 [GenerateSerializer, Alias("ui.select-option")]
-public sealed record SelectOption([property: Id(0)] string Id, [property: Id(1)] string Label, [property: Id(2)] bool Enabled = true);
+public sealed record SelectOption([property: Id(0)] string Id, [property: Id(1)] string Label, [property: Id(2)] bool Enabled = true, [property: Id(3)] ControlVisual? Visual = null);
 
 [GenerateSerializer, Alias("ui.select-state")]
 public sealed class SelectState
@@ -22,6 +24,7 @@ public sealed class SelectState
     [Id(2)] public string Label { get; set; } = "";
     [Id(3)] public SelectOption[] Options { get; set; } = [];
     [Id(4)] public string? Selected { get; set; }
+    [Id(5)] public ControlVisual? Visual { get; set; }
 }
 
 [GenerateSerializer, Alias("ui.select-changed")]

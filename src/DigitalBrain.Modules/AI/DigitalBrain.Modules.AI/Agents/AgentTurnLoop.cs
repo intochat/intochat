@@ -42,17 +42,18 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
 
     private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
-        if (plan.MaxModelCalls is < 1 or > 128) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 128."); }
+        if (plan.MaxModelCalls is < 1 or > 512) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 512."); }
         if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
         yield return new AgentTurnEvent.Started(plan.RunId);
         string? currentCall = null;
         var contexts = await ReadContexts(plan.Contexts, ct);
         var surface = services.GetRequiredService<NeuronSurface>();
         // Context may name contracts this host does not deploy; only deployed ones join the turn.
-        string[] composed = [.. plan.Contracts, .. contexts.SelectMany(entry => entry.Contracts)
-            .Where(name => !plan.Contracts.Contains(name) && surface.List().Contains(name)).Distinct(StringComparer.Ordinal)];
+        string[] named = [.. contexts.SelectMany(entry => entry.Contracts).Where(name => !plan.Contracts.Contains(name)).Distinct(StringComparer.Ordinal)];
+        var known = named.Length == 0 ? [] : await surface.Contracts(ct);
+        string[] composed = [.. plan.Contracts, .. named.Where(known.Contains)];
         // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
-        var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(surface.Restrict(composed), plan.Conversation)];
+        var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
         var selection = plan.Model;

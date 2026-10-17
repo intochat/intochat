@@ -3,6 +3,7 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Grants;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 
@@ -112,8 +113,8 @@ public sealed class GrantFacts
     public async Task RevokingAOnceGrantEmptiesTheAuthorityAndTheNextReadLooksMissing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
         Assert.Single(await authority.ListGrants());
@@ -131,22 +132,90 @@ public sealed class GrantFacts
     public async Task ConcurrentCallsCannotSpendTheSameOnceGrant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
         var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
-        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => authority.Authorize(request)));
+        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => authority.Consume(request)));
         Assert.Single(results, result => result is { Allowed: true });
         Assert.Empty(await authority.ListGrants());
+    }
+
+    // R68: the decision is a read; only a consume spends a Once grant.
+    [Fact]
+    public async Task AnAuthorizeReadNeverConsumesAGrant()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+
+        foreach (var _ in Enumerable.Range(0, 3)) { Assert.True((await authority.Authorize(request)) is { Allowed: true, ConsumesOnce: true }); }
+        Assert.Single(await authority.ListGrants());
+    }
+
+    [Fact]
+    public async Task AMirroredAuthorityAnswersTheNextCallWithoutTheGrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var mirror = new AuthorityMirror();
+        var identity = new CountingAuthority();
+        var source = new GrainGrantPolicySource(identity, mirror);
+        var request = Request(CallerKind.App, "app-1", "ws-1");
+        Assert.Null(await source.AuthorizeAsync(request, ct));
+        Assert.Equal(1, identity.Authorizes);
+
+        var scope = BrainScope.Create("account-1", "ws-1").Id;
+        mirror.Publish(scope, new BrainAuthorityState { AccountId = "account-1", BrainId = "ws-1" });
+        Assert.Null(await source.AuthorizeAsync(request, ct));
+        Assert.Equal(1, identity.Authorizes);
+
+        mirror.Publish(scope, new BrainAuthorityState { AccountId = "other", BrainId = "ws-1" });
+        var denied = await source.AuthorizeAsync(request, ct);
+        Assert.Equal(CallDenial.OutsideWorkspace, denied!.Denial);
+        Assert.Equal(1, identity.Authorizes);
+
+        mirror.Publish(scope, new BrainAuthorityState
+        {
+            AccountId = "account-1",
+            BrainId = "ws-1",
+            Grants = [Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1")],
+        });
+        Assert.Null(await source.AuthorizeAsync(Request(CallerKind.App, "app-1", "ws-1", "person.birthDate"), ct));
+        Assert.Equal(2, identity.Authorizes);
+    }
+
+    [Fact]
+    public async Task RevokingAGrantIsVisibleToTheSameProcessMirrorWhenTheWriteReturns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var scope = BrainScope.Create("account-1", "ws-1").Id;
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(scope);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
+        var mirror = brain.Services.GetRequiredService<AuthorityMirror>();
+        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+
+        Assert.True(mirror.TryDecide(request, out var allowed));
+        Assert.True(allowed!.Allowed);
+        await authority.Revoke("app-1", "person.birthDate", GrantMode.Always);
+        Assert.True(mirror.TryDecide(request, out var denied));
+        Assert.Equal(CallDenial.MissingGrant, denied!.Denial);
+
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        Assert.False(mirror.TryDecide(request, out _));
     }
 
     [Fact]
     public async Task TheAuthorityGrantsRevokesAndRelists()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
         Assert.Single(await authority.ListGrants());
@@ -158,8 +227,8 @@ public sealed class GrantFacts
     public async Task RevokingOneModeKeepsTheOthersAndARevokedValueLooksEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
         await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", "ws-1") with { ConversationId = "chat-1" });
@@ -200,6 +269,34 @@ public sealed class GrantFacts
         Operation = "Read",
         SemanticTypeIds = semanticTypes,
     };
+
+    private sealed class CountingAuthority : IIdentityClient
+    {
+        public int Authorizes { get; private set; }
+        public Task<CallDecision?> Authorize(CallRequest request)
+        {
+            Authorizes++;
+            return Task.FromResult<CallDecision?>(null);
+        }
+        public Task<Account?> ReadAccount(string accountId) => throw new NotSupportedException();
+        public Task<Account?> OwnerOfBrain(string brainId) => throw new NotSupportedException();
+        public Task EnsureAccount(Account account) => throw new NotSupportedException();
+        public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind) => throw new NotSupportedException();
+        public Task<BrainProvision> EnsureBrain(Member owner) => throw new NotSupportedException();
+        public Task<BrainProvision> ProvisionOwner(Member owner) => throw new NotSupportedException();
+        public Task<bool> IsRegistered(string principalId) => throw new NotSupportedException();
+        public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => throw new NotSupportedException();
+        public Task<BrainProvision?> CompleteRegistration(string principalId) => throw new NotSupportedException();
+        public Task<BrainEntry[]> BrainsOf(string principalId) => throw new NotSupportedException();
+        public Task<BrainKind> KindOf(string brainScopeId) => throw new NotSupportedException();
+        public Task<bool> BrainExists(string brainScopeId) => throw new NotSupportedException();
+        public Task<Member?> Membership(string brainScopeId, string principalId) => throw new NotSupportedException();
+        public Task<Member?> EnsureMember(Member member) => throw new NotSupportedException();
+        public Task RemoveMember(string brainScopeId, string accountId) => throw new NotSupportedException();
+        public Task<Grant[]> ListGrants(string brainScopeId) => throw new NotSupportedException();
+        public Task<Grant> GrantAsOwner(CallerContext caller, Grant grant) => throw new NotSupportedException();
+        public Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode) => throw new NotSupportedException();
+    }
 
     private sealed class FakePolicy(Member? member, IReadOnlyList<Grant> grants) : IGrantPolicySource
     {

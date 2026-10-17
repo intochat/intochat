@@ -7,6 +7,7 @@ import '../composition/renderer_registry.dart';
 
 /// Fixtures use the same kind/name references and definitions as NeuronView.
 const neuronDescriptions = <String, String>{
+  'view': 'Compose text, actions, and layout in one immutable view.',
   'surface': 'An app root that brings named child neurons into one window.',
   'layout': 'Arrange child neurons in a column, row, split, or stack.',
   'collection':
@@ -30,6 +31,7 @@ const neuronDescriptions = <String, String>{
   'video': 'Video content and playback state.',
   'webbrowser': 'A web page or browser surface.',
   'chart': 'A visual summary of numeric data.',
+  'scene': 'A declarative Flame scene: nodes, behavior trees and tweens.',
   'graph': 'Connected nodes and relationships.',
   'table': 'Structured records arranged in columns and rows.',
   'calendar': 'Dates and scheduled items.',
@@ -61,6 +63,25 @@ String compositionGuidance(String kind) => switch (kind) {
 };
 
 Map<String, dynamic> neuronExample(String kind) => switch (kind) {
+  'view' => {
+    'generation': 1,
+    'version': 1,
+    'root': {
+      'kind': 2,
+      'key': 'reading',
+      'children': [
+        {'kind': 0, 'key': 'welcome', 'text': 'Your reading space'},
+        {
+          'kind': 1,
+          'key': 'add',
+          'text': 'Add a book',
+          'action': 'add-book',
+          'enabled': true,
+        },
+      ],
+    },
+  },
+  'person' => {'displayName': 'Alex', 'avatarUrl': ''},
   'surface' => {
     'title': 'Reading app',
     'children': [
@@ -165,6 +186,26 @@ Map<String, dynamic> neuronExample(String kind) => switch (kind) {
       ['The Creative Act', '432'],
     ],
   },
+  'scene' => {
+    'nodes': [
+      {
+        'id': 'sun',
+        'type': 'circle',
+        'transform': {'x': 0, 'y': 0},
+        'style': '#F5B941',
+        'parameters': {'radius': '32'},
+      },
+      {
+        'id': 'caption',
+        'type': 'text',
+        'transform': {'x': 0, 'y': 52},
+        'style': '#E6EDF3',
+        'parameters': {'text': 'Hello, scene'},
+      },
+    ],
+    'camera': {'x': 0, 'y': 0, 'zoom': 1},
+    'background': '#0B0F14',
+  },
   'chart' => {
     'title': 'Pages read',
     'kind': 'bar',
@@ -193,7 +234,7 @@ class NeuronGalleryPreview extends StatefulWidget {
 class _NeuronGalleryPreviewState extends State<NeuronGalleryPreview> {
   String? selectedTab;
   String lastAction = 'Actions stay in this preview.';
-  int revision = 0;
+  int revision = 1;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -207,6 +248,7 @@ class _NeuronGalleryPreviewState extends State<NeuronGalleryPreview> {
           revision: revision,
           load: (kind, name) async => {
             'revision': revision,
+            if (kind == 'view') ...neuronExample(kind),
             'definition': {
               ...neuronExample(kind),
               if (kind == 'tabs' && selectedTab != null)

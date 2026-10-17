@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
+using DigitalBrain.ServiceDefaults;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Trace;
@@ -10,12 +11,15 @@ builder.Services.AddOptions<SandboxOptions>().BindConfiguration(SandboxOptions.S
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.PropertyNamingPolicy = RuntimeProtocol.Json.PropertyNamingPolicy);
 builder.Services.AddHttpClient<BehaviorLoader>();
 builder.Services.AddSingleton<Sessions>();
+builder.Services.AddSingleton<RuleJudge>();
 // The host reports its logs and spans wherever the deployment points OTLP (the Aspire dashboard locally).
 if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
 {
     builder.Logging.AddOpenTelemetry(logging => { logging.IncludeFormattedMessage = true; logging.IncludeScopes = true; });
     builder.Services.AddOpenTelemetry()
-        .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation(http => http.EnrichWithHttpRequestMessage = (activity, request) =>
+        .WithTracing(tracing => tracing.AddSource(TelemetryExportBarrier.SourceName)
+            .AddAspNetCoreInstrumentation(http => http.Filter = context => !context.Request.Path.Equals(TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase))
+            .AddHttpClientInstrumentation(http => http.EnrichWithHttpRequestMessage = (activity, request) =>
         {
             if (request.Options.TryGetValue(RuntimeProtocol.ReportKind, out var kind)) { activity.SetTag(RuntimeProtocol.ReportKindTag, kind); }
         }).AddProcessor(new QuietReportProcessor()))
@@ -25,6 +29,7 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
 var app = builder.Build();
 app.Logger.LogInformation("Sandbox host carries contracts {Fingerprint}", Sessions.Fingerprint.Replace('\n', ' '));
 app.MapSandbox();
+app.MapTelemetryExportBarrier();
 await app.RunAsync();
 
 // The sandbox's own heartbeat POST, tagged by SessionConnection. Other reports on the route (Subscribe, status, ...)

@@ -14,7 +14,7 @@ public sealed class UiBindingState
 public sealed record UiBindingChanged([property: Id(0)] string Name) : Signal;
 
 [GrainType("ui.binding")]
-internal sealed class UiBindingNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<UiBindingState> store)
+internal sealed class UiBindingNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<UiBindingState> store)
     : Neuron<UiBindingState>(store), IUiBinding
 {
     public Task Bind(IUiEventHandler handler)

@@ -4,6 +4,7 @@
     <RootNamespace>DigitalBrain.Modules.Microsoft.CSharp.Sandbox</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../../../DigitalBrain.Aspire/DigitalBrain.ServiceDefaults/TelemetryExportBarrier.cs" Link="TelemetryExportBarrier.cs" />
     <!-- The protocol, the session connection and the client behaviors connect through; shared, never reloaded per behavior. -->
     <ProjectReference Include="../../../../DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.CSharp.Tests" />

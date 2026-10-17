@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Surface;
 using DigitalBrain.Platform.Identity;
@@ -9,10 +11,16 @@ using ModelContextProtocol.Server;
 namespace DigitalBrain.Mcp;
 
 [McpServerToolType]
-internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth)
+internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IKernelView kernel)
 {
+    // The caller as stamped, plus the brains it may select with /brains/{brainId}/mcp.
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
-    public CallerContext Context() => Stamp();
+    public async Task<JsonObject> Context(CancellationToken cancellationToken)
+    {
+        var context = JsonSerializer.SerializeToNode(Stamp(), JsonSerializerOptions.Web)!.AsObject();
+        context["brains"] = JsonSerializer.SerializeToNode(await kernel.Brains(cancellationToken), JsonSerializerOptions.Web);
+        return context;
+    }
 
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP
     // request at the tool boundary, rather than inheriting a previous MCP session's caller.

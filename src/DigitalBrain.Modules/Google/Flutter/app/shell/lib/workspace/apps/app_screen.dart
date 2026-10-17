@@ -58,20 +58,23 @@ class _AppScreenState extends State<AppScreen> {
     super.dispose();
   }
 
+  static bool _inProgress(Object? status) =>
+      status == 'Building' || status == 'Deploying';
+
   void _show(dynamic app) {
     if (!mounted) return;
     setState(() {
       _app = _map(app);
       _name = '${_app!['name']}';
     });
-    // Building finishes in the background; keep the activity feed current until it lands.
-    if (_app?['status'] == 'Building') {
+    // Building and Deploying finish in the background; keep the activity feed current until they land.
+    if (_inProgress(_app?['status'])) {
       _poll ??= Timer.periodic(widget.pollInterval, (_) async {
         try {
           final current = _map(await widget.request('GET', _appPath));
           if (!mounted) return;
           setState(() => _app = current);
-          if (current['status'] != 'Building') {
+          if (!_inProgress(current['status'])) {
             _poll?.cancel();
             _poll = null;
           }
@@ -216,7 +219,7 @@ class _AppScreenState extends State<AppScreen> {
                   if (app != null) ...[
                     FilledButton(
                       key: const ValueKey('build-app'),
-                      onPressed: _busy || app['status'] == 'Building'
+                      onPressed: _busy || _inProgress(app['status'])
                           ? null
                           : _implement,
                       child: const Text('Implement'),

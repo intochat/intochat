@@ -23,6 +23,29 @@ void main() {
     ),
   );
 
+  testWidgets(
+    'edit submit and voice begin carry displayed selection revision',
+    (tester) async {
+      final events = <Map<String, dynamic>>[];
+      await show(tester, {'context': 'a', 'generation': 7, 'draft': ''}, (
+        event,
+      ) async {
+        events.add(event);
+      });
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pump();
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      await tester.widget<UiVoiceInput>(find.byType(UiVoiceInput)).onBegin!();
+      expect(events.map((event) => event['action']), [
+        'edit',
+        'submit',
+        'voice-begin',
+      ]);
+      expect(events.map((event) => event['selectionRevision']), [7, 7, 7]);
+    },
+  );
+
   testWidgets('ordered queue preserves the latest failed edit after refresh', (
     tester,
   ) async {

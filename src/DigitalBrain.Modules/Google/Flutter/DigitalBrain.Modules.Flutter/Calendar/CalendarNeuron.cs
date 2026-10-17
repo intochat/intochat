@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Calendar;
 
 [GrainType(UIVocabulary.CalendarType)]
-internal sealed class CalendarNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CalendarState> store)
+internal sealed class CalendarNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CalendarState> store)
     : Neuron<CalendarState>(store), ICalendar
 {
     public Task Set(string mode, IReadOnlyList<string> selected)

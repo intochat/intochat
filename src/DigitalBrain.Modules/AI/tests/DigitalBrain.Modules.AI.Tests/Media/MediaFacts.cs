@@ -2,26 +2,24 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Media;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 using IImageGenerator = DigitalBrain.AI.Media.IImageGenerator;
 using ImageGenerationRequest = DigitalBrain.AI.Media.ImageGenerationRequest;
 
 namespace DigitalBrain.Modules.AI.Tests;
 
+// The media neurons: images through the real OpenAI adapter against a loopback provider; embeddings,
+// transcription and speech over their in-process transports, which a fact hands the neuron itself.
 public sealed class MediaFacts
 {
     [Fact]
     public async Task EmbeddingsRecognitionAndSynthesisUseConfiguredServices()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s =>
-            {
-                s.Services.AddMediaNeurons();
-                s.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new Embeddings());
-                s.Services.AddSingleton<IAudioTranscriptionService>(new Transcription());
-                s.Services.AddSingleton<ISpeechSynthesisTransport>(new Speech());
-            }).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>()
+            .ConfigureServices(services => services
+                .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new Embeddings())
+                .AddSingleton<IAudioTranscriptionService>(new Transcription())
+                .AddSingleton<ISpeechSynthesisTransport>(new Speech())).StartAsync(ct);
         var embeddings = await brain.Get<IEmbeddingModel>("embedding").Embed(new EmbeddingRequest(["one", "two"]), ct);
         Assert.Equal(2, embeddings.Vectors.Length);
         Assert.Equal(new float[] { 3, 1 }, embeddings.Vectors[0]);
@@ -37,30 +35,29 @@ public sealed class MediaFacts
     public async Task OversizedInputIsRejectedBeforeProviderInvocation()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Images();
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => { s.Services.AddMediaNeurons(); s.Services.AddSingleton<IImageGeneration>(provider); })
-            .StartAsync(ct);
+        using var provider = new LoopbackServer();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
+        var reached = provider.Hold(ct);
         var image = brain.Get<IImageGenerator>("invalid");
         await using var failed = await brain.Observe<MediaOperationFailed>(image, ct);
         await Assert.ThrowsAsync<ArgumentException>(() => image.Generate(new ImageGenerationRequest(new string('x', 32769)), ct));
         Assert.Equal("failed", (await failed.NextAsync(ct: ct)).Code);
-        Assert.Equal(0, provider.Calls);
+        Assert.False(reached.IsCompleted);
     }
 
     [Fact]
     public async Task CancellationReachesTheRunningProvider()
     {
         var ct = TestContext.Current.CancellationToken;
-        var service = new BlockingImages();
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => { s.Services.AddMediaNeurons(); s.Services.AddSingleton<IImageGeneration>(service); })
-            .StartAsync(ct);
+        using var provider = new LoopbackServer();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
         var neuron = brain.Get<IImageGenerator>("cancel");
         await using var failed = await brain.Observe<MediaOperationFailed>(neuron, ct);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var reached = provider.Hold(ct);
         var pending = neuron.Generate(new ImageGenerationRequest("tree"), cancellation.Token);
-        await service.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        await Task.WhenAny(reached, pending);
+        Assert.True(reached.IsCompletedSuccessfully, "The provider was never asked.");
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         Assert.Equal("cancelled", (await failed.NextAsync(ct: ct)).Code);
@@ -70,14 +67,15 @@ public sealed class MediaFacts
     public async Task ImageGenerationReturnsSerializableBytesAndPublishesCompletion()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => { s.Services.AddMediaNeurons(); s.Services.AddSingleton<IImageGeneration>(new Images()); })
-            .StartAsync(ct);
+        using var provider = new LoopbackServer();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
         var neuron = brain.Get<IImageGenerator>("image");
         await using var completed = await brain.Observe<ImageGenerated>(neuron, ct);
+        var served = provider.ReplyOnce("application/json", """{"created":1,"data":[{"b64_json":"AQI="}]}""", ct);
         var result = await neuron.Generate(new ImageGenerationRequest("tree"), ct);
+        using var request = System.Text.Json.JsonDocument.Parse((await served).Body);
         Assert.Equal(new byte[] { 1, 2 }, result.Image.Content);
-        Assert.Equal("test-image", result.Model);
+        Assert.Equal(request.RootElement.GetProperty("model").GetString(), result.Model);
         Assert.Equal(result.OperationId, (await completed.NextAsync(ct: ct)).OperationId);
     }
 
@@ -85,8 +83,7 @@ public sealed class MediaFacts
     public async Task SynthesisReportsUnavailableAndPublishesTypedFailure()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => s.Services.AddMediaNeurons()).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
         var neuron = brain.Get<ISpeechSynthesizer>("speech");
         Assert.False((await neuron.Describe()).Available);
         await using var failed = await brain.Observe<MediaOperationFailed>(neuron, ct);
@@ -94,26 +91,6 @@ public sealed class MediaFacts
         Assert.Equal(MediaOperation.SpeechSynthesis, (await failed.NextAsync(ct: ct)).Operation);
     }
 
-    private sealed class Images : IImageGeneration
-    {
-        public int Calls { get; private set; }
-        public Task<GeneratedUiImage> GenerateAsync(string prompt, CancellationToken cancellationToken)
-        {
-            Calls++;
-            return Task.FromResult(new GeneratedUiImage([1, 2], "image/png", "test-image"));
-        }
-    }
-
-    private sealed class BlockingImages : IImageGeneration
-    {
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<GeneratedUiImage> GenerateAsync(string prompt, CancellationToken cancellationToken)
-        {
-            Started.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            throw new InvalidOperationException("unreachable");
-        }
-    }
     private sealed class Embeddings : IEmbeddingGenerator<string, Embedding<float>>
     {
         public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(IEnumerable<string> values,

@@ -23,7 +23,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
     public SalesforceNeuron(
         ISalesforceProvider provider,
         TimeProvider time,
-        [PersistentState("salesforce", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SalesforceState> state)
+        [PersistentState("salesforce", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SalesforceState> state)
         : base(state)
     {
         _provider = provider;

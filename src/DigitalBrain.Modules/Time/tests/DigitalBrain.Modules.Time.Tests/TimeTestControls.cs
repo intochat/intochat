@@ -1,7 +1,7 @@
 global using ITimer = DigitalBrain.Time.Timers.ITimer;
+using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Configuration;
-using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.Timers;
 
@@ -9,25 +9,28 @@ namespace DigitalBrain.Modules.Time.Tests;
 
 internal static class TimeTestControls
 {
-    public static void UseControlledTimers(this ISiloBuilder silo, ControlledTimers timers)
+    // Rule 4 seam: the clock and timer delivery have no integration boundary, so the test owns them in-process.
+    // These decorate Orleans' own registries; a test's ConfigureServices runs after Orleans registered them.
+    public static void UseControlledTimers(this IServiceCollection services, ControlledTimers timers)
     {
-        Decorate<ITimerRegistry>(silo.Services, inner => new ControlledTimerRegistry(inner, timers));
-        silo.Services.AddSingleton<TimeProvider>(timers);
+        Decorate<ITimerRegistry>(services, inner => new ControlledTimerRegistry(inner, timers));
+        services.AddKeyedSingleton<TimeProvider>(typeof(TimeModule), timers);
     }
 
-    public static void UseFastCollection(this ISiloBuilder silo)
-        => silo.Configure<GrainCollectionOptions>(options =>
+    // Rule 4 seam: a time knob, so idle collection happens within a fact.
+    public static void UseFastCollection(this IServiceCollection services)
+        => services.Configure<GrainCollectionOptions>(options =>
         {
             options.CollectionAge = TimeSpan.FromMilliseconds(200);
             options.CollectionQuantum = TimeSpan.FromMilliseconds(100);
         });
 
-    public static void UseReminderControl(this ISiloBuilder silo, ReminderControl reminders)
+    // Rule 4 seam: reminder-storage fault injection and an accelerated period (a test setting, never a production default).
+    public static void UseReminderControl(this IServiceCollection services, ReminderControl reminders)
     {
-        // Accelerated real reminders are a test setting, never a production default.
-        silo.Configure<ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
-        Decorate<IReminderRegistry>(silo.Services, inner => new FaultingReminders(inner, reminders));
-        silo.Services.AddSingleton<IIncomingGrainCallFilter>(services =>
+        services.Configure<ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
+        Decorate<IReminderRegistry>(services, inner => new FaultingReminders(inner, reminders));
+        services.AddSingleton<IIncomingGrainCallFilter>(services =>
         {
             reminders.Table = services.GetRequiredService<IReminderTable>();
             return reminders;

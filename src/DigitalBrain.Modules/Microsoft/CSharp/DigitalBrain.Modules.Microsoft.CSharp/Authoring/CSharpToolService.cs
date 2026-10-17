@@ -9,7 +9,7 @@ using ModelContextProtocol.Server;
 namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 // The contract discovery is registered by CSharpModule, so its absence means this host cannot run C# files.
-public sealed class CSharpToolService(IDigitalBrain brain, CSharpCatalogStore catalog, CSharpContractDiscovery? contracts = null, CSharpScriptCheck? check = null)
+public sealed class CSharpToolService(IDigitalBrain brain, IKernelView kernel, CSharpContractDiscovery? contracts = null, CSharpScriptCheck? check = null)
 {
     public static readonly (MethodInfo Method, string Name)[] Tools = [.. typeof(ScopedCSharpTools).GetMethods()
         .Select(method => (Method: method, Tool: method.GetCustomAttribute<McpServerToolAttribute>()))
@@ -20,5 +20,5 @@ public sealed class CSharpToolService(IDigitalBrain brain, CSharpCatalogStore ca
     public CSharpContractDiscovery? Discovery => contracts;
     public CSharpScriptCheck? Check => check;
 
-    public ScopedCSharpTools ForScope(string scope) => new(brain, catalog, contracts, scope, CanRun);
+    public ScopedCSharpTools ForScope(string scope) => new(brain, kernel, contracts, scope, CanRun);
 }

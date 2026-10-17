@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Map;
 
 [GrainType(UIVocabulary.MapType)]
-internal sealed class MapNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<MapState> store)
+internal sealed class MapNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<MapState> store)
     : Neuron<MapState>(store), IMap
 {
     public Task Set(double lat, double lng, double zoom, IReadOnlyList<MapMarker> markers)

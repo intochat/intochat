@@ -1,75 +1,97 @@
 using Aspire.Hosting;
-using DigitalBrain.AI;
-using DigitalBrain.AI.Aspire.Hosting;
-using DigitalBrain.AI.Models.FoundryLocal;
-using DigitalBrain.AI.Models.Ollama;
-using DigitalBrain.AI.Models.OpenAI;
-using DigitalBrain.AI.Models.OpenRouter;
+using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.AppHost;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.ClickHouse;
-using DigitalBrain.ClickHouse.Aspire.Hosting;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
-using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Microsoft.GitHub;
-using DigitalBrain.Postgres;
-using DigitalBrain.Postgres.Aspire.Hosting;
-using DigitalBrain.Qdrant;
-using DigitalBrain.Qdrant.Aspire.Hosting;
-using DigitalBrain.Salesforce;
-using DigitalBrain.Salesforce.Aspire.Hosting;
-using DigitalBrain.Supabase;
-using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
-// The AppHost owns its deployment keys: the published ports and the IntoChat vendor's shipped-apps binding (leaves under
-// ShippedAppsServiceCollectionExtensions.ConfigurationSection).
+// The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
+// (the apps module's Features option, under DigitalBrainConfiguration.ModuleOptionsSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
+var featuresKey = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
-var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
-    .WithHttpIdentity()
-    .WithHosting<AIModuleHosting, AIOptions>(ai =>
-    {
-        ai.WithLlm<IGpt56Luna>();
-        ai.WithDefaultLlm<IDeepSeekV41Flash>();
-        ai.WithDefaultEmbedding<ITextEmbedding3Small>();
-        ai.WithVoiceToText<IWhisperLargeV3Turbo>();
-        ai.WithTavilySearch();
-    })
-    .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())
-    .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(database => database.WithClickHouse())
-    .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(database => database.WithConnection("supabase"))
-    .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
-    .WithHosting<GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
-    .WithHosting<SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
-    .WithHosting<GitHubModuleHosting>()
-    .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
-    .WithHosting<AspireModuleHosting>()
-    .WithHosting<CSharpModuleHosting>();
+// The profile symbol in this file is the selection: RunProfile.Cloud or RunProfile.Local.
+builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
+if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
+{ builder.Configuration.AddJsonFile(configFile, optional: false); }
+var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
+var digitalBrain = AppHostDigitalBrain.Add(builder, "Modules", RunProfile.Cloud, DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"))
+    .WithHttpIdentity();
+if (shellEnabled) { digitalBrain = digitalBrain.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
-var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "IntoChat", "Apps"));
+// The repository's ./features: os and intochat apps, loaded by the OS at boot.
+var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
 
-var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
-    .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
-    .WaitFor(cookieProtection)
-    .WithHttpEndpoint(
-        port: builder.Configuration.GetValue(UiPortKey, 5080),
-        name: "http",
-        isProxied: false)
-    .WithHttpHealthCheck("/health", endpointName: "http");
+var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
+var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
-builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
-    .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-    .WithHttpEndpoint(port: builder.Configuration.GetValue(McpPortKey, 5081), name: "http", isProxied: false)
-    .WithHttpHealthCheck("/health", endpointName: "http")
-    .WaitFor(runtime);
+// One runtime owns this deployment; devices are connections to external capabilities.
+var workdir = AspireModuleHosting.WorkdirOf(builder);
+var storageDirectory = builder.Configuration["DigitalBrain:Platform:Storage:Directory"]
+    ?? (builder.Configuration.GetValue(DigitalBrainHostingOptions.PersistentStorageKey, true)
+        ? Path.Combine(workdir, "brain-store")
+        : Path.Combine(workdir, "test-brains", digitalBrain.ClusterId));
+var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
+    AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
+        // A live build reads the features published with it (AddLiveBuild), not the working tree's.
+        ? Primary(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
+            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
+var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
+
+// The front keeps a stable TLS endpoint across a single-runtime restart.
+digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
+
+var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Select(name =>
+    AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "DigitalBrain.Mcp.dll") is { } live
+        ? Mcp(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_Mcp>(name)))).ToArray();
+AspireModuleHosting.AddFront(builder, "digitalbrain-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http")));
 
 builder.Build().Run();
+
+IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+{
+    // One encrypted local brain store for this deployment.
+    silo.WithReference(digitalBrain)
+        .WithEnvironment("DigitalBrain__Platform__Storage__Directory", storageDirectory)
+        .WaitFor(cookieProtection)
+        .WithHttpHealthCheck("/health", endpointName: "http");
+    foreach (var key in new[] { DigitalBrain.Framework.DigitalBrainNames.CustodyConfigurationKey,
+        DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey })
+    {
+        if (builder.Configuration[key] is { Length: > 0 } value)
+        { silo.WithEnvironment(key.Replace(":", "__"), value); }
+    }
+    return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
+}
+
+// Allocate Orleans ports after the brain reference so isolated AppHosts can run side by side.
+IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport, IResourceWithArgs
+{
+    // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
+    // Projects compose ASPNETCORE_URLS from endpoints; an explicit port variable would be overridden by it.
+    silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
+#pragma warning disable ASPIRECERTIFICATES001
+    silo.WithHttpsDeveloperCertificate();
+#pragma warning restore ASPIRECERTIFICATES001
+    var primary = Silo(silo);
+    silo.WithAllocatedOrleansPorts();
+    return primary;
+}
+
+// The MCP server is an Orleans client: it starts once every silo instance is up.
+IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+{
+    mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
+        .WithHttpHealthCheck("/health", endpointName: "http");
+    foreach (var silo in silos) { mcp.WaitFor(silo); }
+    return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
+}

@@ -20,13 +20,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.CSharp.Files.ICSharpAppBinding).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
@@ -45,17 +46,12 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     {
         ArgumentNullException.ThrowIfNull(builder);
         var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
-        builder.AddIncomingGrainCallFilter<CSharpAppBindingGuard>();
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
-        builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddSingleton<CSharpToolService>();
         builder.Services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<SessionTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
-        // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
-        builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
-        builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ContractCatalog>()));
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
         builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>
@@ -66,8 +62,15 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         { builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
         builder.Services.AddHttpClient<SessionRunner>();
         builder.Services.TryAddSingleton<SessionStreams>();
+        builder.Services.TryAddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule),
+            (services, _) => services.GetRequiredService<IHostApplicationLifetime>());
+        builder.Services.TryAddSingleton<DeferredRuntimeStarts>();
+        builder.Services.AddHostedService(services => services.GetRequiredService<DeferredRuntimeStarts>());
+        builder.Services.TryAddSingleton<RuntimeDirectory>();
+        builder.Services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
+        builder.AddIncomingGrainCallFilter<BrainRunsGuard>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)
         {

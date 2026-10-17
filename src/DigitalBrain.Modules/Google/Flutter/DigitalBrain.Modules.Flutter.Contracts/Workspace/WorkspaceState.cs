@@ -3,5 +3,10 @@ namespace DigitalBrain.Flutter.Workspace;
 [GenerateSerializer, Alias("ui.workspace-state")]
 public sealed record WorkspaceState(
     [property: Id(0)] long Revision,
-    [property: Id(1)] IReadOnlyList<WorkspaceWindow> Windows,
-    [property: Id(2)] FirstRunState? FirstRun = null);
+    [property: Id(1)] string[] Path,
+    [property: Id(2)] string[] Open)
+{
+    [Id(3)] public WorkspaceViewRef[] OpenViews { get; init; } = [];
+    [Id(4)] public string? FocusedViewId { get; init; }
+    [Id(5)] public WorkspaceViewRef[] Pins { get; init; } = [];
+}

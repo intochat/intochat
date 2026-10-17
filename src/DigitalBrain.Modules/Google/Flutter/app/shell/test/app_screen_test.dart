@@ -39,6 +39,40 @@ void main() {
     expect(find.text('build finished'), findsOneWidget);
   });
 
+  testWidgets('a deploying app keeps polling and cannot be implemented', (
+    tester,
+  ) async {
+    final server = _FakeCreatorServer(inProgress: 'Deploying');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppScreen(
+          workspaceId: 'workspace-alice',
+          request: server.request,
+          pollInterval: const Duration(milliseconds: 20),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('describe-app')),
+      'Shout back whatever I say.',
+    );
+    await tester.tap(find.byKey(const ValueKey('author-app')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('build-app')));
+    await tester.pump();
+    final implement = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('build-app')),
+    );
+    expect(implement.onPressed, isNull);
+    expect(find.byKey(const ValueKey('publish-app')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pumpAndSettle();
+    expect(find.text('v0.2.0 · Live'), findsOneWidget);
+  });
+
   testWidgets('a live version can be published once', (tester) async {
     String? published;
     final calls = <String>[];
@@ -164,6 +198,9 @@ void main() {
 }
 
 class _FakeCreatorServer {
+  _FakeCreatorServer({this.inProgress = 'Building'});
+
+  final String inProgress;
   final calls = <String>[];
   var _polls = 0;
 
@@ -186,10 +223,10 @@ class _FakeCreatorServer {
     if (method == 'POST' && path == base) return _app('Drafted', '0.1.0');
     if (method == 'POST' && path == '$base/shouter/implement') {
       _polls = 0;
-      return _app('Building', '0.1.0');
+      return _app(inProgress, '0.1.0');
     }
     if (method == 'GET' && path == '$base/shouter') {
-      return ++_polls < 2 ? _app('Building', '0.1.0') : _app('Live', '0.2.0');
+      return ++_polls < 2 ? _app(inProgress, '0.1.0') : _app('Live', '0.2.0');
     }
     throw StateError('Unexpected $method $path');
   }

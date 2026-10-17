@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- The reference brain boots the real AppHost; this project touches the product, so it is
+         never packaged. The publishable harness is DigitalBrain.Testing.Aspire and .Playwright. -->
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DigitalBrain.OS.Testing</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="DigitalBrain.Testing" />
+    <Using Include="DigitalBrain.Testing.Aspire" />
+    <Using Include="DigitalBrain.Testing.Playwright" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="xunit.v3.assert" />
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Playwright/DigitalBrain.Testing.Playwright.csproj" />
+    <ProjectReference Include="../../DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
+  </ItemGroup>
+</Project>

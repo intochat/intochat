@@ -6,8 +6,8 @@ namespace DigitalBrain.Microsoft.GitHub;
 
 // Reached only by the webhook ingress, after it verified the delivery's signature. The connection
 // neuron's grain type is its connector id, so the default grain type is "github".
-[PlatformOnly, Alias("github.inbound"), Orleans.Metadata.DefaultGrainType("github")]
-internal interface IGitHubInbound : INeuron
+[Alias("github.inbound"), Orleans.Metadata.DefaultGrainType("github")]
+internal interface IGitHubInbound : IGrainWithStringKey
 {
     // The coordinates of a connected repository, or null when it is not connected.
     [ReadOnly] Task<GitHubRepository?> Coordinates();

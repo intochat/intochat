@@ -9,7 +9,6 @@ using DigitalBrain.Flutter.TextField.Signals;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.VoiceInput.Signals;
 using DigitalBrain.Framework;
-using DigitalBrain.Testing.Module;
 using Orleans;
 using Orleans.Runtime;
 using Xunit;
@@ -22,22 +21,23 @@ public sealed class PrimitiveBindingFacts
     public async Task UserEventsReachDurableHandlerWhileProjectionDoesNot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         var field = brain.Get<ITextField>("field");
         var binding = brain.Get<IUiBinding>("field");
         await binding.Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         await Assert.ThrowsAsync<ArgumentException>(() => field.Configure("Message", "multiline", new string('x', 513)));
         await field.Configure("Message", "multiline", "workspace/app/send");
         await field.SetValue("projection");
         Assert.Empty(await handler.Events());
         await field.Input("first edit");
-        await WaitFor(handler, 1, ct);
+        await WaitFor(handled, 1, ct);
         Assert.Equal(new TextFieldChanged("field", "first edit"), Assert.Single(await handler.Events()));
         await brain.DeactivateAsync(binding, ct);
         await brain.DeactivateAsync(field, ct);
         await field.Input("second edit");
-        await WaitFor(handler, 2, ct);
+        await WaitFor(handled, 2, ct);
         Assert.Equal(new TextFieldChanged("field", "second edit"), (await handler.Events())[1]);
         Assert.Equal("second edit", (await field.Read()).Value);
         Assert.Equal("workspace/app/send", (await field.Read()).SubmitButton);
@@ -47,9 +47,10 @@ public sealed class PrimitiveBindingFacts
     public async Task SelectFileButtonAndVoiceDispatchTypedSignals()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         foreach (var key in new[] { "select", "file", "button", "voice" }) { await brain.Get<IUiBinding>(key).Bind(handler); }
+        await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         var select = brain.Get<ISelect>("select");
         await select.Set("Model", [new("", "Automatic"), new("yes", "Ready"), new("no", "Unavailable", false)], "");
         await Assert.ThrowsAsync<ArgumentException>(() => select.Choose("no"));
@@ -64,7 +65,7 @@ public sealed class PrimitiveBindingFacts
         await button.Click();
         var voice = brain.Get<IVoiceInput>("voice");
         await voice.Capture([1, 2], "audio/wav");
-        await WaitFor(handler, 4, ct);
+        await WaitFor(handled, 4, ct);
         var events = await handler.Events();
         Assert.Contains(events, signal => signal is SelectChanged { Name: "select", Value: "yes" });
         Assert.Contains(events, signal => signal is FileCaptured { Name: "file", FileName: "notes.txt", Content: "notes" });
@@ -79,7 +80,7 @@ public sealed class PrimitiveBindingFacts
     public async Task UnboundInputsWorkAndNavigationPayloadsAreValidated()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         await brain.Get<ITextField>("field").Input("edit");
         await brain.Get<IFileInput>("file").Capture("empty.txt", "");
         var select = brain.Get<ISelect>("select");
@@ -102,26 +103,28 @@ public sealed class PrimitiveBindingFacts
     public async Task HandlerCanProjectAnEditWithoutRedispatchingIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("projecting-handler");
         var field = brain.Get<ITextField>("projection-field");
         await handler.ProjectTo("projection-field");
         await brain.Get<IUiBinding>("projection-field").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         await field.Input("edited");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while ((await field.Read()).Value != "projected: edited") { await Task.Delay(20, timeout.Token); }
+        await WaitFor(handled, 1, ct);
+        Assert.Equal("projected: edited", (await field.Read()).Value);
         Assert.Equal(new TextFieldChanged("projection-field", "edited"), Assert.Single(await handler.Events()));
         await field.SetValue("another projection");
         Assert.Single(await handler.Events());
     }
-    private static async Task WaitFor(IPrimitiveTestHandler handler, int count, CancellationToken ct)
+    // The handler announces each event it has recorded; delivery is at-least-once, so wait for the count.
+    internal static async Task WaitFor(SignalProbe<UiEventHandled> handled, int count, CancellationToken ct)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while ((await handler.Events()).Count < count) { await Task.Delay(20, timeout.Token); }
+        while ((await handled.NextAsync(ct: ct)).Count < count) { }
     }
 }
+
+[GenerateSerializer, Alias("test.ui-event-handled")]
+public sealed record UiEventHandled([property: Id(0)] int Count, [property: Id(1)] string Type) : Signal;
 
 [Alias("test.primitive-handler"), Orleans.Metadata.DefaultGrainType("test.primitive-handler")]
 public interface IPrimitiveTestHandler : IUiEventHandler, INeuron
@@ -141,6 +144,7 @@ public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
         _events.Add(signal);
         if (_projection is not null && signal is TextFieldChanged changed)
         { await GrainFactory.GetGrain<ITextField>(_projection).SetValue("projected: " + changed.Value); }
+        await PublishAsync(new UiEventHandled(_events.Count, signal.GetType().Name));
     }
     public Task<IReadOnlyList<Signal>> Events() => Task.FromResult<IReadOnlyList<Signal>>(_events.ToArray());
 }

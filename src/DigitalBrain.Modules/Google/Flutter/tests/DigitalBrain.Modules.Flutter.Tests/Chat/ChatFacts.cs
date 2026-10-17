@@ -1,18 +1,99 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Chat;
 
 public sealed class ChatFacts
 {
     [Fact]
+    public async Task ReadReceiptsBelongToTheStampedPersonAndModelCallsCannotAcknowledgeThem()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        using var scope = brain.Owner.AsCaller();
+        var chat = brain.Get<IChat>("owner/apps/chat/people");
+        await chat.Project(new("conversation", 1, 1, [new("a1", ChatRole.Assistant, "answer")]));
+        await chat.MarkRead("conversation", 1, 1, ["a1"]);
+        using var second = await brain.Owner.AddAccountMemberAsync(brain, "second-person");
+        using (second.AsCaller())
+        {
+            Assert.Equal(["a1"], (await chat.Read()).UnreadMessageIds);
+            Assert.Empty((await chat.Read()).ReadReceipts);
+            await chat.MarkRead("conversation", 1, 1, ["a1"]);
+            Assert.Empty((await chat.Read()).UnreadMessageIds);
+        }
+        using (brain.Owner.AsModelImpersonatingCaller("model-conversation"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => chat.MarkRead("conversation", 1, 1, ["a1"]));
+        }
+        await brain.DeactivateAsync(chat, ct);
+        Assert.Empty((await chat.Read()).UnreadMessageIds);
+    }
+
+    [Fact]
+    public async Task ExplicitReadAcknowledgementsSurviveReactivationAndDoNotHideNewOrChangedAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        var chat = brain.Get<IChat>("owner/apps/chat/read-receipts");
+        var projection = new ChatProjection("conversation", 1, 1,
+            [new("u1", ChatRole.User, "hello"), new("a1", ChatRole.Assistant, "answer")]);
+        await chat.Project(projection);
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await MarkRead(chat, "conversation", 1, 1, ["a1"]);
+        var revision = (await chat.Read()).Revision;
+        await MarkRead(chat, "conversation", 1, 1, ["a1"]);
+        Assert.Equal(revision, (await chat.Read()).Revision);
+        await brain.DeactivateAsync(chat, ct);
+        Assert.Empty(Unread(await chat.Read()));
+        await chat.Project(projection with { Version = 2, Messages = [.. projection.Messages, new("a2", ChatRole.Assistant, "next")] });
+        Assert.Equal(["a2"], Unread(await chat.Read()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MarkRead(chat, "conversation", 1, 1, ["a2"]));
+        await chat.Project(projection with { Version = 3, Messages = [new("a1", ChatRole.Assistant, "corrected")] });
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await MarkRead(chat, "conversation", 1, 3, ["a1"]);
+        await chat.Project(new("other", 2, 1, [new("a1", ChatRole.Assistant, "corrected")]));
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MarkRead(chat, "conversation", 1, 3, ["a1"]));
+        await chat.Project(new("conversation", 3, 4, [new("a1", ChatRole.Assistant, "corrected")]));
+        Assert.Empty(Unread(await chat.Read()));
+    }
+
+    [Fact]
+    public async Task ReadAcknowledgementsCannotBeMadeByBehaviorsOrForUnfinishedAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var chat = brain.Get<IChat>("owner/apps/chat/read-validation");
+        await chat.Project(new("conversation", 1, 1,
+            [new("a1", ChatRole.Assistant, "partial") { Status = "running" }, new("u1", ChatRole.User, "hello")]));
+        using (brain.Owner.AsCaller())
+        {
+            Assert.Empty(Unread(await chat.Read()));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["a1"]));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["unknown"]));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["u1"]));
+        }
+        using (brain.Owner.AsApp("owner/apps/chat"))
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => MarkRead(chat, "conversation", 1, 1, [])); }
+    }
+
+    private static string[] Unread(ChatState state) => state.UnreadMessageIds;
+
+    private static Task MarkRead(IChat chat, string source, long generation, long version, string[] ids)
+        => chat.MarkRead(source, generation, version, ids);
+
+    [Fact]
     public async Task ActionsSurviveReactivationAndStreamingAndDispatchCanonicalPayloads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/actions");
         var handler = brain.Get<IPrimitiveTestHandler>("chat-action-handler");
         await brain.Get<IUiBinding>("owner/a/apps/chat/actions").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         var projection = new ChatProjection("first", 1, 1, [])
         { Actions = [new("run-1", "Stop", "canonical run-1")] };
         await chat.Project(projection);
@@ -28,9 +109,7 @@ public sealed class ChatFacts
         Assert.Equal(1, activated.Generation);
         Assert.Equal("run-1", activated.ActionId);
         Assert.NotEqual(Guid.Empty, activated.RequestId);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while ((await handler.Events()).Count == 0) { await Task.Delay(20, timeout.Token); }
+        await PrimitiveBindingFacts.WaitFor(handled, 1, ct);
         var dispatched = Assert.IsType<ChatActionActivated>(Assert.Single(await handler.Events()));
         Assert.Equal(activated.RequestId, dispatched.RequestId);
         Assert.Equal(activated.Payload, dispatched.Payload);
@@ -43,7 +122,7 @@ public sealed class ChatFacts
     public async Task LateUnknownAndDisabledActionsCannotTargetANewerRunOrConversation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/stale");
         var projection = new ChatProjection("first", 1, 1, [])
         { Actions = [new("run-1", "Stop", "one")] };
@@ -64,7 +143,7 @@ public sealed class ChatFacts
     public async Task InvalidActionsCannotReplaceTheProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/invalid-actions");
         var projection = new ChatProjection("first", 1, 1, []);
         await chat.Project(projection);
@@ -81,7 +160,7 @@ public sealed class ChatFacts
     public async Task ProjectionSurvivesReactivationAndIgnoresDuplicatesAndLateUpdates()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/transcript");
         var first = new ChatProjection("owner/a/agents/first", 1, 8, [new("u1", ChatRole.User, "hello")
         { Activities = [new("call", "Query", "select 1", "1")] }]);
@@ -106,7 +185,7 @@ public sealed class ChatFacts
     public async Task InvalidMessagesCannotReplaceTheProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/transcript");
         var valid = new ChatProjection("owner/a/agents/first", 1, 1, [new("u1", ChatRole.User, "hello")]);
         await chat.Project(valid);

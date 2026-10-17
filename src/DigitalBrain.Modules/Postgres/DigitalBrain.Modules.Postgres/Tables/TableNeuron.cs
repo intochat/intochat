@@ -15,19 +15,14 @@ internal sealed record TableState
 
 [GrainType(GrainType)]
 internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements,
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
 {
     public const string GrainType = "postgres.table";
 
-    public override NeuronAccess Access(string operation)
-    {
-        if (operation is nameof(Define) or nameof(Upsert) or nameof(Delete) or nameof(Page) or nameof(Read) or nameof(Watch) or nameof(Unwatch))
-        {
-            _ = Scope();
-            return new(BrainScope.CurrentId());
-        }
-        return base.Access(operation);
-    }
+    // Only the owning brain and app may watch its rows.
+    public override Task<Guid> Watch(INeuronObserver observer) { _ = Scope(); return base.Watch(observer); }
+    public override Task<Guid> Watch(INeuronObserver observer, string[] signals) { _ = Scope(); return base.Watch(observer, signals); }
+    public override Task Unwatch(INeuronObserver observer) { _ = Scope(); return base.Unwatch(observer); }
 
     private string Scope()
     {

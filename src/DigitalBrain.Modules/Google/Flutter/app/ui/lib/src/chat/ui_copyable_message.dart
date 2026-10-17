@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/ui_theme.dart';
+import '../theme/ui_tokens.dart';
 
 /// Hosts that stream tokens expose current text through this scope.
 final class UiStreamCopy extends InheritedNotifier<ChangeNotifier> {
@@ -71,22 +71,29 @@ final class _UiCopyableMessageState extends State<UiCopyableMessage> {
   Widget build(BuildContext context) {
     final text = widget.copyText(context);
     final canCopy = text.trim().isNotEmpty;
+    final colors = Theme.of(context).colorScheme;
+    final tokens = UiTokens.of(context);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          SelectionArea(child: widget.child),
+          Padding(
+            padding: EdgeInsets.only(right: canCopy ? 32 : 0),
+            child: SelectionArea(child: widget.child),
+          ),
           if (canCopy)
             Positioned(
               top: 2,
               right: 2,
               child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 120),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : tokens.quick,
                 opacity: _hovered || _copied ? 1 : 0.55,
                 child: Material(
-                  color: UiPalette.surfaceRaised.withValues(alpha: 0.92),
+                  color: colors.surfaceContainerHigh.withValues(alpha: 0.92),
                   shape: const CircleBorder(),
                   child: InkWell(
                     key: const Key('ui_copy_message'),
@@ -100,8 +107,8 @@ final class _UiCopyableMessageState extends State<UiCopyableMessage> {
                           _copied ? Icons.check_rounded : Icons.copy_outlined,
                           size: 14,
                           color: _copied
-                              ? UiPalette.success
-                              : UiPalette.textMuted,
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
                         ),
                       ),
                     ),

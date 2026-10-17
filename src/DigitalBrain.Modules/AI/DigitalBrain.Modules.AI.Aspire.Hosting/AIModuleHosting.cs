@@ -1,4 +1,5 @@
 using DigitalBrain.AI.Models;
+using DigitalBrain.AI.SystemOne;
 using DigitalBrain.AI.Voice;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Configuration;
@@ -37,9 +38,16 @@ public static partial class AIHostingExtensions
             var model = TranscriptionModel.FindByMarkerName(nameOfVoice) ?? throw new InvalidOperationException(
                 $"'{nameOfVoice}' is not a catalogued transcription model. Known: {string.Join(", ", TranscriptionModel.All.Select(static m => m.Marker.Name))}.");
             var voice = module.GetOrAddProjection(b => new VoiceToTextHostingState(b, module.Resource));
-            if (!model.IsLocal) { state.EnsureProviderApiKey(model.Provider); }
             voice.SetModel(model);
         }
-        if (options.Tavily.Enabled) { state.EnableTavilySearch(); }
+        foreach (var name in options.Hosting.SystemOnes)
+        {
+            var model = SystemOneModel.FindByMarkerName(name) ?? throw new InvalidOperationException(
+                $"'{name}' is not a catalogued System One model. Known: {string.Join(", ", SystemOneModel.All.Select(static m => m.Marker.Name))}.");
+            if (!string.Equals(options.Default.SystemOne, name, StringComparison.Ordinal)) { continue; }
+            var systemOne = module.GetOrAddProjection(b => new SystemOneHostingState(b, module.Resource));
+            if (model.Provider is AiProvider.Ollama) { systemOne.SetDefault(model, state.AddOllamaBackingModel(model.Id)); }
+            else { systemOne.SetDefault(model, null); }
+        }
     }
 }

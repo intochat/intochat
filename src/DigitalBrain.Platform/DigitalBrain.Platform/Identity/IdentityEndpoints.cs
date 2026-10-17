@@ -1,12 +1,12 @@
 using System.Security.Claims;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -32,26 +32,27 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
+        routes.MapGet("/identity/brains", BrainsAsync);
         var grants = BrainRoutes.Group(routes, "/grants");
-        grants.MapGet("", async (string brainId, IDigitalBrain brain, CancellationToken ct) =>
-            Results.Ok(await Grants(brain, brainId).ListGrants().WaitAsync(ct)));
-        grants.MapPost("", async (string brainId, Grant input, IDigitalBrain brain, CancellationToken ct) =>
+        grants.MapGet("", async (string brainId, [FromServices] IIdentityClient identity, CancellationToken ct) =>
+            Results.Ok(await identity.ListGrants(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id).WaitAsync(ct)));
+        grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
-            try { return Results.Ok(await Grants(brain, brainId).GrantAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input).WaitAsync(ct)); }
+            try { return Results.Ok(await identity.GrantAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input).WaitAsync(ct)); }
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
-        grants.MapPost("/revoke", async (string brainId, RevokeGrant input, IDigitalBrain brain, CancellationToken ct) =>
+        grants.MapPost("/revoke", async (string brainId, RevokeGrant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
             try
             {
-                await Grants(brain, brainId).RevokeAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct);
+                await identity.RevokeAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct);
                 return Results.NoContent();
             }
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
     }
 
-    internal static async Task<IResult> CreateBrainAsync(HttpContext http, IDigitalBrain brain, CancellationToken ct)
+    internal static async Task<IResult> CreateBrainAsync(HttpContext http, [FromServices] IIdentityClient identity, [FromServices] BrainBirths births, CancellationToken ct)
     {
         var principal = http.User.FindFirstValue(PrincipalClaim);
         var account = http.User.FindFirstValue(AccountClaim);
@@ -59,34 +60,41 @@ internal static class IdentityEndpoints
         {
             return Results.Unauthorized();
         }
-        var owner = await brain.Get<IAccount>(account).Read().WaitAsync(ct);
+        var owner = await identity.ReadAccount(account).WaitAsync(ct);
         if (owner?.OwnerPrincipalId != principal) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var operationId = http.Request.Headers["Idempotency-Key"].FirstOrDefault() ?? Guid.NewGuid().ToString("N");
         if (operationId.Length > 200) { return Results.BadRequest(new { error = "Idempotency-Key is too long." }); }
-        var created = await brain.Get<IAccount>(account).CreateBrain(principal, operationId, owner.Name).WaitAsync(ct);
+        var created = await births.Born(await identity.CreateBrain(account, principal, operationId, owner.Name, BrainKind.Personal).WaitAsync(ct));
         return Results.Ok(created);
     }
 
-    private static async Task<IResult> SelectBrainAsync(BrainSelection input, HttpContext http, IDigitalBrain brain, CancellationToken ct)
+    // R126: the brains the signed-in principal is in, with their kind; the shell watches each circle brain's own /live.
+    private static async Task<IResult> BrainsAsync(HttpContext http, [FromServices] IIdentityClient identity, IOptions<AuthOptions> auth, CancellationToken ct)
+    {
+        if (AccountSession.ResolveCaller(http, auth.Value) is not { } caller) { return Results.Unauthorized(); }
+        var brains = await identity.BrainsOf(caller.PrincipalId).WaitAsync(ct);
+        return Results.Ok(brains.Select(brain => new BrainView(brain.Id, brain.Kind.ToString())));
+    }
+
+    private static async Task<IResult> SelectBrainAsync(BrainSelection input, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct)
     {
         var principal = http.User.FindFirstValue(PrincipalClaim);
         if (http.User.Identity?.IsAuthenticated != true || string.IsNullOrEmpty(principal))
         { return Results.Unauthorized(); }
         if (string.IsNullOrWhiteSpace(input.AccountId) || !BrainScope.IsValidId(input.BrainId))
         { return Results.BadRequest(); }
-        var member = await brain.Get<IBrainAuthority>(BrainScope.Create(input.AccountId, input.BrainId).Id)
-            .Membership(principal).WaitAsync(ct);
+        var member = await identity.Membership(BrainScope.Create(input.AccountId, input.BrainId).Id, principal).WaitAsync(ct);
         return member is null ? Results.StatusCode(StatusCodes.Status403Forbidden) : await SignInAsync(member, http);
     }
 
-    private static async Task<IResult> LoginAsync(LoginRequest input, HttpContext http, IDigitalBrain brain, CancellationToken ct)
+    private static async Task<IResult> LoginAsync(LoginRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.Unauthorized(); }
-        var member = await brain.Get<IPrincipal>(input.PrincipalId).Authenticate(input.Password ?? "").WaitAsync(ct);
+        var member = await passwords.Authenticate(input.PrincipalId, input.Password ?? "").WaitAsync(ct);
         return member is null ? Results.Unauthorized() : await SignInAsync(member, http);
     }
 
-    private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, IDigitalBrain brain,
+    private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords,
         IOptions<AuthOptions> auth, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.BadRequest(new { error = "Username is required." }); }
@@ -95,7 +103,7 @@ internal static class IdentityEndpoints
         { return Results.Conflict(new { error = "This username is reserved." }); }
         try
         {
-            var member = await brain.Get<IPrincipal>(input.PrincipalId).Register(input.Password ?? "", input.DisplayName ?? input.PrincipalId).WaitAsync(ct);
+            var member = await passwords.Register(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId).WaitAsync(ct);
             return await SignInAsync(member, http);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
@@ -131,14 +139,19 @@ internal static class IdentityEndpoints
         }
     }
 
-    private static IResult Session(HttpContext http)
-        => http.User.Identity?.IsAuthenticated == true
-            ? Results.Ok(new SessionView(
-                http.User.FindFirstValue(PrincipalClaim) ?? "",
-                http.User.FindFirstValue(AccountClaim) ?? "",
-                http.User.FindFirstValue(BrainClaim) ?? "",
-                http.User.FindFirstValue(RoleClaim) ?? ""))
-            : Results.NoContent();
+    // Every resolved caller learns its brain, whichever posture resolved it: the shell's
+    // defaultBrainId must match what /mcp stamps. Only a caller nothing resolved answers 204.
+    private static IResult Session(HttpContext http, IOptions<AuthOptions> auth)
+    {
+        var caller = AccountSession.ResolveCaller(http, auth.Value);
+        return caller is null
+            ? Results.NoContent()
+            : Results.Ok(new SessionView(
+                caller.PrincipalId,
+                caller.AccountId,
+                caller.BrainId,
+                http.User.Identity?.IsAuthenticated == true ? http.User.FindFirstValue(RoleClaim) ?? "" : ""));
+    }
 
     private static async Task<IResult> LogoutAsync(HttpContext http)
     {
@@ -146,12 +159,10 @@ internal static class IdentityEndpoints
         return Results.NoContent();
     }
 
-    private static IBrainAuthority Grants(IDigitalBrain brain, string brainId)
-        => brain.Get<IBrainAuthority>(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id);
-
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
     internal sealed record RevokeGrant(string AppId, string SemanticTypeId, GrantMode Mode);
+    internal sealed record BrainView(string Id, string Kind);
     internal sealed record SessionView(string PrincipalId, string AccountId, string BrainId, string Role);
 }

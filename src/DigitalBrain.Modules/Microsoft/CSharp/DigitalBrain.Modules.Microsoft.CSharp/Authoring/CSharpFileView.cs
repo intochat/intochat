@@ -1,10 +1,12 @@
-using System.ComponentModel;
-using System.Reflection;
-using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Files;
-using ModelContextProtocol.Server;
 
 namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
-public sealed record CSharpFileView(CSharpDescription Description, CSharpFileSnapshot File, string? Logs = null);
+// The authoring wire shape: the file's short id with its name and purpose, read from the file neuron itself.
+public sealed record CSharpDescription(string Id, string Name, string Purpose, DateTimeOffset CreatedAt);
+
+public sealed record CSharpFileView(CSharpDescription Description, CSharpFileSnapshot File, string? Logs = null)
+{
+    public static CSharpFileView Of(string id, CSharpFileSnapshot file, string? logs = null)
+        => new(new(id, file.Name, file.Purpose, file.Created ?? default), file, logs);
+}

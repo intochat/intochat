@@ -1,5 +1,6 @@
 using DigitalBrain.AI.Embeddings;
 using DigitalBrain.AI.Models;
+using DigitalBrain.AI.SystemOne;
 using DigitalBrain.AI.Voice;
 
 namespace DigitalBrain.AI;
@@ -47,6 +48,20 @@ public static class AIOptionsExtensions
         return options;
     }
 
+    public static AIOptions WithSystemOne<TModel>(this AIOptions options) where TModel : ISystemOneModel
+    {
+        var model = SystemOneModel.FindByMarker(typeof(TModel)) ?? throw new ArgumentException("Unknown System One marker.");
+        if (!options.Hosting.SystemOnes.Contains(model.Marker.Name)) { options.Hosting.SystemOnes.Add(model.Marker.Name); }
+        return options;
+    }
+
+    public static AIOptions WithDefaultSystemOne<TModel>(this AIOptions options) where TModel : ISystemOneModel
+    {
+        options.WithSystemOne<TModel>();
+        options.Default.SystemOne = typeof(TModel).Name;
+        return options;
+    }
+
     public static AIOptions WithModelEndpoint(this AIOptions options, AiProvider provider, Uri endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
@@ -74,6 +89,8 @@ public static class AIOptionsExtensions
         options.Hosting.Embeddings.RemoveAll(name => EmbeddingModel.FindByMarkerName(name)?.IsLocal == true);
         if (options.Default.Model is { } llm && LLMModel.FindByMarkerName(llm)?.IsLocal == true) { options.Default.Model = null; }
         if (options.Default.Embedding is { } embedding && EmbeddingModel.FindByMarkerName(embedding)?.IsLocal == true) { options.Default.Embedding = null; }
+        options.Hosting.SystemOnes.RemoveAll(name => SystemOneModel.FindByMarkerName(name)?.IsLocal == true);
+        if (options.Default.SystemOne is { } systemOne && SystemOneModel.FindByMarkerName(systemOne)?.IsLocal == true) { options.Default.SystemOne = null; }
         return options;
     }
 }

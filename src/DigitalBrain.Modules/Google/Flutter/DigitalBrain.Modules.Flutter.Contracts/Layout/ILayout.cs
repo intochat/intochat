@@ -12,7 +12,8 @@ public interface ILayout : INeuron
 
 [GenerateSerializer, Alias("ui.layout-definition")]
 public sealed record LayoutDefinition([property: Id(0)] string Mode, [property: Id(1)] UiChildRef[] Children, [property: Id(2)] double Gap = 12, [property: Id(3)] double[]? Extents = null,
-    [property: Id(4)] bool FollowEnd = false);
+    [property: Id(4)] bool FollowEnd = false,
+    [property: Id(5)] string? Surface = null, [property: Id(6)] double Padding = 0);
 
 [GenerateSerializer, Alias("ui.layout-state")]
 public sealed class LayoutState

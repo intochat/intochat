@@ -12,7 +12,8 @@ namespace DigitalBrain.Client.Runtime;
 // One per sandbox session, shared by every behavior in it: invokes and reports over HTTP, and one
 // stream from the brain that carries assignments, token rotation and every subscription's batches.
 // A dropped stream is reopened with backoff; the brain resends what is unacknowledged, and a signal
-// already queued for a subscription is never queued twice (its number is the dedup key).
+// already queued for a subscription is never queued twice (its number is the dedup key). Readers that
+// share a subscription id each get every batch (SharedSubscription).
 public sealed class SessionConnection : IAsyncDisposable
 {
     private static readonly TimeSpan HeartbeatPeriod = TimeSpan.FromSeconds(20);
@@ -21,9 +22,7 @@ public sealed class SessionConnection : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Channel<(string Kind, string Data)> _control = Channel.CreateUnbounded<(string, string)>(new() { SingleReader = true });
-    private readonly ConcurrentDictionary<string, Channel<SignalBatchEvent>> _batches = new(StringComparer.Ordinal);
-    // Per subscription, the highest signal number handed to a reader; anything at or below it is a resend.
-    private readonly ConcurrentDictionary<string, long> _queued = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, SharedSubscription> _subscriptions = new(StringComparer.Ordinal);
     private volatile string _token;
     private Task _pump = Task.CompletedTask;
     private Task _heartbeat = Task.CompletedTask;
@@ -99,10 +98,10 @@ public sealed class SessionConnection : IAsyncDisposable
         return body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
     }
 
-    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken)
+    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken, long cpuMicroseconds = 0, long wallMicroseconds = 0, int batches = 1, bool skipped = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var pending = new PendingAcknowledgement(new(subscription, watermark), System.Diagnostics.Activity.Current?.Id);
+        var pending = new PendingAcknowledgement(new(subscription, watermark, cpuMicroseconds, wallMicroseconds, batches, skipped), System.Diagnostics.Activity.Current?.Id);
         if (!_acknowledgements.Writer.TryWrite(pending)) { throw new ObjectDisposedException(nameof(SessionConnection)); }
         // Cancelling a caller's wait must not cancel a report shared with other subscriptions.
         await pending.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -126,8 +125,12 @@ public sealed class SessionConnection : IAsyncDisposable
                     using var reportLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
                     try
                     {
+                        // One report per subscription covers every batch queued for it: the watermark is the highest,
+                        // the time and batches are the sum of what each batch took.
                         var reports = group.GroupBy(item => item.Report.Subscription, StringComparer.Ordinal)
-                            .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark))).ToArray();
+                            .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark),
+                                items.Sum(item => item.Report.CpuMicroseconds), items.Sum(item => item.Report.WallMicroseconds),
+                                items.Sum(item => item.Report.Batches), items.All(item => item.Report.Skipped))).ToArray();
                         await ReportAsync(new RuntimeReport(Acknowledgements: reports), "acknowledge", reportLifetime.Token).ConfigureAwait(false);
                         foreach (var item in group) { item.Completion.TrySetResult(); }
                     }
@@ -152,21 +155,22 @@ public sealed class SessionConnection : IAsyncDisposable
         public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public Task ReportStatusAsync(BehaviorStatusReport status, CancellationToken cancellationToken)
-        => ReportAsync(new RuntimeReport(Status: status), "report status", cancellationToken);
+    public async Task ReportStatusAsync(BehaviorStatusReport status, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Report, new RuntimeReport(Status: status),
+            HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
+        if (status.Status == "Initialized" && ((int)response.StatusCode >= 500 || response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests))
+        { throw new HttpRequestException("Initialization report temporarily unavailable.", null, response.StatusCode); }
+        await EnsureSuccessAsync(response, "report status", cancellationToken).ConfigureAwait(false);
+    }
 
     public Task ReportLogsAsync(string request, string text, CancellationToken cancellationToken)
         => ReportAsync(new RuntimeReport(Logs: new(request, text)), "report logs", cancellationToken);
 
-    public ChannelReader<SignalBatchEvent> Batches(string subscription)
-        => _batches.GetOrAdd(subscription, static _ => Channel.CreateUnbounded<SignalBatchEvent>(new() { SingleReader = true })).Reader;
+    // A reader joins once the brain has registered the subscription, so a batch pushed meanwhile is kept for it.
+    internal SharedSubscription.Reader Join(string subscription) => Subscription(subscription).Join();
 
-    // A reader that stops leaves its signals unacknowledged at the brain; the next reader is resent them.
-    public void Release(string subscription, long acknowledged)
-    {
-        if (_batches.TryRemove(subscription, out var channel)) { channel.Writer.TryComplete(); }
-        _queued[subscription] = acknowledged;
-    }
+    private SharedSubscription Subscription(string id) => _subscriptions.GetOrAdd(id, static (id, session) => new(session, id), this);
 
     public bool TryUpdateToken(string token)
     {
@@ -205,13 +209,7 @@ public sealed class SessionConnection : IAsyncDisposable
         {
             case SignalBatchEvent.Kind:
                 var batch = JsonSerializer.Deserialize<SignalBatchEvent>(item.Data, RuntimeProtocol.Json)!;
-                var first = batch.Watermark - batch.Signals.Length + 1;
-                var queued = _queued.GetOrAdd(batch.Subscription, first - 1);
-                var fresh = batch.Signals.Skip((int)Math.Clamp(queued - first + 1, 0, batch.Signals.Length)).ToArray();
-                if (fresh.Length == 0) { return; }
-                _queued[batch.Subscription] = batch.Watermark;
-                Batches(batch.Subscription);
-                _batches[batch.Subscription].Writer.TryWrite(batch with { Signals = fresh });
+                Subscription(batch.Subscription).Arrive(batch);
                 return;
             case TokenEvent.Kind:
                 TryUpdateToken(JsonSerializer.Deserialize<TokenEvent>(item.Data, RuntimeProtocol.Json)!.Token);
@@ -252,12 +250,32 @@ public sealed class SessionConnection : IAsyncDisposable
         return _http.SendAsync(request, completion, cancellationToken);
     }
 
+    // A body that is not the edge's conflict shape is still a refusal, not a parse failure.
+    private static RevisionConflictException? TryReadConflict(string detail)
+    {
+        try
+        {
+            using var body = JsonDocument.Parse(detail);
+            return body.RootElement is { ValueKind: JsonValueKind.Object } root
+                && root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
+                && root.TryGetProperty("currentRevision", out var revision) && revision.ValueKind == JsonValueKind.Number && revision.TryGetInt64(out var current)
+                ? new RevisionConflictException(message.GetString()!, current)
+                : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode) { return; }
         var detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (response.Headers.TryGetValues(RuntimeProtocol.RefusalHeader, out var codes))
-        { throw new ScriptRefusalException(detail, codes.Single()); }
+        {
+            var code = codes.Single();
+            if (code == RevisionConflictException.Code && TryReadConflict(detail) is { } conflict) { throw conflict; }
+            throw new ScriptRefusalException(detail, code);
+        }
+        if (response.StatusCode == HttpStatusCode.Unauthorized) { throw new UnauthorizedAccessException(detail); }
         throw new InvalidOperationException($"The brain refused {operation} ({(int)response.StatusCode}): {detail}");
     }
 
@@ -267,7 +285,7 @@ public sealed class SessionConnection : IAsyncDisposable
         _acknowledgements.Writer.TryComplete();
         await _lifetime.CancelAsync().ConfigureAwait(false);
         await Task.WhenAll(_pump, _heartbeat, _acknowledger).ConfigureAwait(false);
-        foreach (var channel in _batches.Values) { channel.Writer.TryComplete(); }
+        foreach (var subscription in _subscriptions.Values) { subscription.Complete(); }
         _control.Writer.TryComplete();
         _http.Dispose();
         _lifetime.Dispose();

@@ -11,7 +11,7 @@ public static class DigitalBrainClient
         ArgumentNullException.ThrowIfNull(args);
         cancellationToken.ThrowIfCancellationRequested();
         return AmbientSession.Value is { } scope
-            ? Task.FromResult(new DigitalBrainConnection(scope.Session, scope.Behavior, scope.Settings, scope.Stopping, scope.Trace))
+            ? Task.FromResult(new DigitalBrainConnection(scope.Session, scope.Behavior, scope.Settings, scope.Stopping, scope.Trace, scope.AssignmentHash, scope.AssignmentRevision))
             : throw new InvalidOperationException("Behaviors run inside a brain's sandbox session; the brain compiles and loads them there.");
     }
 }

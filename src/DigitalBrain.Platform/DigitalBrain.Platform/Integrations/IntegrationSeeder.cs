@@ -5,8 +5,9 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Integrations;
 
-// Seeds DigitalBrain:Integrations:{id}:{Field} into registrations that are still Unconfigured. A
-// Partial registration is an operator's edit in progress and is never touched.
+// Reconciles DigitalBrain:Integrations:{id}:{Field} into every registration on boot. A field is
+// applied when it is absent from the registration, or when the stored value also came from the
+// deployment and has moved (a relocated endpoint). A value a person set or cleared is never touched.
 internal sealed class IntegrationSeeder(
     IConfiguration configuration,
     IReadOnlyList<IntegrationSchema> definitions,
@@ -47,7 +48,7 @@ internal sealed class IntegrationSeeder(
         }
 
         var registration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + definition.Id);
-        var after = await registration.SeedIfUnconfigured(new ConfigureIntegration { Values = values });
+        var after = await registration.Seed(new ConfigureIntegration { Values = values });
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);
     }
 }

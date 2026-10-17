@@ -3,8 +3,7 @@ using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Postgres.Tables;
 
-[PlatformOnly]
-public interface ITableDescriptor : INeuron
+public interface ITableDescriptor : IGrainWithStringKey
 {
     Task<TableDescription> Describe(string owner);
 }

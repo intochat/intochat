@@ -1,24 +1,26 @@
 namespace DigitalBrain.Framework.Platform.Connections;
 
+// A connection is keyed {brain}/connection/{connector}/{id}; the brain id carries no '/'.
 public static class ConnectionKeys
 {
-    public const string Prefix = "connection/";
-    public static bool Is(string key) => key.StartsWith(Prefix, StringComparison.Ordinal);
+    private const string Segment = "connection";
+
+    public static bool Is(string key) => key.Split('/') is [_, Segment, _, _];
 
     public static string For(string brainId, string connectorId, string connectionId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        if (!BrainScope.IsValidId(brainId)) { throw new ArgumentException("A brain ID is required.", nameof(brainId)); }
         ArgumentException.ThrowIfNullOrWhiteSpace(connectorId);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        return $"connection/{Uri.EscapeDataString(brainId)}/{Uri.EscapeDataString(connectorId)}/{Uri.EscapeDataString(connectionId)}";
+        return $"{brainId}/{Segment}/{Uri.EscapeDataString(connectorId)}/{Uri.EscapeDataString(connectionId)}";
     }
 
     public static (string BrainId, string ConnectorId, string ConnectionId) Parse(string key)
     {
-        if (key.Split('/') is not ["connection", var brain, var connector, var connection])
+        if (key.Split('/') is not [var brain, Segment, var connector, var connection] || !BrainScope.IsValidId(brain))
         { throw new ArgumentException("A connection grain key is required.", nameof(key)); }
-        var result = (Uri.UnescapeDataString(brain), Uri.UnescapeDataString(connector), Uri.UnescapeDataString(connection));
-        if (For(result.Item1, result.Item2, result.Item3) != key) { throw new ArgumentException("A canonical connection key is required.", nameof(key)); }
-        return result;
+        var (connectorId, connectionId) = (Uri.UnescapeDataString(connector), Uri.UnescapeDataString(connection));
+        if (For(brain, connectorId, connectionId) != key) { throw new ArgumentException("A canonical connection key is required.", nameof(key)); }
+        return (brain, connectorId, connectionId);
     }
 }

@@ -29,9 +29,25 @@ public interface IDigitalBrain
     // Runs recovery after registration and before yielding queued signals, even if none have arrived.
     IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal;
 
+    // One stream over a set of neurons; which member spoke is Signal.Publisher. Members are durable
+    // per-source subscriptions; the set follows its registry (see Sources).
+    IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : Signal
+        => Sources.Stream<T>(this, sources, cancellationToken);
+
+    // "Any signal means rebuild from state": rebuild runs once after registration, then once per
+    // signal, never concurrently; signals during a rebuild coalesce into one following rebuild.
+    Task React<T>(INeuron neuron, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+        => React<T>(Sources.Of(neuron), rebuild, cancellationToken);
+
+    Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+        => Sources.React<T>(this, sources, rebuild, cancellationToken);
+
     /// <summary>
     /// The brain's own neuron: the first one, which publishes <see cref="Created"/> and
     /// <see cref="Activated"/>, so a program can watch its brain like any other neuron.
     /// </summary>
-    IKernel Self { get; }
+    IBrain Self { get; }
+
+    /// <summary>The kernel's read-only facts about this brain: which neurons exist and which are awake.</summary>
+    IKernelView Kernel { get; }
 }

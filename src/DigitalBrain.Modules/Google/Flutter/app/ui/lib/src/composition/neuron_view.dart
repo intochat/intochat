@@ -1,10 +1,17 @@
+import '../components/button/ui_neuron_select.dart';
+import '../components/workspace/ui_workspace_components.dart';
+import '../components/button/ui_neuron_button.dart';
+import '../theme/ui_tokens.dart';
+
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
@@ -12,9 +19,12 @@ import '../chat/ui_chat_transcript.dart';
 import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
+import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
+
+part 'immutable_view.dart';
 
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String kind,
@@ -67,6 +77,8 @@ class NeuronView extends StatefulWidget {
     this.enabled = true,
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
+    this.watch,
+    this.scenes,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -80,15 +92,25 @@ class NeuronView extends StatefulWidget {
   final bool enabled;
   final NeuronEventQueue? events;
   final Duration refreshEvery;
+
+  /// The node's change events. With a watch the view never polls: it reads once on mount and
+  /// once per event. Without one it falls back to [refreshEvery].
+  final Stream<void> Function(String kind, String name)? watch;
+
+  /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
+  final SceneClient? scenes;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
 
 class _NeuronViewState extends State<NeuronView> {
   Map<String, dynamic>? _data;
+  SceneState? _sceneState;
+  bool _sceneRecovery = true, _animateSceneChanges = false;
   Object? _error;
   String? selection;
   Timer? _timer;
+  StreamSubscription<void>? _watch;
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
@@ -97,7 +119,36 @@ class _NeuronViewState extends State<NeuronView> {
     super.initState();
     _events.addListener(_changed);
     _reload();
-    _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
+    final watch = widget.watch;
+    if (watch == null) {
+      _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
+    } else {
+      _subscribe(watch);
+    }
+  }
+
+  Timer? _resubscribe;
+
+  void _subscribe(Stream<void> Function(String, String) watch) {
+    _watch?.cancel();
+    _watch = watch(widget.kind, widget.name).listen(
+      (_) => _reload(),
+      onError: (Object _) => _reopen(watch),
+      onDone: () => _reopen(watch),
+    );
+  }
+
+  // A stream that ends or breaks (a proxy idle-close, a silo roll) is reopened after a pause;
+  // the pause reads the node once so nothing published meanwhile is missed.
+  void _reopen(Stream<void> Function(String, String) watch) {
+    if (!mounted || _resubscribe != null) return;
+    _sceneRecovery = true;
+    _resubscribe = Timer(widget.refreshEvery, () {
+      _resubscribe = null;
+      if (!mounted) return;
+      _reload();
+      _subscribe(watch);
+    });
   }
 
   void _changed() {
@@ -110,6 +161,8 @@ class _NeuronViewState extends State<NeuronView> {
     if (old.name != widget.name || old.kind != widget.kind) {
       _generation++;
       _data = null;
+      _sceneState = null;
+      _sceneRecovery = true;
       _error = null;
     }
     if (old.name != widget.name ||
@@ -117,7 +170,14 @@ class _NeuronViewState extends State<NeuronView> {
         old.revision != widget.revision) {
       _reload();
     }
+    if ((old.name != widget.name || old.kind != widget.kind) &&
+        widget.watch != null) {
+      _subscribe(widget.watch!);
+    }
   }
+
+  bool get _scenesReadThemselves =>
+      widget.kind == 'scene' && widget.scenes != null;
 
   Future<void> _reload() async {
     if (_events.pending > 0) return;
@@ -130,10 +190,18 @@ class _NeuronViewState extends State<NeuronView> {
     final generation = _generation;
     final version = _events.version;
     try {
-      final data = await widget.load(widget.kind, widget.name);
+      final scene = _scenesReadThemselves
+          ? await widget.scenes!.read(widget.name)
+          : null;
+      final data = scene == null
+          ? await widget.load(widget.kind, widget.name)
+          : null;
       if (mounted && generation == _generation && version == _events.version) {
         setState(() {
           _data = data;
+          _sceneState = scene;
+          _animateSceneChanges = !_sceneRecovery;
+          _sceneRecovery = false;
           _error = null;
         });
       }
@@ -141,8 +209,14 @@ class _NeuronViewState extends State<NeuronView> {
       if (mounted &&
           generation == _generation &&
           version == _events.version &&
-          _data == null) {
-        setState(() => _error = error);
+          (_data == null ||
+              (error is UiRequestException &&
+                  (error.statusCode == 401 || error.statusCode == 403)))) {
+        setState(() {
+          _data = null;
+          _sceneState = null;
+          _error = error;
+        });
       }
     } finally {
       _loading = false;
@@ -166,6 +240,98 @@ class _NeuronViewState extends State<NeuronView> {
       }
       rethrow;
     }
+  }
+
+  Widget _layout(
+    Map<String, dynamic> definition,
+    List<Widget> children,
+    List rawChildren,
+  ) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    final gap = (definition['gap'] as num? ?? 0).toDouble().clamp(0.0, 128.0);
+    if (definition['mode'] == 'stack') {
+      return Stack(fit: StackFit.expand, children: children);
+    }
+    if (definition['mode'] == 'list') {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final column = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: gap,
+            children: children,
+          );
+          return constraints.hasBoundedHeight
+              ? _NeuronList(
+                  followEnd: definition['followEnd'] == true,
+                  child: column,
+                )
+              : column;
+        },
+      );
+    }
+    final horizontal =
+        definition['mode'] == 'row' || definition['mode'] == 'split';
+    final flex = Flex(
+      direction: horizontal ? Axis.horizontal : Axis.vertical,
+      crossAxisAlignment: horizontal
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.stretch,
+      spacing: gap,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          if ((definition['extents'] as List?)?.elementAtOrNull(i)
+              case final num extent when extent > 0)
+            SizedBox(
+              key: children[i].key,
+              width: horizontal ? extent.toDouble() : null,
+              height: horizontal ? null : extent.toDouble(),
+              child: children[i],
+            )
+          else if (!horizontal &&
+              rawChildren[i] is Map &&
+              const {
+                'voiceinput',
+                'fileinput',
+              }.contains((rawChildren[i] as Map)['kind']))
+            children[i]
+          else
+            Expanded(key: children[i].key, child: children[i]),
+      ],
+    );
+    final extents = definition['extents'] as List? ?? const [];
+    if (!horizontal && !extents.any((extent) => extent is num && extent > 0)) {
+      return flex;
+    }
+    // Keep declared controls reachable when their fixed extents exceed the
+    // viewport. Flexible panes retain room for content and action controls.
+    final minimumExtent =
+        gap * (children.length - 1) +
+        List.generate(children.length, (index) {
+          final extent = extents.elementAtOrNull(index);
+          return extent is num && extent > 0 ? extent.toDouble() : 96.0;
+        }).fold(0.0, (sum, extent) => sum + extent);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (horizontal
+            ? !constraints.hasBoundedWidth
+            : !constraints.hasBoundedHeight) {
+          return flex;
+        }
+        final available = horizontal
+            ? constraints.maxWidth
+            : constraints.maxHeight;
+        final extent = available < minimumExtent ? minimumExtent : available;
+        return SingleChildScrollView(
+          primary: false,
+          scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+          child: SizedBox(
+            width: horizontal ? extent : null,
+            height: horizontal ? null : extent,
+            child: flex,
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _button(Map<String, dynamic> definition) async {
@@ -214,8 +380,8 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
-  Widget _child(Map child) => NeuronView(
-    key: ValueKey('${child['kind']}:${child['name']}'),
+  Widget _child(Map child, {Key? key}) => NeuronView(
+    key: key ?? ValueKey('${child['kind']}:${child['name']}'),
     kind: child['kind'] as String,
     name: child['name'] as String,
     load: widget.load,
@@ -226,6 +392,8 @@ class _NeuronViewState extends State<NeuronView> {
     secretSaver: widget.secretSaver,
     events: _events,
     refreshEvery: widget.refreshEvery,
+    watch: widget.watch,
+    scenes: widget.scenes,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -233,8 +401,10 @@ class _NeuronViewState extends State<NeuronView> {
   Widget _markdown(String text) => SelectionArea(
     child: GptMarkdown(
       text,
+      key: ValueKey(text),
       onLinkTap: (url, _) async {
-        final uri = Uri.tryParse(url);
+        final link = Uri.tryParse(url);
+        final uri = link == null ? null : Uri.base.resolveUri(link);
         if (uri != null && const {'https', 'http'}.contains(uri.scheme)) {
           await launchUrl(uri);
         }
@@ -247,8 +417,31 @@ class _NeuronViewState extends State<NeuronView> {
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
       return const Center(child: Text('This component cannot be displayed.'));
     }
+    if (_scenesReadThemselves) {
+      final state = _sceneState;
+      if (state == null) {
+        return _ComponentReadState(
+          state: WindowState(
+            _error == null ? WindowStatus.loading : WindowStatus.failed,
+          ),
+          onRetry: _error == null ? null : _reload,
+        );
+      }
+      if (widget.ancestors.isEmpty && state.revision == 0) {
+        return Semantics(
+          liveRegion: true,
+          child: const Center(child: Text('Preparing this view')),
+        );
+      }
+      return SceneView(
+        sceneKey: widget.name,
+        client: widget.scenes,
+        state: state,
+        animateChanges: _animateSceneChanges,
+      );
+    }
     if (_data == null) {
-      return WindowStateView(
+      return _ComponentReadState(
         state: WindowState(
           _error == null ? WindowStatus.loading : WindowStatus.failed,
         ),
@@ -256,9 +449,14 @@ class _NeuronViewState extends State<NeuronView> {
       );
     }
     final data = _data!;
-    final declared = WindowState.fromMetadata(data);
-    if (declared != null) {
-      return WindowStateView(state: declared, onRetry: _reload);
+    if (widget.ancestors.isEmpty &&
+        (data['version'] ?? data['revision']) == 0) {
+      return Center(
+        child: Semantics(
+          liveRegion: true,
+          child: const Text('Preparing this view'),
+        ),
+      );
     }
     final definition = Map<String, dynamic>.from(
       data['definition'] as Map? ?? data,
@@ -275,6 +473,37 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'view':
+        final root = data['root'];
+        if (root is! Map) return const SizedBox.shrink();
+        return _ImmutableView(
+          name: widget.name,
+          generation: (data['generation'] as num?)?.toInt() ?? 0,
+          root: root,
+          enabled: enabled && widget.onAction != null,
+          dispatch: _dispatch,
+          markdown: _markdown,
+          reference: (node, key) => _child(node, key: key),
+          layout: _layout,
+        );
+      case 'viewport':
+        final root = data['root'];
+        if (root is Map && root['kind'] is String && root['name'] is String) {
+          return UiMotion(
+            contentKey: '${root['kind']}:${root['name']}',
+            child: _child(root),
+          );
+        }
+        return Center(child: Text('${data['error'] ?? ''}'));
+      case 'person':
+        final avatar = '${definition['avatarUrl'] ?? ''}';
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: avatar.isEmpty ? null : NetworkImage(avatar),
+            child: avatar.isEmpty ? const Icon(Icons.person) : null,
+          ),
+          title: Text('${definition['displayName'] ?? ''}'),
+        );
       case 'composer':
         return UiComposer(
           key: ValueKey(
@@ -287,6 +516,9 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'chat':
         final projection = data['projection'] as Map? ?? const {};
+        final unreadIds = (data['unreadMessageIds'] as List? ?? const [])
+            .whereType<String>()
+            .toList();
         final transcript = UiChatTranscript(
           key: ValueKey('${projection['source']}:${projection['generation']}'),
           messages: [
@@ -302,6 +534,34 @@ class _NeuronViewState extends State<NeuronView> {
             .toList();
         return Column(
           children: [
+            if (unreadIds.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('${unreadIds.length} unread'),
+                    TextButton(
+                      onPressed: enabled && widget.onAction != null
+                          ? () => unawaited(
+                              _dispatch({
+                                'kind': 'chat',
+                                'name': widget.name,
+                                'context': projection['source'],
+                                'revision': projection['generation'],
+                                'read': {
+                                  'version': projection['version'],
+                                  'messageIds': unreadIds,
+                                },
+                              }).catchError((Object _) {}),
+                            )
+                          : null,
+                      child: const Text('Mark read'),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(child: transcript),
             if (actions.isNotEmpty)
               Padding(
@@ -338,86 +598,53 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'surface':
       case 'layout':
-        if (children.isEmpty) return const SizedBox.shrink();
-        final gap = (definition['gap'] as num? ?? 0).toDouble().clamp(
+        final content = _layout(definition, children, rawChildren);
+        final inset = (definition['padding'] as num? ?? 0).toDouble().clamp(
           0.0,
           128.0,
         );
-        if (definition['mode'] == 'stack') {
-          return Stack(fit: StackFit.expand, children: children);
-        }
-        if (definition['mode'] == 'list') {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final column = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: gap,
-                children: children,
-              );
-              return constraints.hasBoundedHeight
-                  ? _NeuronList(
-                      followEnd: definition['followEnd'] == true,
-                      child: column,
-                    )
-                  : column;
-            },
+        if (definition['surface'] == 'floating' ||
+            definition['surface'] == 'panel') {
+          final colors = Theme.of(context).colorScheme;
+          return Container(
+            padding: EdgeInsets.all(inset),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(
+                UiTokens.of(context).surfaceRadius,
+              ),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .65),
+              ),
+              boxShadow: definition['surface'] == 'floating'
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: .16),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(
+                UiTokens.of(context).controlRadius,
+              ),
+              child: content,
+            ),
           );
         }
-        final horizontal =
-            definition['mode'] == 'row' || definition['mode'] == 'split';
-        final flex = Flex(
-          direction: horizontal ? Axis.horizontal : Axis.vertical,
-          spacing: gap,
-          children: [
-            for (var i = 0; i < children.length; i++)
-              if ((definition['extents'] as List?)?.elementAtOrNull(i)
-                  case final num extent when extent > 0)
-                SizedBox(
-                  width: horizontal ? extent.toDouble() : null,
-                  height: horizontal ? null : extent.toDouble(),
-                  child: children[i],
-                )
-              else if (!horizontal &&
-                  rawChildren[i] is Map &&
-                  const {
-                    'voiceinput',
-                    'fileinput',
-                  }.contains((rawChildren[i] as Map)['kind']))
-                children[i]
-              else
-                Expanded(child: children[i]),
-          ],
-        );
-        if (horizontal) return flex;
-        final extents = definition['extents'] as List? ?? const [];
-        if (!extents.any((extent) => extent is num && extent > 0)) {
-          return flex;
-        }
-        // Keep declared controls reachable when their fixed extents exceed the
-        // viewport. Flexible panes retain room for content and action controls.
-        final minimumHeight =
-            gap * (children.length - 1) +
-            List.generate(children.length, (index) {
-              final extent = extents.elementAtOrNull(index);
-              return extent is num && extent > 0 ? extent.toDouble() : 96.0;
-            }).fold(0.0, (sum, extent) => sum + extent);
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            if (!constraints.hasBoundedHeight) return flex;
-            return SingleChildScrollView(
-              primary: false,
-              child: SizedBox(
-                height: constraints.maxHeight < minimumHeight
-                    ? minimumHeight
-                    : constraints.maxHeight,
-                child: flex,
-              ),
-            );
-          },
-        );
+        return Padding(padding: EdgeInsets.all(inset), child: content);
       case 'text':
         return _markdown(definition['markdown'] as String? ?? '');
       case 'button':
+        if (definition['visual'] case final Map visual) {
+          return UiNeuronButton(
+            label: definition['label'] as String? ?? '',
+            visual: visual,
+            onPressed: enabled ? () => _button(definition) : null,
+          );
+        }
         return TextButton(
           onPressed: enabled ? () => _button(definition) : null,
           child: Text(
@@ -438,30 +665,20 @@ class _NeuronViewState extends State<NeuronView> {
         final options = (definition['options'] as List? ?? [])
             .whereType<Map>()
             .toList();
-        return PopupMenuButton<String>(
-          tooltip: definition['label'] as String? ?? '',
-          enabled: enabled && widget.onAction != null,
-          onSelected: (value) => unawaited(
-            _dispatch({'kind': 'select', 'name': widget.name, 'value': value})
-                .catchError((Object _) {}),
-          ),
-          itemBuilder: (_) => [
-            for (final option in options)
-              CheckedPopupMenuItem(
-                value: '${option['id']}',
-                checked: option['id'] == definition['selected'],
-                enabled: option['enabled'] != false,
-                child: Text('${option['label']}'),
-              ),
-          ],
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(
-              '${options.where((option) => option['id'] == definition['selected']).firstOrNull?['label'] ?? definition['label'] ?? ''}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+        return UiNeuronSelect(
+          label: definition['label'] as String? ?? '',
+          options: options,
+          selected: definition['selected'] as String?,
+          visual: definition['visual'] as Map?,
+          onSelected: enabled && widget.onAction != null
+              ? (value) => unawaited(
+                  _dispatch({
+                    'kind': 'select',
+                    'name': widget.name,
+                    'value': value,
+                  }).catchError((Object _) {}),
+                )
+              : null,
         );
       case 'fileinput':
         final label = definition['label'] as String? ?? '';
@@ -481,28 +698,45 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'webbrowser':
         final send = widget.onAction;
+        if (send == null) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                definition['title'] as String? ?? '',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          );
+        }
         return UiWebBrowser(
           part: UiWebBrowserPart.fromMetadata({
             ...definition,
             'name': widget.name,
           }),
           height: null,
-          onConnect: send == null
-              ? null
-              : (port, sessionId) => send({
-                  'kind': 'webbrowser',
-                  'name': widget.name,
-                  'action': 'connect',
-                  'value': jsonEncode({'port': port, 'sessionId': sessionId}),
-                }),
-          onDisconnect: send == null
-              ? null
-              : (sessionId) => send({
-                  'kind': 'webbrowser',
-                  'name': widget.name,
-                  'action': 'disconnect',
-                  'value': jsonEncode({'sessionId': sessionId}),
-                }),
+          connection: '${data['connection'] ?? ''}',
+          error: '${data['error'] ?? ''}',
+          actualUrl: '${data['actualUrl'] ?? ''}',
+          onConnect: (port, sessionId) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'connect',
+            'value': jsonEncode({'port': port, 'sessionId': sessionId}),
+          }),
+          onDisconnect: (sessionId) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'disconnect',
+            'value': jsonEncode({'sessionId': sessionId}),
+          }),
+          onUnavailable: (reason) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'unavailable',
+            'value': reason,
+          }),
         );
       case 'voiceinput':
         return widget.voiceBuilder?.call(widget.name, definition) ??
@@ -583,22 +817,47 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'chart':
         return UiChart(part: UiChartPart.fromMetadata(definition));
+      case 'scene':
+        return SceneView(
+          sceneKey: widget.name,
+          state: SceneState.fromJson({'name': widget.name, ...data}),
+        );
       case 'card':
-        return Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if ((definition['title'] as String? ?? '').isNotEmpty)
-                Text(
-                  definition['title'] as String,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              if ((definition['body'] as String? ?? '').isNotEmpty)
-                _markdown(definition['body'] as String),
-              ...children,
-            ],
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(
+              UiTokens.of(context).surfaceRadius,
+            ),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final content = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if ((definition['title'] as String? ?? '').isNotEmpty)
+                    Text(
+                      definition['title'] as String,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  if ((definition['title'] as String? ?? '').isNotEmpty &&
+                      (definition['body'] as String? ?? '').isNotEmpty)
+                    const SizedBox(height: 8),
+                  if ((definition['body'] as String? ?? '').isNotEmpty)
+                    _markdown(definition['body'] as String),
+                  ...children,
+                ],
+              );
+              return constraints.hasBoundedHeight
+                  ? SingleChildScrollView(primary: false, child: content)
+                  : content;
+            },
           ),
         );
       case 'collection':
@@ -606,8 +865,31 @@ class _NeuronViewState extends State<NeuronView> {
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
+        Future<void> activate(String id) async {
+          try {
+            await _dispatch({
+              'kind': 'collection',
+              'name': widget.name,
+              'action': 'activate',
+              'value': id,
+              'revision': data['revision'],
+            });
+          } catch (_) {
+            /* Dispatch presents the failure. */
+          }
+        }
         return UiCollectionView(
           items: items,
+          breadcrumbs: (definition['breadcrumbs'] as List? ?? [])
+              .whereType<Map>()
+              .map(
+                (item) => UiBreadcrumbEntry(
+                  id: item['id'] as String,
+                  label: item['label'] as String,
+                ),
+              )
+              .toList(),
+          onBreadcrumb: !enabled ? null : activate,
           fileMode: definition['fileMode'] != false,
           selectionEnabled: definition['selectionEnabled'] != false,
           selectedId: selection ?? definition['selection'] as String?,
@@ -630,11 +912,7 @@ class _NeuronViewState extends State<NeuronView> {
                 },
           onActivate: !enabled
               ? null
-              : (item) => widget.onActivate?.call({
-                  ...item,
-                  'collection': widget.name,
-                  'revision': data['revision'],
-                }),
+              : (item) => activate(item['id'] as String),
         );
       case 'imagecanvas':
         return widget.imageBuilder?.call(definition) ??
@@ -643,7 +921,8 @@ class _NeuronViewState extends State<NeuronView> {
         return _FormRenderer(
           part: UiFormPart.fromMetadata(definition),
           name: widget.name,
-          revision: widget.revision,
+          revision:
+              (definition['revision'] as num?)?.toInt() ?? widget.revision,
           enabled: enabled,
           onAction: _dispatch,
           secretSaver: widget.secretSaver,
@@ -656,6 +935,8 @@ class _NeuronViewState extends State<NeuronView> {
   @override
   void dispose() {
     _timer?.cancel();
+    _resubscribe?.cancel();
+    _watch?.cancel();
     _events.removeListener(_changed);
     if (widget.events == null) _events.dispose();
     super.dispose();
@@ -852,109 +1133,6 @@ class _FallbackRenderer extends StatelessWidget {
   }
 }
 
-/// Renders each declared window state. Loading shows progress, failed offers a retry, and the
-/// other states explain the situation in one line so no window is blank.
-class WindowStateView extends StatelessWidget {
-  const WindowStateView({super.key, required this.state, this.onRetry});
-
-  final WindowState state;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (state.status == WindowStatus.loading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    final (icon, label, message) = switch (state.status) {
-      WindowStatus.loading => (Icons.hourglass_empty, 'Loading', ''),
-      WindowStatus.empty => (
-        Icons.inbox_outlined,
-        'Nothing here yet',
-        'This window has no content yet.',
-      ),
-      WindowStatus.permissionDenied => (
-        Icons.lock_outline,
-        'Not available to you',
-        'You do not have permission to view this window.',
-      ),
-      WindowStatus.expiredConnection => (
-        Icons.link_off,
-        'Connection expired',
-        'The connection this window needs has expired. Reconnect to continue.',
-      ),
-      WindowStatus.failed => (
-        Icons.error_outline,
-        'Could not load',
-        state.message ?? 'This component could not be loaded.',
-      ),
-    };
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 28),
-            const SizedBox(height: 8),
-            Text(label),
-            if (message.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(message, textAlign: TextAlign.center),
-            ],
-            if (onRetry != null) ...[
-              const SizedBox(height: 8),
-              TextButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Renders the first-run workspace state: the assistant plus starter prompts that match the
-/// connected sources.
-class FirstRunView extends StatelessWidget {
-  const FirstRunView({super.key, required this.state, this.onPrompt});
-
-  final FirstRunState state;
-  final ValueChanged<StarterPrompt>? onPrompt;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            state.assistantTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          const Text('Start with one of these.'),
-          const SizedBox(height: 12),
-          for (final prompt in state.prompts)
-            Card(
-              child: ListTile(
-                title: Text(prompt.label),
-                subtitle: prompt.source == 'assistant'
-                    ? null
-                    : Text(prompt.source),
-                onTap: onPrompt == null ? null : () => onPrompt!(prompt),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Renders a declarative form from one read: typed fields, a date picker and a masked secret
 /// input. Field edits dispatch a `form` event; Save submits the whole form atomically.
 class _FormRenderer extends StatefulWidget {
@@ -979,6 +1157,7 @@ class _FormRenderer extends StatefulWidget {
 }
 
 class _FormRendererState extends State<_FormRenderer> {
+  late int _nextRevision = widget.revision;
   late Map<String, String?> values = _initial();
 
   Map<String, String?> _initial() => {
@@ -989,17 +1168,26 @@ class _FormRendererState extends State<_FormRenderer> {
   void didUpdateWidget(_FormRenderer old) {
     super.didUpdateWidget(old);
     if (old.revision != widget.revision) {
+      _nextRevision = widget.revision;
       values = _initial();
     }
   }
 
   Future<void> dispatch(Map<String, Object?> event) async {
-    await widget.onAction?.call({
-      'kind': 'form',
-      'name': widget.name,
-      'revision': widget.revision,
-      ...event,
-    });
+    // Each queued draft, secret or submit advances the form by one revision.
+    // Count only our own writes so a concurrent writer still conflicts on Save.
+    final expectedRevision = _nextRevision++;
+    try {
+      await widget.onAction?.call({
+        'kind': 'form',
+        'name': widget.name,
+        'revision': expectedRevision,
+        ...event,
+      });
+    } catch (_) {
+      _nextRevision--;
+      rethrow;
+    }
   }
 
   @override
@@ -1141,7 +1329,7 @@ class _FormRendererState extends State<_FormRenderer> {
               isDense: true,
               helperText: field.supported ? null : 'Shown as plain text.',
             ),
-            onFieldSubmitted: (value) =>
+            onChanged: (value) =>
                 dispatch({'field': field.name, 'value': value}),
           ),
         );
@@ -1244,4 +1432,24 @@ class _SecretInputState extends State<_SecretInput> {
     controller.dispose();
     super.dispose();
   }
+}
+
+class _ComponentReadState extends StatelessWidget {
+  const _ComponentReadState({required this.state, this.onRetry});
+  final WindowState state;
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context) => state.status == WindowStatus.loading
+      ? const Center(child: CircularProgressIndicator())
+      : Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Could not load'),
+              const Text('This component could not be loaded.'),
+              if (onRetry != null)
+                TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
+        );
 }

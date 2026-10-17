@@ -64,26 +64,21 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task ConfiguringAllFieldsMakesTheRegistrationReadyAndSignals()
+    public async Task ConfiguringAllFieldsMakesTheRegistrationReady()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var registration = Registration(brain, "google");
-        await using var changes = await brain.Observe<IntegrationChanged>(registration, ct);
-
         var snapshot = await registration.Configure(Values(("ClientId", Canary + "-id"), ("ClientSecret", Canary), ("RedirectPath", "/callback")));
 
         Assert.Equal(IntegrationStatus.Ready, snapshot.Status);
         Assert.Empty(snapshot.MissingFields);
-        var signal = await changes.NextAsync(ct: ct);
-        Assert.Equal("google", signal.IntegrationId);
-        Assert.Equal(IntegrationStatus.Ready, signal.Status);
+        Assert.Equal("google", snapshot.IntegrationId);
 
         Assert.Equal(
             ["IntegrationId", "MissingFields", "Revision", "Settings", "Status"],
             typeof(IntegrationSnapshot).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(snapshot), StringComparison.Ordinal);
-        Assert.DoesNotContain(Canary, JsonSerializer.Serialize(signal), StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await registration.Read()), StringComparison.Ordinal);
         Assert.Equal(new Dictionary<string, string> { ["RedirectPath"] = "/callback" }, snapshot.Settings);
         Assert.Equal(snapshot.Settings, (await registration.Read()).Settings);
@@ -98,7 +93,7 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientId", Canary)));
         var cleared = await google.Clear("ClientId");
 
-        var seeded = await google.SeedIfUnconfigured(Values(("ClientId", OtherCanary)));
+        var seeded = await google.Seed(Values(("ClientId", OtherCanary)));
 
         Assert.Equal(IntegrationStatus.Unconfigured, seeded.Status);
         Assert.Equal(cleared.Revision, seeded.Revision);
@@ -183,14 +178,14 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task SeedingAppliesOnlyToAnUnconfiguredRegistration()
+    public async Task ReseedingKeepsAPersonValueAndDoesNotRestoreAClearedField()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeded = new Dictionary<string, string?>
         {
-            [IntegrationSchema.Key("google", "ClientId")] = Canary + "-id",
-            [IntegrationSchema.Key("google", "ClientSecret")] = Canary,
-            [IntegrationSchema.Key("google", "RedirectPath")] = "/callback",
+            [FakeGoogleModule.Integration.Key("ClientId")] = Canary + "-id",
+            [FakeGoogleModule.Integration.Key("ClientSecret")] = Canary,
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/callback",
         };
         await using var brain = await StartAsync(ct, seeded);
         var google = Registration(brain, "google");
@@ -201,8 +196,8 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientSecret", OtherCanary)));
         var seeder = new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(seeded).Build(),
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
-            brain.Grains(),
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
+            brain.Grains,
             NullLogger<IntegrationSeeder>.Instance);
         await seeder.SeedAsync(ct);
 
@@ -212,6 +207,63 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientId", "restored")));
         var released = await google.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));
         Assert.Equal(OtherCanary, released.Values["ClientSecret"]);
+    }
+
+    [Fact]
+    public async Task ADeploymentEndpointThatMovedIsReconciledOnBoot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct, new Dictionary<string, string?>
+        {
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/callback",
+        });
+        var google = Registration(brain, "google");
+        Assert.Equal("/callback", (await google.Read()).Settings["RedirectPath"]);
+
+        await SeedAsync(brain, new Dictionary<string, string?>
+        {
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/moved",
+        }, ct);
+
+        Assert.Equal("/moved", (await google.Read()).Settings["RedirectPath"]);
+    }
+
+    [Fact]
+    public async Task APersonSetValueIsNotOverwrittenBySeeding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct, new Dictionary<string, string?>
+        {
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/callback",
+        });
+        var google = Registration(brain, "google");
+        await google.Configure(Values(("RedirectPath", "/person")));
+
+        await SeedAsync(brain, new Dictionary<string, string?>
+        {
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/deployment",
+        }, ct);
+
+        Assert.Equal("/person", (await google.Read()).Settings["RedirectPath"]);
+    }
+
+    [Fact]
+    public async Task AClearedFieldIsNotReseeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeded = new Dictionary<string, string?>
+        {
+            [FakeGoogleModule.Integration.Key("RedirectPath")] = "/callback",
+        };
+        await using var brain = await StartAsync(ct, seeded);
+        var google = Registration(brain, "google");
+        await google.Clear("RedirectPath");
+
+        await SeedAsync(brain, seeded, ct);
+
+        var after = await google.Read();
+        Assert.Empty(after.Settings);
+        Assert.Equal(IntegrationStatus.Unconfigured, after.Status);
     }
 
     [Fact]
@@ -259,9 +311,10 @@ public sealed class RegistrationFacts
         await Registration(brain, "openai").Configure(Values(("ApiKey", Canary)));
 
         var entries = await IntegrationCatalog.ListAsync(
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains(), ct);
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains, ct);
 
-        Assert.Equal(["anthropic", "google", "openai"], entries.Select(entry => entry.Id).Order().ToArray());
+        // The host always composes the orleans module, so its integration is catalogued too.
+        Assert.Equal(["anthropic", "google", "openai", "orleans"], entries.Select(entry => entry.Id).Order().ToArray());
         Assert.Equal("Partial", entries.Single(entry => entry.Id == "google").Status);
         Assert.Equal(["ClientSecret", "RedirectPath"], entries.Single(entry => entry.Id == "google").MissingFields);
         Assert.Equal("Ready", entries.Single(entry => entry.Id == "openai").Status);
@@ -318,16 +371,12 @@ public sealed class RegistrationFacts
         await using var brain = await StartAsync(ct);
         var registration = Registration(brain, "openai");
         await registration.Configure(Values(("ApiKey", Canary)));
-        var script = Caller(CallerKind.App, TrustedEdge.AppProxy);
-
-        DigitalBrain.Framework.CallerContextStamper.Stamp(script);
-        try
+        using (brain.Owner.AsApp("script"))
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Configure(Values(("ApiKey", OtherCanary))));
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Clear("ApiKey"));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => registration.SeedIfUnconfigured(Values(("ApiKey", OtherCanary))));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Seed(Values(("ApiKey", OtherCanary))));
         }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
 
         var released = await registration.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));
         Assert.Equal(Canary, released.Values["ApiKey"]);
@@ -341,15 +390,13 @@ public sealed class RegistrationFacts
         var registration = Registration(brain, "openai");
         await registration.Configure(Values(("ApiKey", Canary)));
 
-        DigitalBrain.Framework.CallerContextStamper.Stamp(Caller(CallerKind.App, TrustedEdge.AppProxy));
-        try
+        using (brain.Owner.AsApp("script"))
         {
             var released = await registration.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));
             Assert.Equal(Canary, released.Values["ApiKey"]);
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => registration.Release(Caller(CallerKind.App, TrustedEdge.AppProxy)));
         }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
     }
 
     [Fact]
@@ -366,40 +413,18 @@ public sealed class RegistrationFacts
         Assert.Empty((await registration.Clear("RedirectPath")).Settings);
     }
 
-    [Fact]
-    public void TheVaultAndRegistrationContractsAreMarkedPlatformOnly()
-    {
-        Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(ISecrets)));
-        Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(IIntegration)));
-    }
-
-    // The one Framework contract a brain member calls directly: NeuronCallFilter enforces brain
-    // membership on it, and its OAuth sibling IConnectionInbound stays platform-only.
+    // The one Framework platform contract a brain member calls directly is the connection's user face;
+    // the vault, registrations, indexes and the OAuth inbound are kernel grains, not neurons.
     private static readonly Type UserFaceOfAConnection = typeof(DigitalBrain.Framework.Platform.Connections.IConnection);
 
     [Fact]
-    public void EveryPublicNeuronContractInThePlatformAssemblyIsPlatformOnlyByAssemblyIdentity()
+    public void NoPlatformContractIsANeuronButTheConnectionsUserFace()
     {
-        var platform = typeof(IntegrationDiscovery).Assembly;
-
-        Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        // IntegrationSchema lives in Framework: never a contracts assembly, so never
-        // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
-        Assert.All(typeof(IntegrationSchema).Assembly.GetExportedTypes()
-                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal))
-                .Where(type => type != UserFaceOfAConnection),
-            contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
-        Assert.All(platform.GetExportedTypes().Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)),
-            contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
-    }
-
-    [Fact]
-    public void EveryExportedPlatformContractRequiresPlatformAuthorization()
-    {
-        var contracts = typeof(ISecrets).Assembly.GetExportedTypes()
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != UserFaceOfAConnection).ToArray();
-        Assert.NotEmpty(contracts);
-        Assert.All(contracts, contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
+        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(ISecrets)));
+        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IIntegration)));
+        Assert.DoesNotContain(typeof(IntegrationSchema).Assembly.GetExportedTypes(),
+            type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal) && type != UserFaceOfAConnection);
+        Assert.DoesNotContain(typeof(IntegrationDiscovery).Assembly.GetTypes(), type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type));
     }
 
     [Fact]
@@ -440,14 +465,23 @@ public sealed class RegistrationFacts
         Assert.Throws<ArgumentException>(() => IntegrationSchema.For("Bad:Id", "X"));
     }
 
-    private static Task<ModuleBrain> StartAsync(CancellationToken cancellationToken, IReadOnlyDictionary<string, string?>? configuration = null)
-        => ModuleTest.Create()
-            .WithExecution(new TestExecutionOptions { PrivateConfiguration = configuration ?? new Dictionary<string, string?>() })
-            .WithModule<FakeGoogleModule>()
-            .WithModule<FakeAiModule>()
-            .StartAsync(cancellationToken);
+    // The deployment's integration values for google, seeded at boot.
+    private static Task<ITestBrain> StartAsync(CancellationToken cancellationToken, IReadOnlyDictionary<string, string?>? google = null)
+    {
+        var builder = TestBrain.Create().WithModule<FakeGoogleModule>().WithModule<FakeAiModule>();
+        foreach (var (key, value) in google ?? new Dictionary<string, string?>())
+        { builder = builder.WithIntegration(FakeGoogleModule.Integration, key[(key.LastIndexOf(':') + 1)..], value!); }
+        return builder.StartAsync(cancellationToken);
+    }
 
-    private static IIntegration Registration(ModuleBrain brain, string id) => brain.Get<IIntegration>($"integration/{id}");
+    private static IIntegration Registration(ITestBrain brain, string id) => brain.Grains.GetGrain<IIntegration>($"integration/{id}");
+
+    private static Task SeedAsync(ITestBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
+        => new IntegrationSeeder(
+            new ConfigurationBuilder().AddInMemoryCollection(configuration).Build(),
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
+            brain.Grains,
+            NullLogger<IntegrationSeeder>.Instance).SeedAsync(cancellationToken);
 
     private static ConfigureIntegration Values(params (string Field, string Value)[] values)
         => new() { Values = values.ToDictionary(pair => pair.Field, pair => pair.Value) };

@@ -1,5 +1,9 @@
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Framework;
+using Orleans.Concurrency;
+using Orleans.Runtime;
+using Orleans.Timers;
+using Orleans.Serialization.Invocation;
 
 namespace DigitalBrain.Flutter.Chat;
 
@@ -11,14 +15,125 @@ internal sealed record ComposerStorage
 }
 
 [GrainType(UIVocabulary.ComposerType)]
+[MayInterleave(nameof(IsNudge))]
 internal sealed class ComposerNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ComposerStorage> store)
-    : Neuron, IComposer
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ComposerStorage> store)
+    : Neuron, IComposer, INeuronObserver, IComposerReconciliation, IComposerMigration
 {
     private ComposerState State => store.State.State;
+    private IGrainTimer? _renewal;
+
+    public static bool IsNudge(IInvokable request) => request.GetInterfaceType() == typeof(INeuronObserver);
+
+    public async Task Follow(string chat)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chat);
+        if (chat.Length > 512 || !BrainKey.BelongsTo(chat, BrainKey.BrainOf(this.GetPrimaryKeyString())))
+        { throw new UnauthorizedAccessException("The followed chat must belong to the composer's brain."); }
+        if (State.FollowedChat is { } existing && existing != chat)
+        { throw new InvalidOperationException("This composer already follows another chat."); }
+        if (State.FollowedChat is null) { await Save(State with { FollowedChat = chat }, store.State.Audio); }
+        await RecoverFollowing();
+    }
+
+    internal Task ActivateFollowing()
+    {
+        if (State.FollowedChat is not { } chat) { return Task.CompletedTask; }
+        EnsureRenewal(chat);
+        return this.AsReference<IComposerReconciliation>().Reconcile(chat);
+    }
+
+    private void EnsureRenewal(string chat) => _renewal ??= this.RegisterGrainTimer(_ => Reconcile(chat),
+        new GrainTimerCreationOptions { DueTime = ObserverRenewal, Period = ObserverRenewal, KeepAlive = true });
+
+    internal async Task RecoverFollowing()
+    {
+        if (State.FollowedChat is not { } chat) { return; }
+        EnsureRenewal(chat);
+        await Reconcile(chat);
+    }
+
+    Task INeuronObserver.OnSignalAsync(Signal signal)
+    {
+        if (signal is not ChatSelectionChanged changed || changed.Name != State.FollowedChat
+            || signal.Publisher.Name != GrainFactory.GetGrain<IChat>(changed.Name).GetGrainId().ToString())
+        { return Task.CompletedTask; }
+        return this.AsReference<IComposerReconciliation>().Reconcile(changed.Name);
+    }
+
+    public async Task Reconcile(string chat)
+    {
+        if (State.FollowedChat != chat) { return; }
+        var source = GrainFactory.GetGrain<IChat>(chat);
+        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        var selection = (await source.Read()).Selection;
+        if (State.FollowedChat == chat && selection is not null) { await ApplySelection(selection); }
+    }
+
+    private Task ApplySelection(ChatSelection selection)
+    {
+        if (selection.Revision < State.Generation) { return Task.CompletedTask; }
+        if (selection.Revision == State.Generation && selection.Agent == State.Context) { return Task.CompletedTask; }
+        return Save(State with
+        {
+            Context = selection.Agent,
+            Generation = selection.Revision,
+            Draft = "",
+            DraftVersion = State.DraftVersion + 1,
+            Voice = null,
+            Error = null,
+        }, null);
+    }
+
+    public async Task AdoptFollow(string chat)
+    {
+        if (State.FollowedChat is { } followed)
+        {
+            if (followed != chat) { throw new InvalidOperationException("This composer follows another chat."); }
+            await RecoverFollowing();
+            return;
+        }
+        if (!BrainKey.BelongsTo(chat, BrainKey.BrainOf(this.GetPrimaryKeyString())))
+        { throw new UnauthorizedAccessException("The followed chat must belong to the composer's brain."); }
+        var source = GrainFactory.GetGrain<IChat>(chat);
+        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        var selection = (await source.Read()).Selection ?? throw new InvalidOperationException("Select the migrated chat source first.");
+        if (State.Context.Length != 0 && (State.Context != selection.Agent || State.Generation > selection.Revision))
+        { throw new InvalidOperationException("Migration must preserve the composer's selected source and cannot regress its generation."); }
+        await Save(State with
+        {
+            FollowedChat = chat,
+            Context = selection.Agent,
+            Generation = selection.Revision,
+            Submissions = [.. State.Submissions.Select(item => item.Generation < 0 && item.Context == State.Context
+                ? item with { Generation = selection.Revision } : item)],
+        }, store.State.Audio);
+        await RecoverFollowing();
+    }
+
+    private void RequireStandalone()
+    {
+        if (State.FollowedChat is not null)
+        { throw new InvalidOperationException("A bound composer requires the displayed selection revision."); }
+    }
+
+    private async Task ValidateSelection(string context, long generation)
+    {
+        if (State.FollowedChat is { } chat)
+        {
+            var selection = (await GrainFactory.GetGrain<IChat>(chat).Read()).Selection;
+            if (selection is null || selection.Agent != context || selection.Revision != generation)
+            { throw new InvalidOperationException("The conversation changed. Review the current draft before continuing."); }
+            await ApplySelection(selection);
+        }
+        RequireContext(context);
+        if (State.Generation != generation)
+        { throw new InvalidOperationException("The conversation changed. Review the current draft before continuing."); }
+    }
 
     public async Task Configure(string context, long generation, string label = "Message")
     {
+        RequireStandalone();
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         if (context.Length > 512 || label.Length > 128 || generation < 0) { throw new ArgumentException("Invalid composer configuration."); }
@@ -40,33 +155,54 @@ internal sealed class ComposerNeuron(
 
     public Task Edit(string context, string value)
     {
+        RequireStandalone();
+        return EditDraft(context, value);
+    }
+
+    public async Task Edit(string context, long selectionRevision, string value)
+    {
+        await ValidateSelection(context, selectionRevision);
+        await EditDraft(context, value);
+    }
+
+    private Task EditDraft(string context, string value)
+    {
         RequireContext(context);
         ValidateText(value);
         if (value == State.Draft) { return Task.CompletedTask; }
         return Save(State with { Draft = value, DraftVersion = State.DraftVersion + 1, Error = null }, store.State.Audio);
     }
 
-    public async Task<Guid?> Submit(Guid requestId, string context, string value)
+    public Task<Guid?> Submit(Guid requestId, string context, string value)
+    {
+        RequireStandalone();
+        return SubmitDraft(requestId, context, State.Generation, value, checkReplayGeneration: false);
+    }
+
+    public Task<Guid?> Submit(Guid requestId, string context, long selectionRevision, string value)
+        => SubmitDraft(requestId, context, selectionRevision, value);
+
+    private async Task<Guid?> SubmitDraft(Guid requestId, string context, long selectionRevision, string value, bool checkReplayGeneration = true)
     {
         ValidateId(requestId);
         ValidateText(value);
         var text = value.Trim();
         if (State.Submissions.FirstOrDefault(request => request.Id == requestId) is { } prior)
         {
-            if (prior.Context != context || prior.Text != text) { throw new InvalidOperationException("This request ID belongs to another submission."); }
+            if (prior.Context != context || prior.Text != text || checkReplayGeneration && prior.Generation >= 0 && prior.Generation != selectionRevision) { throw new InvalidOperationException("This request ID belongs to another submission."); }
             if (prior.Status == "pending") { await PublishAsync(new ComposerSubmitted(this.GetPrimaryKeyString(), prior.Id)); }
             return prior.Id;
         }
-        RequireContext(context);
+        await ValidateSelection(context, selectionRevision);
         if (value != State.Draft) { throw new InvalidOperationException("The draft changed. Review it and send again."); }
         if (text.Length == 0) { return null; }
-        if (State.Submissions.FirstOrDefault(request => request.Context == context && request.DraftVersion == State.DraftVersion && request.Status == "pending") is { } pending)
+        if (State.Submissions.FirstOrDefault(request => request.Context == context && request.Generation == State.Generation && request.DraftVersion == State.DraftVersion && request.Status == "pending") is { } pending)
         {
             await PublishAsync(new ComposerSubmitted(this.GetPrimaryKeyString(), pending.Id));
             return pending.Id;
         }
         if (State.Submissions.Count(request => request.Status == "pending") >= 16) { throw new InvalidOperationException("Too many messages are waiting. Try again when a submission finishes."); }
-        var request = new ComposerSubmission(requestId, context, text, State.DraftVersion);
+        var request = new ComposerSubmission(requestId, context, text, State.DraftVersion, Generation: State.Generation);
         // Keep all unacknowledged input even if an older request is slower than later ones.
         var retained = State.Submissions.Where(item => item.Status == "pending")
             .Concat(State.Submissions.Where(item => item.Status != "pending").TakeLast(64)).ToArray();
@@ -79,14 +215,14 @@ internal sealed class ComposerNeuron(
     {
         var request = State.Submissions.FirstOrDefault(item => item.Id == requestId);
         if (request is null || request.Status != "pending") { return; }
-        var sameDraft = request.Context == State.Context && request.DraftVersion == State.DraftVersion;
+        var sameDraft = request.Context == State.Context && request.Generation == State.Generation && request.DraftVersion == State.DraftVersion;
         var accepted = error is null;
         await Save(State with
         {
             Submissions = [.. State.Submissions.Select(item => item.Id == requestId ? item with { Status = accepted ? "accepted" : "refused", Error = error } : item)],
             Draft = accepted && sameDraft ? "" : State.Draft,
             DraftVersion = accepted && sameDraft ? State.DraftVersion + 1 : State.DraftVersion,
-            Error = request.Context == State.Context ? error : State.Error,
+            Error = request.Context == State.Context && request.Generation == State.Generation ? error : State.Error,
             Voice = accepted && sameDraft ? null : State.Voice,
         }, accepted && sameDraft ? null : store.State.Audio);
     }
@@ -99,11 +235,23 @@ internal sealed class ComposerNeuron(
         return Save(State with
         {
             Submissions = [.. State.Submissions.Select(item => item.Id == requestId ? item with { Error = error } : item)],
-            Error = request.Context == State.Context ? error : State.Error,
+            Error = request.Context == State.Context && request.Generation == State.Generation ? error : State.Error,
         }, store.State.Audio);
     }
 
     public Task BeginVoice(Guid captureId, string context)
+    {
+        RequireStandalone();
+        return BeginVoiceCapture(captureId, context);
+    }
+
+    public async Task BeginVoice(Guid captureId, string context, long selectionRevision)
+    {
+        await ValidateSelection(context, selectionRevision);
+        await BeginVoiceCapture(captureId, context);
+    }
+
+    private Task BeginVoiceCapture(Guid captureId, string context)
     {
         ValidateId(captureId);
         RequireContext(context);
@@ -151,6 +299,18 @@ internal sealed class ComposerNeuron(
 
     public Task<ComposerAudio?> ReadAudio(Guid captureId) => Task.FromResult(State.Voice is { Status: "transcribing" } voice && voice.Id == captureId ? store.State.Audio : null);
     public Task<ComposerState> Read() => Task.FromResult(State);
+
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        _renewal?.Dispose();
+        if (reason.ReasonCode != DeactivationReasonCode.ShuttingDown && State.FollowedChat is { } chat)
+        {
+            try { await GrainFactory.GetGrain<IChat>(chat).Unwatch(this.AsReference<INeuronObserver>()); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (SiloUnavailableException) { }
+        }
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
 
     private void RequireContext(string context)
     {

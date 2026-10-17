@@ -37,13 +37,15 @@ internal sealed class FakeBrainEdge : HttpMessageHandler
     public void Push(string kind, object payload)
         => _events.Writer.TryWrite($"event: {kind}\ndata: {JsonSerializer.Serialize(payload, payload.GetType(), RuntimeProtocol.Json)}\n\n");
 
-    // The next status report for a behavior, skipping heartbeats and other reports.
-    public async Task<JsonNode> StatusAsync(string behavior, CancellationToken ct)
+    // The next status report for a behavior, skipping heartbeats and other reports; a status filter
+    // skips reports of other statuses so a test can wait for a specific transition.
+    public async Task<JsonNode> StatusAsync(string behavior, CancellationToken ct, string? status = null)
     {
         while (true)
         {
             var report = await Reports.Reader.ReadAsync(ct);
-            if (report["status"] is { } status && status["behavior"]!.GetValue<string>() == behavior) { return status; }
+            if (report["status"] is { } reported && reported["behavior"]!.GetValue<string>() == behavior
+                && (status is null || reported["status"]!.GetValue<string>() == status)) { return reported; }
         }
     }
 

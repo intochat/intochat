@@ -12,10 +12,13 @@ public sealed class CSharpOptions : IModuleOptions
     public bool Authoring { get; set; } = true;
     // Signals buffered per subscription while nothing drains; past it the oldest is dropped and counted.
     public int MaximumPending { get; set; } = 64;
+    // How long an app's rules may take to judge one request; past it the request is rejected.
+    public TimeSpan RuleTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPending, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RuleTimeout, TimeSpan.Zero);
     }
 }
 

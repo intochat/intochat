@@ -1,9 +1,9 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Compute;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -12,10 +12,10 @@ namespace DigitalBrain.Modules.AI.Tests;
 public sealed class MeteringFacts
 {
     [Fact]
-    public async Task ChatRecordsEveryReportedTokenClassWithProviderAndModelIdentity()
+    public async Task AChatResponseRecordsInputAndOutputCosts()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sink = new RecordingSink();
+        var meter = new RecordingMeter();
         var usage = new UsageDetails
         {
             InputTokenCount = 10,
@@ -24,105 +24,102 @@ public sealed class MeteringFacts
             OutputTokenCount = 5,
             TotalTokenCount = 15,
         };
-        var client = new MeteringChatClient(FixedChatClient(Response(usage, "gpt-5.6-luna")), sink, "OpenAI", "gpt-5.6-luna");
+        var client = new MeteringChatClient(FixedChatClient(Response(usage, "gpt-5.6-luna")), meter, Funding.Integration, "gpt-5.6-luna");
 
-        using (IntentContext.Begin("intent-1", "scope"))
-        {
-            await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
-        }
+        var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
 
-        var (intentId, entry) = Assert.Single(sink.Records);
-        Assert.Equal("intent-1", intentId);
-        Assert.Equal(MeterKind.Chat, entry.Meter);
-        Assert.Equal("OpenAI", entry.Provider);
-        Assert.Equal("gpt-5.6-luna", entry.Model);
-        Assert.Equal(10, entry.InputTokens);
-        Assert.Equal(3, entry.CachedInputTokens);
-        Assert.Equal(2, entry.ReasoningTokens);
-        Assert.Equal(5, entry.OutputTokens);
-        Assert.Equal(15, entry.TotalTokens);
-        Assert.True(entry.UsageReported);
+        Assert.Equal(4, meter.Calls.Count);
+        var input = Assert.Single(meter.Calls, call => call.CostId.EndsWith(":input", StringComparison.Ordinal));
+        Assert.Equal(CostKind.Model, input.Kind);
+        Assert.Equal("gpt-5.6-luna:input", input.Item);
+        Assert.Equal(10 / 1_000_000m, input.Quantity);
+        Assert.Equal("mtok", input.Unit);
+        Assert.Equal(Funding.Integration, input.Funding);
+        Assert.Equal($"{response.ResponseId}:input", input.CostId);
+        var output = Assert.Single(meter.Calls, call => call.CostId.EndsWith(":output", StringComparison.Ordinal));
+        Assert.Equal(5 / 1_000_000m, output.Quantity);
+        Assert.Equal($"{response.ResponseId}:output", output.CostId);
+        Assert.Equal(3 / 1_000_000m, Assert.Single(meter.Calls, call => call.CostId.EndsWith(":cached", StringComparison.Ordinal)).Quantity);
+        Assert.Equal(2 / 1_000_000m, Assert.Single(meter.Calls, call => call.CostId.EndsWith(":reasoning", StringComparison.Ordinal)).Quantity);
+    }
+
+    [Fact]
+    public async Task TheTokenClassesGoToTheMeterTogetherNotOneAfterAnother()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Every row waits until all four are in flight: a meter fed one class after another never gets past the first.
+        var meter = new BarrierMeter(4);
+        var usage = new UsageDetails { InputTokenCount = 10, CachedInputTokenCount = 3, ReasoningTokenCount = 2, OutputTokenCount = 5 };
+        var client = new MeteringChatClient(FixedChatClient(Response(usage, "gpt-5.6-luna")), meter, Funding.Integration, "gpt-5.6-luna");
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
+
+        Assert.Equal(["cached", "input", "output", "reasoning"], meter.Recorded.Select(costId => costId.Split(':')[^1]).Order(StringComparer.Ordinal));
     }
 
     [Fact]
     public async Task StreamingUsageIsRecordedOnceFromTheFinalChunk()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sink = new RecordingSink();
+        var meter = new RecordingMeter();
         var usage = new UsageDetails { InputTokenCount = 7, OutputTokenCount = 4, TotalTokenCount = 11 };
-        var client = new MeteringChatClient(StreamingChatClient(usage), sink, "Anthropic", "claude");
+        var client = new MeteringChatClient(StreamingChatClient(usage), meter, Funding.Integration, "claude");
 
-        using (IntentContext.Begin("intent-stream"))
-        {
-            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct)) { }
-        }
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct)) { }
 
-        var entry = Assert.Single(sink.Records).Entry;
-        Assert.Equal(7, entry.InputTokens);
-        Assert.Equal(4, entry.OutputTokens);
-        Assert.Equal(11, entry.TotalTokens);
-        Assert.True(entry.UsageReported);
+        var input = Assert.Single(meter.Calls, call => call.CostId.EndsWith(":input", StringComparison.Ordinal));
+        Assert.Equal("claude:input", input.Item);
+        Assert.Equal(7 / 1_000_000m, input.Quantity);
+        var output = Assert.Single(meter.Calls, call => call.CostId.EndsWith(":output", StringComparison.Ordinal));
+        Assert.Equal(4 / 1_000_000m, output.Quantity);
     }
 
     [Fact]
-    public async Task MissingProviderUsageIsRecordedAsUnreportedNeverAsZero()
+    public async Task AResponseWithoutReportedUsageRecordsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sink = new RecordingSink();
-        var client = new MeteringChatClient(FixedChatClient(Response(null, "gpt-5.6-luna")), sink, "OpenAI", "gpt-5.6-luna");
-
-        using (IntentContext.Begin("intent-nousage"))
-        {
-            await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
-        }
-
-        var entry = Assert.Single(sink.Records).Entry;
-        Assert.False(entry.UsageReported);
-        Assert.Null(entry.InputTokens);
-        Assert.Null(entry.CachedInputTokens);
-        Assert.Null(entry.ReasoningTokens);
-        Assert.Null(entry.OutputTokens);
-        Assert.Null(entry.TotalTokens);
-    }
-
-    [Fact]
-    public async Task NoIntentContextRecordsNothing()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var sink = new RecordingSink();
-        var client = new MeteringChatClient(FixedChatClient(Response(new UsageDetails { InputTokenCount = 1 }, "gpt")), sink, "OpenAI", "gpt");
+        var meter = new RecordingMeter();
+        var client = new MeteringChatClient(FixedChatClient(Response(null, "gpt-5.6-luna")), meter, Funding.Integration, "gpt-5.6-luna");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
 
-        Assert.Empty(sink.Records);
+        Assert.Empty(meter.Calls);
     }
 
     [Fact]
-    public async Task EmbeddingUsageIsRecordedWithProviderAndModelIdentity()
+    public async Task AStreamThatEndsWithoutUsageRecordsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sink = new RecordingSink();
-        var generator = new MeteringEmbeddingGenerator(new FixedEmbeddingGenerator(new UsageDetails { InputTokenCount = 9, TotalTokenCount = 9 }), sink, "OpenAI", "text-embedding-3-small");
+        var meter = new RecordingMeter();
+        var client = new MeteringChatClient(StreamingChatClient(null), meter, Funding.Integration, "claude");
 
-        using (IntentContext.Begin("intent-embed"))
-        {
-            await generator.GenerateAsync(["one", "two"], cancellationToken: ct);
-        }
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct)) { }
 
-        var entry = Assert.Single(sink.Records).Entry;
-        Assert.Equal(MeterKind.Embedding, entry.Meter);
-        Assert.Equal("OpenAI", entry.Provider);
-        Assert.Equal("text-embedding-3-small", entry.Model);
-        Assert.Equal(9, entry.InputTokens);
-        Assert.Equal(9, entry.TotalTokens);
-        Assert.True(entry.UsageReported);
+        Assert.Empty(meter.Calls);
+    }
+
+    [Fact]
+    public async Task AnEmbeddingCallRecordsItsInputTokensAsALocalCost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var meter = new RecordingMeter();
+        var generator = new MeteringEmbeddingGenerator(new FixedEmbeddingGenerator(new UsageDetails { InputTokenCount = 9, TotalTokenCount = 9 }), meter, Funding.Local, "text-embedding-3-small");
+
+        await generator.GenerateAsync(["one", "two"], cancellationToken: ct);
+
+        var call = Assert.Single(meter.Calls);
+        Assert.Equal(CostKind.Model, call.Kind);
+        Assert.Equal("text-embedding-3-small:input", call.Item);
+        Assert.Equal(9 / 1_000_000m, call.Quantity);
+        Assert.Equal("mtok", call.Unit);
+        Assert.Equal(Funding.Local, call.Funding);
     }
 
     [Fact]
     public async Task UsageSurvivesGrainReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
         var usage = brain.Get<IIntentUsage>("intent-durable");
         await usage.RecordAsync(new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch), ct);
 
@@ -138,79 +135,46 @@ public sealed class MeteringFacts
         Assert.Equal(15, entry.TotalTokens);
     }
 
-    [Fact]
-    public async Task IntentScopeBatchesEveryProviderCallIntoOneDurableWrite()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
-        var sink = new GrainIntentUsageSink(brain.Grains);
-        var usage = brain.Get<IIntentUsage>("intent-batch");
-        var chat = new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch);
-
-        using (var intent = IntentContext.Begin("intent-batch", "scope"))
-        {
-            await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(chat), ct);
-            await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(chat with { Meter = MeterKind.Embedding }), ct);
-            // Provider calls accumulate in the intent scope; nothing is durable until the flush.
-            Assert.Empty((await usage.ReadAsync(ct)).Entries);
-            await sink.FlushAsync(intent.Snapshot(), ct);
-        }
-
-        var recorded = await usage.ReadAsync(ct);
-        Assert.Equal(2, recorded.Entries.Length);
-        Assert.Equal(MeterKind.Chat, recorded.Entries[0].Meter);
-        Assert.Equal(MeterKind.Embedding, recorded.Entries[1].Meter);
-    }
-
-    [Fact]
-    public void EveryReportedTokenClassBecomesItsOwnIdempotentMeterEvent()
-    {
-        var entry = new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch);
-
-        var events = IntentMeterEvents.FromUsage("intent-1", "scope", entry).ToArray();
-
-        Assert.Equal(
-            ["input_tokens", "cached_input_tokens", "reasoning_tokens", "output_tokens", "total_tokens"],
-            events.Select(meterEvent => meterEvent.Step));
-        Assert.All(events, meterEvent => Assert.Equal($"llm.gpt-5.6-luna.{meterEvent.Step}", meterEvent.MeterId));
-        Assert.All(events, meterEvent =>
-        {
-            Assert.Equal("intent-1", meterEvent.IntentId);
-            Assert.Equal("scope", meterEvent.BrainId);
-            Assert.Equal(MeterSource.ChatClient, meterEvent.Source);
-        });
-    }
-
     private static ChatResponse Response(UsageDetails? usage, string modelId)
-        => new(new ChatMessage(ChatRole.Assistant, "ok")) { Usage = usage, ModelId = modelId };
+        => new(new ChatMessage(ChatRole.Assistant, "ok")) { Usage = usage, ModelId = modelId, ResponseId = "response-1" };
 
-    private sealed class RecordingSink : IIntentUsageSink
+    private sealed record RecordedCost(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId);
+
+    private sealed class RecordingMeter : ICostMeter
     {
-        public List<(string IntentId, TokenUsageEntry Entry)> Records { get; } = [];
+        public ConcurrentQueue<RecordedCost> Calls { get; } = new();
 
-        public Task RecordAsync(string intentId, IIntentUsageEntry entry, CancellationToken cancellationToken = default)
+        public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
+            string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
-            Records.Add((intentId, ((IntentUsageEntry<TokenUsageEntry>)entry).Value));
-            return Task.CompletedTask;
+            Calls.Enqueue(new RecordedCost(kind, item, quantity, unit, funding, costId));
+            return ValueTask.FromResult(new Cost
+            {
+                TraceId = TraceContext.Current?.TraceId ?? string.Empty,
+                CostId = costId,
+                Kind = kind,
+                Item = item,
+                Quantity = quantity,
+                Unit = unit,
+                Micros = 0,
+            });
         }
-
-        public Task FlushAsync(IntentUsageBatch intent, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class RecordingBatchMeterSink : IBatchMeterSink
+    private sealed class BarrierMeter(int rows) : ICostMeter
     {
-        public List<MeterEvent[]> Batches { get; } = [];
+        private readonly TaskCompletionSource _all = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _started;
 
-        public ValueTask RecordAsync(MeterEvent meterEvent, CancellationToken cancellationToken = default)
-        {
-            Batches.Add([meterEvent]);
-            return ValueTask.CompletedTask;
-        }
+        public ConcurrentQueue<string> Recorded { get; } = new();
 
-        public ValueTask<int> RecordBatchAsync(IReadOnlyList<MeterEvent> meterEvents, CancellationToken cancellationToken = default)
+        public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
+            string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
-            Batches.Add([.. meterEvents]);
-            return ValueTask.FromResult(meterEvents.Count);
+            if (Interlocked.Increment(ref _started) == rows) { _all.TrySetResult(); }
+            await _all.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            Recorded.Enqueue(costId);
+            return new Cost { TraceId = string.Empty, CostId = costId, Kind = kind, Item = item, Quantity = quantity, Unit = unit, Micros = 0 };
         }
     }
 
@@ -218,9 +182,10 @@ public sealed class MeteringFacts
         (_, _, _) => Task.FromResult(response),
         (_, _, _) => Updates(new ChatResponseUpdate(ChatRole.Assistant, "ok")));
 
-    private static StubChatClient StreamingChatClient(UsageDetails usage) => StubChatClient.StreamingOnly((_, _, _) => Updates(
-        new ChatResponseUpdate(ChatRole.Assistant, "par"),
-        new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(usage)])));
+    private static StubChatClient StreamingChatClient(UsageDetails? usage) => StubChatClient.StreamingOnly((_, _, _) => Updates(
+        usage is null
+            ? [new ChatResponseUpdate(ChatRole.Assistant, "par")]
+            : [new ChatResponseUpdate(ChatRole.Assistant, "par"), new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(usage)])]));
 
     private static async IAsyncEnumerable<ChatResponseUpdate> Updates(params ChatResponseUpdate[] updates)
     {

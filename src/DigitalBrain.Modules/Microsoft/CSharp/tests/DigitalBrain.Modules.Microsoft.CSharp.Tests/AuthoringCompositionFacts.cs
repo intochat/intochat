@@ -10,21 +10,21 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class AuthoringCompositionFacts
 {
-    [Fact(Timeout = 120_000)]
+    [Fact]
     public async Task AuthoringOffHidesTheRoutesButKeepsTheRuntimeEdge()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var on = await ModuleTest.Create().WithModule<CSharpModule>().WithReminders().WithHttpEdge().StartAsync(ct);
-        using var available = await on.HttpClient.GetAsync("/brains/authoring-on/csharp/", ct);
+        await using var on = await TestBrain.Create().WithModule<CSharpModule>().StartAsync(ct);
+        using var available = await on.HttpClient.GetAsync("/brains/owner/csharp/", ct);
         Assert.Equal(HttpStatusCode.OK, available.StatusCode);
 
-        await using var off = await ModuleTest.Create().WithModule<CSharpModule, CSharpOptions>(options => options.Authoring = false).WithReminders().WithHttpEdge().StartAsync(ct);
-        using var unavailable = await off.HttpClient.GetAsync("/brains/authoring-off/csharp/", ct);
+        await using var off = await TestBrain.Create().WithModule<CSharpModule, CSharpOptions>(options => options.Authoring = false).StartAsync(ct);
+        using var unavailable = await off.HttpClient.GetAsync("/brains/owner/csharp/", ct);
         Assert.Equal(HttpStatusCode.NotFound, unavailable.StatusCode);
         // What the Apps publish gate and the runtime edge need stays composed.
-        Assert.True(off.SiloServices.GetRequiredService<CSharpToolService>().CanRun);
-        Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>());
-        Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Edge.RuntimeEdge>());
+        Assert.True(off.Services.GetRequiredService<CSharpToolService>().CanRun);
+        Assert.NotNull(off.Services.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>());
+        Assert.NotNull(off.Services.GetRequiredService<DigitalBrain.Microsoft.CSharp.Edge.RuntimeEdge>());
     }
 
     [Fact]

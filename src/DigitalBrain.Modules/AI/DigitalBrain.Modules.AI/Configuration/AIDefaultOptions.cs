@@ -9,5 +9,6 @@ public sealed class AIDefaultOptions
     public int? MaxOutputTokens { get; set; }
     public string? Embedding { get; set; }
     public string? Transcription { get; set; }
+    public string? SystemOne { get; set; }
     public string? Image { get; set; }
 }

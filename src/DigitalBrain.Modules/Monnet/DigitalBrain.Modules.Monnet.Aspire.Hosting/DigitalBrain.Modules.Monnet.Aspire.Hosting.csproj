@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration for the DigitalBrain Monnet module.</Description>
+    <RootNamespace>DigitalBrain.Modules.Monnet.Aspire.Hosting</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DigitalBrain.Modules.Monnet.Contracts/DigitalBrain.Modules.Monnet.Contracts.csproj" />
+    <ProjectReference Include="../DigitalBrain.Modules.Monnet/DigitalBrain.Modules.Monnet.csproj" />
+    <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+  </ItemGroup>
+</Project>

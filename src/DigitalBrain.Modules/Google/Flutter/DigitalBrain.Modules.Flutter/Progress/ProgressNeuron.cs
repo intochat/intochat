@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Progress;
 
 [GrainType(UIVocabulary.ProgressType)]
-internal sealed class ProgressNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ProgressState> store)
+internal sealed class ProgressNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ProgressState> store)
     : Neuron<ProgressState>(store), IProgress
 {
     public Task Set(bool determinate, double value, string label)

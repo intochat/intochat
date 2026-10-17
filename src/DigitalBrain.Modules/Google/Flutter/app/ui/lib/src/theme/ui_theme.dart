@@ -4,6 +4,7 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
 import '../lumen/lumen_palette.dart';
+import 'ui_tokens.dart';
 
 /// Product color tokens. Shell and ui both consume these — do not re-declare
 /// palettes in the shell package.
@@ -110,6 +111,58 @@ abstract final class UiType {
 }
 
 abstract final class UiTheme {
+  static const palettes = ['midnight', 'paper', 'lumen'];
+
+  static String paletteName(String? stored) => switch (stored) {
+    'light' || 'paper' => 'paper',
+    'lumen' => 'lumen',
+    _ => 'midnight',
+  };
+
+  static ThemeMode modeFor(String? stored) =>
+      paletteName(stored) == 'paper' ? ThemeMode.light : ThemeMode.dark;
+
+  static ThemeData workspaceDark(String? stored) {
+    final base = workspace(Brightness.dark);
+    if (paletteName(stored) != 'lumen') return base;
+    const background = Color(0xFF060A08);
+    const surface = Color(0xFF0B120F);
+    final scheme = base.colorScheme.copyWith(
+      primary: const Color(0xFF7CE0A8),
+      onPrimary: const Color(0xFF04170D),
+      primaryContainer: const Color(0xFF12301F),
+      onPrimaryContainer: const Color(0xFFA5F0C4),
+      surface: surface,
+      surfaceContainerLow: const Color(0xFF0F1813),
+      surfaceContainer: const Color(0xFF131E18),
+      surfaceContainerHigh: const Color(0xFF18261E),
+      onSurface: const Color(0xFFE3EFE8),
+      onSurfaceVariant: const Color(0xFF8CA397),
+      outline: const Color(0xFF3F5A4A),
+      outlineVariant: const Color(0xFF1D2D24),
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: background,
+      dividerColor: scheme.outlineVariant,
+      textTheme: base.textTheme.apply(
+        bodyColor: scheme.onSurface,
+        displayColor: scheme.onSurface,
+      ),
+      appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: background,
+        foregroundColor: scheme.onSurface,
+        shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        fillColor: scheme.surfaceContainerLow,
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: scheme.surfaceContainerLow,
+      ),
+    );
+  }
+
   /// Neutral workspace surfaces with the shared Lumen accent. Legacy graph and
   /// chat tokens remain independent while workspace pages migrate.
   static ThemeData workspace(Brightness brightness) {
@@ -183,7 +236,12 @@ abstract final class UiTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontFamily: UiType.bodyFamily,
+            fontFamilyFallback: UiType.bodyFallback,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -210,29 +268,9 @@ abstract final class UiTheme {
     );
   }
 
-  // Forui + Lumen were selected for the product redesign. Keep the third-party
-  // theme behind this bridge while legacy dark components migrate explicitly.
-  static final _lumenForui = FThemeData(
-    debugLabel: 'DigitalBrain Lumen',
-    touch: true,
-    colors: FColors.neutralLight.copyWith(
-      background: LumenPalette.background,
-      foreground: LumenPalette.ink,
-      primary: LumenPalette.accent,
-      primaryForeground: LumenPalette.surface,
-      secondary: LumenPalette.accentSoft,
-      secondaryForeground: LumenPalette.accent,
-      muted: LumenPalette.surfaceMuted,
-      mutedForeground: LumenPalette.muted,
-      card: LumenPalette.surface,
-      border: LumenPalette.line,
-      destructive: LumenPalette.error,
-      error: LumenPalette.error,
-    ),
-  );
-
   static ThemeData light() => ThemeData(
     useMaterial3: true,
+    extensions: const [UiTokens()],
     brightness: Brightness.light,
     fontFamily: UiType.bodyFamily,
     fontFamilyFallback: UiType.bodyFallback,
@@ -275,6 +313,7 @@ abstract final class UiTheme {
 
     return ThemeData(
       useMaterial3: true,
+      extensions: const [UiTokens()],
       brightness: Brightness.dark,
       scaffoldBackgroundColor: UiPalette.surface,
       colorScheme: scheme.copyWith(
@@ -320,20 +359,37 @@ abstract final class UiTheme {
 ///
 /// Localization stays in this bridge so surfaces never need to import Forui.
 final class UiThemeScope extends StatelessWidget {
-  const UiThemeScope({
-    super.key,
-    required this.child,
-    this.brightness = Brightness.light,
-  });
+  const UiThemeScope({super.key, required this.child, this.brightness});
 
   final Widget child;
-  final Brightness brightness;
+  final Brightness? brightness;
 
   @override
   Widget build(BuildContext context) {
-    final data = brightness == Brightness.light
-        ? UiTheme._lumenForui
-        : FTheme.neutral.dark.touch;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final data = FThemeData(
+      debugLabel: 'DigitalBrain',
+      touch: true,
+      colors:
+          (theme.brightness == Brightness.light
+                  ? FColors.neutralLight
+                  : FColors.neutralDark)
+              .copyWith(
+                background: theme.scaffoldBackgroundColor,
+                foreground: colors.onSurface,
+                primary: colors.primary,
+                primaryForeground: colors.onPrimary,
+                secondary: colors.primaryContainer,
+                secondaryForeground: colors.onPrimaryContainer,
+                muted: colors.surfaceContainer,
+                mutedForeground: colors.onSurfaceVariant,
+                card: colors.surface,
+                border: colors.outlineVariant,
+                destructive: colors.error,
+                error: colors.error,
+              ),
+    );
     return Localizations.override(
       context: context,
       delegates: FLocalizations.localizationsDelegates,
@@ -363,13 +419,19 @@ abstract final class UiChatTheme {
       ),
       typography: ChatTypography.standard(fontFamily: UiType.bodyFamily)
           .copyWith(
-            bodyMedium: TextStyle(
+            bodyMedium: (theme.textTheme.bodyMedium ?? UiType.body).copyWith(
               fontSize: 15,
               height: 1.65,
               color: c.onSurface,
             ),
-            bodySmall: TextStyle(fontSize: 12, color: c.onSurfaceVariant),
-            labelSmall: TextStyle(fontSize: 11, color: c.onSurfaceVariant),
+            bodySmall: (theme.textTheme.bodySmall ?? UiType.bodyMuted).copyWith(
+              fontSize: 12,
+              color: c.onSurfaceVariant,
+            ),
+            labelSmall: (theme.textTheme.labelSmall ?? UiType.meta).copyWith(
+              fontSize: 11,
+              color: c.onSurfaceVariant,
+            ),
           ),
       shape: BorderRadius.circular(12),
     );

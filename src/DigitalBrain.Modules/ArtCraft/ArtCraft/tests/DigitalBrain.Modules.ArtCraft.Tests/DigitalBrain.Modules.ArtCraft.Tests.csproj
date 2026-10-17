@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules.ArtCraft/DigitalBrain.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../../../ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp/DigitalBrain.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Include="DigitalBrain.Testing" /></ItemGroup>
+</Project>

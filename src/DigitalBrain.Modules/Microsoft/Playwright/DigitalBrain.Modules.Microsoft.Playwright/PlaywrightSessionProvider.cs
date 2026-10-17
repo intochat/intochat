@@ -6,8 +6,12 @@ using Sdk = global::Microsoft.Playwright;
 namespace DigitalBrain.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.
-public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
+public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable
 {
+    public bool IsAppPage(string url) => options.Value.IsAppPage(url);
+
+    public PlaywrightSessionProvider() : this(global::Microsoft.Extensions.Options.Options.Create(new PlaywrightModuleOptions())) { }
+
     private readonly ConcurrentDictionary<(int Port, string SessionId), string> _targets = new();
 
     internal static T SelectTarget<T>(IEnumerable<T> pages, Func<T, string> url, string sessionId)
@@ -83,7 +87,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
                 $"http://127.0.0.1:{attachment.Port}", new() { Timeout = 15_000 }).WaitAsync(ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             var page = await SelectPageAsync(browser, attachment).WaitAsync(ct).ConfigureAwait(false);
-            var session = new PageSession(playwright, browser, page);
+            var session = new PageSession(playwright, browser, page, options.Value);
             try
             {
                 await session.InitializeAsync().WaitAsync(ct).ConfigureAwait(false);
@@ -107,7 +111,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
         catch (Exception) { /* The caller already received cancellation; cleanup consumes late startup errors. */ }
     }
 
-    private sealed class PageSession(Sdk.IPlaywright driver, Sdk.IBrowser browser, Sdk.IPage page) : IBrowserPageSession
+    private sealed class PageSession(Sdk.IPlaywright driver, Sdk.IBrowser browser, Sdk.IPage page, PlaywrightModuleOptions apps, Func<Task>? release = null) : IBrowserPageSession
     {
         private readonly CancellationTokenSource _lifetime = new();
         private readonly HttpClient _http = new(new SocketsHttpHandler
@@ -121,6 +125,9 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
         })
         { Timeout = TimeSpan.FromSeconds(20) };
         private int _disposed;
+        private Task? _closing;
+        private readonly object _closeLock = new();
+        public long LastActivity { get; private set; } = Environment.TickCount64;
         private BrowserActivityBudget _budget = new();
         private string? _title;
         public bool Connected => Volatile.Read(ref _disposed) == 0 && browser.IsConnected && !page.IsClosed;
@@ -131,13 +138,26 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
         {
             page.SetDefaultTimeout(15_000);
             page.SetDefaultNavigationTimeout(20_000);
-            await page.RouteAsync("**/*", RouteAsync).ConfigureAwait(false);
-            await page.RouteWebSocketAsync("**/*", socket => socket.CloseAsync()).ConfigureAwait(false);
+            if (release is null)
+            {
+                await page.RouteAsync("**/*", RouteAsync).ConfigureAwait(false);
+                await page.RouteWebSocketAsync("**/*", socket => socket.CloseAsync()).ConfigureAwait(false);
+            }
+            else
+            {
+                await page.Context.RouteAsync("**/*", RouteAsync).ConfigureAwait(false);
+                await page.Context.RouteWebSocketAsync("**/*", socket => socket.CloseAsync()).ConfigureAwait(false);
+            }
         }
 
         public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => ExecuteAsync(async () =>
         {
             _budget = new BrowserActivityBudget();
+            if (apps.IsAppPage(url))
+            {
+                await page.GotoAsync(url, new() { WaitUntil = Sdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+                return;
+            }
             var uri = PublicBrowserNetwork.PublicUri(url);
             await PublicBrowserNetwork.ResolvePublicAsync(uri.IdnHost, ct).ConfigureAwait(false);
             // Resolve HTTP redirects before navigation, so the actual visible page URL remains truthful.
@@ -158,6 +178,21 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
             if (value.Length > 16_000) { throw new ArgumentException("Input is too long.", nameof(value)); }
             return ExecuteAsync(() => { _budget = new BrowserActivityBudget(); return page.Locator(selector).FillAsync(value); }, ct);
         }
+        public async Task<string> EvaluateAsync(string expression, CancellationToken ct)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(expression);
+            if (expression.Length > 64_000) { throw new ArgumentException("Expression is too long.", nameof(expression)); }
+            if (!Connected) { throw new InvalidOperationException("The visible browser is disconnected."); }
+            if (!apps.IsAppPage(page.Url)) { throw new InvalidOperationException("Evaluate runs only on the deployment's app pages."); }
+            LastActivity = Environment.TickCount64;
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+            // The page serializes its own awaited value: the text is exactly what the app's API returned.
+            var json = await page.EvaluateAsync<string>(
+                "async () => { const value = await (" + expression + "\n); return value === undefined ? 'null' : JSON.stringify(value); }")
+                .WaitAsync(linked.Token).ConfigureAwait(false);
+            return json.Length <= 256 * 1024 ? json : throw new InvalidOperationException("The evaluated result exceeds 256 KB.");
+        }
+
         private static void ValidateSelector(string selector)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(selector);
@@ -166,6 +201,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
 
         private async Task<BrowserObservation> ExecuteAsync(Func<Task> action, CancellationToken ct)
         {
+            LastActivity = Environment.TickCount64;
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
             linked.Token.ThrowIfCancellationRequested();
             using var cancelled = linked.Token.Register(Disconnect);
@@ -175,7 +211,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
                 await action().WaitAsync(linked.Token).ConfigureAwait(false);
                 linked.Token.ThrowIfCancellationRequested();
                 // about:blank is allowed only before the first public navigation.
-                if (!page.Url.StartsWith("about:blank#digitalbrain-", StringComparison.Ordinal))
+                if (!page.Url.StartsWith("about:blank#digitalbrain-", StringComparison.Ordinal) && !apps.IsAppPage(page.Url))
                 { PublicBrowserNetwork.PublicUri(page.Url); }
                 var snapshot = await page.EvaluateAsync<JsonElement>("""
                     () => {
@@ -226,6 +262,22 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
 
         private async Task RouteAsync(Sdk.IRoute route)
         {
+            if (apps.IsAppPage(route.Request.Url) && (route.Request.IsNavigationRequest || apps.IsAppPage(page.Url)))
+            {
+                // The deployment's own app talking to its own origin: no public proxy, no budget. The shell's
+                // WebView sends loopback to a dead proxy, so the driver fetches the request and fulfils it.
+                try
+                {
+                    var response = await route.FetchAsync(new() { MaxRedirects = 0 }).ConfigureAwait(false);
+                    await route.FulfillAsync(new() { Response = response }).ConfigureAwait(false);
+                }
+                catch (Sdk.PlaywrightException)
+                {
+                    try { await route.AbortAsync("connectionfailed").ConfigureAwait(false); }
+                    catch (Sdk.PlaywrightException) { }
+                }
+                return;
+            }
             var budget = _budget;
             try
             {
@@ -293,18 +345,24 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
 
         private void Disconnect()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
-            _lifetime.Cancel();
-            // Dispose only the automation transport. The native WebView and page belong to Flutter.
-            driver.Dispose();
+            lock (_closeLock)
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
+                _lifetime.Cancel();
+                // Desktop pages belong to Flutter; managed pages close only their own context.
+                if (release is null) { driver.Dispose(); }
+                else { _closing = release(); }
+            }
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             Disconnect();
             _http.Dispose();
             GC.SuppressFinalize(this);
-            return ValueTask.CompletedTask;
+            Task? closing;
+            lock (_closeLock) { closing = _closing; }
+            if (closing is not null) { await closing.ConfigureAwait(false); }
         }
     }
 }

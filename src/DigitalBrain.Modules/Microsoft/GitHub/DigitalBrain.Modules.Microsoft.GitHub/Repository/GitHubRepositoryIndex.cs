@@ -16,7 +16,7 @@ internal interface IGitHubRepositoryIndex : IGrainWithStringKey
 internal sealed record GitHubRepositoryIndexState { [Id(0)] public string[] Keys { get; init; } = []; }
 
 [GrainType("github.repository-index")]
-internal sealed class GitHubRepositoryIndex([PersistentState("github-repository-index", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GitHubRepositoryIndexState> store) : Grain, IGitHubRepositoryIndex
+internal sealed class GitHubRepositoryIndex([PersistentState("github-repository-index", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GitHubRepositoryIndexState> store) : Grain, IGitHubRepositoryIndex
 {
     public Task<string[]> Read() => Task.FromResult(store.State.Keys);
     public async Task Add(string connectionKey) { store.State = store.State with { Keys = store.State.Keys.Append(connectionKey).Distinct().ToArray() }; await store.WriteStateAsync(); }

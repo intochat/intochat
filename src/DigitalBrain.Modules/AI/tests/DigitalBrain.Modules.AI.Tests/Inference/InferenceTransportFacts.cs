@@ -21,21 +21,20 @@ public sealed class InferenceTransportFacts
     [InlineData("OpenAI")]
     [InlineData("OpenRouter")]
     [InlineData("Ollama")]
-    public async Task OfferedContractListsReachTheRealModelAdapterAsJson(string provider)
+    public async Task ToolResultsReachTheRealModelAdapterAsJson(string provider)
     {
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
-        using var services = new ServiceCollection().AddOptions().Configure<AIOptions>(options =>
-            { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
-            .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint.Url))
-            .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>()
-            .AddSingleton(new NeuronSurface(null!, new ContractCatalog(ContractCatalog.Deployed()), null!)).BuildServiceProvider();
+        var builder = TestBrain.Create().WithModule<AIModule, AIOptions>(options => { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
+            // The turn composes IApp without the Apps module: its contract is put in the host's compiled layer directly.
+            .ConfigureServices(services => services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(DigitalBrain.Apps.IApp).Assembly])));
+        await using var brain = await (provider == "Ollama" ? builder : builder.WithProvider(provider, endpoint.Url)).StartAsync(ct);
         async Task<CapturedRequest> Serve()
         {
             await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
-                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"neurons_list","arguments":{}}}]},"done":true,"done_reason":"stop"}
+                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"neurons_context","arguments":{}}}]},"done":true,"done_reason":"stop"}
                 """ : """
-                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"neurons_list","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"neurons_context","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
                 """, ct);
             return await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
                 {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"done"},"done":true,"done_reason":"stop"}
@@ -44,8 +43,8 @@ public sealed class InferenceTransportFacts
                 """, ct);
         }
         var serve = Serve();
-        Agents.AgentFacts.StampUser();
-        var events = await TurnLoops.Collect(services, "find contracts", [typeof(DigitalBrain.Apps.IApp).FullName!], ct);
+        using var caller = brain.Owner.AsCaller();
+        var events = await TurnLoops.Collect(brain.Services, "find contracts", [typeof(DigitalBrain.Apps.IApp).FullName!], ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         using var request = JsonDocument.Parse((await serve).Body);
         var result = request.RootElement.GetProperty("messages").EnumerateArray().Single(message => message.GetProperty("role").GetString() == "tool");
@@ -53,7 +52,8 @@ public sealed class InferenceTransportFacts
         { Assert.False(request.RootElement.GetProperty("options").TryGetProperty("num_ctx", out _)); }
         using var payload = JsonDocument.Parse(result.GetProperty("content").GetString()!);
         var root = provider == "Ollama" ? payload.RootElement.GetProperty("Result") : payload.RootElement;
-        Assert.Equal(typeof(DigitalBrain.Apps.IApp).FullName, root[0].GetString());
+        Assert.Equal(JsonValueKind.Object, root.ValueKind);
+        Assert.Contains(root.EnumerateObject(), property => property.Name.Equals("BrainId", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class InferenceTransportFacts
     {
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
-        await using var brain = await ModuleTest.Create().WithRegistrations(AiRegistrationSeeds.OpenAI(endpoint: endpoint.Url)).WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options => Configure(options, "OpenAI")))
+        await using var brain = await TestBrain.Create().WithProvider("OpenAI", endpoint.Url).WithModule<AIModule>()
+            .WithOptions<AIModule, AIOptions>(options => Configure(options, "OpenAI"))
             .StartAsync(ct);
         var serve = endpoint.ReplyOnce("application/json", """
             {"id":"response-1","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"id\":42}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}

@@ -9,6 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
+  test('toolbar icon names resolve to the shell icon set, paths do not', () {
+    expect(shellIcon('play'), Icons.play_arrow_rounded);
+    expect(shellIcon('mic'), Icons.mic_rounded);
+    expect(shellIcon('backspace'), Icons.backspace_outlined);
+    expect(shellIcon('icon.svg'), isNull);
+  });
+
   testWidgets('an app without an icon shows its initial', (tester) async {
     await tester.pumpWidget(host(const AppIcon(title: 'customer researcher')));
     expect(find.byKey(const ValueKey('app-icon-fallback')), findsOneWidget);

@@ -10,7 +10,7 @@ internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, Mod
     public IIntegrationHandle Get(string integrationId)
     {
         if (!inventory.Types.Contains(typeof(TModule)) || !(IntegrationDiscovery.Declared(typeof(TModule)).Any(s => s.Id == integrationId)
-            || ConnectorDiscovery.Declared(typeof(TModule))
+            || ConnectorDefinition.DeclaredBy(typeof(TModule))
                 .Any(c => c.RequiredIntegrations.Contains(integrationId, StringComparer.Ordinal) || c.OptionalIntegrations.Contains(integrationId, StringComparer.Ordinal))))
         { throw new UnauthorizedAccessException($"Module '{typeof(TModule).Name}' has not declared Integration '{integrationId}'."); }
         return new IntegrationHandle(integrationId, services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>());

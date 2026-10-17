@@ -2,21 +2,17 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <RootNamespace>DigitalBrain.Aspire.Server</RootNamespace>
-    <Description>DigitalBrain server-process integration: Orleans silo, storage, and module hosting.</Description>
+    <Description>DigitalBrain server-process integration: one host recipe: Orleans silo, platform and module hosting.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Aspire.Azure.Data.Tables" />
-    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
-    <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
     <PackageReference Include="Microsoft.Orleans.Dashboard" />
-    <PackageReference Include="Microsoft.Orleans.Persistence.AzureStorage" />
-    <PackageReference Include="Microsoft.Orleans.Reminders.AzureStorage" />
     <PackageReference Include="Microsoft.Orleans.Server" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../DigitalBrain.ServiceDefaults/DigitalBrain.ServiceDefaults.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Aspire.Hosting.Tests.Unit" /></ItemGroup>
 </Project>

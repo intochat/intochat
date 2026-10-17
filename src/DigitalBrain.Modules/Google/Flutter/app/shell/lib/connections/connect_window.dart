@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'windows_storage_setup.dart';
+
 String connectionStatus(Object? status) => switch (status) {
   'Connected' => 'Connected',
   'Expired' => 'Expired',
@@ -20,12 +22,14 @@ class ConnectWindow extends StatefulWidget {
     super.key,
     required this.request,
     this.connectorRequest,
+    this.windowsRequest,
     this.initialConnectorId,
     this.onOpen,
   });
 
   final ConnectionsRequest request;
   final ConnectionsRequest? connectorRequest;
+  final ConnectionsRequest? windowsRequest;
   final String? initialConnectorId;
   final Future<void> Function(Uri url)? onOpen;
 
@@ -278,58 +282,79 @@ class _ConnectWindowState extends State<ConnectWindow> {
                     },
             ),
             const SizedBox(height: 12),
-            TextField(
-              key: const Key('connect_name'),
-              controller: _connectionId,
-              decoration: const InputDecoration(
-                labelText: 'Connection name',
-                border: OutlineInputBorder(),
+            if (source == 'windows' && widget.windowsRequest != null)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: SingleChildScrollView(
+                  child: WindowsStorageSetup(
+                    key: ValueKey(
+                      connections
+                          .where((row) => row['connectorId'] == 'windows')
+                          .map(
+                            (row) => '${row['connectionId']}:${row['status']}',
+                          )
+                          .join(','),
+                    ),
+                    request: widget.request,
+                    windowsRequest: widget.windowsRequest!,
+                    onChanged: load,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (!usesOAuth)
+            if (source != 'windows' || widget.windowsRequest == null) ...[
               TextField(
-                key: const Key('connect_value'),
-                controller: _value,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
+                key: const Key('connect_name'),
+                controller: _connectionId,
                 decoration: const InputDecoration(
-                  labelText: 'Connection string or token',
+                  labelText: 'Connection name',
                   border: OutlineInputBorder(),
                 ),
               ),
-            const SizedBox(height: 12),
-            if (connectors.isEmpty && loaded)
-              const Text('No connectors are available for this deployment.'),
-            if (authMethods.length > 1)
-              DropdownButtonFormField<String>(
-                key: ValueKey('auth_method_$source'),
-                initialValue: authMethod,
-                decoration: const InputDecoration(
-                  labelText: 'Authentication method',
+              const SizedBox(height: 12),
+              if (!usesOAuth)
+                TextField(
+                  key: const Key('connect_value'),
+                  controller: _value,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Connection string or token',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                items: [
-                  for (final method in authMethods)
-                    DropdownMenuItem(value: method, child: Text(method)),
-                ],
-                onChanged: busy
-                    ? null
-                    : (value) => setState(() => authMethod = value),
-              ),
-            if (!usesOAuth)
-              FilledButton.icon(
-                key: const Key('connect_submit'),
-                onPressed: busy || source == null ? null : connect,
-                icon: const Icon(Icons.link),
-                label: const Text('Connect'),
-              ),
-            if (usesOAuth)
-              TextButton.icon(
-                onPressed: busy ? null : startOAuth,
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Sign in with the provider'),
-              ),
+              const SizedBox(height: 12),
+              if (connectors.isEmpty && loaded)
+                const Text('No connectors are available for this deployment.'),
+              if (authMethods.length > 1)
+                DropdownButtonFormField<String>(
+                  key: ValueKey('auth_method_$source'),
+                  initialValue: authMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Authentication method',
+                  ),
+                  items: [
+                    for (final method in authMethods)
+                      DropdownMenuItem(value: method, child: Text(method)),
+                  ],
+                  onChanged: busy
+                      ? null
+                      : (value) => setState(() => authMethod = value),
+                ),
+              if (!usesOAuth)
+                FilledButton.icon(
+                  key: const Key('connect_submit'),
+                  onPressed: busy || source == null ? null : connect,
+                  icon: const Icon(Icons.link),
+                  label: const Text('Connect'),
+                ),
+              if (usesOAuth)
+                TextButton.icon(
+                  onPressed: busy ? null : startOAuth,
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Sign in with the provider'),
+                ),
+            ],
           ],
         ),
       ),

@@ -1,0 +1,7 @@
+Meet Customer Researcher.
+
+Start with a company name or website. Watch it explore official pages, check the details against the source, and save a research record with links and quotes you can verify. Unknown details stay unknown.
+
+Queue companies, follow the progress, and stop whenever you need. Your research stays in your own brain.
+
+Install your own copy and research directly in the web workspace—no desktop app is needed. Your account uses an isolated browser worker, and each research session starts with fresh browser state. It uses your host's configured model; model usage may incur charges. No separate database setup is needed.

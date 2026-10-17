@@ -12,15 +12,12 @@ namespace DigitalBrain.OS.Tests.E2E;
 // Product-only shipped content; all lease, model, browser and telemetry support is shared.
 public sealed class ProductHostFixture : ReferenceBrainFixture
 {
-    public static readonly string[] ShippedPackages = ["os/settings", "os/assistant", "intochat/customer-researcher"];
+    public static readonly string[] ShippedPackages = ["os/settings", "os/ino", "os/router", "os/calculator", "intochat/customer-researcher"];
 
-    protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
+    protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ProductE2E.Create()
-            .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
-            .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
-            .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
-            .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
-            .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .ExportingTelemetryTo(Collector)
+            .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
+            .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 }

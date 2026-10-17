@@ -5,6 +5,7 @@ using Aspire.Hosting.Azure;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -13,13 +14,25 @@ namespace DigitalBrain.Aspire.Hosting;
 public static class DigitalBrainHostingExtensions
 {
     private const string OrleansResourceSuffix = "digitalbrain";
-    private const string KernelModuleNode = "Kernel";
+
+    // A vendor credential the host can run without. An empty value is not seeded, so the integration
+    // stays unconfigured instead of the whole operating system refusing to start.
+    public static IResourceBuilder<ParameterResource> AddOptionalParameter(this IDistributedApplicationBuilder builder, string name, bool secret = false)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return builder.AddParameter(name, () =>
+        {
+            var configured = builder.Configuration[$"Parameters:{name}"];
+            return string.IsNullOrEmpty(configured) ? "" : configured;
+        }, secret);
+    }
 
     public static IResourceBuilder<AzureBlobStorageContainerResource> AddBlobContainer(this DigitalBrainBuilder brain, string name)
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return (brain.Storage ?? throw new InvalidOperationException("Blob containers require UseAzureStorage."))
+        return (brain.Storage ?? throw new InvalidOperationException("Blob containers require the orleans module hosted on Azurite (OrleansModuleHosting with WithAzurite)."))
             .AddBlobContainer(brain.ResourceName(name), blobContainerName: name);
     }
 
@@ -28,7 +41,6 @@ public static class DigitalBrainHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         options ??= new();
-        var persist = options.PersistentStorage && builder.Configuration.GetValue(DigitalBrainHostingOptions.PersistentStorageKey, true);
         var resolvedServiceId = options.ServiceId ?? builder.Configuration[DigitalBrainHostingOptions.ServiceIdKey] ?? name;
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedServiceId);
         var environment = builder.Configuration[DigitalBrainHostingOptions.EnvironmentKey] is { Length: > 0 } configured ? configured : options.Environment;
@@ -46,41 +58,16 @@ public static class DigitalBrainHostingExtensions
         var clusterId = options.ClusterId ?? builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey]
             ?? (builder.Environment.IsDevelopment() ? $"digitalbrain-{Guid.NewGuid():N}" : resolvedServiceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(clusterId);
+        var grainStateContainer = options.GrainStateContainer ?? builder.Configuration[DigitalBrainHostingOptions.GrainStateContainerKey] ?? DigitalBrainNames.GrainStateContainer;
+        // Storage is the orleans module's hosting choice (OrleansModuleHosting); without it the silo runs in memory.
         var orleans = builder
             .AddOrleans($"{name}-{OrleansResourceSuffix}")
             .WithClusterId(clusterId)
-            .WithServiceId(resolvedServiceId);
-        if (!options.UseAzureStorage)
-        {
-            orleans.WithDevelopmentClustering().WithMemoryGrainStorage(DigitalBrainNames.DefaultGrainStorage).WithMemoryReminders();
-            var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { ServiceId = resolvedServiceId, ClusterId = clusterId, Environment = environment };
-            memory.AddProjection(MasterKey.Provision(builder, name));
-            if (AuthPosture.Provision(builder) is { } memoryPosture) { memory.AddProjection(memoryPosture); }
-            return memory;
-        }
-        var storage = builder
-            .AddAzureStorage($"{name}-{DigitalBrainNames.Storage}")
-            .RunAsEmulator(emulator =>
-            {
-                emulator.WithArgs("--silent");
-                if (persist) { emulator.WithLifetime(ContainerLifetime.Persistent); }
-                if (options.DataVolume is not null) { emulator.WithDataVolume(options.DataVolume); }
-                else if (persist) { emulator.WithDataVolume(); }
-            })
-            .WithParentRelationship(resource);
-        var clustering = storage.AddTables($"{name}-{DigitalBrainNames.Clustering}");
-        var reminders = storage.AddTables($"{name}-{DigitalBrainNames.Reminders}");
-        var grainState = storage.AddBlobs($"{name}-{DigitalBrainNames.GrainState}");
-        orleans.WithClustering(clustering).WithReminders(reminders)
-            .WithGrainStorage(DigitalBrainNames.DefaultGrainStorage, grainState);
-        var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, Environment = environment, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
+            .WithServiceId(resolvedServiceId)
+            .WithDevelopmentClustering();
+        var brain = new DigitalBrainBuilder(builder, name, resource, orleans) { ServiceId = resolvedServiceId, ClusterId = clusterId, GrainStateContainer = grainStateContainer, Environment = environment };
         brain.AddProjection(MasterKey.Provision(builder, name));
         if (AuthPosture.Provision(builder) is { } posture) { brain.AddProjection(posture); }
-        storage.WithParentRelationship(brain.GetOrAddModuleNode(KernelModuleNode));
-        brain.RequireHealthyBeforeStart(storage.Resource);
-        brain.RequireHealthyBeforeStart(clustering.Resource);
-        brain.RequireHealthyBeforeStart(reminders.Resource);
-        brain.RequireHealthyBeforeStart(grainState.Resource);
         return brain;
     }
 
@@ -92,6 +79,13 @@ public static class DigitalBrainHostingExtensions
 
         builder.WithAnnotation(new BrainSiloAnnotation(brain));
         builder.WithReference(brain.Orleans);
+        // The silo keeps the identity and endpoint keys; its providers come from the orleans module, so the
+        // development clustering Aspire requires on the Orleans resource must not reach it.
+        builder.WithEnvironment(context =>
+        {
+            foreach (var key in context.EnvironmentVariables.Keys.Where(IsOrleansProviderKey).ToArray())
+            { context.EnvironmentVariables.Remove(key); }
+        });
         // Development clustering advertises localhost gateways. Local executables must bind
         // that address too, rather than Orleans selecting a VPN/container adapter address.
         if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource)
@@ -102,21 +96,8 @@ public static class DigitalBrainHostingExtensions
             builder.WithEndpoint("orleans-silo", endpoint => endpoint.IsProxied = false);
             builder.WithEndpoint("orleans-gateway", endpoint => endpoint.IsProxied = false);
         }
-        if (brain.Clustering is { } clustering)
-        {
-            builder.WithReference(clustering, DigitalBrainNames.Clustering);
-            builder.WithEnvironment("Orleans__Clustering__ServiceKey", DigitalBrainNames.Clustering);
-        }
-        if (brain.Reminders is { } reminders)
-        {
-            builder.WithReference(reminders, DigitalBrainNames.Reminders);
-            builder.WithEnvironment("Orleans__Reminders__ServiceKey", DigitalBrainNames.Reminders);
-        }
-        if (brain.GrainState is { } grainState)
-        {
-            builder.WithReference(grainState, DigitalBrainNames.GrainState);
-            builder.WithEnvironment($"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ServiceKey", DigitalBrainNames.GrainState);
-        }
+        // Storage, clustering and reminders reach the silo only through the orleans integration; the platform's
+        // keyed blob client comes from it too, so the silo takes no storage connection strings.
         brain.Identity?.Apply(builder);
         if (brain.Environment is { Length: > 0 } environment)
         {
@@ -126,6 +107,19 @@ public static class DigitalBrainHostingExtensions
 
         foreach (var pair in brain.Settings)
         { builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
+
+        foreach (var pair in brain.ApplicationBuilder.Configuration.GetSection(IntegrationSchema.SectionName).AsEnumerable())
+        {
+            if (string.IsNullOrWhiteSpace(pair.Value) || pair.Key.Equals(IntegrationSchema.SectionName, StringComparison.OrdinalIgnoreCase))
+            { continue; }
+            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value);
+        }
+        builder.WithEnvironment(context =>
+        {
+            var origin = DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey);
+            if (!context.EnvironmentVariables.ContainsKey(origin))
+            { context.EnvironmentVariables[origin] = builder.GetEndpoint("http"); }
+        });
 
         // Aspire's OTLP injection prefers gRPC; a host that names only an HTTP collector gets http/protobuf.
         // Run mode only: a published manifest never carries the local dashboard's collector URL.
@@ -166,11 +160,21 @@ public static class DigitalBrainHostingExtensions
         if (client.Brain.Clustering is { } clustering)
         {
             builder.WithReference(clustering, DigitalBrainNames.Clustering);
+            // Overrides the development provider the Orleans resource advertises.
+            builder.WithEnvironment("Orleans__Clustering__ProviderType", "AzureTableStorage");
             builder.WithEnvironment("Orleans__Clustering__ServiceKey", DigitalBrainNames.Clustering);
         }
         WaitUntilHealthy(builder, client.Brain.StartupDependencies);
         return builder;
     }
+
+    private static bool IsOrleansProviderKey(string key)
+        => key.StartsWith("Orleans__Clustering__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__Reminders__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__GrainStorage__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__Streaming__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__GrainDirectory__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__BroadcastChannel__", StringComparison.Ordinal);
 
     private static void WaitUntilHealthy<TResource>(
         IResourceBuilder<TResource> builder,

@@ -14,7 +14,7 @@ public sealed record AgentContextState
 
 [GrainType("agent-context")]
 internal sealed class AgentContextNeuron(
-    [PersistentState("agent-context", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AgentContextState> store)
+    [PersistentState("agent-context", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AgentContextState> store)
     : Neuron<AgentContextState>(store), IAgentContext
 {
     public async Task Set(ContextEntry entry)

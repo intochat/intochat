@@ -1,55 +1,56 @@
-final class WorkspaceWindow {
-  const WorkspaceWindow({
-    required this.id,
-    required this.title,
-    required this.kind,
-    required this.neuronId,
-    required this.isOpen,
-  });
-  final String id, title, kind, neuronId;
-  final bool isOpen;
-  factory WorkspaceWindow.fromJson(Map<String, dynamic> json) {
-    final reference = Map<String, dynamic>.from(json['reference'] as Map);
-    return WorkspaceWindow(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      kind: reference['kind'] as String,
-      neuronId: reference['neuronId'] as String,
-      isOpen: json['isOpen'] as bool,
-    );
-  }
-}
-
 final class WorkspaceSnapshot {
   WorkspaceSnapshot({
     required this.revision,
-    required List<WorkspaceWindow> windows,
-    this.firstRun,
-  }) : windows = List.unmodifiable(windows);
+    required List<String> path,
+    required List<String> open,
+    List<WorkspaceViewReference> openViews = const [],
+    this.focusedViewId,
+    List<WorkspaceViewReference> pins = const [],
+  }) : path = List.unmodifiable(path),
+       open = List.unmodifiable(open),
+       openViews = List.unmodifiable(openViews),
+       pins = List.unmodifiable(pins);
   final int revision;
-  final List<WorkspaceWindow> windows;
+  final List<String> path, open;
+  final List<WorkspaceViewReference> openViews, pins;
+  final String? focusedViewId;
 
-  /// The assistant starter state of a workspace that has never opened a window; null afterwards.
-  final Map<String, dynamic>? firstRun;
   factory WorkspaceSnapshot.fromJson(Map<String, dynamic> json) =>
       WorkspaceSnapshot(
         revision: json['revision'] as int,
-        windows: (json['windows'] as List)
+        path: (json['path'] as List).cast<String>(),
+        open: (json['open'] as List).cast<String>(),
+        openViews: (json['openViews'] as List? ?? const [])
             .map(
-              (w) =>
-                  WorkspaceWindow.fromJson(Map<String, dynamic>.from(w as Map)),
+              (value) => WorkspaceViewReference.fromJson(
+                Map<String, dynamic>.from(value as Map),
+              ),
             )
             .toList(),
-        firstRun: json['firstRun'] is Map
-            ? Map<String, dynamic>.from(json['firstRun'] as Map)
-            : null,
+        focusedViewId: json['focusedViewId'] as String?,
+        pins: (json['pins'] as List? ?? const [])
+            .map(
+              (value) => WorkspaceViewReference.fromJson(
+                Map<String, dynamic>.from(value as Map),
+              ),
+            )
+            .toList(),
       );
 }
 
-final class WorkspaceRevision {
-  const WorkspaceRevision(this.workspaceId, this.revision);
-  final String workspaceId;
-  final int revision;
-  factory WorkspaceRevision.fromJson(Map<String, dynamic> json) =>
-      WorkspaceRevision(json['brainId'] as String, json['revision'] as int);
+final class WorkspaceViewReference {
+  const WorkspaceViewReference({
+    required this.id,
+    required this.app,
+    required this.variant,
+    required this.context,
+  });
+  final String id, app, variant, context;
+  factory WorkspaceViewReference.fromJson(Map<String, dynamic> json) =>
+      WorkspaceViewReference(
+        id: json['id'] as String,
+        app: json['app'] as String,
+        variant: json['variant'] as String,
+        context: json['context'] as String,
+      );
 }

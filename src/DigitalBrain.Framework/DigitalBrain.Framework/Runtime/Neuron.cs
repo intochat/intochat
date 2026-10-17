@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -9,8 +10,6 @@ namespace DigitalBrain.Framework;
 // sealed so the runtime owns the order and the failure handling.
 public abstract class Neuron : Grain, INeuron
 {
-    public virtual NeuronAccess Access(string operation) => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
-
     private readonly Guid _activation = Guid.NewGuid();
     private sealed record WatchRegistration(INeuronObserver Observer, HashSet<string>? Signals);
     private ObserverManager<INeuronObserver, WatchRegistration>? _observers;
@@ -48,18 +47,73 @@ public abstract class Neuron : Grain, INeuron
         return Task.FromResult(_activation);
     }
 
-    public Task Unwatch(INeuronObserver observer)
+    public virtual Task Unwatch(INeuronObserver observer)
     {
         Observers.Unsubscribe(observer);
         return Task.CompletedTask;
     }
 
-    protected Task PublishAsync(Signal signal)
+    // A signal is durable before any observer sees it (Q27).
+    protected async Task PublishAsync(Signal signal)
     {
-        var stamped = signal with { Publisher = Id };
+        var stamped = Stamp(signal);
+        await Journal.Append(this.GetGrainId(), [stamped]);
+        await Notify(stamped);
+    }
+
+    // Several facts of one call become durable in one journal append before any observer sees them. Each is
+    // stamped under the trace that caused it, or the current one when it names none.
+    protected async Task PublishAsync((Signal Signal, Trace? Trace)[] signals)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        if (signals.Length == 0) { return; }
+        var stamped = new Signal[signals.Length];
+        for (var i = 0; i < signals.Length; i++)
+        {
+            ArgumentNullException.ThrowIfNull(signals[i].Signal);
+            using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
+            stamped[i] = Stamp(signals[i].Signal);
+        }
+        await Journal.Append(this.GetGrainId(), stamped);
+        foreach (var signal in stamped) { await Notify(signal); }
+    }
+
+    private protected ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
+
+    private protected Signal Stamp(Signal signal) => signal with { Publisher = Id, Trace = TraceContext.Current };
+
+    private protected Task Notify(Signal stamped)
+    {
         ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
         return Observers.Notify(watch => watch.Observer.OnSignalAsync(stamped),
             watch => watch.Signals is null || watch.Signals.Contains(stamped.GetType().Name));
+    }
+
+    // The signals a state change caused ride in its storage write when the storage takes them (a part log);
+    // otherwise they are journaled after it. Either way a failed write publishes nothing.
+    private protected async Task Announce(Func<Task> write, Signal[] signals)
+        => await Announce(write, [.. signals.Select(signal => (signal, (Trace?)null))]);
+
+    // Preserve each fact's causal trace while attaching the whole batch to its state write.
+    private protected async Task Announce(Func<Task> write, (Signal Signal, Trace? Trace)[] signals)
+    {
+        // Stamping needs the grain's identity. A neuron constructed outside a silo has none: its write runs
+        // first, so a storage failure surfaces as itself rather than as the missing identity.
+        if (((IGrainBase)this).GrainContext is null) { await write(); }
+        var stamped = new Signal[signals.Length];
+        for (var i = 0; i < signals.Length; i++)
+        {
+            using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
+            stamped[i] = Stamp(signals[i].Signal);
+        }
+        bool taken;
+        using (SignalJournal.Attach(this.GetGrainId(), stamped))
+        {
+            await write();
+            taken = SignalJournal.Taken;
+        }
+        if (!taken) { await Journal.Append(this.GetGrainId(), stamped); }
+        foreach (var signal in stamped) { await Notify(signal); }
     }
 }
 
@@ -72,23 +126,26 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
     // Existence is the record's, not the object's.
     protected bool Exists => store.RecordExists;
 
-    protected async Task Save(TState next, Signal changed, Signal? acted = null)
+    protected Task Save(TState next, Signal changed, Signal? acted = null) =>
+        Announce(() => SaveQuietly(next), acted is null ? [changed] : [changed, acted]);
+
+    protected Task Save(TState next, (Signal Signal, Trace? Trace)[] signals) =>
+        Announce(() => SaveQuietly(next), signals);
+
+    // Writes without announcing: for plumbing that no watcher observes. A neuron keeps all of its
+    // persisted state in this one record, so its first write is the one that registers it.
+    protected async Task SaveQuietly(TState next)
     {
         var previous = store.State;
         store.State = next;
-        try
-        {
-            await store.WriteStateAsync();
-        }
-        catch
-        {
-            store.State = previous;
-            throw;
-        }
-        await PublishAsync(changed);
-        if (acted is not null)
-        {
-            await PublishAsync(acted);
-        }
+        try { await store.WriteStateAsync(); }
+        catch { store.State = previous; throw; }
+        OnCommitted();
     }
+
+    // Runs only after the write has succeeded, and before the caller of Save is resumed.
+    protected virtual void OnCommitted() { }
+
+    // Clearing the record is what ends the neuron's existence: the kernel retires the instance.
+    protected Task Clear(Signal changed) => Announce(store.ClearStateAsync, [changed]);
 }

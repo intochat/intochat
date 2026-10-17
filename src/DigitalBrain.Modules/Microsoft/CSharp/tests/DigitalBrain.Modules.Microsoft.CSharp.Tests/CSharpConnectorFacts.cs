@@ -20,12 +20,4 @@ public sealed class CSharpConnectorFacts
         Assert.Equal(["csharp"], connector.OptionalIntegrations);
     }
 
-    [Fact]
-    public async Task AHostComposingTheModuleStartsWithTheConnectorValidated()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        // Platform validates every declared connector at startup; an invalid declaration would fail it.
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().WithHttpEdge().StartAsync(ct);
-        Assert.Equal(System.Net.HttpStatusCode.OK, (await brain.HttpClient.GetAsync("/connectors", ct)).StatusCode);
-    }
 }

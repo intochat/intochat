@@ -13,7 +13,7 @@ public sealed class PersistedCollectionFacts
     {
         var definition = new AgentDefinition
         {
-            Contracts = ["DigitalBrain.Apps.IApp", "DigitalBrain.Apps.IAppIndex"],
+            Contracts = ["DigitalBrain.Apps.IApp"],
             Capabilities = ["research"],
             RoutingExamples = ["find evidence"],
             Contexts = ["research/agents/main/context"],

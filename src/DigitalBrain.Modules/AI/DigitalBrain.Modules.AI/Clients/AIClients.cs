@@ -9,7 +9,7 @@ using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.AI.Models.OpenRouter;
 using DigitalBrain.AI.Models.XAI;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -43,8 +43,7 @@ internal static class AIClients
 
     internal static void Add(IServiceCollection services)
     {
-        services.TryAddSingleton<IIntentUsageSink>(provider => new GrainIntentUsageSink(
-            provider.GetRequiredService<IGrainFactory>(), provider.GetService<IMeterSink>()));
+        services.TryAddSingleton<ProviderExecutionGate>();
         foreach (var model in LLMModel.All)
         {
             services.AddKeyedSingleton<IChatClient>(
@@ -62,9 +61,10 @@ internal static class AIClients
                         ct => Factories[model.Provider].CreateEmbeddingGenerator(
                             model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
                         GenerationOf(provider, model.Provider));
-                    return provider.GetService<IIntentUsageSink>() is { } sink
-                        ? new MeteringEmbeddingGenerator(inner, sink, model.Provider.ToString(), model.Id)
-                        : inner;
+                    IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
+                    return provider.GetService<ICostMeter>() is { } meter
+                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(model.Provider), model.Id)
+                        : limited;
                 });
         }
 
@@ -81,6 +81,15 @@ internal static class AIClients
     internal static ILlmProviderFactory Factory(AiProvider provider)
         => Factories.GetValueOrDefault(provider)
             ?? throw new ArgumentException($"Provider '{provider}' does not support runtime chat model selection.", nameof(provider));
+
+    // What pays for a model call: a deployment integration is billed through the ledger, and a
+    // local endpoint (Ollama, Foundry) runs on the host. No AI client is built from a user
+    // connection today, so its funding case is never produced here.
+    private static Funding FundingOf(AiProvider provider)
+        => AiIntegrations.KeyedProviders.Contains(provider) ? Funding.Integration : Funding.Local;
+
+    private static Funding FundingOf(string provider)
+        => Enum.TryParse<AiProvider>(provider, out var parsed) ? FundingOf(parsed) : Funding.Local;
 
     private static IChatClient BuildChatPipeline(IServiceProvider provider, LLMModel model)
         => BuildChatPipeline(provider, model, Rebuilding(provider, model.Provider,
@@ -131,10 +140,12 @@ internal static class AIClients
             configure: telemetry => telemetry.EnableSensitiveData = configuration.Telemetry.EnableSensitiveData ?? false);
         // Innermost: one metered entry per raw provider call, before any function-invocation
         // aggregation, and never a second entry for the same call.
-        if (meterProvider is not null && meterModel is not null && provider.GetService<IIntentUsageSink>() is { } sink)
+        if (meterProvider is not null && meterModel is not null && provider.GetService<ICostMeter>() is { } meter)
         {
-            pipeline = pipeline.Use(inner => new MeteringChatClient(inner, sink, meterProvider, meterModel));
+            pipeline = pipeline.Use(inner => new MeteringChatClient(inner, meter, FundingOf(meterProvider), meterModel));
         }
+        if (provider.GetService<ProviderExecutionGate>() is { } execution)
+        { pipeline = pipeline.Use(inner => new LimitedChatClient(inner, execution)); }
         return pipeline.Build(provider);
     }
 

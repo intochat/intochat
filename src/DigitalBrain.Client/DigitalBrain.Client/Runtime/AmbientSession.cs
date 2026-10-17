@@ -8,17 +8,17 @@ public static class AmbientSession
 
     internal static Scope? Value => Current.Value;
 
-    public static IDisposable Enter(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping)
+    public static IDisposable Enter(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, string? assignmentHash = null, string? assignmentRevision = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentException.ThrowIfNullOrWhiteSpace(behavior);
         ArgumentNullException.ThrowIfNull(settings);
         var previous = Current.Value;
-        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping, new BehaviorTrace());
+        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping, new BehaviorTrace(), assignmentHash, assignmentRevision);
         return new Exit(previous);
     }
 
-    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping, BehaviorTrace Trace);
+    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping, BehaviorTrace Trace, string? AssignmentHash, string? AssignmentRevision);
 
     private sealed class Exit(Scope? previous) : IDisposable
     {

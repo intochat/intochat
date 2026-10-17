@@ -10,15 +10,11 @@ public sealed class SpeechTransportFacts
     [Fact]
     public async Task OpenAISpeechMapsModelVoiceTextAndReturnsMp3WithCompletionSignal()
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        var ct = deadline.Token;
+        var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
-        await using var brain = await ModuleTest.Create().WithRegistrations(AiRegistrationSeeds.OpenAI(endpoint: endpoint.Url)).WithModule<AIModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.AddOpenAISpeechSynthesis("fixture-tts");
-            }).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithProvider("OpenAI", endpoint.Url).WithModule<AIModule>()
+            // The OpenAI speech transport is chosen in code, not by option: the fact composes it as a host would.
+            .ConfigureServices(services => services.AddOpenAISpeechSynthesis("fixture-tts")).StartAsync(ct);
         var speech = brain.Get<ISpeechSynthesizer>("real-speech-transport");
         Assert.True((await speech.Describe()).Available);
         await using var completed = await brain.Observe<SpeechSynthesized>(speech, ct);

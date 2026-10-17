@@ -7,7 +7,8 @@ public static class TimeHosting
     public static ISiloBuilder AddTime(this ISiloBuilder silo)
     {
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.Services.TryAddSingleton<TimeInventoryWriter>();
+        // Domain timestamps can be controlled without changing Orleans' lifecycle clock.
+        silo.Services.TryAddKeyedSingleton<TimeProvider>(typeof(TimeModule), TimeProvider.System);
         silo.Services.AddSingleton<IConfigurationValidator, ReminderConfiguration>();
         return silo;
     }

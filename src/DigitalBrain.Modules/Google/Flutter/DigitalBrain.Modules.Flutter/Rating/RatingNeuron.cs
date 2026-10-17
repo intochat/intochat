@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Rating;
 
 [GrainType(UIVocabulary.RatingType)]
-internal sealed class RatingNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<RatingState> store)
+internal sealed class RatingNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<RatingState> store)
     : Neuron<RatingState>(store), IRating
 {
     public Task Set(int max, int value)

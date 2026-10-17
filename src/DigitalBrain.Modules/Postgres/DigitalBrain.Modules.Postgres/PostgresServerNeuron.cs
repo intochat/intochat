@@ -13,7 +13,7 @@ internal sealed class PostgresConnectionState : ConnectionState { }
 [GrainType("postgres")]
 internal sealed class PostgresServerNeuron(
     IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables,
-    [PersistentState("postgres", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresConnectionState> store)
+    [PersistentState("postgres", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PostgresConnectionState> store)
     : ConnectionNeuron<PostgresConnectionState>(store), IPostgresServer, IPostgresTableHost
 {
     [ReadOnly]

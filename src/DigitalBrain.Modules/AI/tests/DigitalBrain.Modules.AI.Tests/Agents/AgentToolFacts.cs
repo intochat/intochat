@@ -1,8 +1,6 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Context;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -18,6 +16,7 @@ public sealed class AgentToolFacts
             ? new FunctionCallContent("refused-call", "unknown", new Dictionary<string, object?>())
             : Probe.Call("refused-call", "MissingMethod");
         await using var brain = await Probe.Brain(ScriptedClient(request), ct);
+        using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         var result = Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result;
@@ -38,6 +37,7 @@ public sealed class AgentToolFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("echo-call", nameof(ILoopProbe.Echo),
             System.Text.Json.JsonSerializer.Serialize(new[] { "{\"isError\":true,\"message\":\"quoted data\"}" }))), ct);
+        using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         var call = Assert.Single(Assert.Single((await agent.Read()).Runs).ToolCalls);
@@ -51,6 +51,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.SeenByAgent), $"[\"{AgentFacts.Key("main")}\"]")), ct);
+        using var caller = brain.Owner.AsCaller();
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         Assert.Equal("\"recorded\"", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
     }
@@ -60,6 +61,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Conversation))), ct);
+        using var caller = brain.Owner.AsCaller();
         async Task<string> Run(string name)
         {
             var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key(name)), AgentTurn.Text("ask", runId: "run-" + name, contracts: [Probe.Contract]), ct);
@@ -75,6 +77,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Fail))), ct);
+        using var caller = brain.Owner.AsCaller();
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
         Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
@@ -89,6 +92,7 @@ public sealed class AgentToolFacts
         var client = new StubChatClient((_, _, _) => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
             [new FunctionCallContent("unknown-" + Interlocked.Increment(ref calls), "unknown", new Dictionary<string, object?>())]))));
         await using var brain = await Probe.Brain(client, ct);
+        using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { MaxModelCalls = 2 }, 0);
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
@@ -133,7 +137,7 @@ public sealed class AgentToolFacts
         Assert.Equal("Available: invoices", messages[0].Text);
     }
 
-    // A user stamped into one brain cannot read another brain's context: the read throws, the
+    // A user calling from one brain cannot read another brain's context: the read throws, the
     // agent logs and skips it, and the model still gets the context it may read.
     [Fact]
     public async Task AContextThatFailsToReadIsSkippedAndTheOthersReachTheModel()
@@ -145,14 +149,12 @@ public sealed class AgentToolFacts
         await brain.Get<IAgentContext>(AgentFacts.Key("main") + "/context").Set(new("capabilities", "Available: invoices", []));
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { Contexts = ["elsewhere/agents/x/context", AgentFacts.Key("main") + "/context"] }, 0);
-        AgentFacts.StampUser();
-        try
+        using (brain.Owner.AsCaller())
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IAgentContext>("elsewhere/agents/x/context").Read());
             var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask"), ct);
             Assert.Single(events.OfType<AgentTurnEvent.Finished>());
         }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
         var messages = Assert.Single(client.Requests);
         Assert.Equal([ChatRole.System, ChatRole.User], messages.Select(message => message.Role));
         Assert.Equal("Available: invoices", messages[0].Text);
@@ -180,6 +182,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Echo), "[\"ping\"]")), ct);
+        using var caller = brain.Owner.AsCaller();
         await brain.Get<IAgentContext>(AgentFacts.Key("main") + "/context").Set(new("capabilities", "Available: probe", [Probe.Contract, "DigitalBrain.Nope.INope"]));
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { Contexts = [AgentFacts.Key("main") + "/context"] }, 0);

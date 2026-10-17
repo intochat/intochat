@@ -18,7 +18,7 @@ public sealed class SessionCookieFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var keys = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "pr131-cookie-" + Guid.NewGuid().ToString("N")));
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         await using var runtime = await Host(false, keys, brain);
         await using var mcp = await Host(true, keys, brain);
         using var client = new HttpClient(new HttpClientHandler { UseCookies = false });
@@ -68,16 +68,27 @@ public sealed class SessionCookieFacts
     private static JsonElement Result(string sse)
         => JsonDocument.Parse(sse.Split('\n').Single(line => line.StartsWith("data: ", StringComparison.Ordinal))[6..]).RootElement.GetProperty("result");
 
-    private static async Task<WebApplication> Host(bool mcp, DirectoryInfo keys, ModuleBrain brain)
+    private static async Task<WebApplication> Host(bool mcp, DirectoryInfo keys, ITestBrain brain)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = mcp ? "DigitalBrain.Mcp" : "IntoChat" });
+        builder.Services.AddGrpc(); // the platform maps the Neurons channel beside its routes
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton(brain.Grains);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
         if (mcp) { builder.Services.AddDigitalBrainMcp(); }
-        else { builder.Services.AddIdentity(); }
+        else
+        {
+            builder.Services.AddIdentity();
+            // The runtime's identity endpoints sign in through the machine's passwords and the trust clients.
+            builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+            foreach (var name in new[] { "DigitalBrain.Platform.Identity.PrincipalPasswords", "DigitalBrain.Platform.Identity.BrainBirths" })
+            {
+                var type = typeof(DigitalBrain.Platform.PlatformHosting).Assembly.GetType(name, throwOnError: true)!;
+                builder.Services.AddSingleton(type, brain.Services.GetRequiredService(type));
+            }
+        }
         builder.Services.AddDataProtection().PersistKeysToFileSystem(keys);
         // The runtime's protection identity is currently registered separately from AddIdentity.
         if (!mcp) { builder.Services.AddDataProtection().SetApplicationName("IntoChat.v1"); }

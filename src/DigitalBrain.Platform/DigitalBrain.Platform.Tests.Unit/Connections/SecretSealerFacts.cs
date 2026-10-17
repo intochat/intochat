@@ -1,7 +1,6 @@
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Platform.Secrets;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Connections;
 

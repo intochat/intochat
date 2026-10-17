@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'connect_window.dart';
+import 'windows_storage_setup.dart';
 export 'connect_window.dart' show connectionStatus;
 
 class ConnectionsSettings extends StatefulWidget {
@@ -10,10 +11,12 @@ class ConnectionsSettings extends StatefulWidget {
     super.key,
     this.request,
     this.connectorRequest,
+    this.windowsRequest,
     this.onOpen,
   });
   final ConnectionsRequest? request;
   final ConnectionsRequest? connectorRequest;
+  final ConnectionsRequest? windowsRequest;
   final Future<void> Function(Uri)? onOpen;
   @override
   State<ConnectionsSettings> createState() => _ConnectionsSettingsState();
@@ -150,6 +153,7 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
           child: ConnectWindow(
             request: widget.request!,
             connectorRequest: widget.connectorRequest,
+            windowsRequest: widget.windowsRequest,
             initialConnectorId: connectorId,
             onOpen: widget.onOpen,
           ),
@@ -249,6 +253,22 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
           ),
         ),
       const SizedBox(height: 16),
+      if (widget.request != null &&
+          widget.windowsRequest != null &&
+          _connectors.any((connector) => connector['id'] == 'windows')) ...[
+        WindowsStorageSetup(
+          key: ValueKey(
+            _connections
+                .where((row) => row['connectorId'] == 'windows')
+                .map((row) => '${row['connectionId']}:${row['status']}')
+                .join(','),
+          ),
+          request: widget.request!,
+          windowsRequest: widget.windowsRequest!,
+          onChanged: _load,
+        ),
+        const SizedBox(height: 16),
+      ],
       OutlinedButton.icon(
         onPressed: widget.request == null
             ? null

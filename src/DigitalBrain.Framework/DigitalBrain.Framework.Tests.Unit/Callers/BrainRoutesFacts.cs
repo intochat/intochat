@@ -18,15 +18,19 @@ public sealed class BrainRoutesFacts
         Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result!).StatusCode);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AGroupedEndpointDeniesAStampedCallerWhoIsNotAMember(bool authorized)
+    [Fact]
+    public async Task AGroupedEndpointAnswersAMemberAndForbidsAnyoneElse()
     {
-        var (status, handlerRan) = await Invoke("personal", authorized: authorized, stamped: true);
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var bob = await brain.PersonAsync("bob", ct);
 
-        Assert.Equal(StatusCodes.Status403Forbidden, status);
-        Assert.False(handlerRan);
+        using var own = await alice.Http.GetAsync($"/brains/{alice.BrainId}/connections", ct);
+        using var foreign = await alice.Http.GetAsync($"/brains/{bob.BrainId}/connections", ct);
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, own.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, foreign.StatusCode);
     }
 
     [Theory]
@@ -34,7 +38,7 @@ public sealed class BrainRoutesFacts
     [InlineData(false)]
     public async Task AGroupedEndpointRejectsARequestWithoutAStamp(bool authorized)
     {
-        var (status, handlerRan) = await Invoke("personal", authorized: authorized, stamped: false);
+        var (status, handlerRan) = await Invoke("personal", authorized);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, status);
         Assert.False(handlerRan);
@@ -43,13 +47,13 @@ public sealed class BrainRoutesFacts
     [Fact]
     public async Task AGroupedEndpointRejectsAnInvalidBrainIdBeforeMembershipIsChecked()
     {
-        var (status, handlerRan) = await Invoke("..%2Fescape/", authorized: true, stamped: true);
+        var (status, handlerRan) = await Invoke("..%2Fescape/", authorized: true);
 
         Assert.Equal(StatusCodes.Status400BadRequest, status);
         Assert.False(handlerRan);
     }
 
-    private static async Task<(int Status, bool HandlerRan)> Invoke(string brainId, bool authorized, bool stamped)
+    private static async Task<(int Status, bool HandlerRan)> Invoke(string brainId, bool authorized)
     {
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
@@ -58,18 +62,6 @@ public sealed class BrainRoutesFacts
         var handlerRan = false;
         BrainRoutes.Group(app).MapGet("/ping", () => { handlerRan = true; return Results.Ok(); });
         var endpoint = app.DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Single();
-
-        if (stamped)
-        {
-            CallerContextStamper.Stamp(new CallerContext
-            {
-                PrincipalId = "intruder",
-                AccountId = "intruder",
-                BrainId = brainId,
-                Kind = CallerKind.User,
-                StampedBy = TrustedEdge.AuthenticatedHttp,
-            });
-        }
 
         var http = new DefaultHttpContext { RequestServices = ((IApplicationBuilder)app).ApplicationServices };
         http.Request.RouteValues["brainId"] = brainId;

@@ -4,6 +4,7 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 // Delivered + 1 + i: delivery is at-least-once, so a batch stays here until it is acknowledged and an
 // unacknowledged batch is resent on the next stream. Past the cap the oldest signal is dropped and
 // counted, never silently. Arrays, not interface lists: grain storage round-trips this state through JSON.
+// On a machine SourceSeq is the watermark against the source: the part-log seq of the last source entry buffered.
 [GenerateSerializer, Alias("microsoft.csharp.runtime-subscription")]
 internal sealed record Subscription(
     [property: Id(0)] string Id,
@@ -12,7 +13,9 @@ internal sealed record Subscription(
     [property: Id(3)] string Signal,
     [property: Id(4)] string[] Pending,
     [property: Id(5)] long Delivered,
-    [property: Id(6)] long Dropped)
+    [property: Id(6)] long Dropped,
+    [property: Id(7)] long SourceSeq = 0,
+    [property: Id(8)] string? Selector = null)
 {
     public long Watermark => Delivered + Pending.Length;
 

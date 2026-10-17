@@ -6,7 +6,7 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Flutter.Form;
 
 [GrainType(UIVocabulary.FormType)]
-internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<FormState> store)
+internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<FormState> store)
     : Neuron<FormState>(store), IForm
 {
     public Task<FormState> Define(FormDefinition definition)
@@ -70,7 +70,7 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Def
     {
         ArgumentNullException.ThrowIfNull(submission);
         if (submission.ExpectedRevision != 0 && submission.ExpectedRevision != Snapshot.Revision)
-        { throw new InvalidOperationException($"Expected form revision {submission.ExpectedRevision}; current revision is {Snapshot.Revision}."); }
+        { throw new RevisionConflictException($"Expected form revision {submission.ExpectedRevision}; current revision is {Snapshot.Revision}.", Snapshot.Revision); }
         var provided = new Dictionary<string, FormFieldValue>(StringComparer.Ordinal);
         foreach (var value in submission.Values)
         {

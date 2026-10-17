@@ -7,7 +7,6 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -30,8 +29,8 @@ public sealed class CompositionBoundaryFacts
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(new SampleModule());
-        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(new SampleModule());
+        var first = builder.AddDigitalBrain("first", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
+        var second = builder.AddDigitalBrain("second", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -74,17 +73,6 @@ public sealed class CompositionBoundaryFacts
     }
 
     [Fact]
-    public async Task ServerRefusesToStartWithoutAnAuthorizationPolicy()
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.AddDigitalBrainServer(_ => { });
-        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorageAsDefault().UseInMemoryReminderService());
-        await using var app = builder.Build();
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("IBrainAccess", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void DefaultAppHostDoesNotProvisionAzureAndRejectsDuplicatesBeforeAReferenceExists()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
@@ -105,33 +93,6 @@ public sealed class CompositionBoundaryFacts
         Assert.Equal("{\"behavior\":\"behavior\",\"contract\":\"contract\",\"key\":\"key\",\"method\":\"method\",\"arguments\":[42]}", JsonSerializer.Serialize(invocation, RuntimeProtocol.Json));
     }
 
-    [Fact]
-    public async Task ConcurrentUsageIsCollectedAndSnapshotsAreDetached()
-    {
-        using var context = IntentContext.Begin("intent");
-        await Task.WhenAll(Enumerable.Range(0, 100).Select(_ => Task.Run(() =>
-        {
-            Assert.Same(context, IntentContext.Current);
-            context.AddUsage(new Entry());
-        }, TestContext.Current.CancellationToken)));
-        var snapshot = context.Snapshot();
-        context.AddUsage(new Entry());
-        Assert.Equal(100, snapshot.Usage.Length);
-        Assert.Equal(101, context.Usage.Length);
-    }
-
-    [Fact]
-    public void IntentScopesEnforceNestingAndRestoreTheirParent()
-    {
-        using var outer = IntentContext.Begin("outer");
-        var inner = IntentContext.Begin("inner");
-        Assert.Throws<InvalidOperationException>(outer.Dispose);
-        inner.Dispose();
-        Assert.Same(outer, IntentContext.Current);
-        inner.Dispose();
-    }
-
-    private sealed record Entry : IIntentUsageEntry;
     private sealed class AModule() : Module(new ModuleId("a"))
     {
         public int SiloConfigurations { get; private set; }

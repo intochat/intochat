@@ -16,7 +16,8 @@ public sealed class SalesforceEndpointFacts
     {
         var connector = Assert.Single(SalesforceModule.Connectors);
         var method = Assert.Single(connector.OAuthMethods);
-        var integration = Assert.Single(SalesforceModule.Integrations, schema => schema.Id == method.IntegrationId);
+        var integration = SalesforceModule.Integration;
+        Assert.Equal(integration.Id, method.IntegrationId);
 
         Assert.Contains(method.Id, connector.AuthMethods);
         Assert.Contains(method.IntegrationId, connector.RequiredIntegrations);

@@ -1,98 +1,142 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
-// A new brain is born with the OS defaults, installed as its owner from the shipped catalog.
+// A new brain is born with the OS defaults, installed as its owner from the features folder.
 public sealed class OsBootFacts
 {
-    [Fact(Timeout = 60_000)]
-    public async Task AFreshBrainHasTheOsAppsInstalledFromTheShippedCatalog()
+    [Fact]
+    public async Task AFreshBrainHasTheOsAppsInstalledFromTheFeaturesFolder()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
-            .WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            .ConfigureServices(services =>
             {
-                silo.Services.RemoveAll<IDeployableRuntime>();
-                silo.Services.AddOperatingSystemApps();
+                // The script runtime is the sandbox seam: the idle one replaces the module's, so installs run no program.
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps();
             })
             .StartAsync(ct);
 
-        var scope = await Establish(brain);
+        var person = await brain.PersonAsync("ada", ct);
 
-        foreach (var name in new[] { "settings", "assistant", "datavisualizer" })
+        using var caller = person.AsCaller();
+        foreach (var name in new[] { "settings", "ino", "router", "calculator", "datavisualizer", "friends", "circle", "workspace" })
         {
-            var installed = await brain.Get<IApp>(IApp.Key(scope, name)).Read();
+            var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);
             Assert.Equal("os", installed.Origin!.Publisher);
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
+        var researcher = await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read();
+        Assert.Equal(AppStatus.Live, researcher.Status);
+        Assert.Equal("intochat", researcher.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(researcher.Origin.Source);
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "assistant")).Read()).Manifest.Title);
+        var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
+        await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
+        var before = await calculator.Read();
+        var root = await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
+        Assert.Equal(new DigitalBrain.Flutter.UiChildRef("layout", IApp.Key(person.BrainId, "workspace") + "/root"), root);
+        Assert.Equal(before.ProgramRevision, (await calculator.Read()).ProgramRevision);
+        Assert.True((await calculator.Read()).Edited);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
+    public async Task ConnectingAnExistingWorkspaceInstallsItsMissingCircleApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps(options => options.Apps.Remove(new("os", "circle")));
+            })
+            .StartAsync(ct);
+        using var person = await brain.PersonAsync("ada", ct);
+        using var caller = person.AsCaller();
+        var circle = brain.Get<IApp>(IApp.Key(person.BrainId, "circle"));
+        Assert.Empty((await circle.Read()).Manifest.Title);
+
+        await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
+
+        var installed = await circle.Read();
+        Assert.Equal(AppStatus.Live, installed.Status);
+        Assert.Equal("os", installed.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
+    }
+
+    [Fact]
+    public async Task ConnectingAnExistingWorkspaceInstallsAMissingCustomerResearcher()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps(options => options.Apps.Remove(new("intochat", "customer-researcher")));
+            })
+            .StartAsync(ct);
+        using var person = await brain.PersonAsync("ada", ct);
+        using var caller = person.AsCaller();
+        var researcher = brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher"));
+        Assert.Empty((await researcher.Read()).Manifest.Title);
+
+        await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
+
+        var installed = await researcher.Read();
+        Assert.Equal(AppStatus.Live, installed.Status);
+        Assert.Equal("intochat", installed.Origin!.Publisher);
+        Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
+    }
+
+    [Fact]
     public async Task ADefaultMissingFromTheCatalogDoesNotKeepTheOthersFromInstalling()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Boot(ct, new OsApp("os", "missing"), new OsApp("os", "hello"));
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule>()
+            .ConfigureServices(services =>
+            {
+                // The script runtime is the sandbox seam: the idle one replaces the module's, so installs run no program.
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddSingleton(new FeatureCatalog(new FeatureDirectory(HelloFeatures())));
+                services.AddOperatingSystemBoot(os => { os.Apps.Add(new OsApp("os", "missing")); os.Apps.Add(new OsApp("os", "hello")); });
+            })
+            .StartAsync(ct);
 
-        var scope = await Establish(brain);
+        var person = await brain.PersonAsync("ada", ct);
 
-        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(scope, "hello")).Read()).Status);
-        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(scope, "missing")).Read()).Status);
+        using var caller = person.AsCaller();
+        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(person.BrainId, "hello")).Read()).Status);
+        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(person.BrainId, "missing")).Read()).Status);
     }
 
-    [Fact(Timeout = 60_000)]
-    public async Task ADefaultThePersonAlreadyHasIsLeftAlone()
+    // A features folder holding os/hello, written once per run.
+    private static string HelloFeatures()
     {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Boot(ct, new OsApp("os", "hello"));
-        var scope = BrainScope.Create("acct", "home").Id;
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        var own = brain.Get<IApp>(IApp.Key(scope, "hello"));
-        await own.Create(new("My hello", "mine", [], [], []), "## Scenario: Mine\nMine.");
-
-        await Establish(brain);
-
-        var after = await own.Read();
-        Assert.Equal("My hello", after.Manifest.Title);
-        Assert.Null(after.Origin);
+        var root = Directory.CreateTempSubdirectory("os-boot-features-").FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "os", "Hello")).FullName;
+        File.WriteAllText(Path.Combine(folder, AppFiles.DeclarationPath), AppDeclaration.Write(new("hello", "1.0.0",
+            new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []), "## Scenario: Greets" + Environment.NewLine + "It greets.")));
+        Directory.CreateDirectory(Path.Combine(folder, "synapses"));
+        File.WriteAllText(Path.Combine(folder, "synapses", "hello.cs"), "// b");
+        return root;
     }
 
-    private static Task<ModuleBrain> Boot(CancellationToken ct, params OsApp[] defaults) => ModuleTest.Create()
-        .WithModule<AppsModule>()
-        .ConfigureSilo(silo =>
-        {
-            silo.Services.RemoveAll<IDeployableRuntime>();
-            silo.Services.AddSingleton<IShippedAppSource>(new HelloSource());
-            silo.Services.AddSingleton<ShippedCatalog>();
-            silo.Services.AddOperatingSystemBoot(os => { foreach (var app in defaults) { os.Apps.Add(app); } });
-        })
-        .StartAsync(ct);
-
-    private static async Task<string> Establish(ModuleBrain brain)
+    private sealed class IdleRuntime : IAppRuntime
     {
-        var scope = BrainScope.Create("acct", "home").Id;
-        CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "acct",
-            AccountId = "acct",
-            BrainId = "home",
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
-        await brain.AuthorizeCallerAsync();
-        await brain.Get<IKernel>(scope).Create(new Owner("acct"));
-        return scope;
-    }
-
-    private sealed class HelloSource : IShippedAppSource
-    {
-        public string Publisher => "os";
-        public IReadOnlyList<AppBundle> Load() =>
-        [new("hello", "1.0.0", new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
-            "## Scenario: Greets\nIt greets.", new() { ["synapses/hello.cs"] = "// b" })];
+        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

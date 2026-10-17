@@ -18,4 +18,6 @@ public class ConnectionState
     [Id(5)] public DateTimeOffset? ExpiresAt { get; set; }
     [Id(6)] public DateTimeOffset? LastProbedAt { get; set; }
     [Id(7)] public string? Detail { get; set; }
+    // R146: "{brain}/{app}" of every app of another brain this connection is shared into.
+    [Id(8)] public string[] SharedInto { get; set; } = [];
 }

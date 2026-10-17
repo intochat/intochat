@@ -16,8 +16,6 @@ namespace DigitalBrain.ServiceDefaults;
 
 public static class ServiceDefaultsExtensions
 {
-    private const string AlivePath = "/alive";
-    private const string HealthPath = "/health";
     private const string TelemetryPrefix = "DigitalBrain";
     private const string AzuriteAccountPathSegment = "/devstoreaccount1/";
 
@@ -37,21 +35,21 @@ public static class ServiceDefaultsExtensions
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
-
-        app.MapHealthChecks(HealthPath).AllowAnonymous();
-        app.MapHealthChecks(AlivePath, new HealthCheckOptions
-        {
-            Predicate = static registration => registration.Tags.Contains("live"),
-        }).AllowAnonymous();
-
+        app.MapHealthProbes();
+        app.MapTelemetryExportBarrier();
         return app;
     }
 
     private static void AddDefaultHealthChecks<TBuilder>(TBuilder builder)
         where TBuilder : IHostApplicationBuilder
-        => builder.Services
+    {
+        builder.Services.AddSingleton<Drain>();
+        builder.Services.AddHostedService(static services => services.GetRequiredService<Drain>());
+        builder.Services
             .AddHealthChecks()
-            .AddCheck("self", static () => HealthCheckResult.Healthy(), ["live"]);
+            .AddCheck("self", static () => HealthCheckResult.Healthy(), [HealthProbes.LiveTag])
+            .AddCheck<Drain>(HealthProbes.DrainTag, tags: [HealthProbes.DrainTag]);
+    }
 
     private static void AddOpenTelemetryExporters<TBuilder>(TBuilder builder, TelemetryIntegrationOptions integration)
         where TBuilder : IHostApplicationBuilder
@@ -92,9 +90,17 @@ public static class ServiceDefaultsExtensions
         }
 
         builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(
-                serviceName: builder.Environment.ApplicationName,
-                serviceNamespace: TelemetryPrefix))
+            // A host that names itself (Aspire's OTEL_SERVICE_NAME and service.instance.id, a candidate's
+            // candidate-{sha}) keeps that name, so its telemetry lands on its own resource; AddService would
+            // overwrite both with the assembly name and a fresh instance id.
+            .ConfigureResource(resource =>
+            {
+                // The configured name is used as is: the SDK's detector reads only the process environment, so a
+                // name from another configuration source (appsettings, a command line) would otherwise be lost.
+                if (builder.Configuration["OTEL_SERVICE_NAME"] is { Length: > 0 } configured && !string.IsNullOrWhiteSpace(configured))
+                { resource.AddService(serviceName: configured, serviceNamespace: TelemetryPrefix, autoGenerateServiceInstanceId: false); }
+                else { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: TelemetryPrefix); }
+            })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
@@ -122,11 +128,15 @@ public static class ServiceDefaultsExtensions
                 .AddSource("Experimental.ModelContextProtocol")
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
-                        !context.Request.Path.StartsWithSegments(HealthPath, StringComparison.OrdinalIgnoreCase)
-                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase))
+                        !context.Request.Path.Equals(TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase)
+                        &&
+                        !context.Request.Path.StartsWithSegments(HealthProbes.HealthPath, StringComparison.OrdinalIgnoreCase)
+                        && !context.Request.Path.StartsWithSegments(HealthProbes.AlivePath, StringComparison.OrdinalIgnoreCase)
+                        && !context.Request.Path.StartsWithSegments(HealthProbes.ReadyPath, StringComparison.OrdinalIgnoreCase))
                 .AddHttpClientInstrumentation(options =>
                 {
-                    options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request);
+                    options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request)
+                        && !string.Equals(request.RequestUri?.AbsolutePath, TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase);
                 }));
 
         AddOpenTelemetryExporters(builder, integration);

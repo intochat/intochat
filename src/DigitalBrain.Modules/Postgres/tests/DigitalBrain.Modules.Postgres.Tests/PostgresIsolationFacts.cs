@@ -1,5 +1,3 @@
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
@@ -17,10 +15,10 @@ public sealed class PostgresIsolationFacts
     public async Task UnderSharedIsolationTablesArePlacedShared()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>()
-            .ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader")
+        await using var brain = await TestBrain.Create().WithModule<PostgresModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
             .StartAsync(ct);
-        var placements = brain.SiloServices.GetRequiredService<ITablePlacements>();
+        var placements = brain.Services.GetRequiredService<ITablePlacements>();
         Assert.Equal(TablePlacement.Shared, await placements.Resolve(new TableOwner("brain-1", "behavior-x"), ct));
     }
 
@@ -45,12 +43,10 @@ public sealed class PostgresIsolationFacts
     [Fact]
     public async Task DatabasePerBrainWithoutAnAdminConnectionFailsAtStartup()
     {
-        var error = await Assert.ThrowsAnyAsync<Exception>(() => ModuleTest.Create().WithModule<PostgresModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
-                silo.Configuration[DigitalBrainConfiguration.ModuleOptionsSection("postgres") + ":Isolation"] = "DatabasePerBrain";
-            }).StartAsync(TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => TestBrain.Create()
+            .WithModule<PostgresModule, PostgresModuleOptions>(options => options.Isolation = PostgresIsolation.DatabasePerBrain)
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
+            .StartAsync(TestContext.Current.CancellationToken));
         var refusal = Assert.IsType<InvalidOperationException>(error.GetBaseException());
         Assert.Equal("AdminConnection is required when Postgres isolation is DatabasePerBrain.", refusal.Message);
     }
@@ -60,25 +56,26 @@ public sealed class PostgresIsolationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var tables = new PostgresWriteTableFacts.MemoryTables();
-        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>()
-            .ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create()
+            .WithModule<PostgresModule, PostgresModuleOptions>(options => options.Isolation = PostgresIsolation.DatabasePerBrain)
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
+            .WithIntegration(PostgresModule.Integration, "AdminConnection", Admin)
+            // Rule 4: a wire-level fake would need a loopback Postgres; the store and database creator stand in for it.
+            .ConfigureServices(services =>
             {
-                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
-                silo.Configuration[IntegrationSchema.Key("postgres", "AdminConnection")] = Admin;
-                silo.Configuration[DigitalBrainConfiguration.ModuleOptionsSection("postgres") + ":Isolation"] = "DatabasePerBrain";
-                silo.Services.AddSingleton<ITableStore>(tables);
-                silo.Services.AddSingleton(new BrainDatabases(new AdminSecret(Admin), (_, _, _) => Task.CompletedTask));
+                services.AddSingleton<ITableStore>(tables);
+                services.AddSingleton(new BrainDatabases(new AdminSecret(Admin), (_, _, _) => Task.CompletedTask));
             }).StartAsync(ct);
-        Stamp();
-        await brain.AuthorizeCallerAsync();
+        using var app = brain.Owner.AsApp("app");
         var table = brain.Get<ITable>("pinned");
         await table.Define(Definition);
 
-        brain.SiloServices.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.Isolation = PostgresIsolation.Shared;
+        // A module singleton the fact flips: the policy changes under a live brain.
+        brain.Services.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.Isolation = PostgresIsolation.Shared;
         await brain.DeactivateAsync(table, ct);
         await table.Upsert([new("id", "\"one\"")], [new("value", "\"v\"")]);
 
-        var pinned = TablePlacement.BrainDatabase(BrainDatabases.DatabaseName(BrainScope.CurrentId()));
+        var pinned = TablePlacement.BrainDatabase(BrainDatabases.DatabaseName(brain.Owner.BrainId));
         Assert.Equal([("Define", pinned), ("Upsert", pinned)], tables.Placements);
     }
 
@@ -115,17 +112,6 @@ public sealed class PostgresIsolationFacts
         Assert.Equal(1, bindings.Releases);
         Assert.DoesNotContain("invalid-admin-canary", error.ToString(), StringComparison.Ordinal);
     }
-
-    private static void Stamp()
-        => CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain",
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-            AppId = "app"
-        });
 
     private sealed class AdminSecret(string admin) : IIntegrationHandle
     {

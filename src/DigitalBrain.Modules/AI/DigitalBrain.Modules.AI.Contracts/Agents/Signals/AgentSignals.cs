@@ -13,7 +13,8 @@ public sealed record TurnStarted([property: Id(0)] string AgentId, [property: Id
 }
 
 // Sequence numbers a run's progress from 1; delivery is at-least-once, so handlers key their
-// writes by (RunId, Sequence). Kind is text, tool-call, tool-result, card or receipt.
+// writes by (RunId, Sequence). Kind is text, tool-call, tool-result, card or receipt. A text step
+// holds the text streamed since the previous one (chunks are coalesced); in sequence they are the reply.
 [GenerateSerializer, Alias("agent.turn-progressed")]
 public sealed record TurnProgressed(
     [property: Id(0)] string AgentId,

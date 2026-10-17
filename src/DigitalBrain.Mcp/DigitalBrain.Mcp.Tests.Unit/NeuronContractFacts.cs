@@ -1,41 +1,28 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Integrations;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
 
 public sealed class NeuronContractFacts
 {
     [Fact]
-    public async Task StandaloneSearchFindsTimerContractsWithoutVectorInfrastructure()
+    public void TheCompiledLayerExposesNeuronContractsAndRefusesCredentialContracts()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddDigitalBrainMcp();
-        await using var provider = services.BuildServiceProvider();
-        var hits = await provider.GetRequiredService<NeuronTypeSearch>().Search("timer", ct: TestContext.Current.CancellationToken);
-        Assert.Contains(hits, hit => hit.Type.Contract == "DigitalBrain.Time.Timers.ITimer");
-        Assert.DoesNotContain(hits, hit => hit.Type.Contract.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
+        var types = new CompiledTypes([typeof(INeuron).Assembly, typeof(IIntegration).Assembly, typeof(DigitalBrain.Time.Timers.ITimer).Assembly]);
+        Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer), types.Contract(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
+        Assert.DoesNotContain(types.Entries, entry => entry.Name == typeof(INeuron).FullName);
+        Assert.DoesNotContain(types.Entries, entry => entry.Name == typeof(IIntegration).FullName);
+        Assert.Throws<ArgumentException>(() => types.Contract(typeof(IIntegration).FullName!));
+        Assert.Throws<ArgumentException>(() => types.Contract("Missing.Contract"));
     }
 
     [Fact]
-    public void TheCatalogExposesNeuronContractsAndRefusesCredentialContracts()
+    public void ASignalEntryCarriesItsProviderAndShape()
     {
-        var catalog = new ContractCatalog([typeof(INeuron).Assembly, typeof(IIntegration).Assembly,
-            typeof(DigitalBrain.Time.Timers.ITimer).Assembly]);
-        Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer), catalog.Find(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
-        Assert.DoesNotContain(typeof(INeuron).FullName!, catalog.Neurons);
-        Assert.Throws<ArgumentException>(() => catalog.Find(typeof(IIntegration).FullName!));
-        Assert.Throws<ArgumentException>(() => catalog.Find("Missing.Contract"));
-    }
-
-    [Fact]
-    public void DeployedContractsIncludeTheModulesShippedBesideTheMcpServer()
-    {
-        var catalog = new ContractCatalog(ContractCatalog.Deployed());
-        Assert.Contains(typeof(DigitalBrain.Time.Timers.ITimer).FullName!, catalog.Neurons);
-        Assert.DoesNotContain(catalog.Neurons, name => name.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
+        var types = new CompiledTypes([typeof(DigitalBrain.Time.Timers.ITimer).Assembly]);
+        var tick = Assert.Single(types.Entries, entry => entry.Name == typeof(DigitalBrain.Time.Timers.Signals.TimerTick).FullName);
+        Assert.Equal((TypeKind.Signal, typeof(DigitalBrain.Time.Timers.ITimer).Assembly.GetName().Name), (tick.Kind, tick.Provider));
+        Assert.Contains(tick.Shape, member => member.EndsWith(" TimerId", StringComparison.Ordinal));
     }
 }

@@ -10,29 +10,29 @@ internal sealed class ConnectionIndexState
 }
 
 [GrainType("connection.index")]
-internal sealed class ConnectionIndexNeuron : Neuron<ConnectionIndexState>, IConnectionIndex
+internal sealed class ConnectionIndexNeuron : Grain, IConnectionIndex
 {
     private readonly IPersistentState<ConnectionIndexState> _store;
 
     public ConnectionIndexNeuron(
-        [PersistentState("connections", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionIndexState> store)
-        : base(store) => _store = store;
+        [PersistentState("connections", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<ConnectionIndexState> store)
+        => _store = store;
 
-    public Task<string[]> List() => Task.FromResult<string[]>([.. Snapshot.Keys]);
+    public Task<string[]> List() => Task.FromResult<string[]>([.. _store.State.Keys]);
 
     public async Task Track(string connectionKey)
     {
         Require(connectionKey);
-        if (Snapshot.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
-        Snapshot.Keys = [.. Snapshot.Keys, connectionKey];
+        if (_store.State.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
+        _store.State.Keys = [.. _store.State.Keys, connectionKey];
         await _store.WriteStateAsync();
     }
 
     public async Task Untrack(string connectionKey)
     {
         Require(connectionKey);
-        if (!Snapshot.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
-        Snapshot.Keys = [.. Snapshot.Keys.Where(key => key != connectionKey)];
+        if (!_store.State.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
+        _store.State.Keys = [.. _store.State.Keys.Where(key => key != connectionKey)];
         await _store.WriteStateAsync();
     }
 
