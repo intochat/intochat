@@ -22,7 +22,7 @@ public sealed class MemorySignalJournalFacts
         Assert.Equal([3L], (await journal.ReadSince("brain-a", 2, 1)).Select(item => item.Sequence));
         var part = await journal.SignalsOf(first, 1);
         Assert.NotNull(part);
-        Assert.Equal(1, part.Floor);
+        Assert.Equal(0, part.Floor);
         Assert.Equal(4, part.Last);
         Assert.Equal([2L, 4L], part.Signals.Select(item => item.Sequence));
         Assert.IsType<OtherSignal>(part.Signals[1].Signal);
@@ -38,7 +38,7 @@ public sealed class MemorySignalJournalFacts
 
         var part = await journal.SignalsOf(publisher, 0);
         Assert.NotNull(part);
-        Assert.Equal(3, part.Floor);
+        Assert.Equal(2, part.Floor);
         Assert.True(part.Floor > 0);
         Assert.Equal(4, part.Last);
         Assert.Equal([3L, 4L], part.Signals.Select(item => item.Sequence));

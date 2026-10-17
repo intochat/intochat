@@ -10,7 +10,7 @@ public sealed class MemorySignalJournalOptions
 }
 
 // The journal of a host without a part log: one bounded ring per brain, sequenced per brain from 1. Nothing
-// survives the host; a reader whose `since` is below the floor has missed signals.
+// survives the host; signals at or below the floor are gone, so a reader whose `since` is below it has missed some.
 public sealed class MemorySignalJournal(IOptions<MemorySignalJournalOptions> options) : ISignalJournal
 {
     private readonly int retain = options.Value.Retain > 0
@@ -47,7 +47,7 @@ public sealed class MemorySignalJournal(IOptions<MemorySignalJournalOptions> opt
         var ring = RingOf(BrainOf(publisher));
         lock (ring)
         {
-            var floor = ring.Entries.TryPeek(out var oldest) ? oldest.Signal.Sequence : ring.Last + 1;
+            var floor = ring.Entries.TryPeek(out var oldest) ? oldest.Signal.Sequence - 1 : ring.Last;
             var signals = ring.Entries.Where(entry => entry.Publisher == publisher && entry.Signal.Sequence > since).Select(entry => entry.Signal).ToArray();
             return Task.FromResult<PartSignals?>(new PartSignals(floor, ring.Last, signals));
         }
