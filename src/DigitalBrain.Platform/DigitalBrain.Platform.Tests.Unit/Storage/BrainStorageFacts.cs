@@ -49,4 +49,36 @@ public sealed class BrainStorageFacts
         Assert.Equal(changed.Sequence, Assert.Single(after, item => item.Signal is LocalChanged).Sequence);
         Assert.DoesNotContain(await brain.Services.GetRequiredService<ISignalJournal>().ReadSince("owner", changed.Sequence, 1000), item => item.Signal is LocalChanged);
     }
+
+    // The nudge of a Save that rode in the storage write names the last signal's sequence, the one Read reports,
+    // not the log entry's (a record's ETag).
+    [Fact]
+    public async Task AStorageWriteNudgesWithItsLastSignalSequence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var counter = brain.Get<ILocalCounter>("owner/apps/counter");
+        var observer = new NudgeRecorder();
+        brain.Services.GetRequiredService<ILocalSignalHub>().Subscribe(counter.GetGrainId(), observer);
+        using (brain.Owner.AsCaller())
+        {
+            await counter.Set(1);
+            await counter.Set(2);
+            var nudge = await observer.Second.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            var page = await counter.Read(0, 100);
+            Assert.Equal(page.Sequences[^1], nudge.Sequence);
+            Assert.Equal(2, Assert.IsType<LocalChanged>(page.Signals[^1]).Value);
+        }
+    }
+
+    private sealed class NudgeRecorder : INeuronObserver
+    {
+        private int _count;
+        public TaskCompletionSource<SignalNudge> Second { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Nudge(SignalNudge nudge)
+        {
+            if (Interlocked.Increment(ref _count) == 2) { Second.TrySetResult(nudge); }
+            return Task.CompletedTask;
+        }
+    }
 }

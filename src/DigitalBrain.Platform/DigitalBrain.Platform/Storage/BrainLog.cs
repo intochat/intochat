@@ -99,7 +99,11 @@ internal sealed class BrainLog : IDisposable
         }
     }
 
-    public Task<long> Append(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
+    public async Task<long> Append(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
+        => (await AppendEntry(grainId, stateName, expectedETag, change, record, emitted, ct)).Sequence;
+
+    // The entry's sequence (a record's ETag) and the sequence of its last signal, which Read and nudges report.
+    public Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
     {
         lock (gate)
         {
@@ -128,7 +132,7 @@ internal sealed class BrainLog : IDisposable
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
             }
             catch (Exception error) { failure = error; throw; }
-            return Task.FromResult(sequence);
+            return Task.FromResult((sequence, lastSignal));
         }
     }
 
