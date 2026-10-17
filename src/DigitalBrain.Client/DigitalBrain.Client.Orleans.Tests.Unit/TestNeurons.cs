@@ -30,6 +30,25 @@ public sealed class EagerEmitter : Neuron, IEagerEmitter
         return page;
     }
 }
+// Its next paging read fails once, as a source whose activation faults would.
+[Alias("test.flaky-emitter")]
+public interface IFlakyEmitter : INeuron
+{
+    Task FailNextRead();
+    Task Emit(int value);
+}
+[GrainType("test-flaky-emitter")]
+public sealed class FlakyEmitter : Neuron, IFlakyEmitter
+{
+    private bool _fail;
+    public Task FailNextRead() { _fail = true; return Task.CompletedTask; }
+    public Task Emit(int value) => PublishAsync(new Number(value));
+    public override Task<SignalPage> Read(long since, int limit)
+    {
+        if (_fail && limit > 0) { _fail = false; throw new InvalidOperationException("Injected read failure."); }
+        return base.Read(since, limit);
+    }
+}
 [Alias("test.other-emitter")]
 public interface IOtherEmitter : INeuron { Task Emit(int value); }
 [GrainType("test-emitter")]

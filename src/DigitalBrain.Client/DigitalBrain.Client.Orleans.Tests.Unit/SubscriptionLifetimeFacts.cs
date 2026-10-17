@@ -27,6 +27,25 @@ public sealed class SubscriptionLifetimeFacts
     }
 
     [Fact]
+    public async Task AFailingReadDoesNotEndTheSubscription()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var source = brain.Get<IFlakyEmitter>("flaky");
+        await using var stream = await brain.SubscribeAsync<Number>(source, ct);
+        await using var reader = stream.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await source.FailNextRead();
+        await source.Emit(1);
+        await source.Emit(2);
+
+        Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+        Assert.Equal(1, reader.Current.Value);
+        Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+        Assert.Equal(2, reader.Current.Value);
+        Assert.False(stream.Completion.IsCompleted);
+    }
+
+    [Fact]
     public async Task CancellationEndsAnIdleSubscriptionAndDisposalIsIdempotent()
     {
         await using var brain = await Options().StartAsync(TestContext.Current.CancellationToken);

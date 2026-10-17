@@ -86,7 +86,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
             {
                 await Task.Delay(options.RenewEvery, token).ConfigureAwait(false);
                 await WatchAsync(token).ConfigureAwait(false);
-                await PullAsync(token).ConfigureAwait(false);
+                await TryPullAsync(token).ConfigureAwait(false);
             }
         }
         catch (Exception error) { Finish(error); }
@@ -96,9 +96,18 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     async Task INeuronObserver.Nudge(SignalNudge nudge)
     {
         if (nudge.Sequence <= Volatile.Read(ref _watermark)) { return; }
-        try { await PullAsync(_lifetime.Token).ConfigureAwait(false); }
+        try { await TryPullAsync(_lifetime.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { Finish(error); }
+    }
+
+    // A failed or timed-out read leaves the watermark where it was; the next nudge or renewal reads again.
+    private async Task TryPullAsync(CancellationToken token)
+    {
+        try { await PullAsync(token).ConfigureAwait(false); }
+        catch (Exception error) when (!token.IsCancellationRequested)
+        {
+            logger.LogWarning(error, "SubscriptionReadFailed {Source} {SignalType}", source.GetGrainId(), typeof(T).Name);
+        }
     }
 
     // Reads pages after the watermark until the source has nothing newer, writing this subscription's signals.
