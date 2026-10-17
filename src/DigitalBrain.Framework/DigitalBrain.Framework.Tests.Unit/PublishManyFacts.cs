@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -25,7 +27,7 @@ public sealed class PublishManyFacts
         var (_, signals) = Assert.Single(journal.Appends, append => append.Publisher == source.GetGrainId());
         Assert.Equal(3, signals.Length);
         Assert.All(signals, signal => Assert.Equal(source.GetGrainId().ToString(), signal.Publisher.Name));
-        Assert.Equal(3, (await observer.Read()).Length);
+        Assert.Equal(3, (await Heard(observer, 3, ct)).Length);
     }
 
     [Fact]
@@ -41,7 +43,7 @@ public sealed class PublishManyFacts
 
         await source.Emit([First, Second, null]);
 
-        Assert.Equal([First.TraceId, Second.TraceId, current.TraceId], await observer.Read());
+        Assert.Equal([First.TraceId, Second.TraceId, current.TraceId], await Heard(observer, 3, ct));
     }
 
     [Fact]
@@ -56,22 +58,27 @@ public sealed class PublishManyFacts
 
         await source.EmitForged(forged, [First, null]);
 
-        Assert.Equal([First.TraceId, null], await observer.Read());
+        Assert.Equal([First.TraceId, null], await Heard(observer, 2, ct));
     }
+
+    private static Task<string?[]> Heard(IManyObserver observer, int count, CancellationToken ct)
+        => TestWait.UntilAsync(_ => observer.Read(), traces => traces.Length >= count, TimeSpan.FromSeconds(15), ct);
 
     private sealed class CountingJournal : ISignalJournal
     {
+        private readonly MemorySignalJournal _inner = new(Options.Create(new MemorySignalJournalOptions()));
+
         public ConcurrentQueue<(GrainId Publisher, Signal[] Signals)> Appends { get; } = new();
 
         public Task<long> Append(GrainId publisher, Signal[] signals)
         {
             Appends.Enqueue((publisher, signals));
-            return Task.FromResult(0L);
+            return _inner.Append(publisher, signals);
         }
 
-        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
+        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => _inner.ReadSince(brainId, since, limit);
 
-        public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => Task.FromResult<PartSignals?>(null);
+        public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => _inner.SignalsOf(publisher, since);
     }
 }
 
@@ -99,12 +106,13 @@ public sealed class ManySource : Neuron, IManySource
 public sealed class ManyObserver : Neuron, IManyObserver
 {
     private readonly List<string?> _traces = [];
+    private long _cursor;
 
     public Task<string?[]> Read() => Task.FromResult<string?[]>([.. _traces]);
 
-    public Task OnSignalAsync(Signal signal)
+    public async Task Nudge(SignalNudge nudge)
     {
-        _traces.Add(signal.Trace?.TraceId);
-        return Task.CompletedTask;
+        (var signals, _cursor) = await NudgeReader.ReadAfter(NudgeReader.Source(GrainFactory, nudge), _cursor);
+        _traces.AddRange(signals.Select(signal => signal.Trace?.TraceId));
     }
 }

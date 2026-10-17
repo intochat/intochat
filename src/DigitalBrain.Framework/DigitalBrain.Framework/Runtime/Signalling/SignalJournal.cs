@@ -23,7 +23,10 @@ public sealed record JournaledSignal(long Sequence, Signal Signal);
 
 public static class SignalJournal
 {
-    private sealed record Batch(GrainId Publisher, List<Signal> Signals);
+    private sealed record Batch(GrainId Publisher, List<Signal> Signals)
+    {
+        public long LastSequence { get; set; }
+    }
 
     private static readonly AsyncLocal<Batch?> Pending = new();
 
@@ -44,6 +47,12 @@ public static class SignalJournal
         return taken;
     }
 
+    // The storage write that took the pending signals reports the sequence of the last one it journalled.
+    public static void Appended(GrainId grainId, long sequence)
+    {
+        if (Pending.Value is { } pending && pending.Publisher == grainId) { pending.LastSequence = sequence; }
+    }
+
     // A storage write that was refused before anything committed hands its signals back to the Save behind it.
     public static void Restore(GrainId grainId, Signal[] signals)
     {
@@ -52,6 +61,8 @@ public static class SignalJournal
     }
 
     internal static bool Taken => Pending.Value is { Signals.Count: 0 };
+
+    internal static long LastSequence => Pending.Value?.LastSequence ?? 0;
 
     private sealed class Scope(Batch? previous) : IDisposable
     {

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -9,33 +10,48 @@ public sealed class LocalObserverFacts
     {
         var hub = new LocalSignalHub(NullLogger<LocalSignalHub>.Instance);
         var id = GrainId.Create("test", "observer");
-        var observer = new Observer(() => Task.FromException(new IOException("Observer failed")));
+        var observer = new Observer(_ => Task.FromException(new IOException("Observer failed")));
         hub.Subscribe(id, observer);
-        hub.Publish(id, new Number(1));
+        hub.Publish(id, new SignalNudge(new(id.ToString()), 1));
         Assert.IsType<IOException>(await observer.Error.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        hub.Publish(id, new Number(2));
+        hub.Publish(id, new SignalNudge(new(id.ToString()), 2));
         Assert.Equal(1, observer.Deliveries);
     }
 
     [Fact]
-    public async Task ASlowObserverFailsExplicitlyWhenItsBufferFills()
+    public async Task ASlowObserverCoalescesNudgesAndStillReadsEverything()
     {
+        var ct = TestContext.Current.CancellationToken;
         var hub = new LocalSignalHub(NullLogger<LocalSignalHub>.Instance);
+        var journal = new MemorySignalJournal(Options.Create(new MemorySignalJournalOptions()));
         var id = GrainId.Create("test", "slow");
         var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var observer = new Observer(() => pending.Task);
+        var read = new List<Signal>();
+        var cursor = 0L;
+        var observer = new Observer(async _ =>
+        {
+            await pending.Task;
+            var part = (await journal.SignalsOf(id, cursor))!;
+            read.AddRange(part.Signals.Select(entry => entry.Signal));
+            cursor = part.Last;
+        });
         hub.Subscribe(id, observer);
-        for (var i = 0; i < 1100; i++) { hub.Publish(id, new Number(i)); }
-        var error = await observer.Error.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        Assert.IsType<InvalidOperationException>(error);
+
+        for (var i = 0; i < 1100; i++)
+        { hub.Publish(id, new SignalNudge(new(id.ToString()), await journal.Append(id, [new Number(i)]))); }
         pending.TrySetResult();
+        await hub.FlushAsync(ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        Assert.False(observer.Error.Task.IsCompleted);
+        Assert.InRange(observer.Deliveries, 1, 1100 - 1);
+        Assert.Equal(Enumerable.Range(0, 1100), read.Cast<Number>().Select(number => number.Value));
     }
 
-    private sealed class Observer(Func<Task> receive) : INeuronObserver, ILocalSignalFaultSink
+    private sealed class Observer(Func<SignalNudge, Task> receive) : INeuronObserver, ILocalSignalFaultSink
     {
         public int Deliveries { get; private set; }
         public TaskCompletionSource<Exception> Error { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task OnSignalAsync(Signal signal) { Deliveries++; return receive(); }
+        public Task Nudge(SignalNudge nudge) { Deliveries++; return receive(nudge); }
         public void OnError(Exception error) => Error.TrySetResult(error);
     }
 }

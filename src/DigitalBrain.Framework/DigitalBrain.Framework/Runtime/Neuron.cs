@@ -53,12 +53,19 @@ public abstract class Neuron : Grain, INeuron
         return Task.CompletedTask;
     }
 
+    // Serves this neuron's journalled signals after `since`, oldest first. A watcher filters what it wants.
+    public virtual async Task<SignalPage> Read(long since, int limit)
+    {
+        if (await Journal.SignalsOf(this.GetGrainId(), since) is not { } part) { return new(0, 0, [], []); }
+        var page = limit <= 0 ? [] : part.Signals.Take(limit).ToArray();
+        return new(part.Floor, part.Last, [.. page.Select(entry => entry.Signal)], [.. page.Select(entry => entry.Sequence)]);
+    }
+
     // A signal is durable before any observer sees it (Q27).
     protected async Task PublishAsync(Signal signal)
     {
         var stamped = Stamp(signal);
-        await Journal.Append(this.GetGrainId(), [stamped]);
-        await Notify(stamped);
+        await Notify([stamped], await Journal.Append(this.GetGrainId(), [stamped]));
     }
 
     // Several facts of one call become durable in one journal append before any observer sees them. Each is
@@ -74,19 +81,23 @@ public abstract class Neuron : Grain, INeuron
             using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
             stamped[i] = Stamp(signals[i].Signal);
         }
-        await Journal.Append(this.GetGrainId(), stamped);
-        foreach (var signal in stamped) { await Notify(signal); }
+        await Notify(stamped, await Journal.Append(this.GetGrainId(), stamped));
     }
 
     private protected ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
 
     private protected Signal Stamp(Signal signal) => signal with { Publisher = Id, Trace = TraceContext.Current };
 
-    private protected Task Notify(Signal stamped)
+    // One nudge per journal append: a watcher whose selection names none of the appended signals is not nudged.
+    private protected Task Notify(Signal[] stamped, long sequence)
     {
-        ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
-        return Observers.Notify(watch => watch.Observer.OnSignalAsync(stamped),
-            watch => watch.Signals is null || watch.Signals.Contains(stamped.GetType().Name));
+        if (stamped.Length == 0) { return Task.CompletedTask; }
+        var hub = ServiceProvider.GetRequiredService<LocalSignalHub>();
+        foreach (var signal in stamped) { hub.Publish(signal); }
+        var nudge = new SignalNudge(Id, sequence);
+        hub.Publish(this.GetGrainId(), nudge);
+        return Observers.Notify(watch => watch.Observer.Nudge(nudge),
+            watch => watch.Signals is null || stamped.Any(signal => watch.Signals.Contains(signal.GetType().Name)));
     }
 
     // The signals a state change caused ride in its storage write when the storage takes them (a part log);
@@ -107,13 +118,15 @@ public abstract class Neuron : Grain, INeuron
             stamped[i] = Stamp(signals[i].Signal);
         }
         bool taken;
+        long sequence;
         using (SignalJournal.Attach(this.GetGrainId(), stamped))
         {
             await write();
             taken = SignalJournal.Taken;
+            sequence = SignalJournal.LastSequence;
         }
-        if (!taken) { await Journal.Append(this.GetGrainId(), stamped); }
-        foreach (var signal in stamped) { await Notify(signal); }
+        if (!taken) { sequence = await Journal.Append(this.GetGrainId(), stamped); }
+        await Notify(stamped, sequence);
     }
 }
 

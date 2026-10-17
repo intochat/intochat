@@ -1,4 +1,5 @@
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -15,7 +16,7 @@ public sealed class TraceFacts
         var trace = TraceContext.Begin("acct-1", "brain-1", new NeuronId("brain-1/button"));
         using var _ = TraceContext.Enter(trace);
         await source.Emit();
-        var signal = await observer.Read();
+        var signal = await Seen(observer, ct);
         Assert.NotNull(signal);
         Assert.Equal(trace.TraceId, signal.DeliveryTraceId);
         Assert.Equal("acct-1", signal.DeliveryPayer);
@@ -31,7 +32,7 @@ public sealed class TraceFacts
         await source.Watch(observer);
         var forged = new Trace { TraceId = "forged", PayerAccountId = "mallory", BrainId = "mallory", Origin = new NeuronId("mallory/edge") };
         await source.Emit(forged);
-        var signal = await observer.Read();
+        var signal = await Seen(observer, ct);
         Assert.NotNull(signal);
         Assert.Null(signal.DeliveryTraceId);
     }
@@ -53,7 +54,7 @@ public sealed class TraceFacts
             await source.Emit();
             Assert.Equal(caller, CallerContextStamper.Require());
         }
-        var seen = await observer.Read();
+        var seen = await Seen(observer, ct);
         Assert.False(seen!.CallerPresent);
         Assert.Equal(trace.TraceId, seen.DeliveryTraceId);
         Assert.Equal(source.GetGrainId().ToString(), seen.Publisher);
@@ -70,12 +71,16 @@ public sealed class TraceFacts
         var trace = TraceContext.Begin("acct-1", "brain-1", new NeuronId("brain-1/button"));
         using var _ = TraceContext.Enter(trace);
         await source.Emit();
-        var seen = await observer.Read();
+        var seen = await Seen(observer, ct);
         Assert.NotNull(seen);
         Assert.Equal("acct-1", seen.DeliveryPayer);
         Assert.Equal("brain-1", seen.DeliveryBrain);
         Assert.Equal(trace.TraceId, seen.DeliveryTraceId);
     }
+
+    // Nudges are one-way: the observer has read the signal once it has seen something.
+    private static async Task<TraceSeen?> Seen(ITraceObserver observer, CancellationToken ct)
+        => await TestWait.UntilAsync(_ => observer.Read(), seen => seen is not null, TimeSpan.FromSeconds(15), ct);
 }
 
 [GenerateSerializer] public sealed record TraceSignal : Signal;
@@ -110,10 +115,12 @@ public sealed class TraceObserver : Neuron, ITraceObserver
 {
     private TraceSeen? _seen;
     public Task<TraceSeen?> Read() => Task.FromResult(_seen);
-    public Task OnSignalAsync(Signal signal)
+    private long _cursor;
+    public async Task Nudge(SignalNudge nudge)
     {
-        _seen = new TraceSeen(CallerContextStamper.TryGet(out _), signal.Trace?.TraceId, signal.Trace?.PayerAccountId, signal.Trace?.BrainId, signal.Publisher.Name);
-        return Task.CompletedTask;
-
+        var callerPresent = CallerContextStamper.TryGet(out _);
+        (var signals, _cursor) = await NudgeReader.ReadAfter(NudgeReader.Source(GrainFactory, nudge), _cursor);
+        if (signals is [.., var signal])
+        { _seen = new TraceSeen(callerPresent, signal.Trace?.TraceId, signal.Trace?.PayerAccountId, signal.Trace?.BrainId, signal.Publisher.Name); }
     }
 }

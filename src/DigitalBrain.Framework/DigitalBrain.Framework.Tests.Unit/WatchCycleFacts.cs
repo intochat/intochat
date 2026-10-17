@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
@@ -43,7 +44,7 @@ public sealed class CycleSubscriber : Grain, ICycleSubscriber
     public async Task Subscribe(string source)
         => await GrainFactory.GetGrain<ICycleSource>(source).Watch(this.AsReference<INeuronObserver>());
 
-    public Task OnSignalAsync(Signal signal) => Task.CompletedTask;
+    public Task Nudge(SignalNudge nudge) => Task.CompletedTask;
 }
 
 // A subscriber that starts watching while the source is still notifying (an app deploying its
@@ -58,11 +59,16 @@ public sealed class WatchDuringNotifyFacts
         var source = brain.Get<IChattySource>("chatty");
         await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("relay").Attach("chatty");
 
+        var relay = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("relay");
+        var late = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("late");
+
+        // Nudges are one-way: "relay" has brought "late" in once it has heard the first signal.
         await source.Say().WaitAsync(TimeSpan.FromSeconds(15), ct);
+        await TestWait.UntilAsync(_ => relay.Heard(), heard => heard == 1, TimeSpan.FromSeconds(15), ct);
         await source.Say().WaitAsync(TimeSpan.FromSeconds(15), ct);
 
-        Assert.Equal(2, await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("relay").Heard());
-        Assert.Equal(1, await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("late").Heard());
+        Assert.Equal(2, await TestWait.UntilAsync(_ => relay.Heard(), heard => heard >= 2, TimeSpan.FromSeconds(15), ct));
+        Assert.Equal(1, await TestWait.UntilAsync(_ => late.Heard(), heard => heard >= 1, TimeSpan.FromSeconds(15), ct));
     }
 }
 
@@ -89,15 +95,23 @@ public interface IRelayObserver : INeuronObserver, IGrainWithStringKey
 public sealed class RelayObserver : Grain, IRelayObserver
 {
     private int _heard;
+    private long _cursor;
 
+    // A new watcher hears what is published from now on.
     public async Task Attach(string source)
-        => await GrainFactory.GetGrain<IChattySource>(source).Watch(this.AsReference<INeuronObserver>());
+    {
+        var chatty = GrainFactory.GetGrain<IChattySource>(source);
+        await chatty.Watch(this.AsReference<INeuronObserver>());
+        _cursor = (await chatty.Read(0, 0)).Last;
+    }
 
     public Task<int> Heard() => Task.FromResult(_heard);
 
-    public async Task OnSignalAsync(Signal signal)
+    public async Task Nudge(SignalNudge nudge)
     {
-        _heard++;
+        (var signals, _cursor) = await NudgeReader.ReadAfter(NudgeReader.Source(GrainFactory, nudge), _cursor);
+        if (signals.Length == 0) { return; }
+        _heard += signals.Length;
         if (this.GetPrimaryKeyString() == "relay" && _heard == 1)
         { await GrainFactory.GetGrain<IRelayObserver>("late").Attach("chatty"); }
     }

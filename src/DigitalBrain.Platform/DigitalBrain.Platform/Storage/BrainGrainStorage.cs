@@ -38,7 +38,12 @@ internal sealed class BrainGrainStorage(BrainLogs logs, Serializer serializer, s
         var log = await Log(grainId);
         var pending = SignalJournal.TakePending(grainId);
         long? expected = etag is null ? null : long.TryParse(etag, CultureInfo.InvariantCulture, out var parsed) ? parsed : -1;
-        try { return await log.Append(grainId.ToString(), stateName, expected, change, record, pending, CancellationToken.None); }
+        try
+        {
+            var sequence = await log.Append(grainId.ToString(), stateName, expected, change, record, pending, CancellationToken.None);
+            if (pending.Length > 0) { SignalJournal.Appended(grainId, sequence); }
+            return sequence;
+        }
         catch (Exception error) when (error is InconsistentStateException or ArgumentException)
         { SignalJournal.Restore(grainId, pending); throw; }
     }

@@ -77,3 +77,24 @@ public sealed class SiloBrainListener : Neuron, ISiloBrainListener
         }
     }
 }
+
+// What a watcher in these facts does on a nudge: read the publisher's journal after its own cursor, page by page.
+internal static class NudgeReader
+{
+    public const int PageSize = 100;
+
+    public static INeuron Source(IGrainFactory grains, SignalNudge nudge)
+        => grains.GetGrain(GrainId.Parse(nudge.Publisher.Name)).AsReference<INeuron>();
+
+    public static async Task<(Signal[] Signals, long Cursor)> ReadAfter(INeuron source, long cursor)
+    {
+        var read = new List<Signal>();
+        while (true)
+        {
+            var page = await source.Read(cursor, PageSize);
+            read.AddRange(page.Signals);
+            if (page.Signals.Length < PageSize) { return ([.. read], Math.Max(cursor, page.Last)); }
+            cursor = page.Sequences[^1];
+        }
+    }
+}

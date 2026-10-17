@@ -19,23 +19,18 @@ internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFil
             || IsInbound(neuron, context.InterfaceMethod.DeclaringType!))
         { await context.Invoke(); return; }
 
-        // A kernel-stamped fact is delivered by its publishing grain, not by the user
-        // whose operation happened to produce it. Only that verified delivery boundary
-        // enters internal context; ordinary calls and fabricated callbacks keep policy checks.
+        // A nudge is delivered by its publishing grain, not by the user whose operation happened to
+        // produce it. Only that verified delivery boundary enters internal context; ordinary calls and
+        // fabricated callbacks keep policy checks.
         if (context.InterfaceMethod.DeclaringType == typeof(INeuronObserver)
-            && context.InterfaceMethod.Name == nameof(INeuronObserver.OnSignalAsync)
+            && context.InterfaceMethod.Name == nameof(INeuronObserver.Nudge)
             && context.SourceId is { } publisher
             && !publisher.Type.ToString().StartsWith("sys.client", StringComparison.Ordinal)
-            && context.Request.GetArgument(0) is Signal signal && signal.Publisher.Name == publisher.ToString())
+            && context.Request.GetArgument(0) is SignalNudge nudge && nudge.Publisher.Name == publisher.ToString())
         {
             Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-            using var traceScope = signal.Trace is { } delivered ? TraceContext.Enter(delivered) : null;
             try { await context.Invoke(); }
-            finally
-            {
-                traceScope?.Dispose();
-                Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller);
-            }
+            finally { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller); }
             return;
         }
 

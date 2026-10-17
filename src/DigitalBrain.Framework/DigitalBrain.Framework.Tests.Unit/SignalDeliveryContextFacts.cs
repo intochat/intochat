@@ -1,3 +1,5 @@
+using DigitalBrain.Testing;
+
 namespace DigitalBrain.Framework.Tests.Unit;
 
 public sealed class SignalDeliveryContextFacts
@@ -23,7 +25,7 @@ public sealed class SignalDeliveryContextFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(observer.Read);
             RequestContext.Remove("delivery-test");
         }
-        var received = await observer.Read();
+        var received = await TestWait.UntilAsync(_ => observer.Read(), seen => seen is not null, TimeSpan.FromSeconds(15), ct);
         Assert.NotNull(received);
         Assert.False(received.CallerPresent);
         Assert.Equal("retained", received.Metadata);
@@ -43,12 +45,14 @@ public sealed class SignalDeliveryContextFacts
         using (publisher.AsCaller())
         {
             var caller = CallerContextStamper.Require();
-            var forged = new DeliverySignal(false) { Publisher = new(throughGrain ? "test-delivery-source/other" : source.GetGrainId().ToString()) };
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => throughGrain
-                ? source.Forward(observer, forged)
-                : observer.OnSignalAsync(forged));
+            Assert.True(await source.Emit(false));
+            var forged = new SignalNudge(new(throughGrain ? "test-delivery-source/other" : source.GetGrainId().ToString()), 1);
+            // Nudges are one-way: a refused one never reaches the observer, so the caller sees no error.
+            if (throughGrain) { await source.Forward(observer, forged); }
+            else { await observer.Nudge(forged); }
             Assert.Equal(caller, CallerContextStamper.Require());
         }
+        await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
         Assert.Null(await observer.Read());
     }
 }
@@ -62,7 +66,7 @@ public sealed record DeliverySeen(
 public interface IDeliverySource : INeuron
 {
     Task<bool> Emit(bool fail);
-    Task Forward(INeuronObserver observer, Signal signal);
+    Task Forward(INeuronObserver observer, SignalNudge nudge);
 }
 [Alias("test.delivery-observer")]
 public interface IDeliveryObserver : INeuron, INeuronObserver { Task<DeliverySeen?> Read(); }
@@ -76,7 +80,7 @@ public sealed class DeliverySource : Neuron, IDeliverySource
         await PublishAsync(new DeliverySignal(fail));
         return caller == CallerContextStamper.Require();
     }
-    public Task Forward(INeuronObserver observer, Signal signal) => observer.OnSignalAsync(signal);
+    public Task Forward(INeuronObserver observer, SignalNudge nudge) => observer.Nudge(nudge);
 }
 
 [GrainType("test-delivery-observer")]
@@ -84,10 +88,14 @@ public sealed class DeliveryObserver : Neuron, IDeliveryObserver
 {
     private DeliverySeen? _seen;
     public Task<DeliverySeen?> Read() => Task.FromResult(_seen);
-    public Task OnSignalAsync(Signal signal)
+    private long _cursor;
+    public async Task Nudge(SignalNudge nudge)
     {
-        _seen = new(CallerContextStamper.TryGet(out _), RequestContext.Get("delivery-test") as string, signal.Publisher.Name);
+        var callerPresent = CallerContextStamper.TryGet(out _);
+        var metadata = RequestContext.Get("delivery-test") as string;
+        (var signals, _cursor) = await NudgeReader.ReadAfter(NudgeReader.Source(GrainFactory, nudge), _cursor);
+        if (signals is not [.., var signal]) { return; }
+        _seen = new(callerPresent, metadata, signal.Publisher.Name);
         if (signal is DeliverySignal { Fail: true }) { throw new InvalidOperationException("Observer failed"); }
-        return Task.CompletedTask;
     }
 }
