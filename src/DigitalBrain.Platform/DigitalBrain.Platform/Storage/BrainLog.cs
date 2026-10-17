@@ -10,22 +10,27 @@ namespace DigitalBrain.Platform.Storage;
 internal sealed class BrainLog : IDisposable
 {
     private const int MaxEntryBytes = 16 * 1024 * 1024;
+    private const int SegmentHeaderBytes = 5;
+    private static ReadOnlySpan<byte> SegmentMagic => "DBLG"u8;
     private readonly string directory;
     private readonly string brainId;
     private readonly byte[] key;
     private readonly Serializer serializer;
     private readonly FileStream ownership;
     private readonly Lock gate = new();
+    private readonly BrainLogFormat writeFormat;
     private Dictionary<string, Dictionary<string, BrainRecord>> records = new(StringComparer.Ordinal);
     private readonly List<BrainEntry> signals = [];
     private string generation = "initial";
     private long sequence;
     private long lastSignal;
+    private BrainLogFormat format;
     private Exception? failure;
     private bool disposed;
 
-    public BrainLog(string directory, string brainId, byte[] key, Serializer serializer)
+    public BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat = BrainLogFormat.Legacy)
     {
+        this.writeFormat = writeFormat;
         this.directory = directory;
         this.brainId = brainId;
         this.key = key;
@@ -37,6 +42,9 @@ internal sealed class BrainLog : IDisposable
     }
 
     public long LastSignal { get { lock (gate) { return lastSignal; } } }
+
+    // Format of the active segment: detected from its header, or the write format for an empty segment.
+    public BrainLogFormat Format { get { lock (gate) { return format; } } }
 
     internal BrainExport Export(Func<string, string, byte[], object?> decode)
     {
@@ -107,10 +115,14 @@ internal sealed class BrainLog : IDisposable
             try
             {
                 using var stream = new FileStream(Journal, FileMode.Append, FileAccess.Write, FileShare.Read);
-                Span<byte> length = stackalloc byte[4];
-                BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
-                stream.Write(length);
-                stream.Write(bytes);
+                // Header and first frame go out in one write; a torn header is truncated on recovery.
+                var headed = stream.Length == 0 && format == BrainLogFormat.Framed;
+                var frame = new byte[(headed ? SegmentHeaderBytes : 0) + 4 + bytes.Length];
+                var offset = 0;
+                if (headed) { SegmentMagic.CopyTo(frame); frame[4] = (byte)BrainLogFormat.Framed; offset = SegmentHeaderBytes; }
+                BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(offset), bytes.Length);
+                bytes.CopyTo(frame.AsSpan(offset + 4));
+                stream.Write(frame);
                 stream.Flush(flushToDisk: true);
                 // Deserialize the durable bytes so callers cannot mutate the stored projection.
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
@@ -151,13 +163,14 @@ internal sealed class BrainLog : IDisposable
             ct.ThrowIfCancellationRequested();
             var previous = generation;
             var next = Guid.NewGuid().ToString("N");
-            var snapshot = new BrainSnapshot(sequence, lastSignal, records, [.. signals]);
+            var snapshot = new BrainSnapshot(sequence, lastSignal, records, [.. signals], writeFormat);
             WriteFlushed(Path.Combine(directory, next + ".snapshot"), SegmentSeal.Close(key, Context("snapshot", next), serializer.SerializeToArray(snapshot)));
             WriteFlushed(Path.Combine(directory, next + ".log"), []);
             WriteFlushed(Path.Combine(directory, "current.tmp"), System.Text.Encoding.UTF8.GetBytes(next));
             try { File.Move(Path.Combine(directory, "current.tmp"), Path.Combine(directory, "current"), overwrite: true); }
             catch (Exception error) { failure = error; throw; }
             generation = next;
+            format = writeFormat;
             // Old complete generation remains until the manifest points to the new one.
             foreach (var suffix in new[] { ".snapshot", ".log" })
             {
@@ -189,7 +202,7 @@ internal sealed class BrainLog : IDisposable
             || Directory.EnumerateFiles(directory, "*.log").Any()))
         { throw new InvalidDataException("The brain checkpoint manifest is missing; refusing to reset existing data."); }
         using var stream = new FileStream(Journal, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-        long valid = 0;
+        long valid = DetectFormat(stream);
         Span<byte> header = stackalloc byte[4];
         while (stream.Position < stream.Length)
         {
@@ -207,6 +220,30 @@ internal sealed class BrainLog : IDisposable
             valid = stream.Position;
         }
         if (valid != stream.Length) { stream.SetLength(valid); stream.Flush(flushToDisk: true); }
+    }
+
+    // Legacy segments start with a length below 16 MiB, so they never begin with "DBLG".
+    private long DetectFormat(FileStream stream)
+    {
+        Span<byte> header = stackalloc byte[SegmentHeaderBytes];
+        var read = stream.ReadAtLeast(header, SegmentHeaderBytes, throwOnEndOfStream: false);
+        stream.Position = 0;
+        if (read == 0) { format = writeFormat; return 0; }
+        var magic = Math.Min(read, SegmentMagic.Length);
+        if (!header[..magic].SequenceEqual(SegmentMagic[..magic])) { format = BrainLogFormat.Legacy; return 0; }
+        if (read < SegmentHeaderBytes)
+        {
+            // A torn header holds no entries.
+            stream.SetLength(0);
+            stream.Flush(flushToDisk: true);
+            format = writeFormat;
+            return 0;
+        }
+        if (header[4] != (byte)BrainLogFormat.Framed)
+        { throw new InvalidDataException($"Unknown brain log format version {header[4]}."); }
+        format = BrainLogFormat.Framed;
+        stream.Position = SegmentHeaderBytes;
+        return SegmentHeaderBytes;
     }
 
     private void Apply(BrainEntry entry)

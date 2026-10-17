@@ -2,6 +2,9 @@ namespace DigitalBrain.Platform.Storage;
 
 public enum BrainRecordChange { None, Write, Clear }
 
+// Byte layout of a brain-log segment. Framed segments start with "DBLG" and this version byte.
+public enum BrainLogFormat : byte { Legacy = 0, Framed = 1 }
+
 internal sealed record BrainExport(int FormatVersion, string BrainScope, long Sequence, BrainExportRecord[] Records, int OmittedRecords);
 internal sealed record BrainExportRecord(string GrainId, string StateName, string Type, System.Text.Json.JsonElement Data);
 
@@ -23,4 +26,5 @@ internal sealed record BrainSnapshot(
     [property: Id(0)] long Sequence,
     [property: Id(1)] long LastSignal,
     [property: Id(2)] Dictionary<string, Dictionary<string, BrainRecord>> Records,
-    [property: Id(3)] BrainEntry[] Signals);
+    [property: Id(3)] BrainEntry[] Signals,
+    [property: Id(4)] BrainLogFormat Format = BrainLogFormat.Legacy);

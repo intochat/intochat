@@ -10,12 +10,14 @@ internal sealed class BrainLogs : IAsyncDisposable
     private readonly FileStream ownership;
     private readonly Dictionary<string, Task<BrainLog>> logs = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
+    private readonly BrainLogFormat writeFormat;
     private bool disposed;
 
     public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options)
     {
         this.keys = keys;
         this.serializer = serializer;
+        writeFormat = options.Value.WriteFormat;
         Directory.CreateDirectory(options.Value.Directory);
         ownership = new FileStream(Path.Combine(options.Value.Directory, "runtime.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
@@ -31,7 +33,7 @@ internal sealed class BrainLogs : IAsyncDisposable
     }
 
     private async Task<BrainLog> Open(string brainId)
-        => new(keys.DirectoryOf(brainId), brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer);
+        => new(keys.DirectoryOf(brainId), brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat);
 
     internal async Task<bool> CheckStorageAsync(string brainId, CancellationToken ct)
     {
