@@ -57,7 +57,7 @@ internal sealed class ComposerNeuron(
         if (State.FollowedChat is not { } chat || _watermark is not { } watermark || nudge.Sequence <= watermark) { return; }
         var source = GrainFactory.GetGrain<IChat>(chat);
         if (nudge.Publisher.Name != source.GetGrainId().ToString()) { return; }
-        var (signals, next) = await SignalPull.After(source, watermark, Logger);
+        var (signals, next) = await SignalPull.After(Journal, source.GetGrainId(), watermark, Logger);
         _watermark = next;
         foreach (var signal in signals)
         {
@@ -68,15 +68,16 @@ internal sealed class ComposerNeuron(
         }
     }
 
+    private ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ComposerNeuron>>();
 
     // The first watch starts the watermark before subscribing, so nothing published in between is lost.
     private async Task WatchChat(IChat source)
     {
         var first = _watermark is null;
-        if (first) { _watermark = await SignalPull.Head(source); }
+        if (first) { _watermark = await SignalPull.Head(Journal, source.GetGrainId()); }
         await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
-        if (first) { _watermark = (await SignalPull.After(source, _watermark!.Value, Logger)).Watermark; }
+        if (first) { _watermark = (await SignalPull.After(Journal, source.GetGrainId(), _watermark!.Value, Logger)).Watermark; }
     }
 
     public async Task Reconcile(string chat)

@@ -107,10 +107,10 @@ internal sealed partial class ChatNeuron
             // Start the watermark before watching, so nothing published in between is lost.
             _source = next;
             _watchReady = false;
-            _watermark = await SignalPull.Head(next);
+            _watermark = await SignalPull.Head(Journal, next.GetGrainId());
             _sourceActivation = await next.Watch(this.AsReference<INeuronObserver>());
             _watchReady = true;
-            _watermark = (await SignalPull.After(next, _watermark, Logger)).Watermark;
+            _watermark = (await SignalPull.After(Journal, next.GetGrainId(), _watermark, Logger)).Watermark;
             if (old is not null && old.GetGrainId() != next.GetGrainId()) { await old.Unwatch(this.AsReference<INeuronObserver>()); }
         }
         _dirty = true;
@@ -122,7 +122,7 @@ internal sealed partial class ChatNeuron
     async Task INeuronObserver.Nudge(SignalNudge nudge)
     {
         if (_source is not { } source || nudge.Publisher.Name != source.GetGrainId().ToString() || nudge.Sequence <= _watermark) { return; }
-        var (signals, watermark) = await SignalPull.After(source, _watermark, Logger);
+        var (signals, watermark) = await SignalPull.After(Journal, source.GetGrainId(), _watermark, Logger);
         if (_source?.GetGrainId() != source.GetGrainId()) { return; }
         _watermark = watermark;
         if (signals.Length == 0) { return; }
@@ -130,6 +130,7 @@ internal sealed partial class ChatNeuron
         await QueueReconciliation();
     }
 
+    private ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ChatNeuron>>();
 
     private Task QueueReconciliation()

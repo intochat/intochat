@@ -54,12 +54,7 @@ public abstract class Neuron : Grain, INeuron
     }
 
     // Serves this neuron's journalled signals after `since`, oldest first. A watcher filters what it wants.
-    public virtual async Task<SignalPage> Read(long since, int limit)
-    {
-        if (await Journal.SignalsOf(this.GetGrainId(), since) is not { } part) { return new(0, 0, [], []); }
-        var page = limit <= 0 ? [] : part.Signals.Take(limit).ToArray();
-        return new(part.Floor, part.Last, [.. page.Select(entry => entry.Signal)], [.. page.Select(entry => entry.Sequence)]);
-    }
+    public virtual Task<SignalPage> Read(long since, int limit) => SignalPages.Read(Journal, this.GetGrainId(), since, limit);
 
     // A signal is durable before any observer sees it (Q27).
     protected async Task PublishAsync(Signal signal)

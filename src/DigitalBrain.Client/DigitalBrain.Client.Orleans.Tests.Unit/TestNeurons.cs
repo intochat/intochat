@@ -16,21 +16,28 @@ public interface ITestEmitter : INeuron
     Task EmitText(string value);
     Task Deactivate();
 }
-// Publishes while a watcher is connecting: right after the watcher's starting read, before it is registered.
+// A source that never publishes itself; EagerJournal writes for it while a watcher is connecting.
 [Alias("test.eager-emitter")]
 public interface IEagerEmitter : INeuron;
 [GrainType("test-eager-emitter")]
-public sealed class EagerEmitter : Neuron, IEagerEmitter
+public sealed class EagerEmitter : Neuron, IEagerEmitter;
+
+// Journals one signal for the eager emitter right after a watcher's starting read, before it is registered.
+// The append raises no nudge, so only the pull that follows registration can deliver it.
+public sealed class EagerJournal(global::Microsoft.Extensions.Options.IOptions<MemorySignalJournalOptions> options) : ISignalJournal
 {
-    private bool _emitted;
-    public override async Task<SignalPage> Read(long since, int limit)
+    private readonly MemorySignalJournal _inner = new(options);
+    private int _emitted;
+    public Task<long> Append(GrainId publisher, Signal[] signals) => _inner.Append(publisher, signals);
+    public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => _inner.ReadSince(brainId, since, limit);
+    public async Task<PartSignals?> SignalsOf(GrainId publisher, long since)
     {
-        var page = await base.Read(since, limit);
-        if (!_emitted) { _emitted = true; await PublishAsync(new Number(7)); }
-        return page;
+        var part = await _inner.SignalsOf(publisher, since);
+        if (publisher.Type.ToString() == "test-eager-emitter" && Interlocked.Exchange(ref _emitted, 1) == 0)
+        { await _inner.Append(publisher, [new Number(7) { Publisher = publisher.ToString() }]); }
+        return part;
     }
 }
-// Its next paging read fails once, as a source whose activation faults would.
 [Alias("test.flaky-emitter")]
 public interface IFlakyEmitter : INeuron
 {

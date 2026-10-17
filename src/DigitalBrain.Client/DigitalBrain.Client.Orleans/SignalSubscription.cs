@@ -23,6 +23,9 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     private Task _renewal = Task.CompletedTask;
     private Task? _cleanup;
     private int _reader;
+    // History is read from the brain's journal, not the source grain, so subscribing never activates an idle source.
+    private readonly IBrainSignalReader _history = cluster.GetGrain<IBrainSignalReader>(BrainKey.BrainOf(source.GetGrainId().Key.ToString()!));
+    private readonly NeuronId _publisher = source.GetGrainId().ToString();
 
     public Task Completion => _completion.Task;
 
@@ -73,7 +76,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
 
     private async Task StartAsync(CancellationToken token)
     {
-        var start = await source.Read(0, 0).WaitAsync(options.OperationTimeout, token).ConfigureAwait(false);
+        var start = await _history.Read(_publisher, 0, 0).WaitAsync(options.OperationTimeout, token).ConfigureAwait(false);
         Volatile.Write(ref _watermark, start.Last);
     }
 
@@ -118,7 +121,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
         {
             while (!token.IsCancellationRequested)
             {
-                var page = await source.Read(_watermark, options.PageSize).WaitAsync(options.OperationTimeout, token).ConfigureAwait(false);
+                var page = await _history.Read(_publisher, _watermark, options.PageSize).WaitAsync(options.OperationTimeout, token).ConfigureAwait(false);
                 if (page.Floor > _watermark)
                 {
                     logger.LogWarning("SubscriptionMissedSignals {Source} {SignalType} {Watermark} {Floor}", source.GetGrainId(), typeof(T).Name, _watermark, page.Floor);

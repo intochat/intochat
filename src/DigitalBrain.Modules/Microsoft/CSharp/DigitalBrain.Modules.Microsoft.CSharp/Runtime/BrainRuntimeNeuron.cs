@@ -642,7 +642,7 @@ internal sealed class BrainRuntimeNeuron(
     {
         var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron && Accepted(s)).ToArray();
         if (matching.Length == 0) { return; }
-        var (floor, signals) = await ReadAfterAsync(GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)), matching.Min(s => s.SourceSeq));
+        var (floor, signals) = await ReadAfterAsync(GrainId.Parse(neuron), matching.Min(s => s.SourceSeq));
         var cap = options.Value.MaximumPending;
         var arrived = new List<Subscription>();
         var drops = new List<(Subscription Buffered, long Count)>();
@@ -675,13 +675,14 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     // Pages of the source's log after since until it has nothing newer; Floor is the newest seq it dropped unread.
-    private async Task<(long Floor, List<(long Sequence, Signal Signal)> Signals)> ReadAfterAsync(INeuron source, long since)
+    // Read from the silo journal, so catching up never activates the source.
+    private async Task<(long Floor, List<(long Sequence, Signal Signal)> Signals)> ReadAfterAsync(GrainId source, long since)
     {
         var signals = new List<(long Sequence, Signal Signal)>();
         var floor = 0L;
         while (true)
         {
-            var page = await source.Read(since, options.Value.MaximumPending);
+            var page = await SignalPages.Read(journal, source, since, options.Value.MaximumPending);
             floor = Math.Max(floor, page.Floor);
             since = Math.Max(since, page.Floor);
             for (var i = 0; i < page.Signals.Length; i++) { signals.Add((page.Sequences[i], page.Signals[i])); }
