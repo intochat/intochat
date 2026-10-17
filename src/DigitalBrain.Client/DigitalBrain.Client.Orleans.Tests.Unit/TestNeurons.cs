@@ -14,6 +14,7 @@ public interface ITestEmitter : INeuron
 {
     Task Emit(int value);
     Task EmitText(string value);
+    Task Deactivate();
 }
 [Alias("test.other-emitter")]
 public interface IOtherEmitter : INeuron { Task Emit(int value); }
@@ -22,6 +23,7 @@ public sealed class TestEmitter : Neuron, ITestEmitter
 {
     public Task Emit(int value) => PublishAsync(new Number(value));
     public Task EmitText(string value) => PublishAsync(new Text(value));
+    public Task Deactivate() { DeactivateOnIdle(); return Task.CompletedTask; }
 }
 [GrainType("other-emitter")]
 public sealed class OtherEmitter : Neuron, IOtherEmitter

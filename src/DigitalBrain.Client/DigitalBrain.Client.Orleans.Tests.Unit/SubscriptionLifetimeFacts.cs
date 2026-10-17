@@ -54,6 +54,36 @@ public sealed class SubscriptionLifetimeFacts
         Assert.Equal(19, reader.Current.Value);
     }
 
+    // A reactivated source has forgotten its watchers, so the publish nudges nobody; the next renewal
+    // re-watches and pulls what was journalled in the gap.
+    [Fact]
+    public async Task AMissedNudgeIsRecoveredOnTheNextRenewal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var source = brain.Get<ITestEmitter>("missed");
+        await using var stream = await brain.SubscribeAsync<Number>(source, ct);
+        await source.Deactivate();
+        await source.Emit(23);
+        await using var reader = stream.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Equal(23, reader.Current.Value);
+    }
+
+    [Fact]
+    public async Task FinishingTwiceNeverThrows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var stream = await brain.SubscribeAsync<Number>(brain.Get<ITestEmitter>("finish"), ct);
+        var sink = Assert.IsAssignableFrom<ILocalSignalFaultSink>(stream);
+        sink.OnError(new InvalidOperationException("first"));
+        sink.OnError(new InvalidOperationException("second"));
+        await stream.DisposeAsync();
+        await stream.DisposeAsync();
+        Assert.Equal("first", (await Assert.ThrowsAsync<InvalidOperationException>(() => stream.Completion)).Message);
+    }
+
     [Fact]
     public async Task OnClosesItsSubscriptionWhenTheConsumerCancelsMidStream()
     {
