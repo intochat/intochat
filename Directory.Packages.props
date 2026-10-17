@@ -5,7 +5,9 @@
     <AspireVersion>13.6.0</AspireVersion>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Pin patched crypto dependencies transitively; keep NuGet auditing enabled. -->
+    <!-- Pin patched transitive dependencies; keep NuGet auditing enabled.
+         MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 2.5.303 is the patched 2.x release. -->
+    <PackageVersion Include="MessagePack" Version="2.5.303" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
