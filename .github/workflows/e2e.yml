@@ -58,3 +58,6 @@ jobs:
 
       - name: Test E2E
         run: dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E -c Release --no-build
+
+      - name: Test Framework E2E
+        run: dotnet test --project src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E -c Release --no-build
