@@ -17,8 +17,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     private readonly Lock _gate = new();
     // One pull at a time: the watermark only moves after a page's signals are in the channel.
     private readonly SemaphoreSlim _pull = new(1, 1);
-    // Nudges before the starting read are ignored: the start covers them.
-    private long _watermark = long.MaxValue;
+    private long _watermark;
     private INeuronObserver? _reference;
     private Task<Guid>? _watch;
     private Task _renewal = Task.CompletedTask;
@@ -34,17 +33,18 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
             var token = _lifetime.Token;
             // Only the remote path renews; the caller's token must end a silo-local subscription too.
             token.Register(() => Finish(new OperationCanceledException(token)));
-            // Subscribers start at the latest signal; the start is taken after the watch so nothing falls between.
-            if (hub is not null)
-            {
-                hub.Subscribe(source.GetGrainId(), this);
-                await StartAsync(token).ConfigureAwait(false);
-            }
+            // Subscribers start at the latest signal. The start is read before the watch and pulled from once after
+            // it, so a signal published while the watch is being set up is neither lost nor needs a nudge.
+            await StartAsync(token).ConfigureAwait(false);
+            if (hub is not null) { hub.Subscribe(source.GetGrainId(), this); }
             else
             {
                 _reference = cluster.CreateObjectReference<INeuronObserver>(this);
                 await WatchAsync(token).ConfigureAwait(false);
-                await StartAsync(token).ConfigureAwait(false);
+            }
+            await PullAsync(token).ConfigureAwait(false);
+            if (hub is null)
+            {
                 lock (_gate)
                 {
                     token.ThrowIfCancellationRequested();
@@ -74,9 +74,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     private async Task StartAsync(CancellationToken token)
     {
         var start = await source.Read(0, 0).WaitAsync(options.OperationTimeout, token).ConfigureAwait(false);
-        await _pull.WaitAsync(token).ConfigureAwait(false);
-        try { _watermark = start.Last; }
-        finally { _pull.Release(); }
+        Volatile.Write(ref _watermark, start.Last);
     }
 
     // A reactivated neuron has forgotten its watchers; re-watching and pulling once recovers any nudge missed in the gap.

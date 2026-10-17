@@ -16,6 +16,20 @@ public interface ITestEmitter : INeuron
     Task EmitText(string value);
     Task Deactivate();
 }
+// Publishes while a watcher is connecting: right after the watcher's starting read, before it is registered.
+[Alias("test.eager-emitter")]
+public interface IEagerEmitter : INeuron;
+[GrainType("test-eager-emitter")]
+public sealed class EagerEmitter : Neuron, IEagerEmitter
+{
+    private bool _emitted;
+    public override async Task<SignalPage> Read(long since, int limit)
+    {
+        var page = await base.Read(since, limit);
+        if (!_emitted) { _emitted = true; await PublishAsync(new Number(7)); }
+        return page;
+    }
+}
 [Alias("test.other-emitter")]
 public interface IOtherEmitter : INeuron { Task Emit(int value); }
 [GrainType("test-emitter")]

@@ -71,6 +71,17 @@ public sealed class SubscriptionLifetimeFacts
     }
 
     [Fact]
+    public async Task ASignalPublishedDuringSubscribeIsNotLost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        await using var stream = await brain.SubscribeAsync<Number>(brain.Get<IEagerEmitter>("eager"), ct);
+        await using var reader = stream.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct));
+        Assert.Equal(7, reader.Current.Value);
+    }
+
+    [Fact]
     public async Task FinishingTwiceNeverThrows()
     {
         var ct = TestContext.Current.CancellationToken;
