@@ -4,10 +4,10 @@ namespace DigitalBrain.Platform.Storage;
 
 internal sealed class BrainSignalJournal(BrainLogs logs) : ISignalJournal
 {
-    public async Task Append(GrainId publisher, Signal[] signals)
+    public async Task<long> Append(GrainId publisher, Signal[] signals)
     {
         var log = await logs.For(BrainKey.BrainOf(publisher.Key.ToString()!));
-        await log.Append(publisher.ToString(), "", null, BrainRecordChange.None, [], signals, CancellationToken.None);
+        return await log.Append(publisher.ToString(), "", null, BrainRecordChange.None, [], signals, CancellationToken.None);
     }
 
     public async Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit)

@@ -63,10 +63,10 @@ public sealed class PublishManyFacts
     {
         public ConcurrentQueue<(GrainId Publisher, Signal[] Signals)> Appends { get; } = new();
 
-        public Task Append(GrainId publisher, Signal[] signals)
+        public Task<long> Append(GrainId publisher, Signal[] signals)
         {
             Appends.Enqueue((publisher, signals));
-            return Task.CompletedTask;
+            return Task.FromResult(0L);
         }
 
         public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);

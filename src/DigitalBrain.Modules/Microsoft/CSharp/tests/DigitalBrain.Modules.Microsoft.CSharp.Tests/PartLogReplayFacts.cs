@@ -149,7 +149,7 @@ public sealed class PartLogReplayFacts
 
     private sealed class UnleasedJournal : ISignalJournal
     {
-        public Task Append(GrainId publisher, Signal[] signals) => Task.CompletedTask;
+        public Task<long> Append(GrainId publisher, Signal[] signals) => Task.FromResult(0L);
         public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
         public Task<PartSignals?> SignalsOf(GrainId publisher, long since)
             => throw new ServiceUnavailableException($"The part of {publisher} is leased by another machine.");
@@ -168,10 +168,10 @@ public sealed class PartLogReplayFacts
             return failed.Task;
         }
 
-        public Task Append(GrainId publisher, Signal[] signals)
+        public Task<long> Append(GrainId publisher, Signal[] signals)
         {
             lock (_logs) { (_logs.TryGetValue(publisher, out var log) ? log : _logs[publisher] = []).AddRange(signals); }
-            return Task.CompletedTask;
+            return Task.FromResult(0L);
         }
 
         public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);

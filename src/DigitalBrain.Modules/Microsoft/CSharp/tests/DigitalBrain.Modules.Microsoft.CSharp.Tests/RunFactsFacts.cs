@@ -671,10 +671,10 @@ public sealed class RunFactsFacts
 
         public T[] Facts<T>(GrainId publisher) where T : Signal => [.. Of(publisher).SelectMany(append => append.Signals).OfType<T>()];
 
-        public Task Append(GrainId publisher, Signal[] signals)
+        public Task<long> Append(GrainId publisher, Signal[] signals)
         {
             _appends.Enqueue((publisher, signals));
-            return Task.CompletedTask;
+            return Task.FromResult(0L);
         }
 
         public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);

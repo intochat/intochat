@@ -1,17 +1,17 @@
 namespace DigitalBrain.Framework;
 
 // Where a neuron's signals become durable before anyone sees them (Q27). Hosts without a part log journal
-// nothing; on a machine, signals ride in the same log entry as the state write that caused them, or alone.
+// in memory; on a machine, signals ride in the same log entry as the state write that caused them, or alone.
 public interface ISignalJournal
 {
-    // A signal published without a state write: durable once this completes.
-    Task Append(GrainId publisher, Signal[] signals);
+    // A signal published without a state write: durable once this completes. Returns the sequence of the last signal.
+    Task<long> Append(GrainId publisher, Signal[] signals);
 
     // The brain's journalled signals after `since` (0 reads from the start), in sequence order, at most `limit`.
     Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit);
 
-    // One publisher's signals in entries after part-log seq `since`, each with its entry's seq; null on a host that
-    // journals nothing. Throws ServiceUnavailableException when the publisher's part is leased by another machine.
+    // One publisher's signals in entries after part-log seq `since`, each with its entry's seq.
+    // Throws ServiceUnavailableException when the publisher's part is leased by another machine.
     Task<PartSignals?> SignalsOf(GrainId publisher, long since);
 }
 
@@ -57,13 +57,4 @@ public static class SignalJournal
     {
         public void Dispose() => Pending.Value = previous;
     }
-}
-
-internal sealed class NoSignalJournal : ISignalJournal
-{
-    public Task Append(GrainId publisher, Signal[] signals) => Task.CompletedTask;
-
-    public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
-
-    public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => Task.FromResult<PartSignals?>(null);
 }
