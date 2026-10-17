@@ -9,5 +9,6 @@
     <ProjectReference Include="../../../../DigitalBrain/Circles/DigitalBrain.Modules.Circles/DigitalBrain.Modules.Circles.csproj" />
     <ProjectReference Include="../../../../DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <None Include="Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

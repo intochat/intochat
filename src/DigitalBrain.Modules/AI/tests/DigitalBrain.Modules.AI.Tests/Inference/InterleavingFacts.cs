@@ -33,13 +33,13 @@ public sealed class InterleavingFacts
         var gate = new Gate(calls);
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithChatModel(gate.Client).StartAsync(ct);
         var llm = brain.Get<ILLM>(Model);
-        var watcher = new Recorder();
-        var reference = Factory(brain).CreateObjectReference<INeuronObserver>(watcher);
-        await llm.Watch(reference);
+        var watcher = new Recorder(llm);
+        await watcher.Start(brain);
 
         await Task.WhenAll(Enumerable.Range(0, calls).Select(i => llm.Generate(Ask("call " + i), ct)));
 
-        // A publish awaits every observer, so all of a call's signals are delivered before it returns.
+        // A call's signals are journalled before it returns, so reading after the cursor sees all of them.
+        await watcher.Pull();
         var starts = watcher.Of<InferenceStarted>().Select(s => s.OperationId).ToArray();
         var ends = watcher.Of<InferenceCompleted>().Select(s => s.OperationId).ToArray();
         Assert.Equal(calls, gate.Overlap);
@@ -64,17 +64,19 @@ public sealed class InterleavingFacts
         });
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithChatModel(model).StartAsync(ct);
         var llm = brain.Get<ILLM>(Model);
-        var early = new Recorder();
-        var late = new Recorder();
-        await llm.Watch(Factory(brain).CreateObjectReference<INeuronObserver>(early));
+        var early = new Recorder(llm);
+        var late = new Recorder(llm);
+        await early.Start(brain);
 
         var first = llm.Generate(Ask("held"), ct);
         await entered.Task.WaitAsync(ct);
-        var watch = llm.Watch(Factory(brain).CreateObjectReference<INeuronObserver>(late));
+        var watch = late.Start(brain);
         release.SetResult();
         await first;
         await watch;
         await llm.Generate(Ask("after"), ct);
+        await early.Pull();
+        await late.Pull();
 
         Assert.Equal(2, early.Of<InferenceStarted>().Length);
         Assert.Equal(2, early.Of<InferenceCompleted>().Length);
@@ -85,11 +87,40 @@ public sealed class InterleavingFacts
 
     private static IGrainFactory Factory(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 
-    private sealed class Recorder : INeuronObserver
+    // On a nudge, reads the source's journal after its own cursor, page by page (as the Framework test watchers do).
+    private sealed class Recorder(INeuron source) : INeuronObserver
     {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<Signal> _signals = new();
-        public T[] Of<T>() where T : Signal => _signals.OfType<T>().ToArray();
-        public Task OnSignalAsync(Signal signal) { _signals.Enqueue(signal); return Task.CompletedTask; }
+        private const int PageSize = 100;
+        private readonly SemaphoreSlim _reading = new(1, 1);
+        private readonly List<Signal> _signals = [];
+        private long _cursor;
+
+        public T[] Of<T>() where T : Signal { lock (_signals) { return _signals.OfType<T>().ToArray(); } }
+
+        // The cursor starts before the watch, so nothing published in between is missed.
+        public async Task Start(ITestBrain brain)
+        {
+            _cursor = (await source.Read(0, 0)).Last;
+            await source.Watch(Factory(brain).CreateObjectReference<INeuronObserver>(this));
+        }
+
+        public Task Nudge(SignalNudge nudge) => Pull();
+
+        public async Task Pull()
+        {
+            await _reading.WaitAsync();
+            try
+            {
+                while (true)
+                {
+                    var page = await source.Read(_cursor, PageSize);
+                    lock (_signals) { _signals.AddRange(page.Signals); }
+                    if (page.Signals.Length < PageSize) { _cursor = Math.Max(_cursor, page.Last); return; }
+                    _cursor = page.Sequences[^1];
+                }
+            }
+            finally { _reading.Release(); }
+        }
     }
 
     private static InferenceRequest Ask(string text) => new([new("user", [new AiText(text)])]);
