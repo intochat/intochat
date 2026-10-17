@@ -46,21 +46,39 @@ public sealed class HostedPlatformStorageFacts
             SecretRef? reference = null;
             string? reminderTag = null;
             var reminderGrain = GrainId.Create("hosted-test", "job-one");
-            var caller = new CallerContext { PrincipalId = "platform", AccountId = "account-one", BrainId = "brain-one",
-                Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = "platform" };
+            var caller = new CallerContext
+            {
+                PrincipalId = "platform",
+                AccountId = "account-one",
+                BrainId = "brain-one",
+                Kind = CallerKind.Platform,
+                StampedBy = TrustedEdge.Platform,
+                AppId = "platform"
+            };
             await using (var first = await Create().StartAsync(ct))
             {
                 Assert.IsType<HostedPlatformGrainStorage>(first.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage));
                 var identity = first.Services.GetRequiredService<IIdentityClient>();
                 await identity.EnsureAccount(new Account { AccountId = "account-one", OwnerPrincipalId = "account-one", Name = "Persisted account" });
-                await identity.EnsureBrain(new Member { AccountId = "account-one", PrincipalId = "account-one", BrainId = "brain-one",
-                    DisplayName = "Persisted brain", Role = MemberRole.Owner });
+                await identity.EnsureBrain(new Member
+                {
+                    AccountId = "account-one",
+                    PrincipalId = "account-one",
+                    BrainId = "brain-one",
+                    DisplayName = "Persisted brain",
+                    Role = MemberRole.Owner
+                });
                 reference = await first.Grains.GetGrain<ISecrets>("account-one").Set(caller, "test-key", "Test", "vault-canary", ct);
                 await first.Grains.GetGrain<IIntegration>("integration/openai").Configure(new ConfigureIntegration
                 { Values = new Dictionary<string, string> { ["ApiKey"] = "registration-canary" } });
                 var reminders = Assert.IsType<HostedReminderTable>(first.Services.GetRequiredService<IReminderTable>());
-                reminderTag = await reminders.UpsertRow(new ReminderEntry { GrainId = reminderGrain, ReminderName = "scheduled-work",
-                    StartAt = DateTime.UtcNow.AddHours(1), Period = TimeSpan.FromHours(1) });
+                reminderTag = await reminders.UpsertRow(new ReminderEntry
+                {
+                    GrainId = reminderGrain,
+                    ReminderName = "scheduled-work",
+                    StartAt = DateTime.UtcNow.AddHours(1),
+                    Period = TimeSpan.FromHours(1)
+                });
             }
             await using (var second = await Create().StartAsync(ct))
             {

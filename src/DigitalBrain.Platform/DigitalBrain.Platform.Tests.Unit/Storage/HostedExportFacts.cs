@@ -51,8 +51,13 @@ public sealed class HostedExportFacts
             await log.Append("vault", "vault", null, BrainRecordChange.Write, serializer.SerializeToArray(new CustomerState("hidden-custody")), [], ct);
             var reminders = new HostedReminderTable(original.Services.GetRequiredService<BrainLogs>(), serializer,
                 global::Microsoft.Extensions.Options.Options.Create(new HostedRuntimeOptions { AccountId = "export-account", BrainId = "export-brain" }));
-            await reminders.UpsertRow(new ReminderEntry { GrainId = GrainId.Create("export-customer", scope + "/note"),
-                ReminderName = "never-execute-on-export", StartAt = DateTime.UtcNow.AddDays(1), Period = TimeSpan.FromDays(1) });
+            await reminders.UpsertRow(new ReminderEntry
+            {
+                GrainId = GrainId.Create("export-customer", scope + "/note"),
+                ReminderName = "never-execute-on-export",
+                StartAt = DateTime.UtcNow.AddDays(1),
+                Period = TimeSpan.FromDays(1)
+            });
         }
         var copy = Path.Combine(directory, "copy");
         foreach (var path in Directory.EnumerateFiles(Path.Combine(directory, "source"), "*", SearchOption.AllDirectories))
@@ -94,8 +99,11 @@ public sealed class HostedExportFacts
         app.Urls.Add("https://127.0.0.1:0");
         HostedRecoveryHost.Map(app);
         await app.StartAsync(ct);
-        using var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
-            presented?.GetCertHashString(HashAlgorithmName.SHA256) == certificate.GetCertHashString(HashAlgorithmName.SHA256) };
+        using var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
+            presented?.GetCertHashString(HashAlgorithmName.SHA256) == certificate.GetCertHashString(HashAlgorithmName.SHA256)
+        };
         handler.ClientCertificates.Add(certificate);
         using var client = new HttpClient(handler) { BaseAddress = new(app.Urls.Single()) };
         using var response = await client.GetAsync("runtime/management/v1/export", ct);

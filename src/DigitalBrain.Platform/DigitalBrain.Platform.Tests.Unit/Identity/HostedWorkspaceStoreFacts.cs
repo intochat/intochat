@@ -30,7 +30,7 @@ public sealed class HostedWorkspaceStoreFacts
         Assert.Single(outcomes, grant => grant is not null);
         var old = await recovered.IssueAsync("cloud-user", "old-runtime-session", TestContext.Current.CancellationToken);
         var different = new HostedWorkspaceStore(Options.Create(new HostedRuntimeOptions
-            { StateDirectory = directory, AccountId = "account", BrainId = "brain", RuntimeId = "different-runtime" }), clock);
+        { StateDirectory = directory, AccountId = "account", BrainId = "brain", RuntimeId = "different-runtime" }), clock);
         Assert.Null(await different.ExchangeAsync(old.Code, TestContext.Current.CancellationToken));
         Directory.Delete(directory, true);
     }
