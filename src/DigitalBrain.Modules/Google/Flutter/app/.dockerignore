@@ -5,3 +5,4 @@
 **/windows/
 **/.idea/
 **/*.iml
+**/web/config.json
