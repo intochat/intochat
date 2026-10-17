@@ -41,6 +41,8 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
+    <IsTestProject Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
