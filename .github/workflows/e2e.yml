@@ -1,0 +1,63 @@
+name: e2e
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Free space for native dependencies and container builds
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          df -h /
+
+      - name: Restore NuGet package cache
+        id: nuget-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore DigitalBrain.slnx -v quiet
+
+      - name: Build solution
+        run: dotnet build DigitalBrain.slnx -c Release -v quiet -p:CodeGraphRefresh=false
+
+      # The AppHosts build the shell and sandbox images themselves; these run the SAME Dockerfiles
+      # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
+      # inside a fact's HTTP timeout.
+      - name: Warm the shell image layer cache
+        run: docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile src/DigitalBrain.Modules/Google/Flutter/app
+
+      - name: Warm the sandbox image layer cache
+        run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
+
+      - name: Test E2E
+        run: dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E -c Release --no-build
+
+      - name: Test Framework E2E
+        run: dotnet test --project src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E -c Release --no-build

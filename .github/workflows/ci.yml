@@ -18,11 +18,10 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
 
 jobs:
-  dotnet:
-    name: .NET build and unit tests
+  ci:
+    name: ci
     runs-on: ubuntu-latest
-    # Image warm plus the suite overran 20 minutes and the test step was cancelled mid-run.
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,17 +57,9 @@ jobs:
       - name: Validate NuGet packages
         run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts
 
-      # The AppHosts build the shell and sandbox images themselves; these run the SAME Dockerfiles
-      # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
-      # inside a fact's HTTP timeout.
-      - name: Warm the shell image layer cache
-        run: docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile src/DigitalBrain.Modules/Google/Flutter/app
-
-      - name: Warm the sandbox image layer cache
-        run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
-
+      # E2E projects need containers; they run in e2e.yml on master and nightly.
       - name: Test
-        run: dotnet test -c Release --no-build
+        run: dotnet test -c Release --no-build -p:DigitalBrainE2E=false
 
       - name: Save NuGet package cache
         if: github.ref == 'refs/heads/master' && steps.nuget-cache.outputs.cache-hit != 'true'
@@ -76,43 +67,3 @@ jobs:
         with:
           path: ~/.nuget/packages
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
-
-  flutter-web-build:
-    name: Flutter analyze and web build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app/shell
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.47.2'
-          cache: true
-
-      - name: Resolve Flutter workspace
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
-        run: flutter pub get --enforce-lockfile
-
-      - name: Dart format
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
-        run: dart format --output=none --set-exit-if-changed core ui shell
-
-      - name: Analyze Flutter packages
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
-        run: |
-          (cd core && dart analyze --fatal-infos)
-          (cd ui && flutter analyze --no-pub)
-          (cd shell && flutter analyze --no-pub)
-
-      - name: Web release build
-        run: flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
-
-      - name: Flutter widget and client tests
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
-        run: |
-          (cd ui && flutter test --no-pub)
-          (cd shell && flutter test --no-pub)
