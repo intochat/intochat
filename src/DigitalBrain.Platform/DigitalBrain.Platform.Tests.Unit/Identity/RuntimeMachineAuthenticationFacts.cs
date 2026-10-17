@@ -102,8 +102,15 @@ public sealed class RuntimeMachineAuthenticationFacts
         Assert.Equal(HttpStatusCode.Forbidden, createOther.StatusCode);
         var access = app.Services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>();
         var identityClient = brain.Services.GetRequiredService<IIdentityClient>();
-        await identityClient.EnsureBrain(new Member { AccountId = "hosted-account", PrincipalId = "hosted-account",
-            BrainId = "other-brain", Role = MemberRole.Owner, DisplayName = "Other", JoinedAt = DateTimeOffset.UtcNow });
+        await identityClient.EnsureBrain(new Member
+        {
+            AccountId = "hosted-account",
+            PrincipalId = "hosted-account",
+            BrainId = "other-brain",
+            Role = MemberRole.Owner,
+            DisplayName = "Other",
+            JoinedAt = DateTimeOffset.UtcNow
+        });
         Assert.False(await access.CanAccessAsync("hosted-account", "hosted-account", "other-brain", ct));
         using var otherBrain = await anonymous.GetAsync("/brains/other-brain/management/v1/observation", ct);
         Assert.Equal(HttpStatusCode.Forbidden, otherBrain.StatusCode);
@@ -126,7 +133,9 @@ public sealed class RuntimeMachineAuthenticationFacts
         using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
         var options = new HostedRuntimeOptions
         {
-            AccountId = "account", BrainId = "brain", RuntimeId = "runtime",
+            AccountId = "account",
+            BrainId = "brain",
+            RuntimeId = "runtime",
             ControllerCertificateSha256 = matching ? certificate.GetCertHashString(HashAlgorithmName.SHA256) : new string('0', 64)
         };
         var context = new DefaultHttpContext();

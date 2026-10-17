@@ -43,13 +43,19 @@ internal static class HostedRuntimeEndpoints
         }
         await identity.EnsureAccount(new Account
         {
-            AccountId = scope.AccountId, OwnerPrincipalId = scope.AccountId,
-            Name = scope.AccountId, CreatedAt = clock.GetUtcNow()
+            AccountId = scope.AccountId,
+            OwnerPrincipalId = scope.AccountId,
+            Name = scope.AccountId,
+            CreatedAt = clock.GetUtcNow()
         }).WaitAsync(ct);
         var provision = await identity.EnsureBrain(new Member
         {
-            PrincipalId = scope.AccountId, AccountId = scope.AccountId, BrainId = scope.BrainId,
-            Role = MemberRole.Owner, DisplayName = scope.BrainId, JoinedAt = clock.GetUtcNow()
+            PrincipalId = scope.AccountId,
+            AccountId = scope.AccountId,
+            BrainId = scope.BrainId,
+            Role = MemberRole.Owner,
+            DisplayName = scope.BrainId,
+            JoinedAt = clock.GetUtcNow()
         }).WaitAsync(ct);
         await births.Born(provision).WaitAsync(ct);
         return await ObserveAsync(options, identity, services, ct);
