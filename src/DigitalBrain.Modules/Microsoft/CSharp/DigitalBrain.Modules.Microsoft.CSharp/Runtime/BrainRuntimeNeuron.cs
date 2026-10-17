@@ -20,7 +20,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Concurrency;
 using Orleans.Metadata;
-using Orleans.Serialization.Invocation;
 using Orleans.Timers;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -31,10 +30,9 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 // backstop that relaunches a lost session, not the detector. What the synapses' runs do becomes facts that
 // the brain's runs neuron publishes, one hand-off per turn after the turn's write.
 // Every script call and every live signal of the brain passes through here, so a turn holds only state
-// changes: the pure reads interleave (their contracts say so), a live signal is a nudge noted without a
-// turn, compiling happens before an Assign takes its turn, and pricing a run happens after the ack's.
+// changes: the pure reads interleave (their contracts say so), a live signal is a one-way nudge whose turn
+// reads the source's log, compiling happens before an Assign takes its turn, and pricing a run happens after the ack's.
 [GrainType(GrainTypeName)]
-[MayInterleave(nameof(IsNudge))]
 internal sealed class BrainRuntimeNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainRuntimeState> store,
     SessionRunner runner,
@@ -87,15 +85,11 @@ internal sealed class BrainRuntimeNeuron(
     private Task _recording = Task.CompletedTask;
     private readonly List<RunFact> _pendingRecords = [];
     private bool _announceRuns, _announceOwed, _recordingFailed;
-    // Signals accepted by OnSignalAsync whose Arrived turn has not finished. Arrived is one-way, so a
-    // completion can otherwise look idle before the behavior that signal starts is marked started.
-    private int _arrivals;
+    // Nudge turns still reading their source: Inspect interleaves, so a read in flight must not look idle.
+    private int _reading;
     // Tokens for work a neuron detached from its caller. The turn stays open until that work signals.
     private readonly HashSet<string> _continuations = new(StringComparer.Ordinal);
     private const int MaximumContinuations = 64;
-    // Sources a live signal nudged about that no read of their log has covered since: a nudge whose arrival
-    // expired in the queue or failed is read by the next reminder, not left until the source publishes again.
-    private readonly HashSet<string> _nudged = new(StringComparer.Ordinal);
     // Programs compiled and stored while the runtime went on, each waiting for its turn, by ticket.
     private readonly Dictionary<long, CompiledProgram> _compiled = [];
     // Per owner, the ticket of its program's last change (an Assign applied, or a Retire): an Assign that started
@@ -118,11 +112,6 @@ internal sealed class BrainRuntimeNeuron(
 
     // The traces still held for pushed batches; a settled batch lets go of its trace.
     internal int TracedBatches => _batchTraces.Count;
-
-    // A live signal from a watched source is only a nudge, noted without waiting for a turn, so its publisher
-    // never waits on this runtime. Orleans lets anything interleave with a request this predicate admits while
-    // that request runs, so it admits only OnSignalAsync, which completes synchronously.
-    public static bool IsNudge(IInvokable request) => request.GetInterfaceType() == typeof(INeuronObserver);
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
@@ -148,8 +137,8 @@ internal sealed class BrainRuntimeNeuron(
     // Independent parallel initializers and downstream projections are not covered.
     private bool IsReady() => Snapshot.Session?.Status == SessionStatus.Connected
         && Snapshot.Programs.Any(program => program.Behaviors.Length > 0)
-        && _assigning.Count == 0 && _compiled.Count == 0 && _nudged.Count == 0 && _started.Count == 0
-        && _arrivals == 0 && _continuations.Count == 0
+        && _assigning.Count == 0 && _compiled.Count == 0 && _reading == 0 && _started.Count == 0
+        && _continuations.Count == 0
         && Snapshot.Subscriptions.All(subscription => subscription.Pending.Length == 0)
         && Snapshot.Programs.All(program => program.Behaviors.All(behavior =>
             Snapshot.Initialized.GetValueOrDefault(behavior.Id(program.Owner)) == AssignmentRevision(program, behavior)
@@ -604,56 +593,14 @@ internal sealed class BrainRuntimeNeuron(
         return assigned;
     }
 
-    // Interleaved (IsNudge): notes the source and leaves the reading to an arrival in a turn of its own.
-    Task INeuronObserver.OnSignalAsync(Signal signal)
+    // One-way, so the publisher never waits on this runtime; a source already read past the nudge is not read again.
+    async Task INeuronObserver.Nudge(SignalNudge nudge)
     {
-        var source = signal.Publisher.Name;
-        var name = signal.GetType().Name;
-        if (!Snapshot.Subscriptions.Any(s => s.Signal == name && s.Neuron == source && SubscriptionFilter.Delivers(s.Behavior, s.Selector, signal))) { return Task.CompletedTask; }
-        _nudged.Add(source);
-        _arrivals++;
-        return this.AsReference<IBrainRuntimeArrivals>().Arrived(signal);
-    }
-
-    public async Task Arrived(Signal signal)
-    {
-        try
-        {
-            _facts.Clear();
-            var source = signal.Publisher.Name;
-            // Read now: a nudge that comes while the read is in flight marks the source again, a failed read keeps it marked.
-            _nudged.Remove(source);
-            bool journaled;
-            try { journaled = await CatchUpAsync(source); }
-            catch { _nudged.Add(source); throw; }
-            if (journaled) { Flush(); return; }
-            var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
-            var name = signal.GetType().Name;
-            var cap = options.Value.MaximumPending;
-            var arrived = new List<Subscription>();
-            var drops = new List<(Subscription Buffered, long Count)>();
-            var next = Snapshot.Subscriptions.Select(s =>
-            {
-                if (s.Signal != name || s.Neuron != signal.Publisher.Name || !Accepted(s) || !SubscriptionFilter.Delivers(s.Behavior, s.Selector, signal)) { return s; }
-                var buffered = s.Arrive(json, cap);
-                arrived.Add(buffered);
-                if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
-                return buffered;
-            }).ToArray();
-            if (arrived.Count == 0) { return; }
-            await Save(Snapshot with { Subscriptions = next }, Changed());
-            foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
-            if (Snapshot.Session is { Status: SessionStatus.Connected } session)
-            {
-                foreach (var subscription in arrived) { Push(session.Id, subscription); }
-            }
-            Flush();
-        }
-        finally
-        {
-            if (_arrivals > 0) { _arrivals--; }
-            Flush();
-        }
+        var source = nudge.Publisher.Name;
+        if (!Snapshot.Subscriptions.Any(s => s.Neuron == source && s.SourceSeq < nudge.Sequence)) { return; }
+        _reading++;
+        try { await CatchUpSourcesAsync([source]); }
+        finally { _reading--; Flush(); }
     }
 
     // A reactivated runtime has no source's acceptance yet: each source is watched on its lane, off every turn,
@@ -673,32 +620,29 @@ internal sealed class BrainRuntimeNeuron(
 
     public Task Read(string source) => CatchUpSourcesAsync([source]);
 
-    // A source whose log cannot be read now stays nudged, so the next reminder reads it again.
+    // A source whose log cannot be read now is read again by the next reminder.
     private async Task CatchUpSourcesAsync(string[] sources)
     {
         _facts.Clear();
         foreach (var neuron in sources)
         {
-            _nudged.Remove(neuron);
             try { await CatchUpAsync(neuron); }
             catch (Exception error)
             {
-                _nudged.Add(neuron);
                 logger.LogWarning(error, "Brain {Brain} could not read {Neuron}'s part log from its watermark; its next reminder retries.", Brain, neuron);
             }
         }
         Flush();
     }
 
-    // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
-    // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
-    // Only a subscription its source accepted on this activation is buffered; any other keeps its watermark.
-    private async Task<bool> CatchUpAsync(string neuron, bool push = true)
+    // The source's log after each watermark is what is buffered, read through the source itself so it works on any
+    // silo: a signal the runtime never heard live arrives too and none arrives twice. Only a subscription its source
+    // accepted on this activation is buffered; any other keeps its watermark.
+    private async Task CatchUpAsync(string neuron, bool push = true)
     {
         var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron && Accepted(s)).ToArray();
-        if (matching.Length == 0) { return true; }
-        var since = matching.Min(s => s.SourceSeq);
-        if (await journal.SignalsOf(GrainId.Parse(neuron), since) is not { } read) { return false; }
+        if (matching.Length == 0) { return; }
+        var (floor, signals) = await ReadAfterAsync(GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)), matching.Min(s => s.SourceSeq));
         var cap = options.Value.MaximumPending;
         var arrived = new List<Subscription>();
         var drops = new List<(Subscription Buffered, long Count)>();
@@ -706,29 +650,45 @@ internal sealed class BrainRuntimeNeuron(
         var next = Snapshot.Subscriptions.Select(s =>
         {
             if (s.Neuron != neuron || !Accepted(s)) { return s; }
-            if (read.Floor > s.SourceSeq)
-            { logger.LogWarning("SubscriptionGap {Subscription} {Neuron}: its watermark {Watermark} is below seq {Floor}, the oldest its source's log still serves.", s.Id, neuron, s.SourceSeq, read.Floor); }
+            if (floor > s.SourceSeq)
+            { logger.LogWarning("SubscriptionGap {Subscription} {Neuron}: its watermark {Watermark} is below seq {Floor}, the oldest its source's log still serves.", s.Id, neuron, s.SourceSeq, floor); }
             var buffered = s;
-            foreach (var item in read.Signals.Where(j => j.Sequence > s.SourceSeq && j.Signal.GetType().Name == s.Signal))
+            foreach (var item in signals.Where(j => j.Sequence > s.SourceSeq && j.Signal.GetType().Name == s.Signal))
             {
                 if (!SubscriptionFilter.Delivers(s.Behavior, s.Selector, item.Signal)) { continue; }
                 buffered = buffered.Arrive(JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json), cap);
             }
-            var through = Math.Max(Math.Max(s.SourceSeq, read.Floor), read.Signals.Length == 0 ? 0 : read.Signals[^1].Sequence);
+            var through = Math.Max(Math.Max(s.SourceSeq, floor), signals.Count == 0 ? 0 : signals[^1].Sequence);
             buffered = buffered with { SourceSeq = through };
             if (buffered.Pending.Length != s.Pending.Length || buffered.Delivered != s.Delivered) { arrived.Add(buffered); }
             if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
             changed |= buffered != s;
             return buffered;
         }).ToArray();
-        if (!changed) { return true; }
+        if (!changed) { return; }
         await Save(Snapshot with { Subscriptions = next }, Changed());
         foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
         if (push && Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
             foreach (var subscription in arrived) { Push(session.Id, subscription); }
         }
-        return true;
+    }
+
+    // Pages of the source's log after since until it has nothing newer; Floor is the newest seq it dropped unread.
+    private async Task<(long Floor, List<(long Sequence, Signal Signal)> Signals)> ReadAfterAsync(INeuron source, long since)
+    {
+        var signals = new List<(long Sequence, Signal Signal)>();
+        var floor = 0L;
+        while (true)
+        {
+            var page = await source.Read(since, options.Value.MaximumPending);
+            floor = Math.Max(floor, page.Floor);
+            since = Math.Max(since, page.Floor);
+            for (var i = 0; i < page.Signals.Length; i++) { signals.Add((page.Sequences[i], page.Signals[i])); }
+            if (page.Signals.Length == 0) { return (floor, signals); }
+            since = page.Sequences[^1];
+            if (page.Last <= since) { return (floor, signals); }
+        }
     }
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
@@ -736,7 +696,7 @@ internal sealed class BrainRuntimeNeuron(
         if (reminderName != ReconcileReminder) { return; }
         if (Snapshot.Programs.Length == 0) { await EndSessionAsync(); return; }
         if (_watched.Count == 0 && Snapshot.Subscriptions.Length > 0) { await WatchSourcesAsync(); }
-        if (_nudged.Count > 0) { await CatchUpSourcesAsync([.. _nudged]); }
+        await CatchUpSourcesAsync([.. Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal)]);
         var before = Snapshot.Session?.Id;
         await EnsureSessionAsync();
         if (Snapshot.Session is not { } session || session.Id != before) { return; }
@@ -933,7 +893,7 @@ internal sealed class BrainRuntimeNeuron(
     // Nothing accepted is still being delivered, nothing delivered is still running, no batch is
     // waiting on a behavior, and no neuron still owes this brain a signal. A buffered subscription is
     // the next script, even before the sandbox pulls it.
-    private bool ChainIdle() => _arrivals == 0 && _started.Count == 0 && _continuations.Count == 0
+    private bool ChainIdle() => _reading == 0 && _started.Count == 0 && _continuations.Count == 0
         && !Snapshot.Subscriptions.Any(subscription => subscription.Pending.Length > 0);
 
     private void Flush()

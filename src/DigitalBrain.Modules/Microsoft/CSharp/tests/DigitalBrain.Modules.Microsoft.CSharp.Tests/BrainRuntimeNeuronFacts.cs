@@ -437,6 +437,34 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Empty(await Edge(brain).PendingBatches(session));
     }
 
+    // Pending is durable: what a previous activation stored reaches the sandbox before what the source publishes next.
+    [Fact]
+    public async Task StoredPendingIsPushedBeforeNewlyReadSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var pinger = brain.Get<IPinger>("stored");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using (var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct))
+        {
+            await pinger.Ping(1);
+            await changes.NextAsync(ct: ct);
+        }
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        var resumed = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await using var resumedChanges = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+
+        await pinger.Ping(2);
+        IReadOnlyList<SignalBatchEvent> pending;
+        while ((pending = await Edge(brain).PendingBatches(resumed)).Sum(batch => batch.Signals.Length) < 2) { await resumedChanges.NextAsync(ct: ct); }
+
+        var batch = Assert.Single(pending);
+        Assert.Equal(subscription, batch.Subscription);
+        Assert.Equal([1, 2], batch.Signals.Select(SignalJson.Number).ToArray());
+    }
+
     // An older program's subscription can name a neuron type the host no longer carries; it must not
     // keep every other source from being watched.
     [Fact]

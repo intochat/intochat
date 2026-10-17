@@ -602,7 +602,12 @@ public sealed class RunFactsFacts
             .WithOptions<CSharpModule, CSharpOptions>(options => options.MaximumPending = maximumPending)
             .ConfigureServices(services =>
             {
-                services.AddSingleton<ISignalJournal>(journal).AddSingleton<ICostMeter>(meter)
+                var journaling = services.Last(descriptor => descriptor.ServiceType == typeof(ISignalJournal));
+                services.Remove(journaling);
+                services.AddSingleton<ISignalJournal>(provider => journal.Over(journaling.ImplementationInstance as ISignalJournal
+                    ?? (ISignalJournal?)journaling.ImplementationFactory?.Invoke(provider)
+                    ?? (ISignalJournal)ActivatorUtilities.CreateInstance(provider, journaling.ImplementationType!)));
+                services.AddSingleton<ICostMeter>(meter)
                     .AddSingleton<IActivationHandler<BrainRuntimeNeuron>>(activations);
                 var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
                     && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
@@ -662,25 +667,35 @@ public sealed class RunFactsFacts
         public ValueTask DisposeAsync() => Brain.DisposeAsync();
     }
 
-    // Where every publish of the brain becomes durable: the facts count each append, as the part log would.
+    // Where every publish of the brain becomes durable: the facts count each append, and the host's own journal
+    // keeps and serves them, so readers and the storage that journals state-attached facts share one sequence.
     private sealed class RunJournal : ISignalJournal
     {
         private readonly ConcurrentQueue<(GrainId Publisher, Signal[] Signals)> _appends = new();
+        private ISignalJournal _inner = null!;
+
+        public RunJournal Over(ISignalJournal inner)
+        {
+            _inner = inner;
+            return this;
+        }
 
         public (GrainId Publisher, Signal[] Signals)[] Of(GrainId publisher) => [.. _appends.Where(append => append.Publisher == publisher)];
 
         public T[] Facts<T>(GrainId publisher) where T : Signal => [.. Of(publisher).SelectMany(append => append.Signals).OfType<T>()];
 
+        // Facts the storage write journalled itself: counted here, already kept by the host's journal.
+        public void Record(GrainId publisher, Signal[] signals) => _appends.Enqueue((publisher, signals));
+
         public Task<long> Append(GrainId publisher, Signal[] signals)
         {
-            _appends.Enqueue((publisher, signals));
-            return Task.FromResult(0L);
+            Record(publisher, signals);
+            return _inner.Append(publisher, signals);
         }
 
-        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
+        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => _inner.ReadSince(brainId, since, limit);
 
-        // Nothing to read back: a host without a part log, so live signals are what arrives.
-        public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => Task.FromResult<PartSignals?>(null);
+        public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => _inner.SignalsOf(publisher, since);
     }
 
     private sealed class RecordingWrites(IGrainStorage inner, RunJournal journal) : IGrainStorage
@@ -704,7 +719,7 @@ public sealed class RunFactsFacts
             await inner.WriteStateAsync(name, id, state);
             var remaining = SignalJournal.TakePending(id);
             SignalJournal.Restore(id, remaining);
-            if (pending.Length > 0 && remaining.Length == 0) { await journal.Append(id, pending); }
+            if (pending.Length > 0 && remaining.Length == 0) { journal.Record(id, pending); }
             writes.AddOrUpdate(id, 1, (_, count) => count + 1);
         }
         public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
