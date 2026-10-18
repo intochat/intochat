@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
     <InternalsVisibleTo Include="DigitalBrain.Client.Orleans.Tests.Integration" />
     <InternalsVisibleTo Include="DigitalBrain.Client" />
+    <InternalsVisibleTo Include="DigitalBrain.Client.Orleans" />
     <InternalsVisibleTo Include="DigitalBrain.Client.Tests.Unit" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Apps.Contracts" />
     <InternalsVisibleTo Include="DigitalBrain.Testing" />
