@@ -433,14 +433,26 @@ final class DigitalBrainUiClient {
 
   /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
   /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
-  /// A reader that falls behind gets no more envelopes: the stream ends and a resubscribe replays.
-  Stream<LiveEnvelope> watchLive(
-    String brainId,
-    List<String> types,
-  ) => _serverEvents(
-    '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}',
-    'Live signals are unavailable.',
-  ).map(LiveEnvelope.fromJson).where((envelope) => !envelope.isResync);
+  /// A reader that falls behind gets `resync`: the feed reconnects and replays, so listeners read again.
+  Stream<LiveEnvelope> watchLive(String brainId, List<String> types) async* {
+    final path =
+        '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}';
+    while (true) {
+      var resync = false;
+      await for (final envelope in _serverEvents(
+        path,
+        'Live signals are unavailable.',
+      ).map(LiveEnvelope.fromJson)) {
+        if (envelope.isResync) {
+          resync = true;
+          break;
+        }
+        yield envelope;
+      }
+      // The server ended a stream this reader fell behind on: reconnecting replays current state.
+      if (!resync) return;
+    }
+  }
 
   Stream<DeploymentChanged> watchDeployment(String brainId) =>
       watchLive(brainId, ['DeploymentChanged'])

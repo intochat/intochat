@@ -72,7 +72,7 @@ final class LiveEnvelope {
   final bool replay;
   bool get isReady => type == 'ready';
 
-  /// The reader fell behind; the server ends the stream, and reconnecting replays current state.
+  /// The reader fell behind; the server ends the stream and [DigitalBrainUiClient.watchLive] reconnects.
   bool get isResync => type == 'resync';
 
   factory LiveEnvelope.fromJson(Map<String, dynamic> json) => LiveEnvelope(

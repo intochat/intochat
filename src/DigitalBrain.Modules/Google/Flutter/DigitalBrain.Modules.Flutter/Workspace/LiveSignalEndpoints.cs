@@ -52,7 +52,8 @@ internal static class LiveSignalEndpoints
     internal const int KeyBuffer = 256;
 
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
-    // A null key marks the end of the listing. A key is queued once, however often it is listed or announced.
+    // A null key marks the end of the listing. A key waiting in the buffer is not queued again, so the dedup set
+    // holds at most the buffer's keys; once read, `seen` keeps the stream from yielding it twice.
     private static async IAsyncEnumerable<INeuron> Apps(IDigitalBrain brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
         var keys = Channel.CreateBounded<string?>(new BoundedChannelOptions(KeyBuffer) { FullMode = BoundedChannelFullMode.Wait });
@@ -78,6 +79,7 @@ internal static class LiveSignalEndpoints
         HashSet<string> seen = [];
         await foreach (var key in keys.Reader.ReadAllAsync(ct))
         {
+            if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
             else if (IApp.NameOf(brainId, key) is not null && seen.Add(key)) { yield return brain.Get<IApp>(key); }
         }
