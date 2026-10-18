@@ -52,6 +52,8 @@
   "DigitalBrain.Authority/Secrets/SecretsEndpoints.cs": 2,
   "DigitalBrain.Client.Orleans/BrainClient.cs": 2,
   "DigitalBrain.Client.Orleans/SignalSubscription.cs": 2,
+  "DigitalBrain.Client.Tests.Unit/SessionConnectionFacts.cs": 1,
+  "DigitalBrain.Framework.Tests.Integration/Brain/NeuronAddressingFacts.cs": 3,
   "DigitalBrain.Framework.Tests.Integration/FilteredWatchFacts.cs": 4,
   "DigitalBrain.Framework.Tests.Integration/Kernel/KernelFacts.cs": 6,
   "DigitalBrain.Framework.Tests.Integration/TestNeurons.cs": 2,
