@@ -52,7 +52,7 @@ public static partial class Ino
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
     // instead of running twice. A turn that cannot start (a response is already running, the Model
     // setting names an unavailable model) says so on the status line and never stops the synapse.
-    public static async Task Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
+    public static async Task<AnswerOutcome> Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
         IntentBrief? brief = null, bool confirmed = false, string? memoryKey = null, Guid? intentId = null)
     {
         try
@@ -63,7 +63,7 @@ public static partial class Ino
             if ((await conversation.Read()).ActiveRun is { } running)
             {
                 // A redelivered message whose turn is still running is already being answered.
-                if (running.RunId == runId) { return; }
+                if (running.RunId == runId) { return AnswerOutcome.Started; }
                 // The message is kept in an empty draft, so sending it later is one click; typing is never replaced.
                 var composer = brain.Get<IComposer>(DataKey(brain) + "/composer");
                 var draft = await composer.Read();
@@ -73,7 +73,7 @@ public static partial class Ino
                     ? "A response is already running; your message is in the draft, send it when the response finishes."
                     : "A response is already running; send your message again when it finishes.");
                 await Advance(brain, "attention", "A response is already running");
-                return;
+                return AnswerOutcome.KeptInDraft;
             }
             var choice = snapshot.Settings.GetValueOrDefault("Model", "");
             var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
@@ -82,11 +82,13 @@ public static partial class Ino
             await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: Contracts,
                     contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
                 with { Model = model, RunId = runId, Intent = intentId?.ToString() });
+            return AnswerOutcome.Started;
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             await Status(brain, "Could not start the answer: " + Clip(error.Message));
             await Advance(brain, "attention", "Could not start the answer");
+            return AnswerOutcome.Failed;
         }
     }
 
@@ -123,7 +125,8 @@ public static partial class Ino
         return true;
     }
 
-    // A confirmed intent moves to Dispatched as its turn starts; a conflicting write is read again and retried.
+    // A confirmed intent moves to Dispatched as its turn starts; a conflicting write is read again and retried, and
+    // a third conflict fails the answer (Failed) so the request is released and tried again.
     private static async Task Dispatch(IntoChatOSConnection brain, Guid intentId, string runId)
     {
         var intents = brain.Get<IIntents>(IIntents.Key(Scope(brain)));

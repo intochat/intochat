@@ -56,13 +56,35 @@ public static class PendingStore
     public static async Task<Pending?> Read(IntoChatOSConnection brain, Guid requestId)
         => Pending.Parse((await brain.Get<IText>(EntryKey(brain, requestId)).Read()).Markdown);
 
-    public static async Task MarkStarted(IntoChatOSConnection brain, Guid requestId)
+    // Claims a request for answering: true when it was pending and not started, and now is. Claiming before the
+    // turn starts means a crash between the two loses that answer rather than giving it twice.
+    public static async Task<bool> Claim(IntoChatOSConnection brain, Guid requestId)
     {
-        if (await Read(brain, requestId) is { Started: false } pending)
-        { await brain.Get<IText>(EntryKey(brain, requestId)).Set((pending with { Started = true }).Serialize()); }
+        if (await Read(brain, requestId) is not { Started: false } pending) { return false; }
+        await brain.Get<IText>(EntryKey(brain, requestId)).Set((pending with { Started = true }).Serialize());
+        return true;
     }
 
-    public static async Task<Guid[]> Older(IntoChatOSConnection brain, TimeSpan gate)
+    public static Task MarkStarted(IntoChatOSConnection brain, Guid requestId) => Claim(brain, requestId);
+
+    // A turn that could not start gives the request back, so the scan tries it again.
+    public static async Task Release(IntoChatOSConnection brain, Guid requestId)
+    {
+        if (await Read(brain, requestId) is { Started: true } pending)
+        { await brain.Get<IText>(EntryKey(brain, requestId)).Set((pending with { Started = false }).Serialize()); }
+    }
+
+    public static bool KeepsClaim(AnswerOutcome outcome) => outcome != AnswerOutcome.Failed;
+
+    // Memory's answer under the request id: "ok" once the intent is rephrased (and confirmed when it was sure), "failed: ..." otherwise.
+    public static MemoryAnswer Classify(string text)
+        => text == "ok" ? MemoryAnswer.Ok : text.StartsWith("failed:", StringComparison.Ordinal) ? MemoryAnswer.Failed : MemoryAnswer.None;
+
+    public static Guid[] Expired(IReadOnlyDictionary<Guid, Pending> entries, DateTimeOffset now)
+        => [.. entries.Where(entry => now - entry.Value.StartedAt > Kept).Select(entry => entry.Key)];
+
+    // Every pending entry the writers' indexes name; entries older than an hour are deleted on the way.
+    public static async Task<Dictionary<Guid, Pending>> Entries(IntoChatOSConnection brain)
     {
         var entries = new Dictionary<Guid, Pending>();
         foreach (var synapse in Writers)
@@ -70,14 +92,24 @@ public static class PendingStore
             foreach (var id in Ids((await brain.Get<IText>(IndexKey(brain, synapse)).Read()).Markdown))
             { if (await Read(brain, id) is { } pending) { entries[id] = pending; } }
         }
-        var now = DateTimeOffset.UtcNow;
-        // Older than an hour is no longer worth answering: forget it instead.
-        return [.. Older(entries, now, gate).Where(id => now - entries[id].StartedAt <= Kept)];
+        foreach (var id in Expired(entries, DateTimeOffset.UtcNow))
+        {
+            await brain.Get<IText>(EntryKey(brain, id)).Set("");
+            entries.Remove(id);
+        }
+        return entries;
     }
+
+    public static async Task<Guid[]> Older(IntoChatOSConnection brain, TimeSpan gate)
+        => Older(await Entries(brain), DateTimeOffset.UtcNow, gate);
 
     private static IEnumerable<Guid> Ids(string text)
         => text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => Guid.TryParse(line, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty);
 }
+
+public enum AnswerOutcome { Started, KeptInDraft, Failed }
+
+public enum MemoryAnswer { None, Ok, Failed }
 
 public static partial class Ino
 {

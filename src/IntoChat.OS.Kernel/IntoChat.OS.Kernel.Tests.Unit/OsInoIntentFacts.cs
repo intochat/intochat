@@ -51,4 +51,31 @@ public sealed class OsInoIntentFacts
         Assert.Contains("Add two numbers", text);
         Assert.DoesNotContain("Act on this brief:", text);
     }
+
+    [Theory]
+    [InlineData(AnswerOutcome.Started, true)]
+    [InlineData(AnswerOutcome.KeptInDraft, true)]
+    [InlineData(AnswerOutcome.Failed, false)]
+    public void OnlyAFailedAnswerReleasesTheClaim(AnswerOutcome outcome, bool kept)
+        => Assert.Equal(kept, PendingStore.KeepsClaim(outcome));
+
+    [Theory]
+    [InlineData("ok", MemoryAnswer.Ok)]
+    [InlineData("failed: the agent did not answer in 30 seconds", MemoryAnswer.Failed)]
+    [InlineData("", MemoryAnswer.None)]
+    [InlineData("working", MemoryAnswer.None)]
+    public void MemorysAnswerTextIsClassified(string text, MemoryAnswer expected)
+        => Assert.Equal(expected, PendingStore.Classify(text));
+
+    [Fact]
+    public void ExpiredFindsEntriesOlderThanAnHour()
+    {
+        var old = Guid.NewGuid();
+        var entries = new Dictionary<Guid, Pending>
+        {
+            [old] = new("a", "", "c", Now.AddHours(-2), true),
+            [Guid.NewGuid()] = new("b", "", "c", Now.AddMinutes(-30), false),
+        };
+        Assert.Equal([old], PendingStore.Expired(entries, Now));
+    }
 }
