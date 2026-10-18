@@ -2,7 +2,7 @@ using System.Diagnostics;
 using DigitalBrain.Microsoft.Roslyn;
 using Microsoft.CodeAnalysis;
 
-namespace DigitalBrain.Modules.Microsoft.Roslyn.Tests;
+namespace DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit;
 
 public sealed class MSBuildSolutionLoaderFacts
 {

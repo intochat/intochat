@@ -15,7 +15,6 @@
     "DigitalBrain.Modules.Microsoft.GitHub.Tests",
     "DigitalBrain.Modules.Microsoft.Orleans.Tests",
     "DigitalBrain.Modules.Microsoft.Playwright.Tests",
-    "DigitalBrain.Modules.Microsoft.Roslyn.Tests",
     "DigitalBrain.Modules.Microsoft.Windows.Tests",
     "DigitalBrain.Modules.Monnet.Tests",
     "DigitalBrain.Modules.Postgres.Tests",

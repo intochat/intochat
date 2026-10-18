@@ -2,7 +2,7 @@ using DigitalBrain.Microsoft.Roslyn;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 
-namespace DigitalBrain.Modules.Microsoft.Roslyn.Tests;
+namespace DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit;
 
 public sealed class SolutionMapCompatibilityFacts
 {

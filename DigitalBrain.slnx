@@ -94,7 +94,7 @@
   <Folder Name="/Modules/Microsoft/Roslyn/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/DigitalBrain.Modules.Microsoft.Roslyn.Contracts/DigitalBrain.Modules.Microsoft.Roslyn.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/DigitalBrain.Modules.Microsoft.Roslyn/DigitalBrain.Modules.Microsoft.Roslyn.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/tests/DigitalBrain.Modules.Microsoft.Roslyn.Tests/DigitalBrain.Modules.Microsoft.Roslyn.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/tests/DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit/DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Aspire/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
