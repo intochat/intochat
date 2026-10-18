@@ -72,8 +72,9 @@ public sealed class FlutterWireNameFacts
 
         Assert.Equal(39, golden.Count(entry => entry.Value!.GetValue<string>().StartsWith("contract;", StringComparison.Ordinal)));
         Assert.StartsWith("contract; alias=button; grain=button; read=DigitalBrain.Flutter.Button.ButtonState;", golden["DigitalBrain.Flutter.Button.IButton"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.DoesNotContain(golden, entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=-; serialized=True", StringComparison.Ordinal));
         Assert.Equal(["DigitalBrain.Flutter.Chat.ChatRole", "DigitalBrain.Flutter.Chat.ChatRunStatus", "DigitalBrain.Flutter.WebBrowser.BrowserConnection"],
-            golden.Where(entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=-; serialized=True", StringComparison.Ordinal)).Select(entry => entry.Key));
+            golden.Where(entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=ui.", StringComparison.Ordinal) && entry.Value!.GetValue<string>().Contains("serialized=True", StringComparison.Ordinal)).Select(entry => entry.Key));
     }
 
     // ChatRole, ChatRunStatus and BrowserConnection are [GenerateSerializer] without an alias, so the bytes written for
@@ -109,6 +110,15 @@ public sealed class FlutterWireNameFacts
         Assert.Equal(golden, Convert.ToHexString(EnumBytes(key)));
         Assert.Equal(EnumSample(key), EnumRead(key, Convert.FromHexString(golden)));
     }
+
+    // Bytes written before the three enums gained an alias (CLR full name and assembly as the type name). Hex only,
+    // so no token rename can alter the literals.
+    [Theory]
+    [InlineData("object:ChatRole", "100160CD8667934469676974616C427261696E2E466C75747465722E436861742E43686174526F6C652C4469676974616C427261696E2E4D6F64756C65732E466C75747465722E436F6E74726163747305")]
+    [InlineData("object:ChatRunStatus", "100101A87C4D9D4469676974616C427261696E2E466C75747465722E436861742E4368617452756E5374617475732C4469676974616C427261696E2E4D6F64756C65732E466C75747465722E436F6E74726163747311")]
+    [InlineData("object:BrowserConnection", "10011C9DFDC0B14469676974616C427261696E2E466C75747465722E57656242726F777365722E42726F77736572436F6E6E656374696F6E2C4469676974616C427261696E2E4D6F64756C65732E466C75747465722E436F6E7472616374730D")]
+    public void BytesWrittenBeforeTheAliasStillRead(string key, string legacyHex)
+        => Assert.Equal(EnumSample(key), EnumRead(key, Convert.FromHexString(legacyHex)));
 
     [Fact(Explicit = true)]
     public void CaptureFlutterWireNames()

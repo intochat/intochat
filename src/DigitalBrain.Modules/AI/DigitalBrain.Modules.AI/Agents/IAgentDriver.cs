@@ -2,6 +2,7 @@ namespace DigitalBrain.AI.Agents;
 
 // Start hands the turn to this one-way self-reference, so the caller's request ends while the
 // turn runs on the agent's own scheduler. Interleaving lets Read and Cancel reach the agent meanwhile.
+[Alias("ai.agent-driver")]
 internal interface IAgentDriver : IGrainWithStringKey
 {
     [Orleans.Concurrency.OneWay, Orleans.Concurrency.AlwaysInterleave] Task Drive(AgentTurn turn, string runId);

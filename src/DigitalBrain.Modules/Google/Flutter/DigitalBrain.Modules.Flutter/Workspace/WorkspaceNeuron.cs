@@ -117,7 +117,7 @@ internal sealed class WorkspaceNeuron(
     }
 }
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.workspace-storage")]
 internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
 {
     [Id(0)] public long Revision { get; init; }
@@ -132,5 +132,5 @@ internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
     { Revision = checked(Revision + 1), Operations = [.. Operations.TakeLast(63), operationId] };
 }
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.workspace-receipt")]
 internal sealed record WorkspaceReceipt([property: Id(0)] string Id, [property: Id(1)] string Digest);

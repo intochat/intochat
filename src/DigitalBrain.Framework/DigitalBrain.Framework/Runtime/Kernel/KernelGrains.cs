@@ -4,6 +4,7 @@ namespace DigitalBrain.Framework;
 
 // One partition of the instance directory: every instance of one grain type in one brain, keyed
 // "{brain}/{type}". Not an INeuron, so no brain.Get, contract catalog or MCP surface can reach it.
+[Alias("kernel.instance-directory")]
 internal interface IInstanceDirectory : IGrainWithStringKey
 {
     Task Register(string key, string? creator);
@@ -12,6 +13,7 @@ internal interface IInstanceDirectory : IGrainWithStringKey
 }
 
 // The grain types a brain has instances of, keyed "{brain}".
+[Alias("kernel.instance-types")]
 internal interface IInstanceTypes : IGrainWithStringKey
 {
     Task Add(string type);
@@ -19,6 +21,7 @@ internal interface IInstanceTypes : IGrainWithStringKey
 }
 
 // The brain neuron publishes the kernel's instance signals, so they arrive with the brain as publisher.
+[Alias("kernel.announcer")]
 internal interface IKernelAnnouncer : IGrainWithStringKey
 {
     [Orleans.Concurrency.OneWay] Task Announce(Signal signal);
@@ -124,6 +127,7 @@ internal static class TypeTableKey
 
 // The types a brain knows, keyed "{brain}": the host's compiled layer, then the brain's own features.
 // Unscoped discovery has no brain journal and must never activate persistent feature state.
+[Alias("kernel.compiled-type-table")]
 internal interface ICompiledTypeTable : IGrainWithStringKey
 {
     Task<TypeEntry[]> List();
@@ -135,6 +139,7 @@ internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, IC
     public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(GrainFactory));
 }
 
+[Alias("kernel.type-table")]
 internal interface ITypeTable : IGrainWithStringKey
 {
     Task<TypeEntry[]> List();

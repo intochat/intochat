@@ -5,6 +5,7 @@ namespace DigitalBrain.Apps;
 
 // The fast-path writer's side of an app, plumbing no edge can address (not an INeuron contract): the writer
 // deploys outside the app's turn, so the app hands it the program to run and the principal it runs as.
+[Alias("apps.deploy")]
 internal interface IAppDeploy : IGrainWithStringKey
 {
     // Queue after activation and serialize with edits; INeuron.Watch already interleaves runtime callbacks.

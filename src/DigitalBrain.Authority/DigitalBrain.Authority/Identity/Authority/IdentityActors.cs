@@ -3,6 +3,7 @@ using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Authority.Identity.Authority;
 
+[Alias("identity.principal")]
 internal interface IPrincipal : IGrainWithStringKey
 {
     Task<BrainProvision> Register(string displayName);
@@ -15,6 +16,7 @@ internal interface IPrincipal : IGrainWithStringKey
     [Orleans.Concurrency.OneWay] Task Left(string brainId);
 }
 
+[Alias("identity.account-grain")]
 internal interface IAccount : IGrainWithStringKey
 {
     Task EnsureCreated(Account account);
@@ -24,6 +26,7 @@ internal interface IAccount : IGrainWithStringKey
     Task<bool> EnsureBrain(Member owner);
 }
 
+[Alias("identity.brain-authority")]
 internal interface IBrainAuthority : IGrainWithStringKey
 {
     Task Initialize(string accountId, string brainId);

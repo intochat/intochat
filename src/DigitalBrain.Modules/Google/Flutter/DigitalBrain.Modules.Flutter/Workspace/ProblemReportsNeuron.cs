@@ -4,7 +4,7 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.Workspace;
 
-[GrainType("intochat.problem-reports")]
+[GrainType("ui.problem-reports")]
 internal sealed class ProblemReportsNeuron(
     [PersistentState("problem-reports", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ProblemReportsState> store)
     : Neuron, IProblemReports

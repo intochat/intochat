@@ -14,7 +14,7 @@ public interface IWebBrowser : INeuron
 
 // The shell reads the connection by name.
 [JsonConverter(typeof(JsonStringEnumConverter<BrowserConnection>))]
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.browser-connection")]
 public enum BrowserConnection { Waiting, Attached, Unavailable, Failed }
 
 [GenerateSerializer, Alias("ui.webbrowser-state")]

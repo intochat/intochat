@@ -12,6 +12,7 @@ namespace DigitalBrain;
 /// Every signal a neuron publishes is stamped with its <see cref="NeuronId"/> by the runtime, so
 /// provenance is never forged.
 /// </remarks>
+[Alias("kernel.neuron")]
 public interface INeuron : IGrainWithStringKey
 {
     /// <summary>

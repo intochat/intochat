@@ -6,6 +6,7 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Authority.Marketplace;
 
 // Published listings owned by local accounts.
+[Alias("marketplace.catalog")]
 internal interface IMarketplaceCatalog : IGrainWithStringKey
 {
     const string Key = "catalog";

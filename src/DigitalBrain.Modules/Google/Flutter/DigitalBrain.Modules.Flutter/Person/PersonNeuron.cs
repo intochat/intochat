@@ -29,6 +29,7 @@ internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.C
 
 // Module-only leaf access after the viewer Space neuron authorizes the exact reference.
 [Orleans.Metadata.DefaultGrainType(UIVocabulary.PersonType)]
+[Alias("ui.shared-person-reader")]
 internal interface ISharedPersonReader : IGrainWithStringKey
 {
     Task<PersonState> Read();

@@ -51,7 +51,7 @@ internal sealed class ViewNeuron([PersistentState("state", DigitalBrainNames.Clu
     }
 }
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.view-state")]
 internal sealed class ViewState
 {
     [Id(0)] public UiView? View { get; set; }
