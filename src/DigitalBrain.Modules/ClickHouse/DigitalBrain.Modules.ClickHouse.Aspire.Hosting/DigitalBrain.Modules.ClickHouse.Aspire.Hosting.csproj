@@ -14,5 +14,6 @@
     <ProjectReference Include="../DigitalBrain.Modules.ClickHouse.Contracts/DigitalBrain.Modules.ClickHouse.Contracts.csproj" />
     <ProjectReference Include="../DigitalBrain.Modules.ClickHouse/DigitalBrain.Modules.ClickHouse.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../../DigitalBrain.Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
   </ItemGroup>
 </Project>
