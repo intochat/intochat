@@ -86,7 +86,8 @@ public sealed class VocabularyRingFacts
     public void TheBrainSeenByAProgramHasExactlyGetOnSelfAndKernel()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
-        Assert.Equal(["Get", "On", "On", "On", "React", "React"], methods);
+        // Neuron is the transitional brain-relative resolver (clean-core 2a); it goes when Get becomes relative (2f).
+        Assert.Equal(["Get", "Neuron", "On", "On", "On", "React", "React"], methods);
         var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ThenBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
         Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
         Assert.Equal([typeof(Sources), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
@@ -100,6 +101,9 @@ public sealed class VocabularyRingFacts
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());
+        var neuron = typeof(IDigitalBrain).GetMethod("Neuron")!;
+        Assert.Equal([typeof(NeuronId)], neuron.GetParameters().Select(p => p.ParameterType));
+        Assert.Contains(typeof(INeuron), neuron.GetGenericArguments()[0].GetGenericParameterConstraints());
     }
 
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()
