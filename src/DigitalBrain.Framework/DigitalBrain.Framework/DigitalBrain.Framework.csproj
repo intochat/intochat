@@ -15,4 +15,5 @@
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Framework.Tests.Integration" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Architecture.Tests.Unit" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Runtime.InMemory" /></ItemGroup>
 </Project>

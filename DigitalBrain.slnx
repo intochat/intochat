@@ -21,6 +21,8 @@
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.Integration/DigitalBrain.Framework.Tests.Integration.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Runtime.InMemory.Tests.Unit/DigitalBrain.Runtime.InMemory.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Runtime.InMemory/DigitalBrain.Runtime.InMemory.csproj" />
   </Folder>
   <Folder Name="/Mcp/">
     <Project Path="src/DigitalBrain.Mcp/DigitalBrain.Mcp.Tests.Integration/DigitalBrain.Mcp.Tests.Integration.csproj" />
@@ -181,6 +183,7 @@
     <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
     <Project Path="src/DigitalBrain.Modules/Time/tests/DigitalBrain.Modules.Time.Tests.Integration/DigitalBrain.Modules.Time.Tests.Integration.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Time/tests/DigitalBrain.Modules.Time.Tests.Unit/DigitalBrain.Modules.Time.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Twilio/">
     <Project Path="src/DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio.Aspire.Hosting/DigitalBrain.Modules.Twilio.Aspire.Hosting.csproj" />
