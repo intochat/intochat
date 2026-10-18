@@ -22,6 +22,15 @@
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <RuntimeIdentifier></RuntimeIdentifier>
   </PropertyGroup>
+  <!-- Opt-in: dump generator output to artifacts/generated/<project> for inspection. -->
+  <PropertyGroup Condition="'$(IntoChatOSEmitGenerated)' == 'true'">
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(MSBuildThisFileDirectory)artifacts/generated/$(MSBuildProjectName)</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IntoChatOSEmitGenerated)' == 'true'">
+    <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**" />
+  </ItemGroup>
+
   <PropertyGroup>
     <IntoChatOSVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</IntoChatOSVersion>
     <VersionPrefix>$(IntoChatOSVersion)</VersionPrefix>
@@ -32,6 +41,7 @@
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client.Orleans' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Client'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Aspire'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Playwright'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Identity'
         Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</IntoChatOSSdkPackage>
     <PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>

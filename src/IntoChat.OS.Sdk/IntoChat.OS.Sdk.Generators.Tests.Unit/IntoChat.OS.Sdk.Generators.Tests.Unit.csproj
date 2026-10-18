@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- Same version Orleans pulls transitively; VersionOverride avoids a central entry (which would downgrade the Roslyn module). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.0.0" />
+    <ProjectReference Include="../IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="../IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+</Project>

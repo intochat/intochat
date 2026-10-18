@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
   </ItemGroup>
