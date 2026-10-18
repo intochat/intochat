@@ -6,6 +6,7 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -322,7 +323,10 @@ public sealed class AspireTestSession : IAsyncDisposable
             .UseOrleansClient(client =>
             {
                 if (connection is not null)
-                { client.UseAzureStorageClustering(storage => storage.TableServiceClient = new Azure.Data.Tables.TableServiceClient(connection)); }
+                {
+                    var settings = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = OrleansStorageHosting.ClusteringClient(settings, connection));
+                }
                 else
                 {
                     var endpoint = App.GetEndpoint(_serverName, "orleans-gateway");

@@ -15,6 +15,10 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId("orlea
         .OffersSecret(OrleansStorageHosting.ClusteringField)
         .OffersSecret(OrleansStorageHosting.GrainStateField)
         .OffersSecret(OrleansStorageHosting.RemindersField)
+        .OffersSetting(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)
+        .OffersSetting(OrleansStorageHosting.GrainStateField + StorageEndpoint.UriSuffix)
+        .OffersSetting(OrleansStorageHosting.RemindersField + StorageEndpoint.UriSuffix)
+        .OffersSetting(StorageEndpoint.ManagedIdentityClientIdField)
         .OffersSetting(OrleansStorageHosting.GrainStateContainerField);
 
     public static ConnectorDefinition Connector => new("orleans", "Orleans", ["deployment"], ["orleans"])
