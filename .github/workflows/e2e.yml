@@ -32,9 +32,17 @@ jobs:
 
       - name: Free space for native dependencies and container builds
         run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \n            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \n            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \
+            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
           docker image prune --all --force > /dev/null
-          df -h /
+          # The four ArtCraft Rust builds alone outgrow the root disk; docker's data goes to the runner's /mnt disk.
+          sudo systemctl stop docker docker.socket
+          sudo mkdir -p /mnt/docker
+          { sudo cat /etc/docker/daemon.json 2>/dev/null || echo '{}'; } | jq '. + {"data-root":"/mnt/docker"}' | sudo tee /etc/docker/daemon.json.new > /dev/null
+          sudo mv /etc/docker/daemon.json.new /etc/docker/daemon.json
+          sudo systemctl start docker
+          df -h / /mnt
 
       - name: Restore NuGet package cache
         id: nuget-cache
@@ -87,7 +95,9 @@ jobs:
 
       - name: Free space for the full nightly build
         run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \n            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \n            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \
+            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
           docker image prune --all --force > /dev/null
           df -h /
 
