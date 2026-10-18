@@ -47,6 +47,27 @@ public sealed class LocalObserverFacts
         Assert.Equal(Enumerable.Range(0, 1100), read.Cast<Number>().Select(number => number.Value));
     }
 
+    // A flush that began while an observer had nudges queued must not wait on that observer once it leaves:
+    // its queued nudges are never delivered, so they never drain.
+    [Fact]
+    public async Task AFlushIsNotHeldByAnObserverThatLeavesWithNudgesQueued()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var hub = new LocalSignalHub(NullLogger<LocalSignalHub>.Instance);
+        var id = GrainId.Create("test", "leaving");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new Observer(_ => { entered.TrySetResult(); return held.Task; });
+        hub.Subscribe(id, observer);
+        hub.Publish(id, new SignalNudge(new(id.ToString()), 1));
+        hub.Publish(id, new SignalNudge(new(id.ToString()), 2));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        var flush = hub.FlushAsync(ct);
+        hub.Unsubscribe(id, observer);
+        await flush.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Equal(1, observer.Deliveries);
+    }
+
     private sealed class Observer(Func<SignalNudge, Task> receive) : INeuronObserver, ILocalSignalFaultSink
     {
         public int Deliveries { get; private set; }
