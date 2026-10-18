@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -118,6 +117,9 @@ jobs:
     needs: [e2e, browser]
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     timeout-minutes: 5
     steps:
       - name: Open or update the nightly issue
@@ -128,5 +130,7 @@ jobs:
         run: |
           title="nightly red: $(date -u +%F)"
           body="$GITHUB_WORKFLOW failed on ${GITHUB_SHA::9} (${{ github.event_name }}): $RUN_URL"
-          number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")
-          if [ -n "$number" ]; then gh issue comment "$number" --body "$body"; else gh issue create --title "$title" --body "$body"; fi
+          number=$(gh issue list --state open --limit 50 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          if [ -n "$number" ]; then gh issue comment "$number" --body "$body"
+          else gh label create nightly --force --color B60205 --description "Nightly E2E/Browser failure" > /dev/null
+            gh issue create --title "$title" --body "$body" --label nightly; fi
