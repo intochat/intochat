@@ -5,9 +5,9 @@ using DigitalBrain.Twilio;
 using DigitalBrain.Twilio.Signals;
 using Xunit;
 
-namespace DigitalBrain.Modules.Twilio.Tests;
+namespace DigitalBrain.Modules.Twilio.Tests.Integration;
 
-public sealed class TwilioFacts
+public sealed class TwilioFacts(TwilioHost shared)
 {
     private const string DeploySid = "ACdeploy";
     private const string DeployToken = "deploy-token";
@@ -15,6 +15,7 @@ public sealed class TwilioFacts
     private const string Credentials = "AccountSid=ACmine;AuthToken=mine-token;From=+15550001111";
     private const string PublicOrigin = "https://brain.example/";
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionSendsWithTheIntegrationsAccount()
     {
@@ -40,6 +41,7 @@ public sealed class TwilioFacts
         Assert.Equal(DeploySid, (await host.Brain.Get<IConnection>(host.DeploymentKey).Read()).Account);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionProbesConnectedOrFailing()
     {
@@ -58,6 +60,7 @@ public sealed class TwilioFacts
         Assert.Contains(host.Fake.Requests, r => r.Path == $"/2010-04-01/Accounts/{DeploySid}.json");
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APastedCredentialsConnectionSendsWithItsOwnAccount()
     {
@@ -78,6 +81,7 @@ public sealed class TwilioFacts
         Assert.DoesNotContain("mine-token", view.ToString(), StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARepeatedClientReferenceDoesNotSendTwice()
     {
@@ -93,6 +97,7 @@ public sealed class TwilioFacts
         Assert.Equal(first, again);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnauthorizedAccountYieldsSmsFailedAndAFailingProbe()
     {
@@ -116,6 +121,7 @@ public sealed class TwilioFacts
         Assert.Contains(host.Fake.Requests, r => r.Path == "/2010-04-01/Accounts/ACmine.json");
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnInvalidNumberRefusalCarriesTwiliosErrorCode()
     {
@@ -133,6 +139,7 @@ public sealed class TwilioFacts
         Assert.Empty(await sms.ReadRecent(10));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnavailableTwilioPublishesSmsFailedThenThrows()
     {
@@ -148,6 +155,7 @@ public sealed class TwilioFacts
         Assert.Contains("503", (await failed.NextAsync(ct: ct)).Detail, StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData("987654321")]
     [InlineData("+0987654321")]
@@ -169,10 +177,10 @@ public sealed class TwilioFacts
     public async Task ASignedStatusCallbackForTheBrainPublishesSmsDeliveredOnceEvenWhenDeliveredTwice()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await Host.StartAsync(ct);
+        await using var host = await Host.ForPersonAsync(shared, ct);
         var sms = await host.DeploymentAsync();
         SmsMessage message;
-        using (host.Brain.Owner.AsCaller()) { message = await sms.Send(new("+51987654321", "hello")); }
+        using (host.Owner.AsCaller()) { message = await sms.Send(new("+51987654321", "hello")); }
         await using var delivered = await host.Brain.Observe<SmsDelivered>(sms, ct);
 
         using var first = await host.PostStatusAsync(DeployToken, DeploySid, message.Sid, "delivered", ct);
@@ -184,7 +192,7 @@ public sealed class TwilioFacts
         Assert.Equal(new SmsDelivered(message.Sid, "delivered"), await delivered.NextAsync(ct: ct) with { Publisher = default, Trace = default });
         // The repeat published nothing: the next signal is the later status.
         Assert.Equal("read", (await delivered.NextAsync(ct: ct)).Status);
-        using var caller = host.Brain.Owner.AsCaller();
+        using var caller = host.Owner.AsCaller();
         Assert.Equal("read", Assert.Single(await sms.ReadRecent(1)).Status);
     }
 
@@ -192,10 +200,10 @@ public sealed class TwilioFacts
     public async Task AConnectionReceivesItsOwnAccountsStatusCallbacks()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await Host.StartAsync(ct);
+        await using var host = await Host.ForPersonAsync(shared, ct);
         var key = await host.ConnectAsync();
         SmsMessage message;
-        using (host.Brain.Owner.AsCaller()) { message = await host.Brain.Get<ITwilioSms>(key).Send(new("+51987654321", "hello")); }
+        using (host.Owner.AsCaller()) { message = await host.Brain.Get<ITwilioSms>(key).Send(new("+51987654321", "hello")); }
         await using var failed = await host.Brain.Observe<SmsFailed>(host.Brain.Get<ITwilioSms>(key), ct);
 
         using var response = await host.PostStatusAsync("mine-token", "ACmine", message.Sid, "undelivered", ct, errorCode: "30003");
@@ -210,10 +218,10 @@ public sealed class TwilioFacts
     public async Task AnUnknownBrainIdIs404AForgedSignatureIs403AndAnotherAccountSidPublishesNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await Host.StartAsync(ct);
+        await using var host = await Host.ForPersonAsync(shared, ct);
         var sms = await host.DeploymentAsync();
         SmsMessage message;
-        using (host.Brain.Owner.AsCaller()) { message = await sms.Send(new("+51987654321", "hello")); }
+        using (host.Owner.AsCaller()) { message = await sms.Send(new("+51987654321", "hello")); }
 
         using var badBrain = await host.PostStatusAsync(DeployToken, DeploySid, message.Sid, "delivered", ct, brainId: "@nobody");
         using var forged = await host.PostStatusAsync("not-the-token", DeploySid, message.Sid, "delivered", ct);
@@ -224,7 +232,7 @@ public sealed class TwilioFacts
         Assert.Equal(HttpStatusCode.Forbidden, forged.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, unsigned.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, other.StatusCode);
-        using var caller = host.Brain.Owner.AsCaller();
+        using var caller = host.Owner.AsCaller();
         Assert.Equal("queued", Assert.Single(await sms.ReadRecent(1)).Status);
     }
 
@@ -236,31 +244,39 @@ public sealed class TwilioFacts
         Assert.Equal("vNe7KK2kJwCsxc9K3OLkkKB3qqI=", TwilioSignature.Compute("12345", "https://example.com/myapp.php?foo=1&bar=2", fields));
     }
 
-    private sealed class Host(ITestBrain brain, FakeTwilio fake) : IAsyncDisposable
+    internal static TestBrain Compose(TestBrain brain, FakeTwilio fake) => Host.Compose(brain, fake);
+
+    private sealed class Host(ITestBrain brain, FakeTwilio fake, Person? person = null) : IAsyncDisposable
     {
         public ITestBrain Brain => brain;
         public FakeTwilio Fake => fake;
-        public string DeploymentKey => ConnectionKeys.For(brain.Owner.BrainId, "twilio", "deployment");
-        public string StatusUrl => StatusUrlFor(brain.Owner.BrainId);
+        public Person Owner => person ?? brain.Owner;
+        public string DeploymentKey => ConnectionKeys.For(Owner.BrainId, "twilio", "deployment");
+        public string StatusUrl => StatusUrlFor(Owner.BrainId);
 
         private static string StatusUrlFor(string brainId) => $"{PublicOrigin}twilio/status/{Uri.EscapeDataString(brainId)}";
 
         public static async Task<Host> StartAsync(CancellationToken ct)
         {
             var fake = await FakeTwilio.StartAsync(ct);
-            var brain = await TestBrain.Create()
+            return new Host(await Compose(TestBrain.Create(), fake).StartAsync(ct), fake);
+        }
+
+        // A fresh person on the shared host, whose fake is the host's.
+        public static async Task<Host> ForPersonAsync(TwilioHost shared, CancellationToken ct)
+            => new(shared.Brain, shared.Fake, await shared.PersonAsync(ct: ct));
+
+        public static TestBrain Compose(TestBrain brain, FakeTwilio fake)
+            => brain
                 .WithModule<TwilioModule, TwilioModuleOptions>(options => { options.BaseUrl = fake.Origin; options.AllowLoopback = true; })
                 .WithIntegration(TwilioModule.Integration, "AccountSid", DeploySid)
                 .WithIntegration(TwilioModule.Integration, "AuthToken", DeployToken)
                 .WithIntegration(TwilioModule.Integration, "FromNumber", DeployFrom)
-                .WithConfiguration(DigitalBrainConfiguration.ConnectionsPublicOriginKey, PublicOrigin)
-                .StartAsync(ct);
-            return new Host(brain, fake);
-        }
+                .WithConfiguration(DigitalBrainConfiguration.ConnectionsPublicOriginKey, PublicOrigin);
 
         public async Task<ITwilioSms> DeploymentAsync()
         {
-            using var caller = brain.Owner.AsCaller();
+            using var caller = Owner.AsCaller();
             var view = await brain.Get<IConnection>(DeploymentKey).Connect("deployment", "default");
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             return brain.Get<ITwilioSms>(DeploymentKey);
@@ -268,8 +284,8 @@ public sealed class TwilioFacts
 
         public async Task<string> ConnectAsync()
         {
-            var key = ConnectionKeys.For(brain.Owner.BrainId, "twilio", "sms");
-            using var caller = brain.Owner.AsCaller();
+            var key = ConnectionKeys.For(Owner.BrainId, "twilio", "sms");
+            using var caller = Owner.AsCaller();
             var view = await brain.Get<IConnection>(key).Connect("credentials", Credentials);
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             return key;
@@ -278,7 +294,7 @@ public sealed class TwilioFacts
         // Twilio's delivery: form-encoded, signed over the public URL it was told to call.
         public async Task<HttpResponseMessage> PostStatusAsync(string? token, string accountSid, string messageSid, string status, CancellationToken ct, string? errorCode = null, string? brainId = null)
         {
-            brainId ??= brain.Owner.BrainId;
+            brainId ??= Owner.BrainId;
             var form = new Dictionary<string, string> { ["AccountSid"] = accountSid, ["MessageSid"] = messageSid, ["MessageStatus"] = status, ["To"] = "+51987654321" };
             if (errorCode is not null) { form["ErrorCode"] = errorCode; }
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/twilio/status/{Uri.EscapeDataString(brainId)}") { Content = new FormUrlEncodedContent(form) };
@@ -289,6 +305,7 @@ public sealed class TwilioFacts
 
         public async ValueTask DisposeAsync()
         {
+            if (person is not null) { return; }
             await brain.DisposeAsync();
             await fake.DisposeAsync();
         }

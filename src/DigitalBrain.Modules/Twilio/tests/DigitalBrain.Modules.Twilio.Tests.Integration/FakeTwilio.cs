@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.Twilio.Tests;
+namespace DigitalBrain.Modules.Twilio.Tests.Integration;
 
 // Twilio's REST API on loopback: the Messages resource and the Account resource the probe reads.
 internal sealed class FakeTwilio : IAsyncDisposable

@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Twilio;
 using Xunit;
 
-namespace DigitalBrain.Modules.Twilio.Tests;
+namespace DigitalBrain.Modules.Twilio.Tests.Integration;
 
 public sealed class TwilioEndpointFacts
 {

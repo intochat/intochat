@@ -191,7 +191,7 @@
     <Project Path="src/DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio.Aspire.Hosting/DigitalBrain.Modules.Twilio.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio.Contracts/DigitalBrain.Modules.Twilio.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio/DigitalBrain.Modules.Twilio.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Twilio/tests/DigitalBrain.Modules.Twilio.Tests/DigitalBrain.Modules.Twilio.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Twilio/tests/DigitalBrain.Modules.Twilio.Tests.Integration/DigitalBrain.Modules.Twilio.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
