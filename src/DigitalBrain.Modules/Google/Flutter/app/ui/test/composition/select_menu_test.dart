@@ -22,7 +22,7 @@ void main() {
                   },
                 {
                   'id': 'customer',
-                  'label': 'ExampleApp',
+                  'label': 'CustomerExample',
                   'visual': {'icon': 'apps'},
                 },
               ],
@@ -35,7 +35,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'CUSTOMER');
       await tester.pumpAndSettle();
-      expect(find.text('ExampleApp'), findsOneWidget);
+      expect(find.text('CustomerExample'), findsOneWidget);
       expect(find.text('App 0'), findsNothing);
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
