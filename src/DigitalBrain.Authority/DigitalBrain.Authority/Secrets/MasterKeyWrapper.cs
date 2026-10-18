@@ -11,12 +11,15 @@ public sealed class MasterKeyWrapper : IKeyWrapper
     private const int TagSize = 16;
     private readonly byte[] _key;
 
+    // HKDF domain separator. Never rename: changing it makes every sealed owner key underivable.
+    internal static ReadOnlySpan<byte> OwnerKeysContext => "DigitalBrain.OwnerKeys.v3"u8;
+
     public MasterKeyWrapper(IOptions<MasterKeyOptions> options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Value.MasterKey);
         var masterKey = options.Value.MasterKey;
         _key = HKDF.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(masterKey), 32,
-            info: "DigitalBrain.OwnerKeys.v3"u8.ToArray());
+            info: OwnerKeysContext.ToArray());
     }
 
     public string Wrap(byte[] key)

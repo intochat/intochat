@@ -18,7 +18,9 @@ internal sealed class DeploymentStorageIdentity(
     [FromKeyedServices(DigitalBrainNames.GrainState)] BlobContainerClient? storage = null)
 {
     private const string MarkerName = ".digitalbrain-deployment.json";
-    private static readonly byte[] Proof = "DigitalBrain deployment key binding v1"u8.ToArray();
+    // Key-binding proof text. Never rename: stored deployment markers were wrapped over these exact bytes.
+    internal static ReadOnlySpan<byte> KeyBindingContext => "DigitalBrain deployment key binding v1"u8;
+    private static readonly byte[] Proof = KeyBindingContext.ToArray();
 
     public async Task ValidateAsync(CancellationToken ct)
     {
