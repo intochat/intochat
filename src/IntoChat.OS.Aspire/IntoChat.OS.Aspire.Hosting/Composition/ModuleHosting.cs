@@ -9,5 +9,14 @@ namespace IntoChat.OS.Aspire.Hosting;
 public abstract class ModuleHosting<TModule> : IIntoChatOSModuleHosting where TModule : Module, new()
 {
     public ModuleId Module { get; } = new TModule().Id;
-    public abstract void Configure(IntoChatOSBuilder brain);
+
+    // By default a module's declared secrets (its static Integration/Integrations) are projected to every silo host.
+    // A hosting that adds resources, or already projects its own secrets, overrides Configure and does not call base.
+    public virtual void Configure(IntoChatOSBuilder brain)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        ProjectSecrets(brain);
+    }
+
+    protected virtual void ProjectSecrets(IntoChatOSBuilder brain) => ModuleSecretProjection.Project(brain, typeof(TModule));
 }
