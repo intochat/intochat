@@ -25,7 +25,7 @@ public sealed class AzureFacts
         string[] expected =
         [
             ResourceKinds.BlobContainer, ResourceKinds.ContainerApp, ResourceKinds.FileShare, ResourceKinds.Identity, ResourceKinds.KeyVault,
-            ResourceKinds.LogWorkspace, ResourceKinds.ManagedEnvironment, ResourceKinds.ResourceGroup, ResourceKinds.RoleGrant,
+            ResourceKinds.LogWorkspace, ResourceKinds.ManagedEnvironment, ResourceKinds.Registry, ResourceKinds.ResourceGroup, ResourceKinds.RoleGrant,
             ResourceKinds.Secret, ResourceKinds.StorageAccount,
         ];
         Assert.Equal(expected.Order(), kinds);
@@ -84,13 +84,16 @@ public sealed class AzureFacts
                 "ensure file-share brainlog in intochat-test-rg",
                 "ensure blob-container grainstate-v1 in intochat-test-rg",
                 "ensure blob-container brainlease-v1 in intochat-test-rg",
+                "ensure registry intochattestacr in intochat-test-rg",
                 "ensure key-vault intochat-test-kv in intochat-test-rg",
                 "ensure managed-environment intochat-test-env in intochat-test-rg",
                 "ensure role-grant intochat-test-os-vault-secrets in intochat-test-rg",
                 "ensure role-grant intochat-test-os-storage-blobs in intochat-test-rg",
                 "ensure role-grant intochat-test-os-storage-tables in intochat-test-rg",
+                "ensure role-grant intochat-test-os-registry-pull in intochat-test-rg",
                 "ensure secret master-key in intochat-test-rg",
                 "ensure container-app intochat-test-os in intochat-test-rg",
+                "summary: 16 resources in intochat-test-rg (blob-container=2, container-app=1, file-share=1, identity=1, key-vault=1, log-workspace=1, managed-environment=1, registry=1, resource-group=1, role-grant=4, secret=1, storage-account=1)",
             ];
             Assert.Equal(expected, output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
         }

@@ -1,13 +1,17 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using global::Azure;
 using global::Azure.Core;
 using global::Azure.Identity;
+using global::Azure.Security.KeyVault.Secrets;
 using global::Azure.ResourceManager;
 using global::Azure.ResourceManager.AppContainers;
 using global::Azure.ResourceManager.AppContainers.Models;
 using global::Azure.ResourceManager.Authorization;
 using global::Azure.ResourceManager.Authorization.Models;
+using global::Azure.ResourceManager.ContainerRegistry;
+using global::Azure.ResourceManager.ContainerRegistry.Models;
 using global::Azure.ResourceManager.KeyVault;
 using global::Azure.ResourceManager.KeyVault.Models;
 using global::Azure.ResourceManager.ManagedServiceIdentities;
@@ -16,6 +20,8 @@ using global::Azure.ResourceManager.Network.Models;
 using global::Azure.ResourceManager.Models;
 using global::Azure.ResourceManager.OperationalInsights;
 using global::Azure.ResourceManager.OperationalInsights.Models;
+using global::Azure.ResourceManager.PostgreSql.FlexibleServers;
+using global::Azure.ResourceManager.PostgreSql.FlexibleServers.Models;
 using global::Azure.ResourceManager.Resources;
 using global::Azure.ResourceManager.Storage;
 using global::Azure.ResourceManager.Storage.Models;
@@ -26,7 +32,10 @@ namespace DigitalBrain.Microsoft.Azure;
 // Nothing here is unit-tested against Azure; the first install run is the check.
 public sealed class ArmAzure : IAzureArm
 {
-    private readonly Lazy<ArmClient> _client = new(() => new ArmClient(new DefaultAzureCredential()));
+    private readonly DefaultAzureCredential _credential = new();
+    private readonly Lazy<ArmClient> _client;
+
+    public ArmAzure() => _client = new(() => new ArmClient(_credential));
 
     public async Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
     {
@@ -50,7 +59,7 @@ public sealed class ArmAzure : IAzureArm
             FileShareSpec share => await EnsureShare(rg, share, ct),
             BlobContainerSpec container => await EnsureContainer(rg, container, ct),
             KeyVaultSpec vault => await EnsureVault(sub, rg, vault, location, ct),
-            SecretSpec secret => await EnsureSecret(rg, secret, ct),
+            SecretSpec secret => await EnsureSecret(secret, ct),
             ManagedEnvironmentSpec environment => await EnsureEnvironment(rg, environment, location, ct),
             ContainerAppSpec app => await EnsureApp(rg, app, location, ct),
             RoleGrantSpec grant => await EnsureGrant(rg, grant, ct),
@@ -58,6 +67,9 @@ public sealed class ArmAzure : IAzureArm
             VirtualNetworkSpec network => await EnsureVirtualNetwork(rg, network, location, ct),
             SubnetSpec subnet => await EnsureSubnet(rg, subnet, ct),
             SessionPoolSpec pool => await EnsureSessionPool(rg, pool, location, ct),
+            RegistrySpec registry => await EnsureRegistry(rg, registry, location, ct),
+            PostgresSpec postgres => await EnsurePostgres(rg, postgres, location, ct),
+            PostgresDatabaseSpec database => await EnsurePostgresDatabase(rg, database, ct),
             _ => throw new NotSupportedException($"Azure resource kind '{spec.Kind}' is not supported."),
         };
     }
@@ -165,16 +177,75 @@ public sealed class ArmAzure : IAzureArm
         return Ref(made.Value.Id, spec, spec.Name);
     }
 
-    private static async Task<ResourceRef> EnsureSecret(ResourceGroupResource rg, SecretSpec spec, CancellationToken ct)
+    // Secret values are a data-plane matter: the management plane never returns them. The installer principal needs
+    // Key Vault Secrets Officer on the vault (InstallPlan grants it from installerPrincipalId).
+    private SecretClient Secrets(string vault) => new(new Uri($"https://{vault}.vault.azure.net/"), _credential);
+
+    private async Task<ResourceRef> EnsureSecret(SecretSpec spec, CancellationToken ct)
     {
-        var vault = (await rg.GetKeyVaultAsync(spec.Vault, ct)).Value;
-        var secrets = vault.GetKeyVaultSecrets();
-        if (!spec.Overwrite && (await secrets.ExistsAsync(spec.Name, ct)).Value)
+        var client = Secrets(spec.Vault);
+        if (!spec.Overwrite && await Exists(client, spec.Name, ct))
         {
-            return Ref((await secrets.GetAsync(spec.Name, ct)).Value.Id, spec, spec.Name);
+            return SecretRef(spec, (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value);
         }
-        var content = new KeyVaultSecretCreateOrUpdateContent(new SecretProperties { Value = spec.Value });
-        var made = await secrets.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);
+        var referenced = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in SecretSpec.ReferencesIn(spec.Value))
+        {
+            referenced[name] = (await client.GetSecretAsync(name, cancellationToken: ct)).Value.Value;
+        }
+        var made = await client.SetSecretAsync(spec.Name, SecretSpec.Substitute(spec.Value, referenced), ct);
+        return SecretRef(spec, made.Value);
+    }
+
+    private static async Task<bool> Exists(SecretClient client, string name, CancellationToken ct)
+    {
+        try
+        {
+            await client.GetSecretAsync(name, cancellationToken: ct);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return false; }
+    }
+
+    private static ResourceRef SecretRef(SecretSpec spec, KeyVaultSecret secret) =>
+        new(secret.Id.ToString(), spec.Kind, spec.Name, spec.ResourceGroup);
+
+    private static async Task<ResourceRef> EnsureRegistry(ResourceGroupResource rg, RegistrySpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var data = new ContainerRegistryData(location, new ContainerRegistrySku(new ContainerRegistrySkuName(spec.Sku))) { IsAdminUserEnabled = false };
+        Apply(spec, data.Tags);
+        var made = await rg.GetContainerRegistries().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.LoginServer ?? "" };
+    }
+
+    private async Task<ResourceRef> EnsurePostgres(ResourceGroupResource rg, PostgresSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var password = (await Secrets(spec.Vault).GetSecretAsync(spec.AdminPasswordSecret, cancellationToken: ct)).Value.Value
+            ?? throw new InvalidOperationException($"Secret {spec.AdminPasswordSecret} has no value for the Postgres admin password.");
+        var data = new PostgreSqlFlexibleServerData(location)
+        {
+            Sku = new PostgreSqlFlexibleServerSku(spec.Sku, new PostgreSqlFlexibleServerSkuTier(spec.Tier)),
+            Version = new PostgreSqlFlexibleServerVersion(spec.Version),
+            AdministratorLogin = spec.AdminLogin,
+            AdministratorLoginPassword = password,
+            Storage = new PostgreSqlFlexibleServerStorage { StorageSizeInGB = spec.StorageGb },
+            Network = new PostgreSqlFlexibleServerNetwork { PublicNetworkAccess = PostgreSqlFlexibleServerPublicNetworkAccessState.Enabled },
+        };
+        Apply(spec, data.Tags);
+        var made = await rg.GetPostgreSqlFlexibleServers().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        // 0.0.0.0 to 0.0.0.0 is the allow-Azure-services rule.
+        await made.Value.GetPostgreSqlFlexibleServerFirewallRules().CreateOrUpdateAsync(
+            WaitUntil.Completed,
+            "AllowAllAzureServicesAndResourcesWithinAzureIps",
+            new PostgreSqlFlexibleServerFirewallRuleData(IPAddress.Any, IPAddress.Any),
+            ct);
+        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.FullyQualifiedDomainName ?? "" };
+    }
+
+    private static async Task<ResourceRef> EnsurePostgresDatabase(ResourceGroupResource rg, PostgresDatabaseSpec spec, CancellationToken ct)
+    {
+        var server = (await rg.GetPostgreSqlFlexibleServerAsync(spec.Server, ct)).Value;
+        var made = await server.GetPostgreSqlFlexibleServerDatabases().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new PostgreSqlFlexibleServerDatabaseData(), ct);
         return Ref(made.Value.Id, spec, spec.Name);
     }
 
@@ -248,13 +319,19 @@ public sealed class ArmAzure : IAzureArm
         {
             container.VolumeMounts.Add(new ContainerAppVolumeMount { VolumeName = mount.Volume, MountPath = mount.MountPath });
         }
+        foreach (var file in spec.SecretFiles)
+        {
+            // A sub-path mount puts the one file at Path without hiding the rest of its directory.
+            container.VolumeMounts.Add(new ContainerAppVolumeMount { VolumeName = SecretVolume(file), MountPath = file.Path, SubPath = FileName(file) });
+        }
+        var targetPort = spec.Ingress.TargetPort > 0 ? spec.Ingress.TargetPort : spec.IngressPort;
         var probeTypes = new[] { ContainerAppProbeType.Liveness, ContainerAppProbeType.Readiness, ContainerAppProbeType.Startup };
         for (var i = 0; i < spec.ProbePaths.Length && i < probeTypes.Length; i++)
         {
             container.Probes.Add(new ContainerAppProbe
             {
                 ProbeType = probeTypes[i],
-                HttpGet = new ContainerAppHttpRequestInfo(spec.IngressPort) { Path = spec.ProbePaths[i] },
+                HttpGet = new ContainerAppHttpRequestInfo(targetPort) { Path = spec.ProbePaths[i] },
                 FailureThreshold = probeTypes[i] == ContainerAppProbeType.Startup ? 30 : 3,
                 PeriodSeconds = 10,
             });
@@ -271,11 +348,18 @@ public sealed class ArmAzure : IAzureArm
             template.Volumes.Add(new ContainerAppVolume { Name = mount.Volume, StorageType = ContainerAppStorageType.AzureFile, StorageName = mount.EnvironmentStorage, MountOptions = mount.MountOptions });
         }
 
+        foreach (var file in spec.SecretFiles)
+        {
+            var volume = new ContainerAppVolume { Name = SecretVolume(file), StorageType = ContainerAppStorageType.Secret };
+            volume.Secrets.Add(new SecretVolumeItem { SecretRef = file.Name, Path = FileName(file) });
+            template.Volumes.Add(volume);
+        }
+
         var configuration = new ContainerAppConfiguration
         {
             // The old revision is deactivated only once the new one is ready; lease ownership covers the overlap.
             ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
-            Ingress = new ContainerAppIngressConfiguration { External = true, TargetPort = spec.IngressPort, Transport = ContainerAppIngressTransportMethod.Auto },
+            Ingress = new ContainerAppIngressConfiguration { External = spec.Ingress.External, TargetPort = targetPort, Transport = ContainerAppIngressTransportMethod.Auto },
         };
         foreach (var port in spec.InternalPorts)
         {
@@ -290,9 +374,37 @@ public sealed class ArmAzure : IAzureArm
                 Identity = identityId,
             });
         }
+        foreach (var file in spec.SecretFiles)
+        {
+            configuration.Secrets.Add(new ContainerAppWritableSecret
+            {
+                Name = file.Name,
+                KeyVaultUri = new Uri($"https://{file.Vault}.vault.azure.net/secrets/{file.VaultSecret}"),
+                Identity = identityId,
+            });
+        }
         if (spec.RegistryServer.Length > 0)
         {
             configuration.Registries.Add(new ContainerAppRegistryCredentials { Server = spec.RegistryServer, Identity = identityId });
+        }
+        foreach (var registry in spec.Registries.Where(entry => entry.Server != spec.RegistryServer))
+        {
+            if (registry.PasswordSecret.Length > 0)
+            {
+                var secretName = "registry-" + new string([.. registry.Server.Where(char.IsAsciiLetterOrDigit)]);
+                configuration.Secrets.Add(new ContainerAppWritableSecret
+                {
+                    Name = secretName,
+                    KeyVaultUri = new Uri($"https://{registry.Vault}.vault.azure.net/secrets/{registry.PasswordSecret}"),
+                    Identity = identityId,
+                });
+                configuration.Registries.Add(new ContainerAppRegistryCredentials { Server = registry.Server, Username = registry.Username, PasswordSecretRef = secretName });
+            }
+            else
+            {
+                var pullIdentity = registry.Identity.Length > 0 ? (await rg.GetUserAssignedIdentityAsync(registry.Identity, ct)).Value.Id.ToString() : identityId;
+                configuration.Registries.Add(new ContainerAppRegistryCredentials { Server = registry.Server, Identity = pullIdentity });
+            }
         }
 
         var data = new ContainerAppData(location)
@@ -308,6 +420,10 @@ public sealed class ArmAzure : IAzureArm
         var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name);
     }
+
+    private static string SecretVolume(SecretFileSpec file) => "secret-" + file.Name;
+
+    private static string FileName(SecretFileSpec file) => file.Path[(file.Path.LastIndexOf('/') + 1)..];
 
     private static async Task<ResourceRef> EnsureNetworkSecurityGroup(ResourceGroupResource rg, NetworkSecurityGroupSpec spec, AzureLocation location, CancellationToken ct)
     {

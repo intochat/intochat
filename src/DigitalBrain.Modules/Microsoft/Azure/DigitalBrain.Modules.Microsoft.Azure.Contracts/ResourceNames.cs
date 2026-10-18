@@ -14,6 +14,12 @@ public static class ResourceNames
 
     public static string KeyVault(string prefix, string env) => Limit(For(prefix, env, "kv"), 24);
 
+    public static string Postgres(string prefix, string env) => For(prefix, env, "pg");
+
+    // Registry names are alphanumeric, 5 to 50 characters.
+    public static string Registry(string prefix, string env) =>
+        Limit(new string([.. $"{prefix}{env}acr".ToLowerInvariant().Where(char.IsAsciiLetterOrDigit)]), 50);
+
     public static string Environment(string prefix, string env) => For(prefix, env, "env");
 
     public static string App(string prefix, string env, string app) => For(prefix, env, app);

@@ -78,6 +78,19 @@ public sealed record SecretSpec : ResourceSpec
     [Id(1)] public string Value { get; init; } = "";
     [Id(2)] public bool Overwrite { get; init; }
 
+    // A value of the form "{vault-secret:name}" inside Value is replaced, when the secret is written, by the
+    // current value of that secret in the same vault, so a connection string can carry a password only the vault knows.
+    public static string Reference(string secret) => "{vault-secret:" + secret + "}";
+
+    public static string[] ReferencesIn(string value) =>
+        [.. System.Text.RegularExpressions.Regex.Matches(value, @"\{vault-secret:([^}]+)\}").Select(match => match.Groups[1].Value).Distinct()];
+
+    public static string Substitute(string value, IReadOnlyDictionary<string, string> secrets)
+    {
+        foreach (var (name, secret) in secrets) { value = value.Replace(Reference(name), secret, StringComparison.Ordinal); }
+        return value;
+    }
+
     public override string Kind => ResourceKinds.Secret;
 }
 
@@ -120,6 +133,38 @@ public sealed record VolumeMountSpec
     [Id(3)] public string MountOptions { get; init; } = "";
 }
 
+// Where an app listens. TargetPort 0 means the spec's IngressPort. External false gives environment-internal ingress.
+[GenerateSerializer, Alias("azure.spec.ingress")]
+public sealed record IngressSpec
+{
+    [Id(0)] public bool External { get; init; } = true;
+    [Id(1)] public int TargetPort { get; init; }
+}
+
+// A Key Vault secret mounted as one file: an app secret plus a Secret volume and a sub-path mount at Path.
+[GenerateSerializer, Alias("azure.spec.secret-file")]
+public sealed record SecretFileSpec
+{
+    // Container App secret name.
+    [Id(0)] public string Name { get; init; } = "";
+    [Id(1)] public string Vault { get; init; } = "";
+    [Id(2)] public string VaultSecret { get; init; } = "";
+    // The full path of the file in the container, for example /usr/share/nginx/html/config.json.
+    [Id(3)] public string Path { get; init; } = "";
+}
+
+// A registry the app pulls from. Without PasswordSecret the pull uses an identity (the app's, or Identity by name);
+// with it the pull uses Username and the Key Vault secret PasswordSecret in Vault (ghcr-read-token for GHCR).
+[GenerateSerializer, Alias("azure.spec.registry-credential")]
+public sealed record RegistryCredentialSpec
+{
+    [Id(0)] public string Server { get; init; } = "";
+    [Id(1)] public string Identity { get; init; } = "";
+    [Id(2)] public string Username { get; init; } = "";
+    [Id(3)] public string Vault { get; init; } = "";
+    [Id(4)] public string PasswordSecret { get; init; } = "";
+}
+
 [GenerateSerializer, Alias("azure.spec.container-app")]
 public sealed record ContainerAppSpec : ResourceSpec
 {
@@ -141,6 +186,9 @@ public sealed record ContainerAppSpec : ResourceSpec
     [Id(12)] public string RegistryServer { get; init; } = "";
     [Id(13)] public string[] ProbePaths { get; init; } = [];
     [Id(14)] public int TerminationGracePeriodSeconds { get; init; } = 60;
+    [Id(15)] public IngressSpec Ingress { get; init; } = new();
+    [Id(16)] public SecretFileSpec[] SecretFiles { get; init; } = [];
+    [Id(17)] public RegistryCredentialSpec[] Registries { get; init; } = [];
 
     public override string Kind => ResourceKinds.ContainerApp;
 }
@@ -218,4 +266,38 @@ public sealed record SessionPoolSpec : ResourceSpec
     [Id(10)] public bool Egress { get; init; } = true;
 
     public override string Kind => ResourceKinds.SessionPool;
+}
+
+// Basic is enough for a test environment. Admin user stays off: pulls use identities (AcrPull) or a token.
+[GenerateSerializer, Alias("azure.spec.registry")]
+public sealed record RegistrySpec : ResourceSpec
+{
+    [Id(0)] public string Sku { get; init; } = "Basic";
+
+    public override string Kind => ResourceKinds.Registry;
+}
+
+// Azure Database for PostgreSQL Flexible Server on a public endpoint with the allow-Azure-services rule.
+// The admin password is the Key Vault secret AdminPasswordSecret in Vault.
+[GenerateSerializer, Alias("azure.spec.postgres")]
+public sealed record PostgresSpec : ResourceSpec
+{
+    [Id(0)] public string Sku { get; init; } = "Standard_B1ms";
+    [Id(1)] public string Tier { get; init; } = "Burstable";
+    [Id(2)] public int StorageGb { get; init; } = 32;
+    [Id(3)] public string Version { get; init; } = "16";
+    [Id(4)] public string AdminLogin { get; init; } = "";
+    [Id(5)] public string Vault { get; init; } = "";
+    [Id(6)] public string AdminPasswordSecret { get; init; } = "";
+
+    public override string Kind => ResourceKinds.Postgres;
+}
+
+[GenerateSerializer, Alias("azure.spec.postgres-database")]
+public sealed record PostgresDatabaseSpec : ResourceSpec
+{
+    // The server name, in the spec's resource group.
+    [Id(0)] public string Server { get; init; } = "";
+
+    public override string Kind => ResourceKinds.PostgresDatabase;
 }

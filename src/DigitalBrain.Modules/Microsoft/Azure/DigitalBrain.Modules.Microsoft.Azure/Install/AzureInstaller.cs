@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain.Framework.Modules;
 using global::Azure;
@@ -47,10 +48,10 @@ public static class AzureInstaller
             return 2;
         }
 
-        var masterKey = "";
+        var provided = new Dictionary<string, string>(StringComparer.Ordinal);
         if (!dryRun)
         {
-            try { masterKey = await MasterKey(secretsFrom, ct); }
+            try { provided = await SecretValues(secretsFrom, ct); }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException)
             {
                 await error.WriteLineAsync($"install: {ex.Message}");
@@ -59,10 +60,12 @@ public static class AzureInstaller
         }
 
         var current = "";
+        var planned = new List<ResourceSpec>();
         async Task<ResourceRef> Ensure(ResourceSpec spec, CancellationToken token)
         {
             current = InstallPlan.DryRunLine(spec);
             await output.WriteLineAsync(current);
+            planned.Add(spec);
             if (dryRun) { return new ResourceRef(ResourceIds.For(config.Subscription, spec), spec.Kind, spec.Name, spec.ResourceGroup); }
             return await arm.Ensure(config.Subscription, AzureTags.Tagged(spec), token);
         }
@@ -70,13 +73,16 @@ public static class AzureInstaller
         try
         {
             // The foundation first, then each composed module's deployment, then the OS app with what they asked for.
+            var foundation = InstallPlan.Refs(config);
             foreach (var spec in InstallPlan.Foundation(config))
             {
-                var send = spec is SecretSpec secret && secret.Name == InstallPlan.MasterKeySecret ? secret with { Value = masterKey } : spec;
-                await Ensure(send, ct);
+                var made = await Ensure(dryRun ? spec : WithValue(spec, provided), ct);
+                if (spec is RegistrySpec && made.Endpoint.Length > 0)
+                {
+                    foundation = foundation with { RegistryServer = made.Endpoint, Registry = made };
+                }
             }
             var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
-            var foundation = InstallPlan.Refs(config);
             var variables = new Dictionary<string, string>(StringComparer.Ordinal);
             var secrets = new List<SecretRef>();
             foreach (var (module, deployment) in deployments)
@@ -87,7 +93,9 @@ public static class AzureInstaller
                 foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }
                 secrets.AddRange(context.RuntimeSecrets);
             }
-            await Ensure(InstallPlan.OsApp(config, variables, secrets), ct);
+            var osApp = InstallPlan.OsApp(config, variables, secrets);
+            await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
+            if (dryRun) { await output.WriteLineAsync(InstallPlan.Summary(planned)); }
         }
         catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException)
         {
@@ -97,17 +105,49 @@ public static class AzureInstaller
         return 0;
     }
 
-    private static async Task<string> MasterKey(string? secretsFrom, CancellationToken ct)
+    // The master key must come from the file or the environment; the Postgres admin password is generated once
+    // when neither has it (the spec is Overwrite=false, so a later install keeps the stored one); the GHCR token is optional.
+    private static async Task<Dictionary<string, string>> SecretValues(string? secretsFrom, CancellationToken ct)
     {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
         if (secretsFrom is not null)
         {
-            var values = JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(secretsFrom, ct)) ?? [];
-            if (values.TryGetValue(InstallPlan.MasterKeySecret, out var fromFile) && fromFile.Length > 0) { return fromFile; }
+            foreach (var (name, value) in JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(secretsFrom, ct)) ?? [])
+            {
+                if (value.Length > 0) { values[name] = value; }
+            }
         }
-        var fromEnvironment = Environment.GetEnvironmentVariable(MasterKeyVariable);
-        return string.IsNullOrEmpty(fromEnvironment)
-            ? throw new InvalidOperationException($"The master key is needed: set {MasterKeyVariable} or pass --secrets-from with a '{InstallPlan.MasterKeySecret}' entry.")
-            : fromEnvironment;
+        if (!values.ContainsKey(InstallPlan.MasterKeySecret))
+        {
+            var fromEnvironment = Environment.GetEnvironmentVariable(MasterKeyVariable);
+            values[InstallPlan.MasterKeySecret] = string.IsNullOrEmpty(fromEnvironment)
+                ? throw new InvalidOperationException($"The master key is needed: set {MasterKeyVariable} or pass --secrets-from with a '{InstallPlan.MasterKeySecret}' entry.")
+                : fromEnvironment;
+        }
+        if (!values.ContainsKey(InstallPlan.PostgresPasswordSecret))
+        {
+            values[InstallPlan.PostgresPasswordSecret] = GeneratedPassword();
+        }
+        return values;
+    }
+
+    private static ResourceSpec WithValue(ResourceSpec spec, Dictionary<string, string> provided) => spec switch
+    {
+        SecretSpec { Name: InstallPlan.GhcrTokenSecret } secret => provided.TryGetValue(secret.Name, out var token)
+            ? secret with { Value = token }
+            : secret with { Overwrite = false },
+        SecretSpec { Value.Length: 0 } secret when provided.TryGetValue(secret.Name, out var value) => secret with { Value = value },
+        _ => spec,
+    };
+
+    // 32 letters and digits: valid for Postgres and safe inside a connection string.
+    private static string GeneratedPassword()
+    {
+        const string alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        return string.Create(32, alphabet, static (span, letters) =>
+        {
+            for (var i = 0; i < span.Length; i++) { span[i] = letters[RandomNumberGenerator.GetInt32(letters.Length)]; }
+        });
     }
 
     private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom)
