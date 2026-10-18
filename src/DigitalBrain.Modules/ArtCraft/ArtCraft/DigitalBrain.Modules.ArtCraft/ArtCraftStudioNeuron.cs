@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Mcp;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.ArtCraft;
@@ -15,7 +16,7 @@ internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> optio
         var (title, mcp, web) = options.Value.For(app);
         if (mcp is null) { throw new InvalidOperationException($"{title} has no MCP server in this deployment."); }
         var key = $"{Brain}/mcp/{app}";
-        var server = GrainFactory.GetGrain<IMcpServer>(key);
+        var server = ServiceProvider.GetRequiredService<IDigitalBrains>().Open(Brain).Neuron<IMcpServer>($"mcp/{app}");
         // Opening again is cheap: an already connected server on the same URL keeps its tool list.
         if (await server.Read() is not { Connected: true } state || state.Url != mcp)
         { await server.Connect(new McpServerSpec(title, mcp), ct); }

@@ -35,9 +35,9 @@ public sealed class TestTwitterModule() : Module(new ModuleId("twitter")), IHttp
     public override void Configure(ISiloBuilder builder) { }
 
     public void Configure(IEndpointRouteBuilder endpoints)
-        => endpoints.MapPost("/twitter/webhook", async (TweetWebhook tweet, IGrainFactory grains) =>
+        => endpoints.MapPost("/twitter/webhook", async (TweetWebhook tweet, IDigitalBrains brains) =>
         {
-            await grains.GetGrain<ITwitterAccount>(tweet.Account).Post(tweet.Text);
+            await brains.Grain<ITwitterAccount>(tweet.Account).Post(tweet.Text);
             return Results.Accepted();
         });
 }
