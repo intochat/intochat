@@ -22,12 +22,11 @@ public sealed partial class TestTierRules
             "WebApplication" + ".Create",
             "Thread" + ".Sleep(",
         ];
-        var baseline = Baseline().LegacyUnitTierHosts.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var baseline = Baseline().LegacyUnitTierHosts.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
         var files = Repository.ProjectFiles(
             "*.cs",
-            path => path.EndsWith("Facts.cs", StringComparison.Ordinal) || path.EndsWith("Fixture.cs", StringComparison.Ordinal),
-            project => project.Name.EndsWith(".Tests.Unit", StringComparison.Ordinal));
+            projects: project => project.Name.EndsWith(".Tests.Unit", StringComparison.Ordinal));
         foreach (var file in files)
         {
             var source = File.ReadAllText(file);

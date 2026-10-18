@@ -72,6 +72,7 @@
     "DigitalBrain.Platform.Tests.Unit/Connections/ConnectionNeuronFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Connections/ConnectionRouteFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Connections/OAuthFlowFacts.cs",
+    "DigitalBrain.Platform.Tests.Unit/Connections/TokenEndpointStub.cs",
     "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/CostMeterFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Identity/AccountFacts.cs",
