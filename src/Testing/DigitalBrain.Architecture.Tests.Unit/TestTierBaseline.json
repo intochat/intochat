@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Time.Tests",
     "DigitalBrain.Modules.Twilio.Tests"
   ],
   "LegacyEndToEndReferencers": [],

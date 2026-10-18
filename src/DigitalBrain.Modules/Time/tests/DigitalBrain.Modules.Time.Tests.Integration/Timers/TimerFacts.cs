@@ -6,10 +6,11 @@ using DigitalBrain.Time.Timers.Signals;
 using Orleans;
 using Xunit;
 
-namespace DigitalBrain.Modules.Time.Tests;
+namespace DigitalBrain.Modules.Time.Tests.Integration;
 
-public sealed class TimerFacts
+public sealed class TimerFacts(TimeHost host)
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task OneShotReleasesItsRegistrationAndStopIsIdempotent()
     {
@@ -33,6 +34,7 @@ public sealed class TimerFacts
         await Assert.ThrowsAsync<ObjectDisposedException>(() => registration.FireAsync(ct));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ReplacementDisposesPreviousScheduleAndPeriodicTicksContinueUntilStopped()
     {
@@ -59,6 +61,7 @@ public sealed class TimerFacts
         await Assert.ThrowsAsync<ObjectDisposedException>(() => current.FireAsync(ct));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task InvalidReplacementPreservesTheWorkingTimer()
     {
@@ -78,6 +81,7 @@ public sealed class TimerFacts
         Assert.Equal("invalid", (await ticks.NextAsync(ct: ct)).TimerId);
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -107,6 +111,7 @@ public sealed class TimerFacts
         Assert.Equal("deactivate", (await ticks.NextAsync(ct: ct)).TimerId);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TicksWithoutASubscriberAreNotReplayed()
     {
@@ -125,6 +130,7 @@ public sealed class TimerFacts
         Assert.Single(ticks.Snapshot);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ObsoleteCallbacksAfterReplacementAndStopCannotPublish()
     {
@@ -147,6 +153,7 @@ public sealed class TimerFacts
         Assert.Single(ticks.Snapshot);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task LongDueTimePreventsIdleCollectionAndStopOrCompletionReleasesIt()
     {
@@ -172,7 +179,7 @@ public sealed class TimerFacts
     public async Task RealPeriodicTimerPublishesRepeatedTicks()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
+        var brain = host.Brain;
         var timer = brain.Get<ITimer>("periodic");
         await using var ticks = await brain.Observe<TimerTick>(timer, ct);
         await timer.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(20));

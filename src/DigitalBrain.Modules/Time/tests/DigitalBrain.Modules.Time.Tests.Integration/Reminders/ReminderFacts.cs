@@ -7,10 +7,11 @@ using DigitalBrain.Time.Reminders.Signals;
 using Orleans;
 using Xunit;
 
-namespace DigitalBrain.Modules.Time.Tests;
+namespace DigitalBrain.Modules.Time.Tests.Integration;
 
 public sealed class ReminderFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task RegistrationUpdatesInPlaceValidatesBeforeMutationAndStopsIdempotently()
     {
@@ -34,6 +35,7 @@ public sealed class ReminderFacts
         Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ProviderFailuresReachCallerAndAllowRetry()
     {
@@ -55,6 +57,7 @@ public sealed class ReminderFacts
         Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task LostAcknowledgementsAndFailedLookupCanBeRetriedWithoutDuplicateRegistrations()
     {
@@ -75,6 +78,7 @@ public sealed class ReminderFacts
         await reminder.Stop();
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task QueuedTicksAreAllowedAfterStopAndUnknownNamesAreIgnored()
     {
@@ -96,6 +100,7 @@ public sealed class ReminderFacts
         Assert.Empty((await control.Table.ReadRows(reminder.GetGrainId(), TestContext.Current.CancellationToken)).Reminders);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ActualReminderPublishesTypedTicks()
     {
@@ -110,6 +115,7 @@ public sealed class ReminderFacts
         await reminder.Stop();
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ReminderReactivatesAfterExplicitDeactivation()
     {

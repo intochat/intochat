@@ -3,15 +3,15 @@ using DigitalBrain.Time;
 using DigitalBrain.Time.Timers.Signals;
 using Xunit;
 
-namespace DigitalBrain.Modules.Time.Tests;
+namespace DigitalBrain.Modules.Time.Tests.Integration;
 
-public sealed class TimerBehaviorFacts
+public sealed class TimerBehaviorFacts(TimeHost host)
 {
     [Fact]
     public async Task BehaviorSubscribesBeforeTheTriggerAndOnlyReportsItsTimer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
+        var brain = host.Brain;
         var timer = brain.Get<ITimer>("behavior");
         var other = brain.Get<ITimer>("other");
         var result = new TaskCompletionSource<TimerTick>(TaskCreationOptions.RunContinuationsAsynchronously);
