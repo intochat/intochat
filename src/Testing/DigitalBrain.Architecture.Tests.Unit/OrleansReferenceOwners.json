@@ -116,6 +116,9 @@
   "DigitalBrain.Modules.Microsoft.Playwright.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
+  "DigitalBrain.Modules.Microsoft.Azure.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
   "DigitalBrain.Modules.Microsoft.Roslyn.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],

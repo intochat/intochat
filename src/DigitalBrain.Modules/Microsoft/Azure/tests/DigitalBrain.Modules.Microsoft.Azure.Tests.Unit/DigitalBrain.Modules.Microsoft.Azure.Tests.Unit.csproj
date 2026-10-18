@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules.Microsoft.Azure/DigitalBrain.Modules.Microsoft.Azure.csproj" />
+  </ItemGroup>
+</Project>

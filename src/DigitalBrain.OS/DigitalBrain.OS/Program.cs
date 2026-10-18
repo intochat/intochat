@@ -1,6 +1,15 @@
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.OS;
 using DigitalBrain.Authority.Hosted;
+using DigitalBrain.Microsoft.Azure;
+using DigitalBrain.Microsoft.Azure.Install;
+
+// The installer runs before any cluster exists: it ensures the Azure foundation and exits.
+if (AzureInstaller.IsInstall(args))
+{
+    Environment.ExitCode = await AzureInstaller.Run(args, new ArmAzure(), Console.Out, Console.Error, CancellationToken.None);
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 var webHostServices = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();

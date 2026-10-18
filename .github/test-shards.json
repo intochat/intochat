@@ -5,6 +5,7 @@
       "**/DigitalBrain.Aspire.Hosting.Tests.Unit.dll",
       "**/DigitalBrain.Client.Tests.Unit.dll",
       "**/DigitalBrain.Deployment.Tests.Unit.dll",
+      "**/DigitalBrain.Modules.Microsoft.Azure.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Microsoft.Playwright.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Qdrant.Tests.Unit.dll",
