@@ -29,12 +29,6 @@
   "LegacyUnitTierHosts": [
     "DigitalBrain.Aspire.Hosting.Tests.Unit/ServerRecipeFacts.cs",
     "DigitalBrain.Aspire.Hosting.Tests.Unit/TelemetryExportBarrierFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/McpIdentityFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/McpRuntimeFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/McpTrustFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/NeuronSurfaceFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/NeuronTypeSearchFacts.cs",
-    "DigitalBrain.Mcp.Tests.Unit/SessionCookieFacts.cs",
     "DigitalBrain.OS.Tests.Unit/FeatureCompileFacts.cs",
     "DigitalBrain.OS.Tests.Unit/FriendsReplayFacts.cs",
     "DigitalBrain.OS.Tests.Unit/OsBootFacts.cs",

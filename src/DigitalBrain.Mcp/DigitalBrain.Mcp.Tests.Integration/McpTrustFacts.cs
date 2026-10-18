@@ -3,18 +3,18 @@ using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
 // R70: the MCP host is an Orleans client, not a silo; it still answers brain access through the trust clients it
 // composes as a reader.
-public sealed class McpTrustFacts
+public sealed class McpTrustFacts(McpHost host)
 {
     [Theory]
     [InlineData("Open")]
     [InlineData("Secured")]
     public async Task TheMcpHostResolvesIBrainAccess(string posture)
     {
-        await using var runtime = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var runtime = host.Brain;
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(runtime.Services.GetRequiredService<Orleans.IGrainFactory>());
         builder.Configuration[AuthOptions.PostureKey] = posture;

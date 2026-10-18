@@ -9,15 +9,15 @@ using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
-public sealed class NeuronSurfaceFacts
+public sealed class NeuronSurfaceFacts(McpHost host)
 {
     [Fact]
     public async Task ABadArgumentCountSaysSo()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var brain = host.Brain;
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -37,7 +37,7 @@ public sealed class NeuronSurfaceFacts
     public async Task AGrainExceptionMessageReachesTheCaller()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var brain = host.Brain;
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -57,7 +57,7 @@ public sealed class NeuronSurfaceFacts
     public async Task AnAppCreatedThroughMcpIsListedAsAnInstanceOfTheCallersBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var brain = host.Brain;
         await using var app = await Host(brain);
         using var client = Client(app);
         var (context, _) = await Tool(client, "neurons_context", new { }, ct);
@@ -87,7 +87,7 @@ public sealed class NeuronSurfaceFacts
     public async Task SearchThroughMcpAsksTheSilosKernel()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var brain = host.Brain;
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -144,7 +144,7 @@ public sealed class NeuronSurfaceFacts
     public async Task ARestrictedSearchRanksOnlyWhatTheAppComposes()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var kernel = Deployed.Kernel();
         var surface = await new NeuronSurface(new UnreachableBrain(), kernel, new NeuronTypeSearch(kernel, [new CrowdedSource()], null))
             .Restrict([typeof(IMcpServer).FullName!], ct);

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
 public sealed class McpIdentityFacts
 {

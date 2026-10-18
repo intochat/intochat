@@ -2,15 +2,15 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
-public sealed class McpRuntimeFacts
+public sealed class McpRuntimeFacts(McpHost host)
 {
     [Fact]
     public async Task TheMcpReadsMembershipThroughTheSingleRuntimeWithoutMachineRegistration()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var services = new ServiceCollection();
         services.AddSingleton(brain.Services.GetRequiredService<Orleans.IGrainFactory>());
         services.AddLocalPlatformClients();

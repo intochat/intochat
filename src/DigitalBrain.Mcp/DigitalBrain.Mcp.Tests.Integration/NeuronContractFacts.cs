@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
 public sealed class NeuronContractFacts
 {

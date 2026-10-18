@@ -1,4 +1,4 @@
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
 // The contract assemblies this MCP host carries, as a kernel's compiled layer.
 internal static class Deployed

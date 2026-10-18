@@ -9,16 +9,16 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
-public sealed class SessionCookieFacts
+public sealed class SessionCookieFacts(McpHost host)
 {
     [Fact]
     public async Task RuntimeIssuedCookieAuthenticatesOnASeparateMcpHost()
     {
         var ct = TestContext.Current.CancellationToken;
         var keys = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "pr131-cookie-" + Guid.NewGuid().ToString("N")));
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var brain = host.Brain;
         await using var runtime = await Host(false, keys, brain);
         await using var mcp = await Host(true, keys, brain);
         using var client = new HttpClient(new HttpClientHandler { UseCookies = false });

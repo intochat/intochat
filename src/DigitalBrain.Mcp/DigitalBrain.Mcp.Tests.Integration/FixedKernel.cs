@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
 // A kernel with no silo behind it: its types are the compiled layer of the given contract assemblies
 // and it has no instances. For facts about a surface that reads types before it reaches a neuron.

@@ -2,15 +2,15 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using Microsoft.Extensions.AI;
 
-namespace DigitalBrain.Mcp.Tests.Unit;
+namespace DigitalBrain.Mcp.Tests.Integration;
 
-public sealed class NeuronTypeSearchFacts
+public sealed class NeuronTypeSearchFacts(McpHost host)
 {
     [Fact]
     public async Task WithoutSourcesTheCapabilitiesAreTheKernelNeuronTypes()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var kernel = Deployed.Kernel();
         using var caller = brain.Owner.AsCaller();
         var read = await new NeuronTypeSearch(kernel, [], null).Capabilities(ct);
@@ -22,8 +22,8 @@ public sealed class NeuronTypeSearchFacts
     public async Task ASourcesEntriesFollowTheKernelTypesForItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        using var bob = await brain.PersonAsync("bob", ct);
+        var brain = host.Brain;
+        using var bob = await host.PersonAsync("bob", ct);
         var one = BrainScope.Create(brain.Owner.AccountId, brain.Owner.BrainId).Id;
         var kernel = Deployed.Kernel();
         var search = new NeuronTypeSearch(kernel, [new OneBrainSource(one)], null);
@@ -41,7 +41,7 @@ public sealed class NeuronTypeSearchFacts
     public async Task AFailingSourceLeavesTheKernelTypesSearchable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var kernel = Deployed.Kernel();
         using var caller = brain.Owner.AsCaller();
         var read = await new NeuronTypeSearch(kernel, [new FailingSource()], null).Capabilities(ct);
