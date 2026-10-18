@@ -30,5 +30,10 @@ public abstract class Module<TOptions> : Module where TOptions : class, IModuleO
     internal sealed override void AddOptions(IServiceCollection services)
         => services.AddOptions<TOptions>()
             .BindConfiguration(IntoChatOSConfiguration.ModuleOptionsSection(Id))
-            .Validate(options => { options.Validate(); return true; });
+            .Validate(options =>
+            {
+                ModuleOptionsSerialization.ValidateRequired(options, Id.ToString());
+                options.Validate();
+                return true;
+            });
 }
