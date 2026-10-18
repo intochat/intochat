@@ -67,4 +67,14 @@ public sealed class OsMemoryIntendFacts
         Assert.Contains("first check", rendered);
         Assert.DoesNotContain("second check", rendered);
     }
+
+    [Fact]
+    public void AContextEntryIsSetOnlyWhenItsTextChangesAndRemovedWhenEmpty()
+    {
+        Assert.Equal(global::Intents.Change.Skip, global::Intents.Decide("a", "a"));
+        Assert.Equal(global::Intents.Change.Set, global::Intents.Decide("a", "b"));
+        Assert.Equal(global::Intents.Change.Set, global::Intents.Decide(null, "b"));
+        Assert.Equal(global::Intents.Change.Remove, global::Intents.Decide("a", ""));
+        Assert.Equal(global::Intents.Change.Skip, global::Intents.Decide(null, ""));
+    }
 }

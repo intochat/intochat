@@ -20,6 +20,13 @@ internal static class Intents
 
     public const int ActiveBudget = 6_000;
 
+    public enum Change { Skip, Set, Remove }
+
+    // What to do with a context entry: remove it when nothing is rendered, set it when the text differs.
+    public static Change Decide(string? current, string rendered)
+        => rendered.Length == 0 ? (current is null ? Change.Skip : Change.Remove)
+            : current == rendered ? Change.Skip : Change.Set;
+
     public static string RenderWorking(string text)
         => (text ?? "").Length <= WorkingLimit ? text ?? "" : text![..WorkingLimit];
 
