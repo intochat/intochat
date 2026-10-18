@@ -1,5 +1,6 @@
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Context;
 using IntoChat.OS.AI.Models.OpenAI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Contracts;
@@ -19,6 +20,24 @@ public sealed class AgentModelTurnFacts
         => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
             .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ATurnReadsTheContextsItNames()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        model.Script(Luna, "Noted.");
+        await using var brain = await Brain(model, ct);
+        using var caller = brain.Owner.AsCaller();
+        var context = brain.Get<IAgentContext>(AgentFacts.Scope + "/memory/context");
+        await context.Set(new ContextEntry("active-intents", "Intent 42: ship the plan", []));
+
+        await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("context-turn")),
+            AgentTurn.Text("go", model: nameof(IGpt56Luna), contexts: [AgentFacts.Scope + "/memory/context"]), ct);
+
+        Assert.Contains("Intent 42: ship the plan", model.Requests(Luna)[0].GetRawText(), StringComparison.Ordinal);
+    }
 
     [Trait("host", "own")]
     [Fact]

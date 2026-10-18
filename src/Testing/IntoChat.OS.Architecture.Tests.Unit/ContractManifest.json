@@ -300,7 +300,7 @@
     "IntoChat.OS.AI.Agents.AgentState": "ai.agent-state; Revision=0, Definition=1, Summary=2, ActiveRun=3, Runs=4, Version=5",
     "IntoChat.OS.AI.Agents.AgentStorage": "agent.storage; Revision=0, Definition=1, Transcript=2, Summary=3, ActiveRun=4, Runs=5, Version=6",
     "IntoChat.OS.AI.Agents.AgentToolCall": "ai.agent-tool-call; CallId=0, Name=1, Arguments=2, Result=3, Code=4, Error=5",
-    "IntoChat.OS.AI.Agents.AgentTurn": "ai.agent-turn; Message=0, RunId=1, Model=2, Instructions=3, Contracts=4, Intent=5",
+    "IntoChat.OS.AI.Agents.AgentTurn": "ai.agent-turn; Message=0, RunId=1, Model=2, Instructions=3, Contracts=4, Intent=5, Contexts=6",
     "IntoChat.OS.AI.Agents.AgentTurnEvent": "ai.turn-event; ",
     "IntoChat.OS.AI.Agents.AgentTurnEvent+Completed": "ai.turn-event.Completed; Messages=0, Usage=1",
     "IntoChat.OS.AI.Agents.AgentTurnEvent+Failed": "ai.turn-event.Failed; Message=0, Cancelled=1",
