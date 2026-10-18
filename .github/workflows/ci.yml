@@ -18,7 +18,9 @@ env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
-  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  # The root disk has ~14 GB free and the solution's outputs plus packages exceed it; the runner's
+  # temporary disk at /mnt has room, so packages and build output live there (no slow cleanup step).
+  NUGET_PACKAGES: /mnt/nuget/packages
 
 # Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
 # modules. Shard membership lives in .github/test-shards.json; TestShardFacts holds every PR-gate
@@ -34,6 +36,12 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+
+      - name: Use the temporary disk
+        run: |
+          sudo mkdir -p /mnt/nuget /mnt/artifacts
+          sudo chown -R "$USER" /mnt/nuget /mnt/artifacts
+          df -h / /mnt
 
       - name: Restore NuGet package cache
         uses: actions/cache/restore@v6
@@ -62,6 +70,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Use the temporary disk
+        run: |
+          sudo mkdir -p /mnt/nuget /mnt/artifacts
+          sudo chown -R "$USER" /mnt/nuget /mnt/artifacts
+          df -h / /mnt
+
       - name: Restore NuGet package cache
         id: nuget-cache
         uses: actions/cache/restore@v6
@@ -82,31 +96,38 @@ jobs:
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
+        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false -p:ArtifactsPath=/mnt/artifacts
 
       - name: Validate NuGet packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
+        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -p:ArtifactsPath=/mnt/artifacts -o artifacts/packages
 
       # One archive per shard: each test output carries its own copy of every dependency, so
       # zstd's long window deduplicates across projects, and native assets for other RIDs go.
+      # One archive per shard, rooted at artifacts/bin so the test job unpacks it under the checkout:
+      # each test output carries its own copy of every dependency, so zstd's long window
+      # deduplicates across projects, and native assets for other RIDs are dropped.
       - name: Archive test modules per shard
+        working-directory: /mnt
         run: |
-          mkdir -p artifacts/shards
-          for shard in $(jq -r '.shards | keys[]' .github/test-shards.json); do
+          shards="$GITHUB_WORKSPACE/.github/test-shards.json"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/shards"
+          for shard in $(jq -r '.shards | keys[]' "$shards"); do
             dirs=()
             while read -r glob; do
               found=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}")
               if [ -z "$found" ]; then echo "::error::$shard: $glob matches no test module"; exit 1; fi
               while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done <<< "$found"
-            done < <(jq -r --arg s "$shard" '.shards[$s][]' .github/test-shards.json)
+            done < <(jq -r --arg s "$shard" '.shards[$s][]' "$shards")
             for dir in "${dirs[@]}"; do
               if [ -d "$dir/release/runtimes" ]; then
                 find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
               fi
             done
-            tar -I 'zstd -T0 -3 --long=30' -cf "artifacts/shards/$shard.tar.zst" "${dirs[@]}"
-            echo "$shard: ${#dirs[@]} modules, $(du -h "artifacts/shards/$shard.tar.zst" | cut -f1)"
+            archive="$GITHUB_WORKSPACE/artifacts/shards/$shard.tar.zst"
+            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "${dirs[@]}"
+            echo "$shard: ${#dirs[@]} modules, $(du -h "$archive" | cut -f1)"
           done
+          df -h / /mnt
 
       - uses: actions/upload-artifact@v5
         with:
