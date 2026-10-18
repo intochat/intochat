@@ -8,7 +8,6 @@
     <PackageReference Include="Aspire.Hosting.Qdrant" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
     <ProjectReference Include="../DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
   </ItemGroup>
