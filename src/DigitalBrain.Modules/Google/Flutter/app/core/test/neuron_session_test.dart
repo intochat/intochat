@@ -10,10 +10,12 @@ import 'package:test/test.dart';
 final class SessionService extends rpc.NeuronsServiceBase {
   final received = <Map<String, String>>[];
   final watches = <rpc.WatchRequest>[];
+  Duration callDelay = Duration.zero;
 
   @override
   Future<rpc.CallReply> call(ServiceCall call, rpc.CallRequest request) async {
     received.add(Map.of(call.clientMetadata ?? {}));
+    await Future<void>.delayed(callDelay);
     return rpc.CallReply(result: utf8.encode('{}'));
   }
 
@@ -111,5 +113,27 @@ void main() {
     for (final subscription in subscriptions) {
       await subscription.cancel();
     }
+  });
+
+  test('a call past its deadline fails with DEADLINE_EXCEEDED', () async {
+    final service = SessionService()..callDelay = const Duration(seconds: 2);
+    final server = Server.create(services: [service]);
+    await server.serve(address: '127.0.0.1', port: 0);
+    addTearDown(server.shutdown);
+    final channel = NeuronChannel(
+      Uri.parse('http://127.0.0.1:${server.port}'),
+      callTimeout: const Duration(milliseconds: 100),
+    );
+    addTearDown(channel.shutdown);
+    await expectLater(
+      channel.call('owner', 'Contract', 'key', 'Read', []),
+      throwsA(
+        isA<GrpcError>().having(
+          (e) => e.code,
+          'code',
+          StatusCode.deadlineExceeded,
+        ),
+      ),
+    );
   });
 }

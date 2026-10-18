@@ -62,6 +62,7 @@ final class NeuronChannel implements NeuronLink {
     Uri baseUri, {
     String? authorization,
     Map<String, String> Function()? sessionHeaders,
+    this.callTimeout = defaultCallTimeout,
   }) : _channel = transport.createNeuronChannel(baseUri),
        _options = CallOptions(
          metadata: authorization == null
@@ -74,6 +75,10 @@ final class NeuronChannel implements NeuronLink {
        ) {
     _client = rpc.NeuronsClient(_channel, options: _options);
   }
+
+  /// The deadline a [call] gets unless it names its own; `Watch` streams have none.
+  static const defaultCallTimeout = Duration(seconds: 15);
+  final Duration callTimeout;
   final ClientChannelBase _channel;
   final CallOptions _options;
   late final rpc.NeuronsClient _client;
@@ -92,17 +97,24 @@ final class NeuronChannel implements NeuronLink {
     arguments: utf8.encode(jsonEncode(arguments)),
   );
 
-  /// Runs a contract method; null when the method answers nothing.
+  /// The per-call options: [timeout], else [callTimeout].
+  CallOptions callOptions({Duration? timeout}) =>
+      CallOptions(timeout: timeout ?? callTimeout);
+
+  /// Runs a contract method; null when the method answers nothing. It fails with
+  /// `DEADLINE_EXCEEDED` after [timeout] (default [callTimeout]).
   @override
   Future<Map<String, dynamic>?> call(
     String brainId,
     String contract,
     String key,
     String method,
-    List<Object?> arguments,
-  ) async {
+    List<Object?> arguments, {
+    Duration? timeout,
+  }) async {
     final reply = await _client.call(
       callRequest(brainId, contract, key, method, arguments),
+      options: callOptions(timeout: timeout),
     );
     if (reply.result.isEmpty) return null;
     final decoded = jsonDecode(utf8.decode(reply.result));

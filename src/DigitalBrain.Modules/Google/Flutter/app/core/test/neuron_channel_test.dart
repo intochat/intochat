@@ -32,6 +32,17 @@ void main() {
     expect(request.brainId, 'owner');
   });
 
+  test('a call carries the default 15 s deadline unless it names one', () {
+    final channel = NeuronChannel(Uri.parse('http://127.0.0.1:1'));
+    addTearDown(channel.shutdown);
+    expect(NeuronChannel.defaultCallTimeout, const Duration(seconds: 15));
+    expect(channel.callOptions().timeout, const Duration(seconds: 15));
+    expect(
+      channel.callOptions(timeout: const Duration(seconds: 2)).timeout,
+      const Duration(seconds: 2),
+    );
+  });
+
   group('NeuronWatchMux', () {
     const a = WatchSourceSpec('C.IA', 'owner/a', ['AChanged']);
     const b = WatchSourceSpec('C.IB', 'owner/b', ['BChanged']);
