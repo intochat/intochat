@@ -12,6 +12,7 @@ public interface IExpander : INeuron
 }
 
 [GenerateSerializer, Alias("ui.expander-state")]
+[ExportableState]
 public sealed class ExpanderState
 {
     [Id(0)] public string Name { get; set; } = "";

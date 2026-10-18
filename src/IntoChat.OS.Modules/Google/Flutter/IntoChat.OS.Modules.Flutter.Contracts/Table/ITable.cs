@@ -14,6 +14,7 @@ public interface ITable : INeuron
 public sealed record TableColumn([property: Id(0)] string Id, [property: Id(1)] string Title);
 
 [GenerateSerializer, Alias("ui.table-state")]
+[ExportableState]
 public sealed class TableState
 {
     [Id(0)] public string Name { get; set; } = "";

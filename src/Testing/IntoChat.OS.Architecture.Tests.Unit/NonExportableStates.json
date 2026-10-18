@@ -1,0 +1,107 @@
+[
+  {
+    "type": "IntoChat.OS.AI.Metering.IntentUsageStorage",
+    "state": "intent-usage",
+    "reason": "billing/usage, not customer data"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Compute.CircleShareState",
+    "state": "circle-share",
+    "reason": "platform authority state (Authority assembly), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Compute.LedgerState",
+    "state": "ledger",
+    "reason": "billing/usage, not customer data"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Compute.TraceBudgetState",
+    "state": "trace-budget",
+    "reason": "billing/usage, not customer data"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Compute.UsageState",
+    "state": "usage",
+    "reason": "billing/usage, not customer data"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Connections.ConnectionIndexState",
+    "state": "connections",
+    "reason": "platform authority state (Authority assembly), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Connections.ConnectionRequestsState",
+    "state": "state",
+    "reason": "platform authority state (Authority assembly), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Identity.Authority.AccountState",
+    "state": "account",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Identity.Authority.BrainAuthorityState",
+    "state": "access",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Identity.Authority.PrincipalState",
+    "state": "principal",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Identity.PrincipalCredentialState",
+    "state": "credential",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Integrations.IntegrationState",
+    "state": "registration",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Marketplace.MarketplaceCatalogState",
+    "state": "marketplace",
+    "reason": "platform authority state (Authority assembly), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Secrets.SecretsState",
+    "state": "vault",
+    "reason": "identity/secret: hard-denied name"
+  },
+  {
+    "type": "IntoChat.OS.ClickHouse.Query.ClickHouseConnectionState",
+    "state": "clickhouse",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Google.Gmail.GmailState",
+    "state": "gmail",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Microsoft.Azure.AzureConnectionState",
+    "state": "azure",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryState",
+    "state": "github",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Microsoft.Windows.WindowsConnectionState",
+    "state": "windows",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Postgres.PostgresConnectionState",
+    "state": "postgres",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Salesforce.SalesforceState",
+    "state": "salesforce",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  }
+]

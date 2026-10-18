@@ -12,6 +12,7 @@ public interface ISlider : INeuron
 }
 
 [GenerateSerializer, Alias("ui.slider-state")]
+[ExportableState]
 public sealed class SliderState
 {
     [Id(0)] public string Name { get; set; } = "";

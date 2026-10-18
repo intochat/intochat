@@ -18,6 +18,7 @@ public sealed record ChartPoint(
     [property: Id(2)] double Value);
 
 [GenerateSerializer, Alias("ui.chart-state")]
+[ExportableState]
 public sealed class ChartState
 {
     [Id(0)] public string Name { get; set; } = "";

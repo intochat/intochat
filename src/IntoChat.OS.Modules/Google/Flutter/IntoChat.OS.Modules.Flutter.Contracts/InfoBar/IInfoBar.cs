@@ -12,6 +12,7 @@ public interface IInfoBar : INeuron
 }
 
 [GenerateSerializer, Alias("ui.infobar-state")]
+[ExportableState]
 public sealed class InfoBarState
 {
     [Id(0)] public string Name { get; set; } = "";

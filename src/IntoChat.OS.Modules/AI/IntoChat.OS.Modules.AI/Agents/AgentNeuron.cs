@@ -13,6 +13,7 @@ namespace IntoChat.OS.AI.Agents;
 // Every message held here is built from concrete arrays: the storage serializer cannot bring
 // collection-expression wrappers back on reactivation.
 [GenerateSerializer, Alias("agent.storage")]
+[ExportableState]
 internal sealed record AgentStorage
 {
     [Id(0)] public long Revision { get; init; }

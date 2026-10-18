@@ -14,6 +14,7 @@ public interface ISurface : INeuron
 public sealed record SurfaceDefinition([property: Id(0)] string Title, [property: Id(1)] UiChildRef[] Children);
 
 [GenerateSerializer, Alias("ui.surface-state")]
+[ExportableState]
 public sealed class SurfaceState
 {
     [Id(0)] public string Name { get; set; } = "";

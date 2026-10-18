@@ -16,6 +16,7 @@ public sealed record LayoutDefinition([property: Id(0)] string Mode, [property: 
     [property: Id(5)] string? Surface = null, [property: Id(6)] double Padding = 0);
 
 [GenerateSerializer, Alias("ui.layout-state")]
+[ExportableState]
 public sealed class LayoutState
 {
     [Id(0)] public string Name { get; set; } = "";

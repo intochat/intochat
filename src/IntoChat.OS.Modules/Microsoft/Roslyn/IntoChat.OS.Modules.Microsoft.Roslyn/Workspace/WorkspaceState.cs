@@ -2,6 +2,7 @@ namespace IntoChat.OS.Microsoft.Roslyn;
 
 [GenerateSerializer]
 [Alias("coding.workspace-state")]
+[ExportableState]
 internal sealed record WorkspaceState(
     [property: Id(0)] string SolutionPath,
     [property: Id(1)] long Generation,

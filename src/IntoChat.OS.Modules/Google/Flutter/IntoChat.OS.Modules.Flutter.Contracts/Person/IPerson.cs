@@ -11,6 +11,7 @@ public interface IPerson : INeuron
 }
 
 [GenerateSerializer, Alias("ui.person-state")]
+[ExportableState]
 public sealed class PersonState
 {
     [Id(0)] public string Name { get; set; } = "";

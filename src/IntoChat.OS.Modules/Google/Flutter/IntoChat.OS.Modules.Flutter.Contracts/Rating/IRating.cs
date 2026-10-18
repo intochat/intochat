@@ -11,6 +11,7 @@ public interface IRating : INeuron
 }
 
 [GenerateSerializer, Alias("ui.rating-state")]
+[ExportableState]
 public sealed class RatingState
 {
     [Id(0)] public string Name { get; set; } = "";

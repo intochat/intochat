@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Circles;
 
 [GenerateSerializer, Alias("circles.circle-record")]
+[ExportableState]
 internal sealed class CircleRecord
 {
     [Id(0)] public string Name { get; set; } = "";

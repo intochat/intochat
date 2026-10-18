@@ -15,6 +15,7 @@ public interface IVoiceInput : INeuron
 }
 
 [GenerateSerializer, Alias("ui.voiceinput-state")]
+[ExportableState]
 public sealed class VoiceInputState
 {
     [Id(0)] public string Name { get; set; } = "";

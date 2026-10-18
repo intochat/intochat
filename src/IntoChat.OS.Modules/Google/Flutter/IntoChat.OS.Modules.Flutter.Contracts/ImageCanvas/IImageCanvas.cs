@@ -15,6 +15,7 @@ public interface IImageCanvas : INeuron
 public sealed record ImageCanvasDefinition([property: Id(0)] string AssetId, [property: Id(1)] int Width, [property: Id(2)] int Height, [property: Id(3)] ImageRecipe Recipe, [property: Id(4)] long DocumentRevision);
 
 [GenerateSerializer, Alias("ui.imagecanvas-state")]
+[ExportableState]
 public sealed class ImageCanvasState
 {
     [Id(0)] public string Name { get; set; } = "";

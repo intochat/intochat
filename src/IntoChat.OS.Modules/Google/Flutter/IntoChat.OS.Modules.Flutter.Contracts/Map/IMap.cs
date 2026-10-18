@@ -18,6 +18,7 @@ public sealed record MapMarker(
     [property: Id(3)] string Label);
 
 [GenerateSerializer, Alias("ui.map-state")]
+[ExportableState]
 public sealed class MapState
 {
     [Id(0)] public string Name { get; set; } = "";

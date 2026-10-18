@@ -12,6 +12,7 @@ internal sealed record RouteRecord(
 
 // The router's own state: the decisions it has made and the requests asked of it, most recent last.
 [GenerateSerializer, Alias("ai.router.storage")]
+[ExportableState]
 internal sealed record RouterStorage
 {
     [Id(0)] public RouteRecord[] Recent { get; init; } = [];

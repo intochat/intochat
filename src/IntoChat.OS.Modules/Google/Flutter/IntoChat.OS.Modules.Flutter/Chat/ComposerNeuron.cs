@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Flutter.Chat;
 
 [GenerateSerializer, Alias("ui.composer-storage")]
+[ExportableState]
 internal sealed record ComposerStorage
 {
     [Id(0)] public ComposerState State { get; init; } = new();

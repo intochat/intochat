@@ -11,6 +11,7 @@ public interface IClock : INeuron
 }
 
 [GenerateSerializer, Alias("ui.clock-state")]
+[ExportableState]
 public sealed class ClockState
 {
     [Id(0)] public string Name { get; set; } = "";

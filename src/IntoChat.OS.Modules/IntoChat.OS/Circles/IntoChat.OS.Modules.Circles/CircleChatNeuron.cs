@@ -7,6 +7,7 @@ using IntoChat.OS.Authority.Identity;
 namespace IntoChat.OS.Circles;
 
 [GenerateSerializer, Alias("circles.chat-record")]
+[ExportableState]
 internal sealed class CircleChatRecord
 {
     [Id(0)] public CircleLine[] Lines { get; set; } = [];

@@ -70,6 +70,7 @@ public sealed class FormFieldState
 }
 
 [GenerateSerializer, Alias("ui.form-state")]
+[ExportableState]
 public sealed class FormState
 {
     [Id(0)] public string FormId { get; set; } = "";

@@ -18,6 +18,7 @@ public sealed record TreeNode(
     [property: Id(2)] string Label);
 
 [GenerateSerializer, Alias("ui.tree-state")]
+[ExportableState]
 public sealed class TreeState
 {
     [Id(0)] public string Name { get; set; } = "";

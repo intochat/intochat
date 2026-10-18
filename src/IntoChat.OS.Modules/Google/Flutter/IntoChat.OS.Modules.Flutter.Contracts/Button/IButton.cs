@@ -15,6 +15,7 @@ public interface IButton : INeuron
 }
 
 [GenerateSerializer, Alias("ui.button-state")]
+[ExportableState]
 public sealed class ButtonState
 {
     [Id(0)] public string Name { get; set; } = "";

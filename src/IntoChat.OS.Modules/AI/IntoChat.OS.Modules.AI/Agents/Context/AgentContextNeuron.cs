@@ -6,6 +6,7 @@ using Orleans.Runtime;
 namespace IntoChat.OS.AI.Agents.Context;
 
 [GenerateSerializer, Alias("agent-context.state")]
+[ExportableState]
 public sealed record AgentContextState
 {
     [Id(0)] public long Revision { get; init; }

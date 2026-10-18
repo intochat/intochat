@@ -17,6 +17,7 @@ public sealed record SheetCell(
     [property: Id(2)] string Value);
 
 [GenerateSerializer, Alias("ui.sheet-state")]
+[ExportableState]
 public sealed class SheetState
 {
     [Id(0)] public string Name { get; set; } = "";
