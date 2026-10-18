@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.RiskSeal.Tests;
+namespace DigitalBrain.Modules.RiskSeal.Tests.Integration;
 
 // RiskSeal on loopback, answering the assumed wire shape the real provider calls.
 internal sealed class FakeRiskSeal : IAsyncDisposable

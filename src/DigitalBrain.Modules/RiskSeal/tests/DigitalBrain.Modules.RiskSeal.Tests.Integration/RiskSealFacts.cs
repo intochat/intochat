@@ -3,12 +3,13 @@ using DigitalBrain.RiskSeal;
 using DigitalBrain.RiskSeal.Signals;
 using Xunit;
 
-namespace DigitalBrain.Modules.RiskSeal.Tests;
+namespace DigitalBrain.Modules.RiskSeal.Tests.Integration;
 
-public sealed class RiskSealFacts
+public sealed class RiskSealFacts(RiskSealHost host)
 {
     private static readonly ScoreRequest Ana = new("ana@example.com", "+51987654321", "203.0.113.7", "DNI-1234");
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionScoresWithTheIntegrationsKey()
     {
@@ -35,11 +36,11 @@ public sealed class RiskSealFacts
     public async Task ScoreAndSignalsAreExtractedFromThePayload()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var fake = await FakeRiskSeal.StartAsync(ct);
-        await using var brain = await StartAsync(fake, ct);
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
 
-        var score = await brain.Get<IRiskSeal>(await DeploymentAsync(brain)).Score(new("ana@example.com", null));
+        var score = await brain.Get<IRiskSeal>(await DeploymentAsync(brain, person)).Score(new("ana@example.com", null));
 
         Assert.Equal("rs-1", score.RequestId);
         Assert.Equal(74, score.Score);
@@ -48,6 +49,7 @@ public sealed class RiskSealFacts
         Assert.Equal(FakeRiskSeal.Payload, score.RawJson);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APastedApiKeyConnectionScoresWithItsOwnKey()
     {
@@ -70,10 +72,10 @@ public sealed class RiskSealFacts
     public async Task ARefusedKeyPublishesRiskScoreFailedAndProbesFailing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var fake = await FakeRiskSeal.StartAsync(ct);
-        await using var brain = await StartAsync(fake, ct);
-        var key = ConnectionKeys.For(brain.Owner.BrainId, "riskseal", "wrong");
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        var key = ConnectionKeys.For(person.BrainId, "riskseal", "wrong");
+        using var caller = person.AsCaller();
         await brain.Get<IConnection>(key).Connect("api-key", "wrong-key");
         var neuron = brain.Get<IRiskSeal>(key);
         await using var failed = await brain.Observe<RiskScoreFailed>(neuron, ct);
@@ -89,6 +91,7 @@ public sealed class RiskSealFacts
         Assert.Equal("unauthorized (401)", view.Detail);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARequestWithoutEmailOrPhoneIsRefusedBeforeAnyCall()
     {
@@ -104,6 +107,7 @@ public sealed class RiskSealFacts
         Assert.Empty(fake.Bearers);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionProbesConnectedOrFailing()
     {
@@ -122,6 +126,7 @@ public sealed class RiskSealFacts
         Assert.Equal(["deploy-key", "deploy-key"], fake.Bearers);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionWithTheIntegrationNotReadyFailsAsNotConfigured()
     {
@@ -146,16 +151,19 @@ public sealed class RiskSealFacts
     }
 
     // The caller must already be the owner.
-    private static async Task<string> DeploymentAsync(ITestBrain brain)
+    private static Task<string> DeploymentAsync(ITestBrain brain) => DeploymentAsync(brain, brain.Owner);
+
+    private static async Task<string> DeploymentAsync(ITestBrain brain, Person person)
     {
-        var key = ConnectionKeys.For(brain.Owner.BrainId, "riskseal", "deployment");
+        var key = ConnectionKeys.For(person.BrainId, "riskseal", "deployment");
         await brain.Get<IConnection>(key).Connect("deployment", "default");
         return key;
     }
 
-    private static Task<ITestBrain> StartAsync(FakeRiskSeal fake, CancellationToken ct)
-        => TestBrain.Create()
+    private static Task<ITestBrain> StartAsync(FakeRiskSeal fake, CancellationToken ct) => Compose(TestBrain.Create(), fake).StartAsync(ct);
+
+    internal static TestBrain Compose(TestBrain brain, FakeRiskSeal fake)
+        => brain
             .WithModule<RiskSealModule, RiskSealModuleOptions>(options => { options.BaseUrl = fake.BaseUrl; options.AllowLoopback = true; })
-            .WithIntegration(RiskSealModule.Integration, "ApiKey", "deploy-key")
-            .StartAsync(ct);
+            .WithIntegration(RiskSealModule.Integration, "ApiKey", "deploy-key");
 }

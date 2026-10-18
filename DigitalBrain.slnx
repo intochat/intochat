@@ -168,7 +168,7 @@
     <Project Path="src/DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal.Aspire.Hosting/DigitalBrain.Modules.RiskSeal.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal.Contracts/DigitalBrain.Modules.RiskSeal.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal/DigitalBrain.Modules.RiskSeal.csproj" />
-    <Project Path="src/DigitalBrain.Modules/RiskSeal/tests/DigitalBrain.Modules.RiskSeal.Tests/DigitalBrain.Modules.RiskSeal.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/RiskSeal/tests/DigitalBrain.Modules.RiskSeal.Tests.Integration/DigitalBrain.Modules.RiskSeal.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Salesforce/">
     <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" />

@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.RiskSeal;
 using Xunit;
 
-namespace DigitalBrain.Modules.RiskSeal.Tests;
+namespace DigitalBrain.Modules.RiskSeal.Tests.Integration;
 
 public sealed class RiskSealDeclarationFacts
 {
