@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.Equifax.Tests;
+namespace DigitalBrain.Modules.Equifax.Tests.Integration;
 
 // Equifax on loopback, in the module's ASSUMED shape: a client-credentials token endpoint and the report route.
 internal sealed class FakeEquifax : IAsyncDisposable

@@ -3,7 +3,7 @@ using DigitalBrain.Equifax.Signals;
 using DigitalBrain.Framework;
 using Xunit;
 
-namespace DigitalBrain.Modules.Equifax.Tests;
+namespace DigitalBrain.Modules.Equifax.Tests.Integration;
 
 public sealed class EquifaxDeclarationFacts
 {

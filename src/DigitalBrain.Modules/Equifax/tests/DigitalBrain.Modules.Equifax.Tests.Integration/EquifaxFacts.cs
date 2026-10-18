@@ -3,10 +3,11 @@ using DigitalBrain.Equifax.Signals;
 using DigitalBrain.Framework.Platform.Connections;
 using Xunit;
 
-namespace DigitalBrain.Modules.Equifax.Tests;
+namespace DigitalBrain.Modules.Equifax.Tests.Integration;
 
-public sealed class EquifaxFacts
+public sealed class EquifaxFacts(EquifaxHost host)
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionReadsAReportWithTheIntegrationsClientId()
     {
@@ -26,6 +27,7 @@ public sealed class EquifaxFacts
         Assert.Equal([report], await equifax.ReadRecent(10));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APastedCredentialsConnectionReadsWithItsOwnClient()
     {
@@ -43,6 +45,7 @@ public sealed class EquifaxFacts
         Assert.Equal(ConnectionStatus.Connected, (await brain.Get<IConnection>(key).Probe()).Status);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheTokenIsReusedAcrossTwoReads()
     {
@@ -60,6 +63,7 @@ public sealed class EquifaxFacts
         Assert.Equal(["11112222", "12345678"], (await equifax.ReadRecent(10)).Select(report => report.DocumentNumber));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARefusedTokenPublishesBureauReportFailedAndTheProbeFails()
     {
@@ -85,6 +89,7 @@ public sealed class EquifaxFacts
         Assert.Empty(fake.ReportBearers);
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData("1234567")]
     [InlineData("123456789")]
@@ -108,16 +113,16 @@ public sealed class EquifaxFacts
     public async Task TheLoanFlagsAreExtractedFromThePayload()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var fake = await FakeEquifax.StartAsync(ct);
-        await using var brain = await StartAsync(fake, ct);
-        using var caller = brain.Owner.AsCaller();
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
 
-        var report = await (await DeploymentAsync(brain)).ReadCreditReport(new("12345678"));
+        var report = await (await DeploymentAsync(host.Brain, person)).ReadCreditReport(new("12345678"));
 
         Assert.Equal(new BureauFlags(true, "CPP", 45, false, true, false), report.Flags);
         Assert.Contains("\"infocorp\"", report.RawJson, StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionProbesFailingWhenTheTokenIsRefusedAndConnectedWithTheIntegration()
     {
@@ -137,6 +142,7 @@ public sealed class EquifaxFacts
         Assert.Equal(["deploy-id:deploy-secret", "deploy-id:deploy-secret"], fake.TokenClients);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionWithTheIntegrationNotReadyFailsWithEquifaxIsNotConfigured()
     {
@@ -164,18 +170,23 @@ public sealed class EquifaxFacts
     public void AMissingFieldLeavesItsFlagNull()
         => Assert.Equal(new BureauFlags(null, "NOR", null, null, null, null), BureauFlagsReader.Read("""{"sbs":{"rating":"NOR","maxDaysDelay":"x"}}"""));
 
-    private static string DeploymentKey(ITestBrain brain) => ConnectionKeys.For(brain.Owner.BrainId, "equifax", "deployment");
+    private static string DeploymentKey(ITestBrain brain) => DeploymentKey(brain.Owner);
 
-    private static async Task<IEquifax> DeploymentAsync(ITestBrain brain)
+    private static string DeploymentKey(Person person) => ConnectionKeys.For(person.BrainId, "equifax", "deployment");
+
+    private static Task<IEquifax> DeploymentAsync(ITestBrain brain) => DeploymentAsync(brain, brain.Owner);
+
+    private static async Task<IEquifax> DeploymentAsync(ITestBrain brain, Person person)
     {
-        await brain.Get<IConnection>(DeploymentKey(brain)).Connect("deployment", "default");
-        return brain.Get<IEquifax>(DeploymentKey(brain));
+        await brain.Get<IConnection>(DeploymentKey(person)).Connect("deployment", "default");
+        return brain.Get<IEquifax>(DeploymentKey(person));
     }
 
-    private static Task<ITestBrain> StartAsync(FakeEquifax fake, CancellationToken ct)
-        => TestBrain.Create()
+    private static Task<ITestBrain> StartAsync(FakeEquifax fake, CancellationToken ct) => Compose(TestBrain.Create(), fake).StartAsync(ct);
+
+    internal static TestBrain Compose(TestBrain brain, FakeEquifax fake)
+        => brain
             .WithModule<EquifaxModule, EquifaxModuleOptions>(options => { options.BaseUrl = fake.Origin; options.AllowLoopback = true; })
             .WithIntegration(EquifaxModule.Integration, "ClientId", "deploy-id")
-            .WithIntegration(EquifaxModule.Integration, "ClientSecret", "deploy-secret")
-            .StartAsync(ct);
+            .WithIntegration(EquifaxModule.Integration, "ClientSecret", "deploy-secret");
 }
