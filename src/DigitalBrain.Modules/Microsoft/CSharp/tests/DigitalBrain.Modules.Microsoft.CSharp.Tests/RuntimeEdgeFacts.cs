@@ -333,8 +333,11 @@ public sealed class RuntimeEdgeFacts
         await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
         (await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct)).EnsureSuccessStatusCode();
 
+        // The trusted edge begins the publish's trace under the click's activity, as a stamped request does; the
+        // signal journals it, and the batch derives from it whichever turn reads the signal.
         using var click = new System.Diagnostics.Activity("click").Start();
-        await brain.Get<IPinger>("pinger").Ping(9);
+        using (DigitalBrain.Framework.Compute.TraceContext.Enter(DigitalBrain.Framework.Compute.TraceContext.Begin("acc", "acc-brain", new NeuronId("acc-brain/edge"))))
+        { await brain.Get<IPinger>("pinger").Ping(9); }
 
         SseItem<string> batch;
         do { Assert.True(await events.MoveNextAsync()); batch = events.Current; } while (batch.EventType != SignalBatchEvent.Kind);

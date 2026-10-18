@@ -822,12 +822,14 @@ internal sealed class BrainRuntimeNeuron(
     internal static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
     // The batch carries the trace of its first signal, so the behavior's reaction joins it; that same
-    // trace is remembered until the ack, so the ack prices the CPU the run cost under it.
+    // trace is remembered until the ack, so the ack prices the CPU the run cost under it. Only the journaled
+    // signal's trace counts: the turn that reads it (a nudge, a subscription's own read) is not its cause.
     private SignalBatchEvent Batch(Subscription subscription)
     {
-        var trace = FirstSignalTrace(subscription.Pending);
-        var traceParent = trace is null ? System.Diagnostics.Activity.Current?.Id : $"00-{trace.TraceId}-{System.Diagnostics.ActivitySpanId.CreateRandom().ToHexString()}-01";
-        if (trace is not null) { _batchTraces[(subscription.Id, subscription.Watermark)] = new(trace, traceParent!); }
+        if (FirstSignalTrace(subscription.Pending) is not { } trace)
+        { return new SignalBatchEvent(subscription.Id, subscription.Pending, subscription.Watermark); }
+        var traceParent = $"00-{trace.TraceId}-{System.Diagnostics.ActivitySpanId.CreateRandom().ToHexString()}-01";
+        _batchTraces[(subscription.Id, subscription.Watermark)] = new(trace, traceParent);
         return new SignalBatchEvent(subscription.Id, subscription.Pending, subscription.Watermark, traceParent);
     }
 

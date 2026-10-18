@@ -226,6 +226,28 @@ public sealed class RunFactsFacts
         Assert.Contains(spans, span => span.OperationName == "runtime.batch" && span.TraceId == parent.TraceId && span.ParentSpanId == parent.SpanId);
     }
 
+    // A batch's trace is its first signal's, read from the journal: the turn that happens to read it (a nudge, a
+    // subscription's own read) lends it nothing, so a signal published under no trace carries none down the stream.
+    [Fact]
+    public async Task ABatchCarriesOnlyItsSignalsTraceNeverTheReadingTurns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("untraced");
+        await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        using (new System.Diagnostics.Activity("unrelated").Start()) { await PingAsync(pinger, 1, null); }
+        await rig.Started.NextAsync(ct: ct);
+
+        using var reading = new System.Diagnostics.Activity("reading").Start();
+        Assert.Null(Assert.Single(await rig.Edge.PendingBatches(rig.Session)).TraceParent);
+    }
+
     [Fact]
     public async Task ARePushedBatchStartsOnce()
     {
