@@ -5,12 +5,12 @@
 # stage config: the literal is left untouched by the rename stage and replaced by `-Stage config` (08-05).
 # Everything not listed falls through to the ordered generic rules (bare DigitalBrain -> IntoChat.OS).
 # --- config-root literals (stage config; the config prefix is IntoChatOS, not the namespace form) ---
-src/DigitalBrain.AppHost/appsettings.json	"DigitalBrain": {	"IntoChatOS": {	config	config root of AppHost appsettings
-src/DigitalBrain.OS/DigitalBrain.OS/appsettings.json	"DigitalBrain": {	"IntoChatOS": {	config	config root of the kernel host appsettings
-src/DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs	"DigitalBrain": {	"IntoChatOS": {	config	JSON config root written by the fact
-src/DigitalBrain.Authority/DigitalBrain.Authority/Secrets/MasterKeyOptions.cs	SectionName = "DigitalBrain"	SectionName = "IntoChatOS"	config	binds IntoChatOS:MasterKey
-src/DigitalBrain.Framework/DigitalBrain.Framework/Configuration/ModuleOptionsSerialization.cs	root.Equals("DigitalBrain"	root.Equals("IntoChatOS"	config	config root literal
-src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/Configuration/FlutterToolchainOptions.cs	GetSection("DigitalBrain")	GetSection("IntoChatOS")	config	config root literal
+src/IntoChat.OS.AppHost/appsettings.json	"DigitalBrain": {	"IntoChatOS": {	config	config root of AppHost appsettings
+src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/appsettings.json	"DigitalBrain": {	"IntoChatOS": {	config	config root of the kernel host appsettings
+src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs	"DigitalBrain": {	"IntoChatOS": {	config	JSON config root written by the fact
+src/IntoChat.OS.Authority/IntoChat.OS.Authority/Secrets/MasterKeyOptions.cs	SectionName = "DigitalBrain"	SectionName = "IntoChatOS"	config	binds IntoChatOS:MasterKey
+src/IntoChat.OS.Framework/IntoChat.OS.Framework/Configuration/ModuleOptionsSerialization.cs	root.Equals("DigitalBrain"	root.Equals("IntoChatOS"	config	config root literal
+src/IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Aspire.Hosting/Configuration/FlutterToolchainOptions.cs	GetSection("DigitalBrain")	GetSection("IntoChatOS")	config	config root literal
 # --- persisted/deployed names that are path segments (stage rename, IntoChatOS per owner ruling) ---
 src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/MachineIdentity.cs	"DigitalBrain", "machine-id"	"IntoChatOS", "machine-id"	rename	LOCALAPPDATA folder
 src/DigitalBrain.Authority/DigitalBrain.Authority/Storage/BrainStoreOptions.cs	"DigitalBrain", "runtime"	"IntoChatOS", "runtime"	rename	LOCALAPPDATA folder
@@ -48,8 +48,8 @@ src/DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrainHostingExtension
 features/os/Memory/Memory.cs	"digitalbrain"	"intochat-os"	rename	R10 keyword
 # Plan 04 scopes (left byte-unchanged here): package digitalbrain; (proto), /digitalbrain.Neurons/*, ui.digitalbrain.io, digitalbrain_* pub/barrel names, Windows runner, https://digitalbrain.tech in Dart tests.
 # --- config-prefix scanner: the fact must keep matching the (still unchanged) literals until the config stage flips both ---
-src/Testing/DigitalBrain.Architecture.Tests.Unit/ConfigurationKeyFacts.cs	$?DigitalBrain(:|__)[A-Za-z]	$?IntoChatOS(:|__)[A-Za-z]	config	KeyLiteral regex scans for the config prefix
-src/Testing/DigitalBrain.Architecture.Tests.Unit/ConfigurationKeyFacts.cs	A raw "DigitalBrain:…" or "DigitalBrain__…"	A raw "IntoChatOS:…" or "IntoChatOS__…"	config	comment naming the prefix
+src/Testing/IntoChat.OS.Architecture.Tests.Unit/ConfigurationKeyFacts.cs	$?DigitalBrain(:|__)[A-Za-z]	$?IntoChatOS(:|__)[A-Za-z]	config	KeyLiteral regex scans for the config prefix
+src/Testing/IntoChat.OS.Architecture.Tests.Unit/ConfigurationKeyFacts.cs	A raw "DigitalBrain:…" or "DigitalBrain__…"	A raw "IntoChatOS:…" or "IntoChatOS__…"	config	comment naming the prefix
 # --- solution folder of the kernel host mirrors its directory (RepositoryLayoutFacts drops the IntoChat.OS. prefix) ---
 DigitalBrain.slnx	<Folder Name="/OS/">	<Folder Name="/Kernel/">	rename	kernel host directory is IntoChat.OS.Kernel
 src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Integration/Contracts/FlutterWireNameFacts.cs	100160CD8667934469676974616C427261696E2E466C75747465722E436861742E43686174526F6C652C4469676974616C427261696E2E4D6F64756C65732E466C75747465722E436F6E74726163747305	100199FE0BA38F496E746F436861742E4F532E466C75747465722E436861742E43686174526F6C652C496E746F436861742E4F532E4D6F64756C65732E466C75747465722E436F6E74726163747305	rename	legacy pre-alias bytes carry the CLR name; regenerated with the renamed CLR name (old-named bytes cannot resolve after the rename)

@@ -10,7 +10,7 @@ public sealed class ConfigurationFileFacts
     public void ConfigurationFileIsLoadedWhenTheKeyIsSet()
     {
         var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json");
-        File.WriteAllText(path, """{ "DigitalBrain": { "Probe": "from-file" } }""");
+        File.WriteAllText(path, """{ "IntoChatOS": { "Probe": "from-file" } }""");
         try
         {
             var builder = Host.CreateApplicationBuilder();
@@ -19,8 +19,8 @@ public sealed class ConfigurationFileFacts
                 [ServerHostingExtensions.ConfigurationFileKey] = path,
             });
             builder.AddIntoChatOSServer(server => { });
-            Assert.Equal("from-file", builder.Configuration["DigitalBrain:Probe"]);
-            Assert.Equal("DigitalBrain__ConfigurationFile", ServerHostingExtensions.ConfigurationFileEnvironmentVariable);
+            Assert.Equal("from-file", builder.Configuration["IntoChatOS:Probe"]);
+            Assert.Equal("IntoChatOS__ConfigurationFile", ServerHostingExtensions.ConfigurationFileEnvironmentVariable);
         }
         finally { File.Delete(path); }
     }

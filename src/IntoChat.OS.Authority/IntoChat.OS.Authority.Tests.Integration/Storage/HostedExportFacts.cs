@@ -74,13 +74,13 @@ public sealed class HostedExportFacts
         using var certificate = X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pkcs12), null);
         var builder = WebApplication.CreateBuilder();
         var baseline = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();
-        builder.Configuration["DigitalBrain:Auth:Posture"] = "Secured";
+        builder.Configuration["IntoChatOS:Auth:Posture"] = "Secured";
         builder.Configuration[IntoChatOSNames.MasterKeyConfigurationKey] = custody;
         builder.Configuration[BrainStoreOptions.Key + ":Directory"] = copy;
         builder.Configuration[BrainStoreOptions.Key + ":ConfiguredCustodyAcknowledged"] = "true";
         var artifacts = Directory.CreateDirectory(Path.Combine(directory, "artifacts")).FullName;
         await File.WriteAllTextAsync(Path.Combine(artifacts, "note.txt"), "portable artifact", ct);
-        builder.Configuration["DigitalBrain:Workshop:Root"] = artifacts;
+        builder.Configuration["IntoChatOS:Workshop:Root"] = artifacts;
         builder.Configuration[HostedRuntimeOptions.SectionName + ":AccountId"] = "export-account";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":BrainId"] = "export-brain";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RuntimeId"] = "new-export-runtime";

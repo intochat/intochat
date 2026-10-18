@@ -18,7 +18,7 @@ public sealed class ProductCompositionFacts
     public async Task ClickHouseHostingUsesTheConfiguredDatabaseName()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars",
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars",
              IntoChatOSConfiguration.ModuleOptionsSection("clickhouse") + ":DatabaseName=analytics"], TestContext.Current.CancellationToken);
         var database = Assert.Single(appHost.Resources.OfType<ClickHouseDatabaseResource>());
         Assert.Equal("analytics", database.DatabaseName);
@@ -41,7 +41,7 @@ public sealed class ProductCompositionFacts
     public async Task TheAppHostRunsAnAlwaysOnSandboxAndProjectsItsUrlIntoTheBrain()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
@@ -59,7 +59,7 @@ public sealed class ProductCompositionFacts
     public async Task ProductMatchesTheReferenceCompositionModuleSet()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
             .Select(module => module.ModuleId).Order().ToArray();
         // Composition truth lives in the OS catalog; the AppHost only hosts infrastructure,
@@ -75,7 +75,7 @@ public sealed class ProductCompositionFacts
             || resource.Name.Contains("client-secret", StringComparison.OrdinalIgnoreCase)
             || resource.Name.Contains("consumer-key", StringComparison.OrdinalIgnoreCase)
             || resource.Name.Contains("consumer-secret", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
+        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-intochat-os-master-key");
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("ollama", StringComparison.OrdinalIgnoreCase));
         var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();

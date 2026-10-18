@@ -27,12 +27,12 @@ TestBrain Scenario(string scenario, string brain, TestExecutionOptions? executio
     .WithHostConfiguration(CompositionAppHost.ScenarioKey, scenario)
     .WithHostConfiguration(CompositionAppHost.VolumeKey, compositionVolume.Name)
     .WithHostConfiguration(CompositionAppHost.StorageRootKey, Path.Combine(AppContext.BaseDirectory, "brain-stores"))
-    .WithConfiguration($"Parameters:{brain}-digitalbrain-master-key", key);
+    .WithConfiguration($"Parameters:{brain}-intochat-os-master-key", key);
 
 // Package-based AppHost -> server -> client, including explicit selection among two brains.
 await using (var session = await Scenario("two-brains", "first",
         new TestExecutionOptions { ServerResourceName = "second-server", StartupTimeout = TimeSpan.FromMinutes(3) })
-    .WithConfiguration("Parameters:second-digitalbrain-master-key", key)
+    .WithConfiguration("Parameters:second-intochat-os-master-key", key)
     .StartAsync(ct))
 {
     using var person = await session.PersonAsync("packed-user", ct);

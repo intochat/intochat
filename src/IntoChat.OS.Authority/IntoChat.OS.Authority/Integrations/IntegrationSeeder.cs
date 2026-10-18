@@ -5,7 +5,7 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.Authority.Integrations;
 
-// Reconciles DigitalBrain:Integrations:{id}:{Field} into every registration on boot. A field is
+// Reconciles IntoChatOS:Integrations:{id}:{Field} into every registration on boot. A field is
 // applied when it is absent from the registration, or when the stored value also came from the
 // deployment and has moved (a relocated endpoint). A value a person set or cleared is never touched.
 internal sealed class IntegrationSeeder(

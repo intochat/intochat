@@ -23,7 +23,7 @@ public static class HealthProbes
     public const string LiveTag = "live";
     public const string DrainTag = "drain";
     // How long a stopping instance keeps serving after /ready turns Unhealthy (Drain); unset, it stops at once.
-    public const string DrainDelayKey = "DigitalBrain:Http:DrainDelay";
+    public const string DrainDelayKey = "IntoChatOS:Http:DrainDelay";
     // Bounds the web server's own graceful stop after the drain: in-flight requests finish, new connections are refused.
     public static readonly TimeSpan ServerStop = TimeSpan.FromSeconds(5);
 

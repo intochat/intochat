@@ -23,6 +23,7 @@ public static class ServiceDefaultsExtensions
         where TBuilder : IHostApplicationBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
+        LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
 
         ConfigureOpenTelemetry(builder);
         AddDefaultHealthChecks(builder);

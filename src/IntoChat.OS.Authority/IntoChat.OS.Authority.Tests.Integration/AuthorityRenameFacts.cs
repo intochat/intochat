@@ -9,9 +9,9 @@ public sealed class AuthorityRenameFacts
     [Fact]
     public void AuthorityRenameKeepsPersistedNames()
     {
-        Assert.Equal("DigitalBrain:Platform:Storage", IntoChatOSNames.BrainStorageConfigurationKey);
-        Assert.Equal("DigitalBrain:Platform:Storage:Directory", IntoChatOSNames.BrainStorageDirectoryConfigurationKey);
-        Assert.Equal("DigitalBrain:Platform:Fees", FeeOptions.Key);
+        Assert.Equal("IntoChatOS:Platform:Storage", IntoChatOSNames.BrainStorageConfigurationKey);
+        Assert.Equal("IntoChatOS:Platform:Storage:Directory", IntoChatOSNames.BrainStorageDirectoryConfigurationKey);
+        Assert.Equal("IntoChatOS:Platform:Fees", FeeOptions.Key);
         Assert.Equal("platform", IntoChatOSNames.PlatformGrainStorage);
         Assert.Equal("cluster", IntoChatOSNames.ClusterGrainStorage);
         Assert.Equal("grainstate", IntoChatOSNames.GrainState);

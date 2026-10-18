@@ -4,7 +4,7 @@ namespace IntoChat.OS.Authority.Identity.Configuration;
 // same keys to every resource that serves or shares the session, so silo and clients agree.
 public sealed class IdentityHostOptions
 {
-    public const string SectionName = "DigitalBrain:Identity";
+    public const string SectionName = "IntoChatOS:Identity";
 
     public static string Key(string property) => SectionName + ":" + property;
 

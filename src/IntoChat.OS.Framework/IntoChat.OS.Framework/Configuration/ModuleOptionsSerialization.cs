@@ -8,7 +8,7 @@ public static class ModuleOptionsSerialization
     public const string OptionsKeySuffix = ":Options";
 
     // Options are ordinary configuration: every property flattens to a key under
-    // DigitalBrain:Modules:{Name}:Options, so a host's own configuration (env, args, files)
+    // IntoChatOS:Modules:{Name}:Options, so a host's own configuration (env, args, files)
     // overrides a code-declared default by standard precedence — no side channel.
     public static ModuleDefinition Compile<TModule, TOptions>(TOptions options)
         where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
@@ -34,7 +34,7 @@ public static class ModuleOptionsSerialization
 
     internal static bool IsOptionsKey(string key)
         => key.Split(':') is [var root, var modules, var name, var options, ..]
-            && root.Equals("DigitalBrain", StringComparison.OrdinalIgnoreCase)
+            && root.Equals("IntoChatOS", StringComparison.OrdinalIgnoreCase)
             && modules.Equals("Modules", StringComparison.OrdinalIgnoreCase)
             && options.Equals("Options", StringComparison.OrdinalIgnoreCase)
             && name.Length > 0 && !name.Contains("__", StringComparison.Ordinal) && !int.TryParse(name, out _);

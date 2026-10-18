@@ -7,8 +7,8 @@ public sealed record IntoChatOSHostingOptions
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
     public const string GrainStateContainerKey = IntoChat.OS.Framework.IntoChatOSNames.GrainStateContainerKey;
-    public const string PersistentStorageKey = "DigitalBrain:Hosting:PersistentStorage";
-    public const string EnvironmentKey = "DigitalBrain:Hosting:Environment";
+    public const string PersistentStorageKey = "IntoChatOS:Hosting:PersistentStorage";
+    public const string EnvironmentKey = "IntoChatOS:Hosting:Environment";
 
     public string? ServiceId { get; init; }
     public string? ClusterId { get; init; }

@@ -54,7 +54,7 @@ public static class ReferenceBrain
         {
             [IntegrationSchema.Key("openai", "ApiKey")] = modelApiKey,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-            ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
+            ["Parameters:Modules-intochat-os-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
             [IntoChatOSConfiguration.ConnectionsTokenEndpointKey("gmail")] = new Uri(UnconfiguredProvider, "token").AbsoluteUri,
         }, privateConfiguration))
         { brain.WithConfiguration(key, value); }

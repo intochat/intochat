@@ -79,9 +79,9 @@ public sealed class DeploymentIdentityFacts
             var password = Assert.IsType<ParameterResource>(values[IntoChatOSConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))]);
             Assert.True(password.Secret);
             Assert.Null(password.Default);
-            Assert.Equal("{digitalbrain-bootstrap-password.value}", password.ValueExpression);
+            Assert.Equal("{intochat-os-bootstrap-password.value}", password.ValueExpression);
             Assert.Equal("test-only-bootstrap-password", await ((IValueProvider)password).GetValueAsync(TestContext.Current.CancellationToken));
-            Assert.Same(Assert.Single(builder.Resources.OfType<ParameterResource>(), parameter => parameter.Name == "digitalbrain-bootstrap-password"), password);
+            Assert.Same(Assert.Single(builder.Resources.OfType<ParameterResource>(), parameter => parameter.Name == "intochat-os-bootstrap-password"), password);
         }
     }
 

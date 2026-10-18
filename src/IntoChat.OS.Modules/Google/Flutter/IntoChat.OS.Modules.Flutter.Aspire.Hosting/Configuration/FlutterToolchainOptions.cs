@@ -8,5 +8,5 @@ internal sealed class FlutterToolchainOptions
     public string? FlutterCommand { get; set; }
 
     internal static FlutterToolchainOptions Read(IConfiguration? configuration)
-        => configuration?.GetSection("DigitalBrain").Get<FlutterToolchainOptions>() ?? new();
+        => configuration?.GetSection("IntoChatOS").Get<FlutterToolchainOptions>() ?? new();
 }

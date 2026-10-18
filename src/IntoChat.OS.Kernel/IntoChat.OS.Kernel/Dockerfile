@@ -11,7 +11,7 @@
 # No secrets are baked into this image. Managed identity + Key Vault are injected at run/deploy:
 #
 #   AZURE_CLIENT_ID                 user-assigned managed identity for the container app
-#   DigitalBrain__KeyVault__Uri     Key Vault URI resolved by the managed identity (config only)
+#   IntoChatOS__KeyVault__Uri     Key Vault URI resolved by the managed identity (config only)
 #   ConnectionStrings__clustering   Orleans clustering (Azure Table/Blob)
 #   ConnectionStrings__reminders    Orleans reminders
 #   ConnectionStrings__grainstate   Orleans grain state (intochat-os-state)
@@ -39,13 +39,13 @@ COPY --from=build /out/silo /app/silo
 COPY features /app/features
 
 # The image enables the OS catalog; configuration may disable modules
-# (DigitalBrain__Modules__{id}__Enabled=false).
-# A production own machine (DigitalBrain__Platform__Parts__Role=Own) must set DigitalBrain__Platform__Parts__Custody=Tpm
-# (Windows + TPM) or DigitalBrain__Platform__Parts__ConfiguredCustodyAcknowledged=true, or it refuses to start (R81).
+# (IntoChatOS__Modules__{id}__Enabled=false).
+# A production own machine (IntoChatOS__Platform__Parts__Role=Own) must set IntoChatOS__Platform__Parts__Custody=Tpm
+# (Windows + TPM) or IntoChatOS__Platform__Parts__ConfiguredCustodyAcknowledged=true, or it refuses to start (R81).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
-    DigitalBrain__Modules__apps__Options__Features=/app/features
+    IntoChatOS__Modules__apps__Options__Features=/app/features
 
 EXPOSE 8080
 

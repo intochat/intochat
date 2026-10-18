@@ -21,8 +21,8 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
         _brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
             .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
-            .WithConfiguration("DigitalBrain:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
-            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration("IntoChatOS:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
+            .WithConfiguration("IntoChatOS:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
             .StartAsync();
     }
 

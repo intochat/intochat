@@ -6,20 +6,23 @@ using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Aspire.Hosting;
 using IntoChat.OS.Microsoft.Aspire;
 using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.Configuration;
 
 // The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
 // (the apps module's Features option, under IntoChatOSConfiguration.ModuleOptionsSection).
-const string UiPortKey = "DigitalBrain:Http:UiPort";
-const string McpPortKey = "DigitalBrain:Http:McpPort";
+const string UiPortKey = "IntoChatOS:Http:UiPort";
+const string McpPortKey = "IntoChatOS:Http:McpPort";
 var featuresKey = IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
+// Legacy product-name settings stop the app host outside Development (the app host has no AddServiceDefaults).
+LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
 // The profile symbol in this file is the selection: RunProfile.Cloud or RunProfile.Local.
 builder.Configuration.AddIntoChatOSProfiles(builder.AppHostDirectory);
-if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
+if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
-var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
+var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
 var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.Cloud, IntoChatOSHostingOptions.Named(builder.Configuration, "intochat"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
@@ -34,7 +37,7 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
 // One runtime owns this deployment; devices are connections to external capabilities.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
-var storageDirectory = builder.Configuration["DigitalBrain:Platform:Storage:Directory"]
+var storageDirectory = builder.Configuration["IntoChatOS:Platform:Storage:Directory"]
     ?? (builder.Configuration.GetValue(IntoChatOSHostingOptions.PersistentStorageKey, true)
         ? Path.Combine(workdir, "brain-store")
         : Path.Combine(workdir, "test-brains", intoChatOS.ClusterId));
@@ -61,7 +64,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
 {
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
-        .WithEnvironment("DigitalBrain__Platform__Storage__Directory", storageDirectory)
+        .WithEnvironment("IntoChatOS__Platform__Storage__Directory", storageDirectory)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var key in new[] { IntoChat.OS.Framework.IntoChatOSNames.CustodyConfigurationKey,

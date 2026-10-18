@@ -20,9 +20,9 @@ if (forwarded.Count > 0 && !forwarded[0].StartsWith('-'))
     {
         var path = Path.GetFullPath(profile);
         if (!File.Exists(path)) { Console.Error.WriteLine($"Config file '{path}' does not exist."); return 2; }
-        profileArguments.Add($"--DigitalBrain:ConfigFile={path}");
+        profileArguments.Add($"--IntoChatOS:ConfigFile={path}");
     }
-    else if (profile == "headless") { profileArguments.Add("--DigitalBrain:Shell:Enabled=false"); }
+    else if (profile == "headless") { profileArguments.Add("--IntoChatOS:Shell:Enabled=false"); }
     else if (profile != "default") { Console.Error.WriteLine($"Unknown profile '{profile}'. Use default, headless or a .json config file."); return 2; }
 }
 if (forwarded.FirstOrDefault() == "--") { forwarded.RemoveAt(0); }

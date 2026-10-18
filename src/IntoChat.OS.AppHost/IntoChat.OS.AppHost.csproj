@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../IntoChat.OS.Mcp/IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Aspire.Hosting/IntoChat.OS.Modules.Flutter.Aspire.Hosting.csproj" IsAspireProjectResource="false" />

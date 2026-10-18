@@ -12,7 +12,7 @@ public enum IdentityPosture
 // which keys happen to be configured, and a host that declares nothing refuses to start.
 public sealed class AuthOptions
 {
-    public const string SectionName = "DigitalBrain:Auth";
+    public const string SectionName = "IntoChatOS:Auth";
     public const string PostureKey = SectionName + ":" + nameof(Posture);
 
     public static string Key(string property) => SectionName + ":" + property;

@@ -17,7 +17,7 @@ internal sealed class TelemetryIntegrationOptions
 
     // Mirrors AIKeys.TelemetryEnableSensitiveData; ServiceDefaults is reference-free, so the
     // AI module's key is restated here once, at this composition boundary.
-    public const string EnableSensitiveDataKey = "DigitalBrain:Modules:ai:Options:Telemetry:EnableSensitiveData";
+    public const string EnableSensitiveDataKey = "IntoChatOS:Modules:ai:Options:Telemetry:EnableSensitiveData";
 
     [ConfigurationKeyName(EnableSensitiveDataKey)]
     public bool? EnableSensitiveData { get; set; }

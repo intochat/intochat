@@ -5,7 +5,7 @@ namespace IntoChat.OS.Framework.Configuration;
 public static class ModuleSettingsValidation
 {
     // The test harness's reserved configuration section: host-owned, never a module's to set.
-    public const string TestingSectionPrefix = "DigitalBrain:Testing:";
+    public const string TestingSectionPrefix = "IntoChatOS:Testing:";
 
     public static void ValidatePublicSettings(IReadOnlyList<ModuleDefinition> modules)
     {

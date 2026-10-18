@@ -21,7 +21,7 @@ public static class IdentityHosting
             .Validate(options => options.Posture is not null,
                 $"Configure {AuthOptions.PostureKey} (Open or Secured) before starting the host.")
             .Validate(options => string.IsNullOrEmpty(options.Username) == string.IsNullOrEmpty(options.Password),
-                "A Basic bootstrap credential needs both DigitalBrain:Auth:Username and DigitalBrain:Auth:Password, or neither.")
+                "A Basic bootstrap credential needs both IntoChatOS:Auth:Username and IntoChatOS:Auth:Password, or neither.")
             .ValidateOnStart();
         services.AddOptions<IdentityHostOptions>().BindConfiguration(IdentityHostOptions.SectionName)
             .Validate(options => options.Validate(), "Identity host names must not be empty.")

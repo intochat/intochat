@@ -23,9 +23,9 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
             .WithIntegration(SampleConnectionModule.Integration, "ClientId", "sample-client-id")
             .WithIntegration(SampleConnectionModule.Integration, "ClientSecret", "sample-client-secret")
-            .WithConfiguration("DigitalBrain:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
-            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
-            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:sample", _stub.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration("IntoChatOS:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
+            .WithConfiguration("IntoChatOS:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration("IntoChatOS:Connections:TokenEndpoints:sample", _stub.TokenEndpoint.AbsoluteUri)
             .StartAsync(ct);
     }
 

@@ -38,7 +38,7 @@ public sealed class HostedPlatformStorageFacts
         TestBrain Create() => TestBrain.Create().WithModule<FakeAiModule>()
             .WithConfiguration(IntoChatOSNames.MasterKeyConfigurationKey, custody)
             .WithConfiguration(BrainStoreOptions.Key + ":Directory", Path.Combine(directory, "store"))
-            .WithConfiguration("DigitalBrain:Auth:Posture", "Secured")
+            .WithConfiguration("IntoChatOS:Auth:Posture", "Secured")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":AccountId", "account-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":BrainId", "brain-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":RuntimeId", "runtime-one")
