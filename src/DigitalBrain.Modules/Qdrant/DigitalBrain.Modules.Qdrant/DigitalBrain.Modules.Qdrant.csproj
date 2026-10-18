@@ -5,7 +5,7 @@
     <RootNamespace>DigitalBrain.Modules.Qdrant</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Qdrant.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Qdrant.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Qdrant.Client" />

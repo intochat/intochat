@@ -160,7 +160,7 @@
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Deployment/DigitalBrain.Modules.Qdrant.Deployment.csproj" />
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Qdrant/tests/DigitalBrain.Modules.Qdrant.Tests/DigitalBrain.Modules.Qdrant.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/tests/DigitalBrain.Modules.Qdrant.Tests.Unit/DigitalBrain.Modules.Qdrant.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/RiskSeal/">
     <Project Path="src/DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal.Aspire.Hosting/DigitalBrain.Modules.RiskSeal.Aspire.Hosting.csproj" />

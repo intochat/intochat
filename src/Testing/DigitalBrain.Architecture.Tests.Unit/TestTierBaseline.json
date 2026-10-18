@@ -18,7 +18,6 @@
     "DigitalBrain.Modules.Microsoft.Windows.Tests",
     "DigitalBrain.Modules.Monnet.Tests",
     "DigitalBrain.Modules.Postgres.Tests",
-    "DigitalBrain.Modules.Qdrant.Tests",
     "DigitalBrain.Modules.RiskSeal.Tests",
     "DigitalBrain.Modules.Salesforce.Tests",
     "DigitalBrain.Modules.Supabase.Tests",
