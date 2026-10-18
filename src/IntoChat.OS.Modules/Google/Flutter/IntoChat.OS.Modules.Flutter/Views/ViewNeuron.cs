@@ -52,6 +52,7 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
 }
 
 [GenerateSerializer, Alias("ui.view-state")]
+[ExportableState]
 internal sealed class ViewState
 {
     [Id(0)] public UiView? View { get; set; }

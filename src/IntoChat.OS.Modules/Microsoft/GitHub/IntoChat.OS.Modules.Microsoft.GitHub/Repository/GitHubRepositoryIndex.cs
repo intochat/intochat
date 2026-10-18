@@ -13,6 +13,7 @@ internal interface IGitHubRepositoryIndex : IGrainWithStringKey
 }
 
 [GenerateSerializer, Alias("github.repository-index-state")]
+[ExportableState]
 internal sealed record GitHubRepositoryIndexState { [Id(0)] public string[] Keys { get; init; } = []; }
 
 [GrainType("github.repository-index")]

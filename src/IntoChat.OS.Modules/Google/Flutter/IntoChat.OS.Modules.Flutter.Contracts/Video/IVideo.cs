@@ -15,6 +15,7 @@ public interface IVideo : INeuron
 }
 
 [GenerateSerializer, Alias("ui.video-state")]
+[ExportableState]
 public sealed class VideoState
 {
     [Id(0)] public string Name { get; set; } = "";

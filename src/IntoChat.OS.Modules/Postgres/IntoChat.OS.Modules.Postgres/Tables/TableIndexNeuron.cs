@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 namespace IntoChat.OS.Postgres.Tables;
 
 [GenerateSerializer, Alias("postgres.table-index-state")]
+[ExportableState]
 internal sealed record TableIndexState
 {
     [Id(0)] public string[] Tables { get; init; } = [];

@@ -31,6 +31,7 @@ internal sealed class ViewportNeuron(
 }
 
 [GenerateSerializer, Alias("ui.viewport-storage")]
+[ExportableState]
 internal sealed class ViewportStorage
 {
     [Id(0)] public long Revision { get; set; }

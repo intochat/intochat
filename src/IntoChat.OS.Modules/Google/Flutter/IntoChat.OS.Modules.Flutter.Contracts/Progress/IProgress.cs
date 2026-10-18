@@ -11,6 +11,7 @@ public interface IProgress : INeuron
 }
 
 [GenerateSerializer, Alias("ui.progress-state")]
+[ExportableState]
 public sealed class ProgressState
 {
     [Id(0)] public string Name { get; set; } = "";

@@ -5,6 +5,7 @@ using Orleans.Runtime;
 namespace IntoChat.OS.Flutter;
 
 [GenerateSerializer, Alias("ui.binding-state")]
+[ExportableState]
 public sealed class UiBindingState
 {
     [Id(0)] public IUiEventHandler? Handler { get; set; }

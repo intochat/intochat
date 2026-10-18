@@ -35,6 +35,7 @@ public sealed record GroupChatTurn(
 public enum GroupChatStatus { Idle, Discussing, Concluded, Failed }
 
 [GenerateSerializer, Alias("ai.group-chat-state")]
+[ExportableState]
 public sealed record GroupChatState
 {
     [Id(0)] public long Revision { get; init; }

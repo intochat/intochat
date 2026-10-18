@@ -39,6 +39,7 @@ internal sealed class InstanceDirectoryGrain(
     TimeProvider time) : Grain, IInstanceDirectory
 {
     [GenerateSerializer, Alias("kernel.instances.state")]
+    [ExportableState]
     public sealed class State
     {
         [Id(0)] public Instance[] Entries { get; set; } = [];
@@ -104,6 +105,7 @@ internal sealed class InstanceTypesGrain(
     [PersistentState("types", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<InstanceTypesGrain.State> store) : Grain, IInstanceTypes
 {
     [GenerateSerializer, Alias("kernel.types.state")]
+    [ExportableState]
     public sealed class State
     {
         [Id(0)] public string[] Types { get; set; } = [];
@@ -155,6 +157,7 @@ internal sealed class TypeTableGrain(
 {
     // The loaded features, and the types each brought (a TypeEntry's Provider names its feature).
     [GenerateSerializer, Alias("kernel.typetable.state")]
+    [ExportableState]
     public sealed class State
     {
         [Id(0)] public TypeEntry[] Features { get; set; } = [];

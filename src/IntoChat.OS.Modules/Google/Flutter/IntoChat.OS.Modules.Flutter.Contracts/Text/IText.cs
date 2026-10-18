@@ -11,6 +11,7 @@ public interface IText : INeuron
 }
 
 [GenerateSerializer, Alias("ui.text-state")]
+[ExportableState]
 public sealed class TextState
 {
     [Id(0)] public string Name { get; set; } = "";

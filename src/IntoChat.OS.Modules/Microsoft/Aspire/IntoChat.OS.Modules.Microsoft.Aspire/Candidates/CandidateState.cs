@@ -1,6 +1,7 @@
 namespace IntoChat.OS.Microsoft.Aspire.Candidates;
 
 [GenerateSerializer, Alias("aspire.candidate.state")]
+[ExportableState]
 internal sealed record CandidateState
 {
     [Id(0)] public string Branch { get; init; } = "";

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Circles;
 
 [GenerateSerializer, Alias("circles.factory-record")]
+[ExportableState]
 internal sealed class CircleFactoryRecord
 {
     [Id(0)] public CircleEntry[] Created { get; set; } = [];

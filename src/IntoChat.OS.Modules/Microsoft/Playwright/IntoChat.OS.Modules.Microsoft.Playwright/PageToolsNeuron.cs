@@ -6,6 +6,7 @@ using IntoChat.OS.Tools;
 namespace IntoChat.OS.Microsoft.Playwright;
 
 [GenerateSerializer, Alias("playwright.page-tools-store")]
+[ExportableState]
 public sealed class PageToolsStore
 {
     [Id(0)] public PageToolsState? State { get; set; }

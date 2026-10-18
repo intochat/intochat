@@ -6,6 +6,7 @@ using Orleans.Runtime;
 namespace IntoChat.OS.AI.Embeddings;
 
 [GenerateSerializer, Alias("ai.vector-index-state")]
+[ExportableState]
 internal sealed record VectorIndexState
 {
     [Id(0)] public VectorEntry[] Entries { get; init; } = [];

@@ -9,6 +9,7 @@ using ModelContextProtocol.Client;
 namespace IntoChat.OS.Mcp;
 
 [GenerateSerializer, Alias("mcp.server-store")]
+[ExportableState]
 public sealed class McpServerStore
 {
     [Id(0)] public McpServerState? State { get; set; }

@@ -11,6 +11,7 @@ public interface IColor : INeuron
 }
 
 [GenerateSerializer, Alias("ui.color-state")]
+[ExportableState]
 public sealed class ColorState
 {
     [Id(0)] public string Name { get; set; } = "";

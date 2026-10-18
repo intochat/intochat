@@ -5,6 +5,7 @@ namespace IntoChat.OS.Microsoft.CSharp.Files;
 // A file's record: its name and purpose, its program, its settings and the caller who started it. The runtime speaks for that
 // caller as the owner of the file's one-behavior program.
 [GenerateSerializer, Alias("microsoft.csharp.file-state")]
+[ExportableState]
 internal sealed record CSharpFileState
 {
     [Id(0)] public string Program { get; init; } = "";

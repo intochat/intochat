@@ -12,6 +12,7 @@ public interface IToggle : INeuron
 }
 
 [GenerateSerializer, Alias("ui.toggle-state")]
+[ExportableState]
 public sealed class ToggleState
 {
     [Id(0)] public string Name { get; set; } = "";

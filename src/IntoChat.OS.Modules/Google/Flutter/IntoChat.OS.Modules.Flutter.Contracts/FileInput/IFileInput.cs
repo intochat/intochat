@@ -12,6 +12,7 @@ public interface IFileInput : INeuron
 }
 
 [GenerateSerializer, Alias("ui.fileinput-state")]
+[ExportableState]
 public sealed class FileInputState
 {
     [Id(0)] public string Name { get; set; } = "";

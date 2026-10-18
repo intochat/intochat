@@ -30,6 +30,7 @@ internal sealed record SessionRecord(
     [property: Id(5)] DateTimeOffset TokenIssued);
 
 [GenerateSerializer, Alias("microsoft.csharp.runtime-state")]
+[ExportableState]
 internal sealed record BrainRuntimeState
 {
     [Id(0)] public ProgramAssignment[] Programs { get; init; } = [];

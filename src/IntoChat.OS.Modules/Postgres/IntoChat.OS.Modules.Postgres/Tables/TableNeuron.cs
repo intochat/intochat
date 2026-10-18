@@ -4,6 +4,7 @@ using IntoChat.OS.Postgres.Tables.Signals;
 namespace IntoChat.OS.Postgres.Tables;
 
 [GenerateSerializer, Alias("postgres.table-state")]
+[ExportableState]
 internal sealed record TableState
 {
     [Id(0)] public string? Owner { get; init; }

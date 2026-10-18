@@ -18,6 +18,7 @@ public interface IWebBrowser : INeuron
 public enum BrowserConnection { Waiting, Attached, Unavailable, Failed }
 
 [GenerateSerializer, Alias("ui.webbrowser-state")]
+[ExportableState]
 public sealed class WebBrowserState
 {
     [Id(0)] public string Name { get; set; } = "";

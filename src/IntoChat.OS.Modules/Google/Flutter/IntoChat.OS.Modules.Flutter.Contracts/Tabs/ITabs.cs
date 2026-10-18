@@ -18,6 +18,7 @@ public sealed record TabItem(
     [property: Id(2)] UiChildRef Child);
 
 [GenerateSerializer, Alias("ui.tabs-state")]
+[ExportableState]
 public sealed class TabsState
 {
     [Id(0)] public string Name { get; set; } = "";

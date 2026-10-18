@@ -17,6 +17,7 @@ public sealed record GraphNode([property: Id(0)] string Id, [property: Id(1)] st
 public sealed record GraphEdge([property: Id(0)] string From, [property: Id(1)] string To);
 
 [GenerateSerializer, Alias("ui.graph-state")]
+[ExportableState]
 public sealed class GraphState
 {
     [Id(0)] public string Name { get; set; } = "";

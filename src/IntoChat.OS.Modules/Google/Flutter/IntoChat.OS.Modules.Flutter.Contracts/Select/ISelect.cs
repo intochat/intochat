@@ -17,6 +17,7 @@ public interface ISelect : INeuron
 public sealed record SelectOption([property: Id(0)] string Id, [property: Id(1)] string Label, [property: Id(2)] bool Enabled = true, [property: Id(3)] ControlVisual? Visual = null);
 
 [GenerateSerializer, Alias("ui.select-state")]
+[ExportableState]
 public sealed class SelectState
 {
     [Id(0)] public string Name { get; set; } = "";

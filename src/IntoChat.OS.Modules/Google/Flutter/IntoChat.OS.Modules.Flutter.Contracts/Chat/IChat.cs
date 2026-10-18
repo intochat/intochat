@@ -41,6 +41,7 @@ public sealed record ChatActionActivated(
     [property: Id(5)] Guid RequestId) : Signal;
 
 [GenerateSerializer, Alias("ui.chat-state")]
+[ExportableState]
 public sealed record ChatState
 {
     [Id(0)] public string Name { get; init; } = "";

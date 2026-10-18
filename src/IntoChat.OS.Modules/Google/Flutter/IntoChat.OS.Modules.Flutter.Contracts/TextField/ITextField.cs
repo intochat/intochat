@@ -14,6 +14,7 @@ public interface ITextField : INeuron
 }
 
 [GenerateSerializer, Alias("ui.textfield-state")]
+[ExportableState]
 public sealed class TextFieldState
 {
     [Id(0)] public string Name { get; set; } = "";

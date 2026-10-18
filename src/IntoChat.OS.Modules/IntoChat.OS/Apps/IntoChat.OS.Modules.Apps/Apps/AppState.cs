@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 namespace IntoChat.OS.Apps;
 
 [GenerateSerializer, Alias("apps.state2")]
+[ExportableState]
 public sealed class AppState
 {
     [Id(0)] public AppManifest? Manifest { get; set; }

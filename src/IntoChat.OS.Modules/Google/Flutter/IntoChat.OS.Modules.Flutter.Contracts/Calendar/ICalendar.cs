@@ -11,6 +11,7 @@ public interface ICalendar : INeuron
 }
 
 [GenerateSerializer, Alias("ui.calendar-state")]
+[ExportableState]
 public sealed class CalendarState
 {
     [Id(0)] public string Name { get; set; } = "";

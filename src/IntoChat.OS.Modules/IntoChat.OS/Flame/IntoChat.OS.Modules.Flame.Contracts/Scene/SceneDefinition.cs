@@ -23,6 +23,7 @@ public sealed record SceneDefinition([property: Id(0)] SceneNode[] Nodes, [prope
     [property: Id(2)] string Background = "#0B0F14");
 
 [GenerateSerializer, Alias("flame.scene-state")]
+[ExportableState]
 public sealed class SceneState
 {
     [Id(0)] public string Name { get; set; } = "";

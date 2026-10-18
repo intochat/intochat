@@ -21,6 +21,7 @@ public sealed record CollectionDefinition([property: Id(0)] CollectionItem[] Ite
 public sealed record CollectionBreadcrumb([property: Id(0)] string Id, [property: Id(1)] string Label);
 
 [GenerateSerializer, Alias("ui.collection-state")]
+[ExportableState]
 public sealed class CollectionState
 {
     [Id(0)] public string Name { get; set; } = "";

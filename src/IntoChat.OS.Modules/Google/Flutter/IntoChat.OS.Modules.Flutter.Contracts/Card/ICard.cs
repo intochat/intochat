@@ -11,6 +11,7 @@ public interface ICard : INeuron
 }
 
 [GenerateSerializer, Alias("ui.card-state")]
+[ExportableState]
 public sealed class CardState
 {
     [Id(0)] public string Name { get; set; } = "";

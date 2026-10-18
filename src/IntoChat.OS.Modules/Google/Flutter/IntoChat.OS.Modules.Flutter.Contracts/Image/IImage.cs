@@ -11,6 +11,7 @@ public interface IImage : INeuron
 }
 
 [GenerateSerializer, Alias("ui.image-state")]
+[ExportableState]
 public sealed class ImageState
 {
     [Id(0)] public string Name { get; set; } = "";

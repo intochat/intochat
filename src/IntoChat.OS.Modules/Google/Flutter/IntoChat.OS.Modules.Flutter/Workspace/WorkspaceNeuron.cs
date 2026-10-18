@@ -118,6 +118,7 @@ internal sealed class WorkspaceNeuron(
 }
 
 [GenerateSerializer, Alias("ui.workspace-storage")]
+[ExportableState]
 internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
 {
     [Id(0)] public long Revision { get; init; }

@@ -4,6 +4,7 @@ using IntoChat.OS.Framework.Compute;
 namespace IntoChat.OS.Microsoft.CSharp.Runtime;
 
 [GenerateSerializer, Alias("microsoft.csharp.runs-state")]
+[ExportableState]
 internal sealed record BrainRunsState
 {
     [Id(0)] public long Revision { get; init; }
