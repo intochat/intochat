@@ -95,7 +95,6 @@
   "DigitalBrain.Modules.Apps/Marketplace/MarketplaceView.cs": 3,
   "DigitalBrain.Modules.Apps/Runtimes/CSharpAppRuntime.cs": 2,
   "DigitalBrain.Modules.Apps/Studio/AppStudioNeuron.cs": 1,
-  "DigitalBrain.Modules.ArtCraft/ArtCraftStudioNeuron.cs": 1,
   "DigitalBrain.Modules.Circles.Tests.Integration/CircleBrainRooms.cs": 2,
   "DigitalBrain.Modules.Circles.Tests.Integration/SharedConnectionFacts.cs": 1,
   "DigitalBrain.Modules.Circles/CircleBirth.cs": 2,
@@ -163,12 +162,6 @@
   "DigitalBrain.Modules.Postgres/Tables/TableStorageHook.cs": 5,
   "DigitalBrain.Modules.Tools/ToolCapabilitySource.cs": 2,
   "DigitalBrain.Modules.Twilio/TwilioModule.cs": 3,
-  "DigitalBrain.OS.Testing/Demo/TwitterFakes.cs": 2,
-  "DigitalBrain.OS.Tests.Unit/FriendsReplayFacts.cs": 2,
-  "DigitalBrain.OS.Tests.Unit/OsInoMigrationFacts.cs": 4,
   "DigitalBrain.OS/AgentChatSource.cs": 3,
-  "DigitalBrain.OS/OsApps.cs": 2,
-  "DigitalBrain.OS/OsInoMigration.cs": 17,
-  "DigitalBrain.OS/OsWorkspaceRoot.cs": 4,
   "DigitalBrain.Testing/Targets/InProcessTarget.cs": 2
 }
