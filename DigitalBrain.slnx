@@ -192,7 +192,7 @@
     <Project Path="src/DigitalBrain.Modules/Twilio/tests/DigitalBrain.Modules.Twilio.Tests/DigitalBrain.Modules.Twilio.Tests.csproj" />
   </Folder>
   <Folder Name="/Testing/">
-    <Project Path="src/Testing/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
     <Project Path="src/Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Fakes/DigitalBrain.Testing.Fakes.csproj" />

@@ -1,6 +1,6 @@
 using Orleans;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 public sealed class PersistedStateFacts
 {

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // No module is exempt from the grammar: every DigitalBrain-prefixed key a module project
 // carries lives under DigitalBrain:Modules. The allowlist is closed — each entry is a

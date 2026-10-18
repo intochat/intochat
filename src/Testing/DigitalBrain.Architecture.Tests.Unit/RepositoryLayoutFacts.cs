@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The solution mirrors the disk. A project at src/A/B/<Name>/<Name>.csproj sits in the solution
 // folder /A/B/ with the "DigitalBrain." prefix dropped from each segment that carries it

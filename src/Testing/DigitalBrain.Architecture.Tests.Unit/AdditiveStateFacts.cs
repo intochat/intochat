@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 using Orleans.Storage;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // A rolling cluster runs two builds at once, so a state written by the newer build is read by the
 // older one and the reverse. Storage serializes with the Orleans serializer, which keys fields by [Id].

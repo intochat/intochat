@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The test-tier architecture: a module proves its mechanism in one in-process test project on
 // DigitalBrain.Testing; the product proves the composition through the Aspire tier on

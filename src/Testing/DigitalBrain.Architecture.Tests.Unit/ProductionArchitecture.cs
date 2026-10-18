@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using ArchUnitNET.Loader;
 using Type = System.Type;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 internal static class ProductionArchitecture
 {

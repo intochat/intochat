@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // A repository path written into a test is a fact about the directory tree that nothing verifies
 // until the tree moves. Tests resolve files through the solution instead (Repository here, a
@@ -25,7 +25,7 @@ public sealed partial class RepositoryPathLiteralFacts
                 project => project.Name.Contains(".Tests", StringComparison.Ordinal))
             .Select(Repository.ProjectKey).Order().ToArray();
         Assert.True(offenders.Length == 0,
-            $"Tests resolve repository files through {Repository.SolutionFile} (Repository in DigitalBrain.Architecture.Tests, "
+            $"Tests resolve repository files through {Repository.SolutionFile} (Repository in DigitalBrain.Architecture.Tests.Unit, "
             + "or a project-name lookup of the solution), never through a \"" + SourceRootName + "/…\" literal:\n"
             + string.Join('\n', offenders));
     }

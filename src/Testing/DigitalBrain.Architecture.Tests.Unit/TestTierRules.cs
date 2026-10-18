@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The tier contract carried by a test project's suffix: .Tests.Unit starts no host and never
 // waits on the clock, .Tests.Integration shares one in-process host per assembly through an

@@ -1,6 +1,6 @@
 using DigitalBrain.Platform;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 public sealed class LocalRuntimeBoundaryFacts
 {

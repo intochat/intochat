@@ -2,7 +2,7 @@ using System.Reflection;
 using DigitalBrain.Framework;
 using Orleans;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 public sealed class StorageRingFacts
 {

@@ -4,7 +4,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 public sealed class CredentialBoundaryFacts
 {

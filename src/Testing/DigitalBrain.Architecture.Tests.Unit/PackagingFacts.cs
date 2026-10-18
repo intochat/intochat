@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // VERSION is the single source of package versions; pipelines add only a pre.N suffix, so no
 // VersionSuffix may remain in the props. The OS host packs, but the linked features folder never rides along.

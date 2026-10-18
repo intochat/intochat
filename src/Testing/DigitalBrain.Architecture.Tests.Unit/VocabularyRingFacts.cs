@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The DigitalBrain assembly is what the kernel's compiled layer ships into the sandbox: the four words and the
 // shapes they carry, nothing else. Anything that fits none of the clauses below belongs in a ring

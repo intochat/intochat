@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The harness is three packages a consumer installs (DigitalBrain.Testing, .Aspire, .Playwright);
 // product helpers live in DigitalBrain.OS.Testing. A test reaches a brain through the harness and

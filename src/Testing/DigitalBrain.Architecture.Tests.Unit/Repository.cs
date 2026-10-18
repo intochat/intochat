@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // The one place a fact learns where the repository is. DigitalBrain.slnx is the map: every
 // project, its directory and its solution folder come from there, so no fact carries a path

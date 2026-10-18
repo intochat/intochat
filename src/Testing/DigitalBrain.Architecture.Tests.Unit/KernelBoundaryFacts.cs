@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // Edges reach neurons only, so what must stay off them is simply not a neuron: the kernel and
 // platform keep their state in plain grains. Every neuron method meets exactly one access policy.

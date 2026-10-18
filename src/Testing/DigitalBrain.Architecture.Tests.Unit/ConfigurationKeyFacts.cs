@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Architecture.Tests;
+namespace DigitalBrain.Architecture.Tests.Unit;
 
 // Configuration keys have typed owners (an options type's SectionName/Key, IntegrationSchema,
 // DigitalBrainConfiguration). A raw "DigitalBrain:…" or "DigitalBrain__…" literal outside an
@@ -17,7 +17,7 @@ public sealed partial class ConfigurationKeyFacts
     [Fact]
     public void ConfigurationKeyLiteralsStayWithinTheOwnerBaseline()
     {
-        var baselinePath = Path.Combine(Repository.ProjectNamed("DigitalBrain.Architecture.Tests").Directory, "ConfigurationKeyOwners.json");
+        var baselinePath = Path.Combine(Repository.ProjectNamed("DigitalBrain.Architecture.Tests.Unit").Directory, "ConfigurationKeyOwners.json");
         var baseline = JsonSerializer.Deserialize<string[]>(File.ReadAllText(baselinePath))!.ToHashSet(StringComparer.Ordinal);
         var current = Repository.ProjectFiles("*.cs", path => KeyLiteral().IsMatch(File.ReadAllText(path)))
             .Select(Repository.ProjectKey)
