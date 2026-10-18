@@ -3,6 +3,7 @@
     <Compile Include="../../../features/os/Friends/Friends.cs" Link="Features/Friends.cs" />
     <Compile Include="../../../features/os/Memory/Memory.cs" Link="Features/Memory.cs" />
     <Compile Include="../../../features/os/Memory/Shape.cs" Link="Features/Shape.cs" />
+    <Compile Include="../../../features/os/Memory/Intents.cs" Link="Features/MemoryIntents.cs" />
     <Compile Include="../../../features/os/BrainView/BrainView.cs" Link="Features/BrainView.cs" />
     <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
     <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />

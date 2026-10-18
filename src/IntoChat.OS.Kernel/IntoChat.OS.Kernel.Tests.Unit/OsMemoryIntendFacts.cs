@@ -1,0 +1,44 @@
+using IntoChat.OS.AI.Agents.Intents;
+
+namespace IntoChat.OS.Kernel.Tests.Unit;
+
+// Memory's feature helper (features/os/Memory/Intents.cs) is compiled into this project.
+public sealed class OsMemoryIntendFacts
+{
+    [Fact]
+    public void AMalformedAskIsRefused()
+        => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{}"));
+
+    [Fact]
+    public void AReplyWithoutABriefIsNull()
+        => Assert.Null(global::Intents.ParseReply("I think the user wants…"));
+
+    [Fact]
+    public void AReplyParses()
+    {
+        var id = Guid.NewGuid();
+        var reply = global::Intents.ParseReply(
+            $$"""{"brief":{"goal":"book a flight","inputs":["Paris"],"constraints":["cheap"],"acceptance":["confirmed"]},"confidence":0.9,"continues":"{{id}}"}""");
+        Assert.NotNull(reply);
+        Assert.Equal("book a flight", reply.Brief.Goal);
+        Assert.Equal(["Paris"], reply.Brief.Inputs);
+        Assert.Equal(["cheap"], reply.Brief.Constraints);
+        Assert.Equal(["confirmed"], reply.Brief.Acceptance);
+        Assert.Equal(0.9, reply.Confidence);
+        Assert.Equal(id, reply.Continues);
+    }
+
+    [Fact]
+    public void RenderingCutsAtTheBudgetOnAnIntentBoundary()
+    {
+        static Intent Make(string heard, string goal) => new(Guid.NewGuid(), heard, "c", heard, new(goal, [], [], []), 0.5, IntentState.Rephrased, [], [], []);
+        var oldest = Make("aaa", "oldest goal");
+        var middle = Make("bbb", "middle goal");
+        var newest = Make("ccc", "newest goal");
+        var two = global::Intents.RenderActive([middle, newest], 10_000);
+        var rendered = global::Intents.RenderActive([oldest, middle, newest], two.Length);
+        Assert.Contains("newest goal", rendered);
+        Assert.Contains("middle goal", rendered);
+        Assert.DoesNotContain("oldest goal", rendered);
+    }
+}
