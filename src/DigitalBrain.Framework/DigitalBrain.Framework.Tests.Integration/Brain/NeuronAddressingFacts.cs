@@ -71,6 +71,34 @@ public sealed class NeuronAddressingFacts(FrameworkHost host)
         Assert.Throws<InvalidOperationException>(() => brain.Neuron<ITestEmitter>("addressing/x"));
     }
 
+    [Theory]
+    [InlineData("csharp/source", "acc-brain/csharp/source")]
+    [InlineData("a/b/c", "acc-brain/a/b/c")]
+    public void ARelativeIdKeepsItsOwnSeparators(string relative, string full)
+        => Assert.Equal(full, new NeuronId(relative).Within("acc-brain").Name);
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("acc/brain")]
+    [InlineData("acc\\brain")]
+    [InlineData("acc:brain")]
+    [InlineData("@platform")]
+    [InlineData("acc\tbrain")]
+    public void WithinRefusesWhatIsNotABrainId(string brain)
+    {
+        Assert.False(BrainScope.IsValidId(brain));
+        Assert.Throws<ArgumentException>(() => new NeuronId("x").Within(brain));
+    }
+
+    [Fact]
+    public void WithinRefusesABrainIdLongerThanTwoHundred()
+    {
+        var brain = new string('b', 201);
+        Assert.False(BrainScope.IsValidId(brain));
+        Assert.Throws<ArgumentException>(() => new NeuronId("x").Within(brain));
+    }
+
     private static string Resolve(Func<object?> resolve)
     {
         try { return ((IAddressable)resolve()!).GetGrainId().ToString(); }

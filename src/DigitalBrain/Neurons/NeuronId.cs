@@ -39,9 +39,9 @@ public readonly record struct NeuronId
     // Get still takes full keys. Only implementations of IDigitalBrain call this.
     public NeuronId Within(string brain)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
-        if (brain.Contains('/', StringComparison.Ordinal))
-        { throw new ArgumentException("A brain id has no path separator.", nameof(brain)); }
+        // The same rule as BrainScope.IsValidId (Framework), which this assembly cannot reference.
+        if (string.IsNullOrWhiteSpace(brain) || brain.Length > 200 || brain[0] == '@' || brain.Any(c => char.IsControl(c) || c is '/' or '\\' or ':'))
+        { throw new ArgumentException("A brain ID must contain 1-200 characters without path separators, ':' or a leading '@'.", nameof(brain)); }
         return new($"{brain}/{Name}");
     }
 
