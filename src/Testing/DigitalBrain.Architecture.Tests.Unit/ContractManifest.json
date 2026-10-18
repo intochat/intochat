@@ -1042,6 +1042,7 @@
     "DigitalBrain.SignalId": "signal.id; Alias=0",
     "DigitalBrain.SignalNudge": "brain.nudge; Publisher=0, Sequence=1",
     "DigitalBrain.SignalPage": "brain.signal-page; Floor=0, Last=1, Signals=2, Sequences=3",
+    "DigitalBrain.StaleActionException": "ui.stale-action; ",
     "DigitalBrain.State": "brain.state; Owner=0, CreatedAt=1",
     "DigitalBrain.Synapse": "synapse; Publisher=0, Signal=1",
     "DigitalBrain.Time.Reminders.IReminder": "reminder (not generated); ",

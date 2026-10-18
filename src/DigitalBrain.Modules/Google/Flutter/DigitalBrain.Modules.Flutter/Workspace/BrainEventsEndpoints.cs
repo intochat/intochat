@@ -76,7 +76,8 @@ internal static class BrainEventsEndpoints
     // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
     internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null, TimeSpan? retryEvery = null)
     {
-        var changes = Channel.CreateUnbounded<bool>();
+        // A change flag: one pending change says everything a hundred would.
+        var changes = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brainId));
         var view = new RuntimeView(runtime, log, staleAfter ?? StaleAfter);

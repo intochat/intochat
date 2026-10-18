@@ -13,6 +13,17 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
     : Neuron<TextFieldState>(store), ITextField
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.OrdinalIgnoreCase) { "text", "number", "password", "secret", "suggest", "multiline" };
+    private static readonly HashSet<string> SecretKinds = new(StringComparer.OrdinalIgnoreCase) { "password", "secret" };
+
+    // Secret kinds never persist or journal the value: state records only that a value is set.
+    internal const string SecretSetMarker = "••••••••";
+
+    private static bool IsSecret(string kind) => SecretKinds.Contains(kind);
+
+    private static string Stored(string kind, string value) => !IsSecret(kind) ? value : value.Length == 0 ? "" : SecretSetMarker;
+
+    // A field not yet configured may become a secret, so its value is not journalled either.
+    private static string Journalled(TextFieldState state, string value) => IsSecret(state.Kind) || state.Label.Length == 0 ? "" : value;
 
     public Task Configure(string label, string kind, string? submitButton = null)
     {
@@ -22,12 +33,16 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         { throw new ArgumentException("A submit button name must contain between 1 and 512 characters.", nameof(submitButton)); }
         if (!Kinds.Contains(kind)) { throw new ArgumentOutOfRangeException(nameof(kind)); }
         var next = Snapshot;
+        var wasSecret = IsSecret(next.Kind);
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
         next.Label = label.Trim();
         next.Kind = kind.Trim().ToLowerInvariant();
         next.SubmitButton = submitButton;
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), next.Value));
+        if (IsSecret(next.Kind) && next.Value.Length > 0) { next.Value = SecretSetMarker; }
+        // The marker is not a value: a secret that becomes plain text starts empty.
+        else if (wasSecret && !IsSecret(next.Kind)) { next.Value = ""; }
+        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, next.Value)));
     }
 
     public Task SetValue(string value)
@@ -36,8 +51,8 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         var next = Snapshot;
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
-        next.Value = value;
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), next.Value));
+        next.Value = Stored(next.Kind, value);
+        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, value)));
     }
 
     public async Task<bool> TrySetValue(string value, int expectedVersion)
@@ -53,6 +68,7 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         ArgumentNullException.ThrowIfNull(value);
         if (value.Length > 32_000) { throw new ArgumentException("Input has at most 32000 characters.", nameof(value)); }
         await SetValue(value);
+        // The binding is the only recipient of a secret value; it forwards without journalling.
         await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(new TextFieldChanged(this.GetPrimaryKeyString(), value));
     }
 

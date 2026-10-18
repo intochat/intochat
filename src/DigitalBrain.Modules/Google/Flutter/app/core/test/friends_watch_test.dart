@@ -14,7 +14,11 @@ void main() {
         ('card', 'bob/posts/p1'),
         ('collection', 'bob/posts'),
       ]) {
-        await client.watchNode('alice', slot.$1, slot.$2).toList();
+        final watch = client
+            .watchNode('alice', slot.$1, slot.$2)
+            .listen((_) {});
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await watch.cancel();
         expect(link.brain, 'alice');
         expect(link.source!.key, 'alice/space');
         expect(link.source!.contract, 'DigitalBrain.Flame.Scene.IScene');
@@ -31,7 +35,7 @@ class RecordingLink implements NeuronLink {
   Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources) {
     brain = brainId;
     source = sources.single;
-    return const Stream.empty();
+    return Stream<NeuronSignal>.multi((_) {});
   }
 
   @override

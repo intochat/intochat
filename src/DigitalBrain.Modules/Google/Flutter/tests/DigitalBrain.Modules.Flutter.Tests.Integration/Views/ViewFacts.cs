@@ -45,9 +45,9 @@ public sealed class ViewFacts(FlutterHost host)
         var view = brain.Get<IView>("actions");
         await using var actions = await brain.Observe<ViewAction>(view, ct);
         await view.Publish(new(3, 1, Ui.Column("root", [Ui.Button("go", "Go", "navigate"), Ui.Button("off", "Off", "delete", false)])));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => view.Activate(2, "go", "navigate", Guid.NewGuid()));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => view.Activate(3, "go", "delete", Guid.NewGuid()));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => view.Activate(3, "off", "delete", Guid.NewGuid()));
+        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(2, "go", "navigate", Guid.NewGuid()));
+        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(3, "go", "delete", Guid.NewGuid()));
+        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(3, "off", "delete", Guid.NewGuid()));
         await Assert.ThrowsAsync<ArgumentException>(() => view.Activate(3, "go", "navigate", Guid.Empty));
         var request = Guid.NewGuid();
         await view.Activate(3, "go", "navigate", request);

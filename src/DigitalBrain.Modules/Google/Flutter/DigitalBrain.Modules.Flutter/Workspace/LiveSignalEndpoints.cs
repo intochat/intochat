@@ -47,20 +47,31 @@ internal static class LiveSignalEndpoints
 
     private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }
 
+    // App keys waiting for the stream. A dropped key would leave an app out of the watch for good, so a full
+    // buffer holds the kernel enumeration back instead of dropping.
+    internal const int KeyBuffer = 256;
+
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
-    // A null key marks the end of the listing.
+    // A null key marks the end of the listing. A key waiting in the buffer is not queued again, so the dedup set
+    // holds at most the buffer's keys; once read, `seen` keeps the stream from yielding it twice.
     private static async IAsyncEnumerable<INeuron> Apps(IDigitalBrain brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
-        var keys = Channel.CreateUnbounded<string?>();
+        var keys = Channel.CreateBounded<string?>(new BoundedChannelOptions(KeyBuffer) { FullMode = BoundedChannelFullMode.Wait });
+        HashSet<string> queued = [];
+        async Task Queue(string key)
+        {
+            lock (queued) { if (!queued.Add(key)) { return; } }
+            await keys.Writer.WriteAsync(key, ct);
+        }
         _ = Task.Run(async () =>
         {
             try
             {
                 await foreach (var created in brain.On<InstanceCreated>(brain.Self, async () =>
                 {
-                    await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { keys.Writer.TryWrite(instance.Key); }
-                    keys.Writer.TryWrite(null);
-                }, ct)) { keys.Writer.TryWrite(created.Key); }
+                    await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { await Queue(instance.Key); }
+                    await keys.Writer.WriteAsync(null, ct);
+                }, ct)) { await Queue(created.Key); }
             }
             catch (OperationCanceledException) { }
             catch (Exception error) { keys.Writer.TryComplete(error); }
@@ -68,6 +79,7 @@ internal static class LiveSignalEndpoints
         HashSet<string> seen = [];
         await foreach (var key in keys.Reader.ReadAllAsync(ct))
         {
+            if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
             else if (IApp.NameOf(brainId, key) is not null && seen.Add(key)) { yield return brain.Get<IApp>(key); }
         }
@@ -106,12 +118,39 @@ internal static class LiveSignalEndpoints
 
     internal const string Ready = "{\"type\":\"ready\"}";
 
+    // Sent instead of what a stalled reader would have missed; the stream then ends and the client reconnects and reloads.
+    internal const string Resync = "{\"type\":\"resync\"}";
+
+    // Envelopes held for a reader that is not keeping up; one more means resync.
+    internal const int EnvelopeBuffer = 1024;
+
+    // A bounded outbox that never blocks a pump: an envelope that does not fit marks the stream overflowed and ends it.
+    private sealed class Outbox(int capacity)
+    {
+        private readonly Channel<string> _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(capacity) { FullMode = BoundedChannelFullMode.Wait });
+        private int _overflowed;
+
+        public bool Overflowed => Volatile.Read(ref _overflowed) == 1;
+        public ChannelReader<string> Reader => _channel.Reader;
+
+        public ValueTask Write(string envelope, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_channel.Writer.TryWrite(envelope) || Overflowed) { return ValueTask.CompletedTask; }
+            if (Interlocked.Exchange(ref _overflowed, 1) == 0) { _channel.Writer.TryComplete(); }
+            return ValueTask.CompletedTask;
+        }
+
+        public void Fail(Exception error) => _channel.Writer.TryComplete(error);
+    }
+
     // The envelopes as JSON text, retained signals first per source, then Ready, then live ones, until ct ends the stream.
     // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped;
     // when every feed has failed the stream ends with an error, so the client sees a failure instead of a silent hang.
-    internal static async IAsyncEnumerable<string> Stream(IDigitalBrain brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct)
+    // A reader that falls more than `capacity` envelopes behind gets Resync and the stream ends.
+    internal static async IAsyncEnumerable<string> Stream(IDigitalBrain brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer)
     {
-        var channel = Channel.CreateUnbounded<string>();
+        var outbox = new Outbox(capacity);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
@@ -119,26 +158,35 @@ internal static class LiveSignalEndpoints
             void Failed()
             {
                 if (Interlocked.Increment(ref failed) == feeds.Length)
-                { channel.Writer.TryComplete(new InvalidOperationException("Every live feed failed; see the server log.")); }
+                { outbox.Fail(new InvalidOperationException("Every live feed failed; see the server log.")); }
             }
-            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, channel.Writer, log, Failed, stop.Token), CancellationToken.None)).ToArray();
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await Task.WhenAll(replayed);
-                    await channel.Writer.WriteAsync(Ready, stop.Token);
+                    await outbox.Write(Ready, stop.Token);
                 }
                 catch (Exception closed) when (closed is OperationCanceledException or ChannelClosedException) { }
             }, CancellationToken.None);
-            await foreach (var envelope in channel.Reader.ReadAllAsync(ct)) { yield return envelope; }
+            while (await outbox.Reader.WaitToReadAsync(ct))
+            {
+                if (outbox.Overflowed) { break; }
+                if (outbox.Reader.TryRead(out var envelope)) { yield return envelope; }
+            }
+            if (outbox.Overflowed)
+            {
+                log.LogInformation("Live stream for {Brain} overflowed {Capacity} envelopes; the reader resyncs.", brainId, capacity);
+                yield return Resync;
+            }
         }
         finally { await stop.CancelAsync(); }
     }
 
     // Completes once the retained values of the sources listed at connect time are written (or the feed failed);
     // discovery keeps running after that.
-    private static Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, ChannelWriter<string> writer, ILogger log, Action failed, CancellationToken ct)
+    private static Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, Outbox writer, ILogger log, Action failed, CancellationToken ct)
     {
         var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         List<Task> initial = [];
@@ -167,7 +215,7 @@ internal static class LiveSignalEndpoints
         return replayed.Task;
     }
 
-    private static async Task Pump(IDigitalBrain brain, LiveFeed feed, INeuron source, ChannelWriter<string> writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
+    private static async Task Pump(IDigitalBrain brain, LiveFeed feed, INeuron source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
         try
         {
@@ -177,14 +225,14 @@ internal static class LiveSignalEndpoints
                 try { await Replay(feed, source, writer, log, ct); }
                 finally { replayed.TrySetResult(); }
             }, ct))
-            { await writer.WriteAsync(Envelope(signal, await SequenceOf(source, feed.Type, signal, ct)), ct); }
+            { await writer.Write(Envelope(signal, await SequenceOf(source, feed.Type, signal, ct)), ct); }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { log.LogWarning(error, "Live {Type} source {Source} dropped.", feed.Type, source.GetPrimaryKeyString()); }
         finally { replayed.TrySetResult(); }
     }
 
-    private static async Task Replay(LiveFeed feed, INeuron source, ChannelWriter<string> writer, ILogger log, CancellationToken ct)
+    private static async Task Replay(LiveFeed feed, INeuron source, Outbox writer, ILogger log, CancellationToken ct)
     {
         RetainedSignal[] retained;
         try { retained = await source.AsReference<IRetainsSignals>().Retained(feed.Type, 0).WaitAsync(ct); }
@@ -193,7 +241,7 @@ internal static class LiveSignalEndpoints
             log.LogDebug(error, "Live {Type} source {Source} has no retained value.", feed.Type, source.GetPrimaryKeyString());
             return;
         }
-        if (retained.LastOrDefault() is { } last) { await writer.WriteAsync(Envelope(last.Signal, last.Sequence, replay: true), ct); }
+        if (retained.LastOrDefault() is { } last) { await writer.Write(Envelope(last.Signal, last.Sequence, replay: true), ct); }
     }
 
     // A live signal carries the sequence it was retained under, so a client can tell it from a replayed one.

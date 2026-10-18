@@ -19,6 +19,7 @@ import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
 import 'models/grant_summary.dart';
 import 'neuron_channel.dart';
+import 'neuron_watch_mux.dart';
 import 'node_contracts.dart';
 import 'scene_client.dart';
 import 'models/session_capabilities.dart';
@@ -206,6 +207,7 @@ final class DigitalBrainUiClient {
 
   NeuronLink? _link;
   set link(NeuronLink value) => _link = value;
+  final _watches = <String, NeuronWatchMux>{};
   NeuronLink get channel => _link ??= NeuronChannel(
     baseUri,
     authorization: _credentials?.authorizationHeader,
@@ -217,6 +219,10 @@ final class DigitalBrainUiClient {
     },
   );
 
+  /// The brain's shared watch: every node watch of a screen rides one `Watch` stream.
+  NeuronWatchMux watches(String brainId) =>
+      _watches[brainId] ??= NeuronWatchMux(() => channel, brainId);
+
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
     final friendSlot =
@@ -225,18 +231,18 @@ final class DigitalBrainUiClient {
         (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
     final contract = NodeContracts.of(friendSlot ? 'scene' : kind);
     final source = friendSlot ? '$brainId/space' : name;
-    return channel
-        .watch(brainId, [
-          WatchSourceSpec(contract.contract, source, [contract.changed]),
-        ])
-        .map((signal) {
-          // Delivery latency as the comparison measures it: envelope stamp to arrival.
-          developer.log(
-            'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
-            name: 'digitalbrain.channel',
-          );
-          return signal;
-        });
+    return watches(
+      brainId,
+    ).watch(WatchSourceSpec(contract.contract, source, [contract.changed])).map((
+      signal,
+    ) {
+      // Delivery latency as the comparison measures it: envelope stamp to arrival.
+      developer.log(
+        'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
+        name: 'digitalbrain.channel',
+      );
+      return signal;
+    });
   }
 
   /// Server-owned capabilities; the shell hides developer-only surfaces when this is off.
@@ -427,13 +433,36 @@ final class DigitalBrainUiClient {
 
   /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
   /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
-  Stream<LiveEnvelope> watchLive(
-    String brainId,
-    List<String> types,
-  ) => _serverEvents(
-    '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}',
-    'Live signals are unavailable.',
-  ).map(LiveEnvelope.fromJson);
+  /// A reader that falls behind gets `resync`: the feed reconnects and replays, so listeners read again.
+  /// The pause before reconnecting after a resync, doubling up to [maxResyncPause].
+  Duration firstResyncPause = const Duration(seconds: 1);
+  Duration maxResyncPause = const Duration(seconds: 30);
+
+  Stream<LiveEnvelope> watchLive(String brainId, List<String> types) async* {
+    final path =
+        '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}';
+    var resyncPause = firstResyncPause;
+    while (true) {
+      var resync = false;
+      await for (final envelope in _serverEvents(
+        path,
+        'Live signals are unavailable.',
+      ).map(LiveEnvelope.fromJson)) {
+        if (envelope.isResync) {
+          resync = true;
+          break;
+        }
+        yield envelope;
+      }
+      // The server ended a stream this reader fell behind on: reconnecting replays current state.
+      if (!resync) return;
+      // A server that resyncs on every connect must not spin: wait 1 s, doubling to 30 s.
+      await Future<void>.delayed(resyncPause);
+      resyncPause = resyncPause * 2 > maxResyncPause
+          ? maxResyncPause
+          : resyncPause * 2;
+    }
+  }
 
   Stream<DeploymentChanged> watchDeployment(String brainId) =>
       watchLive(brainId, ['DeploymentChanged'])
@@ -899,6 +928,10 @@ final class DigitalBrainUiClient {
     if (_ownsClient) {
       _http.close();
     }
+    for (final mux in _watches.values) {
+      unawaited(mux.close());
+    }
+    _watches.clear();
     unawaited(_link?.shutdown() ?? Future.value());
     _link = null;
   }
