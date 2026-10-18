@@ -11,6 +11,8 @@ using global::Azure.ResourceManager.Authorization.Models;
 using global::Azure.ResourceManager.KeyVault;
 using global::Azure.ResourceManager.KeyVault.Models;
 using global::Azure.ResourceManager.ManagedServiceIdentities;
+using global::Azure.ResourceManager.Network;
+using global::Azure.ResourceManager.Network.Models;
 using global::Azure.ResourceManager.Models;
 using global::Azure.ResourceManager.OperationalInsights;
 using global::Azure.ResourceManager.OperationalInsights.Models;
@@ -52,6 +54,10 @@ public sealed class ArmAzure : IAzureArm
             ManagedEnvironmentSpec environment => await EnsureEnvironment(rg, environment, location, ct),
             ContainerAppSpec app => await EnsureApp(rg, app, location, ct),
             RoleGrantSpec grant => await EnsureGrant(rg, grant, ct),
+            NetworkSecurityGroupSpec securityGroup => await EnsureNetworkSecurityGroup(rg, securityGroup, location, ct),
+            VirtualNetworkSpec network => await EnsureVirtualNetwork(rg, network, location, ct),
+            SubnetSpec subnet => await EnsureSubnet(rg, subnet, ct),
+            SessionPoolSpec pool => await EnsureSessionPool(rg, pool, location, ct),
             _ => throw new NotSupportedException($"Azure resource kind '{spec.Kind}' is not supported."),
         };
     }
@@ -300,6 +306,96 @@ public sealed class ArmAzure : IAzureArm
         data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
         Apply(spec, data.Tags);
         var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureNetworkSecurityGroup(ResourceGroupResource rg, NetworkSecurityGroupSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var data = new NetworkSecurityGroupData { Location = location };
+        foreach (var rule in spec.Rules)
+        {
+            data.SecurityRules.Add(new SecurityRuleData
+            {
+                Name = rule.Name,
+                Priority = rule.Priority,
+                Direction = new SecurityRuleDirection(rule.Direction),
+                Access = new SecurityRuleAccess(rule.Access),
+                Protocol = new SecurityRuleProtocol(rule.Protocol),
+                SourceAddressPrefix = "*",
+                SourcePortRange = "*",
+                DestinationAddressPrefix = rule.DestinationAddressPrefix,
+                DestinationPortRange = rule.DestinationPortRange,
+            });
+        }
+        Apply(spec, data.Tags);
+        var made = await rg.GetNetworkSecurityGroups().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureVirtualNetwork(ResourceGroupResource rg, VirtualNetworkSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var data = new VirtualNetworkData { Location = location };
+        data.AddressPrefixes.Add(spec.AddressSpace);
+        Apply(spec, data.Tags);
+        var made = await rg.GetVirtualNetworks().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureSubnet(ResourceGroupResource rg, SubnetSpec spec, CancellationToken ct)
+    {
+        var network = (await rg.GetVirtualNetworkAsync(spec.VirtualNetwork, cancellationToken: ct)).Value;
+        var data = new SubnetData { Name = spec.Name, AddressPrefix = spec.AddressPrefix };
+        if (spec.NetworkSecurityGroup.Length > 0)
+        {
+            var group = (await rg.GetNetworkSecurityGroupAsync(spec.NetworkSecurityGroup, cancellationToken: ct)).Value;
+            data.NetworkSecurityGroup = new NetworkSecurityGroupData { Id = group.Id };
+        }
+        if (spec.DelegationService.Length > 0)
+        {
+            data.Delegations.Add(new ServiceDelegation { Name = spec.Name, ServiceName = spec.DelegationService });
+        }
+        var made = await network.GetSubnets().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureSessionPool(ResourceGroupResource rg, SessionPoolSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var environment = (await rg.GetContainerAppManagedEnvironmentAsync(spec.Environment, ct)).Value;
+        var identity = (await rg.GetUserAssignedIdentityAsync(spec.Identity, ct)).Value;
+        var data = new SessionPoolData(location)
+        {
+            EnvironmentId = environment.Id,
+            ContainerType = ContainerType.CustomContainer,
+            PoolManagementType = PoolManagementType.Dynamic,
+            Identity = new ManagedServiceIdentity(ManagedServiceIdentityType.UserAssigned),
+            ScaleConfiguration = new SessionPoolScaleConfiguration { MaxConcurrentSessions = spec.MaxSessions, ReadySessionInstances = spec.ReadySessions },
+            // A session lives while its caller needs it; the daily recycle is the pool's cap.
+            DynamicPoolLifecycleConfiguration = new SessionPoolLifecycleConfiguration
+            {
+                LifecycleType = SessionPoolLifecycleType.OnContainerExit,
+                MaxAlivePeriodInSeconds = spec.MaxAliveSeconds,
+            },
+            SessionNetworkStatus = spec.Egress ? SessionNetworkStatus.EgressEnabled : SessionNetworkStatus.EgressDisabled,
+        };
+        data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
+        data.ManagedIdentitySettings.Add(new SessionPoolManagedIdentitySetting(identity.Id.ToString())
+        {
+            Lifecycle = ContainerAppIdentitySettingsLifeCycle.None,
+        });
+        var template = new CustomContainerTemplate
+        {
+            IngressTargetPort = spec.TargetPort,
+            RegistryCredentials = new SessionRegistryCredentials { Server = spec.RegistryServer, Identity = identity.Id.ToString() },
+        };
+        template.Containers.Add(new SessionContainer
+        {
+            Name = "session",
+            Image = spec.Image,
+            Resources = new SessionContainerResources { Cpu = spec.Cpu, Memory = spec.Memory },
+        });
+        data.CustomContainerTemplate = template;
+        Apply(spec, data.Tags);
+        var made = await rg.GetSessionPools().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name);
     }
 
