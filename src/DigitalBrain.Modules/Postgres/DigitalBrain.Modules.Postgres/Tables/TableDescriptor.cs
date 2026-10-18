@@ -3,12 +3,13 @@ using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Postgres.Tables;
 
+[Alias("postgres.table-descriptor")]
 public interface ITableDescriptor : IGrainWithStringKey
 {
     Task<TableDescription> Describe(string owner);
 }
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("postgres.table-description")]
 public sealed record TableDescription(
     [property: Id(0)] string AppId,
     [property: Id(1)] string TableId,

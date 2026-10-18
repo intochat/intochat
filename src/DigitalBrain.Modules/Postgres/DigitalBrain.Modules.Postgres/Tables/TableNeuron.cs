@@ -3,7 +3,7 @@ using DigitalBrain.Postgres.Tables.Signals;
 
 namespace DigitalBrain.Postgres.Tables;
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("postgres.table-state")]
 internal sealed record TableState
 {
     [Id(0)] public string? Owner { get; init; }

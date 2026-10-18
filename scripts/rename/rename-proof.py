@@ -54,6 +54,9 @@ def parse(raw):
     return json.loads(raw.decode("utf-8"))
 
 
+WIRE_NAMES = "flutter-wire-names.golden.json"
+
+
 def read_declared(path):
     declared = set()
     with open(path, encoding="utf-8") as handle:
@@ -83,8 +86,16 @@ def cmd_alias(args):
     for name in sorted(set(before) & set(after)):
         if name == MANIFEST:
             continue
-        if before[name] != after[name]:
-            failures.append("%s is not byte-identical" % name)
+        if before[name] == after[name]:
+            continue
+        if name == WIRE_NAMES:
+            # The Flutter wire-name golden embeds the alias of three declared enums; every changed key must be a declared type.
+            old_names, new_names = parse(before[name]), parse(after[name])
+            for key in sorted(k for k in set(old_names) | set(new_names) if old_names.get(k) != new_names.get(k)):
+                if ("Contracts", key) not in declared:
+                    failures.append("%s changed for undeclared type: %s" % (name, key))
+            continue
+        failures.append("%s is not byte-identical" % name)
     for item in sorted(declared - actual):
         failures.append("declared but unchanged: %s\t%s" % item)
     for item in sorted(actual - declared):

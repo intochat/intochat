@@ -30,6 +30,7 @@ internal sealed class CardNeuron([PersistentState("state", DigitalBrainNames.Clu
 
 // Module-only leaf access after the viewer Space neuron authorizes the exact reference.
 [Orleans.Metadata.DefaultGrainType(UIVocabulary.CardType)]
+[Alias("ui.shared-card-reader")]
 internal interface ISharedCardReader : IGrainWithStringKey
 {
     Task<CardState> Read();

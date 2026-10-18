@@ -3,6 +3,7 @@ using DigitalBrain.Framework;
 namespace DigitalBrain.Authority.Identity;
 
 // A principal's password hash, on the machine (R62): the trust cluster never holds a credential.
+[Alias("identity.principal-credential-grain")]
 internal interface IPrincipalCredential : IGrainWithStringKey
 {
     Task<string?> Hash();

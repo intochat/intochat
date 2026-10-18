@@ -1,6 +1,6 @@
 namespace DigitalBrain.Framework;
 
-[GenerateSerializer, Alias("digitalbrain.type-validation")]
+[GenerateSerializer, Alias("types.type-validation")]
 public sealed class TypeValidationException(
     FieldKind kind,
     object? rejectedValue,

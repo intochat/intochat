@@ -44,6 +44,7 @@ internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron,
             ? [new RetainedSignal(_last.Version, new ClusterChanged(_last) { Publisher = this.GetPrimaryKeyString() })] : []);
 }
 
+[Alias("orleans.cluster-membership-receiver")]
 internal interface IClusterMembershipReceiver : IGrainWithStringKey
 {
     Task MembershipChanged(Guid activation, ClusterSnapshot? snapshot);

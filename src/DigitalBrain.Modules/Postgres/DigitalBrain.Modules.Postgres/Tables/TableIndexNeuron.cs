@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 
 namespace DigitalBrain.Postgres.Tables;
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("postgres.table-index-state")]
 internal sealed record TableIndexState
 {
     [Id(0)] public string[] Tables { get; init; } = [];

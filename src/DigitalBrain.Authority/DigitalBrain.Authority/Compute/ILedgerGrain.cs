@@ -5,6 +5,7 @@ namespace DigitalBrain.Authority.Compute;
 // The account's billing ledger: the single durable writer of the balance, a hash-chained window of the
 // latest entries anchored on what it dropped, and rolling windows of idempotency keys (charges, credits). A plain grain, not a
 // neuron, so no script can address it.
+[Alias("compute.ledger")]
 internal interface ILedgerGrain : IGrainWithStringKey
 {
     Task<long> Balance();

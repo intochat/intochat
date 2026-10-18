@@ -61,7 +61,7 @@ public sealed record ChatSelection([property: Id(0)] string Agent, [property: Id
 [GenerateSerializer, Alias("ui.chat-selection-receipt")]
 public sealed record ChatSelectionReceipt([property: Id(0)] Guid OperationId, [property: Id(1)] ChatSelection Selection);
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.chat-run-status")]
 public enum ChatRunStatus { Running, Completed, Failed, Cancelled, Interrupted }
 
 [GenerateSerializer, Alias("ui.chat-run-snapshot")]

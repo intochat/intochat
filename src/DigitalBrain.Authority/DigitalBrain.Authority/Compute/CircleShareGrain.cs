@@ -6,6 +6,7 @@ namespace DigitalBrain.Authority.Compute;
 
 // Per circle key (the owner's copy): the members who may spend, the share of the owner's budget they may
 // spend, and what they have drawn today. A plain grain, not a neuron, so no script can address it.
+[Alias("compute.circle-share")]
 internal interface ICircleShareGrain : IGrainWithStringKey
 {
     // The owner's account when `member` may draw `micros` now; null when that is over the circle's share.

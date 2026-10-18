@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Contracts;
 namespace DigitalBrain.Postgres.Tables;
 
 // One index per TableOwner: which tables the app defined, and whether its storage is retired.
+[Alias("postgres.table-index")]
 public interface ITableIndex : IGrainWithStringKey
 {
     [Orleans.Concurrency.ReadOnly] Task<string[]> ReadTables();
@@ -14,6 +15,7 @@ public interface ITableIndex : IGrainWithStringKey
     Task Reopen();
 }
 
+[Alias("postgres.table-lifetime")]
 public interface ITableLifetime : IGrainWithStringKey
 {
     Task Retire(string owner);

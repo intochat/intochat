@@ -1,6 +1,6 @@
 namespace DigitalBrain.Flutter.Chat;
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("ui.chat-role")]
 public enum ChatRole { User, Assistant }
 
 [GenerateSerializer, Alias("ui.chat-entry")]
