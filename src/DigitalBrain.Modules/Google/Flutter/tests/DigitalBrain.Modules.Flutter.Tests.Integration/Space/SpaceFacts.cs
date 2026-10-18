@@ -144,16 +144,22 @@ public sealed class SpaceFacts
         using var caller = brain.Owner.AsCaller();
         await App(brain, "retry");
         await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("retry-home", 0);
-        await brain.Get<ISpace>(brain.Owner.BrainId).Rebuild();
+        var space = brain.Get<ISpace>(brain.Owner.BrainId);
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         var key = IApp.Key(brain.Owner.BrainId, "retry");
-        await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == key), TimeSpan.FromSeconds(10), ct);
+        // Activation composes once and finishes before this call returns. Rebuild alone would also activate the
+        // space, and its full scan could still be reading the app when the failure is armed.
+        await space.ReadProfile(brain.Owner.Key("profile"));
+        var activated = (await scene.Read()).Revision;
+        await space.Rebuild();
+        await TestWait.UntilAsync(_ => scene.Read(), state => state.Revision > activated && state.Definition.Nodes.Any(node => node.Id == key),
+            TimeSpan.FromSeconds(10), ct);
         calls.Armed = true;
         calls.FailNext = true;
-        await brain.Get<ISpace>(brain.Owner.BrainId).RefreshApp(key);
+        await space.RefreshApp(key);
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.All(node => node.Id != key), TimeSpan.FromSeconds(10), ct);
         calls.Count = 0;
-        await brain.Get<ISpace>(brain.Owner.BrainId).Recompose();
+        await space.Recompose();
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == key), TimeSpan.FromSeconds(10), ct);
         calls.Armed = false;
         Assert.Equal(1, calls.Count);
