@@ -41,9 +41,13 @@ public sealed class HarnessCancellationFacts
             .StartAsync(ct);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
+        // The registration outlives the body. Disposed inside it, the body could unregister the callback before the
+        // canceller reached it: when cancellation lands before Task.Delay subscribes, or when the delay's own callback
+        // (registered later, so run first) resumes the body inline. The callback then never ran and nothing threw.
+        CancellationTokenRegistration registration = default;
         var run = brain.RunBehavior(async (_, token) =>
         {
-            using var registration = token.Register(() =>
+            registration = token.Register(() =>
             {
                 if (throws) { throw new InvalidOperationException("callback failed"); }
                 release.Wait();
@@ -66,6 +70,7 @@ public sealed class HarnessCancellationFacts
             release.Set();
             if (disposing is not null) { try { await disposing; } catch (Exception) { } }
             try { await run.Completion; } catch (OperationCanceledException) { }
+            await registration.DisposeAsync();
         }
     }
 
