@@ -6,6 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <!-- The stock Azure blob key repository reads the keys the platform writes (CookieProtectionFacts). -->
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
     <ProjectReference Include="../../DigitalBrain.OS/DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
   </ItemGroup>
 </Project>
