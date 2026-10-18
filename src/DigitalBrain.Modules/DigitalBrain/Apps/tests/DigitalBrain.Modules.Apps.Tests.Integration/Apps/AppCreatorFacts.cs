@@ -456,7 +456,10 @@ public sealed class AppCreatorFacts
 
     private sealed class FinalBundleSandbox : IScriptSandbox, IAppRuntime
     {
-        public List<Dictionary<string, string>> Bundles { get; } = [];
+        // Compile runs on silo threads (the builder's check and the deploy) while the fact reads; snapshot under the lock.
+        private readonly Lock gate = new();
+        private readonly List<Dictionary<string, string>> bundles = [];
+        public IReadOnlyList<Dictionary<string, string>> Bundles { get { lock (gate) { return [.. bundles]; } } }
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
@@ -465,7 +468,7 @@ public sealed class AppCreatorFacts
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
         {
-            Bundles.Add(new(files));
+            lock (gate) { bundles.Add(new(files)); }
             return Task.FromResult(files.Values.Any(source => source == "// invalid final")
                 ? new ScriptCompilationCheck(false, [new("synapses/shout.cs", "CS1503", 1, "Invalid operation overload")])
                 : new ScriptCompilationCheck(true, []));
