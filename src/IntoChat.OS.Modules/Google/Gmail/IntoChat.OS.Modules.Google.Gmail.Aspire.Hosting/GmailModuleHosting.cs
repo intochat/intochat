@@ -1,11 +1,7 @@
-using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Google.Gmail;
 
-public sealed class GmailModuleHosting : ModuleHosting<IntoChat.OS.Google.Gmail.GmailModule>
-{
-    public override void Configure(IntoChatOSBuilder brain)
-    {
-        ArgumentNullException.ThrowIfNull(brain);
-    }
-}
+// The ModuleHosting<GmailModule> link is generated; secret projection is the base default.
+[ModuleHosting(typeof(GmailModule))]
+public sealed partial class GmailModuleHosting;

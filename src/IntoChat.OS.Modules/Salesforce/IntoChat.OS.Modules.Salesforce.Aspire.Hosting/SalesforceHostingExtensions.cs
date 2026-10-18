@@ -6,7 +6,7 @@ using IntoChat.OS.Framework.Configuration;
 
 namespace IntoChat.OS.Salesforce.Aspire.Hosting;
 
-public static class SalesforceHostingExtensions
+public static partial class SalesforceHostingExtensions
 {
     // An explicit origin overrides the silo's http endpoint. The MCP endpoint is a module option.
     public static IntoChatOSModuleBuilder<IntoChat.OS.Salesforce.Aspire.Hosting.SalesforceModuleHosting> WithHostedMcp(

@@ -10,6 +10,8 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Aspire.Hosting/IntoChat.OS.Modules.Salesforce.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

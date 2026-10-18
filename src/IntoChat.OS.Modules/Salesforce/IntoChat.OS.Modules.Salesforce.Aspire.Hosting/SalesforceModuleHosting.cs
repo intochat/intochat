@@ -1,11 +1,7 @@
-using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Salesforce.Aspire.Hosting;
 
-public sealed class SalesforceModuleHosting : ModuleHosting<IntoChat.OS.Salesforce.SalesforceModule>
-{
-    public override void Configure(IntoChatOSBuilder brain)
-    {
-        ArgumentNullException.ThrowIfNull(brain);
-    }
-}
+// The ModuleHosting<SalesforceModule> link is generated; secret projection is the base default.
+[ModuleHosting(typeof(IntoChat.OS.Salesforce.SalesforceModule))]
+public sealed partial class SalesforceModuleHosting;

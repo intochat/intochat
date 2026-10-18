@@ -28,6 +28,23 @@ public sealed class GeneratorFacts
     }
 
     [Fact]
+    public void SampleModule() => Verify("SampleModule", """
+        [Module("sample")]
+        [Integration("sample", "Sample")]
+        [Secret("ApiKey")]
+        public sealed partial class SampleModule : Module<SampleOptions>
+        {
+            partial void OnConfigure(IModuleServices services) => services.Services.ToString();
+        }
+
+        public sealed class SampleOptions : IModuleOptions
+        {
+            [Setting] public string Region { get; init; } = "eu";
+            public void Validate() { }
+        }
+        """);
+
+    [Fact]
     public void Minimal() => Verify("Minimal", """
         [Module("minimal")]
         public sealed partial class MinimalModule : Module;
@@ -146,7 +163,7 @@ public sealed class GeneratorFacts
 
     [Fact]
     public void EveryGoldenCompilesAndIsPresent()
-        => Assert.True(Directory.GetFiles(GeneratorHarness.GoldenDirectory(), "*.g.cs").Length >= 7);
+        => Assert.True(Directory.GetFiles(GeneratorHarness.GoldenDirectory(), "*.g.cs").Length >= 8);
 
     [Fact]
     public void GeneratedSourceContainsNoOrleansTypes()

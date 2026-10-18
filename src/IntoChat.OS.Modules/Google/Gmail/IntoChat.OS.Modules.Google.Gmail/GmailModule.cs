@@ -3,6 +3,7 @@ using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,19 +12,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Google.Gmail;
 
-public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gmail")), IHttpModule
+[Module("gmail")]
+[ModuleContracts(typeof(IGmail))]
+[Integration("google-oauth", "Google OAuth")]
+[Integration("google-pubsub", "Google Pub/Sub push")]
+[Secret("ClientId", Integration = "google-oauth")]
+[Secret("ClientSecret", Integration = "google-oauth")]
+[Setting("Audience", Integration = "google-pubsub")]
+[Setting("ServiceAccountEmail", Integration = "google-pubsub")]
+public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Google.Gmail.IGmail).Assembly;
-
     public const string HttpClientName = "IntoChat.OS.Gmail";
     public const string WatchPath = "/google/gmail/watch";
-
-    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
-
-    // Discovery reads Integration and Integrations together, so the array holds only the other schemas.
-    public static IntegrationSchema[] Integrations { get; } = [
-        IntegrationSchema.For("google-pubsub", "Google Pub/Sub push").RequiresSetting("Audience").RequiresSetting("ServiceAccountEmail"),
-    ];
 
     public static ConnectorDefinition Connector { get; } = new("gmail", "Gmail", ["google-oauth"], ["google-oauth"])
     {
@@ -34,14 +34,13 @@ public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gma
             { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
     };
 
-    public override void Configure(ISiloBuilder silo)
+    partial void OnConfigure(IModuleServices services)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        var services = silo.Services;
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(silo.Configuration.GetModuleOptions<GmailModuleOptions>("gmail"));
-        services.TryAddSingleton<IGmailPushAuthenticator, GmailPushAuthenticator>();
-        services.AddHttpClient(HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30));
+        var collection = services.Services;
+        collection.TryAddSingleton(TimeProvider.System);
+        collection.TryAddSingleton(services.Options<GmailModuleOptions>());
+        collection.TryAddSingleton<IGmailPushAuthenticator, GmailPushAuthenticator>();
+        collection.AddHttpClient(HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30));
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

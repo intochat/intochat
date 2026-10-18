@@ -4,6 +4,7 @@ using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -11,11 +12,14 @@ namespace IntoChat.OS.Salesforce;
 
 // An org connection is the Salesforce neuron's own sealed state; the Platform runs its browser login,
 // the code exchange and the refresh through the OAuth method below.
-public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new ModuleId("salesforce"))
+[Module("salesforce")]
+[ModuleContracts(typeof(ISalesforce))]
+[Integration("salesforce", "Salesforce")]
+[Secret("ConsumerKey")]
+[Secret("ConsumerSecret")]
+public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Salesforce.ISalesforce).Assembly;
-
-    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("salesforce", "Salesforce").RequiresSecret("ConsumerKey").RequiresSecret("ConsumerSecret"); public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
+    public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {
         Neurons = [typeof(ISalesforce)],
         Signals = [typeof(Signals.SalesforceWritePrepared), typeof(Signals.SalesforceWriteFailed), typeof(Signals.SalesforceWriteUncertain), typeof(Signals.RecordWritten)],
@@ -25,15 +29,14 @@ public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new Mod
 
     public static readonly Uri DefaultMcpEndpoint = new("https://api.salesforce.com/platform/mcp/v1/platform/sobject-all");
 
-    public override void Configure(ISiloBuilder silo)
+    partial void OnConfigure(IModuleServices services)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        var services = silo.Services;
-        services.TryAddSingleton(TimeProvider.System);
-        var options = silo.Configuration.GetModuleOptions<SalesforceModuleOptions>("salesforce");
-        services.TryAddSingleton(options);
+        var collection = services.Services;
+        collection.TryAddSingleton(TimeProvider.System);
+        var options = services.Options<SalesforceModuleOptions>();
+        collection.TryAddSingleton(options);
         // Resolved at composition, so a host with a misconfigured MCP endpoint fails to start.
         var endpoint = options.ResolveMcpEndpoint();
-        services.TryAddSingleton<ISalesforceProvider>(_ => new SalesforceMcpProvider(endpoint));
+        collection.TryAddSingleton<ISalesforceProvider>(_ => new SalesforceMcpProvider(endpoint));
     }
 }
