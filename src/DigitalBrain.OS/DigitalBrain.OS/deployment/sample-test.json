@@ -20,6 +20,7 @@
   "storageQuotaGb": 20,
   "registry": { "enabled": true, "sku": "Basic" },
   "postgres": { "enabled": true, "sku": "Standard_B1ms", "tier": "Burstable", "storageGb": 32, "adminLogin": "intochat", "databases": ["intochat"] },
+  "installerPrincipalId": "11111111-1111-1111-1111-111111111111",
   "ghcrUsername": "intochat",
   "modules": { "csharp": { "sandboxImage": "acrintochattest.azurecr.io/os-sandbox:latest", "sessionExecutorRoleId": "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0" } }
 }

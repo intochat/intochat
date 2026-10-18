@@ -6,9 +6,20 @@ internal sealed class RecordingAzure : IAzureArm
 {
     public List<ResourceSpec> Ensured { get; } = [];
 
+    // The vault as the data plane sees it: values by secret name, and the secrets read to build another value.
+    public Dictionary<string, string> Vault { get; } = [];
+
+    public List<string> VaultReads { get; } = [];
+
     public Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
     {
         Ensured.Add(spec);
+        if (spec is SecretSpec secret && (secret.Overwrite || !Vault.ContainsKey(secret.Name)))
+        {
+            var names = SecretSpec.ReferencesIn(secret.Value);
+            VaultReads.AddRange(names);
+            Vault[secret.Name] = SecretSpec.Substitute(secret.Value, names.ToDictionary(name => name, name => Vault[name]));
+        }
         return Task.FromResult(new ResourceRef($"/subscriptions/{subscription}/resourceGroups/{spec.ResourceGroup}/{spec.Kind}/{spec.Name}", spec.Kind, spec.Name, spec.ResourceGroup));
     }
 

@@ -1,10 +1,10 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using global::Azure;
 using global::Azure.Core;
 using global::Azure.Identity;
+using global::Azure.Security.KeyVault.Secrets;
 using global::Azure.ResourceManager;
 using global::Azure.ResourceManager.AppContainers;
 using global::Azure.ResourceManager.AppContainers.Models;
@@ -30,9 +30,12 @@ namespace DigitalBrain.Microsoft.Azure;
 
 // The real calls: one idempotent CreateOrUpdate (a PUT) per kind, under DefaultAzureCredential.
 // Nothing here is unit-tested against Azure; the first install run is the check.
-public sealed partial class ArmAzure : IAzureArm
+public sealed class ArmAzure : IAzureArm
 {
-    private readonly Lazy<ArmClient> _client = new(() => new ArmClient(new DefaultAzureCredential()));
+    private readonly DefaultAzureCredential _credential = new();
+    private readonly Lazy<ArmClient> _client;
+
+    public ArmAzure() => _client = new(() => new ArmClient(_credential));
 
     public async Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
     {
@@ -56,7 +59,7 @@ public sealed partial class ArmAzure : IAzureArm
             FileShareSpec share => await EnsureShare(rg, share, ct),
             BlobContainerSpec container => await EnsureContainer(rg, container, ct),
             KeyVaultSpec vault => await EnsureVault(sub, rg, vault, location, ct),
-            SecretSpec secret => await EnsureSecret(rg, secret, ct),
+            SecretSpec secret => await EnsureSecret(secret, ct),
             ManagedEnvironmentSpec environment => await EnsureEnvironment(rg, environment, location, ct),
             ContainerAppSpec app => await EnsureApp(rg, app, location, ct),
             RoleGrantSpec grant => await EnsureGrant(rg, grant, ct),
@@ -174,28 +177,38 @@ public sealed partial class ArmAzure : IAzureArm
         return Ref(made.Value.Id, spec, spec.Name);
     }
 
-    private static async Task<ResourceRef> EnsureSecret(ResourceGroupResource rg, SecretSpec spec, CancellationToken ct)
+    // Secret values are a data-plane matter: the management plane never returns them. The installer principal needs
+    // Key Vault Secrets Officer on the vault (InstallPlan grants it from installerPrincipalId).
+    private SecretClient Secrets(string vault) => new(new Uri($"https://{vault}.vault.azure.net/"), _credential);
+
+    private async Task<ResourceRef> EnsureSecret(SecretSpec spec, CancellationToken ct)
     {
-        var vault = (await rg.GetKeyVaultAsync(spec.Vault, ct)).Value;
-        var secrets = vault.GetKeyVaultSecrets();
-        if (!spec.Overwrite && (await secrets.ExistsAsync(spec.Name, ct)).Value)
+        var client = Secrets(spec.Vault);
+        if (!spec.Overwrite && await Exists(client, spec.Name, ct))
         {
-            return Ref((await secrets.GetAsync(spec.Name, ct)).Value.Id, spec, spec.Name);
+            return SecretRef(spec, (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value);
         }
-        var value = spec.Value;
-        foreach (var name in VaultSecretReference().Matches(spec.Value).Select(match => match.Groups[1].Value).Distinct())
+        var referenced = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in SecretSpec.ReferencesIn(spec.Value))
         {
-            var referenced = (await secrets.GetAsync(name, ct)).Value.Data.Properties.Value
-                ?? throw new InvalidOperationException($"Secret {name} has no value to put into {spec.Name}.");
-            value = value.Replace(SecretSpec.Reference(name), referenced, StringComparison.Ordinal);
+            referenced[name] = (await client.GetSecretAsync(name, cancellationToken: ct)).Value.Value;
         }
-        var content = new KeyVaultSecretCreateOrUpdateContent(new SecretProperties { Value = value });
-        var made = await secrets.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);
-        return Ref(made.Value.Id, spec, spec.Name);
+        var made = await client.SetSecretAsync(spec.Name, SecretSpec.Substitute(spec.Value, referenced), ct);
+        return SecretRef(spec, made.Value);
     }
 
-    [GeneratedRegex(@"\{vault-secret:([^}]+)\}")]
-    private static partial Regex VaultSecretReference();
+    private static async Task<bool> Exists(SecretClient client, string name, CancellationToken ct)
+    {
+        try
+        {
+            await client.GetSecretAsync(name, cancellationToken: ct);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return false; }
+    }
+
+    private static ResourceRef SecretRef(SecretSpec spec, KeyVaultSecret secret) =>
+        new(secret.Id.ToString(), spec.Kind, spec.Name, spec.ResourceGroup);
 
     private static async Task<ResourceRef> EnsureRegistry(ResourceGroupResource rg, RegistrySpec spec, AzureLocation location, CancellationToken ct)
     {
@@ -205,10 +218,9 @@ public sealed partial class ArmAzure : IAzureArm
         return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.LoginServer ?? "" };
     }
 
-    private static async Task<ResourceRef> EnsurePostgres(ResourceGroupResource rg, PostgresSpec spec, AzureLocation location, CancellationToken ct)
+    private async Task<ResourceRef> EnsurePostgres(ResourceGroupResource rg, PostgresSpec spec, AzureLocation location, CancellationToken ct)
     {
-        var vault = (await rg.GetKeyVaultAsync(spec.Vault, ct)).Value;
-        var password = (await vault.GetKeyVaultSecretAsync(spec.AdminPasswordSecret, ct)).Value.Data.Properties.Value
+        var password = (await Secrets(spec.Vault).GetSecretAsync(spec.AdminPasswordSecret, cancellationToken: ct)).Value.Value
             ?? throw new InvalidOperationException($"Secret {spec.AdminPasswordSecret} has no value for the Postgres admin password.");
         var data = new PostgreSqlFlexibleServerData(location)
         {

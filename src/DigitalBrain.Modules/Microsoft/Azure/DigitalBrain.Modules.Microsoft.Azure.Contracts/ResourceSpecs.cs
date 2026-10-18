@@ -82,6 +82,15 @@ public sealed record SecretSpec : ResourceSpec
     // current value of that secret in the same vault, so a connection string can carry a password only the vault knows.
     public static string Reference(string secret) => "{vault-secret:" + secret + "}";
 
+    public static string[] ReferencesIn(string value) =>
+        [.. System.Text.RegularExpressions.Regex.Matches(value, @"\{vault-secret:([^}]+)\}").Select(match => match.Groups[1].Value).Distinct()];
+
+    public static string Substitute(string value, IReadOnlyDictionary<string, string> secrets)
+    {
+        foreach (var (name, secret) in secrets) { value = value.Replace(Reference(name), secret, StringComparison.Ordinal); }
+        return value;
+    }
+
     public override string Kind => ResourceKinds.Secret;
 }
 

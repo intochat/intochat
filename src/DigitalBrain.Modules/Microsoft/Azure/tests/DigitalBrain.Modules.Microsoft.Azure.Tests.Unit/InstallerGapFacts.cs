@@ -154,6 +154,39 @@ public sealed class InstallerGapFacts
     }
 
     [Fact]
+    public async Task The_postgres_block_reads_the_admin_password_from_the_vault_and_writes_db_connection_with_it()
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var file = Path.Combine(directory.FullName, "test.json");
+            await File.WriteAllTextAsync(file, "{" + Base + ",\"postgres\":{\"enabled\":true,\"adminLogin\":\"intochat\",\"databases\":[\"intochat\"]}}", TestContext.Current.CancellationToken);
+            var secrets = Path.Combine(directory.FullName, "secrets.json");
+            await File.WriteAllTextAsync(secrets, "{\"master-key\":\"k\",\"postgres-admin-password\":\"pw-1\"}", TestContext.Current.CancellationToken);
+            var arm = new RecordingAzure();
+
+            Assert.Equal(0, await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--secrets-from", secrets], arm, [], new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken));
+
+            Assert.Equal(["postgres-admin-password"], arm.VaultReads);
+            Assert.Equal("Host=intochat-test-pg.postgres.database.azure.com;Database=intochat;Username=intochat;Password=pw-1", arm.Vault["db-connection"]);
+        }
+        finally { directory.Delete(true); }
+    }
+
+    [Fact]
+    public void The_installer_principal_gets_secrets_officer_on_the_vault_right_after_it_is_created()
+    {
+        var specs = InstallPlan.Build(Parse("\"installerPrincipalId\":\"11111111-1111-1111-1111-111111111111\""));
+
+        var vaultIndex = Array.IndexOf(specs, specs.OfType<KeyVaultSpec>().Single());
+        var grant = Assert.IsType<RoleGrantSpec>(specs[vaultIndex + 1]);
+        Assert.Equal("11111111-1111-1111-1111-111111111111", grant.Principal);
+        Assert.Equal("b86a8fe4-44ce-4948-aee5-eccb2d0f6c2a", grant.RoleDefinitionId);
+        Assert.EndsWith("/Microsoft.KeyVault/vaults/intochat-test-kv", grant.Scope, StringComparison.Ordinal);
+        Assert.DoesNotContain(InstallPlan.Build(Parse()).OfType<RoleGrantSpec>(), other => other.Name.EndsWith("installer-secrets", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void A_postgres_config_without_an_admin_login_gets_the_default_and_a_zero_storage_fails()
     {
         Assert.Equal("dbadmin", Parse("\"postgres\":{\"enabled\":true}").Postgres.AdminLogin);

@@ -28,6 +28,9 @@ public sealed record InstallConfig
     public Dictionary<string, string> Names { get; init; } = [];
     public RegistryConfig Registry { get; init; } = new();
     public PostgresConfig Postgres { get; init; } = new();
+    // Object id of the principal running the install (the gh-intochat-platform OIDC app). It is granted Key Vault
+    // Secrets Officer on the vault so the installer can read and write secret values on the data plane.
+    public string InstallerPrincipalId { get; init; } = "";
     // When set, the OS app also pulls from ghcr.io as this user with the Key Vault secret ghcr-read-token.
     public string GhcrUsername { get; init; } = "";
     // Settings per module id, read by that module's deployment: { "csharp": { "sandboxImage": "..." } }.
