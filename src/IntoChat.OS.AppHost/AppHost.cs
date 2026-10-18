@@ -44,7 +44,7 @@ var storageDirectory = builder.Configuration["IntoChatOS:Platform:Storage:Direct
 var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
-        ? Primary(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Kernel>(name))
             .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
@@ -54,11 +54,17 @@ intoChatOS.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(
 
 var mcps = AspireModuleHosting.InstanceNames("intochat-os-mcp").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "IntoChat.OS.Mcp.dll") is { } live
-        ? Mcp(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        ? Mcp(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Mcp>(name)))).ToArray();
 AspireModuleHosting.AddFront(builder, "intochat-os-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http")));
 
 builder.Build().Run();
+
+// A live build is an executable the proxy reaches through a bare port (ASPNETCORE_HTTP_PORTS), which binds every interface; the
+// loopback-only rule for Open posture cannot be met there, so the opt-in is explicit (live builds are the candidate pipeline's).
+IResourceBuilder<T> AllowLiveBuildOnNetwork<T>(IResourceBuilder<T> live) where T : IResourceWithEnvironment
+    => live.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(
+        IntoChat.OS.Authority.Identity.Configuration.AuthOptions.Key(nameof(IntoChat.OS.Authority.Identity.Configuration.AuthOptions.AllowOpenOnNetwork))), "true");
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {

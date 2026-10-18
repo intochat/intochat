@@ -30,14 +30,17 @@ internal static class AuthPosture
             { throw new InvalidOperationException("The bootstrap password parameter must be secret."); }
             parameter ??= builder.AddParameter(PasswordParameterName, password, publishValueAsDefault: false, secret: true).Resource;
         }
-        return new Projection(posture, username, parameter);
+        return new Projection(posture, username, parameter, builder.ExecutionContext.IsRunMode);
     }
 
-    private sealed class Projection(string posture, string? username, ParameterResource? password) : IntoChatOSModuleProjection
+    private sealed class Projection(string posture, string? username, ParameterResource? password, bool runMode) : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(Key), posture);
+            // The server has no Aspire execution context: this marker tells it the process was started by an Aspire run, where
+            // Open posture may listen on loopback only (OpenPostureLoopback).
+            if (runMode) { builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HostingModeConfigurationKey), IntoChatOSNames.HostingModeRun); }
             if (password is not null)
             {
                 builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username);

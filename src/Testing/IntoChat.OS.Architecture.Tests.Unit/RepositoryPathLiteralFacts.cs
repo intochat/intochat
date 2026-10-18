@@ -46,6 +46,7 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyConfigurationGuardFacts.cs",
+        "IntoChat.OS.Framework.Tests.Integration/OpenPostureLoopbackFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyDataDirectoryIsolation.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/DeploymentIdentityFacts.cs",
