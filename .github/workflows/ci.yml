@@ -231,3 +231,16 @@ jobs:
               ([.[] | select(.completed_at != null) | (.completed_at|fromdate) - $t0] | max
                 | "Critical path (run created to last finished job): \(. / 60 | floor):\(. % 60 | tostring | if length < 2 then "0" + . else . end)")
           ' jobs.json >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    name: ci
+    needs: [format, build, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Gate
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: |
+          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
+          exit 1
