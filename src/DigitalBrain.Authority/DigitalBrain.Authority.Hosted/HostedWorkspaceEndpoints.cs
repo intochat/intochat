@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -14,7 +15,6 @@ namespace DigitalBrain.Authority.Hosted;
 
 internal static class HostedWorkspaceEndpoints
 {
-    private const string GrantClaim = "intochat.hosted-grant";
     internal sealed record AccessRequest(string UserId, string SessionId);
     internal sealed record RevokeRequest(string SessionId);
     internal sealed record ExchangeRequest(string Code);
@@ -69,7 +69,8 @@ internal static class HostedWorkspaceEndpoints
     }
 
     private static async Task<IResult> ExchangeAsync(ExchangeRequest request, HttpContext http,
-        [FromServices] HostedWorkspaceStore store, [FromServices] IOptions<HostedRuntimeOptions> options, CancellationToken ct)
+        [FromServices] HostedWorkspaceStore store, [FromServices] IOptions<HostedRuntimeOptions> options,
+        [FromServices] IOptions<IdentityHostOptions> identity, CancellationToken ct)
     {
         http.Response.Headers.CacheControl = "no-store";
         var scope = options.Value;
@@ -81,10 +82,10 @@ internal static class HostedWorkspaceEndpoints
         if (grant is null) { return Results.Unauthorized(); }
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
-            new(ClaimTypes.NameIdentifier, scope.AccountId), new("intochat.account", scope.AccountId),
-            new("intochat.brain", scope.BrainId), new(ClaimTypes.Role, MemberRole.Owner.ToString()),
-            new(GrantClaim, grant.Id), new("intochat.runtime", grant.RuntimeId),
-            new("intochat.cloud-user", grant.UserId), new("intochat.cloud-session", grant.SessionId)
+            new(ClaimTypes.NameIdentifier, scope.AccountId), new(identity.Value.AccountClaim, scope.AccountId),
+            new(identity.Value.BrainClaim, scope.BrainId), new(ClaimTypes.Role, MemberRole.Owner.ToString()),
+            new(scope.GrantClaim, grant.Id), new(scope.RuntimeClaim, grant.RuntimeId),
+            new(scope.CloudUserClaim, grant.UserId), new(scope.CloudSessionClaim, grant.SessionId)
         ], CookieAuthenticationDefaults.AuthenticationScheme));
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
             new AuthenticationProperties { ExpiresUtc = grant.ExpiresAt, AllowRefresh = false, IsPersistent = false });
@@ -96,10 +97,11 @@ internal static class HostedWorkspaceEndpoints
         var services = context.HttpContext.RequestServices;
         var scope = services.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
         if (!scope.IsConfigured) { return; }
+        var identity = services.GetRequiredService<IOptions<IdentityHostOptions>>().Value;
         var principal = context.Principal;
-        var id = principal?.FindFirstValue(GrantClaim);
-        if (id is null || principal?.FindFirstValue("intochat.account") != scope.AccountId ||
-            principal.FindFirstValue("intochat.brain") != scope.BrainId || principal.FindFirstValue("intochat.runtime") != scope.RuntimeId ||
+        var id = principal?.FindFirstValue(scope.GrantClaim);
+        if (id is null || principal?.FindFirstValue(identity.AccountClaim) != scope.AccountId ||
+            principal.FindFirstValue(identity.BrainClaim) != scope.BrainId || principal.FindFirstValue(scope.RuntimeClaim) != scope.RuntimeId ||
             !await services.GetRequiredService<HostedWorkspaceStore>().IsActiveAsync(id, context.HttpContext.RequestAborted))
         { context.RejectPrincipal(); }
     }
@@ -122,7 +124,7 @@ internal static class HostedWorkspaceEndpoints
                 !path.StartsWithSegments("/health") && !path.StartsWithSegments("/alive") && !path.StartsWithSegments("/ready") &&
                 !HttpMethods.IsOptions(http.Request.Method))
             { http.Response.StatusCode = 401; return; }
-            if (http.User.FindFirstValue(GrantClaim) is { } grantId)
+            if (http.User.FindFirstValue(scope.GrantClaim) is { } grantId)
             {
                 var ticket = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 if (ticket.Properties?.ExpiresUtc is not { } expires) { http.Response.StatusCode = 401; return; }

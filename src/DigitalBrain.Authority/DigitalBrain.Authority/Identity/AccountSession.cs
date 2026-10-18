@@ -65,12 +65,18 @@ public static class AccountSession
 
     // The one seam for "which brain is this caller using": the session may declare a brain, else
     // the owner brain that both the synthetic Open owner and the configured Basic operator are
-    // members of. Registered users always carry an "intochat.brain" claim, so they never fall back.
+    // members of. Registered users always carry the brain claim (IdentityHostOptions.BrainClaim), so they never fall back.
     internal static string DefaultBrain(string accountId, string? claimBrain)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
         return claimBrain is { Length: > 0 } ? claimBrain : DefaultLogin;
     }
+
+    // The session's claim names: the host's identity options, or their defaults on a host that never bound them.
+    internal static IdentityHostOptions IdentityOf(HttpContext context)
+        => context.RequestServices?.GetService<IOptions<IdentityHostOptions>>()?.Value ?? DefaultIdentity;
+
+    private static readonly IdentityHostOptions DefaultIdentity = new();
 
     // The member a sign-in just proved, stamped exactly as their next authenticated request will be.
     internal static CallerContext ForMember(Member member)
@@ -93,8 +99,9 @@ public static class AccountSession
             var principalId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (!string.IsNullOrWhiteSpace(principalId))
             {
-                var accountId = context.User.FindFirst("intochat.account")?.Value ?? principalId;
-                var claimBrain = context.User.FindFirst("intochat.brain")?.Value;
+                var host = IdentityOf(context);
+                var accountId = context.User.FindFirst(host.AccountClaim)?.Value ?? principalId;
+                var claimBrain = context.User.FindFirst(host.BrainClaim)?.Value;
                 return Build(principalId, accountId, context, claimBrain);
             }
         }

@@ -12,7 +12,14 @@ public sealed class IdentityHostOptions
     public string ProtectionApplicationName { get; set; } = "DigitalBrain.v1";
     public string ProtectionContainerName { get; set; } = "digitalbrain-protection-v1";
 
+    // Claim types the session cookie carries. Live cookies hold these names, so the defaults are the historical
+    // values and stay as they are (decision 11); renaming them signs every session out.
+    public string AccountClaim { get; set; } = "intochat.account";
+    public string BrainClaim { get; set; } = "intochat.brain";
+
     public bool Validate() => !string.IsNullOrWhiteSpace(CookieName)
         && !string.IsNullOrWhiteSpace(ProtectionApplicationName)
-        && !string.IsNullOrWhiteSpace(ProtectionContainerName);
+        && !string.IsNullOrWhiteSpace(ProtectionContainerName)
+        && !string.IsNullOrWhiteSpace(AccountClaim)
+        && !string.IsNullOrWhiteSpace(BrainClaim);
 }

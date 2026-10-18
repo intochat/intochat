@@ -19,8 +19,6 @@ namespace DigitalBrain.Authority.Identity;
 internal static class IdentityEndpoints
 {
     private const string PrincipalClaim = ClaimTypes.NameIdentifier;
-    private const string AccountClaim = "intochat.account";
-    private const string BrainClaim = "intochat.brain";
     private const string RoleClaim = ClaimTypes.Role;
 
     public static void Map(IEndpointRouteBuilder routes)
@@ -55,7 +53,7 @@ internal static class IdentityEndpoints
     internal static async Task<IResult> CreateBrainAsync(HttpContext http, [FromServices] IIdentityClient identity, [FromServices] BrainBirths births, CancellationToken ct)
     {
         var principal = http.User.FindFirstValue(PrincipalClaim);
-        var account = http.User.FindFirstValue(AccountClaim);
+        var account = http.User.FindFirstValue(AccountSession.IdentityOf(http).AccountClaim);
         if (http.User.Identity?.IsAuthenticated != true || string.IsNullOrEmpty(principal) || string.IsNullOrEmpty(account))
         {
             return Results.Unauthorized();
@@ -112,11 +110,12 @@ internal static class IdentityEndpoints
 
     private static async Task<IResult> SignInAsync(Member member, HttpContext http)
     {
+        var host = AccountSession.IdentityOf(http);
         var identity = new ClaimsIdentity(
         [
             new Claim(PrincipalClaim, member.PrincipalId),
-            new Claim(AccountClaim, member.AccountId),
-            new Claim(BrainClaim, member.BrainId),
+            new Claim(host.AccountClaim, member.AccountId),
+            new Claim(host.BrainClaim, member.BrainId),
             new Claim(RoleClaim, member.Role.ToString()),
         ], CookieAuthenticationDefaults.AuthenticationScheme);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
