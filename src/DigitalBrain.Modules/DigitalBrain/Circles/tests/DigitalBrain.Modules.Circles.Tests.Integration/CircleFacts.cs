@@ -10,14 +10,14 @@ namespace DigitalBrain.Circles.Tests;
 
 // R126/R137: a circle is a brain of its own; each member's brain creates and lists its circles through the factory,
 // and everything said, shared or paid happens in the circle brain.
-public sealed class CircleFacts
+public sealed class CircleFacts(CirclesHost host)
 {
     [Fact(Timeout = 120_000)]
     public async Task CreatingThroughTheFactoryBirthsTheCircleBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
 
         var circle = await CreateIn(brain, alice, "friends");
 
@@ -34,8 +34,8 @@ public sealed class CircleFacts
     public async Task TheMembersIndexListsItsCircleBrains()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var brain = host.Brain;
+        var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         var friends = await CreateIn(brain, alice, "friends");
         var family = await CreateIn(brain, alice, "family");
 
@@ -54,8 +54,8 @@ public sealed class CircleFacts
     public async Task SayingInACircleIsOneLineEveryMemberReads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob, carol) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct), await brain.PersonAsync("carol", ct));
+        var brain = host.Brain;
+        var (alice, bob, carol) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct), await host.PersonAsync("carol", ct));
         var circle = await CreateIn(brain, alice, "friends");
         await Join(brain, circle, alice, bob);
         var chat = brain.Get<ICircleChat>(ICircleChat.Key(circle));
@@ -69,6 +69,7 @@ public sealed class CircleFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carol.In(circle, () => chat.Say("let me in")));
     }
 
+    [Trait("host", "own")]
     [Fact(Timeout = 120_000)]
     public async Task TheComputeShareChargesTheCircleCreator()
     {
@@ -95,8 +96,8 @@ public sealed class CircleFacts
     public async Task AScriptCannotAcceptOrInvite()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var brain = host.Brain;
+        var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         var circle = await CreateIn(brain, alice, "friends");
         var room = DigitalBrain.Apps.IApp.Key(circle, "circleroom");
 
@@ -113,8 +114,8 @@ public sealed class CircleFacts
     public async Task ASecondCreateAfterAFailedBirthYieldsABornCircle()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         var recorded = (await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(alice.AccountId, alice.PrincipalId, "circle|r-1", "friends", BrainKind.Circle)).Member.BrainId;
         // The brain neuron is created but its creation handler fails: no creator is stamped, so CircleBirth refuses.
@@ -149,8 +150,8 @@ public sealed class CircleFacts
     public async Task SharingAnAppInstallsItIntoTheCircleBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         await Own(brain, alice, "notes");
         var circle = await Create(brain, alice);
 
@@ -167,8 +168,8 @@ public sealed class CircleFacts
     public async Task AnyMemberMayShare()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var brain = host.Brain;
+        var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         await Own(brain, bob, "diary");
         var circle = await Create(brain, alice);
         await Join(brain, circle, alice, bob);
@@ -179,6 +180,7 @@ public sealed class CircleFacts
         Assert.Equal((bob.AccountId, "diary"), (shared.Origin?.Publisher, shared.Manifest.Title));
     }
 
+    [Trait("host", "own")]
     [Fact(Timeout = 120_000)]
     public async Task ABundleThatDoesNotCompileIsNotShared()
     {

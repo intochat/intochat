@@ -3,15 +3,15 @@ using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 
 namespace DigitalBrain.Circles.Tests;
 
-public sealed class FriendsPublicationFacts
+public sealed class FriendsPublicationFacts(CirclesHost host)
 {
     [Fact(Timeout = 120_000)]
     public async Task AMembersFriendsAppPublishesItsOwnPostOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
         var circle = await Create(brain, alice);
         await Join(brain, circle, alice, bob);
         await Own(brain, bob, "friends");
@@ -31,8 +31,8 @@ public sealed class FriendsPublicationFacts
     public async Task OldPostRequestsStayIdempotentAfterTheChatReceiptWindow()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         var circle = await Create(brain, alice);
         await Own(brain, alice, "friends");
         var chat = brain.Get<ICircleChat>(ICircleChat.Key(circle));
@@ -50,9 +50,9 @@ public sealed class FriendsPublicationFacts
     public async Task ANonmemberAndARemovedMemberCannotPublishEvenAReplay()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
         var circle = await Create(brain, alice);
         await Own(brain, bob, "friends");
         var chat = brain.Get<ICircleChat>(ICircleChat.Key(circle));
@@ -72,9 +72,9 @@ public sealed class FriendsPublicationFacts
     public async Task FriendsPublicationRefusesAnotherAuthorOrAppOrScope()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
         var circle = await Create(brain, alice);
         await Join(brain, circle, alice, bob);
         await Own(brain, bob, "friends");

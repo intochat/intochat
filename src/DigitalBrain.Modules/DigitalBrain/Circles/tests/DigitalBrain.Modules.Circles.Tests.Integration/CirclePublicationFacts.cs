@@ -3,17 +3,17 @@ using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 
 namespace DigitalBrain.Circles.Tests;
 
-public sealed class CirclePublicationFacts
+public sealed class CirclePublicationFacts(CirclesHost host)
 {
     [Fact]
     public async Task AMemberBringsAnExactReleaseWithoutThePublishersConnectionsAndAnOutsiderCannot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var vlad = await brain.PersonAsync("vlad", ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
-        var outsider = await brain.PersonAsync("outsider", ct);
+        var brain = host.Brain;
+        var vlad = await host.PersonAsync("vlad", ct);
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
+        var outsider = await host.PersonAsync("outsider", ct);
         await Own(brain, vlad, "echo", "private", new() { ["preview.txt"] = "A" });
         var source = brain.Get<IApp>(IApp.Key(vlad.BrainId, "echo"));
         await vlad.In(vlad.BrainId, () => source.Publish());
@@ -26,7 +26,7 @@ public sealed class CirclePublicationFacts
         var copy = await bob.In(room, () => Circle(brain, room).BringPublication(release, "shared-echo", operation));
         Assert.Equal("A", copy.Files["preview.txt"]);
         Assert.Empty(copy.Connections);
-        Assert.Equal("vlad", copy.Origin!.Publisher);
+        Assert.Equal(vlad.PrincipalId, copy.Origin!.Publisher);
         Assert.Equal(bob.AccountId, copy.Origin.InstalledByAccount);
         await bob.In(room, () => Circle(brain, room).BringPublication(release, "shared-echo", operation));
         Assert.Single((await alice.In(room, () => Circle(brain, room).State())).SharedApps, name => name == "shared-echo");
@@ -39,17 +39,17 @@ public sealed class CirclePublicationFacts
     public async Task ThePersonalFeedKeepsBothReleasesAndForksTheSelectedOne()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var vlad = await brain.PersonAsync("vlad", ct);
-        var reader = await brain.PersonAsync("reader", ct);
+        var brain = host.Brain;
+        var vlad = await host.PersonAsync("vlad", ct);
+        var reader = await host.PersonAsync("reader", ct);
         await Own(brain, vlad, "echo", files: new() { ["preview.txt"] = "A" });
         var source = brain.Get<IApp>(IApp.Key(vlad.BrainId, "echo"));
         await vlad.In(vlad.BrainId, () => source.Publish());
         await vlad.In(vlad.BrainId, () => source.WriteFile("preview.txt", "B", Guid.NewGuid()));
         await vlad.In(vlad.BrainId, () => source.Publish());
         var factory = brain.Get<ICircleFactory>(ICircleFactory.Key(reader.BrainId));
-        var feed = await reader.In(reader.BrainId, () => factory.Publications("vlad"));
-        Assert.Equal("reader", feed.PrincipalId);
+        var feed = await reader.In(reader.BrainId, () => factory.Publications(vlad.PrincipalId));
+        Assert.Equal(reader.PrincipalId, feed.PrincipalId);
         Assert.Equal(2, feed.Items.Length);
         Assert.Equal("B", feed.Items[0].Preview);
         var selected = Assert.Single(feed.Items, item => item.Preview == "A");

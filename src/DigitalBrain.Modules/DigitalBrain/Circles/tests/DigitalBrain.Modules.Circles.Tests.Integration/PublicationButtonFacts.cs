@@ -13,6 +13,7 @@ namespace DigitalBrain.Circles.Tests;
 
 public sealed class PublicationButtonFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task AnotherClickResumesAFailedImportWithTheSameReceiptAfterReactivation()
     {
@@ -56,6 +57,7 @@ public sealed class PublicationButtonFacts
         Assert.Equal(AppStatus.Live, (await copy.Read()).Status);
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData("tables", "postgres", false)]
     [InlineData("database", "postgres", true)]
@@ -107,6 +109,7 @@ public sealed class PublicationButtonFacts
         public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheBringButtonInstallsAsTheClickingMemberAndKeepsTheSelectedRelease()
     {

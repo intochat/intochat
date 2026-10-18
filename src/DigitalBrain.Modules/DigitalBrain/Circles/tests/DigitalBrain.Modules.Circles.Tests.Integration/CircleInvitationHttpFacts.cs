@@ -5,16 +5,16 @@ using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 
 namespace DigitalBrain.Circles.Tests;
 
-public sealed class CircleInvitationHttpFacts
+public sealed class CircleInvitationHttpFacts(CirclesHost host)
 {
     [Fact]
     public async Task OnlyAnInvitedPersonCanAcceptBeforeTheyAreACircleMember()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
-        var outsider = await brain.PersonAsync("outsider", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
+        var outsider = await host.PersonAsync("outsider", ct);
         var room = await Create(brain, alice);
         await alice.In(room, () => Circle(brain, room).Invite(bob.AccountId));
         var identity = brain.Services.GetRequiredService<IIdentityClient>();

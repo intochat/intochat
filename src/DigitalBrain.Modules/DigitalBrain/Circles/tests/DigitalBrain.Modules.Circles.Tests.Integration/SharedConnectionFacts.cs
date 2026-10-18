@@ -13,14 +13,14 @@ namespace DigitalBrain.Circles.Tests;
 
 // T26-7/R134/R146/R147: a shared app's slots point either at the circle's own copy of a chosen connection, or at the
 // sharer's connection, which an app of the circle reaches only through the binding recorded on it at Share.
-public sealed class SharedConnectionFacts
+public sealed class SharedConnectionFacts(CirclesHost host)
 {
     [Fact(Timeout = 120_000)]
     public async Task AChosenConnectionIsRecordedOnTheCircleAppSlot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         await Own(brain, alice, "notes", "c1");
         var circle = await Create(brain, alice);
 
@@ -39,8 +39,8 @@ public sealed class SharedConnectionFacts
     public async Task AnUnrecordedCrossBrainConnectionCallIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var brain = host.Brain;
+        var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         await Own(brain, alice, "notes", "c1");
         await Own(brain, alice, "diary", "c2");
         var circle = await Create(brain, alice);
@@ -66,8 +66,8 @@ public sealed class SharedConnectionFacts
     public async Task AStrangerStampedAsTheSharedAppIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, carol) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("carol", ct));
+        var brain = host.Brain;
+        var (alice, carol) = (await host.PersonAsync("alice", ct), await host.PersonAsync("carol", ct));
         await Own(brain, alice, "notes", "c1");
         var circle = await Create(brain, alice);
         await alice.In(circle, () => Circle(brain, circle).Share("notes", []));
@@ -84,8 +84,8 @@ public sealed class SharedConnectionFacts
     public async Task ARemovedSharersConnectionIsNoLongerReachable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var brain = host.Brain;
+        var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         await Own(brain, bob, "notes", "c1");
         var circle = await Create(brain, alice);
         await Join(brain, circle, alice, bob);
@@ -102,6 +102,7 @@ public sealed class SharedConnectionFacts
     }
 
     // Finding 1: from a removed member's own machine, a call stamped as the circle's app is refused.
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task ARemovedMembersMachineIsRefusedOnABoundCall()
     {
@@ -125,6 +126,7 @@ public sealed class SharedConnectionFacts
 
     // R146/R149: from bob's machine, the circle app's call to alice's connection is forwarded to alice's core holder,
     // which admits it through the binding.
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task AConnectionLeftBehindRoutesToTheOwnersCore()
     {
@@ -143,6 +145,7 @@ public sealed class SharedConnectionFacts
 
     // R130: the owner's machine re-seals the chosen credential under the circle's core part key, so a member machine
     // opens it and no plaintext crosses a call.
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task AChosenConnectionIsSealedUnderTheCircleKeyAndOpensOnAMemberMachine()
     {
@@ -158,6 +161,7 @@ public sealed class SharedConnectionFacts
 
     // R130: a refresh of a shared copy's credential keeps it under the circle's key, so every contributed machine
     // opens it (the current write path would re-seal under the refreshing machine's master key).
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task ARefreshedSharedCredentialStaysOpenableOnAnotherMemberMachine()
     {
@@ -183,6 +187,7 @@ public sealed class SharedConnectionFacts
         Assert.Equal("refreshed-access", await b.Services.GetRequiredService<IBrainSecretSealer>().Open(circle, access, ct));
     }
 
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task ReSealingSendsNoPlaintextOverAnyCall()
     {
@@ -207,6 +212,7 @@ public sealed class SharedConnectionFacts
 
     // R124/R130: any member may share, not only the creator. The circle holder (alice's machine A) re-seals a
     // non-creator member's connection on the member's own machine B, which must admit A's forwarded read.
+    [Trait("host", "own")]
     [Fact(Timeout = 240_000)]
     public async Task ANonCreatorMemberSharesAConnectionSuccessfully()
     {

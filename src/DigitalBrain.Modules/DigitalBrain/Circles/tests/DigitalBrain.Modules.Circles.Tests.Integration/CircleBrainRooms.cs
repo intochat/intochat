@@ -21,7 +21,12 @@ internal static class CircleBrainRooms
 
     public static Task<ITestBrain> Start(CancellationToken ct, Func<TestBrain, TestBrain>? configure = null)
     {
-        var builder = TestBrain.Create().WithModule<AppsModule, AppsOptions>(options => options.Features = Features)
+        var builder = Compose(TestBrain.Create());
+        return (configure?.Invoke(builder) ?? builder).StartAsync(ct);
+    }
+
+    public static TestBrain Compose(TestBrain brain)
+        => brain.WithModule<AppsModule, AppsOptions>(options => options.Features = Features)
             .WithModule<CirclesModule>().WithModule<SharedConnectorModule>()
             // No csharp module here: the programs are data, deployed nowhere.
             .ConfigureServices(services =>
@@ -29,8 +34,6 @@ internal static class CircleBrainRooms
                 services.RemoveAll<IAppRuntime>();
                 services.AddSingleton<IAppRuntime, NoRuntime>();
             });
-        return (configure?.Invoke(builder) ?? builder).StartAsync(ct);
-    }
 
     public static async Task<string> Create(ITestBrain brain, Person creator, string name = "friends")
     {
