@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
 public sealed class LifetimeFacts
 {
@@ -31,6 +31,7 @@ public sealed class LifetimeFacts
     public void InvalidDeadlinesFailBeforeStartup()
         => Assert.Throws<ArgumentOutOfRangeException>(() => new TestExecutionOptions { StartupTimeout = TimeSpan.Zero }.Validate());
 
+    [Trait("host", "own")]
     [Fact]
     public async Task UnitBuilderPreservesExecutionBudgetsAndStartsOnlyOnce()
     {

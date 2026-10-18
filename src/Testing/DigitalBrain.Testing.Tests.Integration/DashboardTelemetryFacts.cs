@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using DigitalBrain.Testing.Aspire.Diagnostics;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
 public sealed class DashboardTelemetryFacts
 {

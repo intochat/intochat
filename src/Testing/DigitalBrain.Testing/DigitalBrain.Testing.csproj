@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Testing.Aspire" />
-    <InternalsVisibleTo Include="DigitalBrain.Testing.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Testing.Tests.Integration" />
     <InternalsVisibleTo Include="DigitalBrain.OS.Testing" />
   </ItemGroup>
   <ItemGroup>

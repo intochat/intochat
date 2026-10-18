@@ -1,10 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
 public sealed class HarnessCancellationFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task CanceledStartupCancelsAndJoinsTheDeployment()
     {
@@ -28,6 +29,7 @@ public sealed class HarnessCancellationFacts
         }
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

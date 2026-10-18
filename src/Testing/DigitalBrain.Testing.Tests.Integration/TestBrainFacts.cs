@@ -5,24 +5,25 @@ using DigitalBrain.Testing.Neurons;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
-public sealed class TestBrainFacts
+public sealed class TestBrainFacts(TestingHost host)
 {
     [Fact]
     public async Task AnInProcessBrainAnswersHttpAndGrainsFromOneProcess()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
+        var brain = host.Brain;
         using var ready = await brain.HttpClient.GetAsync("/ready", ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
-        var pulse = brain.Get<IPulse>("owner/pulse");
+        var pulse = brain.Get<IPulse>($"owner/pulse-{Guid.NewGuid():N}");
         await using var pulsed = await brain.Observe<Pulsed>(pulse, ct);
         await pulse.Pulse(7);
         Assert.Equal(7, (await pulsed.NextAsync(ct: ct)).Value);
         Assert.Same(brain.Services.GetRequiredService<MemoryStores>(), brain.Services.GetRequiredService<MemoryStores>());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartKeepsNeuronStateAndTheHttpAddress()
     {
@@ -38,6 +39,7 @@ public sealed class TestBrainFacts
         Assert.Equal(3, Assert.IsType<Pulsed>(Assert.Single(retained).Signal).Value);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnObservationOpenAcrossARestartEndsWithoutFailingTheSession()
     {
@@ -52,13 +54,14 @@ public sealed class TestBrainFacts
     public async Task ADeactivatedNeuronReloadsItsStateOnTheNextCall()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
-        var pulse = brain.Get<IPulse>("owner/pulse");
+        var brain = host.Brain;
+        var pulse = brain.Get<IPulse>($"owner/pulse-{Guid.NewGuid():N}");
         await pulse.Pulse(5);
         await brain.DeactivateAsync(pulse, ct);
         Assert.Single(await pulse.Retained(nameof(Pulsed), 0));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TwoBrainsRunSideBySideInOneProcess()
     {
@@ -69,6 +72,7 @@ public sealed class TestBrainFacts
         Assert.Empty(await second.Get<IPulse>("owner/pulse").Retained(nameof(Pulsed), 0));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task WithIntegrationLandsInTheSiloConfiguration()
     {

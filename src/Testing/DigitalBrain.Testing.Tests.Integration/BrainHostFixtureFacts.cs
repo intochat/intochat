@@ -2,12 +2,12 @@ using System.Net;
 using System.Net.Sockets;
 using DigitalBrain.Testing.Neurons;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
-// The fixtures start inside the facts, not through [assembly: AssemblyFixture], so the rest of this
-// assembly keeps one host per fact.
+// These fixtures start inside the facts, beside the assembly's shared TestingHost, so each fact owns its hosts.
 public sealed class BrainHostFixtureFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task TwoPeopleInOneHostDoNotSeeEachOthersSignals()
     {
@@ -30,6 +30,7 @@ public sealed class BrainHostFixtureFacts
         Assert.Equal([2], bobs.Snapshot.Select(pulse => pulse.Value));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task WithoutHttpHasNoHttpEdgeAndStillServes()
     {
@@ -48,6 +49,7 @@ public sealed class BrainHostFixtureFacts
         using (person.AsCaller()) { await slim.Brain.Get<IPulse>(person.Key("pulse")).Pulse(4); }
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TwoSlimHostsRunSideBySide()
     {
@@ -59,6 +61,7 @@ public sealed class BrainHostFixtureFacts
         Assert.NotEqual(people[0].BrainId, people[1].BrainId);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AStartRetriesOncePortsCollide()
     {

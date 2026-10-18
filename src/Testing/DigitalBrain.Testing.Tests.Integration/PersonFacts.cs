@@ -3,15 +3,15 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Testing.Neurons;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
-public sealed class PersonFacts
+public sealed class PersonFacts(TestingHost host)
 {
     [Fact]
     public async Task TheOpenPostureOwnerIsAvailableWithoutRegistering()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
+        var brain = host.Brain;
         Assert.Equal("owner", brain.Owner.PrincipalId);
         Assert.Equal("owner", brain.Owner.BrainId);
         using (brain.Owner.AsCaller()) { Assert.Equal("owner", BrainScope.CurrentId()); }
@@ -21,8 +21,8 @@ public sealed class PersonFacts
     public async Task ARegisteredPersonOwnsABrainAndCallsAsItsOwner()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         using var session = await alice.Http.GetAsync("/identity/session", ct);
         Assert.Equal(HttpStatusCode.OK, session.StatusCode);
         using (alice.AsCaller())
@@ -38,9 +38,9 @@ public sealed class PersonFacts
     public async Task EachPersonsScopeRunsUnderItsOwnTraceAndLeavesNoneBehind()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
         using (alice.AsCaller()) { Assert.Equal(alice.AccountId, TraceContext.Current?.PayerAccountId); }
         Assert.Null(TraceContext.Current);
         using (bob.AsCaller())

@@ -6,7 +6,7 @@
     <Description>The Aspire target behind ITestBrain: a test boots the consumer's AppHost and drives the brain over HTTP and an Orleans client.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Testing.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Testing.Tests.Integration" />
     <InternalsVisibleTo Include="DigitalBrain.Testing.Playwright" />
   </ItemGroup>
   <ItemGroup>

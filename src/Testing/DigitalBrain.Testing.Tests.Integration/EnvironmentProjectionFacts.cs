@@ -1,6 +1,6 @@
 using DigitalBrain.Framework.Configuration;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
 public sealed class EnvironmentProjectionFacts
 {

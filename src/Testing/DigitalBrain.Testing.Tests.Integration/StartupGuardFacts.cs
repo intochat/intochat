@@ -3,7 +3,7 @@ using Aspire.Hosting.Testing;
 using DigitalBrain.Testing.Aspire;
 using DigitalBrain.Testing.Playwright;
 
-namespace DigitalBrain.Testing.Tests;
+namespace DigitalBrain.Testing.Tests.Integration;
 
 public sealed class StartupGuardFacts
 {
