@@ -145,7 +145,11 @@ public sealed class SourceSetFacts(ClientHost host)
         {
             await b.Emit(1);
             await Task.WhenAny(next, Task.Delay(200, deadline.Token));
-            deadline.Token.ThrowIfCancellationRequested();
+            if (!next.IsCompleted && deadline.IsCancellationRequested)
+            {
+                ct.ThrowIfCancellationRequested();
+                Assert.Fail("reg-5-b never delivered after the registry change published during the first select");
+            }
         }
         Assert.True(await next);
         Assert.Equal(("test-emitter/reg-5-b", 1), (stream.Current.Publisher.Name, stream.Current.Value));

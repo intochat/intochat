@@ -190,7 +190,9 @@ public sealed class RuleJudgingFacts
                 """,
         };
 
+        var asked = DateTimeOffset.UtcNow;
         var first = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "a", Guid.NewGuid()), ct));
+        var firstTook = DateTimeOffset.UtcNow - asked;
         var threads = host.ThreadsStarted;
         var started = DateTimeOffset.UtcNow;
         var second = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct));
@@ -200,7 +202,10 @@ public sealed class RuleJudgingFacts
         // "At once" means without waiting on the rule: the quarantined reason is only given before a run starts, and the
         // thread count shows none did. The clock only proves the call did not sit out the host's answer deadline
         // (0.8 of the budget); a fixed 500 ms also timed the session round trip and lost it to a stalled 2 vCPU runner.
-        Assert.True(DateTimeOffset.UtcNow - started < budget * 0.8);
+        var secondTook = DateTimeOffset.UtcNow - started;
+        Assert.True(secondTook < budget * 0.8);
+        // Load-relative: the first ask sat out the deadline, the second must not come close to it.
+        Assert.True(secondTook < firstTook / 2, $"second {secondTook} vs first {firstTook}");
         Assert.Equal(threads, host.ThreadsStarted);
     }
 
