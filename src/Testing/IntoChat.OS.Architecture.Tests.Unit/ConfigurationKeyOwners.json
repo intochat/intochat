@@ -1,6 +1,9 @@
 [
   "IntoChat.OS.AppHost/AppHost.cs",
   "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
+  "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyConfigurationGuardFacts.cs",
+  "IntoChat.OS.ServiceDefaults/LegacyConfigurationGuard.cs",
+  "IntoChat.OS.Testing/LegacyDataDirectoryIsolation.cs",
   "IntoChat.OS.Aspire.Hosting/IntoChatOSHostingOptions.cs",
   "IntoChat.OS.Aspire.Hosting/IntoChatOSProfiles.cs",
   "IntoChat.OS.Aspire.Server/ServerHostingExtensions.cs",

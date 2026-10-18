@@ -18,7 +18,7 @@ public abstract class Module
     internal virtual void AddOptions(IServiceCollection services) { }
 }
 
-// A module with options gets them bound for it: IOptions<TOptions> reads DigitalBrain:Modules:{id}:Options
+// A module with options gets them bound for it: IOptions<TOptions> reads IntoChatOS:Modules:{id}:Options
 // and validates on first use. Configure may chain further validation on services.AddOptions<TOptions>().
 public abstract class Module<TOptions> : Module where TOptions : class, IModuleOptions, new()
 {

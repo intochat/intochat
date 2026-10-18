@@ -11,7 +11,7 @@ public sealed class SingleRuntimeCompositionFacts
     public async Task DevicesDoNotRequireAnotherRuntimeOrATrustHost()
     {
         await using var host = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var projects = host.Resources.OfType<ProjectResource>().ToArray();
         Assert.Single(projects, resource => resource.Name.StartsWith("OperatingSystem-", StringComparison.Ordinal));
         Assert.Single(projects, resource => resource.Name.StartsWith("intochat-os-mcp-", StringComparison.Ordinal));

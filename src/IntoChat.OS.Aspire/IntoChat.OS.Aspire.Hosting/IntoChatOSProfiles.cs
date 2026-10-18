@@ -7,7 +7,7 @@ namespace IntoChat.OS.Aspire.Hosting;
 // with '+' ("local+browser"). Options only — credentials stay Integrations.
 public static class IntoChatOSProfiles
 {
-    public const string ProfileKey = "DigitalBrain:Profile";
+    public const string ProfileKey = "IntoChatOS:Profile";
     public const string DefaultProfile = "dev";
     public const string Directory = "profiles";
 

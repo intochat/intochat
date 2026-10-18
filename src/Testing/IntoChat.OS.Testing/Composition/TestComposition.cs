@@ -113,7 +113,7 @@ public sealed class BrainCompositionBuilder
 }
 
 // WithOptions over a host that composes its modules itself: the module's code-declared options are replaced by
-// these, flattened to DigitalBrain:Modules:{id}:Options:* beside {id}:ReplaceOptions=true.
+// these, flattened to IntoChatOS:Modules:{id}:Options:* beside {id}:ReplaceOptions=true.
 public static class ModuleOptionsProjection
 {
     public static IReadOnlyDictionary<string, string?> Overrides<TModule, TOptions>(TOptions options)

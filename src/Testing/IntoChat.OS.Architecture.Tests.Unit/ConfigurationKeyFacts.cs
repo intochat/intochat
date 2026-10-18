@@ -4,14 +4,14 @@ using System.Text.RegularExpressions;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Configuration keys have typed owners (an options type's SectionName/Key, IntegrationSchema,
-// IntoChatOSConfiguration). A raw "DigitalBrain:…" or "DigitalBrain__…" literal outside an
+// IntoChatOSConfiguration). A raw "IntoChatOS:…" or "IntoChatOS__…" literal outside an
 // owner is how the AssistantTitle and identity drifts happened. The baseline is a ratchet: it
 // only shrinks. A new file that needs a key either speaks through an existing vocabulary type
 // or declares ownership by joining the baseline deliberately. Entries are keyed
 // "<ProjectName>/<path inside the project>", so a directory move never touches the baseline.
 public sealed partial class ConfigurationKeyFacts
 {
-    [GeneratedRegex("\"\\$?DigitalBrain(:|__)[A-Za-z]", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("\"\\$?IntoChatOS(:|__)[A-Za-z]", RegexOptions.CultureInvariant)]
     private static partial Regex KeyLiteral();
 
     internal static IEnumerable<string> CurrentOwners()

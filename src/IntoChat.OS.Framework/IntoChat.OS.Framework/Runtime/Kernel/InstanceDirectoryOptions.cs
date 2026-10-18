@@ -7,7 +7,7 @@ namespace IntoChat.OS.Framework;
 // active instances and small catalogued types (apps, files) are untouched.
 public sealed class InstanceDirectoryOptions
 {
-    public const string Key = "DigitalBrain:Kernel:InstanceDirectory";
+    public const string Key = "IntoChatOS:Kernel:InstanceDirectory";
 
     public int Limit { get; set; } = 4096;
 }

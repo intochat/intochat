@@ -17,8 +17,8 @@ public static class ServerHostingExtensions
 {
     // An optional JSON file of additional configuration the server loads last (the secrets-file
     // pattern): deployment credentials, test seeds, any setting that must not travel as plain env.
-    public const string ConfigurationFileKey = "DigitalBrain:ConfigurationFile";
-    public const string ConfigurationFileEnvironmentVariable = "DigitalBrain__ConfigurationFile";
+    public const string ConfigurationFileKey = "IntoChatOS:ConfigurationFile";
+    public const string ConfigurationFileEnvironmentVariable = "IntoChatOS__ConfigurationFile";
 
     public static IHostApplicationBuilder AddIntoChatOSServer(this IHostApplicationBuilder builder, Action<IntoChatOSServerBuilder> configure)
     {
@@ -32,6 +32,8 @@ public static class ServerHostingExtensions
 
         if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }
+        // The optional file may carry legacy keys the first check could not see.
+        LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
 
         ArgumentNullException.ThrowIfNull(configure);
         var definition = new IntoChatOSServerBuilder();

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
-// The deployment states its identity under DigitalBrain:Identity; the AppHost projects those
+// The deployment states its identity under IntoChatOS:Identity; the AppHost projects those
 // keys to every resource that serves or shares the session, so silo and clients agree.
 internal static class HttpIdentityProjection
 {

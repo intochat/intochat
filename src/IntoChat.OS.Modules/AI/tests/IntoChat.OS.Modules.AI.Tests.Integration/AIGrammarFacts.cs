@@ -11,7 +11,7 @@ public sealed class AIGrammarFacts
     public void ModuleOptionsSectionBindsTheOptions()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        { ["DigitalBrain:Modules:ai:Options:Default:Model"] = "Fable5" }).Build();
+        { ["IntoChatOS:Modules:ai:Options:Default:Model"] = "Fable5" }).Build();
 
         Assert.Equal("Fable5", AIOptionsRuntime.Read(configuration).Default.Model);
     }

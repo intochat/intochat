@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 namespace IntoChat.OS.Testing;
 
 // A provider's OAuth token endpoint (and Google's profile endpoint) on loopback, reached by the real token exchange
-// through DigitalBrain:Connections:TokenEndpoints:{connector}. A code grant answers a long-lived token pair; a refresh
+// through IntoChatOS:Connections:TokenEndpoints:{connector}. A code grant answers a long-lived token pair; a refresh
 // answers like Google: a new access token and no refresh token. State is per instance, so parallel facts own their stub.
 public sealed class TokenEndpointStub : IAsyncDisposable
 {

@@ -29,8 +29,8 @@ public sealed class RunProfileFacts
     public async Task TheProductEntryPointAppliesCloudAndKeepsTheMasterKey()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
-        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-digitalbrain-master-key");
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+        Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-intochat-os-master-key");
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("gmail-client", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("salesforce-consumer", StringComparison.OrdinalIgnoreCase));
     }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Apps;
 
-// The features the host loads from its features folder (DigitalBrain:Modules:apps:Options:Features):
+// The features the host loads from its features folder (IntoChatOS:Modules:apps:Options:Features):
 // code, not content anyone wrote at runtime. Loaded at boot and on first read; only Save to source
 // reloads it. A bundle that does not compile never reaches the catalog, so loading is where a
 // feature passes the publish gate; one that fails is skipped and reported through Failures, and

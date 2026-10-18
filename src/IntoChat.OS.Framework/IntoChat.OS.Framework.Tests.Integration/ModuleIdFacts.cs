@@ -24,6 +24,6 @@ public sealed class ModuleIdFacts
 
     [Fact]
     public void The_configuration_sections_speak_module_id()
-        => Assert.Equal("DigitalBrain:Modules:ai:Options",
+        => Assert.Equal("IntoChatOS:Modules:ai:Options",
             IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(new IntoChat.OS.Framework.Modules.ModuleId("ai")));
 }

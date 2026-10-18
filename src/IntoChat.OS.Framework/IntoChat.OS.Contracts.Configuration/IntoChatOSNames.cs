@@ -3,7 +3,7 @@ namespace IntoChat.OS.Framework;
 public static class IntoChatOSNames
 {
     public const string GrainStateContainer = "intochat-os-state";
-    public const string GrainStateContainerKey = "DigitalBrain:Orleans:GrainStateContainer";
+    public const string GrainStateContainerKey = "IntoChatOS:Orleans:GrainStateContainer";
 
     public const string Storage = "storage";
     public const string Clustering = "clustering";
@@ -11,9 +11,9 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
-    public const string MasterKeyConfigurationKey = "DigitalBrain:MasterKey";
-    public const string MasterKeyEnvironmentVariable = "DigitalBrain__MasterKey";
-    public const string BrainStorageConfigurationKey = "DigitalBrain:Platform:Storage";
+    public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
+    public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
+    public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";
     public const string BrainStorageDirectoryConfigurationKey = BrainStorageConfigurationKey + ":Directory";
     public const string BrainStorageWriteFormatConfigurationKey = BrainStorageConfigurationKey + ":WriteFormat";
     public const string ConfiguredCustodyAcknowledgedConfigurationKey = BrainStorageConfigurationKey + ":ConfiguredCustodyAcknowledged";
@@ -26,8 +26,8 @@ public static class IntoChatOSNames
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
     // HostedRuntimeOptions' section; a runtime deployed beside its own Orleans grain state must never carry it.
-    public const string HostingConfigurationKey = "DigitalBrain:Hosting";
-    public const string IntegrationsSectionName = "DigitalBrain:Integrations";
+    public const string HostingConfigurationKey = "IntoChatOS:Hosting";
+    public const string IntegrationsSectionName = "IntoChatOS:Integrations";
     // Where the deployment tells the runtime its vault lives.
-    public const string KeyVaultUriConfigurationKey = "DigitalBrain:KeyVault:Uri";
+    public const string KeyVaultUriConfigurationKey = "IntoChatOS:KeyVault:Uri";
 }

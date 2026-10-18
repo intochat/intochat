@@ -9,7 +9,7 @@ namespace IntoChat.OS.Authority.Connections.OAuth;
 internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExchange exchange, IOptions<ConnectionsOptions> options)
 {
     public Uri CallbackUri(string connectorId)
-        => new(options.Value.PublicOrigin ?? throw new InvalidOperationException("Configure DigitalBrain:Connections:PublicOrigin before starting a browser login."),
+        => new(options.Value.PublicOrigin ?? throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."),
             $"connections/oauth/{Uri.EscapeDataString(connectorId)}/callback");
 
     public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CallerContext owner, CancellationToken ct)

@@ -7,12 +7,12 @@ using IntoChat.OS.Authority.Identity.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
-// The silo refuses to start without a declared DigitalBrain:Auth:Posture. A local run defaults
+// The silo refuses to start without a declared IntoChatOS:Auth:Posture. A local run defaults
 // to Open; publish carries no default. Bootstrap passwords remain secret parameter references.
 internal static class AuthPosture
 {
     private const string Key = AuthOptions.PostureKey;
-    private const string PasswordParameterName = "digitalbrain-bootstrap-password";
+    private const string PasswordParameterName = "intochat-os-bootstrap-password";
 
     public static IntoChatOSModuleProjection? Provision(IDistributedApplicationBuilder builder)
     {
@@ -20,7 +20,7 @@ internal static class AuthPosture
         var username = builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))];
         var password = builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))];
         if (string.IsNullOrEmpty(username) != string.IsNullOrEmpty(password))
-        { throw new InvalidOperationException("A Basic bootstrap credential needs both DigitalBrain:Auth:Username and DigitalBrain:Auth:Password, or neither."); }
+        { throw new InvalidOperationException("A Basic bootstrap credential needs both IntoChatOS:Auth:Username and IntoChatOS:Auth:Password, or neither."); }
         if (posture is null) { return null; }
         ParameterResource? parameter = null;
         if (!string.IsNullOrEmpty(password))

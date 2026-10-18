@@ -12,9 +12,9 @@ public static class IntoChatOSConfiguration
 {
     // The module composition's configuration home: enablement flags and per-module options
     // live under these sections, and a brain-scoped overlay may restate options per brain.
-    public const string ModulesSectionName = "DigitalBrain:Modules";
+    public const string ModulesSectionName = "IntoChatOS:Modules";
 
-    public const string WorkshopSectionName = "DigitalBrain:Workshop";
+    public const string WorkshopSectionName = "IntoChatOS:Workshop";
 
     public static string ModuleSection(ModuleId moduleId) => $"{ModulesSectionName}:{moduleId}";
 
@@ -25,19 +25,19 @@ public static class IntoChatOSConfiguration
     public static string ModuleOptionsSection(string moduleId) => ModuleOptionsSection(new ModuleId(moduleId));
 
     public static string CompositionModuleOptionsSection(string compositionName, ModuleId moduleId)
-        => $"DigitalBrain:Compositions:{compositionName}:Modules:{moduleId}:Options";
+        => $"IntoChatOS:Compositions:{compositionName}:Modules:{moduleId}:Options";
 
     public static string CompositionModuleOptionsSection(string compositionName, string moduleId)
         => CompositionModuleOptionsSection(compositionName, new ModuleId(moduleId));
 
     // The Platform's connection flow: where providers send browsers back, and per-connector token
     // endpoint overrides for test hosts.
-    public const string ConnectionsSectionName = "DigitalBrain:Connections";
+    public const string ConnectionsSectionName = "IntoChatOS:Connections";
 
     public const string ConnectionsPublicOriginKey = ConnectionsSectionName + ":PublicOrigin";
 
     // The operator key that turns on the silo diagnostics endpoints (Authority SiloDiagnostics); unset, they are not mapped.
-    public const string DiagnosticsKey = "DigitalBrain:Diagnostics:Key";
+    public const string DiagnosticsKey = "IntoChatOS:Diagnostics:Key";
 
     public static string ConnectionsTokenEndpointKey(string connectorId)
     {

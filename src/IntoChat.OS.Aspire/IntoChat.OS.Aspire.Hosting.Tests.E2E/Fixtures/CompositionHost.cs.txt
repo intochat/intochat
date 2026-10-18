@@ -20,7 +20,7 @@ internal static class CompositionHost
     internal static async Task Run(string mode)
     {
         var builder = WebApplication.CreateBuilder([]);
-        builder.Configuration["DigitalBrain:Auth:Posture"] = "Secured";
+        builder.Configuration["IntoChatOS:Auth:Posture"] = "Secured";
         if (mode == "client")
         {
             builder.AddIntoChatOSClient(useAzureClustering: true);
