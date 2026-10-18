@@ -20,8 +20,11 @@ namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 [Trait("host", "own")]
 public sealed class HostedExportFacts
 {
-    [GenerateSerializer, Alias("test.export.customer")]
+    [GenerateSerializer, Alias("test.export.customer"), ExportableState]
     public sealed record CustomerState([property: Id(0)] string Text);
+
+    [GenerateSerializer, Alias("test.export.unmarked")]
+    public sealed record UnmarkedState([property: Id(0)] string Text);
 
     [GrainType("export-customer")]
     public sealed class CustomerGrain([PersistentState("note", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CustomerState> state) : Grain
@@ -139,22 +142,33 @@ public sealed class HostedExportFacts
         Assert.Equal(1, exported.OmittedRecords);
     }
 
-    // Characterization of the export before the default-deny change: an unmarked customer state is exported,
-    // and the permanent identity/secret names are omitted whatever they hold.
     [Fact]
-    public async Task ExportCharacterizationExportsUnmarkedStateAndOmitsDeniedNames()
+    public async Task ExportOmitsUnmarkedStateAndHardDeniedNamesEvenWhenMarked()
     {
         await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var serializer = brain.Services.GetRequiredService<Serializer>();
         using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-char-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
-        var bytes = serializer.SerializeToArray(new CustomerState("portable note"));
-        await log.Append("customer", "note", null, BrainRecordChange.Write, bytes, [], TestContext.Current.CancellationToken);
-        foreach (var name in new[] { "vault", "credential", "registration", "access", "account", "principal", "reminders" })
+        var marked = serializer.SerializeToArray(new CustomerState("portable note"));
+        await log.Append("customer", "note", null, BrainRecordChange.Write, marked, [], TestContext.Current.CancellationToken);
+        await log.Append("unmarked", "plain", null, BrainRecordChange.Write, serializer.SerializeToArray(new UnmarkedState("never copied")), [], TestContext.Current.CancellationToken);
+        foreach (var name in StateExportPolicy.HardDenied)
         {
-            await log.Append("denied-" + name, name, null, BrainRecordChange.Write, bytes, [], TestContext.Current.CancellationToken);
+            await log.Append("denied-" + name, name, null, BrainRecordChange.Write, marked, [], TestContext.Current.CancellationToken);
         }
-        var exported = log.Export((_, _, raw) => serializer.Deserialize<CustomerState>(raw));
+        var exported = log.Export((_, state, raw) => state == "plain"
+            ? serializer.Deserialize<UnmarkedState>(raw) : serializer.Deserialize<CustomerState>(raw));
         Assert.Equal(["customer"], exported.Records.Select(x => x.GrainId).ToArray());
-        Assert.Equal(7, exported.OmittedRecords);
+        Assert.DoesNotContain("never copied", JsonSerializer.Serialize(exported));
+        Assert.Equal(1 + StateExportPolicy.HardDenied.Count, exported.OmittedRecords);
+    }
+
+    [Theory]
+    [InlineData("vault"), InlineData("credential"), InlineData("registration"), InlineData("access"),
+        InlineData("account"), InlineData("principal"), InlineData("reminders")]
+    public void PolicyDeniesHardDeniedNamesEvenForMarkedTypes(string name)
+    {
+        Assert.False(StateExportPolicy.Default.Allows(name, typeof(CustomerState)));
+        Assert.True(StateExportPolicy.Default.Allows("note", typeof(CustomerState)));
+        Assert.False(StateExportPolicy.Default.Allows("note", typeof(UnmarkedState)));
     }
 }
