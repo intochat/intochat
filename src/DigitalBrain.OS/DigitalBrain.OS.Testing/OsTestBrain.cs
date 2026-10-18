@@ -1,5 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Google.Gmail;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Testing.Model;
 using Microsoft.AspNetCore.DataProtection;
@@ -23,7 +24,13 @@ public static class OsTestBrain
             .WithModules(OsCatalog.InProcessModules)
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithFakeModel(model)
+            // Google is the stub: a configured OAuth client, its token exchange and the profile Gmail reads once connected.
+            .WithOptions<GmailModule, GmailModuleOptions>(gmail => gmail.ProfileEndpoint = new(tokens.Origin, "profile"))
+            .WithIntegration(GmailModule.Integration, "ClientId", "os-client")
+            .WithIntegration(GmailModule.Integration, "ClientSecret", "os-secret")
             .WithConfiguration(DigitalBrainConfiguration.ConnectionsTokenEndpointKey("gmail"), tokens.TokenEndpoint.AbsoluteUri)
+            // Only names the redirect_uri a browser login sends; facts call the callback on the brain themselves.
+            .WithConfiguration(DigitalBrainConfiguration.ConnectionsPublicOriginKey, tokens.Origin.AbsoluteUri)
             // Accounts with cookie sessions: anonymous callers are refused and PersonAsync registers and signs in.
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Secured))
             .ConfigureServices(services =>
