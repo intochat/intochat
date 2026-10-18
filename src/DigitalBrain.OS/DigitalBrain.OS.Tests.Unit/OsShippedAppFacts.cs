@@ -24,10 +24,10 @@ public sealed class OsShippedAppFacts
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "word-count")));
+        services.AddOperatingSystemApps(os => os.Apps.Add(new("acme", "example")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/usage", "intochat/word-count"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
+        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/usage", "acme/example"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]

@@ -49,39 +49,4 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
         Assert.Empty(after.Messages);
         Assert.Empty(after.Actions);
     }
-
-    [Fact(Timeout = 240_000)]
-    public async Task ARequestReachesASynapseAndItsAnswerIsANeuron()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var caller = User.AsCaller();
-        var scope = WorkspaceId;
-        var bundle = new FeatureDirectory(Features()).Load().Single(candidate => candidate.Owner == "intochat" && candidate.Bundle.Name == "word-count").Bundle;
-        (await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
-        // Import persists the assignment before the sandbox starts its new persistent script.
-        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
-
-        var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
-
-        var answer = Brain.Get<IText>($"{scope}/apps/{bundle.Name}/answer");
-        await using var changes = await Brain.Observe<TextChanged>(answer, ct);
-
-        using var requested = await User.Http.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/request",
-            new { operation = "ask", input = "a click reaches a behavior" }, ct);
-
-        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
-        while ((await answer.Read()).Markdown != "5 words") { await changes.NextAsync(ct: ct); }
-        Assert.Equal(SessionStatus.Connected, (await runtime.Inspect(ct)).Session);
-    }
-
-    // The AppHost hands the OS the repository's features folder, beside the solution (AppHost.cs).
-    private static string Features()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var solution = Path.Combine(directory.FullName, "DigitalBrain.slnx");
-            if (File.Exists(solution)) { return Path.Combine(directory.FullName, "features"); }
-        }
-        throw new InvalidOperationException("The app bundle is read from the repository; run the test from inside it.");
-    }
 }
