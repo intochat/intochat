@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Deployment.Tests;
+namespace DigitalBrain.Deployment.Tests.Unit;
 
 public sealed class ModuleDeploymentDiscoveryFacts
 {

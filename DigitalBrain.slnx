@@ -14,7 +14,7 @@
     <Project Path="src/DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
   </Folder>
   <Folder Name="/Deployment/">
-    <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment.Tests.Unit/DigitalBrain.Deployment.Tests.Unit.csproj" />
     <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
   </Folder>
   <Folder Name="/Framework/">
