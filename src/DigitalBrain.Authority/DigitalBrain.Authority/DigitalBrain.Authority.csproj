@@ -17,6 +17,8 @@
   <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /><ProjectReference Include="../DigitalBrain.Authority.Contracts/DigitalBrain.Authority.Contracts.csproj" /></ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Authority.Tests.Integration" />
+    <!-- Golden bytes pin the journal envelope and sealed segment layout (clean-core W1, section 6). -->
+    <InternalsVisibleTo Include="DigitalBrain.Architecture.Tests.Unit" />
     <!-- The hosted-cloud package composes over the journal, directory and births it extends. -->
     <InternalsVisibleTo Include="DigitalBrain.Authority.Hosted" />
   </ItemGroup>
