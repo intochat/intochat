@@ -5,7 +5,10 @@ using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -42,7 +45,15 @@ public static class ServerHostingExtensions
         definition.ApplyServiceActions(builder.Services);
         builder.Services.AddSingleton(definition);
         builder.Services.AddHostedService<AccessPolicyValidation>();
-        var modules = definition.SelectModules(builder.Configuration);
+        var (modules, statuses) = definition.SelectModules(builder.Configuration);
+        // BrainHosting reads the statuses into ModuleInventory; /health shows the unlicensed ones as Degraded.
+        builder.Services.AddSingleton<IReadOnlyList<ModuleStatus>>(statuses);
+        foreach (var status in statuses.Where(status => status.State == ModuleState.Unlicensed))
+        {
+            // Untagged: /health reports it, /ready (live and drain checks only) never does.
+            builder.Services.AddHealthChecks().AddCheck("module-" + status.Module, () => HealthCheckResult.Degraded(status.Reason));
+        }
+        builder.Services.AddHostedService<ModuleStatusLogger>();
         builder.UseOrleans(silo =>
         {
             // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
@@ -94,6 +105,19 @@ public static class ServerHostingExtensions
 
     public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)
         => (drainDelay is { } delay && delay > TimeSpan.Zero ? delay + HealthProbes.ServerStop : TimeSpan.Zero) + deactivationTimeout + ShutdownMargin;
+
+    private sealed class ModuleStatusLogger(IReadOnlyList<ModuleStatus> statuses, ILoggerFactory loggers) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            var logger = loggers.CreateLogger("IntoChat.OS.Modules");
+            foreach (var status in statuses.Where(status => status.State == ModuleState.Unlicensed))
+            { logger.LogWarning("Module {Module} is not running: {Reason}", status.Module, status.Reason); }
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private sealed class AccessPolicyValidation(IServiceProvider services) : IHostedService
     {
