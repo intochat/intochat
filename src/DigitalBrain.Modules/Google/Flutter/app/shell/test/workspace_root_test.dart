@@ -1,5 +1,6 @@
 import 'dart:convert' show jsonEncode, jsonDecode;
 
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
@@ -56,6 +57,40 @@ void main() {
       await fixture.dispose();
     },
   );
+
+  testWidgets('server-selected root watches its nodes and never polls', (
+    tester,
+  ) async {
+    final server = ApplicationServer()
+      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+    final fixture = await ApplicationFixture.start(tester, server: server);
+    await tester.pump(const Duration(milliseconds: 100));
+    final watched = {
+      for (final w in fixture.link.watches)
+        for (final s in w.$2) s.key,
+    };
+    expect(watched, contains('brain-1/apps/assistant/surface'));
+    expect(watched, contains('brain-1/apps/assistant/draft'));
+    int reads() => server.requestsTo('/brains/brain-1/apps/node').length;
+    final settled = reads();
+    // Ten former poll periods: no node is read again without a change signal.
+    await tester.pump(const Duration(seconds: 20));
+    expect(reads(), settled);
+    fixture.link.events.add(
+      const NeuronSignal(
+        source: 'brain-1/apps/assistant/draft',
+        type: 'TextFieldChanged',
+        publisher: 'brain-1/apps/assistant/draft',
+        sequence: 0,
+        payload: {},
+        serverTimeMs: 0,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(reads(), settled + 1);
+    await fixture.dispose();
+  });
 }
 
 class ActivationServer extends ApplicationServer {

@@ -1,0 +1,6 @@
+# Sealed segments, wrapped keys and grain-state payloads are bytes; never convert them.
+*.log binary
+*.snapshot binary
+*.key binary
+*.bin binary
+current -text

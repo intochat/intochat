@@ -72,7 +72,7 @@ public sealed class AuthPostureFacts
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.BrainBirths>());

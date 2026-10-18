@@ -21,6 +21,15 @@ public interface IDigitalBrain
     T Get<T>(NeuronId id) where T : INeuron;
 
     /// <summary>
+    /// Resolves a neuron by an id relative to this brain: the same grain as
+    /// <see cref="Get{T}"/> with <c>"{brain}/{relative}"</c>. Transitional: callers move here before
+    /// <see cref="Get{T}"/> itself becomes relative.
+    /// </summary>
+    /// <typeparam name="T">The neuron's contract.</typeparam>
+    /// <exception cref="InvalidOperationException">This brain is not known, for example no caller is stamped.</exception>
+    T Neuron<T>(NeuronId relative) where T : INeuron;
+
+    /// <summary>
     /// Streams the signals of kind <typeparamref name="T"/> that <paramref name="neuron"/> publishes
     /// until <paramref name="cancellationToken"/> ends it. Iterating the stream is the connection.
     /// </summary>

@@ -11,7 +11,7 @@ public sealed class BrainEstablishmentFacts(AuthorityHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var member = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         var state = await brain.Get<IBrain>(BrainScope.Create(member.AccountId, member.BrainId).Id).Read();
         Assert.Equal(member.AccountId, state.Owner.AccountId);

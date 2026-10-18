@@ -13,7 +13,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
         var bobId = AuthorityHost.Unique("bob");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var owner = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         var http = new global::Microsoft.AspNetCore.Http.DefaultHttpContext();
         var anonymous = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
@@ -42,7 +42,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var carolId = AuthorityHost.Unique("carol");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         using var alice = await host.PersonAsync("alice", ct);
         using var bob = await host.PersonAsync("bob", ct);
         await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, carolId, "Carol", MemberRole.Member, ct);
@@ -62,7 +62,7 @@ public sealed class AccountFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => directory.RegisterAsync("integrations", "correct-password", "Intruder", ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => directory.RegisterAsync("owner", "correct-password", "Intruder", ct));
@@ -75,7 +75,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
         var bobId = AuthorityHost.Unique("bob");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var first = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         var second = await directory.RegisterAsync(bobId, "another-password", "Bob", ct);
         Assert.NotEqual(first.AccountId, second.AccountId);
@@ -89,7 +89,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var alice = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         Assert.Null(await directory.AuthenticateAsync(aliceId, "wrong-password", ct));
         Assert.Null(await directory.AuthenticateAsync(aliceId, "", ct));
@@ -103,7 +103,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         await Assert.ThrowsAsync<ArgumentException>(() => directory.RegisterAsync("weak", "short", "Weak", ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => directory.RegisterAsync(aliceId, "new-password", "Pretender", ct));
@@ -116,7 +116,7 @@ public sealed class AccountFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
         var bobId = AuthorityHost.Unique("bob");
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var owner = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
         await directory.RegisterAsync(bobId, "another-password", "Bob", ct);
 

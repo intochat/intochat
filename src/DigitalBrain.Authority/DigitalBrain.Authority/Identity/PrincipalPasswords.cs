@@ -6,11 +6,11 @@ namespace DigitalBrain.Authority.Identity;
 
 // Passwords stay on the machine (R30, R62): it hashes, stores and verifies them in its own credential grain, so
 // neither a password nor its hash crosses the identity client.
-internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains)
+internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, AuthorityNeurons neurons)
 {
     private static readonly PasswordHasher<string> Passwords = new();
 
-    private IPrincipalCredential Credential(string principalId) => grains.GetGrain<IPrincipalCredential>(principalId);
+    private IPrincipalCredential Credential(string principalId) => neurons.Credential(principalId);
 
     public async Task<Member> Register(string principalId, string password, string displayName)
     {

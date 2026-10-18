@@ -20,6 +20,8 @@ internal sealed class PrincipalGrain(
     [PersistentState("principal", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<PrincipalState> storage,
     TimeProvider clock) : IdentityStateGrain<PrincipalState>(storage), IPrincipal
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     // Password hashes are held by PrincipalPasswords.
     public async Task<BrainProvision> Register(string displayName)
     {
@@ -50,7 +52,7 @@ internal sealed class PrincipalGrain(
     {
         if (State.DefaultMembership is not { } member) { return null; }
         if (State.RegistrationComplete) { return new(member, false); }
-        var account = GrainFactory.GetGrain<IAccount>(member.AccountId);
+        var account = Platform.Account(member.AccountId);
         await account.EnsureCreated(new Account
         {
             AccountId = member.AccountId,

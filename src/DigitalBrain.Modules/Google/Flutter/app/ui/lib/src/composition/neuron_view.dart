@@ -1015,8 +1015,18 @@ class _NeuronTextField extends StatefulWidget {
 }
 
 class _NeuronTextFieldState extends State<_NeuronTextField> {
+  // A secret's typed value stays here: its state only says whether a value is set, and that is
+  // never written into the editable text.
+  bool get _secret {
+    final kind = '${widget.definition['kind'] ?? ''}'.toLowerCase();
+    return kind == 'secret' || kind == 'password';
+  }
+
+  bool get _secretIsSet =>
+      _secret && (widget.definition['value'] as String? ?? '').isNotEmpty;
+
   late final TextEditingController _controller = TextEditingController(
-    text: widget.definition['value'] as String? ?? '',
+    text: _secret ? '' : widget.definition['value'] as String? ?? '',
   );
   final _focus = FocusNode();
   int _edit = 0, _pending = 0;
@@ -1024,6 +1034,7 @@ class _NeuronTextFieldState extends State<_NeuronTextField> {
   @override
   void didUpdateWidget(_NeuronTextField old) {
     super.didUpdateWidget(old);
+    if (_secret) return;
     final value = widget.definition['value'] as String? ?? '';
     if (_pending == 0 && !_failedEdit && _controller.text != value) {
       _controller.value = TextEditingValue(
@@ -1078,6 +1089,9 @@ class _NeuronTextFieldState extends State<_NeuronTextField> {
           : TextInputAction.send,
       decoration: InputDecoration(
         labelText: widget.definition['label'] as String? ?? '',
+        helperText: _secretIsSet && _controller.text.isEmpty
+            ? 'A value is set'
+            : null,
         isDense: true,
       ),
       onChanged: _change,

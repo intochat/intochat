@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using DigitalBrain.Framework;
 using DigitalBrain.Mcp;
 using DigitalBrain.Microsoft.Aspire.Deployment;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ namespace DigitalBrain.Microsoft.Aspire.Verification;
 
 // The developer's loop as a neuron: the candidate's MCP answers for the same brain, its apps
 // activate from the copied state, every expectation answers as written, every span appears.
-internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost cluster, ILogger<CandidateVerifier> logger) : ICandidateVerifier
+internal sealed class CandidateVerifier(IDigitalBrains brains, IClusterHost cluster, ILogger<CandidateVerifier> logger) : ICandidateVerifier
 {
     private const string AppContract = "DigitalBrain.Apps.IApp";
     private const string ReconcilerContract = "DigitalBrain.Apps.IFeatureReconciler";
@@ -20,7 +21,7 @@ internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost clust
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(plan);
         var clock = Stopwatch.StartNew();
-        var server = grains.GetGrain<IMcpServer>($"{brainId}/mcp/candidate-{sha}");
+        var server = brains.Open(brainId).Neuron<IMcpServer>($"mcp/candidate-{sha}");
         List<VerificationCheck> checks = [];
         try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
         catch (Exception error) when (error is not OperationCanceledException)

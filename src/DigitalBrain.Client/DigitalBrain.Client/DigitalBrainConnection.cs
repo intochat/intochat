@@ -34,6 +34,11 @@ public sealed class DigitalBrainConnection : IDigitalBrain, ISelectiveWatch, IAs
 
     public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name, _trace);
 
+    // The edge resolves the wire key raw, so the relative id leaves the sandbox as "{brain}/{relative}".
+    public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brain is { Length: > 0 } brain
+        ? Get<T>(relative.Within(brain))
+        : throw new InvalidOperationException("This session was not told its brain.");
+
     public IBrain Self => _session.Brain is { Length: > 0 } brain
         ? NeuronProxy.Create<IBrain>(_session, _behavior, brain, _trace)
         : throw new InvalidOperationException("This session was not told its brain.");

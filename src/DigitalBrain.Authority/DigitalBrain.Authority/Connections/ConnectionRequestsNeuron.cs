@@ -23,6 +23,8 @@ internal sealed class ConnectionRequestsNeuron(
     IReadOnlyList<ConnectorDefinition> connectors)
     : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     public Task Changed(string connectionKey)
     {
         if (ConnectionKeys.Parse(connectionKey).BrainId != this.GetPrimaryKeyString())
@@ -43,7 +45,7 @@ internal sealed class ConnectionRequestsNeuron(
     public async Task<ConnectionSummary[]> ListConnections()
     {
         var result = new List<ConnectionSummary>();
-        foreach (var key in await GrainFactory.GetGrain<IConnectionIndex>(this.GetPrimaryKeyString()).List())
+        foreach (var key in await Platform.Connections(this.GetPrimaryKeyString()).List())
         {
             var identity = ConnectionKeys.Parse(key);
             if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }

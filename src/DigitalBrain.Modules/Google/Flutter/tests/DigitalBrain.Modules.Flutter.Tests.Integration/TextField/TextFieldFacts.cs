@@ -1,5 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.TextField.Signals;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Integration.TextField;
@@ -34,6 +35,30 @@ public sealed class TextFieldFacts(FlutterHost host)
         var results = await Task.WhenAll(field.TrySetValue("first", before.Version), field.TrySetValue("second", before.Version));
         Assert.Single(results, applied => applied);
         Assert.Equal(before.Version + 1, (await field.Read()).Version);
+    }
+
+    [Theory]
+    [InlineData("password")]
+    [InlineData("secret")]
+    public async Task SecretKindsKeepOnlyThatAValueIsSetAndJournalNoValue(string kind)
+    {
+        var field = host.Brain.Get<ITextField>($"secret-{kind}");
+        await field.SetValue("typed before configure");
+        await field.Configure("Password", kind);
+        await field.SetValue("hunter2-set");
+        await field.Input("hunter2-input");
+        var state = await field.Read();
+        Assert.DoesNotContain("hunter2", state.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("typed before", state.Value, StringComparison.Ordinal);
+        Assert.NotEmpty(state.Value);
+        var journal = await field.Read(0, 100);
+        var changes = journal.Signals.OfType<TextFieldChanged>().ToArray();
+        Assert.True(changes.Length >= 3);
+        Assert.All(changes, changed => Assert.DoesNotContain("hunter2", changed.Value, StringComparison.Ordinal));
+        Assert.All(changes, changed => Assert.DoesNotContain("typed before", changed.Value, StringComparison.Ordinal));
+        Assert.All(changes, changed => Assert.Equal("", changed.Value));
+        await field.Configure("Name", "text");
+        Assert.Equal("", (await field.Read()).Value);
     }
 
     [Trait("host", "own")]

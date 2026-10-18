@@ -1,0 +1,162 @@
+{
+  "DigitalBrain": [
+    "Microsoft.Orleans.Core.Abstractions",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Aspire.Client": [
+    "Microsoft.Orleans.Clustering.AzureStorage"
+  ],
+  "DigitalBrain.Aspire.Hosting": [
+    "Aspire.Hosting.Orleans"
+  ],
+  "DigitalBrain.Aspire.Hosting.Tests.Unit": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Aspire.Server": [
+    "Microsoft.Orleans.Dashboard",
+    "Microsoft.Orleans.Serialization.SystemTextJson",
+    "Microsoft.Orleans.Server"
+  ],
+  "DigitalBrain.Authority": [
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Authority.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Authority.Hosted": [
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Authority.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Client": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Client.Orleans": [
+    "Microsoft.Orleans.Client"
+  ],
+  "DigitalBrain.Client.Orleans.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Framework": [
+    "Microsoft.Orleans.Server"
+  ],
+  "DigitalBrain.Framework.Tests.E2E": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Framework.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.AI": [
+    "Microsoft.Orleans.Sdk",
+    "Microsoft.Orleans.Serialization.SystemTextJson"
+  ],
+  "DigitalBrain.Modules.AI.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Apps.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.ArtCraft.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Circles.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.ClickHouse.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Equifax.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Flame.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Flutter": [
+    "Microsoft.Orleans.Serialization.SystemTextJson"
+  ],
+  "DigitalBrain.Modules.Flutter.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Google.Gmail.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Mcp.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.Aspire": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "DigitalBrain.Modules.Microsoft.Aspire.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.CSharp": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "DigitalBrain.Modules.Microsoft.CSharp.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.GitHub.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.Orleans": [
+    "Microsoft.Orleans.Clustering.AzureStorage",
+    "Microsoft.Orleans.Persistence.AzureStorage",
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Reminders.AzureStorage"
+  ],
+  "DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting": [
+    "Aspire.Hosting.Orleans"
+  ],
+  "DigitalBrain.Modules.Microsoft.Orleans.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.Playwright.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.Roslyn.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Microsoft.Windows.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Monnet.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Postgres.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.RiskSeal.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Salesforce.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Time": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "DigitalBrain.Modules.Time.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Tools.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Modules.Twilio.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Runtime.InMemory.Tests.Unit": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Testing": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "DigitalBrain.Testing.Aspire": [
+    "Microsoft.Orleans.Client",
+    "Microsoft.Orleans.Clustering.AzureStorage"
+  ],
+  "DigitalBrain.Testing.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ]
+}

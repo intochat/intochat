@@ -18,7 +18,14 @@ public sealed class AgentStreamingFacts
         var ct = TestContext.Current.CancellationToken;
         var provider = new BurstProvider();
         await using var brain = await AgentFacts.Brain(provider.Client, ct);
-        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("burst")), AgentTurn.Text("hello"), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("burst"));
+        await using var progress = await brain.Observe<TurnProgressed>(agent, ct);
+        var run = AgentFacts.Collect(agent, AgentTurn.Text("hello"), ct);
+        // The fake server breaks the connection with a reset, and a reset discards bytes the adapter has not read yet.
+        // The provider breaks only once the agent has announced text, so the burst is known to have crossed the wire.
+        while ((await progress.NextAsync(ct: ct)).Kind != "text") { }
+        provider.Break.TrySetResult();
+        var events = await run;
         // Text the adapter read before the connection broke is delivered, and the failure after it.
         Assert.NotEmpty(events.OfType<AgentTurnEvent.Text>());
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
@@ -137,13 +144,15 @@ public sealed class AgentStreamingFacts
 
     private sealed class BurstProvider
     {
+        public TaskCompletionSource Break { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public StubChatClient Client => StubChatClient.StreamingOnly(Stream);
 
-        private static async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatMessage> messages, ChatOptions? options,
+        private async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatMessage> messages, ChatOptions? options,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 0; i < 64; i++) { yield return new(ChatRole.Assistant, "x"); }
-            await Task.CompletedTask;
+            await Break.Task.WaitAsync(cancellationToken);
             throw new IOException("Provider stopped");
         }
     }

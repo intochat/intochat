@@ -116,7 +116,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var brain = host.Brain;
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(account1Id, ws1Id).Id);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
         Assert.Single(await authority.ListGrants());
@@ -137,7 +137,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var brain = host.Brain;
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(account1Id, ws1Id).Id);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
         var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
@@ -154,7 +154,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var brain = host.Brain;
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(account1Id, ws1Id).Id);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
         var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
@@ -202,7 +202,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
         var scope = BrainScope.Create(account1Id, ws1Id).Id;
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(scope);
+        var authority = brain.Platform.BrainAuthority(scope);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
         var mirror = brain.Services.GetRequiredService<AuthorityMirror>();
@@ -225,7 +225,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var brain = host.Brain;
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(account1Id, ws1Id).Id);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
         Assert.Single(await authority.ListGrants());
@@ -240,7 +240,7 @@ public sealed class GrantFacts(AuthorityHost host)
         var brain = host.Brain;
         var ws1Id = AuthorityHost.Unique("ws-1");
         var account1Id = AuthorityHost.Unique("account-1");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(account1Id, ws1Id).Id);
         await authority.Initialize(account1Id, ws1Id);
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
         await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", ws1Id) with { ConversationId = "chat-1" });

@@ -63,7 +63,7 @@ public static class OsAppsHosting
 // owner. A present app is the person's, never replaced here. A circle brain gets none (R125): it
 // is born with its own room only.
 internal sealed class OsDefaults(
-    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
+    IDigitalBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
     DigitalBrain.Framework.Platform.Identity.IIdentityClient identity) : ICreationHandler
 {
     public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
@@ -74,7 +74,7 @@ internal sealed class OsDefaults(
         {
             try
             {
-                if ((await grains.GetGrain<IApp>(IApp.Key(brainId, app.Name)).Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
+                if ((await brains.Open(brainId).Neuron<IApp>($"apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
                 { await installer.Install(app.Publisher, app.Name, cancellationToken); }
             }
             catch (Exception error) when (error is not OperationCanceledException)

@@ -19,14 +19,14 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var principal = interruptedHostingId;
         const string password = "long-test-password";
         var hash = new global::Microsoft.AspNetCore.Identity.PasswordHasher<string>().HashPassword(principal, password);
-        Assert.True(await brain.Grains.GetGrain<IPrincipalCredential>(principal).TryCreate(hash));
+        Assert.True(await brain.Platform.Credential(principal).TryCreate(hash));
         var provision = await identity.RegisterPrincipal(principal, "Interrupted hosting");
         Assert.True(provision.NewBrain);
         Assert.True(await identity.IsRegistered(principal));
 
         Assert.Null(await passwords.Authenticate(principal, "wrong-password"));
         Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
-        var created = brain.Grains.GetGrain<IBrain>(provision.Member.BrainId);
+        var created = brain.Platform.Brain(provision.Member.BrainId);
         var original = await created.Read();
         Assert.Equal(provision.Member.AccountId, original.Owner.AccountId);
         Assert.Equal(provision.Member, await passwords.Authenticate(principal, password));
@@ -43,7 +43,7 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
             .StartAsync(TestContext.Current.CancellationToken);
         // Interrupt the registration under test, after the harness owner has bootstrapped.
         ((FailOnceStorage)brain.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage)).Arm();
-        var principal = brain.Grains.GetGrain<IPrincipal>("recoverable");
+        var principal = brain.Platform.Principal("recoverable");
         var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
         var failure = await Assert.ThrowsAsync<OrleansException>(() => passwords.Register("recoverable", "long-test-password", "Recoverable"));
         Assert.IsType<IOException>(failure.InnerException);
@@ -53,7 +53,7 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var resumed = await passwords.Register("recoverable", "long-test-password", "Recoverable");
         Assert.Equal(allocated, resumed);
         Assert.Equal(resumed, await passwords.Authenticate("recoverable", "long-test-password"));
-        Assert.NotNull(await brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
+        Assert.NotNull(await brain.Platform.BrainAuthority(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
     private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
@@ -85,7 +85,7 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var accountId = AuthorityHost.Unique("account");
         var aliceId = AuthorityHost.Unique("alice");
         var brainId = AuthorityHost.Unique("brain");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(accountId, brainId).Id);
         await authority.EnsureMember(new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner });
         var caller = new DigitalBrain.Framework.CallerContext
         {
@@ -128,10 +128,10 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var firstId = AuthorityHost.Unique("first");
         var secondId = AuthorityHost.Unique("second");
         var sharedNameId = AuthorityHost.Unique("shared-name");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(firstId, sharedNameId).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(firstId, sharedNameId).Id);
         await authority.EnsureMember(new Member { PrincipalId = aliceId, AccountId = firstId, BrainId = sharedNameId, DisplayName = "Alice", Role = MemberRole.Owner });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(secondId, sharedNameId).Id).Initialize(secondId, sharedNameId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Platform.BrainAuthority(BrainScope.Create(secondId, sharedNameId).Id).Initialize(secondId, sharedNameId));
         var access = brain.Services.GetRequiredService<IBrainAccess>();
         Assert.True(await access.CanAccessAsync(aliceId, firstId, sharedNameId, ct));
         Assert.False(await access.CanAccessAsync(aliceId, secondId, sharedNameId, ct));
@@ -143,9 +143,9 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceId = AuthorityHost.Unique("alice");
         var member = await brain.Services.GetRequiredService<PrincipalPasswords>().Register(aliceId, "long-test-password", "Alice");
-        var account = brain.Grains.GetGrain<IAccount>(member.AccountId);
+        var account = brain.Platform.Account(member.AccountId);
         var first = (await account.CreateBrain(aliceId, "operation-1", "First", BrainKind.Personal)).Member;
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(first.AccountId, first.BrainId).Id);
         await authority.RemoveMember(aliceId);
         Assert.Equal(first, (await account.CreateBrain(aliceId, "operation-1", "First", BrainKind.Personal)).Member);
         Assert.Null(await authority.Membership(aliceId));

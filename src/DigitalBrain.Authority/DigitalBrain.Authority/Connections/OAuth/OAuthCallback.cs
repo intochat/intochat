@@ -45,15 +45,15 @@ internal sealed class OAuthCallback : IHttpSurface
                 var grant = await exchange.ExchangeCodeAsync(connector, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                 using (CallerContextScope.Scoped(login.Owner))
                 {
-                    var grains = context.RequestServices.GetRequiredService<IGrainFactory>();
+                    var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
                     // Another connector may have taken this id while the browser was at the provider;
                     // granting anyway would leave two keys under one id that probe and disconnect refuse.
-                    if (await ConnectionEndpoints.IsTakenByAnotherConnector(grains, connectionId, connector))
+                    if (await ConnectionEndpoints.IsTakenByAnotherConnector(neurons, connectionId, connector))
                     {
                         await LoginPage.WriteAsync(context, $"{connector} connection needs attention", "Return to DigitalBrain and connect again.", 400);
                         return;
                     }
-                    await grains.GetConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
+                    await neurons.ConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
                 await LoginPage.WriteAsync(context, $"{connector} connected", "You can close this tab. DigitalBrain is continuing your request.", 200);
             }

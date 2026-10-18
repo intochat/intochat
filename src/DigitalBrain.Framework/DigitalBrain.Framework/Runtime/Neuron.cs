@@ -1,4 +1,5 @@
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,18 +16,70 @@ public abstract class Neuron : Grain, INeuron
     private sealed record WatchRegistration(INeuronObserver Observer, HashSet<string>? Signals);
     private ObserverManager<INeuronObserver, WatchRegistration>? _observers;
     private ObserverManager<INeuronObserver, WatchRegistration> Observers => _observers ??= new(
-        ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease,
-        ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Neuron.Observers"));
+        Services.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease,
+        Services.GetRequiredService<ILoggerFactory>().CreateLogger("Neuron.Observers"));
 
-    protected TimeSpan ObserverRenewal => TimeSpan.FromTicks(ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease.Ticks / 5);
+    protected TimeSpan ObserverRenewal => TimeSpan.FromTicks(Services.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease.Ticks / 5);
 
-    // Transitional: the full grain id until keys are brain-owned.
-    public NeuronId Id => new(this.GetGrainId().ToString());
+    // Transitional: the full grain id until keys are brain-owned. Equal to Context.Address.StorageKey; reads the
+    // grain id until the provider hosts neurons (clean-core PR 5).
+    public NeuronId Id => new(GrainIdentity.ToString());
+
+    // A neuron hosted by a runtime other than Orleans (the in-memory runtime) has no grain context: the runtime
+    // attaches its context before activation, and identity and services come from that context.
+    private bool Hosted => ((IGrainBase)this).GrainContext is null && _context is not null;
+
+    private protected GrainId GrainIdentity => Hosted ? GrainId.Create(_context!.Address.NeuronType, _context.Address.Key) : this.GetGrainId();
+
+    private protected IServiceProvider Services => Hosted ? _context!.Services : ServiceProvider;
+
+    // Called by a runtime that hosts neurons outside Orleans, once, before activation.
+    internal void Attach(INeuronContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (_context is not null) { throw new InvalidOperationException("The neuron already has a runtime context."); }
+        _context = context;
+    }
+
+    private INeuronContext? _context;
+
+    // The runtime SPI (clean-core 2.3) while the neuron is still a grain: the neutral form of the Orleans
+    // members this class and its subclasses use directly.
+    protected INeuronContext Context => _context ??= new GrainNeuronContext(this, DelayDeactivation, DeactivateOnIdle, new Fanout(this));
+
+    internal INeuronContext SpiContext => Context;
+
+    private DeactivationCause? _cause;
+
+    // IDeactivatingNeuron runs from the grain lifecycle, so it runs even when a subclass's OnDeactivateAsync
+    // override skips base; the override below only records why (Orleans calls it before the lifecycle stops).
+    protected Neuron()
+    {
+        if (this is IDeactivatingNeuron && ((IGrainBase)this).GrainContext is { } grain)
+        {
+            grain.ObservableLifecycle.Subscribe(nameof(IDeactivatingNeuron), GrainLifecycleStage.Activate, _ => Task.CompletedTask,
+                cancellationToken => ((IDeactivatingNeuron)this).OnDeactivating(_cause ?? DeactivationCause.Idle, cancellationToken));
+        }
+    }
+
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        _cause = CauseOf(reason);
+        return base.OnDeactivateAsync(reason, cancellationToken);
+    }
+
+    internal static DeactivationCause CauseOf(DeactivationReason reason) => reason.ReasonCode switch
+    {
+        DeactivationReasonCode.ActivationIdle => DeactivationCause.Idle,
+        DeactivationReasonCode.ShuttingDown => DeactivationCause.Shutdown,
+        DeactivationReasonCode.ApplicationRequested => DeactivationCause.Requested,
+        _ => DeactivationCause.Failed,
+    };
 
     public sealed override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await base.OnActivateAsync(cancellationToken);
-        var handlers = ServiceProvider.GetServices(typeof(IActivationHandler<>).MakeGenericType(GetType()));
+        var handlers = Services.GetServices(typeof(IActivationHandler<>).MakeGenericType(GetType()));
         foreach (var handler in handlers)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -55,13 +108,13 @@ public abstract class Neuron : Grain, INeuron
     }
 
     // Serves this neuron's journalled signals after `since`, oldest first. A watcher filters what it wants.
-    public virtual Task<SignalPage> Read(long since, int limit) => SignalPages.Read(Journal, this.GetGrainId(), since, limit);
+    public virtual Task<SignalPage> Read(long since, int limit) => SignalPages.Read(Journal, GrainIdentity, since, limit);
 
     // A signal is durable before any observer sees it (Q27).
     protected async Task PublishAsync(Signal signal)
     {
         var stamped = Stamp(signal);
-        await Notify([stamped], await Journal.Append(this.GetGrainId(), [stamped]));
+        await Notify([stamped], await Journal.Append(GrainIdentity, [stamped]));
     }
 
     // Several facts of one call become durable in one journal append before any observer sees them. Each is
@@ -77,10 +130,10 @@ public abstract class Neuron : Grain, INeuron
             using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
             stamped[i] = Stamp(signals[i].Signal);
         }
-        await Notify(stamped, await Journal.Append(this.GetGrainId(), stamped));
+        await Notify(stamped, await Journal.Append(GrainIdentity, stamped));
     }
 
-    private protected ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
+    private protected ISignalJournal Journal => Services.GetRequiredService<ISignalJournal>();
 
     private protected Signal Stamp(Signal signal) => signal with { Publisher = Id, Trace = TraceContext.Current };
 
@@ -88,12 +141,44 @@ public abstract class Neuron : Grain, INeuron
     private protected Task Notify(Signal[] stamped, long sequence)
     {
         if (stamped.Length == 0) { return Task.CompletedTask; }
-        var hub = ServiceProvider.GetRequiredService<LocalSignalHub>();
+        return Deliver(new SignalNudge(Id, sequence), stamped);
+    }
+
+    private Task Deliver(SignalNudge nudge, IReadOnlyList<Signal> stamped)
+    {
+        var hub = Services.GetRequiredService<LocalSignalHub>();
         foreach (var signal in stamped) { hub.Publish(signal); }
-        var nudge = new SignalNudge(Id, sequence);
-        hub.Publish(this.GetGrainId(), nudge);
+        hub.Publish(GrainIdentity, nudge);
         return Observers.Notify(watch => watch.Observer.Nudge(nudge),
             watch => watch.Signals is null || stamped.Any(signal => watch.Signals.Contains(signal.GetType().Name)));
+    }
+
+    // The fanout of this activation: its own observers, under the same lease and selection rules as Watch.
+    private sealed class Fanout(Neuron neuron) : ISignalFanout
+    {
+        public void Watch(NeuronAddress source, INeuronObserver observer, IReadOnlySet<string>? signals)
+        {
+            Own(source);
+            neuron.Observers.Subscribe(observer, new(observer, signals?.ToHashSet(StringComparer.Ordinal)));
+        }
+
+        public void Unwatch(NeuronAddress source, INeuronObserver observer)
+        {
+            Own(source);
+            neuron.Observers.Unsubscribe(observer);
+        }
+
+        public Task Nudge(NeuronAddress source, SignalNudge nudge, IReadOnlyList<Signal> appended)
+        {
+            Own(source);
+            return neuron.Deliver(nudge, appended);
+        }
+
+        private void Own(NeuronAddress source)
+        {
+            if (source != GrainNeuronContext.AddressOf(neuron.GrainIdentity))
+            { throw new ArgumentException($"An activation fans out only its own signals, not {source}.", nameof(source)); }
+        }
     }
 
     // The signals a state change caused ride in its storage write when the storage takes them (a part log);
@@ -106,7 +191,7 @@ public abstract class Neuron : Grain, INeuron
     {
         // Stamping needs the grain's identity. A neuron constructed outside a silo has none: its write runs
         // first, so a storage failure surfaces as itself rather than as the missing identity.
-        if (((IGrainBase)this).GrainContext is null) { await write(); }
+        if (((IGrainBase)this).GrainContext is null && _context is null) { await write(); }
         var stamped = new Signal[signals.Length];
         for (var i = 0; i < signals.Length; i++)
         {
@@ -115,13 +200,13 @@ public abstract class Neuron : Grain, INeuron
         }
         bool taken;
         long sequence;
-        using (SignalJournal.Attach(this.GetGrainId(), stamped))
+        using (SignalJournal.Attach(GrainIdentity, stamped))
         {
             await write();
             taken = SignalJournal.Taken;
             sequence = SignalJournal.LastSequence;
         }
-        if (!taken) { sequence = await Journal.Append(this.GetGrainId(), stamped); }
+        if (!taken) { sequence = await Journal.Append(GrainIdentity, stamped); }
         await Notify(stamped, sequence);
     }
 }

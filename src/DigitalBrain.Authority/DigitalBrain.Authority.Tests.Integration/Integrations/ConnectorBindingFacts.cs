@@ -34,8 +34,8 @@ public sealed class ConnectorBindingFacts
         Task<HttpResponseMessage> Connect() => brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/connect",
             new { connectorId = "example", authMethodId = "api-key", value = "secret-value-7d1" }, ct);
         var logger = new CatalogLogger();
-        var catalog = new ConnectorCatalog([ExampleConnectionModule.Connector], brain.Grains, logger);
-        var grain = brain.Grains.GetGrain<IIntegration>("integration/example-oauth");
+        var catalog = new ConnectorCatalog([ExampleConnectionModule.Connector], brain.Platform, logger);
+        var grain = brain.Platform.Integration("example-oauth");
         await grain.Configure(new() { Values = new() { ["ClientId"] = "test-client", ["ClientSecret"] = "test" } });
         var first = Assert.Single(await catalog.ListAsync(ct));
         Assert.Same(first, Assert.Single(await catalog.ListAsync(ct)));
@@ -93,7 +93,7 @@ public sealed class ConnectorBindingFacts
         // The host always composes the orleans module: its connector is the one offered before provisioning.
         async Task<string[]> Offered() => [.. (await catalog.ListAsync(ct)).Select(entry => entry.Id).Order(StringComparer.Ordinal)];
         Assert.Equal(["orleans"], await Offered());
-        var grain = brain.Grains.GetGrain<IIntegration>("integration/example");
+        var grain = brain.Platform.Integration("example");
         await grain.Configure(new ConfigureIntegration { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test-secret" } });
         Assert.Equal(["example", "orleans"], await Offered());
         var handle = brain.Services.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");

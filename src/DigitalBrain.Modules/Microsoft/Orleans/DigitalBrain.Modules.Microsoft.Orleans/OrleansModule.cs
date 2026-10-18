@@ -7,14 +7,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Microsoft.Orleans;
 
-public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId("orleans"))
+public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(OrleansIntegrationNames.Id))
 {
     public override System.Reflection.Assembly? Contracts => typeof(ICluster).Assembly;
 
-    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("orleans", "Orleans")
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For(OrleansIntegrationNames.Id, "Orleans")
         .OffersSecret(OrleansStorageHosting.ClusteringField)
         .OffersSecret(OrleansStorageHosting.GrainStateField)
         .OffersSecret(OrleansStorageHosting.RemindersField)
+        .OffersSetting(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)
+        .OffersSetting(OrleansStorageHosting.GrainStateField + StorageEndpoint.UriSuffix)
+        .OffersSetting(OrleansStorageHosting.RemindersField + StorageEndpoint.UriSuffix)
+        .OffersSetting(StorageEndpoint.ManagedIdentityClientIdField)
         .OffersSetting(OrleansStorageHosting.GrainStateContainerField);
 
     public static ConnectorDefinition Connector => new("orleans", "Orleans", ["deployment"], ["orleans"])

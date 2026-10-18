@@ -32,6 +32,9 @@ namespace DigitalBrain.Flutter;
 
 internal static class AppUiEndpoints
 {
+    // GET /apps/node?kind=view writes the tree with these options; the other kinds use the host's HTTP JSON options.
+    internal static readonly JsonSerializerOptions ViewJson = new(JsonSerializerDefaults.Web) { MaxDepth = 128 };
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
@@ -77,7 +80,7 @@ internal static class AppUiEndpoints
             }
             return kind switch
             {
-                UIVocabulary.ViewType => Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), new JsonSerializerOptions(JsonSerializerDefaults.Web) { MaxDepth = 128 }),
+                UIVocabulary.ViewType => Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson),
                 "text" => Results.Ok(await brain.Get<IText>(name).Read().WaitAsync(ct)),
                 "button" => Results.Ok(await brain.Get<IButton>(name).Read().WaitAsync(ct)),
                 "textfield" => Results.Ok(await brain.Get<ITextField>(name).Read().WaitAsync(ct)),

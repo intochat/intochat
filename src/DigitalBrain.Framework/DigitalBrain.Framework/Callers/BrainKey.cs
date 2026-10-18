@@ -21,12 +21,5 @@ public static class BrainKey
 
     // The brain a key belongs to for access checks: the first '/'-segment, when it is a brain id.
     // A key with no '/' names nothing brain-scoped.
-    public static string? ScopeOf(string key)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-        var separator = key.IndexOf('/');
-        if (separator <= 0) { return null; }
-        var scope = key[..separator];
-        return BrainScope.IsValidId(scope) ? scope : null;
-    }
+    public static string? ScopeOf(string key) => DigitalBrain.Runtime.NeuronAddress.ScopeOf(key);
 }

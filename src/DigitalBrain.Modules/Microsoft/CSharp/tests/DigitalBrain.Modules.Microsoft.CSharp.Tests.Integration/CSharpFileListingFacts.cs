@@ -113,6 +113,9 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         public IBrain Self => throw new NotSupportedException();
         public IKernelView Kernel => throw new NotSupportedException();
 
+        // The facts address brain "scope"; a relative id records like the full key it composes.
+        public T Neuron<T>(NeuronId relative) where T : INeuron => Get<T>(relative.Within("scope"));
+
         public T Get<T>(NeuronId id) where T : INeuron
         {
             var proxy = DispatchProxy.Create<T, CallRecorder>();

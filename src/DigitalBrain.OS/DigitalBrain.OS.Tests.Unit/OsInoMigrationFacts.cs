@@ -2,6 +2,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -95,7 +96,7 @@ public sealed class OsInoMigrationFacts
             Assert.Contains(oldHandled.ToString(), merged);
             Assert.Contains(forwardedHandled.ToString(), merged);
         }
-        var archived = await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppMigration>(legacyKey).Archive("ino-v3");
+        var archived = await brain.Get<IApp>(legacyKey).AsReference<IAppMigration>().Archive("ino-v3");
         Assert.Equal("public static class Mine { }", archived.Files["custom.cs"]);
     }
 
@@ -158,9 +159,9 @@ public sealed class OsInoMigrationFacts
         Assert.Equal(legacyKey + "/transcript", (await composer.Read()).FollowedChat);
     }
 
-    private sealed class QuietSource(IGrainFactory grains) : IChatAgentSource
+    private sealed class QuietSource(IDigitalBrains brains) : IChatAgentSource
     {
-        public INeuron Source(string key) => grains.GetGrain<IText>(key);
+        public INeuron Source(string key) => brains.Grain<IText>(key);
         public Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
             => Task.FromResult(new ChatAgentSnapshot(new(key, selectionRevision, 0, []), null));
     }

@@ -55,6 +55,7 @@ public sealed class BehaviorRun : IAsyncDisposable
         internal TaskCompletionSource Ready(GrainId source, Type type)
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
         public T Get<T>(NeuronId id) where T : INeuron => inner.Get<T>(id);
+        public T Neuron<T>(NeuronId relative) where T : INeuron => inner.Neuron<T>(relative);
         public IBrain Self => inner.Self;
         public IKernelView Kernel => inner.Kernel;
         public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal

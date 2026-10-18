@@ -23,6 +23,5 @@ public sealed record BrainScope(string Id, string Owner)
     // Brain, thread and run ids travel in routes and grain keys: 1-200 characters, no control
     // characters, no path separators and no ':'. A leading '@' is reserved for keys outside every
     // brain ("@platform/...").
-    public static bool IsValidId([NotNullWhen(true)] string? value)
-        => !string.IsNullOrWhiteSpace(value) && value.Length <= 200 && value[0] != '@' && !value.Any(c => char.IsControl(c) || c is '/' or '\\' or ':');
+    public static bool IsValidId([NotNullWhen(true)] string? value) => DigitalBrain.Runtime.NeuronAddress.IsBrainId(value);
 }

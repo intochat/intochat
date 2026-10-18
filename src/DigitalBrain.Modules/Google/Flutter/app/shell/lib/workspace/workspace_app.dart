@@ -473,6 +473,10 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                   _brain!,
                   'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
                 ),
+                // Reads once per change signal instead of every 2 s.
+                watch: (kind, name) => widget.programmingClient!
+                    .watchNode(_brain!, kind, name)
+                    .map((_) {}),
                 onAction: (event) async {
                   await widget.programmingClient!.appRequest(
                     _brain!,

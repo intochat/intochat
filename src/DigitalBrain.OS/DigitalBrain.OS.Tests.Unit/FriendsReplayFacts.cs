@@ -144,7 +144,7 @@ public sealed class FriendsReplayFacts
     private static async Task<AppRequested> Replay(ITestBrain brain, IApp app, CancellationToken ct)
     {
         await brain.DeactivateAsync(app, ct);
-        var retention = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRetainsSignals>(app.GetGrainId());
+        var retention = app.AsReference<IRetainsSignals>();
         return Assert.IsType<AppRequested>(Assert.Single(await retention.Retained(nameof(AppRequested), 0)).Signal);
     }
 

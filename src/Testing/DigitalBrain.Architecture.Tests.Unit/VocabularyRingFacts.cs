@@ -24,7 +24,11 @@ public sealed class VocabularyRingFacts
         [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IDigitalBrain keep that filter.",
     };
 
-    private static readonly string[] Namespaces = ["DigitalBrain"];
+    // DigitalBrain.Runtime is the runtime SPI (clean-core 2.3): what a runtime implements and a neuron is handed.
+    // It is not vocabulary a contract carries, so it is judged by clause (g) instead of reachability.
+    private const string RuntimeNamespace = "DigitalBrain.Runtime";
+
+    private static readonly string[] Namespaces = ["DigitalBrain", RuntimeNamespace];
 
     [Fact]
     public void EveryPublicVocabularyTypeIsANeuronContractASignalOrAShapeTheyCarry()
@@ -35,9 +39,9 @@ public sealed class VocabularyRingFacts
     }
 
     // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
-    // adding one is a design decision, made here.
+    // adding one is a design decision, made here. Both clients share the vocabulary's one WatchStream.
     private static readonly string[] InternalsConsumers =
-        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans.Tests.Integration", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts", "DigitalBrain.Testing"];
+        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans", "DigitalBrain.Client.Orleans.Tests.Integration", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts", "DigitalBrain.Testing"];
 
     [Fact]
     public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()
@@ -67,6 +71,16 @@ public sealed class VocabularyRingFacts
         Assert.True(offenders.Length == 0, "DigitalBrain references non-abstraction assemblies:\n" + string.Join("\n", offenders));
     }
 
+    // Clause (g) admits exactly the clean-core 2.3 SPI; a new runtime type is a design change, made here.
+    [Fact]
+    public void TheRuntimeSpiIsExactlyTheDesignedSet()
+    {
+        Assert.Equal(
+            ["BrainId", "DeactivationCause", "ICallerContextCarrier", "IDeactivatingNeuron", "INeuronContext", "INeuronResolver", "INeuronStateStore", "INeuronState`1",
+                "INeuronTimers", "IRemindedNeuron", "IRuntimeBuilder", "IRuntimeEndpoint", "ISignalFanout", "IStateCodec", "ITraceCarrier", "NeuronAddress", "StoredRecord", "WriteResult"],
+            PublicTypes().Where(IsRuntimeSpi).Select(t => t.Name).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void TheRingHoldsNoHandles()
     {
@@ -75,7 +89,8 @@ public sealed class VocabularyRingFacts
             : type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(Task<>) || type.GetGenericTypeDefinition() == typeof(ValueTask<>)) ? type.GetGenericArguments()[0]
             : type;
         static bool IsHandle(Type type) => typeof(IAsyncDisposable).IsAssignableFrom(type) || typeof(IDisposable).IsAssignableFrom(type);
-        var offenders = PublicTypes()
+        // The runtime SPI hands out scopes (a timer, a suppressed caller, an entered trace); contracts never do.
+        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t))
             .Where(t => IsHandle(t)
                 || t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(m => IsHandle(Awaited(m.ReturnType))))
             .Select(t => t.FullName!).Order().ToArray();
@@ -86,7 +101,8 @@ public sealed class VocabularyRingFacts
     public void TheBrainSeenByAProgramHasExactlyGetOnSelfAndKernel()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
-        Assert.Equal(["Get", "On", "On", "On", "React", "React"], methods);
+        // Neuron is the transitional brain-relative resolver (clean-core 2a); it goes when Get becomes relative (2f).
+        Assert.Equal(["Get", "Neuron", "On", "On", "On", "React", "React"], methods);
         var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ThenBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
         Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
         Assert.Equal([typeof(Sources), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
@@ -100,12 +116,17 @@ public sealed class VocabularyRingFacts
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());
+        var neuron = typeof(IDigitalBrain).GetMethod("Neuron")!;
+        Assert.Equal([typeof(NeuronId)], neuron.GetParameters().Select(p => p.ParameterType));
+        Assert.Contains(typeof(INeuron), neuron.GetGenericArguments()[0].GetGenericParameterConstraints());
     }
 
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()
         .Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true);
 
     private static bool IsContract(Type t) => Roots.Contains(t) || (t.IsInterface && typeof(INeuron).IsAssignableFrom(t));
+
+    private static bool IsRuntimeSpi(Type t) => t.Namespace == RuntimeNamespace;
 
     private static bool IsSignal(Type t) => typeof(Signal).IsAssignableFrom(t);
 
@@ -115,7 +136,7 @@ public sealed class VocabularyRingFacts
     private static bool IsWireException(Type t) => typeof(Exception).IsAssignableFrom(t) && IsSerializable(t);
 
     private static bool Fits(Type t, HashSet<Type> reachable) =>
-        IsContract(t) || IsSignal(t) || IsWireException(t) || typeof(Attribute).IsAssignableFrom(t) || Allowlist.ContainsKey(t)
+        IsContract(t) || IsSignal(t) || IsWireException(t) || IsRuntimeSpi(t) || typeof(Attribute).IsAssignableFrom(t) || Allowlist.ContainsKey(t)
         || (reachable.Contains(t) && (t.IsEnum || IsSerializable(t)));
 
     private static string Describe(Type t, HashSet<Type> reachable)
@@ -124,7 +145,7 @@ public sealed class VocabularyRingFacts
         var clause = !reachable.Contains(t) ? "(c) not reachable from a Contracts-ring neuron contract, signal or wire exception"
             : "(c) reachable but not [GenerateSerializer]";
         if (typeof(Exception).IsAssignableFrom(t)) { clause = "(e) exception not [GenerateSerializer]"; }
-        return $"{t.FullName} [{kind}] fails {clause}; not (a) contract, (b) signal, (d) attribute or (f) allowlisted";
+        return $"{t.FullName} [{kind}] fails {clause}; not (a) contract, (b) signal, (d) attribute, (f) allowlisted or (g) runtime SPI";
     }
 
     private static HashSet<Type> Reachable()

@@ -9,10 +9,13 @@ import 'package:test/test.dart';
 
 final class SessionService extends rpc.NeuronsServiceBase {
   final received = <Map<String, String>>[];
+  final watches = <rpc.WatchRequest>[];
+  Duration callDelay = Duration.zero;
 
   @override
   Future<rpc.CallReply> call(ServiceCall call, rpc.CallRequest request) async {
     received.add(Map.of(call.clientMetadata ?? {}));
+    await Future<void>.delayed(callDelay);
     return rpc.CallReply(result: utf8.encode('{}'));
   }
 
@@ -22,6 +25,7 @@ final class SessionService extends rpc.NeuronsServiceBase {
     rpc.WatchRequest request,
   ) async* {
     received.add(Map.of(call.clientMetadata ?? {}));
+    watches.add(request);
     yield rpc.SignalEnvelope();
   }
 }
@@ -80,5 +84,56 @@ void main() {
         credentials?.authorizationHeader,
       );
     }
+  });
+
+  test("a screen's node watches ride one Watch call to the server", () async {
+    final service = SessionService();
+    final server = Server.create(services: [service]);
+    await server.serve(address: '127.0.0.1', port: 0);
+    addTearDown(server.shutdown);
+    final client = DigitalBrainUiClient(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}'),
+    );
+    addTearDown(client.close);
+    final subscriptions = [
+      for (final node in [
+        ('surface', 'owner/apps/a/surface'),
+        ('surface', 'owner/apps/b/surface'),
+        ('text', 'owner/apps/a/title'),
+      ])
+        client.watchNode('owner', node.$1, node.$2).listen((_) {}),
+    ];
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(service.watches, hasLength(1));
+    expect(service.watches.single.sources.map((s) => s.key), [
+      'owner/apps/a/surface',
+      'owner/apps/b/surface',
+      'owner/apps/a/title',
+    ]);
+    for (final subscription in subscriptions) {
+      await subscription.cancel();
+    }
+  });
+
+  test('a call past its deadline fails with DEADLINE_EXCEEDED', () async {
+    final service = SessionService()..callDelay = const Duration(seconds: 2);
+    final server = Server.create(services: [service]);
+    await server.serve(address: '127.0.0.1', port: 0);
+    addTearDown(server.shutdown);
+    final channel = NeuronChannel(
+      Uri.parse('http://127.0.0.1:${server.port}'),
+      callTimeout: const Duration(milliseconds: 100),
+    );
+    addTearDown(channel.shutdown);
+    await expectLater(
+      channel.call('owner', 'Contract', 'key', 'Read', []),
+      throwsA(
+        isA<GrpcError>().having(
+          (e) => e.code,
+          'code',
+          StatusCode.deadlineExceeded,
+        ),
+      ),
+    );
   });
 }

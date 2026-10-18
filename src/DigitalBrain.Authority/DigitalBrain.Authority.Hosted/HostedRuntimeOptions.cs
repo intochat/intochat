@@ -2,7 +2,7 @@ namespace DigitalBrain.Authority.Hosted;
 
 public sealed class HostedRuntimeOptions
 {
-    public const string SectionName = "DigitalBrain:Hosting";
+    public const string SectionName = DigitalBrain.Framework.DigitalBrainNames.HostingConfigurationKey;
     public string AccountId { get; set; } = "";
     public string BrainId { get; set; } = "";
     public string RuntimeId { get; set; } = "";

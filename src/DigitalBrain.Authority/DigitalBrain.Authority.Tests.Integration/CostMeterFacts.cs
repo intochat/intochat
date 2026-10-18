@@ -25,7 +25,7 @@ public sealed class CostMeterFacts
         var cost = await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-1", ct);
 
         Assert.Equal(1_250, cost.Micros);
-        Assert.Equal(-1_250, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
+        Assert.Equal(-1_250, await brain.Platform.Ledger(meter.AccountId).Balance());
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class CostMeterFacts
         var cost = await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.OwnConnection, "c-1", ct);
 
         Assert.Equal(0, cost.Micros);
-        Assert.Equal(0, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
+        Assert.Equal(0, await brain.Platform.Ledger(meter.AccountId).Balance());
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class CostMeterFacts
         await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
             costs.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-3", ct).AsTask());
 
-        Assert.Equal(-1_000, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
+        Assert.Equal(-1_000, await brain.Platform.Ledger(meter.AccountId).Balance());
         Assert.Equal(2, Assert.Single(await usage.Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10)).Count);
     }
 
@@ -84,7 +84,7 @@ public sealed class CostMeterFacts
         var cost = await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "u-1", ct);
 
         Assert.Equal(1_250, cost.Micros);
-        Assert.Equal(-1_250, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
+        Assert.Equal(-1_250, await brain.Platform.Ledger(meter.AccountId).Balance());
         AssertRow(await usage.Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10), "untraced", 1_250, 1);
     }
 
@@ -187,8 +187,8 @@ public sealed class CostMeterFacts
         var owner = await brain.PersonAsync("circle-owner", ct);
         var meter = await brain.PersonAsync("meter", ct);
         var key = owner.Key("circles/c");
-        await brain.Grains.GetGrain<ILedgerGrain>(owner.AccountId).Credit("top-up", 1_000, "test");
-        await brain.Grains.GetGrain<ICircleShareGrain>(key).Apply(percent, [owner.AccountId, meter.AccountId]);
+        await brain.Platform.Ledger(owner.AccountId).Credit("top-up", 1_000, "test");
+        await brain.Platform.CircleShare(key).Apply(percent, [owner.AccountId, meter.AccountId]);
         return new(brain, owner, meter, key);
     }
 
@@ -205,8 +205,8 @@ public sealed class CostMeterFacts
             meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(circle.Key), "c-2", ct).AsTask());
 
         Assert.Equal(125, first.Micros);
-        Assert.Equal(875, await circle.Brain.Grains.GetGrain<ILedgerGrain>(circle.Owner.AccountId).Balance());
-        Assert.Equal(0, await circle.Brain.Grains.GetGrain<ILedgerGrain>(circle.Meter.AccountId).Balance());
+        Assert.Equal(875, await circle.Brain.Platform.Ledger(circle.Owner.AccountId).Balance());
+        Assert.Equal(0, await circle.Brain.Platform.Ledger(circle.Meter.AccountId).Balance());
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public sealed class CostMeterFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             Meter(circle.Brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(circle.Key), "c-1", ct).AsTask());
 
-        Assert.Equal(1_000, await circle.Brain.Grains.GetGrain<ILedgerGrain>(circle.Owner.AccountId).Balance());
+        Assert.Equal(1_000, await circle.Brain.Platform.Ledger(circle.Owner.AccountId).Balance());
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public sealed class CostMeterFacts
         await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
             Meter(circle.Brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(circle.Key), "c-1", ct).AsTask());
 
-        Assert.Equal(1_000, await circle.Brain.Grains.GetGrain<ILedgerGrain>(circle.Owner.AccountId).Balance());
+        Assert.Equal(1_000, await circle.Brain.Platform.Ledger(circle.Owner.AccountId).Balance());
     }
 
     private static Task<ITestBrain> MeteredBrain(long? pricePerUnit, CancellationToken ct)
@@ -278,7 +278,7 @@ public sealed class CostMeterFacts
     // Costs reach usage one-way; a read sent after them is answered after them once the grain is active.
     private static async Task<IUsageGrain> ActiveUsage(ITestBrain brain, string brainId)
     {
-        var usage = brain.Grains.GetGrain<IUsageGrain>(brainId);
+        var usage = brain.Platform.Usage(brainId);
         await usage.Recent(0);
         return usage;
     }

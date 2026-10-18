@@ -263,6 +263,44 @@ public sealed class LiveSignalFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next.WaitAsync(TimeSpan.FromSeconds(10), ct));
     }
 
+    // A feed whose one source publishes `count` beats as soon as it is watched.
+    private static LiveSignalEndpoints.LiveFeed Burst(string key, int count, TaskCompletionSource published) => new(
+        nameof(Beat),
+        (brain, _, listed, ct) => Keys(brain, [key], null, listed, ct),
+        (_, _, subscribed, ct) => Beats(subscribed, count, published, ct));
+
+    private static async IAsyncEnumerable<Signal> Beats(Func<Task> subscribed, int count, TaskCompletionSource published, [EnumeratorCancellation] CancellationToken ct)
+    {
+        await subscribed();
+        for (var pulse = 0; pulse < count; pulse++) { ct.ThrowIfCancellationRequested(); yield return new Beat(pulse); }
+        published.TrySetResult();
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AStalledReaderGetsResyncAndTheStreamEndsInsteadOfBufferingWithoutBound()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var stream = LiveSignalEndpoints.Stream(brain, "brain", [Burst("beater-flood", 100, published)], NullLogger.Instance, ct, capacity: 8).GetAsyncEnumerator(ct);
+        // The reader stalls while 100 envelopes are published into a buffer of 8.
+        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+        await published.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        List<string> received = [stream.Current];
+        while (await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct)) { received.Add(stream.Current); }
+        Assert.Equal(LiveSignalEndpoints.Resync, received[^1]);
+        // The pumps may overflow before the first read, so Resync can be the only envelope; at most the buffer drains first.
+        Assert.InRange(received.Count, 1, 8 + 2);
+    }
+
+    [Fact]
+    public void TheLiveBuffersAreBounded()
+    {
+        Assert.Equal(1024, LiveSignalEndpoints.EnvelopeBuffer);
+        Assert.Equal(256, LiveSignalEndpoints.KeyBuffer);
+    }
+
     [Fact]
     public void AnUnknownOrMissingTypeIsRefused()
     {
