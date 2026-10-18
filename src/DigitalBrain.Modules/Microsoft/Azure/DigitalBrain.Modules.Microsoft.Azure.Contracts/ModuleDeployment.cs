@@ -22,15 +22,18 @@ public abstract class ModuleDeployment<TModule> : IModuleDeployment where TModul
 // Where a deployment lands: the subscription and the names every resource derives from.
 public sealed record DeploymentTarget(string Subscription, string Location, string Prefix, string Env);
 
-// The shared resources of the environment, created before any module deployment runs. The registry is
-// not created by the installer; RegistryServer is its login server when the config names one.
+// The shared resources of the environment, created before any module deployment runs. RegistryServer is the
+// login server of the registry the installer created (or the config's registryServer when it creates none).
+// Registry and Postgres are null when the config disables them.
 public sealed record FoundationRefs(
     ResourceRef ResourceGroup,
     ResourceRef Identity,
     ResourceRef Environment,
     ResourceRef StorageAccount,
     ResourceRef KeyVault,
-    string RegistryServer);
+    string RegistryServer,
+    ResourceRef? Registry = null,
+    ResourceRef? Postgres = null);
 
 // The module's own entries of the install config, keyed by setting name.
 public sealed class ModuleSettings(IReadOnlyDictionary<string, string> values)
