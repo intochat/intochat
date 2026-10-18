@@ -60,6 +60,7 @@
   "DigitalBrain.Framework.Tests.Integration/WatchCycleFacts.cs": 10,
   "DigitalBrain.Framework/Platform/Connections/ConnectionGrains.cs": 8,
   "DigitalBrain.Framework/Platform/Connections/ConnectionNeuron.cs": 3,
+  "DigitalBrain.Framework/Runtime/GrainNeuronResolver.cs": 2,
   "DigitalBrain.Framework/Runtime/Kernel/CompiledTypes.cs": 3,
   "DigitalBrain.Framework/Runtime/Kernel/InstanceRegistration.cs": 3,
   "DigitalBrain.Framework/Runtime/Kernel/Kernel.cs": 12,
