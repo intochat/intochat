@@ -8,7 +8,9 @@
       "**/DigitalBrain.Modules.Microsoft.Playwright.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Qdrant.Tests.Unit.dll",
+      "**/DigitalBrain.Modules.Time.Tests.Unit.dll",
       "**/DigitalBrain.Modules.Tools.Tests.Unit.dll",
+      "**/DigitalBrain.Runtime.InMemory.Tests.Unit.dll",
       "**/*.Tests.Hosting.dll"
     ],
     "integration-a": [

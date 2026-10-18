@@ -1,14 +1,15 @@
 using DigitalBrain.Framework;
-using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime;
 using DigitalBrain.Time.Timers.Signals;
-using Orleans.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Time.Timers;
 
 [GrainType("timer")]
-internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time) : Neuron, ITimer
+internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time) : Neuron, ITimer, IDeactivatingNeuron
 {
+    private const string Schedule = "schedule";
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
-    private IGrainTimer? _timer;
+    private IDisposable? _timer;
     private object? _schedule;
 
     public Task Start(TimeSpan dueTime, TimeSpan? period = null)
@@ -19,21 +20,11 @@ internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimePr
         { throw new ArgumentOutOfRangeException(nameof(period)); }
 
         var schedule = new object();
-        var next = this.RegisterGrainTimer(
-            (_, ct) => TickAsync(schedule, period is null, ct),
-            0,
-            new GrainTimerCreationOptions
-            {
-                DueTime = dueTime,
-                Period = period ?? Timeout.InfiniteTimeSpan,
-                Interleave = false,
-                KeepAlive = true
-            });
-        _timer?.Dispose();
-        _timer = next;
+        // A named timer replaces the previous schedule; it does not interleave and keeps the activation alive.
+        _timer = Context.Timers.Start(Schedule, dueTime, period, ct => TickAsync(schedule, period is null, ct));
         _schedule = schedule;
-        // KeepAlive extends lifetime on ticks; a long initial delay also needs protection.
-        DelayDeactivation(Timeout.InfiniteTimeSpan);
+        // Ticks extend the lifetime; a long initial delay also needs protection.
+        Context.KeepAlive(Timeout.InfiniteTimeSpan);
         return Task.CompletedTask;
     }
 
@@ -42,7 +33,7 @@ internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimePr
         _schedule = null;
         _timer?.Dispose();
         _timer = null;
-        DelayDeactivation(TimeSpan.Zero);
+        Context.KeepAlive(null);
         return Task.CompletedTask;
     }
 
@@ -50,14 +41,14 @@ internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimePr
     {
         if (ct.IsCancellationRequested || !ReferenceEquals(_schedule, schedule)) { return; }
         if (once) { await Stop(); }
-        await PublishAsync(new TimerTick(this.GetPrimaryKeyString(), time.GetUtcNow()));
+        await PublishAsync(new TimerTick(Context.Key, time.GetUtcNow()));
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public Task OnDeactivating(DeactivationCause cause, CancellationToken cancellationToken)
     {
         _schedule = null;
         _timer?.Dispose();
         _timer = null;
-        return base.OnDeactivateAsync(reason, cancellationToken);
+        return Task.CompletedTask;
     }
 }

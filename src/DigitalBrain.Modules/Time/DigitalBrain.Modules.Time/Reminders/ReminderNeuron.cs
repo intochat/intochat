@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Time.Reminders.Signals;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 using Orleans.Timers;
 namespace DigitalBrain.Time.Reminders;

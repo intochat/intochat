@@ -146,6 +146,9 @@
   "DigitalBrain.Modules.Twilio.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
+  "DigitalBrain.Runtime.InMemory.Tests.Unit": [
+    "Microsoft.Orleans.Sdk"
+  ],
   "DigitalBrain.Testing": [
     "Microsoft.Orleans.Sdk"
   ],
