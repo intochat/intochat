@@ -1,6 +1,7 @@
 using IntoChat.OS;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Flutter;
 
@@ -16,10 +17,13 @@ public sealed record FlutterHostingOptions
     public string? FlutterCommand { get; init; }
     public string? WorkingDirectory { get; init; }
     public bool ReleaseBuild { get; init; }
+    // Web only: serve the prebuilt release bundle from a docker image instead of compiling per AppHost.
+    // Describes the machine running the AppHost, so CI flips it for every host via configuration.
+    public bool WebContainer { get; init; }
 }
 public sealed record FlutterModuleOptions : IModuleOptions
 {
-    public FlutterHostingOptions Hosting { get; set; } = new();
+    [Setting] public FlutterHostingOptions Hosting { get; set; } = new();
 
     public FlutterModuleOptions RunWebApp() => WithHost(FlutterHostKind.Web);
     public FlutterModuleOptions RunDesktopApp() => WithHost(FlutterHostKind.Window);

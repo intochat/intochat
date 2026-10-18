@@ -38,7 +38,7 @@ public static class ShellHostingExtensions
             options.DeviceTarget = ShellNames.DefaultWebDeviceTarget;
         }
 
-        FlutterHostOptions.Bind(options, module.IntoChatOSBuilder.ApplicationBuilder.Configuration);
+        FlutterHostOptions.Overlay(options, module.IntoChatOSBuilder.ApplicationBuilder.Configuration);
         options.Kind = kind;
         configure?.Invoke(options);
         GetOrCreateState(module).EnsureFlutterHost(kind, options);

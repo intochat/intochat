@@ -1,15 +1,5 @@
 [
   {
-    "file": "IntoChat.OS.Modules.AI/AIOptionsRuntime.cs",
-    "pattern": "Bind",
-    "reason": "Style 2 manual section bind; migrates in 09-03/09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.AI/AIOptionsRuntime.cs",
-    "pattern": "GetSection",
-    "reason": "Style 2 manual section bind and AIKeys child enumeration; migrates in 09-03/09-04"
-  },
-  {
     "file": "IntoChat.OS.Modules.Circles/CircleFactoryNeuron.cs",
     "pattern": "Bind",
     "reason": "Not configuration: neuron Bind call matched by the scan; remove with the scan refinement in 09-04"
@@ -18,31 +8,6 @@
     "file": "IntoChat.OS.Modules.Circles/CircleNeuron.cs",
     "pattern": "Bind",
     "reason": "Not configuration: neuron Bind call matched by the scan; remove with the scan refinement in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Flutter.Aspire.Hosting/Configuration/FlutterHostOptions.cs",
-    "pattern": "Bind",
-    "reason": "Style 2 ConfigurationBinder.Bind; migrates in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Flutter.Aspire.Hosting/Configuration/FlutterHostOptions.cs",
-    "pattern": "GetSection",
-    "reason": "Style 2 section read; migrates in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Flutter.Aspire.Hosting/Configuration/FlutterToolchainOptions.cs",
-    "pattern": "GetOfT",
-    "reason": "Style 4 whole-root Get<T>; migrates in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Flutter.Aspire.Hosting/Configuration/FlutterToolchainOptions.cs",
-    "pattern": "GetSection",
-    "reason": "Style 4 whole-root section read; migrates in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Flutter.Aspire.Hosting/ShellHostingExtensions.cs",
-    "pattern": "Bind",
-    "reason": "Not configuration or host-side bind; review in 09-04"
   },
   {
     "file": "IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/AspireModuleHosting.cs",
@@ -73,16 +38,6 @@
     "file": "IntoChat.OS.Modules.Microsoft.CSharp/Runtime/BrainRuntimeNeuron.cs",
     "pattern": "GetOfT",
     "reason": "Likely not configuration (Get<T> on a non-IConfiguration); review in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting/GitHub/GitHubConfigurationHostingExtensions.cs",
-    "pattern": "GetOfT",
-    "reason": "Style 3 GetSection(...).Get<T>; migrates in 09-04"
-  },
-  {
-    "file": "IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting/GitHub/GitHubConfigurationHostingExtensions.cs",
-    "pattern": "GetSection",
-    "reason": "Style 3 GetSection(...).Get<T>; migrates in 09-04"
   },
   {
     "file": "IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/OrleansModuleHosting.cs",

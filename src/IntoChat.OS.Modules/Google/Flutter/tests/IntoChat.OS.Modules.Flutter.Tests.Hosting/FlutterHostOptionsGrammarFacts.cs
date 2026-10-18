@@ -12,7 +12,7 @@ public sealed class FlutterHostOptionsGrammarFacts
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { [FlutterHostOptions.WebContainerKey] = "true" }).Build();
 
-        var options = FlutterHostOptions.Bind(new FlutterHostOptions(), configuration);
+        var options = FlutterHostOptions.Overlay(new FlutterHostOptions(), configuration);
 
         Assert.True(options.WebContainer);
     }
