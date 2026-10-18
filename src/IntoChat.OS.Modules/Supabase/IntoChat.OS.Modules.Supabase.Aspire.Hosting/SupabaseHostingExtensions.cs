@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
@@ -44,8 +45,8 @@ public static class SupabaseHostingExtensions
 
             _options = options;
             _connection = brain.ApplicationBuilder
-                .AddParameter(brain.ResourceName("supabase-connection"), () => brain.ApplicationBuilder.Configuration["Parameters:supabase-connection"]
-                    ?? brain.ApplicationBuilder.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")]
+                .AddParameter(brain.ResourceName("supabase-connection"), () => HostConfiguration.Parameter(brain.ApplicationBuilder.Configuration, "supabase-connection")
+                    ?? HostConfiguration.IntegrationValue(brain.ApplicationBuilder.Configuration, SupabaseModule.Integration, "ConnectionString")
                     ?? throw new InvalidOperationException($"Connection string '{_options.ParameterName}' is required."), secret: true)
                 .WithParentRelationship(module);
         }

@@ -23,7 +23,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Microsoft.As
         brain.AddProjection(new CandidateSecrets());
         // Candidates are containers: they reach the dashboard's plain-HTTP OTLP endpoint (launchSettings), not the
         // TLS one, whose dev certificate names localhost and is not trusted inside the container.
-        if (brain.ApplicationBuilder.Configuration[OtlpHttpEndpoint] is { Length: > 0 } otlp)
+        if (HostConfiguration.Variable(brain.ApplicationBuilder.Configuration, OtlpHttpEndpoint) is { Length: > 0 } otlp)
         {
             brain.AddProjection(new Variable(OtlpHttpEndpoint, otlp));
         }
