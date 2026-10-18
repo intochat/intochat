@@ -1,8 +1,6 @@
 name: e2e
 
 on:
-  push:
-    branches: [master]
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
