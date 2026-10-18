@@ -11,7 +11,7 @@ public sealed class BoundaryFacts
     // IntoChat.OS.Contracts.Configuration is innermost: configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
+        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
         "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 
@@ -22,6 +22,11 @@ public sealed class BoundaryFacts
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority")]
+    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Framework")]
+    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Authority")]
+    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Client")]
+    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Framework")]
+    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
-using Sdk = global::Microsoft.Playwright;
+using PlaywrightSdk = global::Microsoft.Playwright;
 
 namespace IntoChat.OS.Microsoft.Playwright;
 
@@ -21,7 +21,7 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
         return matches[0];
     }
 
-    private static async Task<string> TargetIdAsync(Sdk.IPage page)
+    private static async Task<string> TargetIdAsync(PlaywrightSdk.IPage page)
     {
         var cdp = await page.Context.NewCDPSessionAsync(page).ConfigureAwait(false);
         try
@@ -32,11 +32,11 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
         finally { await cdp.DetachAsync().ConfigureAwait(false); }
     }
 
-    private async Task<Sdk.IPage> SelectPageAsync(Sdk.IBrowser browser, BrowserAttachment attachment)
+    private async Task<PlaywrightSdk.IPage> SelectPageAsync(PlaywrightSdk.IBrowser browser, BrowserAttachment attachment)
     {
         var pages = browser.Contexts.SelectMany(context => context.Pages).ToArray();
         var key = (attachment.Port, attachment.SessionId);
-        var targets = new Dictionary<string, Sdk.IPage>(StringComparer.Ordinal);
+        var targets = new Dictionary<string, PlaywrightSdk.IPage>(StringComparer.Ordinal);
         foreach (var page in pages)
         {
             targets[await TargetIdAsync(page).ConfigureAwait(false)] = page;
@@ -49,7 +49,7 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
                 _targets.TryRemove(entry.Key, out _);
             }
         }
-        Sdk.IPage? selected = null;
+        PlaywrightSdk.IPage? selected = null;
         if (_targets.TryGetValue(key, out var known))
         {
             targets.TryGetValue(known, out selected);
@@ -70,8 +70,8 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
     public async Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var startup = Sdk.Playwright.CreateAsync();
-        Sdk.IPlaywright playwright;
+        var startup = PlaywrightSdk.Playwright.CreateAsync();
+        PlaywrightSdk.IPlaywright playwright;
         try { playwright = await startup.WaitAsync(ct).ConfigureAwait(false); }
         catch (OperationCanceledException)
         {
@@ -104,14 +104,14 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
         catch { playwright.Dispose(); throw; }
     }
 
-    private static async Task DisposeLateDriverAsync(Task<Sdk.IPlaywright> startup)
+    private static async Task DisposeLateDriverAsync(Task<PlaywrightSdk.IPlaywright> startup)
     {
         // CreateAsync has no cancellation API. Own and clean any driver returned after cancellation.
         try { (await startup.ConfigureAwait(false)).Dispose(); }
         catch (Exception) { /* The caller already received cancellation; cleanup consumes late startup errors. */ }
     }
 
-    private sealed class PageSession(Sdk.IPlaywright driver, Sdk.IBrowser browser, Sdk.IPage page, PlaywrightModuleOptions apps, Func<Task>? release = null) : IBrowserPageSession
+    private sealed class PageSession(PlaywrightSdk.IPlaywright driver, PlaywrightSdk.IBrowser browser, PlaywrightSdk.IPage page, PlaywrightModuleOptions apps, Func<Task>? release = null) : IBrowserPageSession
     {
         private readonly CancellationTokenSource _lifetime = new();
         private readonly HttpClient _http = new(new SocketsHttpHandler
@@ -155,14 +155,14 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
             _budget = new BrowserActivityBudget();
             if (apps.IsAppPage(url))
             {
-                await page.GotoAsync(url, new() { WaitUntil = Sdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+                await page.GotoAsync(url, new() { WaitUntil = PlaywrightSdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
                 return;
             }
             var uri = PublicBrowserNetwork.PublicUri(url);
             await PublicBrowserNetwork.ResolvePublicAsync(uri.IdnHost, ct).ConfigureAwait(false);
             // Resolve HTTP redirects before navigation, so the actual visible page URL remains truthful.
             uri = await ResolveNavigationAsync(uri, ct).ConfigureAwait(false);
-            await page.GotoAsync(uri.AbsoluteUri, new() { WaitUntil = Sdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+            await page.GotoAsync(uri.AbsoluteUri, new() { WaitUntil = PlaywrightSdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
         }, ct);
 
         public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => ExecuteAsync(() => Task.CompletedTask, ct);
@@ -260,7 +260,7 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
             PublicBrowserNetwork.PublicUri(new Uri(source, response.Headers.Location
                 ?? throw new InvalidOperationException("The redirect has no location.")).AbsoluteUri);
 
-        private async Task RouteAsync(Sdk.IRoute route)
+        private async Task RouteAsync(PlaywrightSdk.IRoute route)
         {
             if (apps.IsAppPage(route.Request.Url) && (route.Request.IsNavigationRequest || apps.IsAppPage(page.Url)))
             {
@@ -271,10 +271,10 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
                     var response = await route.FetchAsync(new() { MaxRedirects = 0 }).ConfigureAwait(false);
                     await route.FulfillAsync(new() { Response = response }).ConfigureAwait(false);
                 }
-                catch (Sdk.PlaywrightException)
+                catch (PlaywrightSdk.PlaywrightException)
                 {
                     try { await route.AbortAsync("connectionfailed").ConfigureAwait(false); }
-                    catch (Sdk.PlaywrightException) { }
+                    catch (PlaywrightSdk.PlaywrightException) { }
                 }
                 return;
             }
@@ -336,10 +336,10 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
                 throw new InvalidOperationException("Redirect limit exceeded.");
             }
             catch (Exception error) when (error is HttpRequestException or IOException or System.Net.Sockets.SocketException or ArgumentException
-                or InvalidOperationException or OperationCanceledException or Sdk.PlaywrightException)
+                or InvalidOperationException or OperationCanceledException or PlaywrightSdk.PlaywrightException)
             {
                 try { await route.AbortAsync("blockedbyclient").ConfigureAwait(false); }
-                catch (Sdk.PlaywrightException) { }
+                catch (PlaywrightSdk.PlaywrightException) { }
             }
         }
 

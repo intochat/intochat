@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using IntoChat.OS.Microsoft.Playwright;
 using Microsoft.Extensions.Options;
-using Sdk = Microsoft.Playwright;
+using PlaywrightSdk = Microsoft.Playwright;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser;
 
@@ -103,7 +103,7 @@ public sealed class AppPageFacts
         }
     }
 
-    private sealed class DebuggableBrowser(Sdk.IPlaywright driver, Sdk.IBrowser browser, int port, string sessionId) : IAsyncDisposable
+    private sealed class DebuggableBrowser(PlaywrightSdk.IPlaywright driver, PlaywrightSdk.IBrowser browser, int port, string sessionId) : IAsyncDisposable
     {
         public int Port => port;
         public string SessionId => sessionId;
@@ -111,7 +111,7 @@ public sealed class AppPageFacts
         public static async Task<DebuggableBrowser> LaunchAsync(CancellationToken ct)
         {
             var (port, sessionId) = (FreePort(), Guid.NewGuid().ToString("N"));
-            var driver = await Sdk.Playwright.CreateAsync().WaitAsync(ct);
+            var driver = await PlaywrightSdk.Playwright.CreateAsync().WaitAsync(ct);
             var browser = await driver.Chromium.LaunchAsync(new() { Args = [$"--remote-debugging-port={port}"] }).WaitAsync(ct);
             var page = await browser.NewPageAsync().WaitAsync(ct);
             await page.GotoAsync($"about:blank#intochat-os-{sessionId}").WaitAsync(ct);
