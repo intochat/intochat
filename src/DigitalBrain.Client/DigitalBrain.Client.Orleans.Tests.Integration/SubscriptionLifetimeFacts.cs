@@ -6,8 +6,6 @@ namespace DigitalBrain.Client.Orleans.Tests.Integration;
 
 public sealed class SubscriptionLifetimeFacts(ClientHost host)
 {
-    private static TestBrain Options(int capacity = 256) => TestBrain.Create().WithFastSubscriptions(capacity);
-
     // A hub delivery can nudge a subscription that host shutdown has already disposed.
     [Fact]
     public async Task ANudgeAfterDisposalNeverThrows()
@@ -27,7 +25,7 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
     public async Task OverflowIsVisibleEvenWithoutDrainingTheBuffer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options(1).StartAsync(ct);
+        await using var brain = await FastBrain.Create(1).StartAsync(ct);
         var source = brain.Get<ITestEmitter>("overflow");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await source.Emit(1);
@@ -74,11 +72,12 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => brain.SubscribeAsync<Number>(source, cancel.Token));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RenewalKeepsAHealthySubscriptionAliveBeyondItsLease()
     {
         var ct = TestContext.Current.CancellationToken;
-        var brain = host.Brain;
+        await using var brain = await FastBrain.StartAsync(ct);
         var source = brain.Get<ITestEmitter>("renew");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
@@ -90,11 +89,12 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
 
     // A reactivated source has forgotten its watchers, so the publish nudges nobody; the next renewal
     // re-watches and pulls what was journalled in the gap.
+    [Trait("host", "own")]
     [Fact]
     public async Task AMissedNudgeIsRecoveredOnTheNextRenewal()
     {
         var ct = TestContext.Current.CancellationToken;
-        var brain = host.Brain;
+        await using var brain = await FastBrain.StartAsync(ct);
         var source = brain.Get<ITestEmitter>("missed");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await source.Deactivate();
@@ -109,7 +109,7 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
     public async Task ASignalPublishedDuringSubscribeIsNotLost()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().ConfigureServices(services => services.AddSingleton<ISignalJournal, EagerJournal>()).StartAsync(ct);
+        await using var brain = await FastBrain.Create().ConfigureServices(services => services.AddSingleton<ISignalJournal, EagerJournal>()).StartAsync(ct);
         await using var stream = await brain.SubscribeAsync<Number>(brain.Get<IEagerEmitter>("eager"), ct);
         await using var reader = stream.ReadAllAsync(ct).GetAsyncEnumerator(ct);
         Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct));
@@ -135,7 +135,7 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
     public async Task OnClosesItsSubscriptionWhenTheConsumerCancelsMidStream()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        await using var brain = await FastBrain.StartAsync(ct);
         var source = brain.Get<ITestEmitter>("on-cancel");
         var client = brain.Services.GetRequiredService<BrainClient>();
         using var consumer = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -156,7 +156,7 @@ public sealed class SubscriptionLifetimeFacts(ClientHost host)
     public async Task DisposingAnOnEnumeratorWhileAReadIsInFlightLeavesNoSubscriptionAndThrowsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        await using var brain = await FastBrain.StartAsync(ct);
         var source = brain.Get<ITestEmitter>("in-flight");
         var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var enumerator = brain.On<Number>(source, () => { registered.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
