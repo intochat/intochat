@@ -1,20 +1,23 @@
 using System.Text.Json;
+using DigitalBrain.Framework.Modules;
 using global::Azure;
 
 namespace DigitalBrain.Microsoft.Azure.Install;
 
 // dotnet run --project DigitalBrain.OS -- install --env test --config deployment/test.json [--dry-run] [--secrets-from file]
-// Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order.
+// Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the
+// deployments of the composed modules run after the foundation.
 public static class AzureInstaller
 {
     public const string MasterKeyVariable = "DIGITALBRAIN_MASTER_KEY";
 
     public static bool IsInstall(string[] args) => args is [var verb, ..] && verb == "install";
 
-    public static async Task<int> Run(string[] args, IAzureArm arm, TextWriter output, TextWriter error, CancellationToken ct)
+    public static async Task<int> Run(string[] args, IAzureArm arm, IEnumerable<Module> modules, TextWriter output, TextWriter error, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(arm);
+        ArgumentNullException.ThrowIfNull(modules);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
         InstallConfig config;
@@ -36,32 +39,60 @@ public static class AzureInstaller
             return 2;
         }
 
-        var plan = InstallPlan.Build(config);
-        if (dryRun)
-        {
-            foreach (var spec in plan) { await output.WriteLineAsync(InstallPlan.DryRunLine(spec)); }
-            return 0;
-        }
-
-        string masterKey;
-        try { masterKey = await MasterKey(secretsFrom, ct); }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException)
+        IReadOnlyList<ModuleDeploymentBinding> deployments;
+        try { deployments = ModuleDeployments.Discover(modules); }
+        catch (InvalidOperationException ex)
         {
             await error.WriteLineAsync($"install: {ex.Message}");
             return 2;
         }
 
-        foreach (var spec in plan)
+        var masterKey = "";
+        if (!dryRun)
         {
-            var line = InstallPlan.DryRunLine(spec);
-            await output.WriteLineAsync(line);
-            var send = spec is SecretSpec secret && secret.Name == InstallPlan.MasterKeySecret ? secret with { Value = masterKey } : spec;
-            try { await arm.Ensure(config.Subscription, AzureTags.Tagged(send), ct); }
-            catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException)
+            try { masterKey = await MasterKey(secretsFrom, ct); }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException)
             {
-                await error.WriteLineAsync($"install: {line} failed: {ex.Message}");
-                return 1;
+                await error.WriteLineAsync($"install: {ex.Message}");
+                return 2;
             }
+        }
+
+        var current = "";
+        async Task<ResourceRef> Ensure(ResourceSpec spec, CancellationToken token)
+        {
+            current = InstallPlan.DryRunLine(spec);
+            await output.WriteLineAsync(current);
+            if (dryRun) { return new ResourceRef(ResourceIds.For(config.Subscription, spec), spec.Kind, spec.Name, spec.ResourceGroup); }
+            return await arm.Ensure(config.Subscription, AzureTags.Tagged(spec), token);
+        }
+
+        try
+        {
+            // The foundation first, then each composed module's deployment, then the OS app with what they asked for.
+            foreach (var spec in InstallPlan.Foundation(config))
+            {
+                var send = spec is SecretSpec secret && secret.Name == InstallPlan.MasterKeySecret ? secret with { Value = masterKey } : spec;
+                await Ensure(send, ct);
+            }
+            var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
+            var foundation = InstallPlan.Refs(config);
+            var variables = new Dictionary<string, string>(StringComparer.Ordinal);
+            var secrets = new List<SecretRef>();
+            foreach (var (module, deployment) in deployments)
+            {
+                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct);
+                current = $"deploy module {module}";
+                await deployment.Deploy(context);
+                foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }
+                secrets.AddRange(context.RuntimeSecrets);
+            }
+            await Ensure(InstallPlan.OsApp(config, variables, secrets), ct);
+        }
+        catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException)
+        {
+            await error.WriteLineAsync($"install: {current} failed: {ex.Message}");
+            return 1;
         }
         return 0;
     }

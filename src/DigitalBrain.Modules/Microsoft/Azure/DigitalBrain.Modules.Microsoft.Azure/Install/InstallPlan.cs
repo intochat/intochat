@@ -4,7 +4,7 @@ using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.Azure.Install;
 
-// The ordered specs of the OS foundation, behaviourally the runtime wiring of DigitalBrain.Deployment.Runtime:
+// The ordered specs of the OS foundation (the OS silo, its storage, vault and identity):
 // resource group, identity, logs, storage, vault, environment, grants, secret, then the OS app.
 public static class InstallPlan
 {
@@ -23,7 +23,31 @@ public static class InstallPlan
     private const int AppUid = 1654;
     private const int AppGid = 1654;
 
-    public static ResourceSpec[] Build(InstallConfig config)
+    public static ResourceSpec[] Build(InstallConfig config) => Build(config, new Dictionary<string, string>(), []);
+
+    // Everything the OS app runs on: its resources, without the app itself.
+    public static ResourceSpec[] Foundation(InstallConfig config) => Build(config)[..^1];
+
+    // The OS app, with the variables and secrets the module deployments asked for.
+    public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<SecretRef> secrets) =>
+        (ContainerAppSpec)Build(config, variables, secrets)[^1];
+
+    public static FoundationRefs Refs(InstallConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var c = config.Validated();
+        var group = ResourceNames.ResourceGroup(c.Prefix, c.Env);
+        ResourceRef Ref(string kind, string name) => new(ResourceIds.For(c.Subscription, kind, group, name), kind, name, group);
+        return new FoundationRefs(
+            Ref(ResourceKinds.ResourceGroup, group),
+            Ref(ResourceKinds.Identity, ResourceNames.Identity(c.Prefix, c.Env)),
+            Ref(ResourceKinds.ManagedEnvironment, ResourceNames.Environment(c.Prefix, c.Env)),
+            Ref(ResourceKinds.StorageAccount, ResourceNames.StorageAccount(c.Prefix, c.Env)),
+            Ref(ResourceKinds.KeyVault, ResourceNames.KeyVault(c.Prefix, c.Env)),
+            c.RegistryServer);
+    }
+
+    private static ResourceSpec[] Build(InstallConfig config, IReadOnlyDictionary<string, string> extraVariables, IReadOnlyList<SecretRef> extraSecrets)
     {
         ArgumentNullException.ThrowIfNull(config);
         var c = config.Validated();
@@ -78,8 +102,8 @@ public static class InstallPlan
                 RegistryServer = c.RegistryServer,
                 // Liveness is the process alone, readiness the drain, startup waits for dependencies.
                 ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
-                Variables = Variables(c, account, vault, lease, grainState),
-                Secrets = [new SecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = DigitalBrainNames.MasterKeyEnvironmentVariable }],
+                Variables = Variables(c, account, vault, lease, grainState, extraVariables),
+                Secrets = [new SecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = DigitalBrainNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
                 VolumeMounts =
                 [
                     new VolumeMountSpec
@@ -101,11 +125,11 @@ public static class InstallPlan
         return $"ensure {spec.Kind} {spec.Name} in {spec.ResourceGroup}";
     }
 
-    private static Dictionary<string, string> Variables(InstallConfig c, string account, string vault, string lease, string grainState)
+    private static Dictionary<string, string> Variables(InstallConfig c, string account, string vault, string lease, string grainState, IReadOnlyDictionary<string, string> extra)
     {
         var tables = $"https://{account}.table.core.windows.net/";
         var blobs = $"https://{account}.blob.core.windows.net/";
-        return new Dictionary<string, string>
+        var variables = new Dictionary<string, string>
         {
             ["ASPNETCORE_ENVIRONMENT"] = "Production",
             // DefaultAzureCredential picks the user-assigned identity by this client id (Orleans stores, lease, vault).
@@ -123,6 +147,8 @@ public static class InstallPlan
             [Variable(DigitalBrainNames.BrainStorageOwnershipKindConfigurationKey)] = DigitalBrainNames.BrainStorageOwnershipBlobLease,
             [Variable(DigitalBrainNames.BrainStorageOwnershipContainerUriConfigurationKey)] = blobs + lease,
         };
+        foreach (var (name, value) in extra) { variables[name] = value; }
+        return variables;
     }
 
     private static string BrainLogDirectory(InstallConfig c) => "/data/brain/" + c.StorageFormat;
