@@ -5,7 +5,6 @@
     "DigitalBrain.Modules.ClickHouse.Tests",
     "DigitalBrain.Modules.Equifax.Tests",
     "DigitalBrain.Modules.Flame.Tests",
-    "DigitalBrain.Modules.Flutter.Tests",
     "DigitalBrain.Modules.Google.Gmail.Tests",
     "DigitalBrain.Modules.Mcp.Tests",
     "DigitalBrain.Modules.Microsoft.Aspire.Tests",

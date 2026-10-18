@@ -82,7 +82,7 @@
     <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
     <Project Path="src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Hosting/DigitalBrain.Modules.Flutter.Tests.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests/DigitalBrain.Modules.Flutter.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Integration/DigitalBrain.Modules.Flutter.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Gmail/">
     <Project Path="src/DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting.csproj" />
