@@ -1,8 +1,12 @@
+using Azure.Core;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Storage;
 
@@ -21,8 +25,13 @@ public static class BrainStorageHosting
         var services = silo.Services;
         services.AddOptions<BrainStoreOptions>().BindConfiguration(BrainStoreOptions.Key)
             .Validate(options => !string.IsNullOrWhiteSpace(options.Directory), "Local brain storage needs a directory.")
+            .Validate(options => options.Ownership.Kind != BrainLogOwnershipKind.BlobLease
+                || options.Ownership.ContainerUri is not null || !string.IsNullOrWhiteSpace(options.Ownership.ConnectionString),
+                "Blob lease ownership needs Ownership:ContainerUri or Ownership:ConnectionString.")
             .ValidateOnStart();
         services.TryAddSingleton<BrainStorageKeys>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IBrainLogOwnership>(BrainLogOwnership);
         services.TryAddSingleton<BrainLogs>();
         services.RemoveAll<ISignalJournal>();
         services.AddSingleton<ISignalJournal, BrainSignalJournal>();
@@ -46,6 +55,17 @@ public static class BrainStorageHosting
             return Task.CompletedTask;
         });
         return silo;
+    }
+
+    private static IBrainLogOwnership BrainLogOwnership(IServiceProvider provider)
+    {
+        var options = provider.GetRequiredService<IOptions<BrainStoreOptions>>().Value.Ownership;
+        if (options.Kind != BrainLogOwnershipKind.BlobLease) { return FileLockBrainLogOwnership.Instance; }
+        var container = options.ConnectionString is { Length: > 0 } connection
+            ? new BlobContainerClient(connection, options.ContainerName)
+            : new BlobContainerClient(options.ContainerUri!, provider.GetService<TokenCredential>() ?? new DefaultAzureCredential());
+        return new BlobLeaseBrainLogOwnership(new AzureBrainLeaseClient(container), provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<BlobLeaseBrainLogOwnership>>(), options.ClaimTimeout);
     }
 
     // Whether AddBrainStorage has run on these services.

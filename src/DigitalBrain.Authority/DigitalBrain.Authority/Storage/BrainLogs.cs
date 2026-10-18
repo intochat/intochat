@@ -11,10 +11,13 @@ internal sealed class BrainLogs : IAsyncDisposable
     private readonly Lock gate = new();
     private readonly BrainLogFormat writeFormat;
     private readonly IBrainLogFiles? files;
+    private readonly IBrainLogOwnership ownership;
     private bool disposed;
 
-    public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options, IBrainLogFiles? files = null)
+    public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options, IBrainLogFiles? files = null,
+        IBrainLogOwnership? ownership = null)
     {
+        this.ownership = ownership ?? FileLockBrainLogOwnership.Instance;
         this.files = files;
         this.keys = keys;
         this.serializer = serializer;
@@ -34,16 +37,16 @@ internal sealed class BrainLogs : IAsyncDisposable
         }
     }
 
-    // Claims the brain's writer lock before touching its key, so a silo that does not own the brain creates nothing.
+    // Claims the brain's ownership (writer lock or lease) before touching its key, so a silo that does not own the brain creates nothing.
     // A failed open is forgotten, so a later call can claim the brain once its owner lets go.
     private async Task<BrainLog> Open(string brainId)
     {
         try
         {
             var directory = keys.DirectoryOf(brainId);
-            var ownership = BrainLog.Claim(directory, brainId);
-            try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, ownership, files); }
-            catch { ownership.Dispose(); throw; }
+            var lease = await ownership.ClaimAsync(directory, brainId, CancellationToken.None);
+            try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, lease, files); }
+            catch { lease.Dispose(); throw; }
         }
         catch
         {
@@ -72,7 +75,7 @@ internal sealed class BrainLogs : IAsyncDisposable
         {
             BrainLog log;
             try { log = await task; }
-            catch { continue; } // Failed opens already released their writer lock.
+            catch { continue; } // Failed opens already released their ownership.
             log.Dispose();
         }
     }

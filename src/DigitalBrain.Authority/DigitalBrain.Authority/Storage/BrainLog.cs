@@ -6,7 +6,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Authority.Storage;
 
-// One local writer. State and its signals share a flushed, authenticated journal entry.
+// One writer, proven by its ownership lease. State and its signals share a flushed, authenticated journal entry.
 internal sealed class BrainLog : IDisposable
 {
     private const int MaxEntryBytes = 16 * 1024 * 1024;
@@ -16,7 +16,7 @@ internal sealed class BrainLog : IDisposable
     private readonly string brainId;
     private readonly byte[] key;
     private readonly Serializer serializer;
-    private readonly FileStream ownership;
+    private readonly IBrainLogLease ownership;
     private readonly IBrainLogFiles files;
     private readonly Lock gate = new();
     private readonly BrainLogFormat writeFormat;
@@ -33,8 +33,8 @@ internal sealed class BrainLog : IDisposable
         IBrainLogFiles? files = null)
         : this(directory, brainId, key, serializer, writeFormat, Claim(directory, brainId), files) { }
 
-    // Takes ownership of an already claimed writer lock (see Claim).
-    internal BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat, FileStream ownership,
+    // Takes ownership of an already claimed lease (see IBrainLogOwnership); every write checks it is still held.
+    internal BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat, IBrainLogLease ownership,
         IBrainLogFiles? files = null)
     {
         this.ownership = ownership;
@@ -48,14 +48,8 @@ internal sealed class BrainLog : IDisposable
         catch { ownership.Dispose(); throw; }
     }
 
-    // The per-brain writer lock is the ownership token: a second writer, in this or another process, is refused.
-    internal static FileStream Claim(string directory, string brainId)
-    {
-        Directory.CreateDirectory(directory);
-        try { return new FileStream(Path.Combine(directory, "writer.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException error) when (error is not FileNotFoundException and not DirectoryNotFoundException)
-        { throw new BrainNotOwnedException(brainId, error); }
-    }
+    // The per-brain writer lock, the default ownership token.
+    internal static IBrainLogLease Claim(string directory, string brainId) => FileLockBrainLogOwnership.Claim(directory, brainId);
 
     public long LastSignal { get { lock (gate) { return lastSignal; } } }
 
@@ -132,6 +126,7 @@ internal sealed class BrainLog : IDisposable
             var plain = serializer.SerializeToArray(entry);
             if (plain.Length > MaxEntryBytes) { throw new ArgumentException("A brain change exceeds 16 MiB.", nameof(record)); }
             var bytes = SegmentSeal.Close(key, Context("log"), plain);
+            ownership.EnsureHeld();
             try
             {
                 using var stream = files.OpenAppend(Journal);
@@ -143,6 +138,8 @@ internal sealed class BrainLog : IDisposable
                 BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(offset), bytes.Length);
                 bytes.CopyTo(frame.AsSpan(offset + 4));
                 stream.Write(frame);
+                // A write that outlived the lease is neither flushed nor applied; the log faults and must be reopened.
+                ownership.EnsureHeld();
                 FlushToDisk(stream);
                 // Deserialize the durable bytes so callers cannot mutate the stored projection.
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
@@ -181,13 +178,14 @@ internal sealed class BrainLog : IDisposable
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
+            ownership.EnsureHeld();
             var previous = generation;
             var next = Guid.NewGuid().ToString("N");
             var snapshot = new BrainSnapshot(sequence, lastSignal, records, [.. signals], writeFormat);
             WriteFlushed(Path.Combine(directory, next + ".snapshot"), SegmentSeal.Close(key, Context("snapshot", next), serializer.SerializeToArray(snapshot)));
             WriteFlushed(Path.Combine(directory, next + ".log"), []);
             WriteFlushed(Path.Combine(directory, "current.tmp"), System.Text.Encoding.UTF8.GetBytes(next));
-            try { File.Move(Path.Combine(directory, "current.tmp"), Path.Combine(directory, "current"), overwrite: true); }
+            try { ownership.EnsureHeld(); File.Move(Path.Combine(directory, "current.tmp"), Path.Combine(directory, "current"), overwrite: true); }
             catch (Exception error) { failure = error; throw; }
             generation = next;
             format = writeFormat;
