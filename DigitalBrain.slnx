@@ -156,7 +156,6 @@
   </Folder>
   <Folder Name="/Modules/Qdrant/">
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Deployment/DigitalBrain.Modules.Qdrant.Deployment.csproj" />
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
     <Project Path="src/DigitalBrain.Modules/Qdrant/tests/DigitalBrain.Modules.Qdrant.Tests.Unit/DigitalBrain.Modules.Qdrant.Tests.Unit.csproj" />
   </Folder>
