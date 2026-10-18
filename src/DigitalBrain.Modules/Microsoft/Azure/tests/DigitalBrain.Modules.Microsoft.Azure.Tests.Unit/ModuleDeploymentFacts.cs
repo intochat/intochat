@@ -150,9 +150,10 @@ public sealed class ModuleDeploymentFacts
                 "ensure role-grant intochat-test-csharp-sandbox-sessions in intochat-test-rg",
                 "ensure secret csharp-run-token-key in intochat-test-rg",
             ];
-            Assert.Equal("ensure secret master-key in intochat-test-rg", lines[^(module.Length + 2)]);
-            Assert.Equal(module, lines[^(module.Length + 1)..^1]);
-            Assert.Equal("ensure container-app intochat-test-os in intochat-test-rg", lines[^1]);
+            Assert.Equal("ensure secret master-key in intochat-test-rg", lines[^(module.Length + 3)]);
+            Assert.Equal(module, lines[^(module.Length + 2)..^2]);
+            Assert.Equal("ensure container-app intochat-test-os in intochat-test-rg", lines[^2]);
+            Assert.StartsWith("summary: ", lines[^1], StringComparison.Ordinal);
         }
         finally { directory.Delete(true); }
     }

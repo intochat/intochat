@@ -9,6 +9,10 @@ namespace DigitalBrain.Microsoft.Azure.Install;
 public static class InstallPlan
 {
     public const string MasterKeySecret = "master-key";
+    public const string PostgresPasswordSecret = "postgres-admin-password";
+    public const string DbConnectionSecret = "db-connection";
+    public const string GhcrTokenSecret = "ghcr-read-token";
+    public const string GhcrServer = "ghcr.io";
     public const string BrainLogShare = "brainlog";
     public const string Owner = "os";
     public const int HttpPort = 8080;
@@ -17,6 +21,7 @@ public static class InstallPlan
     public const int GatewayPort = 30000;
 
     private const string KeyVaultSecretsUser = "4633458b-17de-408a-b874-0445c86b69e6";
+    private const string AcrPull = "7f951dda-4ed3-4680-a7ca-43fe172d538d";
     private const string StorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe";
     private const string StorageTableDataContributor = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3";
     private const string BrainLogVolume = "brainlog";
@@ -36,40 +41,50 @@ public static class InstallPlan
     {
         ArgumentNullException.ThrowIfNull(config);
         var c = config.Validated();
-        var group = ResourceNames.ResourceGroup(c.Prefix, c.Env);
+        var group = c.GroupName;
         ResourceRef Ref(string kind, string name) => new(ResourceIds.For(c.Subscription, kind, group, name), kind, name, group);
         return new FoundationRefs(
             Ref(ResourceKinds.ResourceGroup, group),
-            Ref(ResourceKinds.Identity, ResourceNames.Identity(c.Prefix, c.Env)),
-            Ref(ResourceKinds.ManagedEnvironment, ResourceNames.Environment(c.Prefix, c.Env)),
-            Ref(ResourceKinds.StorageAccount, ResourceNames.StorageAccount(c.Prefix, c.Env)),
-            Ref(ResourceKinds.KeyVault, ResourceNames.KeyVault(c.Prefix, c.Env)),
-            c.RegistryServer);
+            Ref(ResourceKinds.Identity, c.IdentityName),
+            Ref(ResourceKinds.ManagedEnvironment, c.EnvironmentName),
+            Ref(ResourceKinds.StorageAccount, c.StorageName),
+            Ref(ResourceKinds.KeyVault, c.VaultName),
+            c.LoginServer,
+            c.Registry.Enabled ? Ref(ResourceKinds.Registry, c.RegistryName) with { Endpoint = c.LoginServer } : null,
+            c.Postgres.Enabled ? Ref(ResourceKinds.Postgres, c.PostgresName) with { Endpoint = PostgresHost(c) } : null);
+    }
+
+    public static string PostgresHost(InstallConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return config.PostgresName + ".postgres.database.azure.com";
     }
 
     private static ResourceSpec[] Build(InstallConfig config, IReadOnlyDictionary<string, string> extraVariables, IReadOnlyList<SecretRef> extraSecrets)
     {
         ArgumentNullException.ThrowIfNull(config);
         var c = config.Validated();
-        var group = ResourceNames.ResourceGroup(c.Prefix, c.Env);
-        var identity = ResourceNames.Identity(c.Prefix, c.Env);
-        var workspace = ResourceNames.LogWorkspace(c.Prefix, c.Env);
-        var account = ResourceNames.StorageAccount(c.Prefix, c.Env);
-        var vault = ResourceNames.KeyVault(c.Prefix, c.Env);
-        var environment = ResourceNames.Environment(c.Prefix, c.Env);
-        var app = ResourceNames.App(c.Prefix, c.Env, "os");
+        var group = c.GroupName;
+        var identity = c.IdentityName;
+        var workspace = c.LogsName;
+        var account = c.StorageName;
+        var vault = c.VaultName;
+        var environment = c.EnvironmentName;
+        var app = c.OsName;
+        var registry = c.RegistryName;
         var grainState = "grainstate-" + c.StorageFormat;
         var lease = "brainlease-" + c.StorageFormat;
         var scopePrefix = $"/subscriptions/{c.Subscription}/resourceGroups/{group}/providers";
         var vaultScope = $"{scopePrefix}/Microsoft.KeyVault/vaults/{vault}";
         var accountScope = $"{scopePrefix}/Microsoft.Storage/storageAccounts/{account}";
+        var registryScope = $"{scopePrefix}/Microsoft.ContainerRegistry/registries/{registry}";
 
         T In<T>(T spec) where T : ResourceSpec => spec with { ResourceGroup = group, Location = c.Location, Env = c.Env, Owner = Owner };
         RoleGrantSpec Grant(string name, string role, string scope) =>
             In(new RoleGrantSpec { Name = $"{app}-{name}", Principal = identity, RoleDefinitionId = role, Scope = scope });
 
-        return
-        [
+        var specs = new List<ResourceSpec>
+        {
             In(new ResourceGroupSpec { Name = group }),
             In(new IdentitySpec { Name = identity }),
             In(new LogWorkspaceSpec { Name = workspace }),
@@ -77,52 +92,100 @@ public static class InstallPlan
             In(new FileShareSpec { Name = BrainLogShare, StorageAccount = account, QuotaGb = c.StorageQuotaGb }),
             In(new BlobContainerSpec { Name = grainState, StorageAccount = account }),
             In(new BlobContainerSpec { Name = lease, StorageAccount = account }),
-            In(new KeyVaultSpec { Name = vault }),
-            In(new ManagedEnvironmentSpec
+        };
+        if (c.Registry.Enabled) { specs.Add(In(new RegistrySpec { Name = registry, Sku = c.Registry.Sku })); }
+        specs.Add(In(new KeyVaultSpec { Name = vault }));
+        if (c.Postgres.Enabled) { specs.AddRange(PostgresSpecs(c, vault).Select(In)); }
+        specs.Add(In(new ManagedEnvironmentSpec
+        {
+            Name = environment,
+            LogWorkspace = workspace,
+            Storages = [new EnvironmentStorageSpec { Name = BrainLogShare, StorageAccount = account, ShareName = BrainLogShare }],
+        }));
+        specs.Add(Grant("vault-secrets", KeyVaultSecretsUser, vaultScope));
+        specs.Add(Grant("storage-blobs", StorageBlobDataContributor, accountScope));
+        specs.Add(Grant("storage-tables", StorageTableDataContributor, accountScope));
+        if (c.Registry.Enabled) { specs.Add(Grant("registry-pull", AcrPull, registryScope)); }
+        // Losing the master key loses the brain: a later install never overwrites it.
+        specs.Add(In(new SecretSpec { Name = MasterKeySecret, Vault = vault, Overwrite = false }));
+        // The installer fills the value when the secrets file has one; the token is then replaced.
+        if (c.GhcrUsername.Length > 0) { specs.Add(In(new SecretSpec { Name = GhcrTokenSecret, Vault = vault, Overwrite = true })); }
+        specs.Add(In(new ContainerAppSpec
+        {
+            Name = app,
+            Environment = environment,
+            Identity = identity,
+            Image = c.OsImage,
+            Cpu = c.Cpu,
+            Memory = c.Memory,
+            IngressPort = HttpPort,
+            InternalPorts = [GatewayPort],
+            RegistryServer = c.LoginServer,
+            // Liveness is the process alone, readiness the drain, startup waits for dependencies.
+            ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
+            Variables = Variables(c, account, vault, lease, grainState, extraVariables),
+            Secrets = [new SecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = DigitalBrainNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
+            VolumeMounts =
+            [
+                new VolumeMountSpec
+                {
+                    Volume = BrainLogVolume,
+                    EnvironmentStorage = BrainLogShare,
+                    MountPath = BrainLogDirectory(c),
+                    // nobrl is deliberately absent: lease ownership does not need it.
+                    MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,actimeo=30,nosharesock"),
+                },
+            ],
+            Registries = c.GhcrUsername.Length > 0
+                ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
+                : [],
+        }));
+        return [.. specs];
+    }
+
+    // The admin password is generated once (Overwrite false) unless the secrets file carries it. db-connection is
+    // rewritten on every install from the server host and that password, so apps read one secret.
+    private static IEnumerable<ResourceSpec> PostgresSpecs(InstallConfig c, string vault)
+    {
+        yield return new SecretSpec { Name = PostgresPasswordSecret, Vault = vault, Overwrite = false };
+        yield return new PostgresSpec
+        {
+            Name = c.PostgresName,
+            Sku = c.Postgres.Sku,
+            Tier = c.Postgres.Tier,
+            StorageGb = c.Postgres.StorageGb,
+            AdminLogin = c.Postgres.AdminLogin,
+            Vault = vault,
+            AdminPasswordSecret = PostgresPasswordSecret,
+        };
+        foreach (var database in c.Postgres.Databases)
+        {
+            yield return new PostgresDatabaseSpec { Name = database, Server = c.PostgresName };
+        }
+        for (var i = 0; i < c.Postgres.Databases.Length; i++)
+        {
+            var database = c.Postgres.Databases[i];
+            yield return new SecretSpec
             {
-                Name = environment,
-                LogWorkspace = workspace,
-                Storages = [new EnvironmentStorageSpec { Name = BrainLogShare, StorageAccount = account, ShareName = BrainLogShare }],
-            }),
-            Grant("vault-secrets", KeyVaultSecretsUser, vaultScope),
-            Grant("storage-blobs", StorageBlobDataContributor, accountScope),
-            Grant("storage-tables", StorageTableDataContributor, accountScope),
-            // Losing the master key loses the brain: a later install never overwrites it.
-            In(new SecretSpec { Name = MasterKeySecret, Vault = vault, Overwrite = false }),
-            In(new ContainerAppSpec
-            {
-                Name = app,
-                Environment = environment,
-                Identity = identity,
-                Image = c.OsImage,
-                Cpu = c.Cpu,
-                Memory = c.Memory,
-                IngressPort = HttpPort,
-                InternalPorts = [GatewayPort],
-                RegistryServer = c.RegistryServer,
-                // Liveness is the process alone, readiness the drain, startup waits for dependencies.
-                ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
-                Variables = Variables(c, account, vault, lease, grainState, extraVariables),
-                Secrets = [new SecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = DigitalBrainNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
-                VolumeMounts =
-                [
-                    new VolumeMountSpec
-                    {
-                        Volume = BrainLogVolume,
-                        EnvironmentStorage = BrainLogShare,
-                        MountPath = BrainLogDirectory(c),
-                        // nobrl is deliberately absent: lease ownership does not need it.
-                        MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,actimeo=30,nosharesock"),
-                    },
-                ],
-            }),
-        ];
+                Name = i == 0 ? DbConnectionSecret : $"{DbConnectionSecret}-{database}",
+                Vault = vault,
+                Overwrite = true,
+                Value = $"Host={PostgresHost(c)};Database={database};Username={c.Postgres.AdminLogin};Password={SecretSpec.Reference(PostgresPasswordSecret)}",
+            };
+        }
     }
 
     public static string DryRunLine(ResourceSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
         return $"ensure {spec.Kind} {spec.Name} in {spec.ResourceGroup}";
+    }
+
+    public static string Summary(IReadOnlyCollection<ResourceSpec> specs)
+    {
+        ArgumentNullException.ThrowIfNull(specs);
+        var counts = specs.GroupBy(spec => spec.Kind).OrderBy(group => group.Key, StringComparer.Ordinal).Select(group => $"{group.Key}={group.Count()}");
+        return $"summary: {specs.Count} resources in {string.Join(", ", specs.Select(spec => spec.ResourceGroup).Distinct())} ({string.Join(", ", counts)})";
     }
 
     private static Dictionary<string, string> Variables(InstallConfig c, string account, string vault, string lease, string grainState, IReadOnlyDictionary<string, string> extra)
