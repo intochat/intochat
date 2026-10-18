@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Integration.Contracts;
 
@@ -9,12 +11,15 @@ namespace DigitalBrain.Modules.Flutter.Tests.Integration.Contracts;
 // pinned per record: every state a UI contract's Read returns, the view tree (UiView/UiNode) and UiEvent. A
 // renamed, retyped or removed member fails here; an added member is a reviewed golden update through
 // CaptureUiStateGoldens (run explicitly).
-public sealed class UiStateGoldenFacts
+public sealed class UiStateGoldenFacts(FlutterHost host)
 {
     internal const string GoldenFile = "ui-states.golden.json";
 
-    // GET /apps/node and POST /apps/event use the Web defaults (AppUiEndpoints); the view adds MaxDepth 128.
-    private static readonly JsonSerializerOptions Wire = new(JsonSerializerDefaults.Web) { MaxDepth = 128 };
+    // The options the endpoints really use: the view's own (AppUiEndpoints.ViewJson) and, for every other kind and
+    // for the /event body, the running host's HTTP JSON options, so a settings change fails the pin.
+    private JsonSerializerOptions Wire(Type type) => type == typeof(UiView) || type == typeof(UiNode)
+        ? AppUiEndpoints.ViewJson
+        : host.Brain.Services.GetRequiredService<IOptions<global::Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
 
     internal static Type[] Records()
     {
@@ -26,7 +31,7 @@ public sealed class UiStateGoldenFacts
         return [.. states.Append(typeof(UiView)).Append(typeof(UiNode)).Append(typeof(AppUiEndpoints.UiEvent)).Distinct().OrderBy(type => type.FullName, StringComparer.Ordinal)];
     }
 
-    private static JsonNode Serialize(Type type, object value) => JsonNode.Parse(JsonSerializer.Serialize(value, type, Wire))!;
+    private JsonNode Serialize(Type type, object value) => JsonNode.Parse(JsonSerializer.Serialize(value, type, Wire(type)))!;
 
     [Fact]
     public void EveryUiRecordHasAGolden()
@@ -55,7 +60,7 @@ public sealed class UiStateGoldenFacts
     {
         var type = Records().Single(type => type.FullName == record);
         var golden = UiContractFiles.Golden(GoldenFile)[record]!;
-        var read = JsonSerializer.Deserialize(golden.ToJsonString(), type, Wire)!;
+        var read = JsonSerializer.Deserialize(golden.ToJsonString(), type, Wire(type))!;
 
         Assert.True(JsonNode.DeepEquals(golden, Serialize(type, read)), $"{record} does not read its golden JSON back unchanged.");
     }

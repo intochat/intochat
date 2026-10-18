@@ -22,12 +22,24 @@ public sealed partial class DartVocabularyFacts
     {
         var list = UiKinds().Match(UiContractFiles.Dart("ui", Path.Combine("composition", "renderer_registry.dart")));
         Assert.True(list.Success, "RendererRegistry.uiKinds was not found.");
-        return [.. Quoted().Matches(list.Groups["body"].Value).Select(match => match.Groups["value"].Value).Order(StringComparer.Ordinal)];
+        var body = list.Groups["body"].Value;
+        var kinds = Quoted().Matches(body).Select(match => match.Groups["value"].Value).ToArray();
+        // Every comma-separated entry must be a plain quoted kind; anything else is a shape this reader does not know.
+        var entries = body.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+        Assert.True(kinds.Length == entries, $"RendererRegistry.uiKinds has {entries} entries but {kinds.Length} parsed as quoted kinds.");
+        return [.. kinds.Order(StringComparer.Ordinal)];
     }
 
     internal static (string Kind, string Contract, string Changed)[] NodeContracts()
-        => [.. NodeContract().Matches(UiContractFiles.Dart("core", "node_contracts.dart"))
-            .Select(match => (match.Groups["kind"].Value, match.Groups["contract"].Value, match.Groups["changed"].Value))];
+    {
+        var source = UiContractFiles.Dart("core", "node_contracts.dart");
+        var table = NodeContract().Matches(source)
+            .Select(match => (match.Groups["kind"].Value, match.Groups["contract"].Value, match.Groups["changed"].Value)).ToArray();
+        // Every NodeContract(...) construction in the table must parse; the class declaration's constructor does not count.
+        var entries = Regex.Count(source, @"NodeContract\(") - Regex.Count(source, @"const NodeContract\(");
+        Assert.True(table.Length == entries, $"node_contracts.dart has {entries} NodeContract entries but {table.Length} parsed.");
+        return table;
+    }
 
     [Fact]
     public void TheRendererRegistryMirrorsTheVocabulary()

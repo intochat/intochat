@@ -1,31 +1,31 @@
 {
   "measured": "2026-10-18",
-  "method": "UiTransportBaselineFacts.CaptureUiTransportBaseline on the shared in-process FlutterHost (backend only, no network hop). One view whose root column holds a title and 10 button and 10 text UiChildRefs. 5 warm-up runs, then 50 timed runs per scenario, Stopwatch around the shell's HTTP calls. first-paint: GET view + one sequential GET /apps/node per reference. click-round-trip: POST /apps/event for a button + GET of that button (nudge latency excluded). root-view-poll-2s: one GET of the view; perMinute = 30 polls. Bytes are response bodies (click digits excluded). Times compare only against reruns of this fact on the same machine: Release build, 32 logical cores, Microsoft Windows 10.0.26300, .NET 11.0.0-rc.2.26504.105.",
+  "method": "UiTransportBaselineFacts.CaptureUiTransportBaseline on the shared in-process FlutterHost (backend only, no network hop). One view whose root column holds a title and 10 button and 10 text UiChildRefs. 5 warm-up runs, then 50 timed runs per scenario, Stopwatch around the shell's HTTP calls. first-paint: GET view + one sequential GET /apps/node per reference. click-round-trip: POST /apps/event for a button + GET of that button (nudge latency excluded). root-view-poll-2s: one GET of the view; perMinute = 30 polls. Bytes are UTF-8 response bodies (click digits excluded). Times compare only against reruns of this fact on the same machine: Release build, 32 logical cores, Microsoft Windows 10.0.26300, .NET 11.0.0-rc.2.26504.105.",
   "scenarios": {
     "first-paint": {
       "requests": 21,
       "bytes": 8385,
-      "p50Ms": 11.44,
-      "p95Ms": 13.73,
-      "meanMs": 11.83
+      "p50Ms": 10.4,
+      "p95Ms": 19.55,
+      "meanMs": 11.37
     },
     "click-round-trip": {
       "requests": 2,
       "bytes": 200,
       "p50Ms": 3.38,
-      "p95Ms": 3.9,
-      "meanMs": 3.32
+      "p95Ms": 4.69,
+      "meanMs": 3.49
     },
     "root-view-poll-2s": {
       "requests": 1,
       "bytes": 5185,
-      "p50Ms": 1.11,
-      "p95Ms": 1.41,
-      "meanMs": 1.17,
+      "p50Ms": 0.96,
+      "p95Ms": 1.18,
+      "meanMs": 0.99,
       "perMinute": {
         "requests": 30,
         "bytes": 155550,
-        "p50Ms": 33.37
+        "p50Ms": 28.76
       }
     }
   }

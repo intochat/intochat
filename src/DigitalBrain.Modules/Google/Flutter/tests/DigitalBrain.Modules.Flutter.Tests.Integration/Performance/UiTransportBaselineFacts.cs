@@ -71,7 +71,7 @@ public sealed class UiTransportBaselineFacts(FlutterHost host)
             ["method"] = "UiTransportBaselineFacts.CaptureUiTransportBaseline on the shared in-process FlutterHost (backend only, no network hop). "
                 + $"One view whose root column holds a title and {Buttons} button and {Texts} text UiChildRefs. 5 warm-up runs, then 50 timed runs per scenario, "
                 + "Stopwatch around the shell's HTTP calls. first-paint: GET view + one sequential GET /apps/node per reference. click-round-trip: POST /apps/event "
-                + "for a button + GET of that button (nudge latency excluded). root-view-poll-2s: one GET of the view; perMinute = 30 polls. Bytes are response bodies "
+                + "for a button + GET of that button (nudge latency excluded). root-view-poll-2s: one GET of the view; perMinute = 30 polls. Bytes are UTF-8 response bodies "
                 + "(click digits excluded). Times compare only against reruns of this fact on the same machine: "
                 + $"{typeof(UiTransportBaselineFacts).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration} build, {Environment.ProcessorCount} logical cores, {RuntimeInformation.OSDescription}, {RuntimeInformation.FrameworkDescription}.",
             ["scenarios"] = entries,
@@ -103,11 +103,11 @@ public sealed class UiTransportBaselineFacts(FlutterHost host)
         async Task<(int Requests, long Bytes)> FirstPaint()
         {
             var root = await http.GetStringAsync(Node(UIVocabulary.ViewType, view), ct);
-            var (requests, bytes) = (1, (long)root.Length);
+            var (requests, bytes) = (1, (long)Utf8(root));
             foreach (var reference in JsonNode.Parse(root)!["root"]!["children"]!.AsArray().Select(node => node!["reference"]).OfType<JsonNode>())
             {
                 var body = await http.GetStringAsync(Node(reference["kind"]!.GetValue<string>(), reference["name"]!.GetValue<string>()), ct);
-                (requests, bytes) = (requests + 1, bytes + body.Length);
+                (requests, bytes) = (requests + 1, bytes + Utf8(body));
             }
             return (requests, bytes);
         }
@@ -118,10 +118,10 @@ public sealed class UiTransportBaselineFacts(FlutterHost host)
             posted.EnsureSuccessStatusCode();
             var accepted = await posted.Content.ReadAsStringAsync(ct);
             var state = await http.GetStringAsync(Node(UIVocabulary.ButtonType, $"{app}/button-0"), ct);
-            return (2, accepted.Length + state.Length - Digits(state));
+            return (2, Utf8(accepted) + Utf8(state) - Digits(state));
         }
 
-        async Task<(int Requests, long Bytes)> Poll() => (1, (await http.GetStringAsync(Node(UIVocabulary.ViewType, view), ct)).Length);
+        async Task<(int Requests, long Bytes)> Poll() => (1, Utf8(await http.GetStringAsync(Node(UIVocabulary.ViewType, view), ct)));
 
         return [await Run("first-paint", FirstPaint), await Run("click-round-trip", Click), await Run("root-view-poll-2s", Poll)];
 
@@ -147,6 +147,8 @@ public sealed class UiTransportBaselineFacts(FlutterHost host)
         return json["clickCount"]!.GetValue<int>().ToString(CultureInfo.InvariantCulture).Length
             + json["version"]!.GetValue<int>().ToString(CultureInfo.InvariantCulture).Length;
     }
+
+    private static int Utf8(string body) => System.Text.Encoding.UTF8.GetByteCount(body);
 
     private static double Percentile(double[] values, int percentile)
     {
