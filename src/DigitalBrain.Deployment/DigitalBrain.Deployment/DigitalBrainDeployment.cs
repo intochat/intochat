@@ -24,7 +24,7 @@ public static class DigitalBrainDeployment
     // The deployment decides where the runtime finds its vault; no runtime project reads the key,
     // only the container images document it, so the deployment is the key's owner.
     private static readonly string KeyVaultUriEnvironmentVariable =
-        DigitalBrainConfiguration.EnvironmentName("DigitalBrain:KeyVault:Uri");
+        DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.KeyVaultUriConfigurationKey);
 
     private const string KeyVaultSecretsUser = "4633458b-17de-408a-b874-0445c86b69e6";
     private const string StorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe";

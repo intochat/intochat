@@ -15,4 +15,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Contracts.Configuration/DigitalBrain.Contracts.Configuration.csproj" />
+  </ItemGroup>
 </Project>

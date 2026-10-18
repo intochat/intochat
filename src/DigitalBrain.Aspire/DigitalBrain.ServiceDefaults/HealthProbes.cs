@@ -16,9 +16,9 @@ namespace DigitalBrain.ServiceDefaults;
 // direct local caller may drain: a request through the front carries X-Forwarded-For and is refused.
 public static class HealthProbes
 {
-    public const string HealthPath = "/health";
-    public const string ReadyPath = "/ready";
-    public const string AlivePath = "/alive";
+    public const string HealthPath = DigitalBrain.Framework.HostProbePaths.Health;
+    public const string ReadyPath = DigitalBrain.Framework.HostProbePaths.Ready;
+    public const string AlivePath = DigitalBrain.Framework.HostProbePaths.Alive;
     public const string DrainPath = "/drain";
     public const string LiveTag = "live";
     public const string DrainTag = "drain";

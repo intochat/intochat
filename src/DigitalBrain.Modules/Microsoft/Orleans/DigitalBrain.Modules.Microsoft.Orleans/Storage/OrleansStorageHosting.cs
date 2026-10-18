@@ -15,10 +15,10 @@ namespace DigitalBrain.Microsoft.Orleans;
 
 public static class OrleansStorageHosting
 {
-    public const string ClusteringField = "Clustering";
-    public const string GrainStateField = "GrainState";
-    public const string RemindersField = "Reminders";
-    public const string GrainStateContainerField = "GrainStateContainer";
+    public const string ClusteringField = OrleansIntegrationNames.Clustering;
+    public const string GrainStateField = OrleansIntegrationNames.GrainState;
+    public const string RemindersField = OrleansIntegrationNames.Reminders;
+    public const string GrainStateContainerField = OrleansIntegrationNames.GrainStateContainer;
 
     private static readonly string[] GrainStores = [DigitalBrainNames.ClusterGrainStorage, DigitalBrainNames.PlatformGrainStorage];
 
