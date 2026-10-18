@@ -58,6 +58,52 @@ public sealed class StorageSelectionFacts
         Assert.Equal(expected, provider.GetRequiredKeyedService<BlobContainerClient>(DigitalBrainNames.GrainState).Name);
     }
 
+    [Fact]
+    public void ServiceUrisUseTheDeploymentIdentityForEveryStore()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField)] = "https://st.table.core.windows.net/",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField + "Uri")] = "https://st.blob.core.windows.net/",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.RemindersField + "Uri")] = "https://st.table.core.windows.net/",
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddSerializer();
+        new FakeSilo(services, configuration).AddOrleansStorage(configuration);
+        using var provider = services.BuildServiceProvider();
+        Assert.IsType<Azure.Identity.DefaultAzureCredential>(provider.GetRequiredService<Azure.Core.TokenCredential>());
+        var blobs = provider.GetRequiredKeyedService<BlobServiceClient>(DigitalBrainNames.GrainState);
+        Assert.Equal("st", blobs.AccountName);
+        Assert.Same(blobs, provider.GetRequiredService<IOptionsMonitor<AzureBlobStorageOptions>>().Get("platform").BlobServiceClient);
+        Assert.Equal("st", provider.GetRequiredService<IOptions<global::Orleans.Clustering.AzureStorage.AzureStorageClusteringOptions>>().Value.TableServiceClient!.AccountName);
+    }
+
+    [Fact]
+    public void ConnectionStringsRegisterNoCredential()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.RemindersField)] = "UseDevelopmentStorage=true",
+        }).Build();
+        var services = new ServiceCollection();
+        new FakeSilo(services, configuration).AddOrleansStorage(configuration);
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(Azure.Core.TokenCredential));
+    }
+
+    [Fact]
+    public void AStoreWithBothAConnectionStringAndAUriRefusesToStart()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField + "Uri")] = "https://st.blob.core.windows.net/",
+        }).Build();
+        var error = Assert.Throws<InvalidOperationException>(() => new FakeSilo(new ServiceCollection(), configuration).AddOrleansStorage(configuration));
+        Assert.Contains("GrainStateUri", error.Message, StringComparison.Ordinal);
+    }
+
     private sealed class FakeSilo(IServiceCollection services, IConfiguration configuration) : ISiloBuilder
     {
         public IServiceCollection Services { get; } = services;

@@ -1,4 +1,6 @@
+using Azure.Core;
 using Azure.Data.Tables;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
 using global::Orleans.Configuration;
@@ -26,11 +28,11 @@ public static class OrleansStorageHosting
     {
         ArgumentNullException.ThrowIfNull(silo);
         ArgumentNullException.ThrowIfNull(configuration);
-        var clustering = configuration[OrleansModule.Integration.Key(ClusteringField)];
-        var grainState = configuration[OrleansModule.Integration.Key(GrainStateField)];
-        var reminders = configuration[OrleansModule.Integration.Key(RemindersField)];
+        var clustering = StorageEndpoint.Read(configuration, ClusteringField);
+        var grainState = StorageEndpoint.Read(configuration, GrainStateField);
+        var reminders = StorageEndpoint.Read(configuration, RemindersField);
         var fields = new[] { (Field: ClusteringField, Value: clustering), (Field: GrainStateField, Value: grainState), (Field: RemindersField, Value: reminders) };
-        var missing = fields.Where(pair => string.IsNullOrWhiteSpace(pair.Value)).Select(pair => pair.Field).ToArray();
+        var missing = fields.Where(pair => pair.Value is null).Select(pair => pair.Field).ToArray();
         if (missing.Length == fields.Length) { return AddMemory(silo, configuration); }
         if (missing.Length > 0)
         {
@@ -60,18 +62,24 @@ public static class OrleansStorageHosting
         return silo;
     }
 
-    private static ISiloBuilder AddAzure(ISiloBuilder silo, string clustering, string grainState, string reminders, string? container)
+    private static ISiloBuilder AddAzure(ISiloBuilder silo, StorageEndpoint clustering, StorageEndpoint grainState, StorageEndpoint reminders, string? container)
     {
-        silo.UseAzureStorageClustering(options => options.TableServiceClient = new TableServiceClient(clustering));
-        silo.UseAzureTableReminderService(options => options.TableServiceClient = new TableServiceClient(reminders));
+        // Service URIs authenticate with the deployment identity, registered once like the C# module's.
+        if (new[] { clustering, grainState, reminders }.Any(endpoint => endpoint.ServiceUri is not null))
+        { silo.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
+        silo.UseAzureStorageClustering(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(clustering, services)));
+        silo.UseAzureTableReminderService(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(reminders, services)));
         // The platform's deployment identity and cookie keys live beside the grain state.
-        silo.Services.AddKeyedSingleton(DigitalBrainNames.GrainState, (_, _) => new BlobServiceClient(grainState));
+        silo.Services.AddKeyedSingleton(DigitalBrainNames.GrainState, (services, _) => grainState.ServiceUri is { } uri
+            ? new BlobServiceClient(uri, services.GetRequiredService<TokenCredential>())
+            : new BlobServiceClient(grainState.ConnectionString));
         silo.Services.AddKeyedSingleton<BlobContainerClient>(DigitalBrainNames.GrainState, (services, _) =>
             services.GetRequiredKeyedService<BlobServiceClient>(DigitalBrainNames.GrainState).GetBlobContainerClient(
                 services.GetRequiredService<IOptionsMonitor<AzureBlobStorageOptions>>().Get(DigitalBrainNames.PlatformGrainStorage).ContainerName));
         foreach (var name in GrainStores)
         {
-            silo.AddAzureBlobGrainStorage(name, options => options.BlobServiceClient = new BlobServiceClient(grainState));
+            silo.AddAzureBlobGrainStorage(name, options => options.Configure<IServiceProvider>((o, services) =>
+                o.BlobServiceClient = services.GetRequiredKeyedService<BlobServiceClient>(DigitalBrainNames.GrainState)));
             silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(name, static (services, _) =>
                 new OrleansGrainStorageSerializer(services.GetRequiredService<global::Orleans.Serialization.Serializer>()));
             // The integration setting wins; the module option is the deployment default.
@@ -80,4 +88,8 @@ public static class OrleansStorageHosting
         }
         return silo;
     }
+
+    private static TableServiceClient Tables(StorageEndpoint endpoint, IServiceProvider services) => endpoint.ServiceUri is { } uri
+        ? new TableServiceClient(uri, services.GetRequiredService<TokenCredential>())
+        : new TableServiceClient(endpoint.ConnectionString);
 }

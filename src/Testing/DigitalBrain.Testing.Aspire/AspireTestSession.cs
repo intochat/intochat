@@ -322,7 +322,13 @@ public sealed class AspireTestSession : IAsyncDisposable
             .UseOrleansClient(client =>
             {
                 if (connection is not null)
-                { client.UseAzureStorageClustering(storage => storage.TableServiceClient = new Azure.Data.Tables.TableServiceClient(connection)); }
+                {
+                    // A service URI (managed-identity storage) authenticates like the silo; otherwise a connection string.
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient =
+                        Uri.TryCreate(connection, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http"
+                            ? new Azure.Data.Tables.TableServiceClient(uri, new Azure.Identity.DefaultAzureCredential())
+                            : new Azure.Data.Tables.TableServiceClient(connection));
+                }
                 else
                 {
                     var endpoint = App.GetEndpoint(_serverName, "orleans-gateway");
