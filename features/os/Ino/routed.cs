@@ -89,7 +89,9 @@ async Task Carry(Routed routed)
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { await Ino.Status(brain, "Jev could not carry it out; asking the model. " + Ino.Clip(error.Message)); }
-    await Ino.Answer(brain, snapshot, asked.State, hint, routed.Id);
+    var conversation = (await Ino.EnsureSelection(brain)).Agent;
+    if (!await Ino.Intend(brain, snapshot, asked.State, hint, routed.Id, conversation))
+    { await Ino.Answer(brain, snapshot, asked.State, hint, routed.Id); }
 }
 
 // Jev is often confident about the wrong app; a message that names the app (by name or title) is not.

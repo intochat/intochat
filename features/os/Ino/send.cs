@@ -18,7 +18,10 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
     if (request.Input.Length > Ino.MaxRoutedChars)
     {
         await Ino.Status(brain, "A long message goes straight to the model");
-        await Ino.Answer(brain, await app.Read(), request.Input, "", request.RequestId);
+        var snapshot = await app.Read();
+        var conversation = (await Ino.EnsureSelection(brain)).Agent;
+        if (!await Ino.Intend(brain, snapshot, request.Input, "", request.RequestId, conversation, "send"))
+        { await Ino.Answer(brain, snapshot, request.Input, "", request.RequestId); }
     }
     else
     {

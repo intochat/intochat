@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Intents;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
@@ -22,7 +23,7 @@ using IntoChat.OS.Microsoft.Playwright;
 // Shared by every synapse of the assistant: the app's key, its brain scope, the selected
 // conversation and the composed surface. A synapse is one reaction; this is the vocabulary
 // they all speak.
-public static class Ino
+public static partial class Ino
 {
     public const double DefaultRouteGate = 0.8;
 
@@ -36,7 +37,7 @@ public static class Ino
         typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!, typeof(IText).FullName!,
         typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
-        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!];
+        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!];
 
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string DataKey(IntoChatOSConnection brain) => brain.Setting("ChatDataApp") is { Length: > 0 } data ? data : Key(brain);
@@ -51,7 +52,8 @@ public static class Ino
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
     // instead of running twice. A turn that cannot start (a response is already running, the Model
     // setting names an unavailable model) says so on the status line and never stops the synapse.
-    public static async Task Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId)
+    public static async Task Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
+        IntentBrief? brief = null, bool confirmed = false, string? memoryKey = null, Guid? intentId = null)
     {
         try
         {
@@ -75,13 +77,62 @@ public static class Ino
             }
             var choice = snapshot.Settings.GetValueOrDefault("Model", "");
             var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
-            await conversation.Start(AgentTurn.Text(input, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint, contracts: Contracts)
-                with { Model = model, RunId = runId });
+            if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
+            var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
+            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: Contracts,
+                    contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
+                with { Model = model, RunId = runId, Intent = intentId?.ToString() });
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             await Status(brain, "Could not start the answer: " + Clip(error.Message));
             await Advance(brain, "attention", "Could not start the answer");
+        }
+    }
+
+    // Memory is an app like any other: present when its manifest has a title.
+    public static async Task<string?> MemoryKey(IntoChatOSConnection brain)
+    {
+        var key = IApp.Key(Scope(brain), "memory");
+        return (await brain.Get<IApp>(key).Read()).Manifest.Title.Length > 0 ? key : null;
+    }
+
+    public static string MemoryContextKey(string memoryKey) => memoryKey + "/context";
+
+    public static TimeSpan IntendGate(AppSnapshot snapshot)
+        => TimeSpan.FromSeconds(double.TryParse(snapshot.Settings.GetValueOrDefault("IntendGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            && seconds > 0 ? seconds : 8);
+
+    private static bool _toldMemoryMissing;
+
+    // Hands the message to Memory to intend before the model answers: the pending record is what intended.cs
+    // answers from, when Memory's Rephrased signal arrives or, failing that, after IntendGate. False when
+    // Memory is not installed, so the caller answers directly. The request id is sent in the "N" form, the
+    // same form intended.cs matches IntentRephrased.RequestId against.
+    public static async Task<bool> Intend(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
+        string conversation, string synapse = "routed")
+    {
+        if (await MemoryKey(brain) is not { } memoryKey)
+        {
+            if (!_toldMemoryMissing) { _toldMemoryMissing = true; await Status(brain, "Memory is not installed; answering directly"); }
+            return false;
+        }
+        await PendingStore.Write(brain, synapse, requestId, new(input, hint, conversation, DateTimeOffset.UtcNow, false));
+        await brain.Get<IApp>(memoryKey).Request("intend",
+            JsonSerializer.Serialize(new { message = input, requestId = requestId.ToString("N"), conversation }));
+        return true;
+    }
+
+    // A confirmed intent moves to Dispatched as its turn starts; a conflicting write is read again and retried.
+    private static async Task Dispatch(IntoChatOSConnection brain, Guid intentId, string runId)
+    {
+        var intents = brain.Get<IIntents>(IIntents.Key(Scope(brain)));
+        for (var attempt = 1; ; attempt++)
+        {
+            var snapshot = await intents.Read();
+            if (snapshot.Intents.FirstOrDefault(intent => intent.Id == intentId) is not { State: IntentState.Confirmed }) { return; }
+            try { await intents.Transition(intentId, IntentState.Dispatched, "turn " + runId, snapshot.Revision); return; }
+            catch (RevisionConflictException) when (attempt < 3) { }
         }
     }
 
