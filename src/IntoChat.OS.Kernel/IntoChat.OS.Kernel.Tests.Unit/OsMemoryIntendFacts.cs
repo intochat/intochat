@@ -96,4 +96,23 @@ public sealed class OsMemoryIntendFacts
     [Fact]
     public void ADifferentAliasNeverMatches()
         => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.rephrased", null, null, null), Heard));
+
+    [Fact]
+    public void OnlyARevisionConflictIsRetriedAndOnlyThreeTimes()
+    {
+        var conflict = new RevisionConflictException("stale", 2);
+        Assert.True(global::Intents.ShouldRetry(conflict, 1));
+        Assert.True(global::Intents.ShouldRetry(conflict, 2));
+        Assert.False(global::Intents.ShouldRetry(conflict, 3));
+        Assert.False(global::Intents.ShouldRetry(new InvalidOperationException("x"), 1));
+    }
+
+    [Fact]
+    public void OnlyAWaitingIntentCountsAsWaiting()
+    {
+        static Intent Make(IntentState state) => new(Guid.NewGuid(), "h", "c", "r", null, 0, state, [], [], []);
+        Assert.True(global::Intents.IsWaiting(Make(IntentState.Waiting)));
+        Assert.False(global::Intents.IsWaiting(Make(IntentState.Dispatched)));
+        Assert.False(global::Intents.IsWaiting(null));
+    }
 }

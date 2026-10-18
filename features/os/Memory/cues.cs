@@ -103,12 +103,20 @@ async Task WatchTime(Guid id, Cue cue, CancellationToken ct)
     var reminder = brain.Get<IReminder>(Intents.ReminderKey(appKey, id));
     var due = at - DateTimeOffset.UtcNow;
     if (due < TimeSpan.FromSeconds(1)) { due = TimeSpan.FromSeconds(1); }
-    await reminder.Start(due, TimeSpan.FromDays(365));
-    await foreach (var _ in brain.On<ReminderTick>(reminder, ct))
+    try
     {
-        await reminder.Stop();
-        await Fire(id, "time");
-        return;
+        await reminder.Start(due, TimeSpan.FromDays(365));
+        await foreach (var _ in brain.On<ReminderTick>(reminder, ct))
+        {
+            await Fire(id, "time");
+            return;
+        }
+    }
+    finally
+    {
+        // Whether it fired, failed or was dropped, the periodic reminder must not outlive the watcher.
+        try { await reminder.Stop(); }
+        catch (Exception) when (brain.Stopping.IsCancellationRequested) { }
     }
 }
 
@@ -125,17 +133,30 @@ async Task WatchSignal(Guid id, Cue cue, CancellationToken ct)
     await foreach (var signal in stream.WithCancellation(ct))
     {
         if (!Intents.CueMatches(cue, signal)) { continue; }
-        await Fire(id, cue.SignalAlias);
-        return;
+        if (await Fire(id, cue.SignalAlias)) { return; }
     }
 }
 
-async Task Fire(Guid id, string what)
+// True when the intent was moved or no longer waits; false when every attempt failed (reported on status).
+async Task<bool> Fire(Guid id, string what)
 {
-    var snapshot = await intents.Read();
-    var intent = snapshot.Intents.FirstOrDefault(candidate => candidate.Id == id);
-    if (intent is not { State: IntentState.Waiting }) { return; }
-    await intents.Transition(id, IntentState.Dispatched, "cue: " + what, snapshot.Revision);
+    for (var attempt = 1; ; attempt++)
+    {
+        try
+        {
+            var snapshot = await intents.Read();
+            var intent = snapshot.Intents.FirstOrDefault(candidate => candidate.Id == id);
+            if (!Intents.IsWaiting(intent)) { return true; }
+            await intents.Transition(id, IntentState.Dispatched, "cue: " + what, snapshot.Revision);
+            return true;
+        }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        {
+            if (Intents.ShouldRetry(error, attempt)) { continue; }
+            await Report("Memory could not dispatch intent " + id + " on its cue: " + error.Message + "; the intent stays Waiting.");
+            return false;
+        }
+    }
 }
 
 static Type? SignalType(string alias)

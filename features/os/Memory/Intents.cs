@@ -32,6 +32,13 @@ internal static class Intents
         return false;
     }
 
+    public const int FireAttempts = 3;
+
+    public static bool IsWaiting(Intent? intent) => intent is { State: IntentState.Waiting };
+
+    // Only a revision conflict is worth another read; attempts are counted from one.
+    public static bool ShouldRetry(Exception error, int attempt) => error is RevisionConflictException && attempt < FireAttempts;
+
     public static string WorkingKey(string appKey) => appKey + "/working";
 
     public const int WorkingLimit = 4_000;
