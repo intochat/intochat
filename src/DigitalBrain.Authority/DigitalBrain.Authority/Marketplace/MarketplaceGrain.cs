@@ -26,6 +26,8 @@ internal sealed class MarketplaceGrain(
     [PersistentState("marketplace", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<MarketplaceCatalogState> store)
     : Grain, IMarketplaceCatalog
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     public Task<MarketplaceRecord[]> List() => Task.FromResult<MarketplaceRecord[]>([.. store.State.Listings]);
 
     public Task<MarketplaceRecord?> Read(string publisher, string name) => Task.FromResult(Find(publisher, name));
@@ -51,7 +53,7 @@ internal sealed class MarketplaceGrain(
     private async Task RequireOwner(string account, MarketplaceRecord listing)
     {
         if (listing.SourceAccount != account || string.IsNullOrWhiteSpace(listing.SourceBrain)
-            || await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(listing.SourceAccount, listing.SourceBrain).Id).Account() != account)
+            || await Platform.BrainAuthority(BrainScope.Create(listing.SourceAccount, listing.SourceBrain).Id).Account() != account)
         { throw new UnauthorizedAccessException($"Account {account} does not own the source brain of {listing.Publisher}/{listing.Name}."); }
     }
 

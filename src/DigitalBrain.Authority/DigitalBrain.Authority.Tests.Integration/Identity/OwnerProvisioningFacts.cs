@@ -20,13 +20,13 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
         var handler = new AppCallerAtBirth();
         await using var brain = await TestBrain.Create()
             // The OS's own seam at brain birth (it installs default apps there): the handler stands in for it.
-            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(provider => handler.Using(provider.GetRequiredService<IGrainFactory>())))
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(provider => handler.Using(provider.GetRequiredService<AuthorityNeurons>())))
             .StartAsync(ct);
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         foreach (var person in new[] { "alice", "bob", "carol" })
         {
             var member = await directory.RegisterAsync(person, "correct-password-123", person, ct);
-            var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
+            var authority = brain.Platform.BrainAuthority(BrainScope.Create(member.AccountId, member.BrainId).Id);
             var owner = await authority.Membership(person);
             Assert.NotNull(owner);
             Assert.Equal(MemberRole.Owner, owner.Role);
@@ -45,7 +45,7 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
         var brainId = AuthorityHost.Unique("brain");
         var accountId = AuthorityHost.Unique("account");
         var aliceId = AuthorityHost.Unique("alice");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(accountId, brainId).Id);
         var decision = await authority.Authorize(AppCallerAtBirth.Request(accountId, brainId));
         Assert.NotNull(decision);
         Assert.False(decision.Allowed);
@@ -61,7 +61,7 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
         // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
         var decision = await brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.Grants.IGrantPolicySource>()
             .AuthorizeAsync(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"), ct);
@@ -79,7 +79,7 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
         var accountId = AuthorityHost.Unique("account");
         var aliceId = AuthorityHost.Unique("alice");
         var malloryId = AuthorityHost.Unique("mallory");
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create(accountId, brainId).Id);
         var alice = new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner };
         await authority.ProvisionOwner(alice);
         await authority.ProvisionOwner(alice);
@@ -90,14 +90,14 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
     private sealed class AppCallerAtBirth : ICreationHandler
     {
         public List<CallDecision?> Decisions { get; } = [];
-        private IGrainFactory? _grains;
+        private AuthorityNeurons? _platform;
 
-        public AppCallerAtBirth Using(IGrainFactory grains) { _grains = grains; return this; }
+        public AppCallerAtBirth Using(AuthorityNeurons platform) { _platform = platform; return this; }
 
         public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
         {
             var scope = kernel.GetPrimaryKeyString();
-            var authority = _grains!.GetGrain<IBrainAuthority>(scope);
+            var authority = _platform!.BrainAuthority(scope);
             Decisions.Add(await authority.Authorize(Request(created.Owner.AccountId, scope)));
         }
 

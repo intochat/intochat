@@ -10,7 +10,7 @@ public sealed class LedgerFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
+        var ledger = brain.Platform.Ledger(AuthorityHost.Unique("acct"));
 
         Assert.True(await ledger.Charge(Cost("tr-1", "c-1", 1_000L)));
         Assert.False(await ledger.Charge(Cost("tr-1", "c-1", 1_000L)));
@@ -27,7 +27,7 @@ public sealed class LedgerFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
+        var ledger = brain.Platform.Ledger(AuthorityHost.Unique("acct"));
 
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
         await ledger.Charge(Cost("tr-1", "c-1", 1_000L));
@@ -45,7 +45,7 @@ public sealed class LedgerFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
+        var ledger = brain.Platform.Ledger(AuthorityHost.Unique("acct"));
 
         Assert.True(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
         Assert.False(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
@@ -131,7 +131,7 @@ public sealed class LedgerFacts(AuthorityHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
+        var ledger = brain.Platform.Ledger(AuthorityHost.Unique("acct"));
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
         await ledger.Charge(Cost("tr-1", "c-1", 1_000L));
 

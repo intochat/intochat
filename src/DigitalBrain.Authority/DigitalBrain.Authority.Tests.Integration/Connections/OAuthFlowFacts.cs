@@ -110,7 +110,7 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         using var wrong = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/login", new { connectorId = "example", authMethodId = "api-key" }, ct);
         Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
-        await _brain.Grains.GetGrain<IIntegration>("integration/example-oauth").Clear("ClientSecret");
+        await _brain.Platform.Integration("example-oauth").Clear("ClientSecret");
         using var unconfigured = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/login", new { connectorId = "example", authMethodId = "oauth" }, ct);
         Assert.Equal(HttpStatusCode.Conflict, unconfigured.StatusCode);
     }
@@ -119,8 +119,8 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
     public async Task ALoginStartRefusesAReadyIntegrationWithoutAClientSecretBeforeRedirecting()
     {
         var ct = TestContext.Current.CancellationToken;
-        await _brain.Grains.GetGrain<IIntegration>("integration/example-oauth").Clear("ClientSecret");
-        Assert.Equal(IntegrationStatus.Ready, (await _brain.Grains.GetGrain<IIntegration>("integration/example-oauth").Read()).Status);
+        await _brain.Platform.Integration("example-oauth").Clear("ClientSecret");
+        Assert.Equal(IntegrationStatus.Ready, (await _brain.Platform.Integration("example-oauth").Read()).Status);
         using var response = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/login", new { connectorId = "example", authMethodId = "oauth" }, ct);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(ct);

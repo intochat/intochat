@@ -15,6 +15,8 @@ internal sealed class AccountGrain(
     [PersistentState("account", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<AccountState> storage,
     TimeProvider clock) : IdentityStateGrain<AccountState>(storage), IAccount
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     public async Task EnsureCreated(Account account)
     {
         if (account.AccountId != this.GetPrimaryKeyString()) { throw new InvalidOperationException("Account key mismatch."); }
@@ -43,7 +45,7 @@ internal sealed class AccountGrain(
             };
             await Persist(State with { BrainOperations = new(State.BrainOperations) { [operationId] = member } });
         }
-        await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id).Classify(kind);
+        await Platform.BrainAuthority(BrainScope.Create(member.AccountId, member.BrainId).Id).Classify(kind);
         return new(member, await EnsureBrain(member));
     }
     public async Task<bool> EnsureBrain(Member owner)
@@ -51,7 +53,7 @@ internal sealed class AccountGrain(
         if (State.Account is null || owner.AccountId != this.GetPrimaryKeyString() || State.Account.OwnerPrincipalId != owner.PrincipalId)
         { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
         var scope = BrainScope.Create(owner.AccountId, owner.BrainId);
-        var authority = GrainFactory.GetGrain<IBrainAuthority>(scope.Id);
+        var authority = Platform.BrainAuthority(scope.Id);
         await authority.Initialize(owner.AccountId, owner.BrainId);
         // The brain neuron is born on the machine once its owner is on record here (R57).
         return await authority.ProvisionOwner(owner);

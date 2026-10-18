@@ -28,7 +28,7 @@ public sealed class PlatformHostingFacts(AuthorityHost host)
         Assert.Equal(reader.PrincipalId, identity.RequirePrincipal());
         var chat = caller with { ConversationId = "chat" };
         Assert.False(await identity.HasGrantAsync(chat, "person.email", ct));
-        var store = brain.Grains.GetGrain<IBrainAuthority>(reader.BrainId);
+        var store = brain.Platform.BrainAuthority(reader.BrainId);
         await store.Grant(new Grant
         {
             AppId = "reader-app",
@@ -57,7 +57,7 @@ public sealed class PlatformHostingFacts(AuthorityHost host)
             Kind = CallerKind.App,
             StampedBy = TrustedEdge.AppProxy,
         };
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("owner", "owner").Id);
+        var authority = brain.Platform.BrainAuthority(BrainScope.Create("owner", "owner").Id);
         await authority.Initialize("owner", "owner");
         var request = new CallRequest { Caller = caller, TargetNeuron = "person", Operation = "Read", SemanticTypeIds = ["person.email"] };
         var filter = brain.Services.GetRequiredService<ICallFilter>();

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace DigitalBrain.Authority.Connections.OAuth;
 
 internal sealed class OAuthTokenExchange(
-    IReadOnlyList<ConnectorDefinition> connectors, IGrainFactory grains, IOptions<ConnectionsOptions> options,
+    IReadOnlyList<ConnectorDefinition> connectors, AuthorityNeurons neurons, IOptions<ConnectionsOptions> options,
     TimeProvider clock, IHttpClientFactory clients) : IOAuthTokenExchange
 {
     public const string HttpClientName = "DigitalBrain.Connections.OAuth";
@@ -40,7 +40,7 @@ internal sealed class OAuthTokenExchange(
     // The Integration neuron's Release demands its own platform stamp; the client values never leave this method.
     internal async Task<(string Id, string Secret)> ClientAsync(OAuthMethod method, CancellationToken ct)
     {
-        var integration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + method.IntegrationId);
+        var integration = neurons.Integration(method.IntegrationId);
         if ((await integration.Read().WaitAsync(ct)).Status != IntegrationStatus.Ready)
         { throw new InvalidOperationException($"Integration '{method.IntegrationId}' is not configured."); }
         var released = await integration.Release(IntegrationNeuron.PlatformCaller).WaitAsync(ct);

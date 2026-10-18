@@ -21,6 +21,8 @@ internal sealed class CircleShareGrain(
     TimeProvider clock)
     : Grain, ICircleShares, ICircleShareGrain
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     public Task Configure(int percent, string[] members) => Apply(percent, members);
 
     public async Task Apply(int percent, string[] members)
@@ -28,7 +30,7 @@ internal sealed class CircleShareGrain(
         ArgumentOutOfRangeException.ThrowIfNegative(percent);
         ArgumentNullException.ThrowIfNull(members);
         var brain = BrainKey.BrainOf(this.GetPrimaryKeyString());
-        var owner = (await GrainFactory.GetGrain<IBrain>(brain).Read())?.Owner?.AccountId
+        var owner = (await Platform.Brain(brain).Read())?.Owner?.AccountId
             ?? throw new InvalidOperationException($"Brain {brain} has no owner account.");
         store.State.OwnerAccountId = owner;
         store.State.Percent = percent;
@@ -43,7 +45,7 @@ internal sealed class CircleShareGrain(
         if (!store.State.Members.Contains(member)) { throw new UnauthorizedAccessException($"{member} is not in circle {this.GetPrimaryKeyString()}."); }
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber;
         if (store.State.Day != today) { store.State.Day = today; store.State.DrawnMicros = 0; }
-        var balance = await GrainFactory.GetGrain<ILedgerGrain>(owner).Balance();
+        var balance = await Platform.Ledger(owner).Balance();
         var cap = Math.Max(0, balance) * store.State.Percent / 100 - store.State.DrawnMicros;
         if (micros > cap) { return null; }
         store.State.DrawnMicros += micros;

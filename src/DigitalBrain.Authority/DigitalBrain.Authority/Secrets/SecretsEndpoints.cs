@@ -10,7 +10,7 @@ internal static class SecretsEndpoints
 {
     internal static void MapSecrets(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/secrets/{owner}", async (string owner, SecretInput body, IGrainFactory grains) =>
+        endpoints.MapPost("/secrets/{owner}", async (string owner, SecretInput body, AuthorityNeurons neurons) =>
         {
             if (!CallerContextStamper.TryGet(out var caller))
             {
@@ -27,7 +27,7 @@ internal static class SecretsEndpoints
                 return Results.BadRequest();
             }
 
-            var secret = await grains.GetGrain<ISecrets>(owner).Set(caller, body.Name, body.Label ?? body.Name, body.Value);
+            var secret = await neurons.Secrets(owner).Set(caller, body.Name, body.Label ?? body.Name, body.Value);
             return Results.Ok(secret);
         });
     }

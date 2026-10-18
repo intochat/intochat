@@ -7,13 +7,13 @@ namespace DigitalBrain.Authority.Integrations;
 internal static class IntegrationCatalog
 {
     public static async Task<IntegrationCatalogEntry[]> ListAsync(
-        IReadOnlyList<IntegrationSchema> definitions, IGrainFactory grains, CancellationToken cancellationToken)
+        IReadOnlyList<IntegrationSchema> definitions, AuthorityNeurons neurons, CancellationToken cancellationToken)
     {
         var entries = new List<IntegrationCatalogEntry>(definitions.Count);
         foreach (var definition in definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + definition.Id).Read();
+            var snapshot = await neurons.Integration(definition.Id).Read();
             entries.Add(new IntegrationCatalogEntry(definition.Id, definition.DisplayName, snapshot.Status.ToString(), snapshot.MissingFields));
         }
 

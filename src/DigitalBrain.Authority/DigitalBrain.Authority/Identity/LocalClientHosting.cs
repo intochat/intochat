@@ -10,6 +10,7 @@ public static class LocalClientHosting
     public static IServiceCollection AddLocalPlatformClients(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<IIdentityClient, LocalIdentityClient>();
         services.TryAddSingleton<IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         return services;

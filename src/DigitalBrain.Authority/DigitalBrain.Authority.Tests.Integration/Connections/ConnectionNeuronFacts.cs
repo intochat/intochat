@@ -175,12 +175,12 @@ public sealed class ConnectionNeuronFacts
         using var caller = alice.AsCaller();
         var connection = brain.Get<IConnection>(Key(alice));
         await connection.Connect("api-key", "hunter2");
-        Assert.Equal([Key(alice)], await brain.Grains.GetGrain<IConnectionIndex>(alice.BrainId).List());
+        Assert.Equal([Key(alice)], await brain.Platform.Connections(alice.BrainId).List());
         await using var disconnected = await brain.Observe<ConnectionDisconnected>(connection, ct);
         await connection.Disconnect();
         await disconnected.NextAsync(ct: ct);
         Assert.Equal(ConnectionStatus.Disconnected, (await connection.Read()).Status);
-        Assert.Empty(await brain.Grains.GetGrain<IConnectionIndex>(alice.BrainId).List());
+        Assert.Empty(await brain.Platform.Connections(alice.BrainId).List());
         await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IExample>(Key(alice)).Echo());
     }
 

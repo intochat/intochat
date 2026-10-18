@@ -17,21 +17,21 @@ internal static class ComputeEndpoints
     {
         var compute = BrainRoutes.Group(endpoints, "/compute");
 
-        compute.MapGet("", async (string? by, DateTimeOffset? since, IGrainFactory grains) =>
+        compute.MapGet("", async (string? by, DateTimeOffset? since, AuthorityNeurons neurons) =>
         {
             var grouping = UsageGrouping.App;
             if (by is not null && !Enum.TryParse(by, ignoreCase: true, out grouping)) { return Results.BadRequest(new { error = $"Unknown grouping '{by}'." }); }
             var accountId = CallerContextStamper.Require().AccountId;
-            var rows = await grains.GetGrain<IUsageGrain>(BrainScope.CurrentId())
+            var rows = await neurons.Usage(BrainScope.CurrentId())
                 .Group(grouping, since ?? DateTimeOffset.UtcNow.AddDays(-30), MaximumTake);
-            var balance = await grains.GetGrain<ILedgerGrain>(accountId).Balance();
+            var balance = await neurons.Ledger(accountId).Balance();
             return Results.Ok(new CostSummary(balance, rows.Sum(row => row.Micros), rows));
         });
 
-        compute.MapGet("/recent", async (int? take, IGrainFactory grains) =>
+        compute.MapGet("/recent", async (int? take, AuthorityNeurons neurons) =>
         {
             if (take is < 0 or > MaximumTake) { return Results.BadRequest(new { error = $"take is 0 to {MaximumTake}." }); }
-            var recent = await grains.GetGrain<IUsageGrain>(BrainScope.CurrentId()).Recent(take ?? 50);
+            var recent = await neurons.Usage(BrainScope.CurrentId()).Recent(take ?? 50);
             return Results.Ok(recent.Select(cost => new
             {
                 cost.TraceId,
@@ -49,11 +49,11 @@ internal static class ComputeEndpoints
         });
 
         // A simulated top-up of the caller's own account until real payments exist.
-        compute.MapPost("/credit", async (CreditInput input, IGrainFactory grains) =>
+        compute.MapPost("/credit", async (CreditInput input, AuthorityNeurons neurons) =>
         {
             if (input.Micros <= 0) { return Results.BadRequest(new { error = "Credit a positive amount." }); }
             var accountId = CallerContextStamper.Require().AccountId;
-            var ledger = grains.GetGrain<ILedgerGrain>(accountId);
+            var ledger = neurons.Ledger(accountId);
             await ledger.Credit($"credit/{Guid.NewGuid():N}", input.Micros, "simulated top-up");
             return Results.Ok(new { balanceMicros = await ledger.Balance() });
         });

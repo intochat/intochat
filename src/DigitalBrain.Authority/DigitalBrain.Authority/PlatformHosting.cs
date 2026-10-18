@@ -45,6 +45,7 @@ public static class PlatformHosting
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
+        services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<PrincipalPasswords>();
         silo.AddStartupTask<Identity.OwnerBootstrap>(ServiceLifecycleStage.Active + 1);
