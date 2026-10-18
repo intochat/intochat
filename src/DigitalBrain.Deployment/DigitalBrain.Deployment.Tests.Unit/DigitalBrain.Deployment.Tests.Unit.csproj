@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
+    <ProjectReference Include="../DigitalBrain.Deployment.Runtime/DigitalBrain.Deployment.Runtime.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

@@ -4,7 +4,6 @@
   "DigitalBrain.Aspire.Hosting/DigitalBrainHostingOptions.cs",
   "DigitalBrain.Aspire.Hosting/DigitalBrainProfiles.cs",
   "DigitalBrain.Aspire.Server/ServerHostingExtensions.cs",
-  "DigitalBrain.Deployment/DigitalBrainDeployment.cs",
   "DigitalBrain.Framework.Tests.Integration/ModuleIdFacts.cs",
   "DigitalBrain.Framework/Configuration/DigitalBrainConfiguration.cs",
   "DigitalBrain.Framework/Runtime/Kernel/InstanceDirectoryOptions.cs",
@@ -22,6 +21,5 @@
   "DigitalBrain.Authority.Tests.Integration/Storage/HostedPlatformStorageFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Authority/Compute/FeeOptions.cs",
-  "DigitalBrain.Authority.Hosted/HostedRuntimeOptions.cs",
   "DigitalBrain.ServiceDefaults/HealthProbes.cs"
 ]
