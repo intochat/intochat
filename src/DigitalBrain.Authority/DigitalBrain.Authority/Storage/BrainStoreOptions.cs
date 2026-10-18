@@ -11,12 +11,13 @@ public sealed class BrainStoreOptions
     public BrainLogOwnershipOptions Ownership { get; set; } = new();
 }
 
-public enum BrainLogOwnershipKind { WriterLock, BlobLease }
+// Bound by name from Ownership:Kind; deployment writes the name explicitly for either mode.
+public enum BrainLogOwnershipKind { WriterLock = 0, BlobLease = 1 }
 
 // WriterLock (the default) keeps the local writer.lock; BlobLease proves single-writer ownership across replicas sharing a file share.
 public sealed class BrainLogOwnershipOptions
 {
-    public BrainLogOwnershipKind Kind { get; set; }
+    public BrainLogOwnershipKind Kind { get; set; } = BrainLogOwnershipKind.WriterLock;
     // The lease container, reached with the host's TokenCredential (managed identity in Azure).
     public Uri? ContainerUri { get; set; }
     // Alternative to ContainerUri for development storage; ContainerName names the container inside it.
