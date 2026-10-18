@@ -345,6 +345,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         environment["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment[Env(AuthOptions.PostureKey)] = "Open";
+        // The candidate is an isolated container reached only through the parent host; the loopback-only rule for Open posture
+        // does not apply, and the opt-in is explicit rather than implied by the container scope.
+        environment[Env(AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true";
         // The dashboard's plain-HTTP OTLP endpoint when the AppHost opened one: its TLS endpoint's dev certificate
         // names localhost and is not trusted inside the container.
         if (live[OtlpHttpEndpoint] is { Length: > 0 } otlpHttp)

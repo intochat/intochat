@@ -20,4 +20,8 @@ public sealed class AuthOptions
     public IdentityPosture? Posture { get; set; }
     public string? Username { get; set; }
     public string? Password { get; set; }
+
+    // Open posture serves every anonymous caller as the owner; in Aspire run mode it may listen on loopback only
+    // (OpenPostureLoopback in ServiceDefaults) unless this explicit opt-in is set.
+    public bool AllowOpenOnNetwork { get; set; }
 }

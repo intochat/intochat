@@ -59,6 +59,35 @@ public sealed class DeploymentIdentityFacts
         Assert.Equal(expected, values[IntoChatOSConfiguration.EnvironmentName(AuthOptions.PostureKey)]);
     }
 
+    // The server has no Aspire execution context: the AppHost marks the processes it starts in run mode so Open posture
+    // can hold them to loopback (OpenPostureLoopback). Publish mode is out of scope and carries no marker.
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task RunModeMarksTheKernelAndMcpResources(bool publish, bool marked)
+    {
+        var output = Directory.CreateTempSubdirectory("publish-").FullName;
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+        {
+            Args = publish ? ["--operation", "publish", "--output-path", output] : [],
+            DisableDashboard = true,
+        });
+        Assert.Equal(publish, builder.ExecutionContext.IsPublishMode);
+        builder.Configuration[AuthOptions.PostureKey] = "Open";
+        var brain = builder.AddIntoChatOS("memory");
+        var kernel = builder.AddExecutable("kernel", "unused", ".").WithReference(brain);
+        var mcp = builder.AddExecutable("mcp", "unused", ".").WithReference(brain.AsClient());
+        foreach (var resource in new[] { kernel.Resource, mcp.Resource })
+        {
+            var values = new Dictionary<string, object>();
+            var context = new EnvironmentCallbackContext(builder.ExecutionContext, resource, values, TestContext.Current.CancellationToken);
+            foreach (var annotation in resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await annotation.Callback(context); }
+            var key = IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HostingModeConfigurationKey);
+            Assert.Equal(marked, values.ContainsKey(key));
+            if (marked) { Assert.Equal(IntoChatOSNames.HostingModeRun, values[key]); }
+        }
+    }
+
     [Fact]
     public async Task SecuredHostsReceiveTheConfiguredBootstrapCredential()
     {

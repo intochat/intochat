@@ -34,6 +34,7 @@ public static class ServerHostingExtensions
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }
         // The optional file may carry legacy keys the first check could not see.
         LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
+        OpenPostureLoopback.Validate(builder.Configuration);
 
         ArgumentNullException.ThrowIfNull(configure);
         var definition = new IntoChatOSServerBuilder();
