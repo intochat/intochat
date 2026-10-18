@@ -12,6 +12,6 @@
     <PackageReference Include="Npgsql" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.AI.Tests.Integration" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Apps.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Apps.Tests.Integration" />
   </ItemGroup>
 </Project>

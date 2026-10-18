@@ -53,7 +53,7 @@
   <Folder Name="/Modules/DigitalBrain/Apps/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/tests/DigitalBrain.Modules.Apps.Tests/DigitalBrain.Modules.Apps.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/tests/DigitalBrain.Modules.Apps.Tests.Integration/DigitalBrain.Modules.Apps.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Circles/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/DigitalBrain.Modules.Circles.Contracts.csproj" />
