@@ -101,7 +101,7 @@ internal sealed class HostedExportStateTypes
                 if (storage?.StorageName != IntoChatOSNames.ClusterGrainStorage || !parameter.ParameterType.IsGenericType ||
                     parameter.ParameterType.GetGenericTypeDefinition() != typeof(IPersistentState<>)) { continue; }
                 var state = parameter.ParameterType.GetGenericArguments()[0];
-                if (typeof(IntoChat.OS.Framework.Platform.Connections.ConnectionState).IsAssignableFrom(state)) { continue; }
+                if (!StateExportPolicy.Default.Allows(storage.StateName, state)) { continue; }
                 foreach (var provider in providers)
                 {
                     if (provider.TryGetGrainType(type, out var grain)) { types.TryAdd((grain.ToString(), storage.StateName), state); break; }

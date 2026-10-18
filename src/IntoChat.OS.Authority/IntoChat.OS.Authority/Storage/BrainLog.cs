@@ -56,7 +56,9 @@ internal sealed class BrainLog : IDisposable
     // Format of the active segment: detected from its header, or the write format for an empty segment.
     public BrainLogFormat Format { get { lock (gate) { return format; } } }
 
-    internal BrainExport Export(Func<string, string, byte[], object?> decode)
+    internal BrainExport Export(Func<string, string, byte[], object?> decode) => Export(decode, StateExportPolicy.Default);
+
+    internal BrainExport Export(Func<string, string, byte[], object?> decode, StateExportPolicy policy)
     {
         lock (gate)
         {
@@ -67,11 +69,9 @@ internal sealed class BrainLog : IDisposable
             {
                 foreach (var state in grain.Value)
                 {
-                    if (state.Key is "vault" or "credential" or "registration" or "access" or "account" or "principal" or "reminders")
-                    { omitted++; continue; }
+                    if (StateExportPolicy.HardDenied.Contains(state.Key)) { omitted++; continue; }
                     var value = decode(grain.Key, state.Key, state.Value.Record);
-                    if (value is null || value.GetType().Assembly == typeof(BrainLog).Assembly || value is IntoChat.OS.Framework.Platform.Connections.ConnectionState)
-                    { omitted++; continue; }
+                    if (value is null || !policy.Allows(state.Key, value.GetType())) { omitted++; continue; }
                     exported.Add(new(grain.Key, state.Key, value.GetType().FullName!, System.Text.Json.JsonSerializer.SerializeToElement(value, value.GetType())));
                 }
             }
