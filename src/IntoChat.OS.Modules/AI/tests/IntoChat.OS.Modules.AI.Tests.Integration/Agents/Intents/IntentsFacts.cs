@@ -155,13 +155,75 @@ public sealed class IntentsFacts(AIHost host)
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
+        await using var rephrased = await host.Brain.Observe<IntentRephrased>(intents, ct);
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        await intents.Rephrase(id, Brief, 0.9, (await intents.Read()).Revision);
+        await rephrased.NextAsync(ct: ct);
+        await intents.Transition(id, IntentState.Confirmed, "ok", (await intents.Read()).Revision);
+        await intents.Transition(id, IntentState.Dispatched, "go", (await intents.Read()).Revision);
+        var before = await intents.Read();
+        await intents.Rephrase(id, Brief with { Goal = "Ship it better" }, 0.8, before.Revision);
+        var after = await intents.Read();
+        var intent = Assert.Single(after.Intents);
+        Assert.Equal(IntentState.Dispatched, intent.State);
+        Assert.Equal("Ship it better", intent.Brief!.Goal);
+        Assert.Equal(before.Revision + 1, after.Revision);
+        Assert.Equal(before.Intents[0].History.Length, intent.History.Length);
+        var signal = await rephrased.NextAsync(ct: ct);
+        Assert.Equal((0.8, "req-1"), (signal.Confidence, signal.RequestId));
+    }
+
+    [Fact]
+    public async Task RephraseKeepsTheStateOfAWaitingIntent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        await intents.Rephrase(id, Brief, 0.9, (await intents.Read()).Revision);
+        foreach (var to in new[] { IntentState.Confirmed, IntentState.Dispatched, IntentState.Waiting }) { await intents.Transition(id, to, "step", (await intents.Read()).Revision); }
+        await intents.Rephrase(id, Brief with { Goal = "Later" }, 0.7, (await intents.Read()).Revision);
+        var intent = Assert.Single((await intents.Read()).Intents);
+        Assert.Equal(IntentState.Waiting, intent.State);
+        Assert.Equal("Later", intent.Brief!.Goal);
+    }
+
+    [Fact]
+    public async Task RephraseReturnsAConfirmedIntentToRephrased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
         var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
         await intents.Rephrase(id, Brief, 0.9, (await intents.Read()).Revision);
         await intents.Transition(id, IntentState.Confirmed, "ok", (await intents.Read()).Revision);
-        await intents.Transition(id, IntentState.Dispatched, "go", (await intents.Read()).Revision);
-        await intents.Rephrase(id, Brief with { Goal = "Ship it better" }, 0.8, (await intents.Read()).Revision);
+        await intents.Rephrase(id, Brief with { Goal = "Changed" }, 0.6, (await intents.Read()).Revision);
         var intent = Assert.Single((await intents.Read()).Intents);
-        Assert.Equal(IntentState.Dispatched, intent.State);
-        Assert.Equal("Ship it better", intent.Brief!.Goal);
+        Assert.Equal(IntentState.Rephrased, intent.State);
+        Assert.Equal("Changed", intent.Brief!.Goal);
+    }
+
+    [Theory]
+    [InlineData(IntentState.Done)]
+    [InlineData(IntentState.Abandoned)]
+    public async Task RephraseOfATerminalIntentIsRefused(IntentState terminal)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        if (terminal == IntentState.Done)
+        {
+            foreach (var to in new[] { IntentState.Rephrased, IntentState.Confirmed, IntentState.Dispatched, IntentState.Done })
+            {
+                if (to == IntentState.Rephrased) { await intents.Rephrase(id, Brief, 0.9, (await intents.Read()).Revision); }
+                else { await intents.Transition(id, to, "step", (await intents.Read()).Revision); }
+            }
+        }
+        else { await intents.Transition(id, IntentState.Abandoned, "no", (await intents.Read()).Revision); }
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await intents.Rephrase(id, Brief, 0.5, (await intents.Read()).Revision));
     }
 }
