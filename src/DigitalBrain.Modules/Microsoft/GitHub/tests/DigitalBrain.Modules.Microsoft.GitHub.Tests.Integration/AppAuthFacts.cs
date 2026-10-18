@@ -5,7 +5,7 @@ using System.Text.Json;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Microsoft.GitHub;
-using DigitalBrain.Platform.Secrets;
+using DigitalBrain.Authority.Secrets;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

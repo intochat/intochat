@@ -3,8 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Surface;
-using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 

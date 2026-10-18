@@ -30,7 +30,7 @@ internal static class GmailBrain
             .WithConfiguration(DigitalBrainConfiguration.ConnectionsTokenEndpointKey("gmail"), stub.TokenEndpoint.AbsoluteUri)
             // Google signs push deliveries with its own OIDC keys; the test cannot mint those, so the push gate accepts a fixed bearer.
             .ConfigureServices(services => services.AddSingleton<IGmailPushAuthenticator>(new TestPushAuthenticator()));
-        if (posture is not null) { builder = builder.WithConfiguration(DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey, posture); }
+        if (posture is not null) { builder = builder.WithConfiguration(DigitalBrain.Authority.Identity.Configuration.AuthOptions.PostureKey, posture); }
         return builder;
     }
 

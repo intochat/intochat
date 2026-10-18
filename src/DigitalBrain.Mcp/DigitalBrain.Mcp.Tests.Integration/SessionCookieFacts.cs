@@ -2,9 +2,9 @@ using System.Net;
 using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using DigitalBrain.Platform;
-using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority;
+using DigitalBrain.Authority.Identity;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,9 +83,9 @@ public sealed class SessionCookieFacts(McpHost host)
             builder.Services.AddIdentity();
             // The runtime's identity endpoints sign in through the machine's passwords and the trust clients.
             builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-            foreach (var name in new[] { "DigitalBrain.Platform.Identity.PrincipalPasswords", "DigitalBrain.Platform.Identity.BrainBirths" })
+            foreach (var name in new[] { "DigitalBrain.Authority.Identity.PrincipalPasswords", "DigitalBrain.Authority.Identity.BrainBirths" })
             {
-                var type = typeof(DigitalBrain.Platform.PlatformHosting).Assembly.GetType(name, throwOnError: true)!;
+                var type = typeof(DigitalBrain.Authority.PlatformHosting).Assembly.GetType(name, throwOnError: true)!;
                 builder.Services.AddSingleton(type, brain.Services.GetRequiredService(type));
             }
         }

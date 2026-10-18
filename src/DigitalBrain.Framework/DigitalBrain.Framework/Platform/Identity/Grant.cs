@@ -1,4 +1,4 @@
-namespace DigitalBrain.Platform.Identity;
+namespace DigitalBrain.Authority.Identity;
 
 public enum GrantMode
 {

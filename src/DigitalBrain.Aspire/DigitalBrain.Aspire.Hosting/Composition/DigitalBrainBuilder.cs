@@ -89,7 +89,7 @@ public sealed class DigitalBrainBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
-    public DigitalBrain.Platform.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
+    public DigitalBrain.Authority.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
     public DigitalBrainBuilder WithHttpIdentity()
     {
         Identity = HttpIdentityProjection.FromConfiguration(ApplicationBuilder.Configuration);

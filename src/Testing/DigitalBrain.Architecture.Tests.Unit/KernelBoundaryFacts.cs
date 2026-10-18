@@ -13,7 +13,7 @@ public sealed class KernelBoundaryFacts
     public void NoKernelOrPlatformGrainInterfaceDerivesINeuron()
     {
         var offenders = ProductionArchitecture.Assemblies
-            .Where(assembly => assembly.GetName().Name is "DigitalBrain.Framework" or "DigitalBrain.Platform")
+            .Where(assembly => assembly.GetName().Name is "DigitalBrain.Framework" or "DigitalBrain.Authority")
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != typeof(INeuron)
                 && !PlatformNeurons.Contains(type.FullName))

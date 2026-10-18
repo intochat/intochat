@@ -4,7 +4,7 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Framework;
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 

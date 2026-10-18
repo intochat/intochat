@@ -3,7 +3,7 @@
     <ProjectReference Include="../../../../Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
     <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules.Circles/DigitalBrain.Modules.Circles.csproj" />
-    <ProjectReference Include="../../../../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../../../../DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="DigitalBrain.Testing" /></ItemGroup>
 </Project>

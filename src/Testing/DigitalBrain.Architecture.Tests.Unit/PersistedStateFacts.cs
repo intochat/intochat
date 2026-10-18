@@ -11,7 +11,7 @@ public sealed class PersistedStateFacts
     {
         Assert.NotEmpty(States);
         Assert.Contains(States, type => type == typeof(State));
-        Assert.Contains(States, type => type.FullName == "DigitalBrain.Platform.Secrets.SecretsState");
+        Assert.Contains(States, type => type.FullName == "DigitalBrain.Authority.Secrets.SecretsState");
         var violations = States.SelectMany(PersistedStateRules.ShapeViolations).ToArray();
         Assert.True(violations.Length == 0, string.Join(Environment.NewLine, violations));
     }

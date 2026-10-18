@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
 

@@ -12,7 +12,7 @@ public sealed class StorageRingFacts
     [Fact]
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
-        var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
+        var platform = typeof(DigitalBrain.Authority.PlatformHosting).Assembly;
         var sites = new[] { typeof(Neuron).Assembly, platform, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })

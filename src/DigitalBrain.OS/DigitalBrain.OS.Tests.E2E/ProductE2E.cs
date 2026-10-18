@@ -6,7 +6,7 @@ internal static class ProductE2E
     // shipped content a product fixture turns back on.
     public static TestBrain Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
         => ReferenceBrain.Create(modelApiKey, privateConfiguration)
-            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.CookieName)), "intochat.session")
-            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.ProtectionApplicationName)), "IntoChat.v1")
-            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.ProtectionContainerName)), "intochat-protection-v1");
+            .WithHostConfiguration(Authority.Identity.Configuration.IdentityHostOptions.Key(nameof(Authority.Identity.Configuration.IdentityHostOptions.CookieName)), "intochat.session")
+            .WithHostConfiguration(Authority.Identity.Configuration.IdentityHostOptions.Key(nameof(Authority.Identity.Configuration.IdentityHostOptions.ProtectionApplicationName)), "IntoChat.v1")
+            .WithHostConfiguration(Authority.Identity.Configuration.IdentityHostOptions.Key(nameof(Authority.Identity.Configuration.IdentityHostOptions.ProtectionContainerName)), "intochat-protection-v1");
 }

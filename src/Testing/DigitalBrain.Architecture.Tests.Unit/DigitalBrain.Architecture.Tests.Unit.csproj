@@ -2,7 +2,7 @@
   <ItemGroup>
     <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ArchitectureProject Include="../../DigitalBrain/**/*.csproj;../../DigitalBrain.AppHost/**/*.csproj;../../DigitalBrain.Client/**/*.csproj;../../DigitalBrain.Framework/**/*.csproj;../../DigitalBrain.Mcp/**/*.csproj;../../DigitalBrain.OS/**/*.csproj;../../DigitalBrain.Platform/**/*.csproj;../../DigitalBrain.Trust/**/*.csproj;../../DigitalBrain.Modules/**/*.csproj"
+    <ArchitectureProject Include="../../DigitalBrain/**/*.csproj;../../DigitalBrain.AppHost/**/*.csproj;../../DigitalBrain.Client/**/*.csproj;../../DigitalBrain.Framework/**/*.csproj;../../DigitalBrain.Mcp/**/*.csproj;../../DigitalBrain.OS/**/*.csproj;../../DigitalBrain.Authority/**/*.csproj;../../DigitalBrain.Trust/**/*.csproj;../../DigitalBrain.Modules/**/*.csproj"
                          Exclude="../../**/tests/**;../../**/*.Tests.csproj;../../**/*.Tests.*.csproj;../../**/*.Testing/**;../../**/*.Aspire.Hosting/**;../../**/*.Deployment/**;../../**/*.Sandbox/**" />
     <ProjectReference Include="@(ArchitectureProject)" />
     <None Include="TestTierBaseline.json" CopyToOutputDirectory="PreserveNewest" />

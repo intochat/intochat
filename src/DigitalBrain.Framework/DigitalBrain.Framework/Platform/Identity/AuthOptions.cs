@@ -1,4 +1,4 @@
-namespace DigitalBrain.Platform.Identity.Configuration;
+namespace DigitalBrain.Authority.Identity.Configuration;
 
 // Open: single-tenant development and test — anonymous requests act as the synthetic "owner".
 // Secured: cookie sessions plus an optional Basic bootstrap credential — anonymous gets 401.

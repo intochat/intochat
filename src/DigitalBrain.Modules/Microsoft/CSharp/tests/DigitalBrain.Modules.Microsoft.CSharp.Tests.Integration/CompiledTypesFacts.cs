@@ -25,12 +25,12 @@ public sealed class CompiledTypesFacts(CSharpHost host)
     [Fact]
     public void KernelGrainsAreNotInTheScriptCatalog()
     {
-        var contracts = new CompiledTypes([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly, typeof(DigitalBrain.Platform.PlatformHosting).Assembly]);
+        var contracts = new CompiledTypes([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly, typeof(DigitalBrain.Authority.PlatformHosting).Assembly]);
 
         Assert.Equal(typeof(IPinger), contracts.Contract(typeof(IPinger).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Platform.Workshop.IWorkshop).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Authority.Workshop.IWorkshop).FullName!));
     }
 
     [Fact]

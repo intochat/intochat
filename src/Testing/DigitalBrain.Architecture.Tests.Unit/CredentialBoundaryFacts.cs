@@ -28,16 +28,16 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void OnlyTheIntegrationReleaseConstructsAPlatformStamp()
     {
-        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "DigitalBrain.Platform");
+        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "DigitalBrain.Authority");
         var methods = platform.GetTypes().Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Cast<MethodBase>()
                 .Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["DigitalBrain.Platform.Integrations.IntegrationNeuron"],
+        Assert.Equal(["DigitalBrain.Authority.Integrations.IntegrationNeuron"],
             Sites(SetsAPlatformStamp));
-        Assert.Equal(["DigitalBrain.Platform.Identity.AccountSession", "DigitalBrain.Platform.Integrations.IntegrationNeuron"],
+        Assert.Equal(["DigitalBrain.Authority.Identity.AccountSession", "DigitalBrain.Authority.Integrations.IntegrationNeuron"],
             Sites(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext))));
     }
 

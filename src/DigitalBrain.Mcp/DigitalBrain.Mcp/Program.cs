@@ -2,7 +2,7 @@ using DigitalBrain.Aspire.Client;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.Mcp;
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 using DigitalBrain.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);

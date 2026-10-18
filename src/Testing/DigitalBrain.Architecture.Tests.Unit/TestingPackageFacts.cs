@@ -24,7 +24,7 @@ public sealed class TestingPackageFacts
         {
             var forbidden = Repository.References(Repository.ProjectNamed(name).Path)
                 .Where(reference => reference is "DigitalBrain.OS" or "DigitalBrain.AppHost"
-                    || reference.StartsWith("DigitalBrain.Platform", StringComparison.Ordinal))
+                    || reference.StartsWith("DigitalBrain.Authority", StringComparison.Ordinal))
                 .ToArray();
             Assert.True(forbidden.Length == 0, $"{name} ships to consumers and references {string.Join(", ", forbidden)}.");
         }

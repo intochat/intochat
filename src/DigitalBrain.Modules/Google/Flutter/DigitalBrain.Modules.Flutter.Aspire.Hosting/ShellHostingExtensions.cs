@@ -306,7 +306,7 @@ public static class ShellHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            var corsOrigin = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
+            var corsOrigin = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {

@@ -1,7 +1,7 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using DigitalBrain.Testing.Model;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;

@@ -9,7 +9,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Orleans;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -83,7 +83,7 @@ public sealed class InProcessTarget : ITestTarget
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [DigitalBrainNames.MasterKeyConfigurationKey] = session.MasterKey,
-            [DigitalBrain.Platform.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
+            [DigitalBrain.Authority.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),

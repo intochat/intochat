@@ -1,6 +1,6 @@
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.OS;
-using DigitalBrain.Platform.Hosting;
+using DigitalBrain.Authority.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 var webHostServices = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();

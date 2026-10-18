@@ -1,5 +1,5 @@
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Mcp.Tests.Integration;

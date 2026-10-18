@@ -10,7 +10,7 @@ namespace DigitalBrain.Modules.Flutter.Tests.Hosting;
 // A roll restarts silo instances one at a time; the shell must not ride on any one of them.
 public sealed class ShellFrontFacts
 {
-    private const string AllowedOrigin = DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
+    private const string AllowedOrigin = DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
 
     [Fact]
     public async Task TheDesktopShellUsesTheFrontsHttpsEndpointForNativeHttp2()

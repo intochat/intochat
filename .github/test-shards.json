@@ -2,7 +2,6 @@
   "shards": {
     "unit": [
       "**/DigitalBrain.Architecture.Tests.Unit.dll",
-      "**/DigitalBrain.Platform.Tests.Unit.dll",
       "**/DigitalBrain.Aspire.Hosting.Tests.Unit.dll",
       "**/DigitalBrain.Client.Tests.Unit.dll",
       "**/DigitalBrain.Deployment.Tests.Unit.dll",
@@ -22,6 +21,7 @@
       "**/DigitalBrain.Modules.ClickHouse.Tests.Integration.dll"
     ],
     "integration-b": [
+      "**/DigitalBrain.Authority.Tests.Integration.dll",
       "**/DigitalBrain.Modules.Apps.Tests.Integration.dll",
       "**/DigitalBrain.Modules.Microsoft.Aspire.Tests.Integration.dll",
       "**/DigitalBrain.Client.Orleans.Tests.Integration.dll",

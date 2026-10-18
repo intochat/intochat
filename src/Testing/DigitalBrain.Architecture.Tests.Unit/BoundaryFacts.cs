@@ -10,17 +10,17 @@ public sealed class BoundaryFacts
 {
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "DigitalBrain.Platform.Contracts", "DigitalBrain.Client", "DigitalBrain.Framework",
-        "DigitalBrain.Client.Orleans", "DigitalBrain.Platform"
+        "DigitalBrain", "DigitalBrain.Authority.Contracts", "DigitalBrain.Client", "DigitalBrain.Framework",
+        "DigitalBrain.Client.Orleans", "DigitalBrain.Authority"
     ];
 
     [Theory]
     [InlineData("DigitalBrain", "DigitalBrain.Framework")]
     [InlineData("DigitalBrain.Framework", "DigitalBrain.Client")]
     [InlineData("DigitalBrain.Framework", "DigitalBrain.Client.Orleans")]
-    [InlineData("DigitalBrain.Framework", "DigitalBrain.Platform")]
-    [InlineData("DigitalBrain.Client", "DigitalBrain.Platform")]
-    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Platform")]
+    [InlineData("DigitalBrain.Framework", "DigitalBrain.Authority")]
+    [InlineData("DigitalBrain.Client", "DigitalBrain.Authority")]
+    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -61,7 +61,7 @@ public sealed class BoundaryFacts
     public void FeatureModulesNeverDependOnTheCredentialImplementation()
     {
         var architecture = ProductionArchitecture.Graph.Value;
-        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("DigitalBrain.Platform");
+        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("DigitalBrain.Authority");
         var modules = ProductionArchitecture.Assemblies.Where(assembly => !KernelLayers.Contains(assembly.GetName().Name)).ToArray();
         Assert.NotEmpty(modules);
         foreach (var assembly in modules)

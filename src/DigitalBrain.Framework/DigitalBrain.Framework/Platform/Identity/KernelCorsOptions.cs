@@ -1,4 +1,4 @@
-namespace DigitalBrain.Platform.Identity.Configuration;
+namespace DigitalBrain.Authority.Identity.Configuration;
 
 public sealed class KernelCorsOptions
 {

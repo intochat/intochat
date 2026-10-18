@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;

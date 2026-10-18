@@ -19,7 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-    <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OS is the composition of every module in the repo; OsCatalog names them in code

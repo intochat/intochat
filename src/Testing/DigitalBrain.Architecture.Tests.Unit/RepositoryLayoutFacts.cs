@@ -15,7 +15,7 @@ public sealed class RepositoryLayoutFacts
     // DigitalBrain.Integrations (962ffb603). Closed by design review.
     private static readonly Dictionary<string, string> RootNamespaces = new(StringComparer.Ordinal)
     {
-        ["DigitalBrain.Platform.Contracts"] = "DigitalBrain.Integrations",
+        ["DigitalBrain.Authority.Contracts"] = "DigitalBrain.Integrations",
     };
 
     [Fact]
