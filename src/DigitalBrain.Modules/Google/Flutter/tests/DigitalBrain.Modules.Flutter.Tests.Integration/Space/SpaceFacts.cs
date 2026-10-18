@@ -131,10 +131,20 @@ public sealed class SpaceFacts
         var ct = TestContext.Current.CancellationToken;
         var calls = new AppReads();
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
-            .ConfigureServices(s => { s.RemoveAll<IAppRuntime>(); s.AddSingleton<IOutgoingGrainCallFilter>(calls); }).StartAsync(ct);
+            .ConfigureServices(s =>
+            {
+                s.RemoveAll<IAppRuntime>();
+                // The watcher turns the app's creation and the Home into late compositions. One that lands
+                // after the failure is armed consumes it, or re-reads the dirty app before the removal is seen.
+                // This fact drives every composition itself.
+                s.Remove(s.Single(service => service.ServiceType == typeof(IHostedService)
+                    && service.ImplementationType == typeof(SpaceWatcher)));
+                s.AddSingleton<IOutgoingGrainCallFilter>(calls);
+            }).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         await App(brain, "retry");
         await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("retry-home", 0);
+        await brain.Get<ISpace>(brain.Owner.BrainId).Rebuild();
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         var key = IApp.Key(brain.Owner.BrainId, "retry");
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == key), TimeSpan.FromSeconds(10), ct);
