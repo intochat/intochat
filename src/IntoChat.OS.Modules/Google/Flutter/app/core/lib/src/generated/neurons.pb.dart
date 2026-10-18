@@ -45,7 +45,7 @@ class CallRequest extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CallRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'digitalbrain'),
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
       createEmptyInstance: CallRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'brainId')
     ..aOS(2, _omitFieldNames ? '' : 'contract')
@@ -143,7 +143,7 @@ class CallReply extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CallReply',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'digitalbrain'),
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
       createEmptyInstance: CallReply.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'result', $pb.PbFieldType.OY)
@@ -203,7 +203,7 @@ class WatchSource extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WatchSource',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'digitalbrain'),
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
       createEmptyInstance: WatchSource.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'contract')
     ..aOS(2, _omitFieldNames ? '' : 'key')
@@ -276,7 +276,7 @@ class WatchRequest extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WatchRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'digitalbrain'),
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
       createEmptyInstance: WatchRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'brainId')
     ..pPM<WatchSource>(2, _omitFieldNames ? '' : 'sources',
@@ -348,7 +348,7 @@ class SignalEnvelope extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SignalEnvelope',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'digitalbrain'),
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
       createEmptyInstance: SignalEnvelope.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'source')
     ..aOS(2, _omitFieldNames ? '' : 'type')

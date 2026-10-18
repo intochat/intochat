@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
-import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
+import 'package:intochat_os_flutter_shell/space/space_controller.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

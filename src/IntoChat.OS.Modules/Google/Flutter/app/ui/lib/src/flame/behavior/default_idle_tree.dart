@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
 /// What a sphere runs when its node carries no tree: pulse while the neuron runs, pulse gently when it
 /// wants attention, otherwise idle.

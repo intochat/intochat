@@ -52,7 +52,7 @@ final class NeuronIcon extends StatelessWidget {
     if (asset != null) {
       return SvgPicture.asset(
         asset,
-        package: 'digitalbrain_ui',
+        package: 'intochat_os_ui',
         width: size,
         height: size,
         semanticsLabel: semanticLabel ?? kind.name,

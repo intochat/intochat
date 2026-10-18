@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter/src/generated/neurons.pb.dart' as pb;
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter/src/generated/neurons.pb.dart' as pb;
 import 'package:fixnum/fixnum.dart';
 import 'package:grpc/grpc.dart' show GrpcError;
 import 'package:test/test.dart';

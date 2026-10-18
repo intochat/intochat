@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/material.dart';
 
 typedef ModelCatalogLoader = Future<ChatModelCatalog> Function();

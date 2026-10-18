@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 void main() {

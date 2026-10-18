@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.digitalbrain" "\0"
-            VALUE "FileDescription", "digitalbrain_flutter" "\0"
+            VALUE "CompanyName", "com.intochat-os" "\0"
+            VALUE "FileDescription", "intochat_os_flutter" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "digitalbrain_flutter" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.digitalbrain. All rights reserved." "\0"
-            VALUE "OriginalFilename", "digitalbrain_flutter.exe" "\0"
-            VALUE "ProductName", "digitalbrain_flutter" "\0"
+            VALUE "InternalName", "intochat_os_flutter" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.intochat-os. All rights reserved." "\0"
+            VALUE "OriginalFilename", "intochat_os_flutter.exe" "\0"
+            VALUE "ProductName", "intochat_os_flutter" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

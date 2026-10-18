@@ -1,6 +1,6 @@
-import 'package:digitalbrain_ui/src/theme/ui_theme.dart';
-import 'package:digitalbrain_ui/src/theme/ui_tokens.dart';
-import 'package:digitalbrain_ui/src/components/workspace/ui_workspace_components.dart';
+import 'package:intochat_os_ui/src/theme/ui_theme.dart';
+import 'package:intochat_os_ui/src/theme/ui_tokens.dart';
+import 'package:intochat_os_ui/src/components/workspace/ui_workspace_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';

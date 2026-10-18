@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -6,9 +6,8 @@ void main() {
     'friend slots watch the viewers space rather than foreign neurons',
     () async {
       final link = RecordingLink();
-      final client = IntoChatOSUiClient(
-        baseUri: Uri.parse('http://localhost'),
-      )..link = link;
+      final client = IntoChatOSUiClient(baseUri: Uri.parse('http://localhost'))
+        ..link = link;
       for (final slot in [
         ('person', 'bob/profile'),
         ('card', 'bob/posts/p1'),

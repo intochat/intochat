@@ -1,4 +1,4 @@
-import 'package:digitalbrain_ui/src/composition/renderer_registry.dart';
+import 'package:intochat_os_ui/src/composition/renderer_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

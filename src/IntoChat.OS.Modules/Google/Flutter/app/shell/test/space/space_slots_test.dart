@@ -1,5 +1,5 @@
-import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
-import 'package:digitalbrain_flutter_shell/space/space_slots.dart';
+import 'package:intochat_os_flutter_shell/space/space_controller.dart';
+import 'package:intochat_os_flutter_shell/space/space_slots.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

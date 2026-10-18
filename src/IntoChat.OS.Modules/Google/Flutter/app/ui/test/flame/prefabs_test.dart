@@ -1,4 +1,4 @@
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame_test/flame_test.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter/src/node_contracts.dart';
+import 'package:intochat_os_flutter/src/node_contracts.dart';
 import 'package:test/test.dart';
 
 void main() {

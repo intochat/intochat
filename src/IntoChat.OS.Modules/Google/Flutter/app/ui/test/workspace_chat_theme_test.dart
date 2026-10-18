@@ -1,5 +1,5 @@
-import 'package:digitalbrain_ui/src/theme/ui_theme.dart';
-import 'package:digitalbrain_ui/src/chat/ui_copyable_message.dart';
+import 'package:intochat_os_ui/src/theme/ui_theme.dart';
+import 'package:intochat_os_ui/src/chat/ui_copyable_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

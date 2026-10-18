@@ -21,9 +21,7 @@ Future<int> _defaultEnvironmentFactory() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final port = socket.port;
   await socket.close();
-  final profile = await Directory.systemTemp.createTemp(
-    'intochat-os-browser-',
-  );
+  final profile = await Directory.systemTemp.createTemp('intochat-os-browser-');
   await WebviewController.initializeEnvironment(
     userDataPath: profile.path,
     additionalArguments:

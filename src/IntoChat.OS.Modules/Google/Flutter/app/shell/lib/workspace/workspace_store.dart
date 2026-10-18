@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart' show UiTheme;
+import 'package:intochat_os_ui/intochat_os_ui.dart' show UiTheme;
 
 String _text(dynamic value, String fallback) =>
     value is String ? value : fallback;

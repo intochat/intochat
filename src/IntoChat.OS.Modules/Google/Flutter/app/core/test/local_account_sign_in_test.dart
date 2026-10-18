@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -62,7 +62,7 @@ void main() {
   test('remote destinations never receive local credentials', () async {
     var calls = 0;
     final client = IntoChatOSUiClient(
-      baseUri: Uri.parse('https://digitalbrain.tech'),
+      baseUri: Uri.parse('https://example.test'),
       httpClient: MockClient((r) async {
         calls++;
         return http.Response(session, 200);

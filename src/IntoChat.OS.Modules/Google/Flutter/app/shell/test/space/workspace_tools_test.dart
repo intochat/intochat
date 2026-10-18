@@ -1,6 +1,6 @@
-import 'package:digitalbrain_flutter_shell/workspace/workspace_settings.dart';
-import 'package:digitalbrain_flutter_shell/workspace/compute_usage_panel.dart';
-import 'package:digitalbrain_flutter_shell/connections/connect_window.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_settings.dart';
+import 'package:intochat_os_flutter_shell/workspace/compute_usage_panel.dart';
+import 'package:intochat_os_flutter_shell/connections/connect_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

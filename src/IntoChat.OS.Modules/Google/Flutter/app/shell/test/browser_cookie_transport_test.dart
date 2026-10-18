@@ -1,6 +1,6 @@
-import 'package:digitalbrain_flutter/src/host_environment.dart';
-import 'package:digitalbrain_flutter/src/session_http_client_io.dart'
-    if (dart.library.html) 'package:digitalbrain_flutter/src/session_http_client_web.dart'
+import 'package:intochat_os_flutter/src/host_environment.dart';
+import 'package:intochat_os_flutter/src/session_http_client_io.dart'
+    if (dart.library.html) 'package:intochat_os_flutter/src/session_http_client_web.dart'
     as transport;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';

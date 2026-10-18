@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:digitalbrain_flutter_shell/workspace/home/app_icon.dart';
+import 'package:intochat_os_flutter_shell/workspace/home/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';

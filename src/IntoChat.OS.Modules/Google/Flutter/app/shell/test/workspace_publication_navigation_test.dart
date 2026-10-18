@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'application_fixture.dart';
 
-import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
+import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
 
 void main() {
   testWidgets(

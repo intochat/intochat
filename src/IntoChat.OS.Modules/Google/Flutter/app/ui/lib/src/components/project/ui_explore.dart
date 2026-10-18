@@ -75,7 +75,7 @@ class UiSpecialistIcon extends StatelessWidget {
             padding: EdgeInsets.all(size * .12),
             child: SvgPicture.asset(
               'assets/brands/salesforce.svg',
-              package: 'digitalbrain_ui',
+              package: 'intochat_os_ui',
               semanticsLabel: 'Salesforce',
             ),
           )

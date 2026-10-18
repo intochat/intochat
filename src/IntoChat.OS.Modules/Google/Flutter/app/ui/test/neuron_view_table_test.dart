@@ -1,4 +1,4 @@
-import 'package:digitalbrain_ui/src/composition/neuron_view.dart';
+import 'package:intochat_os_ui/src/composition/neuron_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

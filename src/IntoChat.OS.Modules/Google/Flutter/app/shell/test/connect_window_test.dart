@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter_shell/connections/connect_window.dart';
+import 'package:intochat_os_flutter_shell/connections/connect_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
