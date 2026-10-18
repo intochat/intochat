@@ -99,6 +99,16 @@ internal sealed class BrainLog : IDisposable
         }
     }
 
+    // Every stored (grain, state) pair, for tools that must read each record (the storage fixtures).
+    internal (string GrainId, string StateName)[] RecordKeys()
+    {
+        lock (gate)
+        {
+            RequireOpen();
+            return [.. records.SelectMany(grain => grain.Value.Keys.Select(state => (grain.Key, state)))];
+        }
+    }
+
     public BrainRecord? Read(string grainId, string stateName)
     {
         lock (gate)
