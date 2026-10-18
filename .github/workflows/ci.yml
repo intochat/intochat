@@ -18,9 +18,7 @@ env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
-  # The root disk has ~14 GB free and the solution's outputs plus packages exceed it; the runner's
-  # temporary disk at /mnt has room, so packages and build output live there (no slow cleanup step).
-  NUGET_PACKAGES: /mnt/nuget/packages
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 # Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
 # modules. Shard membership lives in .github/test-shards.json; TestShardFacts holds every PR-gate
@@ -36,12 +34,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-
-      - name: Use the temporary disk
-        run: |
-          sudo mkdir -p /mnt/nuget /mnt/artifacts
-          sudo chown -R "$USER" /mnt/nuget /mnt/artifacts
-          df -h / /mnt
 
       - name: Restore NuGet package cache
         uses: actions/cache/restore@v6
@@ -61,9 +53,6 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      # MSBuild reads it as a property for restore, build and pack alike.
-      ArtifactsPath: /mnt/artifacts
     steps:
       - uses: actions/checkout@v7
         with:
@@ -73,12 +62,11 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Cleanup runs in the background while restore and build proceed, instead of 1:38 up front.
-      - name: Use the temporary disk and free the root disk in the background
+      # The root disk has ~13 GB free and packages plus the solution's output need more (/mnt is the
+      # same disk on this image). Cleanup runs in the background during the build instead of 1:38 up front.
+      - name: Free the root disk in the background
         run: |
-          sudo mkdir -p /mnt/nuget /mnt/artifacts
-          sudo chown -R "$USER" /mnt/nuget /mnt/artifacts
-          df -h / /mnt
+          df -h /
           sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - name: Restore NuGet package cache
@@ -90,8 +78,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore DigitalBrain.slnx -v quiet
+      # Restore runs inside the build: one evaluation of the solution instead of two.
+      - name: Build solution
+        run: dotnet build DigitalBrain.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
 
       - name: Save NuGet package cache
         if: steps.nuget-cache.outputs.cache-hit != 'true'
@@ -100,25 +89,13 @@ jobs:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
-      - name: Build solution
-        run: |
-          dotnet msbuild src/DigitalBrain/DigitalBrain.csproj -getProperty:ArtifactsPath -getProperty:OutputPath
-          df -h / /mnt
-          dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
-
-      - name: Validate NuGet packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
-
-      # One archive per shard: each test output carries its own copy of every dependency, so
-      # zstd's long window deduplicates across projects, and native assets for other RIDs go.
       # One archive per shard, rooted at artifacts/bin so the test job unpacks it under the checkout:
       # each test output carries its own copy of every dependency, so zstd's long window
       # deduplicates across projects, and native assets for other RIDs are dropped.
       - name: Archive test modules per shard
-        working-directory: /mnt
         run: |
-          shards="$GITHUB_WORKSPACE/.github/test-shards.json"
-          mkdir -p "$GITHUB_WORKSPACE/artifacts/shards"
+          shards=.github/test-shards.json
+          mkdir -p artifacts/shards
           for shard in $(jq -r '.shards | keys[]' "$shards"); do
             dirs=()
             while read -r glob; do
@@ -131,17 +108,11 @@ jobs:
                 find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
               fi
             done
-            archive="$GITHUB_WORKSPACE/artifacts/shards/$shard.tar.zst"
+            archive="artifacts/shards/$shard.tar.zst"
             tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "${dirs[@]}"
             echo "$shard: ${#dirs[@]} modules, $(du -h "$archive" | cut -f1)"
           done
-          df -h / /mnt
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: packages
-          path: artifacts/packages
-          retention-days: 7
+          df -h /
 
       # One upload per shard in .github/test-shards.json; a new shard adds a step here and a matrix entry below.
       - uses: actions/upload-artifact@v5
@@ -168,6 +139,21 @@ jobs:
           path: artifacts/shards/integration-c.tar.zst
           compression-level: 0
           retention-days: 1
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-modules-integration-d
+          path: artifacts/shards/integration-d.tar.zst
+          compression-level: 0
+          retention-days: 1
+
+      - name: Validate NuGet packages
+        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: packages
+          path: artifacts/packages
+          retention-days: 7
 
   test:
     name: test (${{ matrix.shard }})
@@ -177,7 +163,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [unit, integration-a, integration-b, integration-c]
+        shard: [unit, integration-a, integration-b, integration-c, integration-d]
     steps:
       # Facts read the repository (the solution, sources, golden files); the modules unpack into artifacts/bin under it.
       - uses: actions/checkout@v7
