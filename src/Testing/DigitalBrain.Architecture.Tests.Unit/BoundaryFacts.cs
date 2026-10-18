@@ -8,9 +8,10 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 
 public sealed class BoundaryFacts
 {
+    // DigitalBrain.Contracts.Configuration is innermost: configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "DigitalBrain.Authority.Contracts", "DigitalBrain.Client", "DigitalBrain.Framework",
+        "DigitalBrain.Contracts.Configuration", "DigitalBrain", "DigitalBrain.Authority.Contracts", "DigitalBrain.Client", "DigitalBrain.Framework",
         "DigitalBrain.Client.Orleans", "DigitalBrain.Authority"
     ];
 

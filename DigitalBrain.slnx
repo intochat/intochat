@@ -19,6 +19,7 @@
     <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment.Runtime/DigitalBrain.Deployment.Runtime.csproj" />
   </Folder>
   <Folder Name="/Framework/">
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Contracts.Configuration/DigitalBrain.Contracts.Configuration.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.Integration/DigitalBrain.Framework.Tests.Integration.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />

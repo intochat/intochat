@@ -22,9 +22,12 @@ public static class DigitalBrainNames
     // BrainStoreOptions.Ownership: which mechanism proves one writer per brain, and the Blob lease container it uses.
     public const string BrainStorageOwnershipKindConfigurationKey = BrainStorageConfigurationKey + ":Ownership:Kind";
     public const string BrainStorageOwnershipContainerUriConfigurationKey = BrainStorageConfigurationKey + ":Ownership:ContainerUri";
+    // BrainLogOwnershipKind's member names, as configuration spells them.
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
+    public const string BrainStorageOwnershipWriterLock = "WriterLock";
     // HostedRuntimeOptions' section; a runtime deployed beside its own Orleans grain state must never carry it.
     public const string HostingConfigurationKey = "DigitalBrain:Hosting";
+    public const string IntegrationsSectionName = "DigitalBrain:Integrations";
     // Where the deployment tells the runtime its vault lives.
     public const string KeyVaultUriConfigurationKey = "DigitalBrain:KeyVault:Uri";
 }

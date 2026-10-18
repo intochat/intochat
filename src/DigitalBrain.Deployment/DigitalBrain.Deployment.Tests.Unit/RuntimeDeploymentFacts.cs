@@ -74,7 +74,12 @@ public sealed class RuntimeDeploymentFacts
         Assert.Equal(60, Int(template["terminationGracePeriodSeconds"]));
         var probes = List(Container(mocks)["probes"]).Select(Map).ToDictionary(probe => (string)probe["type"]);
         Assert.Equal(["Liveness", "Readiness", "Startup"], probes.Keys.Order(StringComparer.Ordinal));
-        Assert.All(probes.Values, probe => Assert.Equal("/health", (string)Map(probe["httpGet"])["path"]));
+        // Liveness is the process alone and readiness honours the drain; only startup waits for dependencies.
+        Assert.Equal("/alive", (string)Map(probes["Liveness"]["httpGet"])["path"]);
+        Assert.Equal("/ready", (string)Map(probes["Readiness"]["httpGet"])["path"]);
+        Assert.Equal("/health", (string)Map(probes["Startup"]["httpGet"])["path"]);
+        Assert.Equal(DigitalBrain.ServiceDefaults.HealthProbes.AlivePath, (string)Map(probes["Liveness"]["httpGet"])["path"]);
+        Assert.Equal(DigitalBrain.ServiceDefaults.HealthProbes.ReadyPath, (string)Map(probes["Readiness"]["httpGet"])["path"]);
         Assert.Equal(30, Int(probes["Startup"]["failureThreshold"]));
         Assert.Equal(10, Int(probes["Startup"]["periodSeconds"]));
     }
@@ -144,6 +149,11 @@ public sealed class RuntimeDeploymentFacts
             mocks.Resources.Where(resource => resource.Type == "azure-native:keyvault:Secret").Select(resource => resource.Name).Order(StringComparer.Ordinal));
     }
 
+    [Fact]
+    public void RefusesTheBareHostingSection()
+        => Assert.Throws<InvalidOperationException>(() => DigitalBrainRuntimeDeployment.Validate(
+            Options() with { Settings = new Dictionary<string, Input<string>> { [DigitalBrainNames.HostingConfigurationKey] = "x" } }));
+
     [Theory]
     [InlineData("RuntimeId")]
     [InlineData("AccountId")]
@@ -191,16 +201,29 @@ public sealed class RuntimeDeploymentFacts
 
         Assert.DoesNotContain(mocks.Resources, resource => resource.Type == "azure-native:storage:BlobContainer");
         Assert.Single(mocks.Resources, resource => resource.Type == "azure-native:storage:FileShare");
-        Assert.DoesNotContain(Env(DigitalBrainNames.BrainStorageOwnershipKindConfigurationKey), Environment(mocks).Keys);
+        Assert.Equal(DigitalBrainNames.BrainStorageOwnershipWriterLock, Environment(mocks)[Env(DigitalBrainNames.BrainStorageOwnershipKindConfigurationKey)].Value);
+        Assert.DoesNotContain(Env(DigitalBrainNames.BrainStorageOwnershipContainerUriConfigurationKey), Environment(mocks).Keys);
+    }
+
+    // Platform's Pulumi program takes this package: Pulumi, AzureNative and the dependency-free configuration names, nothing else.
+    [Fact]
+    public void TheRuntimeAssemblyReferencesOnlyPulumiAndTheConfigurationNames()
+    {
+        var references = typeof(DigitalBrainRuntimeDeployment).Assembly.GetReferencedAssemblies().Select(name => name.Name!)
+            .Where(name => name != "System" && !name.StartsWith("System.", StringComparison.Ordinal) && name != "netstandard" && name != "mscorlib")
+            .Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(["DigitalBrain.Contracts.Configuration", "Pulumi", "Pulumi.AzureNative"], references);
+        Assert.DoesNotContain(typeof(DigitalBrainNames).Assembly.GetReferencedAssemblies(),
+            name => name.Name != "netstandard" && name.Name != "System" && !name.Name!.StartsWith("System.", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void TheRuntimeAssemblyDoesNotReferenceDeploymentKit()
+    public void TheConfigurationNamesAreTheOnesTheRuntimeReads()
     {
-        var references = typeof(DigitalBrainRuntimeDeployment).Assembly.GetReferencedAssemblies().Select(name => name.Name!).ToArray();
-
-        Assert.DoesNotContain(references, name => name.StartsWith("DeploymentKit", StringComparison.Ordinal));
-        Assert.DoesNotContain(typeof(DigitalBrainDeployment).Assembly.GetName().Name, references);
+        Assert.Equal(OrleansStorageHosting.ClusteringField, OrleansIntegrationNames.Clustering);
+        Assert.Equal(OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField), DigitalBrain.Framework.Configuration.ConfigurationKeyGrammar.IntegrationKey(OrleansIntegrationNames.Id, OrleansIntegrationNames.GrainState));
+        Assert.Equal(DigitalBrain.ServiceDefaults.HealthProbes.HealthPath, HostProbePaths.Health);
     }
 
     private static RuntimeOptions Options() => new()

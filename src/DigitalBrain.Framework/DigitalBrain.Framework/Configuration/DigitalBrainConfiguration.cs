@@ -45,11 +45,7 @@ public static class DigitalBrainConfiguration
         return $"{ConnectionsSectionName}:TokenEndpoints:{connectorId}";
     }
 
-    public static string EnvironmentName(string configurationKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configurationKey);
-        return configurationKey.Replace(":", "__", StringComparison.Ordinal);
-    }
+    public static string EnvironmentName(string configurationKey) => ConfigurationKeyGrammar.EnvironmentName(configurationKey);
 
     // The environment configuration provider's inverse projection; ordinary underscore names
     // and already-canonical keys are unchanged.

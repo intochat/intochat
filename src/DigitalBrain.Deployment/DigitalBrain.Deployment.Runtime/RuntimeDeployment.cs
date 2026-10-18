@@ -1,7 +1,6 @@
 using System.Globalization;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Microsoft.Orleans;
 using Pulumi;
 using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;
@@ -158,10 +157,13 @@ public static class DigitalBrainRuntimeDeployment
                         VolumeMounts = mounts,
                         Probes =
                         [
-                            Probe(ProbeType.Liveness, options, failureThreshold: 3, periodSeconds: 10),
-                            // Readiness never touches a brain: claims stay lazy, so a new revision is ready while the old one drains.
-                            Probe(ProbeType.Readiness, options, failureThreshold: 3, periodSeconds: 10),
-                            Probe(ProbeType.Startup, options, failureThreshold: 30, periodSeconds: 10),
+                            // Liveness is the process alone: a storage blip must not restart the only silo and drop its leases.
+                            Probe(ProbeType.Liveness, HostProbePaths.Alive, failureThreshold: 3, periodSeconds: 10),
+                            // Readiness is the process plus the drain (POST /drain, or DrainDelay at stop) and never touches a brain:
+                            // claims stay lazy, so a new revision is ready while the old one drains.
+                            Probe(ProbeType.Readiness, HostProbePaths.Ready, failureThreshold: 3, periodSeconds: 10),
+                            // Startup waits for dependencies once, up to five minutes.
+                            Probe(ProbeType.Startup, HostProbePaths.Health, failureThreshold: 30, periodSeconds: 10),
                         ],
                     },
                 ],
@@ -185,10 +187,11 @@ public static class DigitalBrainRuntimeDeployment
         {
             throw new InvalidOperationException("The OS silo runs at least one replica, and MaxReplicas is not below MinReplicas.");
         }
-        var hosting = DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.HostingConfigurationKey) + "__";
+        var hosting = ConfigurationKeyGrammar.EnvironmentName(DigitalBrainNames.HostingConfigurationKey) + "__";
         var supplied = SuppliedNames();
         var names = options.Settings.Keys.Concat(options.Secrets.Keys).Select(EnvironmentForm).ToArray();
-        var hosted = names.Where(name => name.StartsWith(hosting, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var hosted = names.Where(name => name.StartsWith(hosting, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, hosting[..^2], StringComparison.OrdinalIgnoreCase)).ToArray();
         if (hosted.Length > 0)
         {
             throw new InvalidOperationException($"The OS runtime must not carry HostedRuntimeOptions ({DigitalBrainNames.HostingConfigurationKey}); remove: {string.Join(", ", hosted)}.");
@@ -216,14 +219,19 @@ public static class DigitalBrainRuntimeDeployment
             // https service URIs select token auth with the runtime identity (os#197).
             var tables = foundation.StorageAccountName.Apply(account => $"https://{account}.table.core.windows.net/");
             var blobs = foundation.StorageAccountName.Apply(account => $"https://{account}.blob.core.windows.net/");
-            yield return new(Integration(OrleansStorageHosting.ClusteringField), tables);
-            yield return new(Integration(OrleansStorageHosting.RemindersField), tables);
-            yield return new(Integration(OrleansStorageHosting.GrainStateField), blobs);
-            yield return new(Integration(OrleansStorageHosting.GrainStateContainerField), "grainstate-" + options.StorageFormat);
+            yield return new(Integration(OrleansIntegrationNames.Clustering), tables);
+            yield return new(Integration(OrleansIntegrationNames.Reminders), tables);
+            yield return new(Integration(OrleansIntegrationNames.GrainState), blobs);
+            yield return new(Integration(OrleansIntegrationNames.GrainStateContainer), "grainstate-" + options.StorageFormat);
+        }
+        if (durable)
+        {
+            // Written in both modes, so the silo never falls back to a default it was not told.
+            yield return new(Variable(DigitalBrainNames.BrainStorageOwnershipKindConfigurationKey),
+                leased ? DigitalBrainNames.BrainStorageOwnershipBlobLease : DigitalBrainNames.BrainStorageOwnershipWriterLock);
         }
         if (leased)
         {
-            yield return new(Variable(DigitalBrainNames.BrainStorageOwnershipKindConfigurationKey), DigitalBrainNames.BrainStorageOwnershipBlobLease);
             yield return new(Variable(DigitalBrainNames.BrainStorageOwnershipContainerUriConfigurationKey),
                 foundation.StorageAccountName.Apply(account => $"https://{account}.blob.core.windows.net/{LeaseContainer(options)}"));
         }
@@ -237,10 +245,10 @@ public static class DigitalBrainRuntimeDeployment
         return [.. Environment(foundation, everything, durable: true, leased: true).Select(pair => pair.Key), DigitalBrainNames.MasterKeyEnvironmentVariable];
     }
 
-    private static ContainerAppProbeArgs Probe(ProbeType type, RuntimeOptions options, int failureThreshold, int periodSeconds) => new()
+    private static ContainerAppProbeArgs Probe(ProbeType type, string path, int failureThreshold, int periodSeconds) => new()
     {
         Type = type,
-        HttpGet = new ContainerAppProbeHttpGetArgs { Path = options.HealthPath, Port = HttpPort },
+        HttpGet = new ContainerAppProbeHttpGetArgs { Path = path, Port = HttpPort },
         FailureThreshold = failureThreshold,
         PeriodSeconds = periodSeconds,
     };
@@ -264,9 +272,9 @@ public static class DigitalBrainRuntimeDeployment
 
     private static string BrainLogDirectory(RuntimeOptions options) => "/data/brain/" + options.StorageFormat;
 
-    private static string Variable(string configurationKey) => DigitalBrainConfiguration.EnvironmentName(configurationKey);
+    private static string Variable(string configurationKey) => ConfigurationKeyGrammar.EnvironmentName(configurationKey);
 
-    private static string Integration(string field) => Variable(OrleansModule.Integration.Key(field));
+    private static string Integration(string field) => Variable(ConfigurationKeyGrammar.IntegrationKey(OrleansIntegrationNames.Id, field));
 
     private static string EnvironmentForm(string name) => name.Contains(':', StringComparison.Ordinal) ? Variable(name) : name;
 

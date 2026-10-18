@@ -9,9 +9,9 @@ public sealed record IntegrationSchema(string Id, string DisplayName, string[] S
 
     // The configuration home of every integration's deployment values; one key shape,
     // spelled here and nowhere else.
-    public const string SectionName = "DigitalBrain:Integrations";
+    public const string SectionName = DigitalBrainNames.IntegrationsSectionName;
 
-    public static string Key(string id, string field) => $"{SectionName}:{id}:{field}";
+    public static string Key(string id, string field) => DigitalBrain.Framework.Configuration.ConfigurationKeyGrammar.IntegrationKey(id, field);
 
     public string Key(string field) => Key(Id, field);
 

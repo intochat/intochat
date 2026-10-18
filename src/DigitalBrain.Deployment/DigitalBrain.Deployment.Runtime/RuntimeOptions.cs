@@ -30,7 +30,6 @@ public sealed record RuntimeOptions
     public int AppUid { get; init; } = 1654;
     public int AppGid { get; init; } = 1654;
     public int TerminationGracePeriodSeconds { get; init; } = 60;
-    public string HealthPath { get; init; } = "/health";
     // Further plain settings and secrets; secrets go to Key Vault. Neither may override what DeployRuntime sets.
     public IReadOnlyDictionary<string, Input<string>> Settings { get; init; } = new Dictionary<string, Input<string>>();
     public IReadOnlyDictionary<string, Input<string>> Secrets { get; init; } = new Dictionary<string, Input<string>>();

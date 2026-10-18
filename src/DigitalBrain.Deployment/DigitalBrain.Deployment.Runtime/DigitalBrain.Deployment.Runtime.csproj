@@ -7,7 +7,6 @@
   <ItemGroup>
     <PackageReference Include="Pulumi" />
     <PackageReference Include="Pulumi.AzureNative" />
-    <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
-    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans/DigitalBrain.Modules.Microsoft.Orleans.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Contracts.Configuration/DigitalBrain.Contracts.Configuration.csproj" />
   </ItemGroup>
 </Project>
