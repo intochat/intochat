@@ -119,7 +119,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
             return [.. answer.Verdicts.Select(verdict => new Verdict(verdict.Allowed, verdict.Reason) { Rule = verdict.Rule })];
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested
-            && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or Azure.RequestFailedException)
+            && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or global::Azure.RequestFailedException)
         {
             Log()?.LogDebug(error, "Judge for brain {Brain} got no answer.", brain);
             return [Verdict.Reject("rule did not answer") with { Rule = RulesName }];
