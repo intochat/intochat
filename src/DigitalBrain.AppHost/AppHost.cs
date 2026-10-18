@@ -26,7 +26,7 @@ if (shellEnabled) { digitalBrain = digitalBrain.WithHosting<FlutterModuleHosting
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
-// The repository's ./features: os and intochat apps, loaded by the OS at boot.
+// The repository's ./features: os apps, loaded by the OS at boot.
 var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
 
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);

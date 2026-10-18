@@ -99,8 +99,10 @@ public sealed class FeatureDirectoryFacts : IDisposable
         while (!File.Exists(Path.Combine(root!.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
         var features = Path.Combine(root.FullName, "features");
         var loaded = new FeatureDirectory(features).Load();
-        Assert.Contains(loaded, feature => feature.Owner == "intochat");
-        foreach (var app in loaded.Where(feature => feature.Owner == "intochat").Select(feature => feature.Bundle))
+        var withIcons = loaded.Where(feature => feature.Owner == "os").Select(feature => feature.Bundle)
+            .Where(app => !string.IsNullOrEmpty(app.Manifest.Icon) || app.Files.ContainsKey("icon.svg")).ToArray();
+        Assert.NotEmpty(withIcons);
+        foreach (var app in withIcons)
         {
             Assert.Equal("icon.svg", app.Manifest.Icon);
             Assert.StartsWith("<svg", app.Files["icon.svg"], StringComparison.Ordinal);

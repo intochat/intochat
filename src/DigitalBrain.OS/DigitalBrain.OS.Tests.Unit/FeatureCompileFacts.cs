@@ -31,8 +31,6 @@ public sealed class FeatureCompileFacts
             var scripts = bundle.Files.Where(file => AppFiles.IsProgram(file.Key))
                 .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
             if (scripts.Count == 0) { continue; }
-            // sv-loans names the SV modules' contracts, which are not part of the OS; it moves with them to the platform repository.
-            if (feature.Owner == "intochat" && bundle.Name == "sv-loans") { continue; }
             var check = await sandbox.Compile(scripts, ct);
             compiled++;
             var reported = check.Errors.Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}").ToArray();

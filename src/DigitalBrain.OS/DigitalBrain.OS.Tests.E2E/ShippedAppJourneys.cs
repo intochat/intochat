@@ -36,13 +36,6 @@ internal static class ShippedAppJourneys
                 await Assertions.Expect(page.GetByText("89", new() { Exact = true })).ToBeVisibleAsync();
                 await Assertions.Expect(page.GetByText("Error", new() { Exact = true })).ToHaveCountAsync(0);
                 break;
-            case "word-count":
-                foreach (var (input, answer) in new[] { ("the quick brown fox", "4 words"), ("  hello    world  ", "2 words"), ("hello", "1 word") })
-                {
-                    await Request("ask", input);
-                    await Text(answer);
-                }
-                break;
             case "settings":
                 var connections = fixture.Brain.Get<ILayout>(fixture.Person.BrainId + "/apps/settings/connections");
                 var revision = (await connections.Read()).Revision;
@@ -115,15 +108,6 @@ internal static class ShippedAppJourneys
                 await Text("FilmCraft is not connected. Request open to connect its tools.");
                 await Request("open", "");
                 await Text("FilmCraft tools connected");
-                break;
-            case "customer-researcher":
-                await Assertions.Expect(page.GetByRole(AriaRole.Textbox, new() { Name = "Company name or website" })).ToBeVisibleAsync();
-                await Button("Stop research").ClickAsync();
-                await Text("Stopped");
-                break;
-            case "sv-loans":
-                await Request("status", "");
-                await Text("check-bureau: no result yet");
                 break;
             case "workspace": await Text("Your workspace is clear."); break;
             default: Assert.Fail($"Add a browser journey for the shipped app '{name}'."); break;

@@ -33,7 +33,7 @@ public sealed class OsBootFacts
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
         // Vendor apps are a distribution's to name; the OS boots without them.
-        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read()).Manifest.Title);
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "not-installed-app")).Read()).Manifest.Title);
         Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "assistant")).Read()).Manifest.Title);
         var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
@@ -90,7 +90,7 @@ public sealed class OsBootFacts
 
         await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
 
-        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read()).Manifest.Title);
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "not-installed-app")).Read()).Manifest.Title);
         Assert.Equal(["os", "intochat"], brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<OsAppsOptions>>().Value.TrustedPublishers);
         Assert.Equal(["os"], new OsAppsOptions().TrustedPublishers);
     }
