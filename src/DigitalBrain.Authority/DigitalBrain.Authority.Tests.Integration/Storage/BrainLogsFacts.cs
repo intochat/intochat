@@ -7,13 +7,13 @@ using Orleans.Serialization;
 
 namespace DigitalBrain.Authority.Tests.Integration.Storage;
 
-public sealed class BrainLogsFacts
+public sealed class BrainLogsFacts(AuthorityHost host)
 {
     [Fact]
     public async Task TwoSetsOfLogsInOneDirectoryOwnDisjointBrains()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var serializer = brain.Services.GetRequiredService<Serializer>();
         var options = Options.Create(new BrainStoreOptions { Directory = Directory.CreateTempSubdirectory("brain-logs-").FullName });
         var keys = new BrainStorageKeys(new ConfiguredMasterKeyCustody(RandomNumberGenerator.GetBytes(32)), options);

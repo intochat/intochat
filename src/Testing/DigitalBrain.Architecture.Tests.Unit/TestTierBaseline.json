@@ -10,6 +10,6 @@
     "DigitalBrain.OS.Tests.Unit/OsBootFacts.cs",
     "DigitalBrain.OS.Tests.Unit/OsInoMigrationFacts.cs"
   ],
-  "LegacyIntegrationWithoutFixture": ["DigitalBrain.Authority.Tests.Integration"],
+  "LegacyIntegrationWithoutFixture": [],
   "LegacyPlaywrightReferencers": []
 }

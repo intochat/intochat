@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Authority.Tests.Integration.Connections;
 
+[Trait("host", "own")]
 public sealed class OAuthFlowFacts : IAsyncLifetime
 {
     private TokenEndpointStub _stub = null!;

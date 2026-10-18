@@ -11,6 +11,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Authority.Tests.Integration;
 
+[Trait("host", "own")]
 public sealed class CostMeterFacts
 {
     [Fact]

@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Authority.Tests.Integration.Identity;
 
+[Trait("host", "own")]
 public sealed class IdentityHostingFacts
 {
     [Fact]

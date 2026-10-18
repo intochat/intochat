@@ -8,6 +8,7 @@ namespace DigitalBrain.Authority.Tests.Integration.Connections;
 
 // Two connectors in one silo: the OS composes several, so no route may resolve a connection by its
 // contract alone.
+[Trait("host", "own")]
 public sealed class TwoConnectorFacts : IAsyncLifetime
 {
     private TokenEndpointStub _stub = null!;

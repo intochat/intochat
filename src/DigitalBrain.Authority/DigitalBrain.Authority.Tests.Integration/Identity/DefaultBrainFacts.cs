@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Authority.Tests.Integration.Identity;
 
+[Trait("host", "own")]
 public sealed class DefaultBrainFacts
 {
     [Fact]

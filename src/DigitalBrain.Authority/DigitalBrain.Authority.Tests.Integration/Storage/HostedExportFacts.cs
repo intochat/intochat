@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Authority.Tests.Integration.Storage;
 
+[Trait("host", "own")]
 public sealed class HostedExportFacts
 {
     [GenerateSerializer, Alias("test.export.customer")]

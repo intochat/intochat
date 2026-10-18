@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Authority.Tests.Integration;
 
-public sealed class SecretsFacts
+public sealed class SecretsFacts(AuthorityHost host)
 {
     private const string Owner = "owner-1";
     private const string Canary = "canary-secret-7f3a91";
@@ -58,7 +58,7 @@ public sealed class SecretsFacts
     public async Task UserCannotResolveThroughGrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var secrets = brain.Grains.GetGrain<ISecrets>(Owner);
         var reference = await secrets.Set(UserCaller(), "api.key", "API key", Canary, ct);
 

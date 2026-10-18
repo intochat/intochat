@@ -7,6 +7,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Authority.Tests.Integration.Connections;
 
+[Trait("host", "own")]
 public sealed class ConnectionNeuronFacts
 {
     [Fact]

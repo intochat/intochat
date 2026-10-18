@@ -10,8 +10,9 @@ namespace DigitalBrain.Authority.Tests.Integration.Identity;
 // A brain's owner is on record before the brain is born. The OS installs default apps from a
 // creation handler, and their behaviors call back into the brain as an App caller at once; that
 // caller must never be adopted as the owner, and the real owner must never be skipped.
-public sealed class OwnerProvisioningFacts
+public sealed class OwnerProvisioningFacts(AuthorityHost host)
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task EveryPersonToRegisterOwnsTheirOwnBrainWhenACreationHandlerCallsInFirst()
     {
@@ -40,14 +41,17 @@ public sealed class OwnerProvisioningFacts
     public async Task AnAppCallerReachingAnUnprovisionedAuthorityIsDeniedAndNotCrowned()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
-        var decision = await authority.Authorize(AppCallerAtBirth.Request("account", "brain"));
+        var brain = host.Brain;
+        var brainId = AuthorityHost.Unique("brain");
+        var accountId = AuthorityHost.Unique("account");
+        var aliceId = AuthorityHost.Unique("alice");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id);
+        var decision = await authority.Authorize(AppCallerAtBirth.Request(accountId, brainId));
         Assert.NotNull(decision);
         Assert.False(decision.Allowed);
         Assert.Null(await authority.Membership("os"));
-        await authority.ProvisionOwner(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
-        Assert.Equal(MemberRole.Owner, (await authority.Membership("alice"))!.Role);
+        await authority.ProvisionOwner(new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner });
+        Assert.Equal(MemberRole.Owner, (await authority.Membership(aliceId))!.Role);
     }
 
     // The development brain: born lazily under the synthetic owner's account, so its first caller,
@@ -56,7 +60,7 @@ public sealed class OwnerProvisioningFacts
     public async Task AnAppCallerInTheSyntheticOwnersBrainFindsTheSyntheticOwnerOnRecord()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
         // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
         var decision = await brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.Grants.IGrantPolicySource>()
@@ -70,13 +74,17 @@ public sealed class OwnerProvisioningFacts
     public async Task ASecondOwnerIsRefusedLoudly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
-        var alice = new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner };
+        var brain = host.Brain;
+        var brainId = AuthorityHost.Unique("brain");
+        var accountId = AuthorityHost.Unique("account");
+        var aliceId = AuthorityHost.Unique("alice");
+        var malloryId = AuthorityHost.Unique("mallory");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id);
+        var alice = new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner };
         await authority.ProvisionOwner(alice);
         await authority.ProvisionOwner(alice);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => authority.ProvisionOwner(alice with { PrincipalId = "mallory", DisplayName = "Mallory" }));
-        Assert.Null(await authority.Membership("mallory"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => authority.ProvisionOwner(alice with { PrincipalId = malloryId, DisplayName = "Mallory" }));
+        Assert.Null(await authority.Membership(malloryId));
     }
 
     private sealed class AppCallerAtBirth : ICreationHandler

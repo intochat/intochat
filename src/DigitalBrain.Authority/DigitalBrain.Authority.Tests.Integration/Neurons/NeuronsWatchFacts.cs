@@ -5,6 +5,7 @@ using Grpc.Core;
 
 namespace DigitalBrain.Authority.Tests.Integration.Neurons;
 
+[Trait("host", "own")]
 public sealed class NeuronsWatchFacts
 {
     private static Task<ITestBrain> Start(CancellationToken ct) => TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);

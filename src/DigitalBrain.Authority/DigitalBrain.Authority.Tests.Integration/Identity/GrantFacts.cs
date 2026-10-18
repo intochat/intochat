@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Authority.Tests.Integration.Identity;
 
-public sealed class GrantFacts
+public sealed class GrantFacts(AuthorityHost host)
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 23, 12, 0, 0, TimeSpan.Zero);
 
@@ -113,17 +113,19 @@ public sealed class GrantFacts
     public async Task RevokingAOnceGrantEmptiesTheAuthorityAndTheNextReadLooksMissing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
         Assert.Single(await authority.ListGrants());
 
         await authority.Revoke("app-1", "person.birthDate", GrantMode.Once);
         Assert.Empty(await authority.ListGrants());
 
         var decision = GrantRules.Evaluate(
-            Request(CallerKind.App, "app-1", "ws-1", "person.birthDate"), null, await authority.ListGrants());
+            RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate"), null, await authority.ListGrants());
         Assert.Equal(CallDenial.MissingGrant, decision!.Denial);
         Assert.Contains("missing", decision.Explanation, StringComparison.OrdinalIgnoreCase);
     }
@@ -132,11 +134,13 @@ public sealed class GrantFacts
     public async Task ConcurrentCallsCannotSpendTheSameOnceGrant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
-        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
+        var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
         var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => authority.Consume(request)));
         Assert.Single(results, result => result is { Allowed: true });
         Assert.Empty(await authority.ListGrants());
@@ -147,11 +151,13 @@ public sealed class GrantFacts
     public async Task AnAuthorizeReadNeverConsumesAGrant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
-        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
+        var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
 
         foreach (var _ in Enumerable.Range(0, 3)) { Assert.True((await authority.Authorize(request)) is { Allowed: true, ConsumesOnce: true }); }
         Assert.Single(await authority.ListGrants());
@@ -192,13 +198,15 @@ public sealed class GrantFacts
     public async Task RevokingAGrantIsVisibleToTheSameProcessMirrorWhenTheWriteReturns()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var scope = BrainScope.Create("account-1", "ws-1").Id;
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var scope = BrainScope.Create(account1Id, ws1Id).Id;
         var authority = brain.Grains.GetGrain<IBrainAuthority>(scope);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
         var mirror = brain.Services.GetRequiredService<AuthorityMirror>();
-        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+        var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
 
         Assert.True(mirror.TryDecide(request, out var allowed));
         Assert.True(allowed!.Allowed);
@@ -206,7 +214,7 @@ public sealed class GrantFacts
         Assert.True(mirror.TryDecide(request, out var denied));
         Assert.Equal(CallDenial.MissingGrant, denied!.Denial);
 
-        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", ws1Id));
         Assert.False(mirror.TryDecide(request, out _));
     }
 
@@ -214,10 +222,12 @@ public sealed class GrantFacts
     public async Task TheAuthorityGrantsRevokesAndRelists()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
         Assert.Single(await authority.ListGrants());
         await authority.Revoke("app-1", "person.birthDate", GrantMode.Always);
         Assert.Empty(await authority.ListGrants());
@@ -227,19 +237,21 @@ public sealed class GrantFacts
     public async Task RevokingOneModeKeepsTheOthersAndARevokedValueLooksEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
-        await authority.Initialize("account-1", "ws-1");
-        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
-        await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", "ws-1") with { ConversationId = "chat-1" });
+        var brain = host.Brain;
+        var ws1Id = AuthorityHost.Unique("ws-1");
+        var account1Id = AuthorityHost.Unique("account-1");
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(account1Id, ws1Id).Id);
+        await authority.Initialize(account1Id, ws1Id);
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id));
+        await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", ws1Id) with { ConversationId = "chat-1" });
         Assert.Equal(2, (await authority.ListGrants()).Length);
 
         await authority.Revoke("app-1", "person.birthDate", GrantMode.Always);
         var remaining = Assert.Single(await authority.ListGrants());
         Assert.Equal(GrantMode.ThisChat, remaining.Mode);
 
-        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
-        var revoked = Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1") with { Revoked = true };
+        var request = RequestIn(account1Id, CallerKind.App, "app-1", ws1Id, "person.birthDate");
+        var revoked = Grant(GrantMode.Always, "person.birthDate", "app-1", ws1Id) with { Revoked = true };
         var decision = GrantRules.Evaluate(request, null, [revoked]);
         Assert.Equal(CallDenial.MissingGrant, decision!.Denial);
         Assert.Contains("missing", decision.Explanation, StringComparison.OrdinalIgnoreCase);
@@ -254,12 +266,15 @@ public sealed class GrantFacts
         GrantedAt = Now,
     };
 
-    private static CallRequest Request(CallerKind kind, string? appId, string workspaceId, params string[] semanticTypes) => new()
+    private static CallRequest Request(CallerKind kind, string? appId, string workspaceId, params string[] semanticTypes)
+        => RequestIn("account-1", kind, appId, workspaceId, semanticTypes);
+
+    private static CallRequest RequestIn(string accountId, CallerKind kind, string? appId, string workspaceId, params string[] semanticTypes) => new()
     {
         Caller = new CallerContext
         {
             PrincipalId = "principal-1",
-            AccountId = "account-1",
+            AccountId = accountId,
             BrainId = workspaceId,
             Kind = kind,
             StampedBy = kind == CallerKind.App ? TrustedEdge.AppProxy : TrustedEdge.AuthenticatedHttp,

@@ -12,6 +12,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Authority.Tests.Integration.Integrations;
 
+[Trait("host", "own")]
 public sealed class ScriptAccountFacts
 {
     [Fact]

@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Authority.Tests.Integration.Neurons;
 
+[Trait("host", "own")]
 public sealed class SelectedBrainFacts
 {
     [Fact]

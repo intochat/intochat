@@ -41,6 +41,7 @@ public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
     public override void Configure(ISiloBuilder silo) { }
 }
 
+[Trait("host", "own")]
 public sealed class RegistrationFacts
 {
     private const string Canary = "canary-registration-9d41c7";

@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Authority.Tests.Integration.Integrations;
 
+[Trait("host", "own")]
 public sealed class ConnectorBindingFacts
 {
     [Fact]

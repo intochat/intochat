@@ -5,6 +5,7 @@ using Grpc.Core;
 
 namespace DigitalBrain.Authority.Tests.Integration.Neurons;
 
+[Trait("host", "own")]
 public sealed class NeuronsLimitsFacts
 {
     [Fact]

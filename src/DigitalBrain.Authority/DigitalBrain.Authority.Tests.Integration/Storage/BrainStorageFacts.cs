@@ -21,6 +21,7 @@ public sealed class LocalCounter([PersistentState("s", DigitalBrainNames.Cluster
     public Task<int> Read() => Task.FromResult(Snapshot.Value);
 }
 
+[Trait("host", "own")]
 public sealed class BrainStorageFacts
 {
     [Fact]

@@ -3,16 +3,14 @@ using DigitalBrain.Authority.Compute;
 
 namespace DigitalBrain.Authority.Tests.Integration;
 
-public sealed class LedgerFacts
+public sealed class LedgerFacts(AuthorityHost host)
 {
-    private const string Account = "acct-7";
-
     [Fact]
     public async Task ChargingTheSameCostTwiceChargesOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
+        var brain = host.Brain;
+        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
 
         Assert.True(await ledger.Charge(Cost("tr-1", "c-1", 1_000L)));
         Assert.False(await ledger.Charge(Cost("tr-1", "c-1", 1_000L)));
@@ -28,8 +26,8 @@ public sealed class LedgerFacts
     public async Task CreditThenChargeLeavesTheDifference()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
+        var brain = host.Brain;
+        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
 
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
         await ledger.Charge(Cost("tr-1", "c-1", 1_000L));
@@ -46,8 +44,8 @@ public sealed class LedgerFacts
     public async Task ACreditWithTheSameEntryIdIsAppliedOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
+        var brain = host.Brain;
+        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
 
         Assert.True(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
         Assert.False(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
@@ -132,8 +130,8 @@ public sealed class LedgerFacts
     public async Task BalanceSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
+        var brain = host.Brain;
+        var ledger = brain.Grains.GetGrain<ILedgerGrain>(AuthorityHost.Unique("acct"));
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
         await ledger.Charge(Cost("tr-1", "c-1", 1_000L));
 

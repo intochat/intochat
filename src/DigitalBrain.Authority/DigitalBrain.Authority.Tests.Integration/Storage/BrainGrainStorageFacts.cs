@@ -26,6 +26,7 @@ public sealed class OutsideCounterGrain([PersistentState("counter", DigitalBrain
     public async Task Increment() { state.State.Value++; await state.WriteStateAsync(); }
 }
 
+[Trait("host", "own")]
 public sealed class BrainGrainStorageFacts
 {
     private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;

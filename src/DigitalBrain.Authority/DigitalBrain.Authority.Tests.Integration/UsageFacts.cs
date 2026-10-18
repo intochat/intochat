@@ -3,15 +3,13 @@ using DigitalBrain.Authority.Compute;
 
 namespace DigitalBrain.Authority.Tests.Integration;
 
-public sealed class UsageFacts
+public sealed class UsageFacts(AuthorityHost host)
 {
-    private const string BrainId = "brain-usage-1";
-
     [Fact]
     public async Task UsageGroupsByAppSynapseNeuronAndOrigin()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var usage = await ActiveUsage(brain);
 
         await usage.Add(Cost("tr-1", "c-1", 1_000, "mail", "on-inbound", "gmail/inbox", DateTimeOffset.UtcNow), "gmail/edge");
@@ -28,7 +26,7 @@ public sealed class UsageFacts
     public async Task TheMostExpensiveComesFirst()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var usage = await ActiveUsage(brain);
 
         await usage.Add(Cost("tr-1", "c-1", 2_000, "mail", "on-inbound", "gmail/inbox", DateTimeOffset.UtcNow), "origin/cheap");
@@ -46,7 +44,7 @@ public sealed class UsageFacts
     public async Task RowsSinceExcludeOlderDays()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var usage = await ActiveUsage(brain);
         var now = DateTimeOffset.UtcNow;
 
@@ -61,7 +59,7 @@ public sealed class UsageFacts
     public async Task UsageSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var usage = await ActiveUsage(brain);
         var now = DateTimeOffset.UtcNow;
 
@@ -130,7 +128,7 @@ public sealed class UsageFacts
     // Costs reach usage one-way; a read sent after them is answered after them once the grain is active.
     private static async Task<IUsageGrain> ActiveUsage(ITestBrain brain)
     {
-        var usage = brain.Grains.GetGrain<IUsageGrain>(BrainId);
+        var usage = brain.Grains.GetGrain<IUsageGrain>(AuthorityHost.Unique("brain-usage"));
         await usage.Recent(0);
         return usage;
     }

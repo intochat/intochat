@@ -7,7 +7,7 @@ using Grpc.Net.Client.Web;
 
 namespace DigitalBrain.Authority.Tests.Integration.Neurons;
 
-public sealed class NeuronsCallFacts
+public sealed class NeuronsCallFacts(AuthorityHost host)
 {
     // gRPC-Web over the edge's HTTP/1.1 Kestrel, exactly what the web shell does.
     internal static DigitalBrain.Authority.Neurons.Proto.Neurons.NeuronsClient Client(ITestBrain brain)
@@ -31,7 +31,7 @@ public sealed class NeuronsCallFacts
     public async Task ACallRunsAContractMethodAndAnswersItsResultAsJson()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var reply = await Client(brain).CallAsync(Read("owner"), cancellationToken: ct);
         using var json = JsonDocument.Parse(reply.Result.ToStringUtf8());
         Assert.Equal(JsonValueKind.Object, json.RootElement.ValueKind);
@@ -41,7 +41,7 @@ public sealed class NeuronsCallFacts
     public async Task BadArgumentsAreAnInvalidArgument()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var error = await Assert.ThrowsAsync<RpcException>(() => Client(brain).CallAsync(Read("owner", "not json"), cancellationToken: ct).ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, error.StatusCode);
         Assert.Contains("JSON array", error.Status.Detail);
@@ -51,7 +51,7 @@ public sealed class NeuronsCallFacts
     public async Task AnInvalidBrainIdIsAnInvalidArgument()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var error = await Assert.ThrowsAsync<RpcException>(() => Client(brain).CallAsync(Read("a/b"), cancellationToken: ct).ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, error.StatusCode);
     }

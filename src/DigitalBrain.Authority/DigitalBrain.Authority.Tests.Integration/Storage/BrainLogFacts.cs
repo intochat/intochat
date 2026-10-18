@@ -6,6 +6,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Authority.Tests.Integration.Storage;
 
+[Trait("host", "own")]
 public sealed class BrainLogFacts
 {
     [GenerateSerializer, Alias("test.local-store.changed")]

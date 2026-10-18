@@ -13,6 +13,7 @@ using System.Net;
 
 namespace DigitalBrain.Authority.Tests.Integration.Identity;
 
+[Trait("host", "own")]
 public sealed class RuntimeMachineAuthenticationFacts
 {
     [Theory]

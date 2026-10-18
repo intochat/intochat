@@ -9,17 +9,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Authority.Tests.Integration;
 
-public sealed class PlatformHostingFacts
+public sealed class PlatformHostingFacts(AuthorityHost host)
 {
     [Fact]
     public async Task IdentityAnswersOwnershipMembershipAndGrantQuestionsThroughTheSdk()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var identity = brain.Services.GetRequiredService<IIdentity>();
         Assert.Null(identity.CurrentPrincipal);
         Assert.Throws<UntrustedCallerException>(identity.RequirePrincipal);
-        using var reader = await brain.PersonAsync("reader", ct);
+        using var reader = await host.PersonAsync("reader", ct);
         Assert.True(await identity.CanAccessAsync(reader.PrincipalId, reader.AccountId, reader.BrainId, ct));
         Assert.False(await identity.CanAccessAsync(reader.PrincipalId, reader.AccountId, "another-brain", ct));
         using var app = reader.AsApp("reader-app");
@@ -42,6 +42,7 @@ public sealed class PlatformHostingFacts
         Assert.Single(await store.ListGrants());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ABrainWithoutModulesRequiresAGrantBeforeAnAppCanRead()
     {
