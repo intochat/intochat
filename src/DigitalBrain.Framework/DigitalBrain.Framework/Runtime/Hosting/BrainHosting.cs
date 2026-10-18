@@ -33,6 +33,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
         silo.Services.AddOptions<MemorySignalJournalOptions>();
         silo.Services.TryAddSingleton<IDigitalBrain, CurrentBrain>();
+        silo.Services.TryAddSingleton<DigitalBrain.Runtime.INeuronResolver, GrainNeuronResolver>();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
         silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());

@@ -1,4 +1,5 @@
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,8 +21,32 @@ public abstract class Neuron : Grain, INeuron
 
     protected TimeSpan ObserverRenewal => TimeSpan.FromTicks(ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease.Ticks / 5);
 
-    // Transitional: the full grain id until keys are brain-owned.
+    // Transitional: the full grain id until keys are brain-owned. Equal to Context.Address.StorageKey; reads the
+    // grain id until the provider hosts neurons (clean-core PR 5).
     public NeuronId Id => new(this.GetGrainId().ToString());
+
+    private INeuronContext? _context;
+
+    // The runtime SPI (clean-core 2.3) while the neuron is still a grain: the neutral form of the Orleans
+    // members this class and its subclasses use directly.
+    protected INeuronContext Context => _context ??= new GrainNeuronContext(this, DelayDeactivation, DeactivateOnIdle, new Fanout(this));
+
+    internal INeuronContext SpiContext => Context;
+
+    // Runs the Orleans lifecycle hook through the neutral one, so a neuron implements either.
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        if (this is IDeactivatingNeuron deactivating) { await deactivating.OnDeactivating(CauseOf(reason), cancellationToken); }
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
+
+    internal static DeactivationCause CauseOf(DeactivationReason reason) => reason.ReasonCode switch
+    {
+        DeactivationReasonCode.ActivationIdle => DeactivationCause.Idle,
+        DeactivationReasonCode.ShuttingDown => DeactivationCause.Shutdown,
+        DeactivationReasonCode.ApplicationRequested => DeactivationCause.Requested,
+        _ => DeactivationCause.Failed,
+    };
 
     public sealed override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
@@ -88,12 +113,44 @@ public abstract class Neuron : Grain, INeuron
     private protected Task Notify(Signal[] stamped, long sequence)
     {
         if (stamped.Length == 0) { return Task.CompletedTask; }
+        return Deliver(new SignalNudge(Id, sequence), stamped);
+    }
+
+    private Task Deliver(SignalNudge nudge, IReadOnlyList<Signal> stamped)
+    {
         var hub = ServiceProvider.GetRequiredService<LocalSignalHub>();
         foreach (var signal in stamped) { hub.Publish(signal); }
-        var nudge = new SignalNudge(Id, sequence);
         hub.Publish(this.GetGrainId(), nudge);
         return Observers.Notify(watch => watch.Observer.Nudge(nudge),
             watch => watch.Signals is null || stamped.Any(signal => watch.Signals.Contains(signal.GetType().Name)));
+    }
+
+    // The fanout of this activation: its own observers, under the same lease and selection rules as Watch.
+    private sealed class Fanout(Neuron neuron) : ISignalFanout
+    {
+        public void Watch(NeuronAddress source, INeuronObserver observer, IReadOnlySet<string>? signals)
+        {
+            Own(source);
+            neuron.Observers.Subscribe(observer, new(observer, signals?.ToHashSet(StringComparer.Ordinal)));
+        }
+
+        public void Unwatch(NeuronAddress source, INeuronObserver observer)
+        {
+            Own(source);
+            neuron.Observers.Unsubscribe(observer);
+        }
+
+        public Task Nudge(NeuronAddress source, SignalNudge nudge, IReadOnlyList<Signal> appended)
+        {
+            Own(source);
+            return neuron.Deliver(nudge, appended);
+        }
+
+        private void Own(NeuronAddress source)
+        {
+            if (source != GrainNeuronContext.AddressOf(neuron.GetGrainId()))
+            { throw new ArgumentException($"An activation fans out only its own signals, not {source}.", nameof(source)); }
+        }
     }
 
     // The signals a state change caused ride in its storage write when the storage takes them (a part log);
