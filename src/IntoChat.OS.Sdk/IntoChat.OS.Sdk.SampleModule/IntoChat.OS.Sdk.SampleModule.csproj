@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IntoChatOSModule>true</IntoChatOSModule>
+    <RootNamespace>IntoChat.OS.Sdk.SampleModule</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
+  </ItemGroup>
+</Project>
