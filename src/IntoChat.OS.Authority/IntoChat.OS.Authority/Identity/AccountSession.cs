@@ -140,7 +140,13 @@ public static class AccountSession
         }
 
         // The login and session endpoints exist to establish the session the gate would require.
-        if (request.Path.Value?.ToLowerInvariant() is "/identity/register" or "/identity/login" or "/identity/session" or "/identity/logout")
+        var requested = request.Path.Value?.ToLowerInvariant();
+        if (requested is "/identity/session" or "/identity/logout")
+        {
+            return true;
+        }
+
+        if (requested is "/identity/register" or "/identity/login" && IdentityOf(request.HttpContext).BuiltInPasswordEndpoints)
         {
             return true;
         }

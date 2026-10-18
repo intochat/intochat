@@ -21,6 +21,10 @@ public sealed class IdentityHostOptions
     // so a distribution with existing accounts pins its historical value by configuration; it cannot change without a migration.
     public string DirectoryKey { get; set; } = "identity-directory";
 
+    // false unmaps POST /identity/register and /identity/login (and drops them from the anonymous list)
+    // so another module can own sign-in; session, logout, brains and grants stay.
+    public bool BuiltInPasswordEndpoints { get; set; } = true;
+
     public bool Validate() => !string.IsNullOrWhiteSpace(CookieName)
         && !string.IsNullOrWhiteSpace(ProtectionApplicationName)
         && !string.IsNullOrWhiteSpace(ProtectionContainerName)
