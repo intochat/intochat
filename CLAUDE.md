@@ -20,5 +20,5 @@ Product vision, requirements, architecture assessment, plans and status are main
 
 ## Documentation inputs retained here
 
-CLAUDE.md is agent guidance. Three testing-package README files are minimal NuGet packaging pointers. Markdown under feature prompt directories is executable app input. Schema and audit utilities are tooling. All product narrative belongs in the sibling documentation repository.
+CLAUDE.md is agent guidance. The four testing-package README files are consumer docs packed into the NuGet packages; the root README lists those packages and the feed. Markdown under feature prompt directories is executable app input. Schema and audit utilities are tooling. All product narrative belongs in the sibling documentation repository.
 
