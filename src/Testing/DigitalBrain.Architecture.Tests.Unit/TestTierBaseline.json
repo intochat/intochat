@@ -11,7 +11,6 @@
     "DigitalBrain.Modules.Google.Gmail.Tests",
     "DigitalBrain.Modules.Mcp.Tests",
     "DigitalBrain.Modules.Microsoft.Aspire.Tests",
-    "DigitalBrain.Modules.Microsoft.CSharp.Tests",
     "DigitalBrain.Modules.Microsoft.GitHub.Tests",
     "DigitalBrain.Modules.Microsoft.Orleans.Tests",
     "DigitalBrain.Modules.Microsoft.Windows.Tests",
