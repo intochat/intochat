@@ -49,6 +49,7 @@ public static class IdentityHosting
                     return Task.CompletedTask;
                 };
             });
+        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Identity.ISessionIssuer, AccountSessionIssuer>();
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
     }

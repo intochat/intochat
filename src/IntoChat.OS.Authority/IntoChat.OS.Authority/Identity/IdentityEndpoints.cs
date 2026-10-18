@@ -82,14 +82,14 @@ internal static class IdentityEndpoints
         if (string.IsNullOrWhiteSpace(input.AccountId) || !BrainScope.IsValidId(input.BrainId))
         { return Results.BadRequest(); }
         var member = await identity.Membership(BrainScope.Create(input.AccountId, input.BrainId).Id, principal).WaitAsync(ct);
-        return member is null ? Results.StatusCode(StatusCodes.Status403Forbidden) : await SignInAsync(member, http);
+        return member is null ? Results.StatusCode(StatusCodes.Status403Forbidden) : await IssueSessionAsync(member, http);
     }
 
     private static async Task<IResult> LoginAsync(LoginRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.Unauthorized(); }
         var member = await passwords.Authenticate(input.PrincipalId, input.Password ?? "").WaitAsync(ct);
-        return member is null ? Results.Unauthorized() : await SignInAsync(member, http);
+        return member is null ? Results.Unauthorized() : await IssueSessionAsync(member, http);
     }
 
     private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords,
@@ -102,40 +102,16 @@ internal static class IdentityEndpoints
         try
         {
             var member = await passwords.Register(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId).WaitAsync(ct);
-            return await SignInAsync(member, http);
+            return await IssueSessionAsync(member, http);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
     }
 
-    private static async Task<IResult> SignInAsync(Member member, HttpContext http)
+    private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http)
     {
-        var host = AccountSession.IdentityOf(http);
-        var identity = new ClaimsIdentity(
-        [
-            new Claim(PrincipalClaim, member.PrincipalId),
-            new Claim(host.AccountClaim, member.AccountId),
-            new Claim(host.BrainClaim, member.BrainId),
-            new Claim(RoleClaim, member.Role.ToString()),
-        ], CookieAuthenticationDefaults.AuthenticationScheme);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-        await SignedInAsync(member, http);
-        return Results.Ok(member);
-    }
-
-    // Modules react to a sign-in as the member who just proved who they are; none of them can fail it.
-    private static async Task SignedInAsync(Member member, HttpContext http)
-    {
-        var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
-        if (handlers.Length == 0) { return; }
-        CallerContextStamper.Stamp(AccountSession.ForMember(member));
-        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
-        foreach (var handler in handlers)
-        {
-            try { await handler.SignedIn(member, http.RequestAborted); }
-            catch (Exception error) when (error is not OperationCanceledException)
-            { logger.LogWarning(error, "Sign-in handler {Handler} failed for {Principal}", handler.GetType().Name, member.PrincipalId); }
-        }
+        var issued = await http.RequestServices.GetRequiredService<ISessionIssuer>().IssueAsync(http, new SessionRequest(member), http.RequestAborted);
+        return Results.Ok(issued.Member);
     }
 
     // Every resolved caller learns its brain, whichever posture resolved it: the shell's
@@ -154,7 +130,7 @@ internal static class IdentityEndpoints
 
     private static async Task<IResult> LogoutAsync(HttpContext http)
     {
-        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await http.RequestServices.GetRequiredService<ISessionIssuer>().EndAsync(http);
         return Results.NoContent();
     }
 
