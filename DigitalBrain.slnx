@@ -117,7 +117,7 @@
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/tests/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration/DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Orleans/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Contracts/DigitalBrain.Modules.Microsoft.Orleans.Contracts.csproj" />

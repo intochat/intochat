@@ -1,6 +1,6 @@
 using DigitalBrain.Microsoft.GitHub;
 
-namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Repository;
+namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration.Repository;
 
 internal sealed class FakeGitHubRepositorySource : IGitHubRepositorySource
 {

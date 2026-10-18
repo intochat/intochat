@@ -7,7 +7,7 @@ using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.Microsoft.GitHub.Tests;
+namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration;
 
 public sealed class OAuthCredentialFacts
 {
@@ -20,6 +20,7 @@ public sealed class OAuthCredentialFacts
         Assert.Null(await registration.ReadOptionalSecretAsync("ClientSecret", ct));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task WebhookRotationRejectsOldSignaturesAndAcceptsTheCurrentIntegrationSecret()
     {

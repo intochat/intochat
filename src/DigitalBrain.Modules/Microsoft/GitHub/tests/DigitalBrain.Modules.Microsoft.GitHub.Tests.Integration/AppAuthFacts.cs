@@ -10,16 +10,16 @@ using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.Microsoft.GitHub.Tests;
+namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration;
 
-public sealed class AppAuthFacts
+public sealed class AppAuthFacts(GitHubHost host)
 {
     [Fact]
     public async Task AppAuthSignsWithTheKeyReleasedFromTheRegistration()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var appKey = RSA.Create(2048);
-        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        var appKey = host.AppKey;
+        var brain = host.Brain;
         var handler = new CapturingHandler();
         using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
@@ -31,6 +31,7 @@ public sealed class AppAuthFacts
         Assert.Equal("/app/installations/9/access_tokens", handler.Path);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnregisteredAppReportsUnavailableAndSendsNothing()
     {
@@ -48,8 +49,8 @@ public sealed class AppAuthFacts
     public async Task ARepositoryOfAnotherAppIsNeverSignedForByTheRegisteredKey()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var appKey = RSA.Create(2048);
-        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        var appKey = host.AppKey;
+        var brain = host.Brain;
         var handler = new CapturingHandler();
         using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
@@ -62,8 +63,8 @@ public sealed class AppAuthFacts
     public async Task AFullTokenCacheEvictsTheLeastRecentlyUsedConnectionInsteadOfRefusing()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var appKey = RSA.Create(2048);
-        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        var appKey = host.AppKey;
+        var brain = host.Brain;
         using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), new MintingHandler(), null, capacity: 2);
 
         for (var connection = 0; connection < 5; connection++)
@@ -82,23 +83,26 @@ public sealed class AppAuthFacts
     public async Task ARateLimitedTokenMintIsUnavailableNotDenied()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var appKey = RSA.Create(2048);
-        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        var appKey = host.AppKey;
+        var brain = host.Brain;
         using var tokens = new GitHubInstallationTokens(brain.Services.GetRequiredService<GitHubAppRegistration>(), new RateLimitedHandler(), null);
 
         await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(7), refresh: true, ct));
     }
 
     private static Task<ITestBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
+        => Compose(TestBrain.Create(), privateKeyPem, appId).StartAsync(cancellationToken);
+
+    internal static TestBrain Compose(TestBrain brain, string? privateKeyPem, string? appId)
     {
-        var brain = TestBrain.Create().WithModule<GitHubModule>();
+        brain.WithModule<GitHubModule>();
         if (privateKeyPem is not null && appId is not null)
         {
             brain.WithIntegration(GitHubModule.Integration, "PrivateKeyPem", privateKeyPem)
                 .WithIntegration(GitHubModule.Integration, "AppId", appId);
         }
 
-        return brain.StartAsync(cancellationToken);
+        return brain;
     }
 
     private static GitHubRepository Repository(long appId)

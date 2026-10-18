@@ -7,7 +7,7 @@ using DigitalBrain.Microsoft.GitHub.Webhook;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Repository;
+namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration.Repository;
 
 public sealed class GitHubRepositoryFacts
 {
@@ -47,6 +47,7 @@ public sealed class GitHubRepositoryFacts
     private static byte[] PullRequestOpened(int number) => System.Text.Encoding.UTF8.GetBytes(
         "{\"action\":\"opened\",\"number\":" + number + ",\"installation\":{\"id\":9},\"repository\":{\"id\":11,\"name\":\"digitalbrain\",\"owner\":{\"login\":\"intochat\"}}}");
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AcceptGrantResolvesTheInstallationAndConnects()
     {
@@ -59,6 +60,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheUserTokenIsNeverKeptAfterTheGrant()
     {
@@ -71,6 +73,7 @@ public sealed class GitHubRepositoryFacts
         Assert.DoesNotContain("user-token", System.Text.Json.JsonSerializer.Serialize(view), StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AWebhookRoutesThroughTheRepositoryIndexToTheConnection()
     {
@@ -84,6 +87,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal(GitHubWebhookAcceptance.Duplicate, await Ingress(brain).HandleAsync(body, Headers(body, "pull_request", WebhookSecret, sameDelivery: true), ct));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AWebhookWithAForgedSignatureReachesNoConnection()
     {
@@ -95,6 +99,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Null((await brain.Get<IRepository>(Key).Read()).LastWebhookAt);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartedBrainStillRoutesWebhooksToTheRepository()
     {
@@ -108,6 +113,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal(2, (await changed.NextAsync(ct: ct)).Number);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARevokedInstallationMarksTheConnectionFailing()
     {
@@ -128,6 +134,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal(GitHubWebhookAcceptance.Ignored, await Ingress(brain).HandleAsync(delivery, Headers(delivery, "pull_request", WebhookSecret), ct));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARevokedConnectionThatProbesHealthyReceivesWebhooksAgain()
     {
@@ -147,6 +154,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal(4, (await changed.NextAsync(ct: ct)).Number);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADisconnectLeavesTheIndexAndForgetsTheInstallationToken()
     {
@@ -162,6 +170,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal([Key], verifier.Forgotten);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OneConnectionsDeniedAccessMarksItFailingAndTheFanOutStillReachesTheOther()
     {
@@ -179,6 +188,7 @@ public sealed class GitHubRepositoryFacts
         Assert.Equal(ConnectionStatus.Failing, (await brain.Get<IConnection>(Key).Read()).Status);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheInboundFaceRefusesAnotherBrainsCallerAndForeignCoordinates()
     {
@@ -200,6 +210,7 @@ public sealed class GitHubRepositoryFacts
         Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantForARepositoryTheAppCannotReachIsRefused()
     {

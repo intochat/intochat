@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Microsoft.GitHub.Tests",
     "DigitalBrain.Modules.Microsoft.Orleans.Tests",
     "DigitalBrain.Modules.Microsoft.Windows.Tests",
     "DigitalBrain.Modules.Monnet.Tests",
