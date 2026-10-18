@@ -119,7 +119,7 @@ public sealed class OpenPostureLoopbackFacts
         => [(OpenPostureLoopback.PostureKey, "Open"), (OpenPostureLoopback.ModeKey, IntoChat.OS.Framework.IntoChatOSNames.HostingModeRun), .. extra];
 
     private static IConfiguration Configuration(IEnumerable<(string Key, string? Value)> values)
-        {
+    {
         var configuration = new ConfigurationManager();
         foreach (var (key, value) in values) { configuration[key] = value; }
         return configuration;
