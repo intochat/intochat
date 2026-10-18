@@ -19,7 +19,7 @@
   </Folder>
   <Folder Name="/Framework/">
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
-    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.Unit/DigitalBrain.Framework.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.Integration/DigitalBrain.Framework.Tests.Integration.csproj" />
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </Folder>
   <Folder Name="/Mcp/">

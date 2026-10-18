@@ -5,7 +5,7 @@
   "DigitalBrain.Aspire.Hosting/DigitalBrainProfiles.cs",
   "DigitalBrain.Aspire.Server/ServerHostingExtensions.cs",
   "DigitalBrain.Deployment/DigitalBrainDeployment.cs",
-  "DigitalBrain.Framework.Tests.Unit/ModuleIdFacts.cs",
+  "DigitalBrain.Framework.Tests.Integration/ModuleIdFacts.cs",
   "DigitalBrain.Framework/Configuration/DigitalBrainConfiguration.cs",
   "DigitalBrain.Framework/Runtime/Kernel/InstanceDirectoryOptions.cs",
   "DigitalBrain.Framework/Configuration/ModuleSettingsValidation.cs",
