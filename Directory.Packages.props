@@ -60,10 +60,6 @@
     <PackageVersion Include="Azure.ResourceManager.OperationalInsights" Version="1.4.0" />
     <PackageVersion Include="Azure.ResourceManager.Resources" Version="1.12.0" />
     <PackageVersion Include="Azure.ResourceManager.Storage" Version="1.8.0" />
-    <PackageVersion Include="DeploymentKit" Version="1.0.0-preview.3" />
-    <PackageVersion Include="Pulumi" Version="3.114.2" />
-    <PackageVersion Include="Pulumi.AzureNative" Version="3.28.0" />
-    <PackageVersion Include="Pulumi.Random" Version="4.21.2" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.2.26504.105" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0-rc.2.26504.105" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />

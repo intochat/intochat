@@ -10,6 +10,5 @@
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../../DigitalBrain.Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
   </ItemGroup>
 </Project>
