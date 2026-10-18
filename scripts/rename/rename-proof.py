@@ -157,6 +157,12 @@ def cmd_rename(args):
         failures.append("artifact sets differ: %s" % sorted(set(before) ^ set(after)))
     for name in sorted(set(before) & set(after)):
         if name in RAW_FILES or not name.endswith(".json"):
+            if name in RAW_FILES and name.endswith(".cs"):
+                # Golden bytes are compared exactly; only the file-scoped namespace line is a key (its type name is part of the path).
+                head_b, _, rest_b = before[name].partition(b"\n")
+                head_a, _, rest_a = after[name].partition(b"\n")
+                if head_b.decode("utf-8").startswith("namespace ") and key_map(head_b.decode("utf-8")) == head_a.decode("utf-8") and rest_b == rest_a:
+                    continue
             if before[name] != after[name]:
                 failures.append("%s is not byte-identical" % name)
             continue
