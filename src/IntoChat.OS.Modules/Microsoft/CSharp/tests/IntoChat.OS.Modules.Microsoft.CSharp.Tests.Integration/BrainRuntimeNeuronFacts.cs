@@ -302,7 +302,7 @@ public sealed class BrainRuntimeNeuronFacts
 
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
         Assert.Contains(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level == LogLevel.Error
-            && entry.Message.Contains($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl", StringComparison.Ordinal));
+            && entry.Message.Contains($"Configure {CSharpOptions.SectionName}:EdgeUrl", StringComparison.Ordinal));
         Assert.DoesNotContain(host.Requests, FakeSessionHost.IsStart);
     }
 

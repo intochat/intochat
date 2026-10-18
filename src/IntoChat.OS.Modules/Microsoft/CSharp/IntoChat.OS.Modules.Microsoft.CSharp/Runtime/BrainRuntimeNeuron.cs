@@ -46,7 +46,7 @@ internal sealed class BrainRuntimeNeuron(
     TimeProvider time,
     ISignalJournal journal,
     IOptions<CSharpOptions> options,
-    IOptions<CSharpDeploymentSettings> deployment,
+    IOptions<CSharpOptions> deployment,
     ILogger<BrainRuntimeNeuron> logger,
     RuntimeDirectory directory)
     : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeContinuations, IBrainRuntimeSession, IRemindable, INeuronObserver
@@ -1012,7 +1012,7 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     private static InvalidOperationException NotListening()
-        => new($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl; this brain listens on no HTTP address a sandbox can reach.");
+        => new($"Configure {CSharpOptions.SectionName}:EdgeUrl; this brain listens on no HTTP address a sandbox can reach.");
 
     // Empty while the silo has yet to bind its listeners.
     private ICollection<string>? ServerAddresses() => ServiceProvider.GetService<IServer>()?.Features.Get<IServerAddressesFeature>()?.Addresses;

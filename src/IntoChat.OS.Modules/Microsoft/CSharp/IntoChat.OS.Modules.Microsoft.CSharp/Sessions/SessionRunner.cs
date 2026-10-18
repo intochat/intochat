@@ -11,7 +11,7 @@ namespace IntoChat.OS.Microsoft.CSharp.Sessions;
 // Where sessions live: the always-on sandbox container locally, or the Azure Container Apps session pool.
 // Same host API behind both; the pool adds a bearer token, routes by the identifier query and manages
 // session lifetime through its .management endpoints.
-internal sealed class SessionRunner(HttpClient http, IOptions<CSharpDeploymentSettings> options, TokenCredential? credential = null)
+internal sealed class SessionRunner(HttpClient http, IOptions<CSharpOptions> options, TokenCredential? credential = null)
 {
     private const string ManagementApiVersion = "2025-02-02-preview";
     private static readonly TokenRequestContext PoolScope = new(["https://dynamicsessions.io/.default"]);

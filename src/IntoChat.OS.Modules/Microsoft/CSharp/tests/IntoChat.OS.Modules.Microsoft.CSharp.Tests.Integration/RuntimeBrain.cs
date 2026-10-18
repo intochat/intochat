@@ -26,7 +26,7 @@ internal static class RuntimeBrain
             .ConfigureServices(services =>
             {
                 services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
-                services.PostConfigure<CSharpDeploymentSettings>(options => options.SandboxUrl = FakeSessionHost.Url);
+                services.PostConfigure<CSharpOptions>(options => options.SandboxUrl = FakeSessionHost.Url);
             });
     }
 
