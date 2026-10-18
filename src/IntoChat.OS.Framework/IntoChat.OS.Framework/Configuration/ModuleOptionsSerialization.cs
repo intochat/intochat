@@ -1,4 +1,6 @@
+using System.Reflection;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Framework.Configuration;
@@ -28,8 +30,29 @@ public static class ModuleOptionsSerialization
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var options = configuration.GetSection(OptionsKey(moduleName)).Get<TOptions>() ?? new TOptions();
+        ValidateRequired(options, moduleName);
         options.Validate();
         return options;
+    }
+
+    // Eager, at bind time: a [Setting(Required = true)] member that is null, default or blank fails
+    // before Validate(). The message names the configuration key, never a value.
+    public static void ValidateRequired<TOptions>(TOptions options, string moduleName) where TOptions : class
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        foreach (var property in typeof(TOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (property.GetCustomAttribute<SettingAttribute>() is not { Required: true }) { continue; }
+            var value = property.GetValue(options);
+            var missing = value is null
+                || value is string text && string.IsNullOrWhiteSpace(text)
+                || property.PropertyType.IsValueType && value.Equals(Activator.CreateInstance(property.PropertyType));
+            if (missing)
+            {
+                throw new InvalidOperationException(
+                    $"Required setting '{OptionsKey(moduleName)}:{property.Name}' is not configured.");
+            }
+        }
     }
 
     internal static bool IsOptionsKey(string key)
