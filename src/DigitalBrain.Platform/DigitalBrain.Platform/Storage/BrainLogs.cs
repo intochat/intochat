@@ -7,7 +7,6 @@ internal sealed class BrainLogs : IAsyncDisposable
 {
     private readonly BrainStorageKeys keys;
     private readonly Serializer serializer;
-    private readonly FileStream ownership;
     private readonly Dictionary<string, Task<BrainLog>> logs = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
     private readonly BrainLogFormat writeFormat;
@@ -19,7 +18,6 @@ internal sealed class BrainLogs : IAsyncDisposable
         this.serializer = serializer;
         writeFormat = options.Value.WriteFormat;
         Directory.CreateDirectory(options.Value.Directory);
-        ownership = new FileStream(Path.Combine(options.Value.Directory, "runtime.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
     public Task<BrainLog> For(string brainId)
@@ -27,13 +25,30 @@ internal sealed class BrainLogs : IAsyncDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (!logs.TryGetValue(brainId, out var log)) { logs[brainId] = log = Open(brainId); }
+            if (logs.TryGetValue(brainId, out var log)) { return log; }
+            log = Open(brainId);
+            if (!log.IsFaulted) { logs[brainId] = log; } // Opens usually complete synchronously; a refused claim is not cached.
             return log;
         }
     }
 
+    // Claims the brain's writer lock before touching its key, so a silo that does not own the brain creates nothing.
+    // A failed open is forgotten, so a later call can claim the brain once its owner lets go.
     private async Task<BrainLog> Open(string brainId)
-        => new(keys.DirectoryOf(brainId), brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat);
+    {
+        try
+        {
+            var directory = keys.DirectoryOf(brainId);
+            var ownership = BrainLog.Claim(directory, brainId);
+            try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, ownership); }
+            catch { ownership.Dispose(); throw; }
+        }
+        catch
+        {
+            lock (gate) { if (!disposed) { logs.Remove(brainId); } }
+            throw;
+        }
+    }
 
     internal async Task<bool> CheckStorageAsync(string brainId, CancellationToken ct)
     {
@@ -51,16 +66,12 @@ internal sealed class BrainLogs : IAsyncDisposable
             disposed = true;
             opening = [.. logs.Values];
         }
-        try
+        foreach (var task in opening)
         {
-            foreach (var task in opening)
-            {
-                BrainLog log;
-                try { log = await task; }
-                catch { continue; } // Failed opens already released their writer lock.
-                log.Dispose();
-            }
+            BrainLog log;
+            try { log = await task; }
+            catch { continue; } // Failed opens already released their writer lock.
+            log.Dispose();
         }
-        finally { ownership.Dispose(); }
     }
 }

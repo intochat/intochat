@@ -8,6 +8,7 @@ namespace DigitalBrain.Framework;
 
 // Every neuron is observable and activated through IActivationHandler<T>; OnActivateAsync is
 // sealed so the runtime owns the order and the failure handling.
+[BrainAffinePlacement]
 public abstract class Neuron : Grain, INeuron
 {
     private readonly Guid _activation = Guid.NewGuid();

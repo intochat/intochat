@@ -29,16 +29,28 @@ internal sealed class BrainLog : IDisposable
     private bool disposed;
 
     public BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat = BrainLogFormat.Legacy)
+        : this(directory, brainId, key, serializer, writeFormat, Claim(directory, brainId)) { }
+
+    // Takes ownership of an already claimed writer lock (see Claim).
+    internal BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat, FileStream ownership)
     {
+        this.ownership = ownership;
         this.writeFormat = writeFormat;
         this.directory = directory;
         this.brainId = brainId;
         this.key = key;
         this.serializer = serializer;
-        Directory.CreateDirectory(directory);
-        ownership = new FileStream(Path.Combine(directory, "writer.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         try { Recover(); }
         catch { ownership.Dispose(); throw; }
+    }
+
+    // The per-brain writer lock is the ownership token: a second writer, in this or another process, is refused.
+    internal static FileStream Claim(string directory, string brainId)
+    {
+        Directory.CreateDirectory(directory);
+        try { return new FileStream(Path.Combine(directory, "writer.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+        catch (IOException error) when (error is not FileNotFoundException and not DirectoryNotFoundException)
+        { throw new BrainNotOwnedException(brainId, error); }
     }
 
     public long LastSignal { get { lock (gate) { return lastSignal; } } }

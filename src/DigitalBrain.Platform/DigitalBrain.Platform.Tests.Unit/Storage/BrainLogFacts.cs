@@ -73,7 +73,7 @@ public sealed class BrainLogFacts
         var key = RandomNumberGenerator.GetBytes(32);
         using (var log = new BrainLog(directory, "owner", key, serializer))
         {
-            Assert.Throws<IOException>(() => new BrainLog(directory, "owner", key, serializer));
+            Assert.Throws<BrainNotOwnedException>(() => new BrainLog(directory, "owner", key, serializer));
             await log.Append("private-grain", "s", null, BrainRecordChange.Write, [1], [], TestContext.Current.CancellationToken);
         }
         Assert.ThrowsAny<CryptographicException>(() => new BrainLog(directory, "owner", RandomNumberGenerator.GetBytes(32), serializer));
