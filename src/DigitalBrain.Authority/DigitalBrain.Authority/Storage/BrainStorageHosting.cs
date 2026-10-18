@@ -29,19 +29,9 @@ public static class BrainStorageHosting
         foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage)).ToArray())
         { services.Remove(descriptor); }
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) => ActivatorUtilities.CreateInstance<BrainGrainStorage>(provider));
-        if (!string.IsNullOrEmpty(silo.Configuration[Hosting.HostedRuntimeOptions.SectionName + ":RuntimeId"]))
-        {
-            if (!string.IsNullOrWhiteSpace(silo.Configuration[DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("orleans", "GrainState")]))
-            {
-                throw new InvalidOperationException("Hosted journal storage requires an explicit migration from the configured Orleans grain-state store; existing authority and secrets must not be replaced.");
-            }
-            foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.PlatformGrainStorage)).ToArray())
-            { services.Remove(descriptor); }
-            services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
-                (provider, _) => ActivatorUtilities.CreateInstance<HostedPlatformGrainStorage>(provider));
-            services.RemoveAll<IReminderTable>();
-            services.AddSingleton<IReminderTable, HostedReminderTable>();
-        }
+        services.AddSingleton<BrainStorageComposed>();
+        // A hosted deployment composes over the local journal here; one registered later applies itself (IsComposed).
+        foreach (var extension in HostedStorageExtensions(services)) { extension.Configure(services, silo.Configuration); }
         silo.TryAddKernelRegistration();
         silo.AddStartupTask((provider, cancellationToken) =>
         {
@@ -57,5 +47,13 @@ public static class BrainStorageHosting
         });
         return silo;
     }
+
+    // Whether AddBrainStorage has run on these services.
+    internal static bool IsComposed(IServiceCollection services) => services.Any(d => d.ServiceType == typeof(BrainStorageComposed));
+
+    private static IHostedStorageExtension[] HostedStorageExtensions(IServiceCollection services) =>
+        [.. services.Where(d => d.ServiceType == typeof(IHostedStorageExtension)).Select(d => d.ImplementationInstance).OfType<IHostedStorageExtension>()];
+
+    private sealed class BrainStorageComposed;
 }
 

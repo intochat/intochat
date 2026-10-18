@@ -1,4 +1,4 @@
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 public sealed class HostedRuntimeOptions
 {

@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 internal sealed class HostedWorkspaceStore(IOptions<HostedRuntimeOptions> options, TimeProvider clock)
 {

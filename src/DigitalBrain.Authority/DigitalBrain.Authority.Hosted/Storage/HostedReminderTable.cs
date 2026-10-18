@@ -1,9 +1,9 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Authority.Hosting;
+using DigitalBrain.Authority.Storage;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
 
-namespace DigitalBrain.Authority.Storage;
+namespace DigitalBrain.Authority.Hosted;
 
 internal sealed class HostedReminderTable(BrainLogs logs, Serializer serializer, IOptions<HostedRuntimeOptions> options) : IReminderTable
 {

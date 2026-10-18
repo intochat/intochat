@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 // Authentication at request start is insufficient for watches and other active streams.
 internal static class HostedWorkspaceRequestLifetime

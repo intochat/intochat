@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using DigitalBrain.Authority.Hosted;
 using DigitalBrain.Authority.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -48,10 +49,11 @@ public sealed class RuntimeMachineAuthenticationFacts
             builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Authority.Storage.BrainLogs>());
             builder.Services.AddSingleton(brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
             builder.Services.AddKeyedSingleton<Orleans.Storage.IGrainStorage>(DigitalBrain.Framework.DigitalBrainNames.PlatformGrainStorage,
-                (services, _) => ActivatorUtilities.CreateInstance<DigitalBrain.Authority.Storage.HostedPlatformGrainStorage>(services));
-            builder.Services.AddSingleton<IReminderTable, DigitalBrain.Authority.Storage.HostedReminderTable>();
+                (services, _) => ActivatorUtilities.CreateInstance<HostedPlatformGrainStorage>(services));
+            builder.Services.AddSingleton<IReminderTable, HostedReminderTable>();
         }
         builder.Services.AddIdentity();
+        builder.Services.AddHostedAuthority(builder.Configuration);
         builder.WebHost.ConfigureKestrel(server => server.ConfigureHttpsDefaults(https =>
         {
             https.ServerCertificate = certificate;
@@ -62,6 +64,7 @@ public sealed class RuntimeMachineAuthenticationFacts
         app.Urls.Add("https://127.0.0.1:0");
         app.UsePlatformHttp();
         RuntimeManagementEndpoints.Map(app);
+        HostedRuntimeEndpoints.Map(app);
         IdentityEndpoints.Map(app);
         app.MapGet("/workspace-probe", () => "workspace");
         await app.StartAsync(ct);

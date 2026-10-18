@@ -22,6 +22,6 @@
   "DigitalBrain.Authority.Tests.Integration/Storage/HostedPlatformStorageFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Authority/Compute/FeeOptions.cs",
-  "DigitalBrain.Authority/Hosting/HostedRuntimeOptions.cs",
+  "DigitalBrain.Authority.Hosted/HostedRuntimeOptions.cs",
   "DigitalBrain.ServiceDefaults/HealthProbes.cs"
 ]

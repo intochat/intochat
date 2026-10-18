@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 internal static class HostedWorkspaceEndpoints
 {

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 internal sealed class RuntimeMachineAuthentication(IOptions<HostedRuntimeOptions> options, TimeProvider clock)
 {

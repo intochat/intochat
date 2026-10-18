@@ -20,6 +20,7 @@
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority.Hosted/DigitalBrain.Authority.Hosted.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OS is the composition of the portable modules in the repo; OsCatalog names them in

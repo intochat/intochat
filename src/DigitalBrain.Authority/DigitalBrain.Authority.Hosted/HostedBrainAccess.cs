@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 internal sealed class HostedBrainAccess(IBrainAccess inner, HostedRuntimeOptions scope) : IBrainAccess
 {

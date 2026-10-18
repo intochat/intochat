@@ -1,11 +1,12 @@
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.OS;
-using DigitalBrain.Authority.Hosting;
+using DigitalBrain.Authority.Hosted;
 
 var builder = WebApplication.CreateBuilder(args);
 var webHostServices = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();
-// IntoChat is a distribution of the operating system: the composition is the OS's, and what is
-// IntoChat's own is branding, features and configuration (the AppHost names the ./features folder).
+// A distribution of the operating system brings branding, features and configuration; the composition is the OS's.
+// A hosted-cloud allocation is configured through the Hosting section, and only then composes the hosted authority.
+if (builder.Configuration.GetSection(HostedRuntimeOptions.SectionName).Exists()) { builder.AddHostedAuthority(); }
 builder.AddDigitalBrainServer(server => server.UseOrleansDashboard()
     .AddOperatingSystem(OperatingSystem.IsWindows() ? OsCatalog.WithWindowsEdge() : OsCatalog.Modules));
 if (HostedRecoveryHost.IsRequested(builder.Configuration))

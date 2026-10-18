@@ -206,6 +206,7 @@
   </Folder>
   <Folder Name="/Authority/">
     <Project Path="src/DigitalBrain.Authority/DigitalBrain.Authority.Contracts/DigitalBrain.Authority.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Authority/DigitalBrain.Authority.Hosted/DigitalBrain.Authority.Hosted.csproj" />
     <Project Path="src/DigitalBrain.Authority/DigitalBrain.Authority.Tests.Integration/DigitalBrain.Authority.Tests.Integration.csproj" />
     <Project Path="src/DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
   </Folder>

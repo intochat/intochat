@@ -1,10 +1,10 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Authority.Hosting;
+using DigitalBrain.Authority.Storage;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
 using Orleans.Storage;
 
-namespace DigitalBrain.Authority.Storage;
+namespace DigitalBrain.Authority.Hosted;
 
 // Platform account, principal and integration keys are not brain keys; one hosted allocation owns this journal.
 internal sealed class HostedPlatformGrainStorage : IGrainStorage

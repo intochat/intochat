@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Authority.Hosting;
 using DigitalBrain.Authority.Storage;
 using DigitalBrain.Authority.Workshop;
 using Microsoft.AspNetCore.Builder;
@@ -13,7 +14,7 @@ using Microsoft.Extensions.Options;
 using Orleans.Metadata;
 using Orleans.Serialization;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 public static class HostedRecoveryHost
 {

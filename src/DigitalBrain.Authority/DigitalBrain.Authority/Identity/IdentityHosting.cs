@@ -14,27 +14,7 @@ public static class IdentityHosting
 {
     public static void AddIdentity(this IServiceCollection services)
     {
-        services.AddOptions<Hosting.HostedRuntimeOptions>().BindConfiguration(Hosting.HostedRuntimeOptions.SectionName)
-            .Validate(options => string.IsNullOrEmpty(options.RuntimeId) && string.IsNullOrEmpty(options.AccountId) &&
-                string.IsNullOrEmpty(options.BrainId) && string.IsNullOrEmpty(options.ControllerCertificateSha256) ||
-                options.IsConfigured && Path.IsPathFullyQualified(options.StateDirectory),
-                "Hosted runtime requires a complete scope, pinned controller certificate and durable state directory.")
-            .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<Hosting.RuntimeMachineAuthentication>();
-        services.TryAddSingleton<Hosting.HostedWorkspaceStore>();
-        services.AddOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>()
-            .Configure<IOptions<Hosting.HostedRuntimeOptions>>((server, hosting) =>
-            {
-                if (!hosting.Value.IsConfigured) { return; }
-                server.ConfigureHttpsDefaults(https =>
-                {
-                    https.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.AllowCertificate;
-                    https.ClientCertificateValidation = (certificate, _, _) =>
-                        string.Equals(certificate.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256),
-                            hosting.Value.ControllerCertificateSha256, StringComparison.OrdinalIgnoreCase);
-                });
-            });
         services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName)
             .Validate(options => options.Posture is not null,
                 $"Configure {AuthOptions.PostureKey} (Open or Secured) before starting the host.")
@@ -66,17 +46,17 @@ public static class IdentityHosting
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     return Task.CompletedTask;
                 };
-                cookie.Events.OnValidatePrincipal = Hosting.HostedWorkspaceEndpoints.ValidateCookieAsync;
             });
         services.AddKernelCors();
-        services.TryAddSingleton<IBrainAccess>(provider =>
-        {
-            var directory = new DirectoryBrainAccess(provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-            var hosting = provider.GetRequiredService<IOptions<Hosting.HostedRuntimeOptions>>().Value;
-            if (hosting.IsConfigured) { return new Hosting.HostedBrainAccess(directory, hosting); }
-            return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
-                ? new OpenOwnerBrainAccess(directory) : directory;
-        });
+        services.TryAddSingleton(LocalBrainAccess);
+    }
+
+    // Brain access from the directory under the configured posture. A hosted deployment wraps the directory instead.
+    internal static IBrainAccess LocalBrainAccess(IServiceProvider provider)
+    {
+        var directory = new DirectoryBrainAccess(provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
+            ? new OpenOwnerBrainAccess(directory) : directory;
     }
 
     public static void UsePlatformHttp(this WebApplication app)
@@ -84,7 +64,7 @@ public static class IdentityHosting
         app.UseKernelCors();
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
-        Hosting.HostedWorkspaceEndpoints.UseScope(app);
+        foreach (var extension in app.Services.GetServices<IPlatformHttpExtension>()) { extension.UseAfterAuthentication(app); }
         app.UseAccountSession();
         // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
         app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });

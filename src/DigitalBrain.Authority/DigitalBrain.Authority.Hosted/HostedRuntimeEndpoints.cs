@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Framework;
+using DigitalBrain.Authority.Hosting;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Authority.Identity;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using DigitalBrain.Authority.Storage;
 
-namespace DigitalBrain.Authority.Hosting;
+namespace DigitalBrain.Authority.Hosted;
 
 internal static class HostedRuntimeEndpoints
 {

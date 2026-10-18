@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Security.Cryptography.X509Certificates;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
+using DigitalBrain.Authority.Hosted;
 using DigitalBrain.Authority.Hosting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -86,6 +87,7 @@ public sealed class HostedExportFacts
         builder.Configuration[HostedRuntimeOptions.SectionName + ":StateDirectory"] = Path.Combine(directory, "hosting");
         builder.Configuration[HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256"] = certificate.GetCertHashString(HashAlgorithmName.SHA256);
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RecoveryOnly"] = "true";
+        builder.AddHostedAuthority();
         builder.AddDigitalBrainServer(_ => { });
         builder.Services.AddHostedService<MustNotStart>();
         HostedRecoveryHost.Configure(builder, baseline);

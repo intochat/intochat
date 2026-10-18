@@ -3,8 +3,9 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Authority.Tests.Integration.Integrations;
-using DigitalBrain.Authority.Hosting;
+using DigitalBrain.Authority.Hosted;
 using DigitalBrain.Authority.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 using DigitalBrain.Aspire.Server;
@@ -23,6 +24,7 @@ public sealed class HostedPlatformStorageFacts
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RuntimeId"] = "runtime-one";
         foreach (var field in new[] { "Clustering", "GrainState", "Reminders" })
         { builder.Configuration[IntegrationSchema.Key("orleans", field)] = "UseDevelopmentStorage=true"; }
+        builder.AddHostedAuthority();
         var error = Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrainServer(server => server.AddModule<OrleansModule>()));
         Assert.Contains("explicit migration", error.Message);
     }
@@ -41,7 +43,10 @@ public sealed class HostedPlatformStorageFacts
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":BrainId", "brain-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":RuntimeId", "runtime-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":StateDirectory", Path.Combine(directory, "hosting"))
-            .WithConfiguration(HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256", new string('A', 64));
+            .WithConfiguration(HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256", new string('A', 64))
+            // After the server composed its storage: the hosted authority applies its journal storage at once.
+            .ConfigureServices(services => services.AddHostedAuthority(new ConfigurationBuilder()
+                .AddInMemoryCollection([new(HostedRuntimeOptions.SectionName + ":RuntimeId", "runtime-one")]).Build()));
         try
         {
             SecretRef? reference = null;
