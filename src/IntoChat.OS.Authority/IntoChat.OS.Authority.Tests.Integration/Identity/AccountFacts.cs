@@ -1,5 +1,6 @@
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Authority.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Identity;
@@ -20,7 +21,7 @@ public sealed class AccountFacts(AuthorityHost host)
         Assert.Equal(401, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)anonymous).StatusCode);
         http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
             new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, owner.PrincipalId),
-            new System.Security.Claims.Claim("intochat.account", owner.AccountId),
+            new System.Security.Claims.Claim(new IdentityHostOptions().AccountClaim, owner.AccountId),
         ], "test"));
         var result = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
         var workspace = Assert.IsType<Member>(((global::Microsoft.AspNetCore.Http.IValueHttpResult)result).Value);
@@ -30,7 +31,7 @@ public sealed class AccountFacts(AuthorityHost host)
         Assert.False(await directory.CanAccessAsync(bobId, workspace.AccountId, workspace.BrainId, ct));
         http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
             new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, bobId),
-            new System.Security.Claims.Claim("intochat.account", owner.AccountId),
+            new System.Security.Claims.Claim(new IdentityHostOptions().AccountClaim, owner.AccountId),
         ], "test"));
         var outsider = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
         Assert.Equal(403, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)outsider).StatusCode);

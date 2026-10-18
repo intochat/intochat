@@ -42,9 +42,3 @@ public interface IIdentityDirectory : IGrainWithStringKey
     Task<Member> ShareBrainAsync(string accountId, string brainId, string principalId, string displayName, MemberRole role, CancellationToken cancellationToken = default);
 }
 
-public static class IdentityGrains
-{
-    // The directory grain's key. Every deployment's accounts, principals and passwords are stored under it,
-    // so the value is persisted state and cannot change without a migration (decision 11).
-    public const string Directory = "intochat-identity-directory";
-}

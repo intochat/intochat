@@ -1,4 +1,5 @@
 using IntoChat.OS.Authority.Compute;
+using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Authority.Integrations;
@@ -15,14 +16,14 @@ namespace IntoChat.OS.Authority;
 // IIntoChatOS.Neuron<T> nor a brain-relative id names them. This is the module's single place that
 // turns an id into a grain reference; key strings are exactly those callers composed before.
 // Transitional: the grain factory moves behind the runtime's resolver when the provider owns it.
-internal sealed class AuthorityNeurons(IGrainFactory grains)
+internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
 {
     public IBrain Brain(string brainId) => Resolve<IBrain>(brainId);
     public IBrainAuthority BrainAuthority(string brainId) => Resolve<IBrainAuthority>(brainId);
     public IAccount Account(string accountId) => Resolve<IAccount>(accountId);
     public IPrincipal Principal(string principalId) => Resolve<IPrincipal>(principalId);
     public IPrincipalCredential Credential(string principalId) => Resolve<IPrincipalCredential>(principalId);
-    public IIdentityDirectory Directory() => Resolve<IIdentityDirectory>(IdentityGrains.Directory);
+    public IIdentityDirectory Directory() => Resolve<IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey);
 
     public ILedgerGrain Ledger(string accountId) => Resolve<ILedgerGrain>(accountId);
     public IUsageGrain Usage(string brainId) => Resolve<IUsageGrain>(brainId);

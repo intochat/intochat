@@ -370,8 +370,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     // The candidate cluster's identity, shared by its silo and its MCP client.
     private static Dictionary<string, string> OrleansIdentity(string sha) => new(StringComparer.Ordinal)
     {
-        ["Orleans__ServiceId"] = $"intochat-c{sha}",
-        ["Orleans__ClusterId"] = $"intochat-c{sha}",
+        ["Orleans__ServiceId"] = $"os-c{sha}",
+        ["Orleans__ClusterId"] = $"os-c{sha}",
         ["Orleans__EnableDistributedTracing"] = "true",
     };
 

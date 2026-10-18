@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace IntoChat.OS.Framework;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
-public sealed class Kernel(IGrainFactory grains) : IKernel
+public sealed class Kernel(IGrainFactory grains, Microsoft.Extensions.Options.IOptions<IntoChat.OS.Authority.Identity.Configuration.IdentityHostOptions>? identity = null) : IKernel
 {
     public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
         => Instances(TypeOf(typeof(T)), cancellationToken);
@@ -32,7 +32,7 @@ public sealed class Kernel(IGrainFactory grains) : IKernel
     {
         var current = BrainScope.CurrentId();
         var caller = CallerContextStamper.Require();
-        var members = await grains.GetGrain<Platform.Identity.IIdentityDirectory>(Platform.Identity.IdentityGrains.Directory)
+        var members = await grains.GetGrain<Platform.Identity.IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey)
             .BrainsOfAsync(caller.PrincipalId, cancellationToken).WaitAsync(cancellationToken);
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }

@@ -23,7 +23,7 @@ builder.Configuration.AddIntoChatOSProfiles(builder.AppHostDirectory);
 if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
-var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.Cloud, IntoChatOSHostingOptions.Named(builder.Configuration, "intochat"))
+var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.Cloud, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 
