@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:digitalbrain_flutter_shell/space/space_toolbar.dart';
-import 'package:digitalbrain_flutter_shell/workspace/home/app_icon.dart';
-import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
-import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
-import 'package:digitalbrain_flutter_shell/space/space_slots.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:intochat_os_flutter_shell/space/space_toolbar.dart';
+import 'package:intochat_os_flutter_shell/workspace/home/app_icon.dart';
+import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
+import 'package:intochat_os_flutter_shell/space/space_controller.dart';
+import 'package:intochat_os_flutter_shell/space/space_slots.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

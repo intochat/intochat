@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

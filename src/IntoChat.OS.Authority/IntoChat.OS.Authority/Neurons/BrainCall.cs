@@ -26,7 +26,7 @@ internal static class BrainCall
 
     // Error details ride in trailers until the status-details packages arrive with protocol v1 (W2 PR 5a):
     // the domain, a reason from the closed list, and per-reason metadata.
-    internal const string ErrorDomain = "ui.digitalbrain.io";
+    internal const string ErrorDomain = "ui.intochat-os.io";
     internal const string DomainTrailer = "error-domain";
     internal const string ReasonTrailer = "error-reason";
     internal const string CurrentRevisionTrailer = "current-revision";

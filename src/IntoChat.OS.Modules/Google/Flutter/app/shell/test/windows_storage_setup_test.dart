@@ -1,5 +1,5 @@
-import 'package:digitalbrain_flutter_shell/connections/windows_storage_setup.dart';
-import 'package:digitalbrain_flutter_shell/connections/connect_window.dart';
+import 'package:intochat_os_flutter_shell/connections/windows_storage_setup.dart';
+import 'package:intochat_os_flutter_shell/connections/connect_window.dart';
 
 import 'dart:async';
 

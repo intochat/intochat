@@ -70,7 +70,7 @@ const WatchRequest$json = {
       '3': 2,
       '4': 3,
       '5': 11,
-      '6': '.digitalbrain.WatchSource',
+      '6': '.intochat.os.WatchSource',
       '10': 'sources'
     },
   ],
@@ -78,8 +78,8 @@ const WatchRequest$json = {
 
 /// Descriptor for `WatchRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List watchRequestDescriptor = $convert.base64Decode(
-    'CgxXYXRjaFJlcXVlc3QSGQoIYnJhaW5faWQYASABKAlSB2JyYWluSWQSMwoHc291cmNlcxgCIA'
-    'MoCzIZLmRpZ2l0YWxicmFpbi5XYXRjaFNvdXJjZVIHc291cmNlcw==');
+    'CgxXYXRjaFJlcXVlc3QSGQoIYnJhaW5faWQYASABKAlSB2JyYWluSWQSMgoHc291cmNlcxgCIA'
+    'MoCzIYLmludG9jaGF0Lm9zLldhdGNoU291cmNlUgdzb3VyY2Vz');
 
 @$core.Deprecated('Use signalEnvelopeDescriptor instead')
 const SignalEnvelope$json = {

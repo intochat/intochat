@@ -1,5 +1,5 @@
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
-import 'package:digitalbrain_ui/src/chat/ui_chat_transcript.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
+import 'package:intochat_os_ui/src/chat/ui_chat_transcript.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

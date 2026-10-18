@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:digitalbrain_ui/src/components/image_canvas/image_recipe.dart';
-import 'package:digitalbrain_ui/src/components/image_canvas/image_exporter.dart';
+import 'package:intochat_os_ui/src/components/image_canvas/image_recipe.dart';
+import 'package:intochat_os_ui/src/components/image_canvas/image_exporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:digitalbrain_ui/src/chat/ui_composer.dart';
-import 'package:digitalbrain_ui/src/composition/neuron_view.dart';
-import 'package:digitalbrain_ui/src/voice_input/ui_voice_input.dart';
+import 'package:intochat_os_ui/src/chat/ui_composer.dart';
+import 'package:intochat_os_ui/src/composition/neuron_view.dart';
+import 'package:intochat_os_ui/src/voice_input/ui_voice_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

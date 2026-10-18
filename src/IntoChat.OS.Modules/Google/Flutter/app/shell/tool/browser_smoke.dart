@@ -4,7 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:digitalbrain_ui/src/components/browser/embedded_browser_windows.dart';
+import 'package:intochat_os_ui/src/components/browser/embedded_browser_windows.dart';
 import 'package:flutter/material.dart';
 
 void main() {

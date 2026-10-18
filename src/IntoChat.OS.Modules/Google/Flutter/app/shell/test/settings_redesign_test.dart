@@ -1,8 +1,8 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/workspace/model_settings.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_settings.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/workspace/model_settings.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_settings.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

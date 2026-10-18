@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert' show jsonEncode, jsonDecode;
 
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
-import 'package:digitalbrain_flutter_shell/workspace/workspace_link.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_link.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

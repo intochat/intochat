@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

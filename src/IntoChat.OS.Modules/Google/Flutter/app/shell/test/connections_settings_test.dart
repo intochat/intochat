@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:digitalbrain_flutter_shell/connections/connections_settings.dart';
+import 'package:intochat_os_flutter_shell/connections/connections_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

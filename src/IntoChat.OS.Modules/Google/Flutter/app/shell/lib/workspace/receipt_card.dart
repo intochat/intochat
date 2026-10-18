@@ -1,1 +1,1 @@
-export 'package:digitalbrain_ui/src/chat/receipt_card.dart';
+export 'package:intochat_os_ui/src/chat/receipt_card.dart';

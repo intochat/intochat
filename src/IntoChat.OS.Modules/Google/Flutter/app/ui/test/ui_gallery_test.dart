@@ -1,6 +1,6 @@
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
-import 'package:digitalbrain_ui/src/gallery/neuron_gallery.dart';
-import 'package:digitalbrain_ui/src/gallery/ui_gallery_preview.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
+import 'package:intochat_os_ui/src/gallery/neuron_gallery.dart';
+import 'package:intochat_os_ui/src/gallery/ui_gallery_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

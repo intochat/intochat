@@ -21,7 +21,7 @@ public sealed class NeuronsRouteFacts
         var routes = app.DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>().Select(endpoint => endpoint.RoutePattern.RawText!).ToArray();
 
-        Assert.Contains("/digitalbrain.Neurons/Call", routes);
-        Assert.Contains("/digitalbrain.Neurons/Watch", routes);
+        Assert.Contains("/intochat.os.Neurons/Call", routes);
+        Assert.Contains("/intochat.os.Neurons/Watch", routes);
     }
 }

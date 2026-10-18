@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flame_behavior_tree/flame_behavior_tree.dart';
 
 /// The facts a tree's conditions read; the game rewrites them from the node's `blackboard` on each apply.

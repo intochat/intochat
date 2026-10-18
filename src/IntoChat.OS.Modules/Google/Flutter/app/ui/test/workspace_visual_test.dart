@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:digitalbrain_ui/src/chat/ui_chat.dart';
-import 'package:digitalbrain_ui/src/components/workspace/ui_workspace_components.dart';
-import 'package:digitalbrain_ui/src/theme/ui_theme.dart';
+import 'package:intochat_os_ui/src/chat/ui_chat.dart';
+import 'package:intochat_os_ui/src/components/workspace/ui_workspace_components.dart';
+import 'package:intochat_os_ui/src/theme/ui_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';

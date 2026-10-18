@@ -1,4 +1,4 @@
-name: digitalbrain_ui
+name: intochat_os_ui
 description: >
   Shared UI components for IntoChat.OS Flutter host. One widget family per component
   (button, chart, card, …), usable in surfaces and inside flutter_chat_ui
@@ -14,7 +14,7 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  digitalbrain_flutter:
+  intochat_os_flutter:
     path: ../core
   forui: ^0.26.0
   material_ui: ^1.2.0

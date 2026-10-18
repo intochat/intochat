@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/game.dart';

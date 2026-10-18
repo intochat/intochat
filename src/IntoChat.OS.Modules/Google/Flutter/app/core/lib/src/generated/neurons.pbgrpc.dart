@@ -22,7 +22,7 @@ export 'neurons.pb.dart';
 
 /// The two operations the OS has: call a neuron contract, watch a source's signals.
 /// Payloads are JSON with the HTTP surface's web defaults; the C# contracts are the schema.
-@$pb.GrpcServiceName('digitalbrain.Neurons')
+@$pb.GrpcServiceName('intochat.os.Neurons')
 class NeuronsClient extends $grpc.Client {
   /// The hostname for this service.
   static const $core.String defaultHost = '';
@@ -52,18 +52,18 @@ class NeuronsClient extends $grpc.Client {
   // method descriptors
 
   static final _$call = $grpc.ClientMethod<$0.CallRequest, $0.CallReply>(
-      '/digitalbrain.Neurons/Call',
+      '/intochat.os.Neurons/Call',
       ($0.CallRequest value) => value.writeToBuffer(),
       $0.CallReply.fromBuffer);
   static final _$watch = $grpc.ClientMethod<$0.WatchRequest, $0.SignalEnvelope>(
-      '/digitalbrain.Neurons/Watch',
+      '/intochat.os.Neurons/Watch',
       ($0.WatchRequest value) => value.writeToBuffer(),
       $0.SignalEnvelope.fromBuffer);
 }
 
-@$pb.GrpcServiceName('digitalbrain.Neurons')
+@$pb.GrpcServiceName('intochat.os.Neurons')
 abstract class NeuronsServiceBase extends $grpc.Service {
-  $core.String get $name => 'digitalbrain.Neurons';
+  $core.String get $name => 'intochat.os.Neurons';
 
   NeuronsServiceBase() {
     $addMethod($grpc.ServiceMethod<$0.CallRequest, $0.CallReply>(

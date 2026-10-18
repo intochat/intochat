@@ -1,7 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:digitalbrain_ui/src/components/button/ui_neuron_select.dart';
+import 'package:intochat_os_ui/src/components/button/ui_neuron_select.dart';
 
 void main() {
   testWidgets(

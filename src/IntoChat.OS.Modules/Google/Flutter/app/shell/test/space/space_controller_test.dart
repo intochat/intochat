@@ -1,4 +1,4 @@
-import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
+import 'package:intochat_os_flutter_shell/space/space_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'space_fixture.dart';

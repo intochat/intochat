@@ -1,9 +1,9 @@
 import 'dart:convert' show jsonEncode, jsonDecode;
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
+import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
 
 import 'application_fixture.dart';
 

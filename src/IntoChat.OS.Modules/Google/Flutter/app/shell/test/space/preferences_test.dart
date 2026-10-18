@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

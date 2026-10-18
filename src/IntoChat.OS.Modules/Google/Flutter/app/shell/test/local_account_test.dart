@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_flutter_shell/auth/brain_session_gate.dart';
-import 'package:digitalbrain_flutter_shell/auth/local_account.dart';
-import 'package:digitalbrain_flutter_shell/auth/local_account_io.dart' as local;
-import 'package:digitalbrain_flutter_shell/auth/local_account_web.dart' as web;
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/auth/brain_session_gate.dart';
+import 'package:intochat_os_flutter_shell/auth/local_account.dart';
+import 'package:intochat_os_flutter_shell/auth/local_account_io.dart' as local;
+import 'package:intochat_os_flutter_shell/auth/local_account_web.dart' as web;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -106,13 +106,13 @@ void main() {
       await file.delete();
       await expectLater(
         local.readLocalAccount(
-          Uri.parse('https://digitalbrain.tech'),
+          Uri.parse('https://example.test'),
           environment: environment,
         ),
         throwsStateError,
       );
       expect(
-        await web.readLocalAccount(Uri.parse('https://digitalbrain.tech')),
+        await web.readLocalAccount(Uri.parse('https://example.test')),
         isNull,
       );
     },

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'space_controller.dart';

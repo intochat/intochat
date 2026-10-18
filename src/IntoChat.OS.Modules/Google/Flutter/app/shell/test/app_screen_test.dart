@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:digitalbrain_flutter_shell/workspace/apps/app_screen.dart';
+import 'package:intochat_os_flutter_shell/workspace/apps/app_screen.dart';
 
 // The Creator holds no request open: implement answers Building immediately and the screen
 // follows the activity feed until the Builder lands.
