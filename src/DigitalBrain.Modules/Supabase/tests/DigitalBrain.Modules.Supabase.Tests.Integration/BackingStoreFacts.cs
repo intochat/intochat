@@ -4,9 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Supabase.Tests;
+namespace DigitalBrain.Modules.Supabase.Tests.Integration;
 
-public sealed class BackingStoreFacts
+public sealed class BackingStoreFacts(SupabaseHost host)
 {
     [Fact]
     public async Task InfrastructureHealthUsesTheDeploymentHandleWithoutAUserConnection()
@@ -37,7 +37,7 @@ public sealed class BackingStoreFacts
     public async Task UserOnlyModuleStartsAndHealthDoesNotRequireDeploymentCredentials()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<SupabaseModule>().StartAsync(ct);
+        var brain = host.Brain;
         var options = brain.Services.GetRequiredService<IOptions<SupabaseModuleOptions>>();
         Assert.False(options.Value.UseBackingStore);
         var check = new SupabaseHealthCheck(brain.Services.GetRequiredService<ISupabaseBackingStore>(), options);
@@ -45,6 +45,7 @@ public sealed class BackingStoreFacts
         Assert.Null(typeof(SupabaseModule).GetProperty("Connector"));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task SelectedBackingStoreRejectsMissingDeploymentCredentialsBeforeStartupCompletes()
     {

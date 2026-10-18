@@ -2,7 +2,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Supabase.Tests;
+namespace DigitalBrain.Modules.Supabase.Tests.Integration;
 
 public sealed class IntegrationMaterializationFacts
 {
