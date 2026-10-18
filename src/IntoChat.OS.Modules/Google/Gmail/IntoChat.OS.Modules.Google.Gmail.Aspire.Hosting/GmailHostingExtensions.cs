@@ -6,7 +6,7 @@ using IntoChat.OS.Framework.Configuration;
 
 namespace IntoChat.OS.Google.Gmail;
 
-public static class GmailHostingExtensions
+public static partial class GmailHostingExtensions
 {
     public static IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> WithGmail(
         this IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> module, Action<GmailHostingOptions> configure)

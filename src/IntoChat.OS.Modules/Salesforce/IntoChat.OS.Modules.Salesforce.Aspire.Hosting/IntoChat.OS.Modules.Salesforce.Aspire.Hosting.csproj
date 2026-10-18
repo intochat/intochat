@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IntoChatOSModule>true</IntoChatOSModule>
     <Description>Aspire AppHost integration for the IntoChat.OS Salesforce module.</Description>
     <RootNamespace>IntoChat.OS.Modules.Salesforce.Aspire.Hosting</RootNamespace>
   </PropertyGroup>

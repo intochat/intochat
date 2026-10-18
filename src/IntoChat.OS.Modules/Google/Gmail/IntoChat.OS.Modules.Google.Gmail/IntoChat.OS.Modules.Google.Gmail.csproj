@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IntoChatOSModule>true</IntoChatOSModule>
     <Description>Google module: hosted Gmail MCP tools, browser sign-in and draft previews.</Description>
     <RootNamespace>IntoChat.OS.Modules.Google.Gmail</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
