@@ -10,8 +10,9 @@ using ModelContextProtocol.Server;
 
 namespace DigitalBrain.ArtCraft.Tests;
 
-public sealed class ArtCraftStudioFacts
+public sealed class ArtCraftStudioFacts(ArtCraftHost host)
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task OpeningConnectsTheAppsMcpServerAndNamesItsPage()
     {
@@ -27,6 +28,7 @@ public sealed class ArtCraftStudioFacts
         Assert.Equal("command_list", Assert.Single((await brain.Get<IMcpServer>(session.McpKey).Tools(ct)).Tools).Name);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OpeningTwiceKeepsTheConnection()
     {
@@ -47,10 +49,10 @@ public sealed class ArtCraftStudioFacts
     public async Task AnUnknownAppIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start("http://localhost:1/mcp", ct);
-        using var caller = brain.Owner.AsCaller();
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IArtCraftStudio>(brain.Owner.Key("artcraft")).Open("paintcraft", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => host.Brain.Get<IArtCraftStudio>(person.Key("artcraft")).Open("paintcraft", ct));
     }
 
     private static Task<ITestBrain> Start(string mcp, CancellationToken ct)

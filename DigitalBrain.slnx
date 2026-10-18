@@ -40,7 +40,7 @@
     <Project Path="src/DigitalBrain.Modules/ArtCraft/ArtCraft/DigitalBrain.Modules.ArtCraft.Contracts/DigitalBrain.Modules.ArtCraft.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/ArtCraft/ArtCraft/DigitalBrain.Modules.ArtCraft/DigitalBrain.Modules.ArtCraft.csproj" />
     <Project Path="src/DigitalBrain.Modules/ArtCraft/ArtCraft/DigitalBrain.Modules.ArtCraft.Aspire.Hosting/DigitalBrain.Modules.ArtCraft.Aspire.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/ArtCraft/ArtCraft/tests/DigitalBrain.Modules.ArtCraft.Tests/DigitalBrain.Modules.ArtCraft.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ArtCraft/ArtCraft/tests/DigitalBrain.Modules.ArtCraft.Tests.Integration/DigitalBrain.Modules.ArtCraft.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/">
     <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Aspire.Hosting/DigitalBrain.Modules.ClickHouse.Aspire.Hosting.csproj" />
