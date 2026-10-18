@@ -2,9 +2,9 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Client.Orleans.Tests.Unit;
+namespace DigitalBrain.Client.Orleans.Tests.Integration;
 
-public sealed class SubscriptionLifetimeFacts
+public sealed class SubscriptionLifetimeFacts(ClientHost host)
 {
     private static TestBrain Options(int capacity = 256) => TestBrain.Create().WithFastSubscriptions(capacity);
 
@@ -13,7 +13,7 @@ public sealed class SubscriptionLifetimeFacts
     public async Task ANudgeAfterDisposalNeverThrows()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        var brain = host.Brain;
         var source = brain.Get<ITestEmitter>("late-nudge");
         var stream = await brain.SubscribeAsync<Number>(source, ct);
         await stream.DisposeAsync();
@@ -22,6 +22,7 @@ public sealed class SubscriptionLifetimeFacts
         Assert.True(stream.Completion.IsCompletedSuccessfully);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OverflowIsVisibleEvenWithoutDrainingTheBuffer()
     {
@@ -44,7 +45,7 @@ public sealed class SubscriptionLifetimeFacts
     public async Task AFailingReadDoesNotEndTheSubscription()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        var brain = host.Brain;
         var source = brain.Get<IFlakyEmitter>("flaky");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await using var reader = stream.ReadAllAsync(ct).GetAsyncEnumerator(ct);
@@ -62,7 +63,7 @@ public sealed class SubscriptionLifetimeFacts
     [Fact]
     public async Task CancellationEndsAnIdleSubscriptionAndDisposalIsIdempotent()
     {
-        await using var brain = await Options().StartAsync(TestContext.Current.CancellationToken);
+        var brain = host.Brain;
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var source = brain.Get<ITestEmitter>("cancel");
         var stream = await brain.SubscribeAsync<Number>(source, cancel.Token);
@@ -77,7 +78,7 @@ public sealed class SubscriptionLifetimeFacts
     public async Task RenewalKeepsAHealthySubscriptionAliveBeyondItsLease()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        var brain = host.Brain;
         var source = brain.Get<ITestEmitter>("renew");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
@@ -93,7 +94,7 @@ public sealed class SubscriptionLifetimeFacts
     public async Task AMissedNudgeIsRecoveredOnTheNextRenewal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        var brain = host.Brain;
         var source = brain.Get<ITestEmitter>("missed");
         await using var stream = await brain.SubscribeAsync<Number>(source, ct);
         await source.Deactivate();
@@ -103,6 +104,7 @@ public sealed class SubscriptionLifetimeFacts
         Assert.Equal(23, reader.Current.Value);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ASignalPublishedDuringSubscribeIsNotLost()
     {
@@ -118,7 +120,7 @@ public sealed class SubscriptionLifetimeFacts
     public async Task FinishingTwiceNeverThrows()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Options().StartAsync(ct);
+        var brain = host.Brain;
         var stream = await brain.SubscribeAsync<Number>(brain.Get<ITestEmitter>("finish"), ct);
         var sink = Assert.IsAssignableFrom<ILocalSignalFaultSink>(stream);
         sink.OnError(new InvalidOperationException("first"));
@@ -128,6 +130,7 @@ public sealed class SubscriptionLifetimeFacts
         Assert.Equal("first", (await Assert.ThrowsAsync<InvalidOperationException>(() => stream.Completion)).Message);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OnClosesItsSubscriptionWhenTheConsumerCancelsMidStream()
     {
@@ -148,6 +151,7 @@ public sealed class SubscriptionLifetimeFacts
         Assert.Equal(0, client.TrackedSubscriptions);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task DisposingAnOnEnumeratorWhileAReadIsInFlightLeavesNoSubscriptionAndThrowsNothing()
     {

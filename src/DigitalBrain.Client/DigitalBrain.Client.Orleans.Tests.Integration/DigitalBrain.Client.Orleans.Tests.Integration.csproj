@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><RootNamespace>DigitalBrain.Client.Orleans.Tests.Unit</RootNamespace></PropertyGroup>
+  <PropertyGroup><RootNamespace>DigitalBrain.Client.Orleans.Tests.Integration</RootNamespace></PropertyGroup>
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>

@@ -1,14 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Client.Orleans.Tests.Unit;
+namespace DigitalBrain.Client.Orleans.Tests.Integration;
 
-public sealed class SubscriptionReadinessFacts
+public sealed class SubscriptionReadinessFacts(ClientHost host)
 {
     [Fact]
     public async Task RecoveryCanPublishTheFirstSignalAfterRegistration()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var brain = host.Brain;
         var source = brain.Get<ITestEmitter>("ready-publication");
         var callbacks = 0;
         await using var reader = brain.On<Number>(source, async () =>
@@ -25,6 +25,7 @@ public sealed class SubscriptionReadinessFacts
         Assert.Equal(1, callbacks);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFailedRecoveryReleasesItsRegisteredWatchOnDisposal()
     {

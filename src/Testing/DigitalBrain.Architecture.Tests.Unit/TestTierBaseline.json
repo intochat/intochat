@@ -29,12 +29,6 @@
   "LegacyUnitTierHosts": [
     "DigitalBrain.Aspire.Hosting.Tests.Unit/ServerRecipeFacts.cs",
     "DigitalBrain.Aspire.Hosting.Tests.Unit/TelemetryExportBarrierFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/ReactFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/SiloBrainSubscriptionFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/SourceSetFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/SubscriptionFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/SubscriptionLifetimeFacts.cs",
-    "DigitalBrain.Client.Orleans.Tests.Unit/SubscriptionReadinessFacts.cs",
     "DigitalBrain.Mcp.Tests.Unit/McpIdentityFacts.cs",
     "DigitalBrain.Mcp.Tests.Unit/McpRuntimeFacts.cs",
     "DigitalBrain.Mcp.Tests.Unit/McpTrustFacts.cs",
