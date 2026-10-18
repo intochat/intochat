@@ -22,6 +22,10 @@ public sealed class BrainLogOwnershipOptions
     // Alternative to ContainerUri for development storage; ContainerName names the container inside it.
     public string? ConnectionString { get; set; }
     public string ContainerName { get; set; } = "brainlease-v1";
-    // How long a claim waits for the previous owner's lease to be released or expire.
-    public TimeSpan ClaimTimeout { get; set; } = TimeSpan.FromSeconds(90);
+    // A user-assigned managed identity's client id; AZURE_CLIENT_ID is the fallback.
+    public string? ManagedIdentityClientId { get; set; }
+    // How long one claim waits for a held lease. It stays inside the Orleans call timeout; a longer handover is the caller's retry.
+    public TimeSpan ClaimTimeout { get; set; } = TimeSpan.FromSeconds(25);
+    // The longest one journal or checkpoint write may take before the lease counts as lost; well under the 20 s fence margin.
+    public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(10);
 }

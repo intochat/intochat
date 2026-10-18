@@ -38,7 +38,9 @@ public sealed class BrainLogOwnershipFacts(AuthorityHost host)
         time.Advance(TimeSpan.FromSeconds(1));
 
         await Assert.ThrowsAsync<BrainNotOwnedException>(() => log.Append("g", "state", 1, BrainRecordChange.Write, [2], [], ct));
-        Assert.Equal([1], log.Read("g", "state")!.Record);
+        Assert.Throws<BrainNotOwnedException>(() => log.Read("g", "state"));
+        Assert.False(log.Usable);
+        Assert.Equal(1, Ownership.Snapshot().Fenced);
     }
 
     [Fact]
@@ -61,43 +63,45 @@ public sealed class BrainLogOwnershipFacts(AuthorityHost host)
     public async Task ClaimRetriesAHeldLeaseAndRefusesAfterTheClaimTimeout()
     {
         client.Holder = "other";
-        var claim = Ownership().ClaimAsync("unused", "busy", TestContext.Current.CancellationToken);
+        var claim = Ownership.ClaimAsync("unused", "busy", TestContext.Current.CancellationToken);
 
-        await AdvanceUntil(claim, TimeSpan.FromSeconds(120));
+        await AdvanceUntil(claim, TimeSpan.FromSeconds(60));
 
         await Assert.ThrowsAsync<BrainNotOwnedException>(() => claim);
         Assert.InRange(client.Acquires, 3, 20);
-        Assert.Equal(TimeSpan.FromSeconds(90), time.GetUtcNow() - start);
+        Assert.Equal(TimeSpan.FromSeconds(25), time.GetUtcNow() - start);
+        Assert.Equal(1, Ownership.Snapshot().Refused);
     }
 
     [Fact]
     public async Task ClaimSucceedsOnceThePreviousOwnerReleases()
     {
         client.Holder = "other";
-        var claim = Ownership().ClaimAsync("unused", "busy", TestContext.Current.CancellationToken);
+        var claim = Ownership.ClaimAsync("unused", "busy", TestContext.Current.CancellationToken);
         time.Advance(TimeSpan.FromSeconds(5));
         client.Holder = null;
 
         await AdvanceUntil(claim, TimeSpan.FromSeconds(30));
 
         using var lease = await claim;
-        lease.EnsureHeld();
+        Assert.True(lease.IsHeld);
     }
 
     [Fact]
     public async Task DisposeReleasesAHeldLeaseButNotALostOne()
     {
         var ct = TestContext.Current.CancellationToken;
-        var held = await Ownership().ClaimAsync("unused", "held", ct);
+        var held = await Ownership.ClaimAsync("unused", "held", ct);
         held.Dispose();
         Assert.Equal(["held"], client.Released);
 
-        var lost = await Ownership().ClaimAsync("unused", "lost", ct);
+        var lost = await Ownership.ClaimAsync("unused", "lost", ct);
         client.RenewAccepted = false;
         time.Advance(BlobLeaseBrainLogOwnership.RenewalInterval);
         lost.Dispose();
         Assert.Equal(["held"], client.Released);
-        Assert.Throws<ObjectDisposedException>(lost.EnsureHeld);
+        Assert.Equal(new BrainOwnershipCounts("blob-lease", 2, 0, 1, 1, 0, 0), Ownership.Snapshot());
+        Assert.Throws<ObjectDisposedException>(() => lost.BeginWrite());
     }
 
     [Fact]
@@ -106,7 +110,7 @@ public sealed class BrainLogOwnershipFacts(AuthorityHost host)
         var ct = TestContext.Current.CancellationToken;
         var options = Options.Create(new BrainStoreOptions { Directory = Directory.CreateTempSubdirectory("brain-lease-logs-").FullName });
         var keys = new BrainStorageKeys(new ConfiguredMasterKeyCustody(RandomNumberGenerator.GetBytes(32)), options);
-        var logs = new BrainLogs(keys, host.Brain.Services.GetRequiredService<Serializer>(), options, ownership: Ownership());
+        var logs = new BrainLogs(keys, host.Brain.Services.GetRequiredService<Serializer>(), options, ownership: Ownership);
 
         var log = await logs.For("alice").WaitAsync(ct);
         await log.Append("g", "state", null, BrainRecordChange.Write, [1], [], ct);
@@ -115,14 +119,110 @@ public sealed class BrainLogOwnershipFacts(AuthorityHost host)
         Assert.Equal(["alice"], client.Released);
     }
 
+    [Fact]
+    public async Task AWriteLongerThanTheCapCountsAsLost()
+    {
+        using var lease = await Ownership.ClaimAsync("unused", "slow", TestContext.Current.CancellationToken);
+        var started = lease.BeginWrite();
+        time.Advance(TimeSpan.FromSeconds(11));
+
+        Assert.Throws<BrainNotOwnedException>(() => lease.EndWrite(started));
+        Assert.False(lease.IsHeld);
+        Assert.Equal(1, Ownership.Snapshot().Fenced);
+    }
+
+    [Fact]
+    public async Task AFenceBetweenWriteAndFlushLeavesNothingToReplay()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (directory, key, serializer) = NewBrain();
+        var lease = new FailingLease(failOnEndWrite: 2);
+        using (var log = new BrainLog(directory, "owner", key, serializer, BrainLogFormat.Framed, lease))
+        {
+            await log.Append("g", "state", null, BrainRecordChange.Write, [1], [], ct);
+            var length = new FileInfo(Journal(directory)).Length;
+
+            await Assert.ThrowsAsync<BrainNotOwnedException>(() => log.Append("g", "state", 1, BrainRecordChange.Write, [2], [], ct));
+
+            Assert.Equal(length, new FileInfo(Journal(directory)).Length);
+            await Assert.ThrowsAsync<BrainNotOwnedException>(() => log.Append("g", "state", 1, BrainRecordChange.Write, [3], [], ct));
+            Assert.False(log.Usable);
+        }
+        using var recovered = new BrainLog(directory, "owner", key, serializer, BrainLogFormat.Framed);
+        var record = recovered.Read("g", "state")!;
+        Assert.Equal([1], record.Record);
+        Assert.Equal(1, record.ETag);
+    }
+
+    [Fact]
+    public async Task ACheckpointCrossingTheFenceKeepsThePreviousGeneration()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (directory, key, serializer) = NewBrain();
+        using (var log = new BrainLog(directory, "owner", key, serializer, BrainLogFormat.Framed, new FailingLease(failOnEndWrite: 2)))
+        {
+            await log.Append("g", "state", null, BrainRecordChange.Write, [1], [], ct);
+            await Assert.ThrowsAsync<BrainNotOwnedException>(() => log.Checkpoint(ct));
+        }
+        Assert.False(File.Exists(Path.Combine(directory, "current")));
+        Assert.Empty(Directory.EnumerateFiles(directory, "current*.tmp"));
+        using var recovered = new BrainLog(directory, "owner", key, serializer, BrainLogFormat.Framed);
+        var record = recovered.Read("g", "state")!;
+        Assert.Equal([1], record.Record);
+        Assert.Equal(1, record.ETag);
+    }
+
+    [Fact]
+    public async Task BrainLogsReclaimABrainAfterItsLeaseIsLost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var options = Options.Create(new BrainStoreOptions { Directory = Directory.CreateTempSubdirectory("brain-lease-reclaim-").FullName });
+        var keys = new BrainStorageKeys(new ConfiguredMasterKeyCustody(RandomNumberGenerator.GetBytes(32)), options);
+        await using var logs = new BrainLogs(keys, host.Brain.Services.GetRequiredService<Serializer>(), options, ownership: Ownership);
+        var first = await logs.For("alice").WaitAsync(ct);
+        await first.Append("g", "state", null, BrainRecordChange.Write, [1], [], ct);
+        client.RenewAccepted = false;
+        time.Advance(BlobLeaseBrainLogOwnership.RenewalInterval);
+        await Assert.ThrowsAsync<BrainNotOwnedException>(() => first.Append("g", "state", 1, BrainRecordChange.Write, [2], [], ct));
+
+        client.RenewAccepted = true;
+        var second = await logs.For("alice").WaitAsync(ct);
+
+        Assert.NotSame(first, second);
+        Assert.Equal(2, await second.Append("g", "state", 1, BrainRecordChange.Write, [2], [], ct));
+        Assert.Equal(2, client.Acquires);
+        Assert.Empty(client.Released);
+    }
+
     private readonly DateTimeOffset start = new FakeTimeProvider().GetUtcNow();
 
-    private BlobLeaseBrainLogOwnership Ownership() =>
-        new(client, time, NullLogger<BlobLeaseBrainLogOwnership>.Instance, TimeSpan.FromSeconds(90));
+    private BlobLeaseBrainLogOwnership Ownership => ownership ??=
+        new(client, time, NullLogger<BlobLeaseBrainLogOwnership>.Instance, TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(10));
+    private BlobLeaseBrainLogOwnership? ownership;
+
+    private (string Directory, byte[] Key, Serializer Serializer) NewBrain() =>
+        (Directory.CreateTempSubdirectory("brain-fence").FullName, RandomNumberGenerator.GetBytes(32), host.Brain.Services.GetRequiredService<Serializer>());
+
+    private static string Journal(string directory) => Assert.Single(Directory.EnumerateFiles(directory, "*.log"));
+
+    // Loses ownership on the given EndWrite call, which lands between a journal write and its flush, or before a manifest move.
+    private sealed class FailingLease(int failOnEndWrite) : IBrainLogLease
+    {
+        private int ends;
+        private bool lost;
+        public bool IsHeld => !lost;
+        public long BeginWrite() => lost ? throw new BrainNotOwnedException("owner") : 0;
+        public void EndWrite(long started)
+        {
+            if (++ends >= failOnEndWrite) { lost = true; }
+            if (lost) { throw new BrainNotOwnedException("owner"); }
+        }
+        public void Dispose() { }
+    }
 
     private async Task<BrainLog> Open(CancellationToken ct)
     {
-        var lease = await Ownership().ClaimAsync("unused", "owner", ct);
+        var lease = await Ownership.ClaimAsync("unused", "owner", ct);
         return new BrainLog(Directory.CreateTempSubdirectory("brain-lease").FullName, "owner", RandomNumberGenerator.GetBytes(32),
             host.Brain.Services.GetRequiredService<Serializer>(), BrainLogFormat.Legacy, lease);
     }

@@ -1,5 +1,3 @@
-using System.Diagnostics.Metrics;
-
 namespace DigitalBrain.Authority.Storage;
 
 // How a silo proves it is the single writer of a brain's log. The claim is taken before the log touches the brain's key or files.
@@ -8,10 +6,15 @@ internal interface IBrainLogOwnership
     Task<IBrainLogLease> ClaimAsync(string directory, string brainId, CancellationToken ct);
 }
 
-// A held claim. EnsureHeld throws once the claim can no longer be trusted; the log then refuses to write.
+// A held claim. Once it can no longer be trusted the log refuses to write and BrainLogs evicts it so the brain can be reclaimed.
 internal interface IBrainLogLease : IDisposable
 {
-    void EnsureHeld();
+    // False once the claim is lost; never throws.
+    bool IsHeld { get; }
+    // Throws BrainNotOwnedException when the claim is lost. Returns a mark for EndWrite.
+    long BeginWrite();
+    // Throws BrainNotOwnedException when the claim was lost, or the write since BeginWrite took longer than the write cap.
+    void EndWrite(long started);
 }
 
 // The default: an exclusive writer.lock in the brain's directory, held for the life of the log.
@@ -36,17 +39,16 @@ internal sealed class FileLockBrainLogOwnership : IBrainLogOwnership
 
     private sealed class FileLease(FileStream stream) : IBrainLogLease
     {
-        public void EnsureHeld() { }
+        public bool IsHeld => true;
+        public long BeginWrite() => 0;
+        public void EndWrite(long started) { }
         public void Dispose() => stream.Dispose();
     }
 }
 
-internal static class BrainLogOwnershipMetrics
+// Reports the configured ownership's counters, or none for the writer lock.
+internal sealed class BrainLogOwnershipCounters(IBrainLogOwnership ownership) : IBrainOwnershipCounters
 {
-    public const string MeterName = "DigitalBrain.Authority.BrainLog";
-    private static readonly Meter Meter = new(MeterName);
-    private static readonly Counter<long> Events = Meter.CreateCounter<long>("brainlog.ownership",
-        description: "Brain log ownership events: acquired, refused, lost, released.");
-
-    public static void Record(string outcome) => Events.Add(1, new KeyValuePair<string, object?>("event", outcome));
+    private static readonly BrainOwnershipCounts WriterLock = new("writer-lock", 0, 0, 0, 0, 0, 0);
+    public BrainOwnershipCounts Snapshot() => ownership is IBrainOwnershipCounters counters ? counters.Snapshot() : WriterLock;
 }

@@ -126,10 +126,11 @@ internal sealed class BrainLog : IDisposable
             var plain = serializer.SerializeToArray(entry);
             if (plain.Length > MaxEntryBytes) { throw new ArgumentException("A brain change exceeds 16 MiB.", nameof(record)); }
             var bytes = SegmentSeal.Close(key, Context("log"), plain);
-            ownership.EnsureHeld();
+            var started = ownership.BeginWrite();
             try
             {
                 using var stream = files.OpenAppend(Journal);
+                var before = stream.Length;
                 // Header and first frame go out in one write; a torn header is truncated on recovery.
                 var headed = stream.Length == 0 && format == BrainLogFormat.Framed;
                 var frame = new byte[(headed ? SegmentHeaderBytes : 0) + 4 + bytes.Length];
@@ -138,8 +139,15 @@ internal sealed class BrainLog : IDisposable
                 BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(offset), bytes.Length);
                 bytes.CopyTo(frame.AsSpan(offset + 4));
                 stream.Write(frame);
-                // A write that outlived the lease is neither flushed nor applied; the log faults and must be reopened.
-                ownership.EnsureHeld();
+                // A write that outlived the lease or its time cap is cut back off the journal before it can be replayed, and is
+                // not applied. Truncation is best effort; recovery also faults on a sequence that is not contiguous.
+                try { ownership.EndWrite(started); }
+                catch (BrainNotOwnedException)
+                {
+                    stream.SetLength(before);
+                    FlushToDisk(stream);
+                    throw;
+                }
                 FlushToDisk(stream);
                 // Deserialize the durable bytes so callers cannot mutate the stored projection.
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
@@ -178,15 +186,22 @@ internal sealed class BrainLog : IDisposable
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
-            ownership.EnsureHeld();
+            var started = ownership.BeginWrite();
             var previous = generation;
             var next = Guid.NewGuid().ToString("N");
             var snapshot = new BrainSnapshot(sequence, lastSignal, records, [.. signals], writeFormat);
             WriteFlushed(Path.Combine(directory, next + ".snapshot"), SegmentSeal.Close(key, Context("snapshot", next), serializer.SerializeToArray(snapshot)));
             WriteFlushed(Path.Combine(directory, next + ".log"), []);
-            WriteFlushed(Path.Combine(directory, "current.tmp"), System.Text.Encoding.UTF8.GetBytes(next));
-            try { ownership.EnsureHeld(); File.Move(Path.Combine(directory, "current.tmp"), Path.Combine(directory, "current"), overwrite: true); }
-            catch (Exception error) { failure = error; throw; }
+            // A writer-unique staging name, so a stale owner cannot swap its manifest in under the current owner's move.
+            var staged = Path.Combine(directory, "current." + next + ".tmp");
+            WriteFlushed(staged, System.Text.Encoding.UTF8.GetBytes(next));
+            try { ownership.EndWrite(started); File.Move(staged, Path.Combine(directory, "current"), overwrite: true); }
+            catch (Exception error)
+            {
+                failure = error;
+                try { File.Delete(staged); } catch (IOException) { /* Never read: only "current" names a generation. */ }
+                throw;
+            }
             generation = next;
             format = writeFormat;
             // Old complete generation remains until the manifest points to the new one.
@@ -293,9 +308,13 @@ internal sealed class BrainLog : IDisposable
         FlushToDisk(stream);
     }
 
+    // False once the ownership is lost or a write failed; BrainLogs then evicts this log so the brain can be claimed again.
+    internal bool Usable { get { lock (gate) { return !disposed && failure is null && ownership.IsHeld; } } }
+
     private void RequireOpen()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (failure is BrainNotOwnedException || (failure is null && !ownership.IsHeld)) { throw new BrainNotOwnedException(brainId, failure); }
         if (failure is not null) { throw new IOException("The brain store must be reopened after a failed append or checkpoint.", failure); }
     }
 

@@ -30,7 +30,13 @@ internal sealed class BrainLogs : IAsyncDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (logs.TryGetValue(brainId, out var log)) { return log; }
+            if (logs.TryGetValue(brainId, out var log))
+            {
+                if (!log.IsCompletedSuccessfully || log.Result.Usable) { return log; }
+                // A log that lost its ownership or failed a write is dropped (without releasing a lost lease) and claimed afresh.
+                logs.Remove(brainId);
+                log.Result.Dispose();
+            }
             log = Open(brainId);
             if (!log.IsFaulted) { logs[brainId] = log; } // Opens usually complete synchronously; a refused claim is not cached.
             return log;

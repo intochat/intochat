@@ -28,10 +28,14 @@ public static class BrainStorageHosting
             .Validate(options => options.Ownership.Kind != BrainLogOwnershipKind.BlobLease
                 || options.Ownership.ContainerUri is not null || !string.IsNullOrWhiteSpace(options.Ownership.ConnectionString),
                 "Blob lease ownership needs Ownership:ContainerUri or Ownership:ConnectionString.")
+            .Validate(options => options.Ownership.ClaimTimeout > TimeSpan.Zero && options.Ownership.ClaimTimeout <= TimeSpan.FromSeconds(25)
+                && options.Ownership.WriteTimeout > TimeSpan.Zero && options.Ownership.WriteTimeout < TimeSpan.FromSeconds(20),
+                "Ownership:ClaimTimeout must be within the Orleans call timeout (at most 25 s) and Ownership:WriteTimeout under 20 s.")
             .ValidateOnStart();
         services.TryAddSingleton<BrainStorageKeys>();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IBrainLogOwnership>(BrainLogOwnership);
+        services.UseBrainOwnershipCounters<BrainLogOwnershipCounters>();
         services.TryAddSingleton<BrainLogs>();
         services.RemoveAll<ISignalJournal>();
         services.AddSingleton<ISignalJournal, BrainSignalJournal>();
@@ -63,9 +67,16 @@ public static class BrainStorageHosting
         if (options.Kind != BrainLogOwnershipKind.BlobLease) { return FileLockBrainLogOwnership.Instance; }
         var container = options.ConnectionString is { Length: > 0 } connection
             ? new BlobContainerClient(connection, options.ContainerName)
-            : new BlobContainerClient(options.ContainerUri!, provider.GetService<TokenCredential>() ?? new DefaultAzureCredential());
+            : new BlobContainerClient(options.ContainerUri!, Credential(options.ManagedIdentityClientId));
         return new BlobLeaseBrainLogOwnership(new AzureBrainLeaseClient(container), provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<ILogger<BlobLeaseBrainLogOwnership>>(), options.ClaimTimeout);
+            provider.GetRequiredService<ILogger<BlobLeaseBrainLogOwnership>>(), options.ClaimTimeout, options.WriteTimeout);
+    }
+
+    // Matches the Orleans storage credential: a user-assigned identity needs its client id, from config or AZURE_CLIENT_ID.
+    internal static TokenCredential Credential(string? clientId)
+    {
+        if (string.IsNullOrWhiteSpace(clientId)) { clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID"); }
+        return new DefaultAzureCredential(string.IsNullOrWhiteSpace(clientId) ? new() : new DefaultAzureCredentialOptions { ManagedIdentityClientId = clientId.Trim() });
     }
 
     // Whether AddBrainStorage has run on these services.

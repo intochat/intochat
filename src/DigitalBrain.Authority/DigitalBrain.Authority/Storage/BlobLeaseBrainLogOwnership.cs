@@ -15,6 +15,7 @@ internal interface IBrainLeaseClient
     Task ReleaseAsync(string brainId, string leaseId, CancellationToken ct);
 }
 
+// The lease container must already exist (provisioned with the environment); one empty blob per brain carries the lease.
 internal sealed class AzureBrainLeaseClient(BlobContainerClient container) : IBrainLeaseClient
 {
     public async Task<string?> TryAcquireAsync(string brainId, TimeSpan duration, CancellationToken ct)
@@ -38,18 +39,25 @@ internal sealed class AzureBrainLeaseClient(BlobContainerClient container) : IBr
 
 // A 60 s Blob lease per brain, renewed every 20 s. Writes are refused once the last successful renewal is 40 s old on the
 // monotonic clock, or at once when the service refuses a renewal, which leaves 20 s before another silo can acquire.
+// A single write longer than the write cap also counts as lost, so a stalled write cannot run on into that margin unnoticed.
 internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeProvider time, ILogger<BlobLeaseBrainLogOwnership> logger,
-    TimeSpan claimTimeout) : IBrainLogOwnership
+    TimeSpan claimTimeout, TimeSpan writeTimeout) : IBrainLogOwnership, IBrainOwnershipCounters
 {
     public static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan RenewalInterval = TimeSpan.FromSeconds(20);
     public static readonly TimeSpan Fence = TimeSpan.FromSeconds(40);
-    private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(5);
     private readonly IBrainLeaseClient client = client;
     private readonly TimeProvider time = time;
     private readonly ILogger<BlobLeaseBrainLogOwnership> logger = logger;
+    private readonly TimeSpan writeTimeout = writeTimeout;
+    private long acquired, refused, lost, released, renewed, fenced;
 
-    // Retries a held lease with backoff for up to the claim timeout, covering the previous owner's drain or lease expiry.
+    public BrainOwnershipCounts Snapshot() => new("blob-lease", Interlocked.Read(ref acquired), Interlocked.Read(ref refused),
+        Interlocked.Read(ref lost), Interlocked.Read(ref released), Interlocked.Read(ref renewed), Interlocked.Read(ref fenced));
+
+    // Retries a held lease with backoff for up to the claim timeout, which stays inside the Orleans call timeout.
+    // Waiting out a longer handover (a previous owner's drain or lease expiry) is the caller's retry.
     public async Task<IBrainLogLease> ClaimAsync(string directory, string brainId, CancellationToken ct)
     {
         var started = time.GetTimestamp();
@@ -59,14 +67,14 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
             var leaseId = await client.TryAcquireAsync(brainId, LeaseDuration, ct);
             if (leaseId is not null)
             {
-                BrainLogOwnershipMetrics.Record("acquired");
+                Interlocked.Increment(ref acquired);
                 logger.LogInformation("Brain log lease acquired for {BrainId}.", brainId);
                 return new Lease(this, brainId, leaseId);
             }
             var remaining = claimTimeout - time.GetElapsedTime(started);
             if (remaining <= TimeSpan.Zero)
             {
-                BrainLogOwnershipMetrics.Record("refused");
+                Interlocked.Increment(ref refused);
                 logger.LogWarning("Brain log lease for {BrainId} is held by another writer.", brainId);
                 throw new BrainNotOwnedException(brainId);
             }
@@ -83,7 +91,7 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
         private readonly ITimer timer;
         private readonly CancellationTokenSource stopping = new();
         private readonly Lock gate = new();
-        private long renewed;
+        private long lastRenewal;
         private bool lost;
         private bool disposed;
         private Task renewal = Task.CompletedTask;
@@ -93,18 +101,37 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
             this.owner = owner;
             this.brainId = brainId;
             this.leaseId = leaseId;
-            renewed = owner.time.GetTimestamp();
+            lastRenewal = owner.time.GetTimestamp();
             timer = owner.time.CreateTimer(_ => Renew(), null, RenewalInterval, RenewalInterval);
         }
 
-        public void EnsureHeld()
+        public bool IsHeld { get { lock (gate) { return !disposed && Check(); } } }
+
+        public long BeginWrite()
         {
             lock (gate)
             {
                 ObjectDisposedException.ThrowIf(disposed, this);
-                if (!lost && owner.time.GetElapsedTime(renewed) >= Fence) { MarkLost("fence"); }
-                if (lost) { throw new BrainNotOwnedException(brainId); }
+                if (!Check()) { throw new BrainNotOwnedException(brainId); }
+                return owner.time.GetTimestamp();
             }
+        }
+
+        public void EndWrite(long started)
+        {
+            lock (gate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                if (!lost && owner.time.GetElapsedTime(started) > owner.writeTimeout) { MarkLost("write exceeded its time cap", fenced: true); }
+                if (!Check()) { throw new BrainNotOwnedException(brainId); }
+            }
+        }
+
+        // Applies the fence; caller holds the gate.
+        private bool Check()
+        {
+            if (!lost && owner.time.GetElapsedTime(lastRenewal) >= Fence) { MarkLost("no renewal within the fence", fenced: true); }
+            return !lost;
         }
 
         private void Renew()
@@ -132,15 +159,15 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
             {
                 if (disposed || lost) { return; }
                 // The service extended the lease from no earlier than the attempt, so the fence counts from there.
-                if (accepted) { renewed = attempt; }
-                else { MarkLost("renewal refused"); }
+                if (accepted) { lastRenewal = attempt; Interlocked.Increment(ref owner.renewed); }
+                else { MarkLost("renewal refused", fenced: false); }
             }
         }
 
-        private void MarkLost(string reason)
+        private void MarkLost(string reason, bool fenced)
         {
             lost = true;
-            BrainLogOwnershipMetrics.Record("lost");
+            if (fenced) { Interlocked.Increment(ref owner.fenced); } else { Interlocked.Increment(ref owner.lost); }
             owner.logger.LogError("Brain log lease for {BrainId} lost ({Reason}); writes are refused.", brainId, reason);
         }
 
@@ -160,7 +187,7 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
                 try
                 {
                     owner.client.ReleaseAsync(brainId, leaseId, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
-                    BrainLogOwnershipMetrics.Record("released");
+                    Interlocked.Increment(ref owner.released);
                     owner.logger.LogInformation("Brain log lease released for {BrainId}.", brainId);
                 }
                 catch (Exception error) { owner.logger.LogWarning(error, "Brain log lease release for {BrainId} failed; it expires on its own.", brainId); }
