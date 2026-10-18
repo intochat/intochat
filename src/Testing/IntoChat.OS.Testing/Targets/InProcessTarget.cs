@@ -277,7 +277,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         var person = _http is { } http
             ? await Person.RegisterAsync(http, name, cancellationToken).ConfigureAwait(false)
             // No HTTP edge: the identity directory, which runs the registration the /identity/register endpoint runs.
-            : Person.Registered(await Services.GetRequiredService<IGrainFactory>().GetGrain<IIdentityDirectory>(IdentityGrains.Directory)
+            : Person.Registered(await Services.GetRequiredService<IGrainFactory>().GetGrain<IIdentityDirectory>(Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.DirectoryKey)
                 .RegisterAsync(name, Person.Password(name), name, cancellationToken).ConfigureAwait(false));
         _lifetime.Own("person", new Release(() => { person.Dispose(); return ValueTask.CompletedTask; }));
         return person;

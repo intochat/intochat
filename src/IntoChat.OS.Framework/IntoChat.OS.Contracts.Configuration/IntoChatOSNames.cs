@@ -2,7 +2,7 @@ namespace IntoChat.OS.Framework;
 
 public static class IntoChatOSNames
 {
-    public const string GrainStateContainer = "intochat-os-state";
+    public const string GrainStateContainer = "os-state";
     public const string GrainStateContainerKey = "IntoChatOS:Orleans:GrainStateContainer";
 
     public const string Storage = "storage";

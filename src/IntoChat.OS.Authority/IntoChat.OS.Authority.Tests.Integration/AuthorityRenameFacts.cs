@@ -15,6 +15,6 @@ public sealed class AuthorityRenameFacts
         Assert.Equal("platform", IntoChatOSNames.PlatformGrainStorage);
         Assert.Equal("cluster", IntoChatOSNames.ClusterGrainStorage);
         Assert.Equal("grainstate", IntoChatOSNames.GrainState);
-        Assert.Equal("intochat-os-state", IntoChatOSNames.GrainStateContainer);
+        Assert.Equal("os-state", IntoChatOSNames.GrainStateContainer);
     }
 }

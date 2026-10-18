@@ -43,7 +43,7 @@ internal static class HostedWorkspaceEndpoints
             http.Response.Headers.CacheControl = "no-store";
             http.Response.Headers["Referrer-Policy"] = "no-referrer";
             http.Response.Headers.ContentSecurityPolicy = "default-src 'none'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'";
-            return Results.Content("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>IntoChat workspace</title><p id=\"status\">Opening your workspace…</p><script src=\"/runtime/workspace/launch.js\"></script></html>", "text/html");
+            return Results.Content("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Workspace</title><p id=\"status\">Opening your workspace…</p><script src=\"/runtime/workspace/launch.js\"></script></html>", "text/html");
         }).AllowAnonymous();
         routes.MapGet("/runtime/workspace/launch.js", (HttpContext http) =>
         {

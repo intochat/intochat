@@ -14,10 +14,8 @@ internal static class HttpIdentityProjection
 {
     public static IdentityHostOptions FromConfiguration(IConfiguration configuration)
     {
-        var section = configuration.GetSection(IdentityHostOptions.SectionName);
-        if (!section.Exists())
-        { throw new InvalidOperationException($"{IdentityHostOptions.SectionName} is required to host an HTTP identity."); }
-        var identity = section.Get<IdentityHostOptions>() ?? new();
+        // Absent section: the brand-neutral defaults apply; a distribution pins its own names under this section.
+        var identity = configuration.GetSection(IdentityHostOptions.SectionName).Get<IdentityHostOptions>() ?? new();
         if (!identity.Validate())
         { throw new InvalidOperationException($"{IdentityHostOptions.SectionName} must name a cookie, protection application, protection container and session claims."); }
         return identity;
@@ -33,6 +31,7 @@ internal static class HttpIdentityProjection
             (nameof(IdentityHostOptions.ProtectionContainerName), identity.ProtectionContainerName),
             (nameof(IdentityHostOptions.AccountClaim), identity.AccountClaim),
             (nameof(IdentityHostOptions.BrainClaim), identity.BrainClaim),
+            (nameof(IdentityHostOptions.DirectoryKey), identity.DirectoryKey),
         })
         {
             resource.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IdentityHostOptions.Key(name)), value);

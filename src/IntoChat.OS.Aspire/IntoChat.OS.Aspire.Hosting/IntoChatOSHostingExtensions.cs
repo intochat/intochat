@@ -56,7 +56,7 @@ public static class IntoChatOSHostingExtensions
             });
         // Cluster membership may change between runs; persistence identity must not.
         var clusterId = options.ClusterId ?? builder.Configuration[IntoChatOSHostingOptions.ClusterIdKey]
-            ?? (builder.Environment.IsDevelopment() ? $"intochat-os-{Guid.NewGuid():N}" : resolvedServiceId);
+            ?? (builder.Environment.IsDevelopment() ? $"os-{Guid.NewGuid():N}" : resolvedServiceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(clusterId);
         var grainStateContainer = options.GrainStateContainer ?? builder.Configuration[IntoChatOSHostingOptions.GrainStateContainerKey] ?? IntoChatOSNames.GrainStateContainer;
         // Storage is the orleans module's hosting choice (OrleansModuleHosting); without it the silo runs in memory.
