@@ -135,9 +135,19 @@ public sealed class SourceSetFacts(ClientHost host)
         await selecting.Task.WaitAsync(Wait, ct); // the first select has read [a] and is still running
         await registry.Set(["reg-5-a", "reg-5-b"]);
         release.SetResult();
-        await Reselected(ct);
-        await brain.Get<ITestEmitter>("reg-5-b").Emit(1);
-        Assert.True(await next.WaitAsync(Wait, ct));
+        // The joiner is pumped from its position when its re-selection subscribes, and that moment is not observable:
+        // a single emit after a fixed 300 ms pause was lost whenever the runner stalled past it. Re-emit the same value
+        // until the stream yields; only reg-5-b emits, so the assertion below is unchanged.
+        var b = brain.Get<ITestEmitter>("reg-5-b");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(Wait);
+        while (!next.IsCompleted)
+        {
+            await b.Emit(1);
+            await Task.WhenAny(next, Task.Delay(200, deadline.Token));
+            deadline.Token.ThrowIfCancellationRequested();
+        }
+        Assert.True(await next);
         Assert.Equal(("test-emitter/reg-5-b", 1), (stream.Current.Publisher.Name, stream.Current.Value));
     }
 

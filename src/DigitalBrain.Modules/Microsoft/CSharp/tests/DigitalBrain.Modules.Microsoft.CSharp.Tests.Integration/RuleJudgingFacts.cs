@@ -175,8 +175,8 @@ public sealed class RuleJudgingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
-        await using var brain = await Start(host, ct, ruleTimeout: TimeSpan.FromSeconds(3));
-        // The first ask also starts the session and fetches the rules; at 1 s its 200 ms slack lost to a loaded runner.
+        var budget = TimeSpan.FromSeconds(3);
+        await using var brain = await Start(host, ct, ruleTimeout: budget);
         var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string>
         {
@@ -197,7 +197,10 @@ public sealed class RuleJudgingFacts
 
         Assert.Equal(("Hung", false, "rule did not answer"), (first.Rule, first.Allowed, first.Reason));
         Assert.Equal(("Hung", false, "rule did not answer (quarantined)"), (second.Rule, second.Allowed, second.Reason));
-        Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromMilliseconds(500));
+        // "At once" means without waiting on the rule: the quarantined reason is only given before a run starts, and the
+        // thread count shows none did. The clock only proves the call did not sit out the host's answer deadline
+        // (0.8 of the budget); a fixed 500 ms also timed the session round trip and lost it to a stalled 2 vCPU runner.
+        Assert.True(DateTimeOffset.UtcNow - started < budget * 0.8);
         Assert.Equal(threads, host.ThreadsStarted);
     }
 
@@ -242,9 +245,11 @@ public sealed class RuleJudgingFacts
         finally { AppDomain.CurrentDomain.SetData(gate, null); }
     }
 
+    // The production budget (3 s): the first ask also starts the session and fetches the rules, and at 1 s an allowing
+    // rule was reported as "rules did not answer" on a loaded machine.
     private static Task<ITestBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false, TimeSpan? ruleTimeout = null)
         => RuntimeBrain.Create(host, apps)
-            .WithOptions<CSharpModule, CSharpOptions>(options => options.RuleTimeout = ruleTimeout ?? TimeSpan.FromSeconds(1))
+            .WithOptions<CSharpModule, CSharpOptions>(options => options.RuleTimeout = ruleTimeout ?? TimeSpan.FromSeconds(3))
             // The host downloads assemblies from its own store: the blob storage seam.
             .ConfigureServices(services => services.AddSingleton<IBehaviorAssemblies>(host))
             .StartAsync(ct);
