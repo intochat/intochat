@@ -43,8 +43,19 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
-    <IsTestProject Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestProject>
-    <IsTestingPlatformApplication Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestingPlatformApplication>
+    <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:DigitalBrainTestTier`. -->
+    <DigitalBrainTestTier>Legacy</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">E2E</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Browser'))">Browser</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Hosting'))">Hosting</DigitalBrainTestTier>
+    <!-- DigitalBrainNightly=false drops the nightly tiers (E2E, Browser) from `dotnet test`.
+         DigitalBrainE2E=false is the previous name, kept for one release. -->
+    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == '' And '$(DigitalBrainE2E)' == 'false'">false</DigitalBrainNightly>
+    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == ''">true</DigitalBrainNightly>
+    <IsTestProject Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
