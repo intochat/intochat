@@ -64,7 +64,9 @@ void main() {
         httpClient: server,
       );
       addTearDown(client.close);
+      final watch = Stopwatch()..start();
       final activity = await client.watchCircleActivity().toList();
+      expect(watch.elapsedMilliseconds, greaterThanOrEqualTo(50));
       expect(server.lives, hasLength(2));
       expect(
         activity.map((a) => a.ready ? 'ready' : '${a.kind}:${a.sequence}'),

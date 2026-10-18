@@ -434,9 +434,14 @@ final class DigitalBrainUiClient {
   /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
   /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
   /// A reader that falls behind gets `resync`: the feed reconnects and replays, so listeners read again.
+  /// The pause before reconnecting after a resync, doubling up to [maxResyncPause].
+  Duration firstResyncPause = const Duration(seconds: 1);
+  Duration maxResyncPause = const Duration(seconds: 30);
+
   Stream<LiveEnvelope> watchLive(String brainId, List<String> types) async* {
     final path =
         '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}';
+    var resyncPause = firstResyncPause;
     while (true) {
       var resync = false;
       await for (final envelope in _serverEvents(
@@ -451,6 +456,11 @@ final class DigitalBrainUiClient {
       }
       // The server ended a stream this reader fell behind on: reconnecting replays current state.
       if (!resync) return;
+      // A server that resyncs on every connect must not spin: wait 1 s, doubling to 30 s.
+      await Future<void>.delayed(resyncPause);
+      resyncPause = resyncPause * 2 > maxResyncPause
+          ? maxResyncPause
+          : resyncPause * 2;
     }
   }
 
