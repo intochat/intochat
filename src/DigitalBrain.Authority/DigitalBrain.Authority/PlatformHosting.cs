@@ -4,6 +4,7 @@ using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Authority.Connections;
+using DigitalBrain.Authority.Hosting;
 using DigitalBrain.Authority.Identity;
 using DigitalBrain.Authority.Identity.Directory;
 using DigitalBrain.Authority.Identity.Grants;
@@ -36,6 +37,7 @@ public static class PlatformHosting
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key);
+        services.AddSiloDiagnostics();
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<Storage.BrainStorageKeys>();
@@ -86,6 +88,7 @@ public static class PlatformHosting
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         Hosting.RuntimeManagementEndpoints.Map(endpoints);
+        endpoints.MapSiloDiagnostics();
         foreach (var extension in endpoints.ServiceProvider.GetServices<IAuthorityHttpExtension>()) { extension.Map(endpoints); }
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
