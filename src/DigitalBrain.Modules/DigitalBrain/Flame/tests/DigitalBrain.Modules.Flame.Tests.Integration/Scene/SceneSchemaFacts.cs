@@ -2,11 +2,11 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests.Scene;
+namespace DigitalBrain.Modules.Flame.Tests.Integration.Scene;
 
-public sealed class SceneSchemaFacts
+public sealed class SceneSchemaFacts(FlameHost host)
 {
-    private const string Key = "owner/apps/ino/scenes/home";
+    private const string Path = "apps/ino/scenes/home";
 
     private static SceneNode Node(string type, params (string Key, string Value)[] parameters) =>
         new("n", type, new Transform(), null, parameters.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal), [], [], []);
@@ -21,8 +21,10 @@ public sealed class SceneSchemaFacts
     public async Task AnUnknownNodeTypeIsStillAcceptedAsAPlaceholder()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await scene.Set(new([Scenes.Node("x", "hologram")], new SceneCamera()), 0);
         Assert.Equal("hologram", (await scene.Read()).Definition.Nodes[0].Type);
     }
@@ -31,8 +33,10 @@ public sealed class SceneSchemaFacts
     public async Task AnUnknownParameterKeyOnAKnownTypeIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         var error = await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("sphere", ("icon", "ino"), ("modd", "idle"))));
         Assert.Contains("modd", error.Message);
     }
@@ -41,8 +45,10 @@ public sealed class SceneSchemaFacts
     public async Task AKnownTypeMissingARequiredParameterIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         var error = await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("text", ("size", "14"))));
         Assert.Contains("text", error.Message);
     }
@@ -51,8 +57,10 @@ public sealed class SceneSchemaFacts
     public async Task AChoiceValueOutsideItsDomainIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("sphere", ("icon", "ino"), ("state", "sleepy"))));
     }
 
@@ -60,8 +68,10 @@ public sealed class SceneSchemaFacts
     public async Task AColorParameterThatIsNotAColorIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("circle", ("color", "red"))));
     }
 
@@ -69,8 +79,10 @@ public sealed class SceneSchemaFacts
     public async Task AGestureOutsideTheVocabularyIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await Assert.ThrowsAsync<ArgumentException>(() => Set(scene, Node("circle"), ["swipe"]));
     }
 
@@ -78,8 +90,10 @@ public sealed class SceneSchemaFacts
     public async Task AValidKnownSceneIsAccepted()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await Set(scene, Node("sphere", ("icon", "ino"), ("state", "ready")), ["tap"]);
         var state = await scene.Read();
         Assert.Equal("ready", state.Definition.Nodes[0].Parameters["state"]);
@@ -89,8 +103,10 @@ public sealed class SceneSchemaFacts
     public async Task TheSphereAndActivityRingSceneShapesAreAccepted()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         var ring = new SceneNode("ring", "activity_ring", new Transform(), null,
             new() { ["items"] = "[{\"id\":\"r1\",\"label\":\"Routing\",\"kind\":\"route\",\"progress\":0.4}]", ["radius"] = "220" }, [], [], []);
         var graph = new SceneNode("sphere", "sphere", new Transform(), null,
@@ -103,8 +119,10 @@ public sealed class SceneSchemaFacts
     public async Task ATreeWhoseConditionNamesAnUndeclaredKeyIsRefusedAndThePreviousSceneStands()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var scene = brain.Get<IScene>(person.Key(Path));
         await scene.Set(Scenes.Ino(), 0);
         var sphere = new SceneNode("sphere", "sphere", new Transform(), null, new() { ["icon"] = "ino", ["blackboard"] = """{"mood":"idle"}""" }, [], [], [])
         { Tree = new BehaviorTree(TreeNode.Condition("unread", "1")) };

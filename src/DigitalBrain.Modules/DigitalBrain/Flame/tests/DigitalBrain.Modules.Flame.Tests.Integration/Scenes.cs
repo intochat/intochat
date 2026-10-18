@@ -1,6 +1,6 @@
 using DigitalBrain.Flame.Scene;
 
-namespace DigitalBrain.Modules.Flame.Tests;
+namespace DigitalBrain.Modules.Flame.Tests.Integration;
 
 internal static class Scenes
 {

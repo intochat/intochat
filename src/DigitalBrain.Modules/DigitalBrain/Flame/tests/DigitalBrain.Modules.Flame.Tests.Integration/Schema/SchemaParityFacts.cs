@@ -3,7 +3,7 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests.Schema;
+namespace DigitalBrain.Modules.Flame.Tests.Integration.Schema;
 
 // The one schema both languages read: docs/superpowers/contracts/flame-schema.json. This fails if the C#
 // FlameSchema drifts from it; node_schema_test.dart fails if the Dart mirror drifts from the same file.

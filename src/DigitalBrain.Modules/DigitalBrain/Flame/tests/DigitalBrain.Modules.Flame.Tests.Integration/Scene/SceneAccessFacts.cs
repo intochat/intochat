@@ -2,12 +2,13 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests.Scene;
+namespace DigitalBrain.Modules.Flame.Tests.Integration.Scene;
 
 public sealed class SceneAccessFacts
 {
     private const string Key = "owner/apps/ino/scenes/home";
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnAppSceneNamedSpaceStillBelongsToItsApp()
     {
@@ -17,6 +18,7 @@ public sealed class SceneAccessFacts
         Assert.Equal(1, (await scene.Read()).Revision);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnotherAppCannotSetAnAppsScene()
     {
@@ -29,6 +31,7 @@ public sealed class SceneAccessFacts
         }
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheOwningAppCanSetAndTheShellCanReport()
     {
@@ -43,6 +46,7 @@ public sealed class SceneAccessFacts
         Assert.Equal(1, (await scene.Read()).Revision);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AUserOfAnotherBrainIsRefused()
     {
@@ -56,6 +60,7 @@ public sealed class SceneAccessFacts
         }
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ASchedulerCallerIsRefused()
     {

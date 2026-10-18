@@ -2,7 +2,7 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests.Schema;
+namespace DigitalBrain.Modules.Flame.Tests.Integration.Schema;
 
 public sealed class FlameSchemaFacts
 {

@@ -2,7 +2,7 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests.Scene;
+namespace DigitalBrain.Modules.Flame.Tests.Integration.Scene;
 
 public sealed class BehaviorTreeFacts
 {

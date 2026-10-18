@@ -5,13 +5,14 @@ using DigitalBrain.Flame;
 using DigitalBrain.Flame.Scene;
 using Xunit;
 
-namespace DigitalBrain.Modules.Flame.Tests;
+namespace DigitalBrain.Modules.Flame.Tests.Integration;
 
 // The Open posture's plain client is the brain owner "owner", as the shell is on the owner's machine.
 public sealed class FlameEndpointFacts
 {
     private const string Scene = "/brains/owner/ui/scenes/owner%2Fapps%2Fino%2Fscenes%2Fhome";
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheShellReadsASceneAndReportsAGestureOverHttpAndThereIsNoFireRoute()
     {
