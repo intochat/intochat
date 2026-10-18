@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Azure/DigitalBrain.Modules.Microsoft.Azure.Contracts/DigitalBrain.Modules.Microsoft.Azure.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/DigitalBrain.Modules.Circles.Contracts.csproj" />
