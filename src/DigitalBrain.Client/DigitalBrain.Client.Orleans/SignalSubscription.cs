@@ -12,7 +12,10 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     // The waiting reader runs inside Nudge's pull, so a hub flush that follows this write has already
     // copied the signal onward. The publisher's own turn only queues; it does not run that reader.
     private readonly Channel<T> _messages = Channel.CreateBounded<T>(new BoundedChannelOptions(options.BufferCapacity) { SingleReader = true, AllowSynchronousContinuations = true });
-    private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    // The token is captured with its source: it outlives the disposed source, so a late nudge never throws.
+    private readonly (CancellationTokenSource Source, CancellationToken Token) _lifetime = Linked(cancellationToken);
+    // Set under the gate before cleanup disposes the lifetime, so Finish never cancels a disposed source.
+    private bool _lifetimeDisposed;
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Lock _gate = new();
     // One pull at a time: the watermark only moves after a page's signals are in the channel.
@@ -28,6 +31,12 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     private readonly NeuronId _publisher = source.GetGrainId().ToString();
 
     public Task Completion => _completion.Task;
+
+    private static (CancellationTokenSource, CancellationToken) Linked(CancellationToken cancellationToken)
+    {
+        var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        return (source, source.Token);
+    }
 
     internal async Task ConnectAsync()
     {
@@ -100,7 +109,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
     {
         if (nudge.Sequence <= Volatile.Read(ref _watermark)) { return; }
         try { await TryPullAsync(_lifetime.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (_lifetime.Token.IsCancellationRequested) { }
     }
 
     // A failed or timed-out read leaves the watermark where it was; the next nudge or renewal reads again.
@@ -171,7 +180,7 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
                 _ = _completion.Task.Exception;
             }
             else { _completion.TrySetResult(); }
-            _lifetime.Cancel();
+            if (!_lifetimeDisposed) { _lifetime.Source.Cancel(); }
         }
     }
 
@@ -201,7 +210,8 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
         }
         finally
         {
-            _lifetime.Dispose();
+            lock (_gate) { _lifetimeDisposed = true; }
+            _lifetime.Source.Dispose();
             closed(this);
         }
     }

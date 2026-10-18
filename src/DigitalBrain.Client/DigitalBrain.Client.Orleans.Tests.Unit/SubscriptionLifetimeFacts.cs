@@ -8,6 +8,20 @@ public sealed class SubscriptionLifetimeFacts
 {
     private static TestBrain Options(int capacity = 256) => TestBrain.Create().WithFastSubscriptions(capacity);
 
+    // A hub delivery can nudge a subscription that host shutdown has already disposed.
+    [Fact]
+    public async Task ANudgeAfterDisposalNeverThrows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var source = brain.Get<ITestEmitter>("late-nudge");
+        var stream = await brain.SubscribeAsync<Number>(source, ct);
+        await stream.DisposeAsync();
+        await ((INeuronObserver)stream).Nudge(new SignalNudge(source.GetGrainId().ToString(), long.MaxValue));
+        await stream.DisposeAsync();
+        Assert.True(stream.Completion.IsCompletedSuccessfully);
+    }
+
     [Fact]
     public async Task OverflowIsVisibleEvenWithoutDrainingTheBuffer()
     {

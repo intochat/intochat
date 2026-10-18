@@ -17,6 +17,7 @@ internal sealed class BrainLog : IDisposable
     private readonly byte[] key;
     private readonly Serializer serializer;
     private readonly FileStream ownership;
+    private readonly IBrainLogFiles files;
     private readonly Lock gate = new();
     private readonly BrainLogFormat writeFormat;
     private Dictionary<string, Dictionary<string, BrainRecord>> records = new(StringComparer.Ordinal);
@@ -28,13 +29,16 @@ internal sealed class BrainLog : IDisposable
     private Exception? failure;
     private bool disposed;
 
-    public BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat = BrainLogFormat.Legacy)
-        : this(directory, brainId, key, serializer, writeFormat, Claim(directory, brainId)) { }
+    public BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat = BrainLogFormat.Legacy,
+        IBrainLogFiles? files = null)
+        : this(directory, brainId, key, serializer, writeFormat, Claim(directory, brainId), files) { }
 
     // Takes ownership of an already claimed writer lock (see Claim).
-    internal BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat, FileStream ownership)
+    internal BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat, FileStream ownership,
+        IBrainLogFiles? files = null)
     {
         this.ownership = ownership;
+        this.files = files ?? FileBrainLogFiles.Instance;
         this.writeFormat = writeFormat;
         this.directory = directory;
         this.brainId = brainId;
@@ -130,7 +134,7 @@ internal sealed class BrainLog : IDisposable
             var bytes = SegmentSeal.Close(key, Context("log"), plain);
             try
             {
-                using var stream = new FileStream(Journal, FileMode.Append, FileAccess.Write, FileShare.Read);
+                using var stream = files.OpenAppend(Journal);
                 // Header and first frame go out in one write; a torn header is truncated on recovery.
                 var headed = stream.Length == 0 && format == BrainLogFormat.Framed;
                 var frame = new byte[(headed ? SegmentHeaderBytes : 0) + 4 + bytes.Length];
@@ -139,7 +143,7 @@ internal sealed class BrainLog : IDisposable
                 BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(offset), bytes.Length);
                 bytes.CopyTo(frame.AsSpan(offset + 4));
                 stream.Write(frame);
-                stream.Flush(flushToDisk: true);
+                FlushToDisk(stream);
                 // Deserialize the durable bytes so callers cannot mutate the stored projection.
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
             }
@@ -217,7 +221,7 @@ internal sealed class BrainLog : IDisposable
         else if (!File.Exists(Journal) && (Directory.EnumerateFiles(directory, "*.snapshot").Any()
             || Directory.EnumerateFiles(directory, "*.log").Any()))
         { throw new InvalidDataException("The brain checkpoint manifest is missing; refusing to reset existing data."); }
-        using var stream = new FileStream(Journal, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        using var stream = files.OpenRead(Journal);
         long valid = DetectFormat(stream);
         Span<byte> header = stackalloc byte[4];
         while (stream.Position < stream.Length)
@@ -235,11 +239,11 @@ internal sealed class BrainLog : IDisposable
             Apply(entry);
             valid = stream.Position;
         }
-        if (valid != stream.Length) { stream.SetLength(valid); stream.Flush(flushToDisk: true); }
+        if (valid != stream.Length) { stream.SetLength(valid); FlushToDisk(stream); }
     }
 
     // Legacy segments start with a length below 16 MiB, so they never begin with "DBLG".
-    private long DetectFormat(FileStream stream)
+    private long DetectFormat(Stream stream)
     {
         Span<byte> header = stackalloc byte[SegmentHeaderBytes];
         var read = stream.ReadAtLeast(header, SegmentHeaderBytes, throwOnEndOfStream: false);
@@ -251,7 +255,7 @@ internal sealed class BrainLog : IDisposable
         {
             // A torn header holds no entries.
             stream.SetLength(0);
-            stream.Flush(flushToDisk: true);
+            FlushToDisk(stream);
             format = writeFormat;
             return 0;
         }
@@ -278,11 +282,17 @@ internal sealed class BrainLog : IDisposable
     private static BrainEntry SignalOnly(BrainEntry entry)
         => entry with { Record = [], StateName = "", Change = BrainRecordChange.None };
 
+    private static void FlushToDisk(Stream stream)
+    {
+        if (stream is FileStream file) { file.Flush(flushToDisk: true); }
+        else { stream.Flush(); }
+    }
+
     internal static void WriteFlushed(string path, byte[] bytes)
     {
         using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
         stream.Write(bytes);
-        stream.Flush(flushToDisk: true);
+        FlushToDisk(stream);
     }
 
     private void RequireOpen()

@@ -9,14 +9,26 @@ namespace DigitalBrain.Platform.Tests.Unit.Storage;
 
 public sealed class BrainRecoveryFacts
 {
+    private static Serializer Serializer() => new ServiceCollection().AddSerializer().BuildServiceProvider().GetRequiredService<Serializer>();
+
+    // Fails the nth append with an IOException; advisory file locks cannot do this on Linux.
+    private sealed class FaultingBrainLogFiles(int failingAppend) : IBrainLogFiles
+    {
+        private int appends;
+
+        public Stream OpenAppend(string path)
+            => ++appends == failingAppend ? throw new IOException("Injected append failure.") : FileBrainLogFiles.Instance.OpenAppend(path);
+
+        public Stream OpenRead(string path) => FileBrainLogFiles.Instance.OpenRead(path);
+    }
+
     [Fact]
     public async Task MissingCheckpointManifestCannotResetAPopulatedBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = Directory.CreateTempSubdirectory("brain-manifest-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
-        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var serializer = Serializer();
         using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [], ct);
@@ -31,10 +43,9 @@ public sealed class BrainRecoveryFacts
     public async Task CheckpointRetainsSignalsWithoutObsoleteStatePayloads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = Directory.CreateTempSubdirectory("brain-compact-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
-        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var serializer = Serializer();
         using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             long? etag = null;
@@ -52,17 +63,13 @@ public sealed class BrainRecoveryFacts
     public async Task AFailedAppendAcknowledgesNothingAndRefusesFurtherWritesUntilReopened()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = Directory.CreateTempSubdirectory("brain-failure-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
-        var serializer = brain.Services.GetRequiredService<Serializer>();
-        using (var log = new BrainLog(directory, "owner", key, serializer))
+        var serializer = Serializer();
+        using (var log = new BrainLog(directory, "owner", key, serializer, files: new FaultingBrainLogFiles(failingAppend: 2)))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [], ct);
-            using (var locked = new FileStream(Path.Combine(directory, "initial.log"), FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                await Assert.ThrowsAsync<IOException>(() => log.Append("g", "s", 1, BrainRecordChange.Write, [2], [new BrainLogFacts.Changed("unacknowledged")], ct));
-            }
+            await Assert.ThrowsAsync<IOException>(() => log.Append("g", "s", 1, BrainRecordChange.Write, [2], [new BrainLogFacts.Changed("unacknowledged")], ct));
             await Assert.ThrowsAsync<IOException>(() => log.Append("g", "s", 1, BrainRecordChange.Write, [3], [], ct));
         }
         using var recovered = new BrainLog(directory, "owner", key, serializer);
@@ -74,10 +81,9 @@ public sealed class BrainRecoveryFacts
     public async Task AnInterruptedCheckpointKeepsTheLastCommittedGeneration()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = Directory.CreateTempSubdirectory("brain-checkpoint-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
-        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var serializer = Serializer();
         using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [new BrainLogFacts.Changed("saved")], ct);

@@ -102,7 +102,6 @@
     "DigitalBrain.Platform.Tests.Unit/Storage/BrainGrainStorageFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Storage/BrainLogFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Storage/BrainLogsFacts.cs",
-    "DigitalBrain.Platform.Tests.Unit/Storage/BrainRecoveryFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Storage/BrainStorageFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Storage/HostedExportFacts.cs",
     "DigitalBrain.Platform.Tests.Unit/Storage/HostedPlatformStorageFacts.cs",

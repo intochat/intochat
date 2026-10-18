@@ -17,7 +17,7 @@ public static class GitHubAppHostingExtensions
         ArgumentNullException.ThrowIfNull(configure);
         var options = new GitHubAppHostingOptions();
         configure(options);
-        return module.WithGitHubApp(options.AppId, options.ClientId, options.PublicOrigin!, options.PublicWebhookUrl!);
+        return module.WithGitHubApp(options.AppId, options.ClientId, options.PublicOrigin, options.PublicWebhookUrl);
     }
 
     public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(

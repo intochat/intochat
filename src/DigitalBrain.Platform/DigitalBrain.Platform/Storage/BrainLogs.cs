@@ -10,10 +10,12 @@ internal sealed class BrainLogs : IAsyncDisposable
     private readonly Dictionary<string, Task<BrainLog>> logs = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
     private readonly BrainLogFormat writeFormat;
+    private readonly IBrainLogFiles? files;
     private bool disposed;
 
-    public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options)
+    public BrainLogs(BrainStorageKeys keys, Serializer serializer, IOptions<BrainStoreOptions> options, IBrainLogFiles? files = null)
     {
+        this.files = files;
         this.keys = keys;
         this.serializer = serializer;
         writeFormat = options.Value.WriteFormat;
@@ -40,7 +42,7 @@ internal sealed class BrainLogs : IAsyncDisposable
         {
             var directory = keys.DirectoryOf(brainId);
             var ownership = BrainLog.Claim(directory, brainId);
-            try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, ownership); }
+            try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, ownership, files); }
             catch { ownership.Dispose(); throw; }
         }
         catch
