@@ -4,13 +4,14 @@ using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
 public sealed class PostgresIsolationFacts
 {
     private const string Admin = "Host=localhost;Database=postgres;Username=admin;Password=admin";
     private static readonly TableDefinition Definition = new([new("id", "text"), new("value", "text")], ["id"]);
 
+    [Trait("host", "own")]
     [Fact]
     public async Task UnderSharedIsolationTablesArePlacedShared()
     {
@@ -40,6 +41,7 @@ public sealed class PostgresIsolationFacts
         Assert.Equal([BrainDatabases.DatabaseName("brain-1"), BrainDatabases.DatabaseName("brain-2")], created);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task DatabasePerBrainWithoutAnAdminConnectionFailsAtStartup()
     {
@@ -51,6 +53,7 @@ public sealed class PostgresIsolationFacts
         Assert.Equal("AdminConnection is required when Postgres isolation is DatabasePerBrain.", refusal.Message);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APinnedBrainDatabaseSurvivesAPolicyFlipAndRestart()
     {

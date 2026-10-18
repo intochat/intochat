@@ -2,7 +2,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
 public sealed class IntegrationMaterializationFacts
 {

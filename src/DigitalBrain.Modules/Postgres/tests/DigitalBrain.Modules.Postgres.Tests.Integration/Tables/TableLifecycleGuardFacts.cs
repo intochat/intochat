@@ -2,10 +2,11 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Postgres.Tests.Tables;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration.Tables;
 
 public sealed class TableLifecycleGuardFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task AnIndexOfAnotherBrainRefusesEveryCallerAndAnAppCannotReadItsOwnIndex()
     {

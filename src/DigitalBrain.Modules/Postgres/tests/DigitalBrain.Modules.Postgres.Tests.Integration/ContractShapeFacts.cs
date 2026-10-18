@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Postgres;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
 public sealed class ContractShapeFacts
 {

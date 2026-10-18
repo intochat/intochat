@@ -2,12 +2,13 @@ using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
 public sealed class ConnectionPostgresFacts
 {
     private const string ConnectionString = "Host=localhost;Database=mine;Username=reader";
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnAppInItsOwnBrainQueriesItsConnectedDatabase()
     {
@@ -18,6 +19,7 @@ public sealed class ConnectionPostgresFacts
         Assert.Equal("42", Assert.Single(Assert.Single(result.Rows)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnAppMayNotAddressAnotherBrainsConnection()
     {
@@ -29,6 +31,7 @@ public sealed class ConnectionPostgresFacts
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>(key).Query(new("select id from people", 10)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheDefaultKeyRefusesAnApp()
     {
@@ -37,6 +40,7 @@ public sealed class ConnectionPostgresFacts
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>("default").Query(new("select id from people", 10)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADisconnectedConnectionNoLongerQueriesAndNeverShowsItsConnectionString()
     {
@@ -50,6 +54,7 @@ public sealed class ConnectionPostgresFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IPostgresServer>(key).Query(new("select id from people", 10)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AProbeAsksTheConnectedDatabase()
     {
@@ -61,6 +66,7 @@ public sealed class ConnectionPostgresFacts
         Assert.NotNull(view.LastProbedAt);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheDefaultKeyIsNoConnection()
     {

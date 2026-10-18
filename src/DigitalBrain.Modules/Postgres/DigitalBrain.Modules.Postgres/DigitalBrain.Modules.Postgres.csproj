@@ -10,7 +10,7 @@
     <ProjectReference Include="../DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
     <PackageReference Include="Npgsql" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests.Integration" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.AI.Tests.Integration" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Apps.Tests.Integration" />
   </ItemGroup>

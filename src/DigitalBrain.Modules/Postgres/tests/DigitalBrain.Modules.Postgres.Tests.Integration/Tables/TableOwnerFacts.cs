@@ -1,7 +1,7 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Modules.Postgres.Tests.Tables;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration.Tables;
 
 public sealed class TableOwnerFacts
 {

@@ -4,9 +4,9 @@ using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
-public sealed class PostgresFacts
+public sealed class PostgresFacts(PostgresHost host)
 {
     [Fact]
     public void APostgresOutageIsAServiceUnavailableRefusal()
@@ -15,7 +15,7 @@ public sealed class PostgresFacts
     [Fact]
     public async Task ParametersAreBoundNotInterpolated()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         var result = await brain.Get<IPostgresServer>("default")
             .Query(new("select id from people where country = $1", 10, [new("country", "u's; drop table people")]));
         Assert.Equal(1, result.RowCount);
@@ -24,7 +24,7 @@ public sealed class PostgresFacts
     [Fact]
     public async Task MoreThanSixteenParametersAreRejected()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         var many = Enumerable.Range(0, 17).Select(i => new PostgresParameter($"p{i}", "x")).ToArray();
         await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new("select 1", 10, many)));
     }
@@ -32,7 +32,7 @@ public sealed class PostgresFacts
     [Fact]
     public async Task QueryReturnsTypedRowsThroughTheDefaultGrainType()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         var result = await brain.Get<IPostgresServer>("default").Query(new(" select id from people; ", 10));
         Assert.Equal(1, result.RowCount);
         Assert.False(result.Truncated);
@@ -43,7 +43,7 @@ public sealed class PostgresFacts
     [Fact]
     public async Task InvalidQueriesAreRejectedBeforeDatabaseAccess()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         var postgres = brain.Get<IPostgresServer>("default");
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new(" ")));
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("delete from people")));
@@ -51,6 +51,7 @@ public sealed class PostgresFacts
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("select 1", 1001)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task SchemaAndConnectionAreAvailableThroughTheNeuron()
     {
@@ -110,24 +111,26 @@ public sealed class PostgresFacts
     [Fact]
     public async Task InvalidSchemaNameIsRejected()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").ReadSchema(new("people; drop table people")));
     }
 
     [Fact]
     public async Task TheBrainIsReadyWhenTheDatabaseAnswers()
     {
-        await using var brain = await StartAsync();
+        var brain = host.Brain;
         using var ready = await brain.HttpClient.GetAsync("/ready", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, ready.StatusCode);
     }
 
     private static Task<ITestBrain> StartAsync(string connectionName = "postgres")
-        => TestBrain.Create().WithModule<PostgresModule, PostgresModuleOptions>(module => module.WithConnection(connectionName))
+        => Compose(TestBrain.Create(), connectionName).StartAsync(TestContext.Current.CancellationToken);
+
+    internal static TestBrain Compose(TestBrain brain, string connectionName = "postgres")
+        => brain.WithModule<PostgresModule, PostgresModuleOptions>(module => module.WithConnection(connectionName))
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
             // Rule 4: a wire-level fake would need a loopback Postgres; the provider stands in for the database.
-            .ConfigureServices(services => services.AddSingleton<IPostgresProvider, PostgresTestControls>())
-            .StartAsync(TestContext.Current.CancellationToken);
+            .ConfigureServices(services => services.AddSingleton<IPostgresProvider, PostgresTestControls>());
 
     private sealed class Credential(string? connection) : IModuleIntegrations<PostgresModule>, IIntegrationHandle
     {

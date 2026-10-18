@@ -9,7 +9,7 @@ using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration;
 
 public sealed class PostgresWriteTableFacts
 {
@@ -17,6 +17,7 @@ public sealed class PostgresWriteTableFacts
     private static TableValue[] Key(string id = "one") => [new("id", JsonSerializer.Serialize(id))];
     private static TableValue[] Values(string value) => [new("value", JsonSerializer.Serialize(value))];
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TeardownReclaimsPendingDdlAtItsPinnedPlacementAfterThePolicyChangesAndRestart()
     {
@@ -42,6 +43,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal(1, placements.Resolutions);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnAppCallerWithoutAnAppIdCannotDefineOrBindATable()
     {
@@ -59,6 +61,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal(1, provider.Definitions);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task UninstallLeavesAnotherInstallOfTheSameSchemaIntact()
     {
@@ -79,6 +82,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal("\"fork\"", (await forked.Read(Key()))!.Single(value => value.Column == "value").Json);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RetirementCannotDeadlockARegistrationAlreadyInFlight()
     {
@@ -105,6 +109,7 @@ public sealed class PostgresWriteTableFacts
         await retiring.WaitAsync(ct);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TeardownTwiceAndReplayAfterRestartLeaveReinstallationEmptyAndRedefinable()
     {
@@ -130,6 +135,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Single(await table.Page());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnAppDeletedAndReinstalledCanDefineItsTablesAgain()
     {
@@ -147,6 +153,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Single(await table.Page());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task DeleteStillDropsTheOldAppsTables()
     {
@@ -166,6 +173,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal(2, provider.Drops.Count);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AppsCannotReopenRetiredStorage()
     {
@@ -174,6 +182,7 @@ public sealed class PostgresWriteTableFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(Index(brain, "app").Reopen);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task EveryOperationOfAPlatformTableRunsAtItsPinnedSharedPlacement()
     {
@@ -188,6 +197,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal([("Define", TablePlacement.Shared), ("Upsert", TablePlacement.Shared), ("Drop", TablePlacement.Shared)], provider.Placements);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AppsCannotRequestStorageTeardown()
     {
@@ -196,6 +206,7 @@ public sealed class PostgresWriteTableFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(Index(brain, "app").Retire);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task DefiningTheSameSchemaIsANoopAndSurvivesReactivation()
     {
@@ -213,6 +224,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Contains("Incompatible", error.Message);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task InvalidSchemasAndValuesAreRefusedBeforeTheProviderRuns()
     {
@@ -236,6 +248,7 @@ public sealed class PostgresWriteTableFacts
         await Assert.ThrowsAsync<PostgresQueryException>(() => table.Page(0, 0));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task UpsertsUpdateOneKeyAndIdenticalRetriesAreNoOps()
     {
@@ -246,6 +259,7 @@ public sealed class PostgresWriteTableFacts
         await ExerciseRows(table);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnotherAppCannotUnwatchAnOwnedTable()
     {
@@ -257,6 +271,7 @@ public sealed class PostgresWriteTableFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Unwatch(null!));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OtherBrainsAndAppsCannotReadOrClobberAnOwnedTable()
     {
@@ -290,6 +305,7 @@ public sealed class PostgresWriteTableFacts
         await Assert.ThrowsAsync<UntrustedCallerException>(() => first.Read(Key()));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RowSignalsCarryTheKeyAndTheKernelStampedPublisher()
     {
@@ -314,6 +330,7 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal(table.GetGrainId().ToString(), (await deleted.NextAsync(ct: ct)).Publisher);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task CustomerResearchCanBeWrittenUsingOnlyTheNeuronContract()
     {
@@ -322,6 +339,7 @@ public sealed class PostgresWriteTableFacts
         await Research(brain.Get<ITable>("research-results"));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task LiveTablesAreParameterizedIdempotentAndVisibleThroughTheReadDoor()
     {

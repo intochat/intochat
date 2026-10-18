@@ -155,7 +155,7 @@
     <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
     <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Hosting/DigitalBrain.Modules.Postgres.Tests.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests/DigitalBrain.Modules.Postgres.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Integration/DigitalBrain.Modules.Postgres.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Qdrant/">
     <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />

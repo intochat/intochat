@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Postgres.Tests",
     "DigitalBrain.Modules.RiskSeal.Tests",
     "DigitalBrain.Modules.Salesforce.Tests",
     "DigitalBrain.Modules.Supabase.Tests",

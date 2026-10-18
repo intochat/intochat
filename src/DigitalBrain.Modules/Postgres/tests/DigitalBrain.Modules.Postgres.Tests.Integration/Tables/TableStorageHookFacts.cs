@@ -4,12 +4,13 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Postgres.Tests.Tables;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration.Tables;
 
 public sealed class TableStorageHookFacts
 {
     private static readonly TableDefinition Definition = new([new("id", "text"), new("value", "text")], ["id"]);
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RebindingTablesIsRefusedOnceTheAppOwnsSharedTables()
     {
@@ -26,6 +27,7 @@ public sealed class TableStorageHookFacts
         await hook.RequireRebindable(owner.BrainId, app, "db", ct);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task BindingTablesIsAllowedBeforeAnyTableExists()
     {

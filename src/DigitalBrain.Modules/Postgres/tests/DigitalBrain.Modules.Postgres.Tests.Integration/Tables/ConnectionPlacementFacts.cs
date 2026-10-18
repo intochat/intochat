@@ -5,7 +5,7 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Postgres.Tests.Tables;
+namespace DigitalBrain.Modules.Postgres.Tests.Integration.Tables;
 
 public sealed class ConnectionPlacementFacts
 {
@@ -14,6 +14,7 @@ public sealed class ConnectionPlacementFacts
     private static readonly TableValue[] Key = [new("id", "\"one\"")];
     private static readonly TableValue[] Values = [new("value", "\"v\"")];
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ABoundTablesSlotPlacesTablesInThatConnection()
     {
@@ -34,6 +35,7 @@ public sealed class ConnectionPlacementFacts
         Assert.Empty(shared.Placements);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnboundSlotFallsBackToThePolicy()
     {
@@ -47,6 +49,7 @@ public sealed class ConnectionPlacementFacts
         Assert.Empty(connection.ConnectionStrings);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnavailableBoundConnectionRefusesWithServiceUnavailable()
     {
@@ -64,6 +67,7 @@ public sealed class ConnectionPlacementFacts
         Assert.Empty(shared.Placements);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task UninstallStillReclaimsTheAppsOtherTablesWhenItsBoundConnectionIsGone()
     {
