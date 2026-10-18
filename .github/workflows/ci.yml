@@ -73,11 +73,13 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Use the temporary disk
+      # Cleanup runs in the background while restore and build proceed, instead of 1:38 up front.
+      - name: Use the temporary disk and free the root disk in the background
         run: |
           sudo mkdir -p /mnt/nuget /mnt/artifacts
           sudo chown -R "$USER" /mnt/nuget /mnt/artifacts
           df -h / /mnt
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - name: Restore NuGet package cache
         id: nuget-cache
@@ -99,7 +101,10 @@ jobs:
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
+        run: |
+          dotnet msbuild src/DigitalBrain/DigitalBrain.csproj -getProperty:ArtifactsPath -getProperty:OutputPath
+          df -h / /mnt
+          dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
 
       - name: Validate NuGet packages
         run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
