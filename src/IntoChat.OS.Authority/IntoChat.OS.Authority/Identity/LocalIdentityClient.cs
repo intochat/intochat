@@ -5,7 +5,7 @@ using IntoChat.OS.Authority.Identity.Authority;
 namespace IntoChat.OS.Authority.Identity;
 
 // Platform-only callers use the local authority; user authorization remains in the authenticated edges and grains.
-internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient, IIdentityProvisioning
 {
     private IAccount Account(string id) => neurons.Account(id);
     private IPrincipal Principal(string id) => neurons.Principal(id);

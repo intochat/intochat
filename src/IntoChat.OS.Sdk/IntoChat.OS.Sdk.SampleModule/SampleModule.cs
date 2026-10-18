@@ -1,10 +1,10 @@
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Sdk.SampleModule;
 
 // The reference module: attributes declare the shape, the generator writes the rest, OnConfigure is the only code.
-// Excluded from the build until 09-07 moves Module<T>, IModuleOptions and IModuleServices into the Sdk
-// (this project references only the Sdk); the same source is a generator golden (SampleModule.g.cs).
+// References only the Sdk; the same source is a generator golden (SampleModule.g.cs).
 [Module("sample")]
 [Integration("sample", "Sample")]
 [Secret("ApiKey")]

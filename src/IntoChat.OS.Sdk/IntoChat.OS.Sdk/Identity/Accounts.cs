@@ -1,5 +1,3 @@
-using IntoChat.OS.Framework.Contracts;
-
 namespace IntoChat.OS.Framework.Platform.Identity;
 
 [GenerateSerializer, Alias("identity.account")]
