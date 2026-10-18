@@ -39,11 +39,60 @@ internal sealed class IntentsNeuron(
         return id;
     }
 
-    public Task Rephrase(Guid id, IntentBrief brief, double confidence, long expectedRevision) => throw new NotImplementedException();
+    public async Task Rephrase(Guid id, IntentBrief brief, double confidence, long expectedRevision)
+    {
+        ArgumentNullException.ThrowIfNull(brief);
+        var intent = Find(id, expectedRevision);
+        if (intent.State is IntentState.Done or IntentState.Abandoned) { throw new InvalidOperationException($"An intent in state {intent.State} cannot be rephrased."); }
+        var keeps = intent.State is IntentState.Dispatched or IntentState.Waiting;
+        var next = intent with
+        {
+            Brief = brief,
+            Confidence = confidence,
+            State = keeps ? intent.State : IntentState.Rephrased,
+            History = keeps ? intent.History : [.. intent.History, new IntentTransition(IntentState.Rephrased, DateTimeOffset.UtcNow, intent.RequestId, "rephrased")],
+        };
+        await Save(Replace(next), new IntentRephrased(this.GetPrimaryKeyString(), id, intent.RequestId, confidence));
+    }
 
-    public Task Transition(Guid id, IntentState to, string reason, long expectedRevision) => throw new NotImplementedException();
+    public async Task Transition(Guid id, IntentState to, string reason, long expectedRevision)
+    {
+        var intent = Find(id, expectedRevision);
+        var legal = (intent.State, to) switch
+        {
+            (IntentState.Rephrased, IntentState.Confirmed) => true,
+            (IntentState.Confirmed, IntentState.Dispatched) => true,
+            (IntentState.Dispatched, IntentState.Waiting) => true,
+            (IntentState.Waiting, IntentState.Dispatched) => true,
+            (IntentState.Dispatched or IntentState.Waiting, IntentState.Done) => true,
+            (IntentState.Heard or IntentState.Rephrased or IntentState.Confirmed or IntentState.Dispatched or IntentState.Waiting, IntentState.Abandoned) => true,
+            _ => false,
+        };
+        if (!legal) { throw new InvalidOperationException($"An intent cannot move from {intent.State} to {to}."); }
+        var next = intent with
+        {
+            State = to,
+            History = [.. intent.History, new IntentTransition(to, DateTimeOffset.UtcNow, intent.RequestId, reason ?? "")],
+        };
+        await Save(Replace(next), new IntentTransitioned(this.GetPrimaryKeyString(), id, intent.State, to));
+    }
 
-    public Task Arm(Guid id, Cue[] cues, long expectedRevision) => throw new NotImplementedException();
+    public async Task Arm(Guid id, Cue[] cues, long expectedRevision)
+    {
+        ArgumentNullException.ThrowIfNull(cues);
+        var intent = Find(id, expectedRevision);
+        await Save(Replace(intent with { Cues = [.. cues] }), new IntentArmed(this.GetPrimaryKeyString(), id));
+    }
+
+    private Intent Find(Guid id, long expectedRevision)
+    {
+        if (expectedRevision != Snapshot.Revision)
+        { throw new RevisionConflictException($"Expected revision {expectedRevision}; current revision is {Snapshot.Revision}.", Snapshot.Revision); }
+        return Array.Find(Snapshot.Intents, item => item.Id == id) ?? throw new ArgumentException("The intent does not exist.", nameof(id));
+    }
+
+    private IntentsState Replace(Intent next) =>
+        Snapshot with { Revision = Snapshot.Revision + 1, Intents = [.. Snapshot.Intents.Select(item => item.Id == next.Id ? next : item)] };
 
     public Task<IntentsSnapshot> Read() => Task.FromResult(new IntentsSnapshot(Snapshot.Revision, Snapshot.Intents.ToArray()));
 }
