@@ -61,6 +61,9 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # MSBuild reads it as a property for restore, build and pack alike.
+      ArtifactsPath: /mnt/artifacts
     steps:
       - uses: actions/checkout@v7
         with:
@@ -96,10 +99,10 @@ jobs:
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false -p:ArtifactsPath=/mnt/artifacts
+        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
 
       - name: Validate NuGet packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -p:ArtifactsPath=/mnt/artifacts -o artifacts/packages
+        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
 
       # One archive per shard: each test output carries its own copy of every dependency, so
       # zstd's long window deduplicates across projects, and native assets for other RIDs go.
