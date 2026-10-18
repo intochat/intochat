@@ -4,15 +4,16 @@ using DigitalBrain.Monnet;
 using DigitalBrain.Monnet.Signals;
 using Xunit;
 
-namespace DigitalBrain.Modules.Monnet.Tests;
+namespace DigitalBrain.Modules.Monnet.Tests.Integration;
 
-public sealed class MonnetFacts
+public sealed class MonnetFacts(MonnetHost host)
 {
     private static readonly CreatePaymentOrder Order = new(120.50m, "loan-1", "First instalment", PayerDni: "12345678");
 
     private static object Paid(string merchant, string paymentId = "pay-1")
         => new { merchantId = merchant, paymentId, reference = "loan-1", amount = 120.50m, currency = "PEN", status = "paid" };
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionCreatesAnOrderWithTheIntegrationsKey()
     {
@@ -30,6 +31,7 @@ public sealed class MonnetFacts
         Assert.Equal(MonnetBrain.DeploymentMerchant, (await monnet.Brain.Get<IConnection>(monnet.DeploymentKey).Read()).Account);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADeploymentConnectionProbesConnectedOrFailing()
     {
@@ -48,6 +50,7 @@ public sealed class MonnetFacts
         Assert.Equal("deployment-key", monnet.Fake.Requests[^1].ApiKey);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APastedCredentialsConnectionCreatesAnOrderWithItsOwnKey()
     {
@@ -65,6 +68,7 @@ public sealed class MonnetFacts
         Assert.DoesNotContain("pasted-key", view.ToString(), StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARefusedKeyPublishesPaymentFailedWithTheProviderStatus()
     {
@@ -82,6 +86,7 @@ public sealed class MonnetFacts
         Assert.Equal(("loan-1", "unauthorized (401)"), (signal.Reference, signal.Detail));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ReadingAPaymentAsksMonnetByItsId()
     {
@@ -100,7 +105,7 @@ public sealed class MonnetFacts
     public async Task AWebhookForTheBrainReachesItsConnectedMerchantOnceEvenWhenDeliveredTwice()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var monnet = await MonnetBrain.StartAsync(ct);
+        await using var monnet = await MonnetBrain.ForPersonAsync(host, ct);
         var deployment = await monnet.ConnectDeploymentAsync();
         var shop = await monnet.ConnectAsync("MerchantId=m-shop;ApiKey=pasted-key");
         using var caller = monnet.Owner.AsCaller();
@@ -116,6 +121,7 @@ public sealed class MonnetFacts
         Assert.Empty(await shop.ReadReceived(10));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AWebhookReachesAMerchantWhoseOutboundProbeFailed()
     {
@@ -137,7 +143,7 @@ public sealed class MonnetFacts
     public async Task AWebhookForAnUnknownBrainIdIsNotFound()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var monnet = await MonnetBrain.StartAsync(ct);
+        await using var monnet = await MonnetBrain.ForPersonAsync(host, ct);
 
         using var response = await monnet.DeliverAsync(Paid(MonnetBrain.DeploymentMerchant), ct, brainId: "@not-a-brain");
 
@@ -148,7 +154,7 @@ public sealed class MonnetFacts
     public async Task AWebhookForAnotherMerchantIdIsAcceptedButPublishesNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var monnet = await MonnetBrain.StartAsync(ct);
+        await using var monnet = await MonnetBrain.ForPersonAsync(host, ct);
         var deployment = await monnet.ConnectDeploymentAsync();
         using var caller = monnet.Owner.AsCaller();
 
@@ -162,7 +168,7 @@ public sealed class MonnetFacts
     public async Task AWebhookWithAWrongSignatureIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var monnet = await MonnetBrain.StartAsync(ct);
+        await using var monnet = await MonnetBrain.ForPersonAsync(host, ct);
         var deployment = await monnet.ConnectDeploymentAsync();
         using var caller = monnet.Owner.AsCaller();
 
@@ -172,6 +178,7 @@ public sealed class MonnetFacts
         Assert.Empty(await deployment.ReadReceived(10));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task WithoutAWebhookSecretEveryDeliveryIsRefused()
     {
@@ -183,6 +190,7 @@ public sealed class MonnetFacts
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AProbeAsksMonnetWhetherThePastedKeyWorks()
     {
@@ -204,7 +212,7 @@ public sealed class MonnetFacts
     public async Task AMalformedPasteIsRefusedAndLeftFailing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var monnet = await MonnetBrain.StartAsync(ct);
+        await using var monnet = await MonnetBrain.ForPersonAsync(host, ct);
 
         await Assert.ThrowsAsync<ArgumentException>(() => monnet.ConnectAsync("just-a-key"));
 

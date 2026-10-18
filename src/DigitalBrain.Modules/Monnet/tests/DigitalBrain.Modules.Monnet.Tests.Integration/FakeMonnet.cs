@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.Monnet.Tests;
+namespace DigitalBrain.Modules.Monnet.Tests.Integration;
 
 // Monnet on loopback, answering the module's assumed REST shape. A key outside Keys answers 401.
 internal sealed class FakeMonnet : IAsyncDisposable

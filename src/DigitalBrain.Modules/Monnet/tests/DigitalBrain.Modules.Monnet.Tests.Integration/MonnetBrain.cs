@@ -4,29 +4,37 @@ using System.Text.Json;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Monnet;
 
-namespace DigitalBrain.Modules.Monnet.Tests;
+namespace DigitalBrain.Modules.Monnet.Tests.Integration;
 
-// A brain whose deployment merchant is "m-deploy" on the fake.
-internal sealed class MonnetBrain(ITestBrain brain, FakeMonnet fake) : IAsyncDisposable
+// A brain whose deployment merchant is "m-deploy" on the fake: its own, or a fresh person's on the shared host.
+internal sealed class MonnetBrain(ITestBrain brain, FakeMonnet fake, Person? person = null) : IAsyncDisposable
 {
     public const string DeploymentMerchant = "m-deploy";
     public const string WebhookSecret = "webhook-secret";
 
     public ITestBrain Brain => brain;
     public FakeMonnet Fake => fake;
-    public Person Owner => brain.Owner;
+    public Person Owner => person ?? brain.Owner;
     public string ConnectionKey => ConnectionKeys.For(Owner.BrainId, "monnet", "shop");
     public string DeploymentKey => ConnectionKeys.For(Owner.BrainId, "monnet", "deployment");
 
     public static async Task<MonnetBrain> StartAsync(CancellationToken ct, bool withWebhookSecret = true)
     {
         var fake = await FakeMonnet.StartAsync(ct);
-        var builder = TestBrain.Create()
+        return new(await Compose(TestBrain.Create(), fake, withWebhookSecret).StartAsync(ct), fake);
+    }
+
+    public static async Task<MonnetBrain> ForPersonAsync(MonnetHost host, CancellationToken ct)
+        => new(host.Brain, host.Fake, await host.PersonAsync(ct: ct));
+
+    public static TestBrain Compose(TestBrain brain, FakeMonnet fake, bool withWebhookSecret = true)
+    {
+        var builder = brain
             .WithModule<MonnetModule, MonnetModuleOptions>(options => { options.BaseUrl = fake.Origin; options.AllowLoopback = true; })
             .WithIntegration(MonnetModule.Integration, "ApiKey", "deployment-key")
             .WithIntegration(MonnetModule.Integration, "MerchantId", DeploymentMerchant);
         if (withWebhookSecret) { builder = builder.WithIntegration(MonnetModule.Integration, "WebhookSecret", WebhookSecret); }
-        return new(await builder.StartAsync(ct), fake);
+        return builder;
     }
 
     public async Task<IMonnet> ConnectAsync(string credentials)
@@ -55,6 +63,7 @@ internal sealed class MonnetBrain(ITestBrain brain, FakeMonnet fake) : IAsyncDis
 
     public async ValueTask DisposeAsync()
     {
+        if (person is not null) { return; }
         await brain.DisposeAsync();
         await fake.DisposeAsync();
     }

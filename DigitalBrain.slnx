@@ -148,7 +148,7 @@
     <Project Path="src/DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet.Aspire.Hosting/DigitalBrain.Modules.Monnet.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet.Contracts/DigitalBrain.Modules.Monnet.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet/DigitalBrain.Modules.Monnet.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Monnet/tests/DigitalBrain.Modules.Monnet.Tests/DigitalBrain.Modules.Monnet.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Monnet/tests/DigitalBrain.Modules.Monnet.Tests.Integration/DigitalBrain.Modules.Monnet.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Postgres/">
     <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />

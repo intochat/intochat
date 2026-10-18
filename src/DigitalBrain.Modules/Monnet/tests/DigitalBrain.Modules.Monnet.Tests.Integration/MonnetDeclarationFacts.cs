@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Monnet;
 using Xunit;
 
-namespace DigitalBrain.Modules.Monnet.Tests;
+namespace DigitalBrain.Modules.Monnet.Tests.Integration;
 
 public sealed class MonnetDeclarationFacts
 {
