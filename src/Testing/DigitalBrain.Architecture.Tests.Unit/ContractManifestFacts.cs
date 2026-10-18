@@ -2,7 +2,8 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 
 // R-B4 (clean-core W1, section 4.2): every grain type, alias, field id, state name and signal short name in
 // ContractManifest.json is persisted or on the wire, so each must survive every later PR unchanged. Additions are
-// allowed, as additive state already is; a rename, renumbering or removal fails. CaptureContractManifest rewrites
+// allowed, as additive state already is; a rename, renumbering or removal fails. Additions stay unpinned until the
+// baseline is recaptured, which TheBaselineRecordsEveryCurrentIdentity enforces. CaptureContractManifest rewrites
 // the baseline when run explicitly (the test executable with --filter-method "*CaptureContractManifest" --explicit only).
 public sealed class ContractManifestFacts
 {
@@ -24,6 +25,25 @@ public sealed class ContractManifestFacts
             + "or coordinate a dual-read migration before rewriting ContractManifest.json:\n" + string.Join('\n', changes));
     }
 
+    // Additions pass the fact above but stay unpinned until the baseline records them, so a stale baseline fails too:
+    // a PR that adds a grain, contract, state or signal recaptures ContractManifest.json in the same PR.
+    [Fact]
+    public void TheBaselineRecordsEveryCurrentIdentity()
+    {
+        var baseline = ContractManifest.Load(ContractManifest.BaselinePath);
+        var current = ContractManifest.Capture();
+
+        var unpinned = Added("Grains", baseline.Grains, current.Grains)
+            .Concat(Added("GrainInterfaces", baseline.GrainInterfaces, current.GrainInterfaces))
+            .Concat(Added("Contracts", baseline.Contracts, current.Contracts))
+            .Concat(Added("States", baseline.States, current.States))
+            .Concat(Added("Signals", baseline.Signals, current.Signals))
+            .ToArray();
+
+        Assert.True(unpinned.Length == 0,
+            "New identities are not pinned yet; run CaptureContractManifest and commit ContractManifest.json:\n" + string.Join('\n', unpinned));
+    }
+
     // The capture finds what the W1 design counted, so the fact above cannot pass vacuously.
     [Fact]
     public void TheBaselineCoversTheKnownIdentities()
@@ -42,6 +62,9 @@ public sealed class ContractManifestFacts
     [Fact(Explicit = true)]
     public void CaptureContractManifest()
         => File.WriteAllText(ContractManifest.BaselinePath, ContractManifest.Capture().ToJson());
+
+    private static IEnumerable<string> Added(string section, SortedDictionary<string, string> baseline, SortedDictionary<string, string> current)
+        => current.Where(entry => !baseline.ContainsKey(entry.Key)).Select(entry => $"{section} {entry.Key}: \"{entry.Value}\"");
 
     private static IEnumerable<string> Compare(string section, SortedDictionary<string, string> baseline, SortedDictionary<string, string> current)
     {

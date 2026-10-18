@@ -12,12 +12,13 @@ using Orleans.Runtime;
 using Orleans.Serialization;
 using Orleans.Storage;
 
-namespace DigitalBrain.Testing.Storage;
+namespace DigitalBrain.OS.Testing.Storage;
 
 // Storage fixtures (clean-core W1, section 4.4): brain logs and grain-state payloads written by a reproducible build,
 // sealed under the checked-in TestSealKey, so every later build proves it still reads them. A fixture directory holds
+// It lives in this unpublished test-support project because it opens Authority internals (the brain log and its keys).
 // fixture.json, brain-store/ (the brain directories as the host wrote them, minus their writer locks) and grain-state/.
-internal static class StorageFixtures
+public static class StorageFixtures
 {
     public const string ManifestFile = "fixture.json";
     public const string BrainStore = "brain-store";
@@ -161,12 +162,12 @@ internal static class StorageFixtures
     }
 }
 
-internal sealed record StorageFixtureManifest(string Source, string SealKey, StorageFixtureBrain[] Brains, StorageFixtureBlob[] GrainState, string[] Scenarios);
+public sealed record StorageFixtureManifest(string Source, string CapturedFrom, string SealKey, StorageFixtureBrain[] Brains, StorageFixtureBlob[] GrainState, string[] Scenarios);
 
-internal sealed record StorageFixtureBrain(string BrainId, BrainLogFormat Format, bool Snapshot, int Records, int Signals, string[] SignalTypes);
+public sealed record StorageFixtureBrain(string BrainId, BrainLogFormat Format, bool Snapshot, int Records, int Signals, string[] SignalTypes);
 
-internal sealed record StorageFixtureBlob(string File, string Store, string GrainId, string StateName);
+public sealed record StorageFixtureBlob(string File, string Store, string GrainId, string StateName);
 
-internal sealed record StorageFixtureRecord(string GrainId, string StateName, Type Type);
+public sealed record StorageFixtureRecord(string GrainId, string StateName, Type Type);
 
-internal sealed record StorageFixtureRead(string BrainId, BrainLogFormat Format, bool Snapshot, StorageFixtureRecord[] Records, string[] Unreadable, Signal[] Signals);
+public sealed record StorageFixtureRead(string BrainId, BrainLogFormat Format, bool Snapshot, StorageFixtureRecord[] Records, string[] Unreadable, Signal[] Signals);

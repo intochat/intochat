@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -8,7 +9,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Authority.Storage;
 using DigitalBrain.Circles;
 using DigitalBrain.Flutter.Chat;
-using DigitalBrain.Testing.Storage;
+using DigitalBrain.OS.Testing.Storage;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 using DigitalBrain.Time.Timers.Signals;
 
@@ -69,7 +70,7 @@ public sealed class StorageFixtureCapture(OsHost host)
                     Assert.True(read.Unreadable.Length == 0, string.Join('\n', read.Unreadable));
                     brains.Add(new(brainId, read.Format, read.Snapshot, read.Records.Length, read.Signals.Length, StorageFixtureFacts.SignalTypes(read.Signals)));
                 }
-                StorageFixtures.WriteManifest(output, new(Source, nameof(TestSealKey), [.. brains], [.. blobs], [.. capture.Scenarios]));
+                StorageFixtures.WriteManifest(output, new(Source, CapturedFrom(), nameof(TestSealKey), [.. brains], [.. blobs], [.. capture.Scenarios]));
             }
             finally { Directory.Delete(copy, recursive: true); }
         }
@@ -166,6 +167,12 @@ public sealed class StorageFixtureCapture(OsHost host)
         Assert.Equal(HttpStatusCode.OK, callback.StatusCode);
         Assert.NotNull(host.Tokens);
     }
+
+    // The exact build: the informational version carries the commit the test assembly was built from. Capture from a
+    // clean, pushed commit so the label resolves.
+    private static string CapturedFrom()
+        => typeof(StorageFixtureCapture).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? throw new InvalidOperationException("The test assembly carries no informational version.");
 
     private static string SourceDirectory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 

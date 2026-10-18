@@ -1,5 +1,5 @@
 using DigitalBrain.Authority.Storage;
-using DigitalBrain.Testing.Storage;
+using DigitalBrain.OS.Testing.Storage;
 
 namespace DigitalBrain.OS.Tests.Integration.Storage;
 
@@ -42,6 +42,7 @@ public sealed class StorageFixtureFacts(OsHost host)
         var manifest = StorageFixtures.ReadManifest(Path.Combine(AppContext.BaseDirectory, "Storage", "Fixtures", StorageFixtureCapture.Source));
 
         Assert.Equal(StorageFixtureCapture.Source, manifest.Source);
+        Assert.False(string.IsNullOrWhiteSpace(manifest.CapturedFrom), "a fixture names the exact commit it was captured from");
         Assert.Contains(manifest.Brains, brain => brain.Format == BrainLogFormat.Legacy && !brain.Snapshot);
         Assert.Contains(manifest.Brains, brain => brain.Format == BrainLogFormat.Framed && brain.Snapshot);
         Assert.Contains(manifest.Brains, brain => brain.SignalTypes.Contains("DigitalBrain.Time.Timers.Signals.TimerTick"));

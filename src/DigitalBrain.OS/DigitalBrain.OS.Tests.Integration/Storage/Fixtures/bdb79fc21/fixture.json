@@ -1,5 +1,6 @@
 {
   "Source": "bdb79fc21",
+  "CapturedFrom": "intochat/os 103114730f0474d5a0b4127a187f2d0fab25e9d7 (branch w1/pr1b-fixture-capture): bdb79fc21 production code plus the PR 1a WatchStream move, InternalsVisibleTo attributes and BrainLog.RecordKeys()",
   "SealKey": "TestSealKey",
   "Brains": [
     {
