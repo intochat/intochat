@@ -175,7 +175,8 @@ public sealed class RuleJudgingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
-        await using var brain = await Start(host, ct);
+        await using var brain = await Start(host, ct, ruleTimeout: TimeSpan.FromSeconds(3));
+        // The first ask also starts the session and fetches the rules; at 1 s its 200 ms slack lost to a loaded runner.
         var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string>
         {
@@ -241,9 +242,9 @@ public sealed class RuleJudgingFacts
         finally { AppDomain.CurrentDomain.SetData(gate, null); }
     }
 
-    private static Task<ITestBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
+    private static Task<ITestBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false, TimeSpan? ruleTimeout = null)
         => RuntimeBrain.Create(host, apps)
-            .WithOptions<CSharpModule, CSharpOptions>(options => options.RuleTimeout = TimeSpan.FromSeconds(1))
+            .WithOptions<CSharpModule, CSharpOptions>(options => options.RuleTimeout = ruleTimeout ?? TimeSpan.FromSeconds(1))
             // The host downloads assemblies from its own store: the blob storage seam.
             .ConfigureServices(services => services.AddSingleton<IBehaviorAssemblies>(host))
             .StartAsync(ct);
