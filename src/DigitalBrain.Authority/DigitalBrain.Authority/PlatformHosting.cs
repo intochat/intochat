@@ -86,7 +86,7 @@ public static class PlatformHosting
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         Hosting.RuntimeManagementEndpoints.Map(endpoints);
-        foreach (var extension in endpoints.ServiceProvider.GetServices<IPlatformHttpExtension>()) { extension.Map(endpoints); }
+        foreach (var extension in endpoints.ServiceProvider.GetServices<IAuthorityHttpExtension>()) { extension.Map(endpoints); }
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
     }

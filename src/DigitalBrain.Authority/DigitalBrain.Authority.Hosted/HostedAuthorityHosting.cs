@@ -65,7 +65,7 @@ public static class HostedAuthorityHosting
                 ? new HostedBrainAccess(new Identity.Directory.DirectoryBrainAccess(provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>()), hosting)
                 : IdentityHosting.LocalBrainAccess(provider);
         });
-        services.AddSingleton<IPlatformHttpExtension, HostedHttp>();
+        services.AddSingleton<IAuthorityHttpExtension, HostedHttp>();
         return services;
     }
 
@@ -90,7 +90,7 @@ public static class HostedAuthorityHosting
         }
     }
 
-    private sealed class HostedHttp : IPlatformHttpExtension
+    private sealed class HostedHttp : IAuthorityHttpExtension
     {
         public void UseAfterAuthentication(WebApplication app) => HostedWorkspaceEndpoints.UseScope(app);
         public void Map(IEndpointRouteBuilder endpoints) => HostedRuntimeEndpoints.Map(endpoints);

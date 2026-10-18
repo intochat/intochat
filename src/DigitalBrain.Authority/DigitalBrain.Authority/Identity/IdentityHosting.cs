@@ -64,7 +64,7 @@ public static class IdentityHosting
         app.UseKernelCors();
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
-        foreach (var extension in app.Services.GetServices<IPlatformHttpExtension>()) { extension.UseAfterAuthentication(app); }
+        foreach (var extension in app.Services.GetServices<IAuthorityHttpExtension>()) { extension.UseAfterAuthentication(app); }
         app.UseAccountSession();
         // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
         app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
