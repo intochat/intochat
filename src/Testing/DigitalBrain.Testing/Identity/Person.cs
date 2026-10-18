@@ -118,7 +118,15 @@ public sealed class Person : IDisposable
     }
 
     // The Open posture's synthetic owner: no cookie, account and brain "owner".
-    internal static Person OpenOwner(HttpClient http) => new("owner", "owner", "owner", http, ownsHttp: false);
+    // Without an HTTP edge, the owner's client has no address.
+    internal static Person OpenOwner(HttpClient? http) => new("owner", "owner", "owner", http ?? NoEdge, ownsHttp: false);
+
+    // Registered without an HTTP edge: no cookie session, a client with no address.
+    internal static Person Registered(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId, NoEdge, ownsHttp: false);
+
+    internal static string Password(string principal) => principal + "-password-123";
+
+    private static readonly HttpClient NoEdge = new();
 
     public static async Task<Person> RegisterAsync(HttpClient origin, string principal, CancellationToken ct)
     {
@@ -131,7 +139,7 @@ public sealed class Person : IDisposable
         try
         {
             using var registered = await client.PostAsJsonAsync("/identity/register",
-                new { principalId = principal, displayName = principal, password = principal + "-password-123" }, Json, ct);
+                new { principalId = principal, displayName = principal, password = Password(principal) }, Json, ct);
             if (registered.StatusCode != HttpStatusCode.OK)
             {
                 throw new InvalidOperationException(

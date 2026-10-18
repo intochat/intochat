@@ -123,6 +123,14 @@ public sealed class TestBrain
         return this;
     }
 
+    // An in-process host with no HTTP edge: the silo and services are the product's, ITestBrain.HttpClient throws.
+    public TestBrain WithoutHttp()
+    {
+        EnsureMutable();
+        _execution = _execution with { Http = false };
+        return this;
+    }
+
     // Short leases and renewals so subscription expiry and reactivation show up within a test's timeout.
     public TestBrain WithFastSubscriptions(int bufferCapacity = 256)
         => ConfigureServices(services =>

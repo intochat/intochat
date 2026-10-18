@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Platform.Identity.Configuration;
@@ -24,28 +25,57 @@ namespace DigitalBrain.Testing;
 // harness-owned MemoryStores that a restart builds over again.
 public sealed class InProcessTarget : ITestTarget
 {
+    private const int StartAttempts = 3;
+    private readonly Func<(int Silo, int Gateway)> _ports;
+
+    public InProcessTarget() : this(FreePorts) { }
+
+    internal InProcessTarget(Func<(int Silo, int Gateway)> ports) => _ports = ports;
+
     public async Task<ITestBrain> StartAsync(TestBrainPlan plan, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Client is not null) { throw new NotSupportedException("An in-process brain has no external client to configure; use ConfigureServices."); }
-        var (siloPort, gatewayPort) = FreePorts();
-        var session = new InProcessSession(
-            new MemoryStores(),
-            Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-            Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-            Path.Combine(Path.GetTempPath(), $"digitalbrain-machine-{Guid.NewGuid():N}"),
-            // Localhost clustering binds fixed default ports; parallel brains each take a free pair, and a
-            // restart rebinds the same pair.
-            siloPort, gatewayPort);
-        var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
-        return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
+        for (var attempt = 1; ; attempt++)
+        {
+            // Localhost clustering binds fixed default ports; parallel brains each take a free pair, and a restart
+            // rebinds the same pair. A pair is free when read, not reserved: a collision starts over on a new one.
+            var (siloPort, gatewayPort) = _ports();
+            var session = new InProcessSession(
+                new MemoryStores(),
+                Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+                Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+                Path.Combine(Path.GetTempPath(), $"digitalbrain-machine-{Guid.NewGuid():N}"),
+                siloPort, gatewayPort);
+            try
+            {
+                var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
+                return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
+            }
+            catch (Exception error) when (attempt < StartAttempts && AddressInUse(error))
+            {
+                if (Directory.Exists(session.MachineDirectory)) { Directory.Delete(session.MachineDirectory, recursive: true); }
+                plan.Execution.Diagnostics?.Invoke(new TestDiagnostic("in-process-start",
+                    $"Ports {siloPort}/{gatewayPort} were taken before the silo bound them; retrying ({attempt}/{StartAttempts - 1})."));
+            }
+        }
     }
+
+    private static bool AddressInUse(Exception? error) => error switch
+    {
+        null => false,
+        global::Microsoft.AspNetCore.Connections.AddressInUseException => true,
+        // Windows reports a port another socket holds exclusively (or a reserved range) as access denied.
+        SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse or SocketError.AccessDenied } => true,
+        AggregateException aggregate => aggregate.InnerExceptions.Any(AddressInUse),
+        _ => AddressInUse(error.InnerException),
+    };
 
     internal static async Task<WebApplication> BuildAsync(TestBrainPlan plan, InProcessSession session, int httpPort, CancellationToken cancellationToken)
     {
         // Neither Development (which changes feature and token behaviour) nor Production (which refuses configured custody).
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
-        builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}");
+        if (plan.Execution.Http) { builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}"); }
         builder.Configuration.AddInMemoryCollection(TestLogging.QuietDefaults);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -55,8 +85,8 @@ public sealed class InProcessTarget : ITestTarget
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
             [OrleansStorageHosting.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
-            // The AppHost's Orleans resource turns grain-call tracing on for every silo; so does the test host.
-            ["Orleans:EnableDistributedTracing"] = "true",
+            // The AppHost's Orleans resource turns grain-call tracing on for every silo; the test host does when the fact collects diagnostics.
+            ["Orleans:EnableDistributedTracing"] = plan.Execution.Diagnostics is null ? "false" : "true",
         });
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);
@@ -83,7 +113,7 @@ public sealed class InProcessTarget : ITestTarget
         var app = builder.Build();
         try
         {
-            app.MapDigitalBrainServer();
+            if (plan.Execution.Http) { app.MapDigitalBrainServer(); }
             await app.StartAsync(cancellationToken).ConfigureAwait(false);
             await LocalSiloInManifestAsync(app.Services, cancellationToken).ConfigureAwait(false);
             return app;
@@ -109,7 +139,7 @@ public sealed class InProcessTarget : ITestTarget
     }
 
     // Both listeners stay open while the ports are read, so the pair is distinct.
-    private static (int Silo, int Gateway) FreePorts()
+    internal static (int Silo, int Gateway) FreePorts()
     {
         var silo = new TcpListener(IPAddress.Loopback, 0);
         var gateway = new TcpListener(IPAddress.Loopback, 0);
@@ -159,7 +189,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
     private readonly InProcessSession _session;
     private readonly TestSessionLifetime _lifetime;
     private WebApplication? _app;
-    private HttpClient _http;
+    private HttpClient? _http;
     // Observations hold subscriptions on the current host; a restart ends them with it.
     private TestSessionLifetime _observations;
     private bool _disposed;
@@ -179,11 +209,11 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
             return ValueTask.CompletedTask;
         }));
         _lifetime.Own("host", new Release(StopHostAsync));
-        _lifetime.Own("http-client", new Release(() => { _http.Dispose(); return ValueTask.CompletedTask; }));
+        _lifetime.Own("http-client", new Release(() => { _http?.Dispose(); return ValueTask.CompletedTask; }));
         _lifetime.Own("observations", new Release(() => _observations.DisposeAsync()));
     }
 
-    public HttpClient HttpClient => _http;
+    public HttpClient HttpClient => _http ?? throw new InvalidOperationException("This host was started WithoutHttp()");
     public IServiceProvider Services
     {
         get
@@ -225,7 +255,8 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
 
     public async Task RestartAsync(CancellationToken cancellationToken = default)
     {
-        var port = new Uri((_app ?? throw new InvalidOperationException("The brain's host failed to restart.")).Urls.Single()).Port;
+        var app = _app ?? throw new InvalidOperationException("The brain's host failed to restart.");
+        var port = _plan.Execution.Http ? new Uri(app.Urls.Single()).Port : 0;
         var observations = _observations;
         _observations = new TestSessionLifetime(_plan.Execution);
         await observations.DisposeAsync().ConfigureAwait(false);
@@ -233,19 +264,23 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         _app = await InProcessTarget.BuildAsync(_plan, _session, port, cancellationToken).ConfigureAwait(false);
         var previous = _http;
         _http = NewClient(_app);
-        previous.Dispose();
+        previous?.Dispose();
     }
 
     public async Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var person = await Person.RegisterAsync(HttpClient, name, cancellationToken).ConfigureAwait(false);
+        var person = _http is { } http
+            ? await Person.RegisterAsync(http, name, cancellationToken).ConfigureAwait(false)
+            // No HTTP edge: the identity directory, which runs the registration the /identity/register endpoint runs.
+            : Person.Registered(await Services.GetRequiredService<IGrainFactory>().GetGrain<IIdentityDirectory>(IdentityGrains.Directory)
+                .RegisterAsync(name, Person.Password(name), name, cancellationToken).ConfigureAwait(false));
         _lifetime.Own("person", new Release(() => { person.Dispose(); return ValueTask.CompletedTask; }));
         return person;
     }
 
     public Person Owner => Services.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
-        ? Person.OpenOwner(HttpClient)
+        ? Person.OpenOwner(_http)
         : throw new InvalidOperationException("Only the Open posture has a synthetic owner; register a person with PersonAsync.");
 
     public ValueTask DisposeAsync()
@@ -262,7 +297,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         await app.DisposeAsync().ConfigureAwait(false);
     }
 
-    private static HttpClient NewClient(WebApplication app) => new() { BaseAddress = new Uri(app.Urls.Single()) };
+    private HttpClient? NewClient(WebApplication app) => _plan.Execution.Http ? new() { BaseAddress = new Uri(app.Urls.Single()) } : null;
 
     private sealed class Release(Func<ValueTask> release) : IAsyncDisposable
     {

@@ -11,6 +11,8 @@ public sealed record TestExecutionOptions
     public TimeSpan AssertionTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan CleanupTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public Action<TestDiagnostic>? Diagnostics { get; init; }
+    // False starts an in-process host without Kestrel or the server's endpoints: same silo and services, no HttpClient.
+    public bool Http { get; init; } = true;
     public string? ArtifactDirectory { get; init; }
     public IReadOnlyDictionary<string, string?> PrivateConfiguration { get; init; } = new Dictionary<string, string?>();
     // Feeds the AppHost builder's own configuration (not a resource's environment): hosting-layer
