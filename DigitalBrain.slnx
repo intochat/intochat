@@ -93,6 +93,11 @@
     <Project Path="src/DigitalBrain.Modules/Google/Gmail/tests/DigitalBrain.Modules.Google.Gmail.Tests.Integration/DigitalBrain.Modules.Google.Gmail.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/" />
+  <Folder Name="/Modules/Microsoft/Azure/">
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Azure/DigitalBrain.Modules.Microsoft.Azure.Contracts/DigitalBrain.Modules.Microsoft.Azure.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Azure/DigitalBrain.Modules.Microsoft.Azure/DigitalBrain.Modules.Microsoft.Azure.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Azure/tests/DigitalBrain.Modules.Microsoft.Azure.Tests.Unit/DigitalBrain.Modules.Microsoft.Azure.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/Modules/Microsoft/Roslyn/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/DigitalBrain.Modules.Microsoft.Roslyn.Contracts/DigitalBrain.Modules.Microsoft.Roslyn.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Roslyn/DigitalBrain.Modules.Microsoft.Roslyn/DigitalBrain.Modules.Microsoft.Roslyn.csproj" />
