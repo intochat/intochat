@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace DigitalBrain;
 
 // The neutral contract attributes of the clean-core plan (section 2.2). Each has the meaning of the
@@ -13,6 +15,22 @@ public sealed class NeuronContractAttribute : Attribute;
 public sealed class NeuronAliasAttribute(string alias) : Attribute
 {
     public string Alias { get; } = alias;
+
+    // A type's effective alias. Both attributes carry the same strings and inherit the same way: the nearest
+    // type in the base chain that declares either wins, and on one type [NeuronAlias] wins over the Orleans
+    // [Alias]. A derived signal with no alias of its own keeps its base class alias, as it always has.
+    // Lives on the attribute so the vocabulary ring gains no non-attribute public type.
+    public static string? Of(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var alias = current.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+                ?? current.GetCustomAttribute<AliasAttribute>(inherit: false)?.Alias;
+            if (alias is not null) { return alias; }
+        }
+        return null;
+    }
 }
 
 // The stable member id inside its type's layer. Same number as the Orleans [Id].
