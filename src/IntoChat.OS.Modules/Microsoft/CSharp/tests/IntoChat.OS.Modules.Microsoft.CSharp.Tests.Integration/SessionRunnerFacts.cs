@@ -33,5 +33,5 @@ public sealed class SessionRunnerFacts
         => Assert.DoesNotContain("acc-brain", SessionRunner.Identifier("acc-brain"), StringComparison.Ordinal);
 
     private static SessionRunner Runner(FakeSessionHost host)
-        => new(new HttpClient(host), Options.Create(new CSharpDeploymentSettings { SandboxUrl = FakeSessionHost.Url }));
+        => new(new HttpClient(host), Options.Create(new CSharpOptions { SandboxUrl = FakeSessionHost.Url }));
 }

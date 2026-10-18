@@ -45,8 +45,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
-        builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
+        var options = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp");
+        var authoring = options.Authoring;
         builder.Services.TryAddSingleton<CSharpToolService>();
         builder.Services.TryAddSingleton<IntoChat.OS.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
@@ -58,7 +58,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
             provider.GetKeyedService<BlobServiceClient>(IntoChatOSNames.GrainState) is { } storage
                 ? new BlobBehaviorAssemblies(storage) : new MemoryBehaviorAssemblies());
         // The session pool authenticates with the deployment's identity; the local container needs none.
-        if (!string.IsNullOrWhiteSpace(builder.Configuration[CSharpDeploymentSettings.SectionName + ":SessionPoolEndpoint"]))
+        if (!string.IsNullOrWhiteSpace(options.SessionPoolEndpoint))
         { builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
         builder.Services.AddHttpClient<SessionRunner>();
         builder.Services.TryAddSingleton<SessionStreams>();

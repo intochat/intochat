@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.Versioning;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Parts;
 using IntoChat.OS.Framework.Platform.Integrations;
@@ -30,7 +31,7 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
         silo.Services.TryAddSingleton<IMachineIdentity, MachineIdentity>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<WindowsNeuron>, WindowsActivation>());
         if (OperatingSystem.IsWindows()
-            && Enum.TryParse<MasterKeyCustodyKind>(silo.Configuration[IntoChatOSNames.CustodyConfigurationKey], ignoreCase: true, out var custody)
+            && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(silo.Configuration, IntoChatOSNames.CustodyConfigurationKey), ignoreCase: true, out var custody)
             && custody == MasterKeyCustodyKind.Tpm)
         { UseTpmCustody(silo.Services); }
     }

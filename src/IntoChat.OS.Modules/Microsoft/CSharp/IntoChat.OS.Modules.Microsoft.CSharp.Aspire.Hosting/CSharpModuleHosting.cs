@@ -33,7 +33,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Microsoft.CS
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => builder.WithEnvironment(
-                IntoChatOSConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxUrl)), sandbox.GetEndpoint("http"))
+                IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SandboxUrl)), sandbox.GetEndpoint("http"))
                 .WithAnnotation(new WaitAnnotation(sandbox.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

@@ -1,0 +1,14 @@
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Time;
+
+public sealed class TimeModuleOptions : IModuleOptions
+{
+    // Test and local development may accelerate reminders; unset, production keeps the Orleans default.
+    [Setting]
+    public TimeSpan? MinimumReminderPeriod { get; set; }
+
+    // A period that is not positive is ignored, as an unset one: the Orleans default stands.
+    public void Validate() { }
+}

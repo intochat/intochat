@@ -78,12 +78,12 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
             Variable = ConfigurationKeyGrammar.EnvironmentName(ConfigurationKeyGrammar.IntegrationKey(CSharpModule.Integration.Id, "RunTokenKey")),
         });
         context.SetRuntimeVariable(
-            IntoChatOSConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SessionPoolEndpoint)),
+            IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SessionPoolEndpoint)),
             PoolEndpoint(context.Target, pool));
         if (context.Settings.Get("edgeUrl") is { } edge)
         {
             context.SetRuntimeVariable(
-                IntoChatOSConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.EdgeUrl)), edge);
+                IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.EdgeUrl)), edge);
         }
     }
 

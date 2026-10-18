@@ -2,6 +2,7 @@ using IntoChat.OS;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Microsoft.CSharp;
 
@@ -15,23 +16,22 @@ public sealed class CSharpOptions : IModuleOptions
     // How long an app's rules may take to judge one request; past it the request is rejected.
     public TimeSpan RuleTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
+    public static readonly string SectionName = IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("csharp"));
+
+    // Deployment-owned values; the deployment sets them, a user never edits them.
+    // The runtime edge URL sessions dial; development derives it from this brain's own HTTP address.
+    [Setting]
+    public string? EdgeUrl { get; set; }
+    // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the local container.
+    [Setting]
+    public string? SessionPoolEndpoint { get; set; }
+    // Development: the always-on csharp-sandbox container that hosts every brain's session.
+    [Setting]
+    public string? SandboxUrl { get; set; }
+
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPending, 1);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RuleTimeout, TimeSpan.Zero);
     }
-}
-
-// Deployment-owned values under the module's section; they are not user options, so they
-// live beside Options, not under it.
-public sealed class CSharpDeploymentSettings
-{
-    public static readonly string SectionName = IntoChatOSConfiguration.ModuleSection(new ModuleId("csharp")) + ":Deployment";
-
-    // The runtime edge URL sessions dial; development derives it from this brain's own HTTP address.
-    public string? EdgeUrl { get; set; }
-    // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the local container.
-    public string? SessionPoolEndpoint { get; set; }
-    // Development: the always-on csharp-sandbox container that hosts every brain's session.
-    public string? SandboxUrl { get; set; }
 }

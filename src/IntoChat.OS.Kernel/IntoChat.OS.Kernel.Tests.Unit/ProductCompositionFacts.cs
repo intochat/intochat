@@ -46,7 +46,7 @@ public sealed class ProductCompositionFacts
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
-        var key = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Microsoft.CSharp.CSharpDeploymentSettings.SectionName, nameof(IntoChat.OS.Microsoft.CSharp.CSharpDeploymentSettings.SandboxUrl));
+        var key = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Microsoft.CSharp.CSharpOptions.SectionName, nameof(IntoChat.OS.Microsoft.CSharp.CSharpOptions.SandboxUrl));
         Assert.IsType<EndpointReference>(environment[key]);
         var sandbox = appHost.Resources.Single(resource => resource.Name == IntoChat.OS.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
         // Always on, and independently healthy before the OS bootstraps its persistent scripts.
