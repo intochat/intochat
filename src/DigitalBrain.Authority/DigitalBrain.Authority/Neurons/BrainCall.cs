@@ -24,11 +24,23 @@ internal static class BrainCall
         return caller;
     }
 
+    // Error details ride in trailers until the status-details packages arrive with protocol v1 (W2 PR 5a):
+    // the domain, a reason from the closed list, and per-reason metadata.
+    internal const string ErrorDomain = "ui.digitalbrain.io";
+    internal const string DomainTrailer = "error-domain";
+    internal const string ReasonTrailer = "error-reason";
+    internal const string CurrentRevisionTrailer = "current-revision";
+
     // A caller's own mistakes come back with their reason; the host's failures stay in its logs.
     public static RpcException Translate(Exception error, ILogger? logger = null)
     {
         switch (error)
         {
+            // Before ArgumentException and the default: both conflicts are the caller's to resolve, not host failures.
+            case RevisionConflictException e:
+                return Refused(StatusCode.Aborted, e.Message, "REVISION_CONFLICT", (CurrentRevisionTrailer, e.CurrentRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            case JournalConflictException: return Refused(StatusCode.FailedPrecondition, "The journal diverged and is set aside; this is not retryable.", "JOURNAL_DIVERGED");
+            case StaleActionException e: return Refused(StatusCode.FailedPrecondition, e.Message, "STALE_ACTION");
             case ArgumentException e: return new RpcException(new Status(StatusCode.InvalidArgument, e.Message));
             case UnauthorizedAccessException e: return new RpcException(new Status(StatusCode.PermissionDenied, e.Message));
             case KeyNotFoundException e: return new RpcException(new Status(StatusCode.NotFound, e.Message));
@@ -37,5 +49,12 @@ internal static class BrainCall
                 logger?.LogError(error, "Neuron channel call failed");
                 return new RpcException(new Status(StatusCode.Internal, "The neuron channel failed; see the host's logs."));
         }
+    }
+
+    private static RpcException Refused(StatusCode code, string message, string reason, params (string Key, string Value)[] details)
+    {
+        var trailers = new Metadata { { DomainTrailer, ErrorDomain }, { ReasonTrailer, reason } };
+        foreach (var (key, value) in details) { trailers.Add(key, value); }
+        return new RpcException(new Status(code, message), trailers, message);
     }
 }

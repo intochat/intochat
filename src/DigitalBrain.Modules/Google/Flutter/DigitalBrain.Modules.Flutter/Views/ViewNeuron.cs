@@ -35,7 +35,7 @@ internal sealed class ViewNeuron([PersistentState("state", DigitalBrainNames.Clu
         var view = Snapshot.View;
         var node = view is null ? null : Find(view.Root, key);
         if (view?.Generation != generation || node is not { Kind: UiNodeKind.Button, Enabled: true } || !string.Equals(node.Action, expectedAction, StringComparison.Ordinal))
-        { throw new InvalidOperationException("This action is no longer available. Read the view again."); }
+        { throw new StaleActionException("This action is no longer available. Read the view again."); }
         return PublishAsync(new ViewAction(this.GetPrimaryKeyString(), node.Key, node.Action!, requestId, view.Generation));
     }
 
