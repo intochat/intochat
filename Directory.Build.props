@@ -14,6 +14,9 @@
     <!-- Web SDK defaults this true; on Linux that forces RID=linux-x64 for every project.
          Container publishes opt back in via PublishProfiles/Container.pubxml + deploy.yml. -->
     <EnableSdkContainerSupport>false</EnableSdkContainerSupport>
+    <!-- Every project builds into artifacts/bin/<project>/<config>, so CI uploads one tree and
+         runs prebuilt test modules from that tree. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
   </PropertyGroup>
   <!-- GitHub Actions sets CI=true. Keep solution builds portable (no -r on .slnx). -->
   <PropertyGroup Condition="'$(CI)' == 'true'">

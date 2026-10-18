@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,32 +17,29 @@ concurrency:
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
+# Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
+# modules. Shard membership lives in .github/test-shards.json; TestShardFacts holds every PR-gate
+# project to exactly one shard. The nightly tiers (E2E, Browser) run in e2e.yml.
 jobs:
-  ci:
-    name: ci
+  format:
+    name: format
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - name: Free space for native dependencies and container builds
-        run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
-          df -h /
-
       - name: Restore NuGet package cache
-        id: nuget-cache
         uses: actions/cache/restore@v6
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -51,19 +49,165 @@ jobs:
       - name: Format code
         run: dotnet format whitespace DigitalBrain.slnx --verify-no-changes --no-restore --verbosity minimal
 
-      - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-      - name: Validate NuGet packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
 
-      # E2E projects need containers; they run in e2e.yml on master and nightly.
-      - name: Test
-        run: dotnet test -c Release --no-build -p:DigitalBrainE2E=false
+      - name: Restore NuGet package cache
+        id: nuget-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore DigitalBrain.slnx -v quiet
 
       - name: Save NuGet package cache
-        if: github.ref == 'refs/heads/master' && steps.nuget-cache.outputs.cache-hit != 'true'
+        if: steps.nuget-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
-          path: ~/.nuget/packages
+          path: ${{ env.NUGET_PACKAGES }}
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
+
+      - name: Build solution
+        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
+
+      - name: Validate NuGet packages
+        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
+
+      # One archive per shard: each test output carries its own copy of every dependency, so
+      # zstd's long window deduplicates across projects, and native assets for other RIDs go.
+      - name: Archive test modules per shard
+        run: |
+          mkdir -p artifacts/shards
+          for shard in $(jq -r '.shards | keys[]' .github/test-shards.json); do
+            dirs=()
+            while read -r glob; do
+              found=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}")
+              if [ -z "$found" ]; then echo "::error::$shard: $glob matches no test module"; exit 1; fi
+              while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done <<< "$found"
+            done < <(jq -r --arg s "$shard" '.shards[$s][]' .github/test-shards.json)
+            for dir in "${dirs[@]}"; do
+              if [ -d "$dir/release/runtimes" ]; then
+                find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
+              fi
+            done
+            tar -I 'zstd -T0 -3 --long=30' -cf "artifacts/shards/$shard.tar.zst" "${dirs[@]}"
+            echo "$shard: ${#dirs[@]} modules, $(du -h "artifacts/shards/$shard.tar.zst" | cut -f1)"
+          done
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: packages
+          path: artifacts/packages
+          retention-days: 7
+
+      # One upload per shard in .github/test-shards.json; a new shard adds a step here and a matrix entry below.
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-modules-unit
+          path: artifacts/shards/unit.tar.zst
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-modules-integration-a
+          path: artifacts/shards/integration-a.tar.zst
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-modules-integration-b
+          path: artifacts/shards/integration-b.tar.zst
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-modules-integration-c
+          path: artifacts/shards/integration-c.tar.zst
+          compression-level: 0
+          retention-days: 1
+
+  test:
+    name: test (${{ matrix.shard }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [unit, integration-a, integration-b, integration-c]
+    steps:
+      # Facts read the repository (the solution, sources, golden files); the modules unpack into artifacts/bin under it.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: test-modules-${{ matrix.shard }}
+          path: artifacts/shards
+
+      - name: Unpack test modules
+        run: tar -I 'zstd -d --long=30' -xf artifacts/shards/${{ matrix.shard }}.tar.zst
+
+      - name: Resolve shard globs
+        id: globs
+        run: |
+          globs=()
+          while read -r glob; do
+            count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}" | wc -l)
+            echo "$glob -> $count"
+            if [ "$count" -eq 0 ]; then echo "::error::$glob matches no test module"; exit 1; fi
+            globs+=("artifacts/bin/$glob")
+          done < <(jq -r --arg s "${{ matrix.shard }}" '.shards[$s][]' .github/test-shards.json)
+          echo "value=$(IFS=';'; echo "${globs[*]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet test --test-modules "${{ steps.globs.outputs.value }}" --max-parallel-test-modules 2 --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: trx-${{ matrix.shard }}
+          path: artifacts/trx
+          retention-days: 7
+
+  report:
+    name: report
+    needs: [format, build, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Job timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API: repos/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "$API" > run.json
+          gh api "$API/attempts/${{ github.run_attempt }}/jobs" --paginate --jq '.jobs[]' | jq -s . > jobs.json
+          jq -r --slurpfile run run.json '
+            ($run[0].created_at | fromdate) as $t0
+            | ["| job | start | end | duration | conclusion |", "|---|---|---|---|---|"][],
+              (.[] | select(.completed_at != null)
+                | ((.started_at|fromdate) - $t0) as $s | ((.completed_at|fromdate) - $t0) as $e
+                | "| \(.name) | +\($s)s | +\($e)s | \(($e - $s) / 60 | floor):\(($e - $s) % 60 | tostring | if length < 2 then "0" + . else . end) | \(.conclusion) |"),
+              "",
+              ([.[] | select(.completed_at != null) | (.completed_at|fromdate) - $t0] | max
+                | "Critical path (run created to last finished job): \(. / 60 | floor):\(. % 60 | tostring | if length < 2 then "0" + . else . end)")
+          ' jobs.json >> "$GITHUB_STEP_SUMMARY"

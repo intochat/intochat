@@ -1,0 +1,42 @@
+{
+  "shards": {
+    "unit": [
+      "**/*.Tests.Unit.dll",
+      "**/*.Tests.Hosting.dll"
+    ],
+    "integration-a": [
+      "**/DigitalBrain.Modules.Microsoft.CSharp.Tests.Integration.dll",
+      "**/DigitalBrain.Testing.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Circles.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Salesforce.Tests.Integration.dll",
+      "**/DigitalBrain.Framework.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Equifax.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Monnet.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Mcp.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.ClickHouse.Tests.Integration.dll"
+    ],
+    "integration-b": [
+      "**/DigitalBrain.Modules.Apps.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Flutter.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Microsoft.Aspire.Tests.Integration.dll",
+      "**/DigitalBrain.Client.Orleans.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Twilio.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Time.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.RiskSeal.Tests.Integration.dll",
+      "**/DigitalBrain.OS.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Microsoft.Windows.Tests.Integration.dll"
+    ],
+    "integration-c": [
+      "**/DigitalBrain.Modules.AI.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Postgres.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Flame.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Google.Gmail.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Microsoft.Playwright.Tests.Integration.dll",
+      "**/DigitalBrain.Mcp.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.ArtCraft.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Microsoft.Orleans.Tests.Integration.dll",
+      "**/DigitalBrain.Modules.Supabase.Tests.Integration.dll"
+    ]
+  }
+}

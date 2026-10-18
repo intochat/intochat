@@ -8,10 +8,13 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
   e2e:
@@ -36,8 +39,8 @@ jobs:
         id: nuget-cache
         uses: actions/cache/restore@v6
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -69,3 +72,56 @@ jobs:
 
       - name: Test Framework E2E
         run: dotnet test --project src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E -c Release --no-build
+
+  browser:
+    name: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore NuGet package cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore DigitalBrain.slnx -v quiet
+
+      - name: Build solution
+        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=true
+
+      - name: Install Playwright browsers
+        run: pwsh artifacts/bin/DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
+
+      - name: Test Browser
+        run: |
+          count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name '*.Tests.Browser.dll' | wc -l)
+          if [ "$count" -eq 0 ]; then echo "::error::no Browser test module was built"; exit 1; fi
+          dotnet test --test-modules "artifacts/bin/**/*.Tests.Browser.dll"
+
+  # Nightly red blocks tags, not merges: record it on one issue per day.
+  nightly-red:
+    name: nightly red
+    needs: [e2e, browser]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Open or update the nightly issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="nightly red: $(date -u +%F)"
+          body="$GITHUB_WORKFLOW failed on ${GITHUB_SHA::9} (${{ github.event_name }}): $RUN_URL"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ -n "$number" ]; then gh issue comment "$number" --body "$body"; else gh issue create --title "$title" --body "$body"; fi
