@@ -36,6 +36,9 @@ public static class DigitalBrainConfiguration
 
     public const string ConnectionsPublicOriginKey = ConnectionsSectionName + ":PublicOrigin";
 
+    // The operator key that turns on the silo diagnostics endpoints (Authority SiloDiagnostics); unset, they are not mapped.
+    public const string DiagnosticsKey = "DigitalBrain:Diagnostics:Key";
+
     public static string ConnectionsTokenEndpointKey(string connectorId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectorId);

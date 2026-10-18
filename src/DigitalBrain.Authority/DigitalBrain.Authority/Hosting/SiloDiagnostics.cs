@@ -18,7 +18,7 @@ namespace DigitalBrain.Authority.Hosting;
 // configures a key from its vault; every call must present it, so nothing here is public.
 public static class SiloDiagnostics
 {
-    public const string KeyConfiguration = "DigitalBrain:Diagnostics:Key";
+    public const string KeyConfiguration = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.DiagnosticsKey;
     public const string KeyHeader = "X-DigitalBrain-Diagnostics";
     // Azure Container Apps names the running revision in this variable.
     public const string RevisionVariable = "CONTAINER_APP_REVISION";
