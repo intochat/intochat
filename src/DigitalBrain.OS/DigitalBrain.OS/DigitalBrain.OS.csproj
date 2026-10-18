@@ -25,18 +25,13 @@
   <ItemGroup>
     <!-- The OS is the composition of the portable modules in the repo; OsCatalog names them in
          code and the compiler checks the two agree. Hosting, contracts, testing and sandbox projects
-         ride along with their module or belong to other rings. The SV modules are not part of the OS
-         (they move to the platform repository); the Windows edge is referenced below, explicitly. -->
+         ride along with their module or belong to other rings. The Windows edge is referenced below, explicitly. -->
     <ProjectReference Include="../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.csproj"
                       Exclude="../../DigitalBrain.Modules/**/tests/**;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Aspire.Hosting.csproj;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Testing.csproj;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Contracts.csproj;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Sandbox.csproj;
-                               ../../DigitalBrain.Modules/Monnet/**;
-                               ../../DigitalBrain.Modules/Equifax/**;
-                               ../../DigitalBrain.Modules/RiskSeal/**;
-                               ../../DigitalBrain.Modules/Twilio/**;
                                ../../DigitalBrain.Modules/Microsoft/Windows/**;
                                ../../DigitalBrain.Modules/Microsoft/Azure/**" />
     <!-- The Azure module (OsCatalog) is the cloud face of the OS and backs the install command. -->
