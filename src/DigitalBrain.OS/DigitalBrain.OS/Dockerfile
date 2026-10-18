@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 #
 # The operating system image.
-# Production pushes use SDK PublishContainer from .github/workflows/deploy.yml (single
-# digitalbrain-kernel image). This Dockerfile is the local/smoke equivalent and must stay in
+# Production pushes use SDK PublishContainer from .github/workflows/release.yml (single
+# ghcr.io/intochat/os image). This Dockerfile is the local/smoke equivalent and must stay in
 # step with the product AppHost profile.
 #
 # Build (repo root):
-#   docker build -f src/DigitalBrain/OS/DigitalBrain.OS/Dockerfile -t vhorbachov/digitalbrain-kernel:local .
+#   docker build -f src/DigitalBrain.OS/DigitalBrain.OS/Dockerfile -t os:local .
 #
 # No secrets are baked into this image. Managed identity + Key Vault are injected at run/deploy:
 #

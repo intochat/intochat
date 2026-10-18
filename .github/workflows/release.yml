@@ -1,0 +1,97 @@
+name: release
+
+# Tag v<VERSION>: release packages, GHCR images and a GitHub release. No tests: ci.yml owns them.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Must stay first: nothing is logged in, packed or pushed for a mismatched tag.
+      - name: Guard tag matches VERSION
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Free space for native dependencies and container builds
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          df -h /
+
+      - name: Restore dependencies
+        run: dotnet restore DigitalBrain.slnx
+
+      - name: Pack release packages
+        run: dotnet pack DigitalBrain.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false
+
+      # Separate from pack so --skip-duplicate cannot mask a pack failure.
+      - name: Push packages to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Registry and repository (ghcr.io/intochat/os) come from Properties/PublishProfiles/Container.pubxml.
+      - name: Publish kernel image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dotnet publish src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
+            -c Release -r linux-x64 /t:PublishContainer \
+            -p:PublishProfile=Container \
+            -p:EnableSdkContainerSupport=true \
+            -p:CodeGraphRefresh=false \
+            "-p:ContainerImageTags=${VERSION};latest"
+
+      - name: Publish UI image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile \
+            -t ghcr.io/intochat/os-ui:${VERSION} \
+            -t ghcr.io/intochat/os-ui:latest \
+            src/DigitalBrain.Modules/Google/Flutter/app
+          docker push --all-tags ghcr.io/intochat/os-ui
+
+      # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
+      - name: Publish sandbox image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+            -t ghcr.io/intochat/os-sandbox:${VERSION} \
+            -t ghcr.io/intochat/os-sandbox:latest .
+          docker push --all-tags ghcr.io/intochat/os-sandbox
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}" artifacts/*.nupkg
