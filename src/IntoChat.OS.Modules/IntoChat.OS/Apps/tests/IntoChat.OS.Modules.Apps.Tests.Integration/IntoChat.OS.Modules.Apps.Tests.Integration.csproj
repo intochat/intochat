@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../../../AI/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../../../Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" /></ItemGroup>
+  <ItemGroup><Compile Remove="FeatureFixture/**" /><None Include="FeatureFixture/**" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

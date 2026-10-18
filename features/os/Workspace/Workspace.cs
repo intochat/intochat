@@ -1,28 +1,28 @@
 using System.Globalization;
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Compute;
-using DigitalBrain.Flutter.Person;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Select;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Viewport;
-using DigitalBrain.Flutter.Workspace;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Compute;
+using IntoChat.OS.Flutter.Person;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Select;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Viewport;
+using IntoChat.OS.Flutter.Workspace;
 
 public static class Workspace
 {
     public sealed record Command(long Revision, string Action, string Id);
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static IWorkspace State(DigitalBrainConnection brain) => brain.Get<IWorkspace>(Scope(brain));
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
+    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     public static string Encode(long revision, string action, string id) => JsonSerializer.Serialize(new Command(revision, action, id));
 
     public sealed record Activation(string? BrainId, string? Application, string? Neuron, string? Operation, string? Input);
 
-    public static async Task Activate(DigitalBrainConnection brain, string input, string requestId)
+    public static async Task Activate(IntoChatOSConnection brain, string input, string requestId)
     {
         var action = JsonSerializer.Deserialize<Activation>(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             ?? throw new ArgumentException("An activation is required.");
@@ -37,7 +37,7 @@ public static class Workspace
         { await brain.Get<IApp>(IApp.Key(scope, name)).Request(action.Operation, action.Input ?? ""); }
     }
 
-    public static async Task Navigate(DigitalBrainConnection brain, string input, string operation)
+    public static async Task Navigate(IntoChatOSConnection brain, string input, string operation)
     {
         var command = JsonSerializer.Deserialize<Command>(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             ?? throw new ArgumentException("A navigation command is required.");
@@ -83,7 +83,7 @@ public static class Workspace
         await State(brain).Apply(new([.. views], focus, [.. pins]), operation, current.Revision);
     }
 
-    public static async Task<INeuron[]> Inputs(DigitalBrainConnection brain)
+    public static async Task<INeuron[]> Inputs(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         var state = await State(brain).Read();
@@ -94,7 +94,7 @@ public static class Workspace
         return [.. sources];
     }
 
-    public static async Task Compose(DigitalBrainConnection brain)
+    public static async Task Compose(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         var state = await State(brain).Read();
@@ -190,7 +190,7 @@ public static class Workspace
         await brain.Get<IApp>(key).Present(long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture), new(Views: [new("full", root)]));
     }
 
-    private static async Task<UiChildRef> Button(DigitalBrainConnection brain, string name, string title, string action, bool enabled = true, ControlVisual? visual = null)
+    private static async Task<UiChildRef> Button(IntoChatOSConnection brain, string name, string title, string action, bool enabled = true, ControlVisual? visual = null)
     {
         var key = Key(brain) + "/" + name;
         await brain.Get<IButton>(key).Set(title, action, enabled);
@@ -198,7 +198,7 @@ public static class Workspace
         return new("button", key);
     }
 
-    private static async Task<UiChildRef> Layout(DigitalBrainConnection brain, string name, string mode, UiChildRef[] children, double[]? extents = null, string? surface = null, double padding = 0, double gap = 8)
+    private static async Task<UiChildRef> Layout(IntoChatOSConnection brain, string name, string mode, UiChildRef[] children, double[]? extents = null, string? surface = null, double padding = 0, double gap = 8)
     {
         var key = Key(brain) + "/" + name;
         var layout = brain.Get<ILayout>(key);

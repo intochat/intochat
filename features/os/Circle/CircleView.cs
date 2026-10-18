@@ -1,19 +1,19 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Circles;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Button;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Circles;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Button;
 
 public static class CircleView
 {
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static ICircleFactory Factory(DigitalBrainConnection brain) => brain.Get<ICircleFactory>(ICircleFactory.Key(Scope(brain)));
-    public static Task Status(DigitalBrainConnection brain, string message) => brain.Get<IText>(Key(brain) + "/status").Set(message);
-    public static Task Fail(DigitalBrainConnection brain, Exception error) => Status(brain, error.Message.Split(['\r', '\n'])[0]);
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
+    public static ICircleFactory Factory(IntoChatOSConnection brain) => brain.Get<ICircleFactory>(ICircleFactory.Key(Scope(brain)));
+    public static Task Status(IntoChatOSConnection brain, string message) => brain.Get<IText>(Key(brain) + "/status").Set(message);
+    public static Task Fail(IntoChatOSConnection brain, Exception error) => Status(brain, error.Message.Split(['\r', '\n'])[0]);
 
-    public static async Task Compose(DigitalBrainConnection brain)
+    public static async Task Compose(IntoChatOSConnection brain)
     {
         var app = Key(brain);
         await Factory(brain).BindPublicationButton();
@@ -22,7 +22,7 @@ public static class CircleView
             new(new Sphere("icon.svg", []), Main: new("layout", app + "/main"), Views: [new("full", new("layout", app + "/main"))]));
     }
 
-    public static async Task Navigate(DigitalBrainConnection brain, PublicationUi.Navigation navigation)
+    public static async Task Navigate(IntoChatOSConnection brain, PublicationUi.Navigation navigation)
     {
         if (navigation.Page is not ("feed" or "profile" or "circles" or "publication")) throw new ArgumentException("Unknown Circle view.");
         await Project(brain, navigation);
@@ -31,7 +31,7 @@ public static class CircleView
         await Status(brain, "");
     }
 
-    public static async Task Restore(DigitalBrainConnection brain)
+    public static async Task Restore(IntoChatOSConnection brain)
     {
         await Compose(brain);
         try { await Project(brain); }
@@ -43,7 +43,7 @@ public static class CircleView
         }
     }
 
-    public static async Task Project(DigitalBrainConnection brain, PublicationUi.Navigation? target = null)
+    public static async Task Project(IntoChatOSConnection brain, PublicationUi.Navigation? target = null)
     {
         var app = Key(brain);
         var raw = (await brain.Get<IText>(app + "/navigation").Read()).Markdown;

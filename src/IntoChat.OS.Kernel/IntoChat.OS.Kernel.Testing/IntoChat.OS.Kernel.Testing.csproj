@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- The reference brain boots the real AppHost; this project touches the product, so it is
+         never packaged. The publishable harness is IntoChat.OS.Testing.Aspire and .Playwright. -->
+    <IsPackable>false</IsPackable>
+    <RootNamespace>IntoChat.OS.Kernel.Testing</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="IntoChat.OS.Testing" />
+    <Using Include="IntoChat.OS.Testing.Aspire" />
+    <Using Include="IntoChat.OS.Testing.Playwright" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="xunit.v3.assert" />
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../../Testing/IntoChat.OS.Testing.Playwright/IntoChat.OS.Testing.Playwright.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+  </ItemGroup>
+</Project>

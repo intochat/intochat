@@ -44,10 +44,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore DigitalBrain.slnx -v quiet
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Format code
-        run: dotnet format whitespace DigitalBrain.slnx --verify-no-changes --no-restore --verbosity minimal
+        run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
 
   build:
     name: build
@@ -80,7 +80,7 @@ jobs:
 
       # Restore runs inside the build: one evaluation of the solution instead of two.
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=false
+        run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
       - name: Save NuGet package cache
         if: steps.nuget-cache.outputs.cache-hit != 'true'
@@ -147,7 +147,7 @@ jobs:
           retention-days: 1
 
       - name: Validate NuGet packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
+        run: dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
 
       - uses: actions/upload-artifact@v7
         with:

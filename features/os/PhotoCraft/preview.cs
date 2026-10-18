@@ -1,10 +1,10 @@
-using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Agents.Signals;
-using DigitalBrain.Client;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Signals;
+using IntoChat.OS.Client;
 
 // The editor finished a turn: its answer becomes the status line and the active document is rendered into
 // the preview image. Rebuilt from the editor's state, and settled once per run.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 
 await brain.React<TurnCompleted>(PhotoCraft.Editor(brain), async ct =>
 {

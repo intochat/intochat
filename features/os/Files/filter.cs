@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.TextField.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Flutter.TextField.Signals;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 await foreach (var change in brain.On<TextFieldChanged>(brain.Get<ITextField>(appKey + "/filter"), brain.Stopping))
 {

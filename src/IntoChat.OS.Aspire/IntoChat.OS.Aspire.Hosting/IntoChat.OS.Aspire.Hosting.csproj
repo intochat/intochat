@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <RootNamespace>IntoChat.OS.Aspire.Hosting</RootNamespace>
+    <Description>Core IntoChat.OS AppHost composition: Orleans, stores, module selection, and silo/client projection.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" />
+    <PackageReference Include="Aspire.Hosting.Orleans" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Aspire.Hosting.Tests.Unit" /></ItemGroup>
+</Project>

@@ -1,9 +1,9 @@
-using DigitalBrain.Microsoft.Aspire;
+using IntoChat.OS.Microsoft.Aspire;
 
 // A verified candidate is promoted: the cluster restarts on its build and the new silos find
 // CandidatePromoted in the candidate's history. Each candidate is followed only until it is past Verified,
 // so one that fails cannot hold up the next.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var index = brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain)));
 await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 {

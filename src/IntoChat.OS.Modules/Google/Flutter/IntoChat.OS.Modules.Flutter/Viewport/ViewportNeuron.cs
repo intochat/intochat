@@ -1,0 +1,38 @@
+using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Framework;
+
+namespace IntoChat.OS.Flutter.Viewport;
+
+[GrainType("viewport")]
+internal sealed class ViewportNeuron(
+    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ViewportStorage> store)
+    : Neuron<ViewportStorage>(store), IViewport
+{
+    public Task<ViewportState> Read() => Task.FromResult(new ViewportState(this.GetPrimaryKeyString(), Snapshot.Revision, Snapshot.Target));
+
+    public async Task Set(WorkspaceViewRef? target, long expectedRevision)
+    {
+        var name = this.GetPrimaryKeyString();
+        var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
+        if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
+        var prefix = name[..(marker + 6)];
+        if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
+            || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
+            || string.IsNullOrWhiteSpace(target.App) || !target.App.StartsWith(prefix, StringComparison.Ordinal)
+            || target.App.Length > 512 || target.App[prefix.Length..].Contains('/')
+            || target.App[prefix.Length..] is "" or "." or ".."))
+        { throw new ArgumentException("This viewport supports local app views without an external context."); }
+        if (Snapshot.Revision != expectedRevision)
+        { throw new RevisionConflictException("Read the current viewport before changing its target.", Snapshot.Revision); }
+        if (Snapshot.Target == target) { return; }
+        var next = new ViewportStorage { Revision = checked(Snapshot.Revision + 1), Target = target };
+        await Save(next, new ViewportChanged(name, next.Revision));
+    }
+}
+
+[GenerateSerializer, Alias("ui.viewport-storage")]
+internal sealed class ViewportStorage
+{
+    [Id(0)] public long Revision { get; set; }
+    [Id(1)] public WorkspaceViewRef? Target { get; set; }
+}

@@ -1,10 +1,10 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Microsoft.CSharp.Files;
-using DigitalBrain.Microsoft.Windows;
-using ITimer = DigitalBrain.Time.Timers.ITimer;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Microsoft.Windows;
+using ITimer = IntoChat.OS.Time.Timers.ITimer;
 
 // Shared by every synapse of the router: the app's key and brain, its neuron names, and the
 // capabilities Jev routes over. A synapse is one reaction; this is the vocabulary they speak.
@@ -12,15 +12,15 @@ public static class Jev
 {
     public const string Unclear = "The request was not clear enough to route.";
 
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
-    public static string Name(DigitalBrainConnection brain, string part) => Key(brain) + "/" + part;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
+    public static string Name(IntoChatOSConnection brain, string part) => Key(brain) + "/" + part;
 
     // What Jev may act on: timers, notes and C# always, and the PC's windows, console and files once this
     // brain has a windows connection. A capability the brain cannot reach is left out, because every
     // extra option dilutes Jev's choice. App methods are never offered: an app is driven by its own
     // operations, which is the assistant's job, and a raw IApp call could delete or roll back an app.
-    public static async Task<string[]> Capabilities(DigitalBrainConnection brain, CancellationToken ct)
+    public static async Task<string[]> Capabilities(IntoChatOSConnection brain, CancellationToken ct)
     {
         string[] direct = [typeof(ITimer).FullName!, typeof(IText).FullName!, typeof(ICSharpFile).FullName!];
         await foreach (var _ in brain.Kernel.Instances<IWindows>(ct))
@@ -29,7 +29,7 @@ public static class Jev
     }
 
     // Focuses the router, whose main layout includes its timer status.
-    public static async Task Show(DigitalBrainConnection brain)
+    public static async Task Show(IntoChatOSConnection brain)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
         await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);

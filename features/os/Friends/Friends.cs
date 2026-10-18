@@ -1,20 +1,20 @@
 using System.Globalization;
-using DigitalBrain;
-using DigitalBrain.Apps;
-using DigitalBrain.Circles;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Collection;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Person;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Circles;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Person;
+using IntoChat.OS.Flutter.Text;
 
 public static class Friends
 {
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
 
-    public static async Task Present(DigitalBrainConnection brain)
+    public static async Task Present(IntoChatOSConnection brain)
     {
         var scope = Scope(brain);
         var key = Key(brain);
@@ -31,10 +31,10 @@ public static class Friends
             new(new Sphere("icon.svg", ["unread"]), Side: new("collection", key + "/circles"), Main: new("text", key + "/about"), Views: [new("full", new("layout", key + "/full"))]));
     }
 
-    public static Task Post(DigitalBrainConnection brain, Guid requestId, string text)
+    public static Task Post(IntoChatOSConnection brain, Guid requestId, string text)
         => Post(brain, Scope(brain), requestId, text);
 
-    public static async Task Post(IDigitalBrain brain, string scope, Guid requestId, string text)
+    public static async Task Post(IIntoChatOS brain, string scope, Guid requestId, string text)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var key = scope + "/posts/" + requestId.ToString("N");

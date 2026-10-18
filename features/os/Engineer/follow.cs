@@ -1,13 +1,13 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Text.Signals;
 
 // Follows the fast path's outcome on every target app: whenever a target app changes (CompleteSynapse
 // publishes AppChanged beside SynapseWritten or SynapseRejected), every request still Writing is matched
 // by its request id against that app's synapse list and takes the outcome from there. Rebuilt from state,
 // so an outcome that landed while this script was away is read when it starts again.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Engineer.Scope(brain);
 var targets = Sources.Named<IText, TextChanged>(Engineer.Targets(brain), async (registry, ct) =>
     [.. (await Engineer.Names(registry)).Select(name => brain.Get<IApp>(IApp.Key(scope, name)))]);

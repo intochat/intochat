@@ -1,7 +1,7 @@
 {
   "csharp": {
     "command": "csharp-ls",
-    "args": ["--solution", "DigitalBrain.slnx", "--loglevel", "warning"],
+    "args": ["--solution", "Intochat.OS.slnx", "--loglevel", "warning"],
     "extensionToLanguage": {
       ".cs": "csharp"
     },
@@ -13,7 +13,7 @@
     "extensionToLanguage": {
       ".dart": "dart"
     },
-    "workspaceFolder": "src/DigitalBrain.Modules/Google/Flutter/app",
+    "workspaceFolder": "src/IntoChat.OS.Modules/Google/Flutter/app",
     "initializationOptions": {
       "onlyAnalyzeProjectsWithOpenFiles": true
     },

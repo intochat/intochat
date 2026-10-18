@@ -1,8 +1,8 @@
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
-using DigitalBrain.Flutter.Views;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Flutter.Views;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Setting("App")!;
 var display = brain.Get<IText>(app + "/display");
 var publisher = new ViewPublisher(brain.Get<IView>(app + "/view"),

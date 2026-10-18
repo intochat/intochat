@@ -1,14 +1,14 @@
 using System.Text.Json;
 using System.Text;
 using System.Security.Cryptography;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Form;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
 
 public static class PublicationUi
 {
@@ -16,17 +16,17 @@ public static class PublicationUi
     public sealed record Navigation(string Page = "feed", string? Publisher = null, AppPublicationRef? Publication = null, int Offset = 0);
     public static string Encode<T>(T value) => JsonSerializer.Serialize(value, Json);
     public static T Decode<T>(string value) => JsonSerializer.Deserialize<T>(value, Json) ?? throw new ArgumentException("Missing selection.");
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string FormKey(DigitalBrainConnection brain, AppPublicationRef reference) => Key(brain) + "/forms/" + reference.Digest;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string FormKey(IntoChatOSConnection brain, AppPublicationRef reference) => Key(brain) + "/forms/" + reference.Digest;
 
-    public static async Task<UiChildRef> Button(DigitalBrainConnection brain, string id, string label, string brainId, string application, string? operation = null, string? input = null, string? view = null)
+    public static async Task<UiChildRef> Button(IntoChatOSConnection brain, string id, string label, string brainId, string application, string? operation = null, string? input = null, string? view = null)
     {
         var key = Key(brain) + "/" + id;
         await brain.Get<IButton>(key).SetActivation(label, Encode(new { kind = "workspace", brainId, application, operation, input, view }));
         return new("button", key);
     }
 
-    public static async Task<UiChildRef> ShareLink(DigitalBrainConnection brain, string label, Navigation navigation)
+    public static async Task<UiChildRef> ShareLink(IntoChatOSConnection brain, string label, Navigation navigation)
     {
         var key = Key(brain) + "/share-link";
         var url = "#/open?application=circle&input=" + Uri.EscapeDataString(Encode(navigation));
@@ -34,20 +34,20 @@ public static class PublicationUi
         return new("text", key);
     }
 
-    public static async Task<UiChildRef> Card(DigitalBrainConnection brain, string id, string title, string body)
+    public static async Task<UiChildRef> Card(IntoChatOSConnection brain, string id, string title, string body)
     {
         var key = Key(brain) + "/" + id;
         await brain.Get<ICard>(key).Set(title, body);
         return new("card", key);
     }
 
-    public static async Task Layout(DigitalBrainConnection brain, string id, UiChildRef[] children, string mode = "list", string? surface = null, double padding = 0)
+    public static async Task Layout(IntoChatOSConnection brain, string id, UiChildRef[] children, string mode = "list", string? surface = null, double padding = 0)
     {
         var layout = brain.Get<ILayout>(Key(brain) + "/" + id);
         await layout.Set(new(mode, children, Surface: surface, Padding: padding), (await layout.Read()).Revision);
     }
 
-    public static async Task<UiChildRef[]> Preview(DigitalBrainConnection brain, AppPublication publication, string command, string label)
+    public static async Task<UiChildRef[]> Preview(IntoChatOSConnection brain, AppPublication publication, string command, string label)
     {
         var reference = publication.Reference;
         var form = brain.Get<IForm>(FormKey(brain, reference));
@@ -69,7 +69,7 @@ public static class PublicationUi
         ];
     }
 
-    public static async Task<UiChildRef> Post(DigitalBrainConnection brain, AppPublication publication, string scope)
+    public static async Task<UiChildRef> Post(IntoChatOSConnection brain, AppPublication publication, string scope)
     {
         var reference = publication.Reference;
         var id = "posts/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Encode(reference)))).ToLowerInvariant();

@@ -1,7 +1,7 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 await foreach (var request in brain.On(brain.Get<IApp>(Room.Key(brain)), "publication", brain.Stopping))
 {
     try { await Room.ShowPublication(brain, PublicationUi.Decode<AppPublicationRef>(request.Input)); }

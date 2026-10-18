@@ -1,9 +1,9 @@
-using DigitalBrain.Microsoft.Aspire;
+using IntoChat.OS.Microsoft.Aspire;
 
 // A healthy child is verified with the plan it was proposed with. Each candidate is followed only until it
 // is past Healthy, so one that never gets healthy cannot hold up the next. Verify is idempotent on stage:
 // a replay after a reap finds the candidate past Healthy and moves on.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var index = brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain)));
 await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 {

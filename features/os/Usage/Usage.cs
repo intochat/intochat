@@ -1,17 +1,17 @@
 using System.Globalization;
 using System.Text;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Compute;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Compute;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
 
 public static class Usage
 {
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static async Task Compose(DigitalBrainConnection brain)
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static async Task Compose(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         var scope = key[..key.IndexOf("/apps/", StringComparison.Ordinal)];

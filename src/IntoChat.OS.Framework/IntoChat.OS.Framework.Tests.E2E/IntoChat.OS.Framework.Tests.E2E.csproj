@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Framework.Tests.E2E</RootNamespace>
+    <!-- CI discovers E2E suites by csproj; this flag tells the leg to install the Playwright browser and warm the shell image. -->
+    <E2EBrowser>true</E2EBrowser>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <!-- The stock Azure blob key repository reads the keys the platform writes (CookieProtectionFacts). -->
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><IsPackable>true</IsPackable><RootNamespace>DigitalBrain.Modules.Microsoft.Playwright.Contracts</RootNamespace><NoWarn>$(NoWarn);CS1591</NoWarn></PropertyGroup>
-  <!-- Neuron interfaces and signals use the DigitalBrain wire vocabulary; module runtime uses Framework. -->
-  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/DigitalBrain.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../DigitalBrain/Tools/DigitalBrain.Modules.Tools.Contracts/DigitalBrain.Modules.Tools.Contracts.csproj" /></ItemGroup>
-  <ItemGroup><PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" /></ItemGroup>
-</Project>

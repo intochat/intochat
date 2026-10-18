@@ -1,18 +1,18 @@
 using System.Linq;
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Postgres;
-using DigitalBrain.Time.Reminders;
-using AppTable = DigitalBrain.Postgres.Tables.ITable;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Postgres;
+using IntoChat.OS.Time.Reminders;
+using AppTable = IntoChat.OS.Postgres.Tables.ITable;
 
 // The app's operations arrive as requests; each one only writes neurons, never an answer. The
 // registry, the composed layouts and the table/chart neurons are what a caller reads.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 await Views.ComposeHome(brain, appKey, await Views.All(brain, appKey));

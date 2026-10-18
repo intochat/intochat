@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 using System.Text.Json;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Views;
-using DigitalBrain.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Microsoft.CSharp.Runtime;
 
 // Shared by every BrainView synapse: keys, the panel (always rebuilt whole), and the
 // runtime-owned recent history. The old JSON log is read once for compatibility.
@@ -12,15 +12,15 @@ public static class BrainView
 {
     public sealed record Run(string Behavior, string File, string Outcome, long DurationMicroseconds, string Trace, string Mark);
 
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
 
-    public static IText Recent(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs/recent");
+    public static IText Recent(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/runs/recent");
     private static readonly LegacyHistory legacy = new();
     private static ViewPublisher? publisher;
 
     // Opening advertises the root; the runs reaction alone publishes its immutable tree.
-    public static Task Compose(DigitalBrainConnection brain)
+    public static Task Compose(IntoChatOSConnection brain)
     {
         var app = Key(brain);
         return brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
@@ -28,7 +28,7 @@ public static class BrainView
                 Views: [new("full", new(UIVocabulary.ViewType, app + "/view"))]));
     }
 
-    public static async Task<Run[]> ReadRecent(DigitalBrainConnection brain)
+    public static async Task<Run[]> ReadRecent(IntoChatOSConnection brain)
     {
         var snapshot = await brain.Get<IBrainRuns>(BrainRunsKeys.For(Scope(brain))).Read(Key(brain));
         return Merge(await ReadLegacy(brain), snapshot.Recent, Key(brain));
@@ -47,7 +47,7 @@ public static class BrainView
         }
     }
 
-    private static async Task<Run[]> ReadLegacy(DigitalBrainConnection brain)
+    private static async Task<Run[]> ReadLegacy(IntoChatOSConnection brain)
     {
         try
         {
@@ -62,7 +62,7 @@ public static class BrainView
 
     public static Run[] Merge(IEnumerable<Run> legacy, IEnumerable<BrainRunEntry> recent, string owner)
         => [.. legacy.Where(run => run.Outcome != "Skipped" && run.Behavior != owner && !run.Behavior.StartsWith(owner + "/", StringComparison.Ordinal))
-            .Concat(recent.Where(run => run.Owner != owner && run.Outcome != DigitalBrain.Microsoft.CSharp.Runtime.Signals.RunOutcome.Skipped)
+            .Concat(recent.Where(run => run.Owner != owner && run.Outcome != IntoChat.OS.Microsoft.CSharp.Runtime.Signals.RunOutcome.Skipped)
                 .Select(run => new Run(run.Behavior, run.Behavior[(run.Behavior.LastIndexOf('/') + 1)..],
                 run.Outcome.ToString(), run.DurationMicroseconds, run.TraceId ?? "-", run.Mark)))
             .GroupBy(run => run.Mark, StringComparer.Ordinal).Select(group => group.Last()).TakeLast(200)];
@@ -80,7 +80,7 @@ public static class BrainView
         ]);
     }
 
-    public static Task PublishRecent(DigitalBrainConnection brain, IEnumerable<Run> recent)
+    public static Task PublishRecent(IntoChatOSConnection brain, IEnumerable<Run> recent)
     {
         publisher ??= new(brain.Get<IView>(Key(brain) + "/view"),
             long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture));

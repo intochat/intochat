@@ -1,5 +1,5 @@
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Views;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Views;
 
 // Pure composition: durable references retain their public contracts and local UI identity.
 public static class InoView

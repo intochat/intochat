@@ -1,12 +1,12 @@
-using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Models;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Chat;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Models;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Chat;
 
 // The composer path: each pending submission starts a turn in its conversation under the submission id
 // and is settled, so a redelivered submission never runs twice. It speaks the same contracts as "send".
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var composer = brain.Get<IComposer>(Ino.DataKey(brain) + "/composer");

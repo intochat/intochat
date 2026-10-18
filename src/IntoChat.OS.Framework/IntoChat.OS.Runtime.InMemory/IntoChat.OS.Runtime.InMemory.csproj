@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>In-memory runtime for neurons: activation, addressing, turns, state and timers on a TimeProvider, for host-free unit tests.</Description>
+    <RootNamespace>IntoChat.OS.Runtime.InMemory</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,7 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Ino.Key(brain));
 await Ino.ComposeAsync(brain);
 await foreach (var request in brain.On(app, "open", brain.Stopping))

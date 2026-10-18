@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration: PhotoCraft and FilmCraft MCP servers and web builds as containers.</Description>
+    <RootNamespace>IntoChat.OS.Modules.ArtCraft.Aspire.Hosting</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
+  </ItemGroup>
+</Project>

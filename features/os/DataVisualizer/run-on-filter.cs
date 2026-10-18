@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.TextField.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Flutter.TextField.Signals;
 
 // Every filter field of every view is watched; a change refreshes each view sharing that field's group.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var fields = Views.Registry<ITextField>(brain, appKey, view => view.Filters.Select(column => $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));

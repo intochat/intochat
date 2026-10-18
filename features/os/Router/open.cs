@@ -1,12 +1,12 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Jev.Key(brain));
 await Compose();
 await foreach (var request in brain.On(app, "open", brain.Stopping))

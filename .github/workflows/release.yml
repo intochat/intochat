@@ -44,10 +44,10 @@ jobs:
           df -h /
 
       - name: Restore dependencies
-        run: dotnet restore DigitalBrain.slnx
+        run: dotnet restore Intochat.OS.slnx
 
       - name: Pack release packages
-        run: dotnet pack DigitalBrain.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false
+        run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false
 
       # Separate from pack so --skip-duplicate cannot mask a pack failure.
       - name: Push packages to GitHub Packages
@@ -67,7 +67,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          dotnet publish src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
+          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
             -c Release -r linux-x64 /t:PublishContainer \
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
@@ -78,10 +78,10 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile \
+          docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile \
             -t ghcr.io/intochat/os-ui:${VERSION} \
             -t ghcr.io/intochat/os-ui:latest \
-            src/DigitalBrain.Modules/Google/Flutter/app
+            src/IntoChat.OS.Modules/Google/Flutter/app
           docker push --all-tags ghcr.io/intochat/os-ui
 
       # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
@@ -89,7 +89,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest .
           docker push --all-tags ghcr.io/intochat/os-sandbox

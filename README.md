@@ -5,7 +5,7 @@ AI-Native Operating System. A runtime for AI apps and agents, built on .NET and 
 Run it from the repository root:
 
 ```
-dotnet run digitalbrain.cs
+dotnet run intochat-os.cs
 ```
 
 NuGet packages are published to the GitHub Packages feed:

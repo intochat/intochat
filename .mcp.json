@@ -16,7 +16,7 @@
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@upstash/context7-mcp@latest"]
     },
-    "digitalbrain-mcp": {
+    "intochat-os-mcp": {
       "type": "http",
       "url": "http://localhost:5081/mcp"
     },

@@ -1,13 +1,13 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Postgres.Tables;
-using DigitalBrain.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Microsoft.CSharp.Runtime;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var scope = Memory.Scope(brain);

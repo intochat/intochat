@@ -53,7 +53,7 @@ Workspace navigation owns focus; composition never changes it.
 
 */
 
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 
 static class App
 {

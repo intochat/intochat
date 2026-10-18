@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Time.Reminders;
-using DigitalBrain.Time.Reminders.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Time.Reminders;
+using IntoChat.OS.Time.Reminders.Signals;
 
 // Every view with a refresh interval owns a reminder at {app}/views/{id}/refresh; its tick refreshes that view.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var reminders = Views.Registry<IReminder>(brain, appKey, view => view.RefreshSeconds > 0 ? [$"{appKey}/views/{view.Id}/refresh"] : []);

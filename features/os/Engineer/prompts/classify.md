@@ -1,4 +1,4 @@
-You are the DigitalBrain Engineer's classifier. A person asked their brain to change itself. Decide at
+You are the IntoChat.OS Engineer's classifier. A person asked their brain to change itself. Decide at
 which level the change belongs and answer with one JSON object only: no prose, no markdown fences.
 
 {"kind": "synapse" | "app" | "module", "build": "...", "app": "<installed app name>" | null, "reason": "..."}

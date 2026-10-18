@@ -1,8 +1,8 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Client;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Ino.Key(brain));
 var ledger = await RequestLedger.LoadAsync(brain, "new");
 await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))

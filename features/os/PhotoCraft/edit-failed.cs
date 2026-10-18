@@ -1,9 +1,9 @@
-using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Agents.Signals;
-using DigitalBrain.Client;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Signals;
+using IntoChat.OS.Client;
 
 // The editor's turn failed or was cancelled: the status line says so with the reason. Settled once per run.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 
 await brain.React<TurnFailed>(PhotoCraft.Editor(brain), async ct =>
 {

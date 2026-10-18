@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app/shell
+        working-directory: src/IntoChat.OS.Modules/Google/Flutter/app/shell
     steps:
       - uses: actions/checkout@v7
 
@@ -31,15 +31,15 @@ jobs:
           cache: true
 
       - name: Resolve Flutter workspace
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
+        working-directory: src/IntoChat.OS.Modules/Google/Flutter/app
         run: flutter pub get --enforce-lockfile
 
       - name: Dart format
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
+        working-directory: src/IntoChat.OS.Modules/Google/Flutter/app
         run: dart format --output=none --set-exit-if-changed core ui shell
 
       - name: Analyze Flutter packages
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
+        working-directory: src/IntoChat.OS.Modules/Google/Flutter/app
         run: |
           (cd core && dart analyze --fatal-infos)
           (cd ui && flutter analyze --no-pub)
@@ -49,7 +49,7 @@ jobs:
         run: flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
 
       - name: Flutter widget and client tests
-        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
+        working-directory: src/IntoChat.OS.Modules/Google/Flutter/app
         run: |
           (cd ui && flutter test --no-pub)
           (cd shell && flutter test --no-pub)

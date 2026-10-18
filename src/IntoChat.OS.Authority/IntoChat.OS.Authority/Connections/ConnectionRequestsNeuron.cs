@@ -1,0 +1,74 @@
+using IntoChat.OS;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Integrations;
+using IntoChat.OS.Authority.Integrations;
+using Orleans.Concurrency;
+
+namespace IntoChat.OS.Authority.Connections;
+
+[GenerateSerializer, Alias("integrations.script-accounts")]
+public sealed class ConnectionRequestsState
+{
+    [Id(0)] public ConnectionRef[] Pending { get; set; } = [];
+    [Id(1)] public long Revision { get; set; }
+}
+
+// Script-facing connection requests: a script asks for a connector kind; the user connects it.
+[GrainType("integrations.accounts")]
+internal sealed class ConnectionRequestsNeuron(
+    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ConnectionRequestsState> store,
+    ConnectorCatalog catalog,
+    IReadOnlyList<ConnectorDefinition> connectors)
+    : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates
+{
+    private AuthorityNeurons Platform => new(GrainFactory);
+
+    public Task Changed(string connectionKey)
+    {
+        if (ConnectionKeys.Parse(connectionKey).BrainId != this.GetPrimaryKeyString())
+        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
+        var next = Snapshot;
+        next.Revision++;
+        return Save(next, new ConnectionsChanged(next.Revision));
+    }
+
+    [ReadOnly]
+    public async Task<ConnectorKind[]> ListKinds()
+        => (await catalog.ListAsync(CancellationToken.None)).Select(definition => new ConnectorKind(definition.Id, definition.DisplayName)).ToArray();
+
+    [ReadOnly]
+    public Task<ConnectionRef[]> ListPending() => Task.FromResult<ConnectionRef[]>([.. Snapshot.Pending]);
+
+    [ReadOnly]
+    public async Task<ConnectionSummary[]> ListConnections()
+    {
+        var result = new List<ConnectionSummary>();
+        foreach (var key in await Platform.Connections(this.GetPrimaryKeyString()).List())
+        {
+            var identity = ConnectionKeys.Parse(key);
+            if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }
+            var connection = await GrainFactory.GetConnection(key).Read();
+            result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
+                connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt));
+        }
+        return [.. result];
+    }
+
+    public async Task<ConnectionRef> Request(string kind)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(kind);
+        var id = kind.Trim();
+        if (!(await catalog.ListAsync(CancellationToken.None)).Any(definition => definition.Id == id))
+        {
+            throw new ArgumentException($"Integration '{kind}' is not available.");
+        }
+
+        var account = new ConnectionRef(id, Guid.NewGuid().ToString("n"));
+        var next = Snapshot;
+        next.Pending = [.. next.Pending, account];
+        await Save(next, new ConnectionRequested(account.Kind, account.Id));
+        return account;
+    }
+}

@@ -52,33 +52,33 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore DigitalBrain.slnx -v quiet
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release -v quiet -p:CodeGraphRefresh=false
+        run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false
 
       # The AppHosts build the shell and sandbox images themselves; these run the SAME Dockerfiles
       # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
       # inside a fact's HTTP timeout.
       - name: Warm the shell image layer cache
-        run: docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile src/DigitalBrain.Modules/Google/Flutter/app
+        run: docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile src/IntoChat.OS.Modules/Google/Flutter/app
 
       - name: Warm the sandbox image layer cache
-        run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
+        run: docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
 
       # ArtCraft hosts each app twice (MCP and web) at a pinned upstream commit; the refs match ArtCraftModuleHosting.
       - name: Warm the ArtCraft image layer caches
         run: |
-          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
-          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
-          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
-          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/IntoChat.OS.Modules/ArtCraft/docker
+          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/IntoChat.OS.Modules/ArtCraft/docker
+          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/IntoChat.OS.Modules/ArtCraft/docker
+          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/IntoChat.OS.Modules/ArtCraft/docker
 
       - name: Test E2E
-        run: dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E -c Release --no-build
+        run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E -c Release --no-build
 
       - name: Test Framework E2E
-        run: dotnet test --project src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E -c Release --no-build
+        run: dotnet test --project src/IntoChat.OS.Framework/IntoChat.OS.Framework.Tests.E2E -c Release --no-build
 
   browser:
     name: browser
@@ -108,17 +108,17 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore DigitalBrain.slnx -v quiet
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Build solution
-        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=true
+        run: dotnet build Intochat.OS.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=true
 
       # Ubuntu 24.04 blocks unprivileged user namespaces; Chromium's sandbox (kept on in product code) needs them.
       - name: Allow the Chromium sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install Playwright browsers
-        run: pwsh artifacts/bin/DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
+        run: pwsh artifacts/bin/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
 
       - name: Test Browser
         run: |

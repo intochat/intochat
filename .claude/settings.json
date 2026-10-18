@@ -85,7 +85,7 @@
       "mcp__microsoft-learn__microsoft_code_sample_search",
       "mcp__dart",
       "mcp__codegraph",
-      "mcp__digitalbrain-mcp",
+      "mcp__intochat-os-mcp",
       "Skill(code-review:code-review)",
       "Skill(feature-dev:feature-dev)"
     ]
@@ -97,7 +97,7 @@
     "context7",
     "microsoft-learn",
     "codegraph",
-    "digitalbrain-mcp"
+    "intochat-os-mcp"
   ],
   "disableClaudeAiConnectors": true,
   "enabledPlugins": {

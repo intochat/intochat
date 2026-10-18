@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageTags>testing;orleans;aspire;intochat-os</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>One harness for every IntoChat.OS test: the TestBrain builder, targets that run the product recipe, signal probes, behavior runs, bounded waits and a fake model endpoint.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Testing.Aspire" />
+    <InternalsVisibleTo Include="IntoChat.OS.Testing.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans/IntoChat.OS.Modules.Microsoft.Orleans.csproj" />
+  </ItemGroup>
+  <ItemGroup><None Include="README.md" Pack="true" PackagePath="" /></ItemGroup>
+</Project>

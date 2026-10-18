@@ -1,7 +1,7 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Select;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Select;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Workspace.Key(brain);
 await foreach (var selected in brain.On<SelectChanged>(Sources.Of(brain.Get<ISelect>(key + "/launcher"), brain.Get<ISelect>(key + "/more")), brain.Stopping))
 {

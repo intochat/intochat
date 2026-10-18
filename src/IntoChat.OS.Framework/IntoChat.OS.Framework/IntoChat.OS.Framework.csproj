@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Kernel module runtime: neurons, signals, and composition.</Description>
+    <RootNamespace>IntoChat.OS.Framework</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Server" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Runtime.InMemory" /></ItemGroup>
+</Project>

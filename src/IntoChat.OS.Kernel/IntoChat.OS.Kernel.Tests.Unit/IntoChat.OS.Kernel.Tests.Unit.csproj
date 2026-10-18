@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="../../../features/os/Friends/Friends.cs" Link="Features/Friends.cs" />
+    <Compile Include="../../../features/os/Memory/Memory.cs" Link="Features/Memory.cs" />
+    <Compile Include="../../../features/os/Memory/Shape.cs" Link="Features/Shape.cs" />
+    <Compile Include="../../../features/os/BrainView/BrainView.cs" Link="Features/BrainView.cs" />
+    <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
+    <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />
+    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
+    <Using Include="IntoChat.OS.Kernel.Testing" />
+    <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
+  </ItemGroup>
+</Project>

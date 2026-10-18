@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+</Project>

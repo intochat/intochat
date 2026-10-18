@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Workspace;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Workspace;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = CircleView.Key(brain);
 try { await CircleView.Restore(brain); }
 catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

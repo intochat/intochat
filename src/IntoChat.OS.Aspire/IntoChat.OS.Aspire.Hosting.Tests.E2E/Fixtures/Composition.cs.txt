@@ -1,0 +1,120 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Json;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using Aspire.Hosting;
+using Aspire.Hosting.Testing;
+using Azure.Storage.Blobs;
+using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Testing;
+using IntoChat.OS.Testing.Aspire;
+
+if (args.Length > 0 && args[0] is "server" or "client" or "memory-server") { await CompositionHost.Run(args[0]); return; }
+// The testing builder runs this same program as the AppHost: its arguments are configuration pairs.
+if (args.Any(arg => arg.StartsWith(CompositionAppHost.ScenarioKey + "=", StringComparison.Ordinal))) { CompositionAppHost.Run(args); return; }
+using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(6));
+var ct = deadline.Token;
+var key = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+await using var compositionVolume = await DurableStorageVolume.CreateAsync(keepOnFailure: false, cancellationToken: ct);
+
+TestBrain Scenario(string scenario, string brain, TestExecutionOptions? execution = null) => TestBrain.Create().On(new AspireTarget<Program>())
+    .WithExecution(execution ?? new TestExecutionOptions())
+    .WithHostConfiguration(CompositionAppHost.ScenarioKey, scenario)
+    .WithHostConfiguration(CompositionAppHost.VolumeKey, compositionVolume.Name)
+    .WithHostConfiguration(CompositionAppHost.StorageRootKey, Path.Combine(AppContext.BaseDirectory, "brain-stores"))
+    .WithConfiguration($"Parameters:{brain}-digitalbrain-master-key", key);
+
+// Package-based AppHost -> server -> client, including explicit selection among two brains.
+await using (var session = await Scenario("two-brains", "first",
+        new TestExecutionOptions { ServerResourceName = "second-server", StartupTimeout = TimeSpan.FromMinutes(3) })
+    .WithConfiguration("Parameters:second-digitalbrain-master-key", key)
+    .StartAsync(ct))
+{
+    using var person = await session.PersonAsync("packed-user", ct);
+    (await session.HttpClient.PostAsJsonAsync("/identity/login", new { PrincipalId = "packed-user", Password = CompositionHost.Password }, ct)).EnsureSuccessStatusCode();
+    using var consumingProcess = await session.CreateHttpClientAsync("packed-client", "http", ct);
+    (await consumingProcess.GetAsync("/verify", ct)).EnsureSuccessStatusCode();
+    using var other = await session.CreateHttpClientAsync("first-server", "http", ct);
+    using var denied = await other.PostAsJsonAsync("/identity/login", new { PrincipalId = "packed-user", Password = CompositionHost.Password }, ct);
+    if (denied.StatusCode != HttpStatusCode.Unauthorized) { throw new InvalidOperationException("Two-brain isolation failed."); }
+}
+await compositionVolume.WaitUntilReleasedAsync(ct);
+await using (var renamed = await Scenario("renamed", "renamed").StartAsync(ct))
+{
+    (await renamed.HttpClient.PostAsJsonAsync("/identity/login", new { PrincipalId = "packed-user", Password = CompositionHost.Password }, ct)).EnsureSuccessStatusCode();
+}
+compositionVolume.Complete();
+await using (var memory = await Scenario("memory", "memory").StartAsync(ct))
+{
+    using var person = await memory.PersonAsync("memory-user", ct);
+    (await memory.HttpClient.PostAsJsonAsync("/identity/login", new { PrincipalId = "memory-user", Password = "memory-user-password-123" }, ct)).EnsureSuccessStatusCode();
+}
+Console.WriteLine("Packed AppHost/server/client and two-brain isolation passed.");
+
+internal static class CompositionAppHost
+{
+    internal const string ScenarioKey = "Composition:Scenario";
+    internal const string VolumeKey = "Composition:Volume";
+    internal const string StorageRootKey = "Composition:StorageRoot";
+
+    internal static void Run(string[] args)
+    {
+        var builder = DistributedApplication.CreateBuilder(args);
+        var scenario = builder.Configuration[ScenarioKey];
+        var volume = builder.Configuration[VolumeKey];
+        var storageRoot = builder.Configuration[StorageRootKey]
+            ?? throw new InvalidOperationException("Composition storage must be owned by the package test run.");
+        var candidate = Assembly.GetExecutingAssembly().Location;
+        if (scenario == "two-brains")
+        {
+            foreach (var name in new[] { "first", "second" })
+            {
+                var brain = builder.AddIntoChatOS(name, new() { PersistentStorage = false, ServiceId = name == "second" ? "stable-composition" : name, ClusterId = Guid.NewGuid().ToString("N") })
+                    .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite(azurite =>
+                    {
+                        azurite.PersistentStorage = false;
+                        azurite.DataVolume = name == "second" ? volume : null;
+                    }));
+                var server = builder.AddExecutable(name + "-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
+                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, name))
+                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
+                    .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
+                    .WithHttpHealthCheck("/health");
+                if (name == "second")
+                {
+                    builder.AddExecutable("packed-client", "dotnet", AppContext.BaseDirectory, candidate, "client")
+                        .WithReference(brain.AsClient()).WaitFor(server)
+                        .WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
+                }
+            }
+        }
+        else if (scenario == "renamed")
+        {
+            var brain = builder.AddIntoChatOS("renamed", new() { PersistentStorage = false, ServiceId = "stable-composition", ClusterId = Guid.NewGuid().ToString("N") })
+                .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite(azurite =>
+                {
+                    azurite.PersistentStorage = false;
+                    azurite.DataVolume = volume;
+                }));
+            builder.AddExecutable("renamed-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
+                // Persistence belongs to the brain, independently of its Aspire resource name.
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "second"))
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
+                .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
+        }
+        else
+        {
+            var brain = builder.AddIntoChatOS("memory");
+            builder.AddExecutable("memory-server", "dotnet", AppContext.BaseDirectory, candidate, "memory-server")
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "memory"))
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
+                .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
+        }
+        builder.Build().Run();
+    }
+}

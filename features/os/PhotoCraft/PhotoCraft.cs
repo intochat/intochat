@@ -1,13 +1,13 @@
-using DigitalBrain.Apps;
-using DigitalBrain.AI.Agents;
-using DigitalBrain.ArtCraft;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Image;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Mcp;
+using IntoChat.OS.Apps;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.ArtCraft;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Image;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.WebBrowser;
+using IntoChat.OS.Mcp;
 
 // Shared by every PhotoCraft synapse: the app's neurons, connecting the tools, and composing main content.
 // Every call here is a plain grain call that is safe to repeat.
@@ -16,24 +16,24 @@ public static class PhotoCraft
     public const int MaxRequestChars = 4000;
     public const int MaxStatusChars = 4000;
 
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Name(DigitalBrainConnection brain, string part) => Key(brain) + "/" + part;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Name(IntoChatOSConnection brain, string part) => Key(brain) + "/" + part;
 
-    public static IText Status(DigitalBrainConnection brain) => brain.Get<IText>(Name(brain, "status"));
-    public static IAgent Editor(DigitalBrainConnection brain) => brain.Get<IAgent>(Name(brain, "editor"));
-    public static IImage Preview(DigitalBrainConnection brain) => brain.Get<IImage>(Name(brain, "preview"));
+    public static IText Status(IntoChatOSConnection brain) => brain.Get<IText>(Name(brain, "status"));
+    public static IAgent Editor(IntoChatOSConnection brain) => brain.Get<IAgent>(Name(brain, "editor"));
+    public static IImage Preview(IntoChatOSConnection brain) => brain.Get<IImage>(Name(brain, "preview"));
 
     // The run id of the editor turn the app last settled, so a replayed signal settles it once.
-    public static IText Settled(DigitalBrainConnection brain) => brain.Get<IText>(Name(brain, "settled"));
+    public static IText Settled(IntoChatOSConnection brain) => brain.Get<IText>(Name(brain, "settled"));
 
     public static string Clip(string text, int max) => text.Length <= max ? text : text[..max];
 
     // Connects PhotoCraft's MCP server to the brain; cheap when it is already connected.
-    public static Task<ArtCraftSession> Connect(DigitalBrainConnection brain, CancellationToken ct)
+    public static Task<ArtCraftSession> Connect(IntoChatOSConnection brain, CancellationToken ct)
         => brain.Get<IArtCraftStudio>(brain.Setting("Brain")! + "/artcraft").Open("photocraft", ct);
 
     // The main content: the status line above the PhotoCraft web app.
-    public static async Task Show(DigitalBrainConnection brain, ArtCraftSession session, CancellationToken ct)
+    public static async Task Show(IntoChatOSConnection brain, ArtCraftSession session, CancellationToken ct)
     {
         var browser = brain.Get<IWebBrowser>(Name(brain, "browser"));
         await browser.Configure(Name(brain, "browser"));
@@ -41,7 +41,7 @@ public static class PhotoCraft
         await Compose(brain);
     }
 
-    public static async Task Compose(DigitalBrainConnection brain)
+    public static async Task Compose(IntoChatOSConnection brain)
     {
         UiChildRef Ref(string kind, string part) => new(kind, Name(brain, part));
         var main = brain.Get<ILayout>(Name(brain, "main"));
@@ -52,7 +52,7 @@ public static class PhotoCraft
     }
 
     // The editor's last turn when it has ended and the app has not settled it yet.
-    public static async Task<AgentRun?> Unsettled(DigitalBrainConnection brain)
+    public static async Task<AgentRun?> Unsettled(IntoChatOSConnection brain)
     {
         var state = await Editor(brain).Read();
         if (state.ActiveRun is not null || state.Runs.LastOrDefault() is not { } last) { return null; }
@@ -61,7 +61,7 @@ public static class PhotoCraft
 
     // The brain's PhotoCraft MCP server, at the key IArtCraftStudio.Open answers as McpKey. Only a
     // reference: it connects nothing.
-    public static IMcpServer Tools(DigitalBrainConnection brain) => brain.Get<IMcpServer>(brain.Setting("Brain")! + "/mcp/photocraft");
+    public static IMcpServer Tools(IntoChatOSConnection brain) => brain.Get<IMcpServer>(brain.Setting("Brain")! + "/mcp/photocraft");
 
     // The caption of a preview rendered after PhotoCraft's tools changed the document outside an edit. It
     // names no tool: signals arrive late, so the render may already show what several tools did.
@@ -80,7 +80,7 @@ public static class PhotoCraft
     }
 
     // Renders the active document into the preview image; the request is the image's caption.
-    public static async Task RenderPreview(DigitalBrainConnection brain, ArtCraftSession session, string request, CancellationToken ct)
+    public static async Task RenderPreview(IntoChatOSConnection brain, ArtCraftSession session, string request, CancellationToken ct)
     {
         if (await Render(brain.Get<IMcpServer>(session.McpKey), ct) is { } png) { await Preview(brain).Set(png, "image/png", Clip(request, 500)); }
     }

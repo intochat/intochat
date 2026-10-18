@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>true</IsPackable><RootNamespace>IntoChat.OS.Client.Orleans</RootNamespace></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Client" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Client.Orleans.Tests.Integration" /></ItemGroup>
+</Project>

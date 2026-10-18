@@ -1,8 +1,8 @@
-using DigitalBrain.AI.Routing;
-using DigitalBrain.AI.Routing.Signals;
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Workspace;
+using IntoChat.OS.AI.Routing;
+using IntoChat.OS.AI.Routing.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Workspace;
 
 // Jev's answer to a request send.cs asked. A confident, direct route is carried out: opening the app
 // the message names (the route Jev decided, never decided again), or a pure read through the router.
@@ -10,7 +10,7 @@ using DigitalBrain.Flutter.Workspace;
 // the route as a hint. A route back into the assistant, or to any operation of an app the message does
 // not name, is not carried out: the model answers the message itself. The request lives in the router's
 // state; the status line says which path answered.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.Key(brain);
 var scope = Ino.Scope(brain);
 var app = brain.Get<IApp>(key);

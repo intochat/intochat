@@ -1,5 +1,5 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Text;
 
 // A fresh subscription receives retained app requests. Remember completed Up request ids, including
 // no-ops, so replay cannot navigate again from a later location. The ledger survives script restart.
@@ -11,7 +11,7 @@ public sealed class RequestLedger
 
     private RequestLedger(IText text, List<Guid> ids) { _text = text; _ids = ids; }
 
-    public static async Task<RequestLedger> LoadAsync(DigitalBrainConnection brain, string synapse)
+    public static async Task<RequestLedger> LoadAsync(IntoChatOSConnection brain, string synapse)
     {
         var text = brain.Get<IText>(brain.Setting("App")! + "/handled/" + synapse);
         var ids = (await text.Read()).Markdown.Split('\n', StringSplitOptions.RemoveEmptyEntries)

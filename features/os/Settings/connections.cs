@@ -1,18 +1,18 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Integrations;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Integrations;
 
 // Connection discovery: the refresh request rebuilds the credential-free cards. The refresh button
 // (connection-clicks.cs) and the registry's own signals (connection-refresh.cs, connection-requested.cs)
 // all post that request.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var scope = brain.Setting("Brain") ?? appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
 var app = brain.Get<IApp>(appKey);

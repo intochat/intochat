@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" />
+    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Contracts/IntoChat.OS.Modules.Postgres.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,12 +1,12 @@
-using DigitalBrain.AI.Agents;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Mcp;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Mcp;
 
 // Edit: hand the request to PhotoCraft's editor, an agent turn that may act only through PhotoCraft's own
 // tools (never files or the PC). This reaction ends once the turn is started; preview.cs and
 // edit-failed.cs settle it. The request id is the run id, so a redelivered request starts nothing new.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(PhotoCraft.Key(brain));
 
 await foreach (var request in brain.On(app, "edit", brain.Stopping))

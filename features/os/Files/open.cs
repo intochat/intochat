@@ -1,12 +1,12 @@
 using System.Globalization;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Collection;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.TextField;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.TextField;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 

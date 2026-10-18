@@ -1,15 +1,15 @@
-using DigitalBrain.Apps;
-using DigitalBrain.ArtCraft;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Microsoft.Playwright;
+using IntoChat.OS.Apps;
+using IntoChat.OS.ArtCraft;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.WebBrowser;
+using IntoChat.OS.Microsoft.Playwright;
 
 // Open: connect the app's MCP server (its tools join the brain's search), then show the app's own web
 // build in the shell's browser. Plain grain calls, safe to re-run.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
