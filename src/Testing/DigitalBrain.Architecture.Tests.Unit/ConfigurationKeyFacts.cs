@@ -14,14 +14,16 @@ public sealed partial class ConfigurationKeyFacts
     [GeneratedRegex("\"\\$?DigitalBrain(:|__)[A-Za-z]", RegexOptions.CultureInvariant)]
     private static partial Regex KeyLiteral();
 
+    internal static IEnumerable<string> CurrentOwners()
+        => Repository.ProjectFiles("*.cs", path => KeyLiteral().IsMatch(File.ReadAllText(path)))
+            .Select(Repository.ProjectKey);
+
     [Fact]
     public void ConfigurationKeyLiteralsStayWithinTheOwnerBaseline()
     {
         var baselinePath = Path.Combine(Repository.ProjectNamed("DigitalBrain.Architecture.Tests.Unit").Directory, "ConfigurationKeyOwners.json");
         var baseline = JsonSerializer.Deserialize<string[]>(File.ReadAllText(baselinePath))!.ToHashSet(StringComparer.Ordinal);
-        var current = Repository.ProjectFiles("*.cs", path => KeyLiteral().IsMatch(File.ReadAllText(path)))
-            .Select(Repository.ProjectKey)
-            .ToHashSet(StringComparer.Ordinal);
+        var current = CurrentOwners().ToHashSet(StringComparer.Ordinal);
 
         var intruders = current.Except(baseline).Order().ToArray();
         Assert.True(intruders.Length == 0,

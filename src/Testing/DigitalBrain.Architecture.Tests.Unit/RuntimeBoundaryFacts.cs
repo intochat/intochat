@@ -11,15 +11,18 @@ public sealed partial class RuntimeBoundaryFacts
     [GeneratedRegex(@"\bGetGrain\s*[<(]|\bIGrainFactory\b|\bIClusterClient\b", RegexOptions.CultureInvariant)]
     private static partial Regex GrainFactoryUse();
 
+    internal static Dictionary<string, int> CurrentGrainFactoryUse()
+        => Repository.ProjectFiles("*.cs")
+            .Select(path => (Key: Repository.ProjectKey(path), Count: GrainFactoryUse().Count(File.ReadAllText(path))))
+            .Where(file => file.Count > 0)
+            .ToDictionary(file => file.Key, file => file.Count, StringComparer.Ordinal);
+
     // R-A1: grain-factory use per file, tests included. A file may lose uses, never gain them.
     [Fact]
     public void GrainFactoryUseOnlyShrinks()
     {
         var baseline = Baseline<Dictionary<string, int>>("GrainFactoryOwners.json");
-        var current = Repository.ProjectFiles("*.cs")
-            .Select(path => (Key: Repository.ProjectKey(path), Count: GrainFactoryUse().Count(File.ReadAllText(path))))
-            .Where(file => file.Count > 0)
-            .ToDictionary(file => file.Key, file => file.Count, StringComparer.Ordinal);
+        var current = CurrentGrainFactoryUse();
 
         var grown = current.Where(file => file.Value > baseline.GetValueOrDefault(file.Key))
             .Select(file => $"{file.Key}: {baseline.GetValueOrDefault(file.Key)} -> {file.Value}").Order(StringComparer.Ordinal).ToArray();
@@ -69,7 +72,7 @@ public sealed partial class RuntimeBoundaryFacts
         Assert.True(unused.Length == 0, "Directory.Packages.props pins Orleans packages no project references:\n" + string.Join('\n', unused));
     }
 
-    private static Dictionary<string, string[]> OrleansReferences()
+    internal static Dictionary<string, string[]> OrleansReferences()
         => Repository.Projects.Values
             .Select(project => (project.Name, Packages: Repository.PackageReferences(project.Path).Where(IsOrleansPackage).Distinct().Order(StringComparer.Ordinal).ToArray()))
             .Where(project => project.Packages.Length > 0)

@@ -9,7 +9,7 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 // TestTierBaseline.json records the not-yet-migrated legacy state. Every list only shrinks:
 // a new entry authorizes an architecture regression and needs the same deliberate review as
 // the persisted-state baseline.
-public sealed class TestTierFacts
+public sealed partial class TestTierFacts
 {
     [Fact]
     public void AModuleTestProjectCarriesATierSuffix()
@@ -21,6 +21,21 @@ public sealed class TestTierFacts
             .ToArray();
         Assert.True(offenders.Length == 0,
             "A module test project names its tier, <Module>.Tests.Unit|Integration|E2E|Browser|Hosting: " + string.Join(", ", offenders));
+    }
+
+    internal static List<(string Name, string[] Hosting)> AspireReferencingModuleTests()
+    {
+        var found = new List<(string, string[])>();
+        foreach (var project in ModuleTestProjects())
+        {
+            var name = Path.GetFileNameWithoutExtension(project);
+            if (name.EndsWith(".Tests.Hosting", StringComparison.Ordinal)) { continue; }
+            var hosting = References(project)
+                .Where(reference => reference is "DigitalBrain.Aspire.Server" || reference.EndsWith(".Aspire.Hosting", StringComparison.Ordinal))
+                .ToArray();
+            if (hosting.Length > 0) { found.Add((name, hosting)); }
+        }
+        return found;
     }
 
     [Fact]
@@ -40,10 +55,9 @@ public sealed class TestTierFacts
                 if (booting.Length > 0) { offenders.Add($"{name} -> {string.Join(", ", booting)}"); }
                 continue;
             }
-            var hosting = References(project)
-                .Where(reference => reference is "DigitalBrain.Aspire.Server" || reference.EndsWith(".Aspire.Hosting", StringComparison.Ordinal))
-                .ToArray();
-            if (hosting.Length == 0) { continue; }
+        }
+        foreach (var (name, hosting) in AspireReferencingModuleTests())
+        {
             if (!baseline.Remove(name)) { offenders.Add($"{name} -> {string.Join(", ", hosting)}"); }
         }
         Assert.True(offenders.Count == 0,
@@ -53,12 +67,10 @@ public sealed class TestTierFacts
             "Migrated projects linger in TestTierBaseline.json LegacyAspireReferencingModuleTests; remove: " + string.Join(", ", baseline));
     }
 
-    [Fact]
-    public void TheEndToEndTierBelongsToTheProduct()
+    internal static List<string> EndToEndReferencers()
     {
         string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Integration", "DigitalBrain.OS.Tests.Unit", "DigitalBrain.OS.Testing"];
-        var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
+        var found = new List<string>();
         foreach (var project in TestProjects())
         {
             if (!References(project).Contains("DigitalBrain.Testing.Aspire", StringComparer.Ordinal)) { continue; }
@@ -67,6 +79,18 @@ public sealed class TestTierFacts
             if (Repository.ProjectNamed(name).Folder == Repository.ProjectNamed("DigitalBrain.Testing.Aspire").Folder
                 || productScope.Contains(name, StringComparer.Ordinal))
             { continue; }
+            found.Add(name);
+        }
+        return found;
+    }
+
+    [Fact]
+    public void TheEndToEndTierBelongsToTheProduct()
+    {
+        var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
+        var offenders = new List<string>();
+        foreach (var name in EndToEndReferencers())
+        {
             if (!baseline.Remove(name)) { offenders.Add(name); }
         }
         Assert.True(offenders.Count == 0,
@@ -76,8 +100,7 @@ public sealed class TestTierFacts
             "Migrated projects linger in TestTierBaseline.json LegacyEndToEndReferencers; remove: " + string.Join(", ", baseline));
     }
 
-    [Fact]
-    public void FullProductStacksBootInFixturesNotInFacts()
+    internal static List<string> FullStackBootFacts()
     {
         // Concatenated so this file never matches its own rule.
         string[] boots =
@@ -86,10 +109,7 @@ public sealed class TestTierFacts
             "E2ETest" + ".For<",
             "ProductE2E" + ".Create(",
         ];
-        // Keyed "<ProjectName>/<path inside the project>"; a Windows checkout can carry different
-        // directory casing than the git index.
-        var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var offenders = new List<string>();
+        var found = new List<string>();
         foreach (var file in Repository.ProjectFiles("*Facts.cs"))
         {
             var source = File.ReadAllText(file);
@@ -97,7 +117,20 @@ public sealed class TestTierFacts
             if (!source.Contains(".StartAsync(", StringComparison.Ordinal)) { continue; }
             var builders = boots.Append("DistributedApplication" + "TestingBuilder");
             if (!builders.Any(token => source.Contains(token, StringComparison.Ordinal))) { continue; }
-            var key = Repository.ProjectKey(file);
+            found.Add(Repository.ProjectKey(file));
+        }
+        return found;
+    }
+
+    [Fact]
+    public void FullProductStacksBootInFixturesNotInFacts()
+    {
+        // Keyed "<ProjectName>/<path inside the project>"; a Windows checkout can carry different
+        // directory casing than the git index.
+        var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var offenders = new List<string>();
+        foreach (var key in FullStackBootFacts())
+        {
             if (!baseline.Remove(key)) { offenders.Add(key); }
         }
         Assert.True(offenders.Count == 0,

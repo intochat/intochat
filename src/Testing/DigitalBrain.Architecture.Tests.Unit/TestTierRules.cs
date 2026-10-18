@@ -10,8 +10,7 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 // browser. Every rule ratchets against TestTierBaseline.json: the lists only shrink.
 public sealed partial class TestTierRules
 {
-    [Fact]
-    public void UnitTierStartsNoHost()
+    internal static List<string> UnitTierHosts()
     {
         // Concatenated so this file never matches its own rule.
         string[] hosts =
@@ -22,8 +21,7 @@ public sealed partial class TestTierRules
             "WebApplication" + ".Create",
             "Thread" + ".Sleep(",
         ];
-        var baseline = Baseline().LegacyUnitTierHosts.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
+        var found = new List<string>();
         var files = Repository.ProjectFiles(
             "*.cs",
             projects: project => project.Name.EndsWith(".Tests.Unit", StringComparison.Ordinal));
@@ -32,8 +30,18 @@ public sealed partial class TestTierRules
             var source = File.ReadAllText(file);
             var hosting = hosts.Any(token => source.Contains(token, StringComparison.Ordinal))
                 || LiteralDelay().Matches(source).Any(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) >= 100);
-            if (!hosting) { continue; }
-            var key = Repository.ProjectKey(file);
+            if (hosting) { found.Add(Repository.ProjectKey(file)); }
+        }
+        return found;
+    }
+
+    [Fact]
+    public void UnitTierStartsNoHost()
+    {
+        var baseline = Baseline().LegacyUnitTierHosts.ToHashSet(StringComparer.Ordinal);
+        var offenders = new List<string>();
+        foreach (var key in UnitTierHosts())
+        {
             if (!baseline.Remove(key)) { offenders.Add(key); }
         }
         Assert.True(offenders.Count == 0,
@@ -43,18 +51,27 @@ public sealed partial class TestTierRules
             "Migrated facts linger in TestTierBaseline.json LegacyUnitTierHosts; remove: " + string.Join(", ", baseline));
     }
 
-    [Fact]
-    public void IntegrationTierUsesTheAssemblyFixture()
+    internal static List<(string Name, int Fixtures)> IntegrationWithoutFixture()
     {
         var marker = "[assembly: " + "AssemblyFixture(typeof(";
-        var baseline = Baseline().LegacyIntegrationWithoutFixture.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
+        var found = new List<(string, int)>();
         foreach (var project in Repository.TestProjects().Where(project => project.Name.EndsWith(".Tests.Integration", StringComparison.Ordinal)))
         {
             var fixtures = Repository.SourceFiles(project.Directory, "*.cs")
                 .Sum(file => Regex.Count(File.ReadAllText(file), Regex.Escape(marker)));
-            if (fixtures == 1) { continue; }
-            if (!baseline.Remove(project.Name)) { offenders.Add($"{project.Name} ({fixtures})"); }
+            if (fixtures != 1) { found.Add((project.Name, fixtures)); }
+        }
+        return found;
+    }
+
+    [Fact]
+    public void IntegrationTierUsesTheAssemblyFixture()
+    {
+        var baseline = Baseline().LegacyIntegrationWithoutFixture.ToHashSet(StringComparer.Ordinal);
+        var offenders = new List<string>();
+        foreach (var (name, fixtures) in IntegrationWithoutFixture())
+        {
+            if (!baseline.Remove(name)) { offenders.Add($"{name} ({fixtures})"); }
         }
         Assert.True(offenders.Count == 0,
             "A .Tests.Integration project boots one shared host through exactly one [assembly: AssemblyFixture(...)]: "
@@ -63,8 +80,7 @@ public sealed partial class TestTierRules
             "Migrated projects linger in TestTierBaseline.json LegacyIntegrationWithoutFixture; remove: " + string.Join(", ", baseline));
     }
 
-    [Fact]
-    public void BrowserTierOwnsPlaywright()
+    internal static List<string> PlaywrightReferencers()
     {
         string[] owners =
         [
@@ -74,8 +90,7 @@ public sealed partial class TestTierRules
             "DigitalBrain.Modules.AI",
             "DigitalBrain.Modules.Flutter",
         ];
-        var baseline = Baseline().LegacyPlaywrightReferencers.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
+        var found = new List<string>();
         foreach (var project in Repository.Projects.Values)
         {
             if (project.Name.EndsWith(".Tests.Browser", StringComparison.Ordinal)
@@ -86,7 +101,19 @@ public sealed partial class TestTierRules
             if (!Repository.PackageReferences(project.Path).Any(package => package == "Microsoft.Playwright"
                 || package.StartsWith("Microsoft.Playwright.", StringComparison.Ordinal)))
             { continue; }
-            if (!baseline.Remove(project.Name)) { offenders.Add(project.Name); }
+            found.Add(project.Name);
+        }
+        return found;
+    }
+
+    [Fact]
+    public void BrowserTierOwnsPlaywright()
+    {
+        var baseline = Baseline().LegacyPlaywrightReferencers.ToHashSet(StringComparer.Ordinal);
+        var offenders = new List<string>();
+        foreach (var name in PlaywrightReferencers())
+        {
+            if (!baseline.Remove(name)) { offenders.Add(name); }
         }
         Assert.True(offenders.Count == 0,
             "Microsoft.Playwright belongs to the nightly .Tests.Browser and .Tests.E2E tiers and their harnesses: "
