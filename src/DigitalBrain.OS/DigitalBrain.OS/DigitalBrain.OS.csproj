@@ -37,7 +37,10 @@
                                ../../DigitalBrain.Modules/Equifax/**;
                                ../../DigitalBrain.Modules/RiskSeal/**;
                                ../../DigitalBrain.Modules/Twilio/**;
-                               ../../DigitalBrain.Modules/Microsoft/Windows/**" />
+                               ../../DigitalBrain.Modules/Microsoft/Windows/**;
+                               ../../DigitalBrain.Modules/Microsoft/Azure/**" />
+    <!-- The Azure module backs the install command; it is not yet part of the OS composition. -->
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Azure/DigitalBrain.Modules.Microsoft.Azure/DigitalBrain.Modules.Microsoft.Azure.csproj" />
     <!-- The Windows edge (OsCatalog.WithWindowsEdge), composed only by a host running on Windows. -->
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/DigitalBrain.Modules.Microsoft.Windows.csproj" />
   </ItemGroup>
