@@ -13,14 +13,14 @@ internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, Mod
             || ConnectorDefinition.DeclaredBy(typeof(TModule))
                 .Any(c => c.RequiredIntegrations.Contains(integrationId, StringComparer.Ordinal) || c.OptionalIntegrations.Contains(integrationId, StringComparer.Ordinal))))
         { throw new UnauthorizedAccessException($"Module '{typeof(TModule).Name}' has not declared Integration '{integrationId}'."); }
-        return new IntegrationHandle(integrationId, services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>());
+        return new IntegrationHandle(integrationId, services.GetRequiredService<AuthorityNeurons>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>());
     }
 }
 
-internal sealed class IntegrationHandle(string integrationId, IGrainFactory grains, IReadOnlyList<IntegrationSchema> schemas) : IIntegrationHandle
+internal sealed class IntegrationHandle(string integrationId, AuthorityNeurons neurons, IReadOnlyList<IntegrationSchema> schemas) : IIntegrationHandle
 {
     public string IntegrationId => integrationId;
-    private IIntegration Integration => grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
+    private IIntegration Integration => neurons.Integration(integrationId);
     public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
         => Integration.Read().WaitAsync(cancellationToken);
 

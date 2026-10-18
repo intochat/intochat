@@ -22,7 +22,7 @@ public sealed class RuntimeManagementFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
         var identity = brain.Services.GetRequiredService<IIdentityClient>();
-        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Platform.Directory();
         var alice = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         await directory.RegisterAsync("bob", "correct-password", "Bob", ct);
         if (share) { await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", MemberRole.Member, ct); }

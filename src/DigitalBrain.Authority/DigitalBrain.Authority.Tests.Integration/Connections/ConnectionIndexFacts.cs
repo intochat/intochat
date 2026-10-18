@@ -12,8 +12,8 @@ public sealed class ConnectionIndexFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceHomeId = AuthorityHost.Unique("alice-home");
         var bobHomeId = AuthorityHost.Unique("bob-home");
-        var mine = brain.Grains.GetGrain<IConnectionIndex>(aliceHomeId);
-        var theirs = brain.Grains.GetGrain<IConnectionIndex>(bobHomeId);
+        var mine = brain.Platform.Connections(aliceHomeId);
+        var theirs = brain.Platform.Connections(bobHomeId);
         await mine.Track(ConnectionKeys.For(aliceHomeId, "example", "one"));
         await mine.Track(ConnectionKeys.For(aliceHomeId, "example", "one"));
         await theirs.Track(ConnectionKeys.For(bobHomeId, "example", "one"));
@@ -30,6 +30,6 @@ public sealed class ConnectionIndexFacts(AuthorityHost host)
         var brain = host.Brain;
         var aliceHomeId = AuthorityHost.Unique("alice-home");
         var bobHomeId = AuthorityHost.Unique("bob-home");
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Grains.GetGrain<IConnectionIndex>(aliceHomeId).Track(ConnectionKeys.For(bobHomeId, "example", "one")));
+        await Assert.ThrowsAsync<ArgumentException>(() => brain.Platform.Connections(aliceHomeId).Track(ConnectionKeys.For(bobHomeId, "example", "one")));
     }
 }

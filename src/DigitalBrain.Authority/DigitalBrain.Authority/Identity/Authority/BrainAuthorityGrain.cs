@@ -24,6 +24,8 @@ internal sealed class BrainAuthorityGrain(
     [PersistentState("access", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<BrainAuthorityState> storage,
     TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
+    private AuthorityNeurons Platform => new(GrainFactory);
+
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await base.OnActivateAsync(cancellationToken);
@@ -70,7 +72,7 @@ internal sealed class BrainAuthorityGrain(
             throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
         }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
-        await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId, State.Kind);
+        await Platform.Principal(owner.PrincipalId).Joined(owner.BrainId, State.Kind);
         return true;
     }
     public async Task EnsureMember(Member member)
@@ -88,14 +90,14 @@ internal sealed class BrainAuthorityGrain(
             return;
         }
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
-        await GrainFactory.GetGrain<IPrincipal>(member.PrincipalId).Joined(member.BrainId, State.Kind);
+        await Platform.Principal(member.PrincipalId).Joined(member.BrainId, State.Kind);
     }
     public async Task RemoveMember(string principalId)
     {
         var members = new Dictionary<string, Member>(State.Members);
         members.Remove(principalId);
         await Persist(State with { Members = members });
-        if (State.BrainId is { } brain) { await GrainFactory.GetGrain<IPrincipal>(principalId).Left(brain); }
+        if (State.BrainId is { } brain) { await Platform.Principal(principalId).Left(brain); }
     }
     // R68: the decision is a read. The Open posture's synthetic owner is provisioned at boot or by the machine's
     // signed ProvisionOwner, never here; a Once grant is spent only by Consume.

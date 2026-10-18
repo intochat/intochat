@@ -13,11 +13,11 @@ public sealed class ComputeReaderFacts(AuthorityHost host)
         var brain = host.Brain;
         using var owner = await host.PersonAsync("owner", ct);
         using var other = await host.PersonAsync("other", ct);
-        await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory)
+        await brain.Platform.Directory()
             .ShareBrainAsync(owner.AccountId, owner.BrainId, other.PrincipalId, "Other", MemberRole.Member, ct);
-        await brain.Grains.GetGrain<ILedgerGrain>(owner.AccountId).Credit("owner-credit", 2_000_000, "test");
-        await brain.Grains.GetGrain<ILedgerGrain>(other.AccountId).Credit("other-credit", 9_000_000, "test");
-        var usage = brain.Grains.GetGrain<IUsageGrain>(owner.BrainId);
+        await brain.Platform.Ledger(owner.AccountId).Credit("owner-credit", 2_000_000, "test");
+        await brain.Platform.Ledger(other.AccountId).Credit("other-credit", 9_000_000, "test");
+        var usage = brain.Platform.Usage(owner.BrainId);
         await usage.Recent(0);
         await usage.Add(new Cost
         {
@@ -31,7 +31,7 @@ public sealed class ComputeReaderFacts(AuthorityHost host)
             App = "example",
             At = DateTimeOffset.UtcNow,
         }, "test");
-        var reader = new ComputeReader(brain.Grains);
+        var reader = new ComputeReader(brain.Platform);
         using (owner.AsApp(owner.BrainId + "/apps/usage"))
         {
             var summary = await reader.Read(DateTimeOffset.UtcNow.AddDays(-30));

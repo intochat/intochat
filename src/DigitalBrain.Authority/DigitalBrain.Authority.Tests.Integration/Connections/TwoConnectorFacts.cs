@@ -126,7 +126,7 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
     public async Task TheConnectionListSkipsAKeyWhoseConnectorIsNoLongerComposed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await _brain.Grains.GetGrain<IConnectionIndex>(_brain.Owner.BrainId).Track(Key("retired", "orphan"));
+        await _brain.Platform.Connections(_brain.Owner.BrainId).Track(Key("retired", "orphan"));
         using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/kept/connect", new { connectorId = "example", authMethodId = "api-key", value = "hunter2" }, ct);
         Assert.Equal(HttpStatusCode.OK, connect.StatusCode);
 
@@ -150,7 +150,7 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, callback.StatusCode);
         Assert.DoesNotContain("fake-code", await callback.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
 
-        Assert.Equal([Key("sample", "work")], await _brain.Grains.GetGrain<IConnectionIndex>(_brain.Owner.BrainId).List());
+        Assert.Equal([Key("sample", "work")], await _brain.Platform.Connections(_brain.Owner.BrainId).List());
         using (_brain.Owner.AsCaller()) { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("example", "work")).Read()).Status); }
         using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/work/probe", new { }, ct);
         Assert.Equal(HttpStatusCode.OK, probe.StatusCode);

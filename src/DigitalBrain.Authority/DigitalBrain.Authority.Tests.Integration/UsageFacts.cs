@@ -128,7 +128,7 @@ public sealed class UsageFacts(AuthorityHost host)
     // Costs reach usage one-way; a read sent after them is answered after them once the grain is active.
     private static async Task<IUsageGrain> ActiveUsage(ITestBrain brain)
     {
-        var usage = brain.Grains.GetGrain<IUsageGrain>(AuthorityHost.Unique("brain-usage"));
+        var usage = brain.Platform.Usage(AuthorityHost.Unique("brain-usage"));
         await usage.Recent(0);
         return usage;
     }

@@ -6,7 +6,7 @@ namespace DigitalBrain.Authority.Integrations;
 // A connector's neurons and signals are its kernel type entry (TypeKind.Connector, named by Id), not copied here.
 internal sealed record ConnectorCatalogEntry(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations, string[] OptionalIntegrations, string ExternalSystem);
 
-internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connectors, IGrainFactory grains, ILogger<ConnectorCatalog> logger)
+internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connectors, AuthorityNeurons neurons, ILogger<ConnectorCatalog> logger)
 {
     private readonly SemaphoreSlim _refresh = new(1, 1);
     private readonly Dictionary<string, IntegrationSnapshot> _snapshots = new(StringComparer.Ordinal);
@@ -21,7 +21,7 @@ internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connec
             // Read every distinct dependency for freshness; only replace its cached snapshot on change.
             foreach (var dependency in connectors.SelectMany(c => c.RequiredIntegrations).Distinct(StringComparer.Ordinal))
             {
-                var snapshot = await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + dependency).Read().WaitAsync(cancellationToken);
+                var snapshot = await neurons.Integration(dependency).Read().WaitAsync(cancellationToken);
                 if (!_snapshots.TryGetValue(dependency, out var previous) || previous.Revision != snapshot.Revision || previous.Status != snapshot.Status)
                 { _snapshots[dependency] = snapshot; }
             }

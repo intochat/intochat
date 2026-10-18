@@ -74,8 +74,8 @@ public sealed class HostedPlatformStorageFacts
                     DisplayName = "Persisted brain",
                     Role = MemberRole.Owner
                 });
-                reference = await first.Grains.GetGrain<ISecrets>("account-one").Set(caller, "test-key", "Test", "vault-canary", ct);
-                await first.Grains.GetGrain<IIntegration>("integration/openai").Configure(new ConfigureIntegration
+                reference = await first.Platform.Secrets("account-one").Set(caller, "test-key", "Test", "vault-canary", ct);
+                await first.Platform.Integration("openai").Configure(new ConfigureIntegration
                 { Values = new Dictionary<string, string> { ["ApiKey"] = "registration-canary" } });
                 var reminders = Assert.IsType<HostedReminderTable>(first.Services.GetRequiredService<IReminderTable>());
                 reminderTag = await reminders.UpsertRow(new ReminderEntry
@@ -94,8 +94,8 @@ public sealed class HostedPlatformStorageFacts
                 Assert.Equal("account-one", owner.AccountId);
                 Assert.Equal("account-one", owner.OwnerPrincipalId);
                 Assert.True(await identity.BrainExists(BrainScope.Create("account-one", "brain-one").Id));
-                Assert.Equal("vault-canary", await second.Grains.GetGrain<ISecrets>("account-one").Resolve(caller, reference!, ct));
-                var integration = await second.Grains.GetGrain<IIntegration>("integration/openai").Release(caller);
+                Assert.Equal("vault-canary", await second.Platform.Secrets("account-one").Resolve(caller, reference!, ct));
+                var integration = await second.Platform.Integration("openai").Release(caller);
                 Assert.Equal("registration-canary", integration.Values["ApiKey"]);
                 var reminders = Assert.IsType<HostedReminderTable>(second.Services.GetRequiredService<IReminderTable>());
                 var restored = await reminders.ReadRow(reminderGrain, "scheduled-work");

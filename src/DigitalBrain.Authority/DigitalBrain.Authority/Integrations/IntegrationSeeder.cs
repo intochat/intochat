@@ -11,7 +11,7 @@ namespace DigitalBrain.Authority.Integrations;
 internal sealed class IntegrationSeeder(
     IConfiguration configuration,
     IReadOnlyList<IntegrationSchema> definitions,
-    IGrainFactory grains,
+    AuthorityNeurons neurons,
     ILogger<IntegrationSeeder> logger,
     ConnectorCatalog? connectors = null,
     IEnumerable<IIntegrationStartup>? consumers = null) : IStartupTask
@@ -47,7 +47,7 @@ internal sealed class IntegrationSeeder(
             return;
         }
 
-        var registration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + definition.Id);
+        var registration = neurons.Integration(definition.Id);
         var after = await registration.Seed(new ConfigureIntegration { Values = values });
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);
     }

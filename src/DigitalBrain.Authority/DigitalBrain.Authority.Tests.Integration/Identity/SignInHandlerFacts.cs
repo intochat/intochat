@@ -19,7 +19,7 @@ public sealed class SignInHandlerFacts
         await using var brain = await TestBrain.Create().StartAsync(ct);
         await using var app = await StartAsync(brain, recording, ct);
         using var client = new HttpClient(new HttpClientHandler { CookieContainer = new() }) { BaseAddress = new(app.Urls.Single()) };
-        await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("ada", "correct-password", "Ada", ct);
+        await brain.Platform.Directory().RegisterAsync("ada", "correct-password", "Ada", ct);
 
         (await client.PostAsJsonAsync("/identity/login", new { principalId = "ada", password = "correct-password" }, ct)).EnsureSuccessStatusCode();
 
@@ -36,7 +36,7 @@ public sealed class SignInHandlerFacts
         await using var brain = await TestBrain.Create().StartAsync(ct);
         await using var app = await StartAsync(brain, new FailingHandler(), ct);
         using var client = new HttpClient(new HttpClientHandler { CookieContainer = new() }) { BaseAddress = new(app.Urls.Single()) };
-        await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("bea", "correct-password", "Bea", ct);
+        await brain.Platform.Directory().RegisterAsync("bea", "correct-password", "Bea", ct);
 
         using var login = await client.PostAsJsonAsync("/identity/login", new { principalId = "bea", password = "correct-password" }, ct);
 
@@ -49,7 +49,7 @@ public sealed class SignInHandlerFacts
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Authority.Identity.BrainBirths>());

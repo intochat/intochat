@@ -13,7 +13,7 @@ public sealed class ConnectionRouteFacts
     {
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
-        builder.Services.AddSingleton(typeof(IGrainFactory), _ => null!);
+        builder.Services.AddSingleton(typeof(AuthorityNeurons), _ => null!);
         builder.Services.AddSingleton(typeof(IDigitalBrain), _ => null!);
         builder.Services.AddGrpc(); // the platform maps the Neurons channel beside its routes
         await using var web = builder.Build();

@@ -5,11 +5,11 @@ using DigitalBrain.Authority.Identity.Authority;
 namespace DigitalBrain.Authority.Identity;
 
 // Platform-only callers use the local authority; user authorization remains in the authenticated edges and grains.
-internal sealed class LocalIdentityClient(IGrainFactory grains) : IIdentityClient
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient
 {
-    private IAccount Account(string id) => grains.GetGrain<IAccount>(id);
-    private IPrincipal Principal(string id) => grains.GetGrain<IPrincipal>(id);
-    private IBrainAuthority Authority(string id) => grains.GetGrain<IBrainAuthority>(id);
+    private IAccount Account(string id) => neurons.Account(id);
+    private IPrincipal Principal(string id) => neurons.Principal(id);
+    private IBrainAuthority Authority(string id) => neurons.BrainAuthority(id);
     public Task<Account?> ReadAccount(string accountId) => Account(accountId).Read();
     public async Task<Account?> OwnerOfBrain(string brainId) => await Authority(brainId).Account() is { } account ? await ReadAccount(account) : null;
     public Task EnsureAccount(Account account) => Account(account.AccountId).EnsureCreated(account);
