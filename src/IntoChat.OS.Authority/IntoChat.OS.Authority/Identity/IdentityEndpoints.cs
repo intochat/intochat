@@ -24,8 +24,11 @@ internal static class IdentityEndpoints
     public static void Map(IEndpointRouteBuilder routes)
     {
         routes.MapGet(AccountSession.CheckPath, static () => Results.NoContent());
-        routes.MapPost("/identity/register", RegisterAsync);
-        routes.MapPost("/identity/login", LoginAsync);
+        if (routes.ServiceProvider.GetRequiredService<IOptions<IdentityHostOptions>>().Value.BuiltInPasswordEndpoints)
+        {
+            routes.MapPost("/identity/register", RegisterAsync);
+            routes.MapPost("/identity/login", LoginAsync);
+        }
         routes.MapGet("/identity/session", Session);
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
