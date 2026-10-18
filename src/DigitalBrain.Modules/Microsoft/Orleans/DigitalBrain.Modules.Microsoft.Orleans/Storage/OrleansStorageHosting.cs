@@ -1,6 +1,5 @@
 using Azure.Core;
 using Azure.Data.Tables;
-using Azure.Identity;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
 using global::Orleans.Configuration;
@@ -38,7 +37,7 @@ public static class OrleansStorageHosting
         {
             throw new InvalidOperationException($"The orleans integration is partial; missing: {string.Join(", ", missing)}. Set all three or none.");
         }
-        return AddAzure(silo, clustering!, grainState!, reminders!, configuration[OrleansModule.Integration.Key(GrainStateContainerField)]);
+        return AddAzure(silo, configuration, clustering!, grainState!, reminders!, configuration[OrleansModule.Integration.Key(GrainStateContainerField)]);
     }
 
     // Orleans' own endpoint keys pick the ports, so two localhost silos in one machine (parallel test
@@ -62,11 +61,11 @@ public static class OrleansStorageHosting
         return silo;
     }
 
-    private static ISiloBuilder AddAzure(ISiloBuilder silo, StorageEndpoint clustering, StorageEndpoint grainState, StorageEndpoint reminders, string? container)
+    private static ISiloBuilder AddAzure(ISiloBuilder silo, IConfiguration configuration, StorageEndpoint clustering, StorageEndpoint grainState, StorageEndpoint reminders, string? container)
     {
         // Service URIs authenticate with the deployment identity, registered once like the C# module's.
         if (new[] { clustering, grainState, reminders }.Any(endpoint => endpoint.ServiceUri is not null))
-        { silo.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
+        { silo.Services.TryAddSingleton(_ => StorageEndpoint.Credential(configuration)); }
         silo.UseAzureStorageClustering(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(clustering, services)));
         silo.UseAzureTableReminderService(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(reminders, services)));
         // The platform's deployment identity and cookie keys live beside the grain state.

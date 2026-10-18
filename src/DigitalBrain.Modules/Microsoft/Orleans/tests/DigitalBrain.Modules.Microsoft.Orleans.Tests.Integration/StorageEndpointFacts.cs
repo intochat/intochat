@@ -46,6 +46,7 @@ public sealed class StorageEndpointFacts
     [InlineData("not a uri")]
     [InlineData("ftp://st.table.core.windows.net/")]
     [InlineData("/relative")]
+    [InlineData("http://st.table.core.windows.net/")]
     public void ANonHttpUriRefusesToStart(string value)
     {
         var error = Assert.Throws<InvalidOperationException>(() => StorageEndpoint.Select(Field, null, value));
@@ -60,5 +61,32 @@ public sealed class StorageEndpointFacts
             [OrleansModule.Integration.Key(OrleansStorageHosting.RemindersField + StorageEndpoint.UriSuffix)] = "https://st.table.core.windows.net/",
         }).Build();
         Assert.NotNull(StorageEndpoint.Read(configuration, OrleansStorageHosting.RemindersField)!.ServiceUri);
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:10002/devstoreaccount1")]
+    [InlineData("http://localhost:10000/devstoreaccount1")]
+    public void PlainHttpIsAcceptedOnlyForALoopbackEmulator(string value) =>
+        Assert.Equal(new Uri(value), StorageEndpoint.Select(Field, null, value)!.ServiceUri);
+
+    [Fact]
+    public void TheIntegrationClientIdSelectsAUserAssignedIdentityOverTheEnvironment()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(StorageEndpoint.ManagedIdentityClientIdField)] = "integration-id",
+            [StorageEndpoint.ClientIdVariable] = "environment-id",
+        }).Build();
+        Assert.Equal("integration-id", StorageEndpoint.CredentialOptions(configuration).ManagedIdentityClientId);
+    }
+
+    [Fact]
+    public void AzureClientIdIsTheFallbackClientId()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [StorageEndpoint.ClientIdVariable] = "environment-id",
+        }).Build();
+        Assert.Equal("environment-id", StorageEndpoint.CredentialOptions(configuration).ManagedIdentityClientId);
     }
 }

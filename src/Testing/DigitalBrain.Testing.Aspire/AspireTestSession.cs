@@ -6,6 +6,7 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -323,11 +324,13 @@ public sealed class AspireTestSession : IAsyncDisposable
             {
                 if (connection is not null)
                 {
-                    // A service URI (managed-identity storage) authenticates like the silo; otherwise a connection string.
-                    client.UseAzureStorageClustering(storage => storage.TableServiceClient =
-                        Uri.TryCreate(connection, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http"
-                            ? new Azure.Data.Tables.TableServiceClient(uri, new Azure.Identity.DefaultAzureCredential())
-                            : new Azure.Data.Tables.TableServiceClient(connection));
+                    // The silo's rule: a service URI (or the ClusteringUri setting) uses the deployment identity.
+                    var settings = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+                    var endpoint = StorageEndpoint.Select(OrleansStorageHosting.ClusteringField, connection,
+                        settings[OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)])!;
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = endpoint.ServiceUri is { } uri
+                        ? new Azure.Data.Tables.TableServiceClient(uri, StorageEndpoint.Credential(settings))
+                        : new Azure.Data.Tables.TableServiceClient(endpoint.ConnectionString));
                 }
                 else
                 {
