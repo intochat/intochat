@@ -2,7 +2,7 @@ using DigitalBrain.ClickHouse;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.ClickHouse.Tests;
+namespace DigitalBrain.Modules.ClickHouse.Tests.Integration;
 
 public sealed class IntegrationMaterializationFacts
 {

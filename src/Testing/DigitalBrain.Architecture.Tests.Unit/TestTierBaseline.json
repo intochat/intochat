@@ -1,7 +1,6 @@
 {
   "LegacyModuleTestProjects": [
     "DigitalBrain.Modules.Circles.Tests",
-    "DigitalBrain.Modules.ClickHouse.Tests",
     "DigitalBrain.Modules.Equifax.Tests",
     "DigitalBrain.Modules.Flame.Tests",
     "DigitalBrain.Modules.Google.Gmail.Tests",

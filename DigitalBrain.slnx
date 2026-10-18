@@ -47,7 +47,7 @@
     <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Contracts/DigitalBrain.Modules.ClickHouse.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Deployment/DigitalBrain.Modules.ClickHouse.Deployment.csproj" />
     <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse/DigitalBrain.Modules.ClickHouse.csproj" />
-    <Project Path="src/DigitalBrain.Modules/ClickHouse/tests/DigitalBrain.Modules.ClickHouse.Tests/DigitalBrain.Modules.ClickHouse.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/tests/DigitalBrain.Modules.ClickHouse.Tests.Integration/DigitalBrain.Modules.ClickHouse.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/" />
   <Folder Name="/Modules/DigitalBrain/Apps/">

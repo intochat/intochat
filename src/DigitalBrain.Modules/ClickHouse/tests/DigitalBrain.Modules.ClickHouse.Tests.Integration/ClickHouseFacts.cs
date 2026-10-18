@@ -3,9 +3,9 @@ using DigitalBrain.ClickHouse.Query;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Testing;
 
-namespace DigitalBrain.Modules.ClickHouse.Tests;
+namespace DigitalBrain.Modules.ClickHouse.Tests.Integration;
 
-public sealed class ClickHouseFacts
+public sealed class ClickHouseFacts(ClickHouseHost host)
 {
     private const string Sql = "SELECT count() AS value FROM companies";
 
@@ -13,8 +13,8 @@ public sealed class ClickHouseFacts
     public async Task TheDefaultNeuronQueriesTheDeploymentDatabase()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var server = await FakeClickHouseServer.StartAsync(ct);
-        await using var brain = await StartAsync(server, ct);
+        var server = host.Server;
+        var brain = host.Brain;
 
         var result = await brain.Get<IClickHouse>(ClickHouseNames.DefaultNeuron).Query(new(Sql), ct);
 
@@ -27,8 +27,8 @@ public sealed class ClickHouseFacts
     public async Task TheDefaultNeuronReportsTheServerItReaches()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var server = await FakeClickHouseServer.StartAsync(ct);
-        await using var brain = await StartAsync(server, ct);
+        var server = host.Server;
+        var brain = host.Brain;
 
         var connection = await brain.Get<IClickHouse>(ClickHouseNames.DefaultNeuron).ReadConnection(ct);
 
@@ -42,8 +42,8 @@ public sealed class ClickHouseFacts
     public async Task QueriesThatWriteOrBreakTheBoundsNeverReachTheServer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var server = await FakeClickHouseServer.StartAsync(ct);
-        await using var brain = await StartAsync(server, ct);
+        var server = host.Server;
+        var brain = host.Brain;
         var clickHouse = brain.Get<IClickHouse>(ClickHouseNames.DefaultNeuron);
         var reached = server.Databases.Count;
 
@@ -67,9 +67,9 @@ public sealed class ClickHouseFacts
     public async Task AUserConnectionQueriesTheUsersOwnDatabaseUntilDisconnected()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var server = await FakeClickHouseServer.StartAsync(ct);
-        await using var brain = await StartAsync(server, ct);
-        var alice = await brain.PersonAsync("alice", ct);
+        var server = host.Server;
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
         var key = ConnectionKeys.For(alice.BrainId, "clickhouse", "c1");
 
         using (alice.AsCaller())
@@ -90,10 +90,10 @@ public sealed class ClickHouseFacts
     public async Task AnotherBrainCannotQueryAUsersConnection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var server = await FakeClickHouseServer.StartAsync(ct);
-        await using var brain = await StartAsync(server, ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var server = host.Server;
+        var brain = host.Brain;
+        var alice = await host.PersonAsync("alice", ct);
+        var bob = await host.PersonAsync("bob", ct);
         var key = ConnectionKeys.For(alice.BrainId, "clickhouse", "c1");
         using (alice.AsCaller()) { await brain.Get<IConnection>(key).Connect("connection-string", server.ConnectionString("analytics")); }
         var reached = server.Databases.Count;
@@ -104,9 +104,4 @@ public sealed class ClickHouseFacts
         }
         Assert.Equal(reached, server.Databases.Count);
     }
-
-    private static Task<ITestBrain> StartAsync(FakeClickHouseServer server, CancellationToken ct)
-        => TestBrain.Create().WithModule<ClickHouseModule>()
-            .WithIntegration(ClickHouseModule.Integration, "ConnectionString", server.ConnectionString("deployment"))
-            .StartAsync(ct);
 }

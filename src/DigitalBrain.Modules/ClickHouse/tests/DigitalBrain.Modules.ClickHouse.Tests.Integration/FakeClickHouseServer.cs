@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.ClickHouse.Tests;
+namespace DigitalBrain.Modules.ClickHouse.Tests.Integration;
 
 // A ClickHouse HTTP endpoint behind the real driver: `SELECT version()` answers 24.1, every other
 // statement one UInt8 column `value` holding 42, in RowBinaryWithNamesAndTypes.
