@@ -115,31 +115,31 @@ jobs:
           df -h /
 
       # One upload per shard in .github/test-shards.json; a new shard adds a step here and a matrix entry below.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: test-modules-unit
           path: artifacts/shards/unit.tar.zst
           compression-level: 0
           retention-days: 1
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: test-modules-integration-a
           path: artifacts/shards/integration-a.tar.zst
           compression-level: 0
           retention-days: 1
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: test-modules-integration-b
           path: artifacts/shards/integration-b.tar.zst
           compression-level: 0
           retention-days: 1
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: test-modules-integration-c
           path: artifacts/shards/integration-c.tar.zst
           compression-level: 0
           retention-days: 1
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: test-modules-integration-d
           path: artifacts/shards/integration-d.tar.zst
@@ -149,7 +149,7 @@ jobs:
       - name: Validate NuGet packages
         run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts/packages
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/packages
@@ -172,7 +172,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: test-modules-${{ matrix.shard }}
           path: artifacts/shards
@@ -195,7 +195,7 @@ jobs:
       - name: Test
         run: dotnet test --test-modules "${{ steps.globs.outputs.value }}" --max-parallel-test-modules 2 --report-xunit-trx --results-directory "$PWD/artifacts/trx"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: trx-${{ matrix.shard }}
