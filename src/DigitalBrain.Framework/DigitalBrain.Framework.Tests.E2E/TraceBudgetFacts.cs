@@ -8,8 +8,9 @@ namespace DigitalBrain.Framework.Tests.E2E;
 // quiet, the J1 intent stays within budget, a grain call is exactly two spans (one per end), and the
 // Orleans activity source is registered once (a duplicate doubles every call).
 // Whole-host idle measurements cannot share a host with identity tests that
-// create background app workloads. These two measurements share their own host.
-public sealed class TraceBudgetFacts(ReferenceBrainFixture host) : BrainFact(host), IClassFixture<ReferenceBrainFixture>
+// create background app workloads. These measurements share their own host (the Span budget collection).
+[Collection("Span budget")]
+public sealed class TraceBudgetFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
     private const string OrleansSource = "Microsoft.Orleans.Application";
 

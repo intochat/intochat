@@ -9,6 +9,7 @@ namespace DigitalBrain.OS.Tests.E2E;
 // The loop end to end as the signed-in user: the shell posts a change set, the candidate is built and run
 // beside the live cluster, the brain verifies it over its MCP, and the list shows Promoted. It needs the
 // docker candidate host and the Aspire CLI cluster host (set DIGITALBRAIN_E2E_CANDIDATES=1 where both exist).
+[Collection("Candidate host")]
 public sealed class SelfImproveFacts
 {
     [Fact(Timeout = 1_800_000)]

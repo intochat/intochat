@@ -56,6 +56,14 @@ jobs:
       - name: Warm the sandbox image layer cache
         run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
 
+      # ArtCraft hosts each app twice (MCP and web) at a pinned upstream commit; the refs match ArtCraftModuleHosting.
+      - name: Warm the ArtCraft image layer caches
+        run: |
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
+
       - name: Test E2E
         run: dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E -c Release --no-build
 
