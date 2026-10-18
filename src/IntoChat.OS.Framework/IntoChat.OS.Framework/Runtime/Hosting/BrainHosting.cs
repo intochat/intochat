@@ -17,9 +17,10 @@ public static class BrainHosting
     public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo, IEnumerable<Module> modules)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        var inventory = new ModuleInventory(modules);
-        silo.Services.AddSingleton(inventory);
-        foreach (var module in inventory.Modules) { module.AddOptions(silo.Services); }
+        var selected = modules.ToArray();
+        // The host registers what became of every module it was given; a bare silo reports its modules Active.
+        silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
+        foreach (var module in selected) { module.AddOptions(silo.Services); }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>()));
         silo.Services.TryAddSingleton(NeuronTypeSearch.Create);
         silo.Services.TryAddSingleton(TimeProvider.System);

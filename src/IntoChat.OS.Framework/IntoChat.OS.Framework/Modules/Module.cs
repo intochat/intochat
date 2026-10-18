@@ -13,6 +13,9 @@ public abstract class Module
     // Composing the module is what exposes them; a module without one exposes nothing.
     public virtual Assembly? Contracts => null;
 
+    // The product this module is licensed as; null for a module that needs no licence.
+    public virtual string? LicenseProduct => null;
+
     public abstract void Configure(ISiloBuilder silo);
 
     internal virtual void AddOptions(IServiceCollection services) { }

@@ -5,15 +5,19 @@ namespace IntoChat.OS.Framework.Modules;
 // The modules selected for this host, available to modules without coupling hosting to their consumers.
 public sealed class ModuleInventory
 {
-    public ModuleInventory(IEnumerable<Module> modules)
+    public ModuleInventory(IEnumerable<Module> modules, IReadOnlyList<ModuleStatus>? statuses = null)
     {
         ArgumentNullException.ThrowIfNull(modules);
         Modules = Array.AsReadOnly(modules.ToArray());
+        Statuses = statuses ?? Array.AsReadOnly(Modules.Select(module => new ModuleStatus(module.Id, ModuleState.Active, null)).ToArray());
         Types = Array.AsReadOnly(Modules.Select(module => module.GetType()).ToArray());
     }
 
     public IReadOnlyList<Module> Modules { get; }
     public IReadOnlyList<Type> Types { get; }
+
+    // Every module the server registered and what became of it: running, unlicensed, or disabled by configuration.
+    public IReadOnlyList<ModuleStatus> Statuses { get; }
 
     // Every contract assembly this composition exposes: the words, the kernel's connection contracts,
     // and each module's declared contracts. The one answer to "which neuron contracts exist here".

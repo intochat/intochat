@@ -13,7 +13,7 @@ public sealed class ModuleSelectionFacts
     public void ARegisteredModuleRunsWithoutAnyConfiguration()
     {
         var server = new IntoChatOSServerBuilder().AddModule<SampleModule>();
-        var modules = server.SelectModules(new ConfigurationBuilder().Build());
+        var modules = server.SelectModules(new ConfigurationBuilder().Build()).Modules;
         Assert.Single(modules);
         Assert.IsType<SampleModule>(modules[0]);
     }
@@ -24,7 +24,7 @@ public sealed class ModuleSelectionFacts
         var server = new IntoChatOSServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [IntoChatOSConfiguration.ModuleSection("sample") + ":Enabled"] = "false" }).Build();
-        Assert.Empty(server.SelectModules(configuration));
+        Assert.Empty(server.SelectModules(configuration).Modules);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class ModuleSelectionFacts
         var server = new IntoChatOSServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [IntoChatOSConfiguration.ModuleSection("Sample") + ":Enabled"] = "false" }).Build();
-        Assert.Empty(server.SelectModules(configuration));
+        Assert.Empty(server.SelectModules(configuration).Modules);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ModuleSelectionFacts
         var server = new IntoChatOSServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [IntoChatOSConfiguration.ModuleSection("SAMPLE") + ":Enabled"] = "true" }).Build();
-        Assert.Single(server.SelectModules(configuration));
+        Assert.Single(server.SelectModules(configuration).Modules);
     }
 
     [Fact]
