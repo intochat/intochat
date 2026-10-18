@@ -101,7 +101,6 @@
   "DigitalBrain.Modules.Microsoft.Windows/ConsoleNeuron.cs": 1,
   "DigitalBrain.Modules.Microsoft.Windows/FileSystemNeuron.cs": 1,
   "DigitalBrain.Modules.Microsoft.Windows/WindowsEndpoints.cs": 6,
-  "DigitalBrain.Modules.Monnet/MonnetModule.cs": 3,
   "DigitalBrain.Modules.Postgres.Tests.Integration/PostgresWriteTableFacts.cs": 4,
   "DigitalBrain.Modules.Postgres.Tests.Integration/Tables/TableLifecycleGuardFacts.cs": 4,
   "DigitalBrain.Modules.Postgres/Tables/TableIndexNeuron.cs": 1,
@@ -109,7 +108,6 @@
   "DigitalBrain.Modules.Postgres/Tables/TablePlacements.cs": 2,
   "DigitalBrain.Modules.Postgres/Tables/TableStorageHook.cs": 5,
   "DigitalBrain.Modules.Tools/ToolCapabilitySource.cs": 2,
-  "DigitalBrain.Modules.Twilio/TwilioModule.cs": 3,
   "DigitalBrain.OS/AgentChatSource.cs": 3,
   "DigitalBrain.Testing/Targets/InProcessTarget.cs": 2,
   "DigitalBrain.Authority/AuthorityNeurons.cs": 2
