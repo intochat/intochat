@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter/src/generated/neurons.pb.dart' as pb;
 import 'package:fixnum/fixnum.dart';
+import 'package:grpc/grpc.dart' show GrpcError;
 import 'package:test/test.dart';
 
 void main() {
@@ -66,7 +68,11 @@ void main() {
       expect(seenB.map((s) => s.type), ['BChanged']);
       await subB.cancel();
       await pump();
-      expect(link.opened.last.map((s) => s.key), ['owner/a']);
+      expect(
+        link.opened,
+        hasLength(1),
+        reason: 'a leaving source reopens nothing',
+      );
       await subA.cancel();
       await pump();
       expect(mux.openStreams, 0);
@@ -106,6 +112,115 @@ void main() {
       expect(link.opened, hasLength(2));
     });
 
+    test('retries back off exponentially with jitter up to 30 s', () {
+      final mux = NeuronWatchMux(() => FakeLink(), 'owner', random: Random(1));
+      final delays = [for (var i = 0; i < 8; i++) mux.backoffFor(i)];
+      expect(delays.first.inMilliseconds, inInclusiveRange(1500, 2500));
+      expect(delays[2].inMilliseconds, inInclusiveRange(6000, 10000));
+      for (final delay in delays) {
+        expect(delay, lessThanOrEqualTo(const Duration(seconds: 30)));
+      }
+      expect(delays.last.inMilliseconds, greaterThanOrEqualTo(22500));
+    });
+
+    test('consecutive breaks wait longer each time', () async {
+      final link = FakeLink();
+      final mux = NeuronWatchMux(
+        () => link,
+        'owner',
+        debounce: Duration.zero,
+        retryAfter: const Duration(milliseconds: 20),
+        random: Random(1),
+      );
+      addTearDown(mux.close);
+      mux.watch(a).listen((_) {});
+      await pump();
+      link.fail();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(link.opened, hasLength(2));
+      link.fail();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(link.opened, hasLength(2), reason: 'second retry waits ~40 ms');
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(link.opened, hasLength(3));
+    });
+
+    test(
+      'a refusal no retry can fix reaches the listeners and stops',
+      () async {
+        for (final error in [
+          GrpcError.permissionDenied('not yours'),
+          GrpcError.unauthenticated('sign in'),
+          GrpcError.invalidArgument('too many'),
+        ]) {
+          final link = FakeLink();
+          final mux = NeuronWatchMux(
+            () => link,
+            'owner',
+            debounce: Duration.zero,
+            retryAfter: const Duration(milliseconds: 5),
+          );
+          final errors = <Object>[];
+          var done = false;
+          mux
+              .watch(a)
+              .listen((_) {}, onError: errors.add, onDone: () => done = true);
+          await pump();
+          link.fail(error);
+          await Future<void>.delayed(const Duration(milliseconds: 40));
+          expect(errors.single, same(error));
+          expect(done, isTrue);
+          expect(link.opened, hasLength(1));
+          await mux.close();
+        }
+      },
+    );
+
+    test(
+      'a membership change keeps the old stream until the new one yields',
+      () async {
+        final link = FakeLink();
+        final mux = NeuronWatchMux(
+          () => link,
+          'owner',
+          debounce: Duration.zero,
+        );
+        addTearDown(mux.close);
+        final seen = <NeuronSignal>[];
+        mux.watch(a).listen(seen.add);
+        await pump();
+        mux.watch(b).listen((_) {});
+        await pump();
+        expect(link.opened, hasLength(2));
+        // Published while the new stream has not yet yielded: only the old stream carries it.
+        link.emitOn(0, signal('owner/a', 'AChanged'));
+        await pump();
+        expect(seen, hasLength(1));
+        link.emitOn(1, signal('owner/b', 'BChanged'));
+        await pump();
+        expect(
+          link.live,
+          1,
+          reason: 'the old stream retires once the new one yields',
+        );
+      },
+    );
+
+    test('a change reopens only the chunk it touches', () async {
+      final link = FakeLink();
+      final mux = NeuronWatchMux(() => link, 'owner', debounce: Duration.zero);
+      addTearDown(mux.close);
+      for (var i = 0; i < 64; i++) {
+        mux
+            .watch(WatchSourceSpec('C.I', 'owner/n$i', const ['X']))
+            .listen((_) {});
+      }
+      await pump();
+      mux.watch(a).listen((_) {});
+      await pump();
+      expect(link.opened.map((o) => o.length), [64, 1]);
+    });
+
     test('more than 64 source signals split across streams', () async {
       final link = FakeLink();
       final mux = NeuronWatchMux(() => link, 'owner', debounce: Duration.zero);
@@ -143,7 +258,16 @@ final class FakeLink implements NeuronLink {
     }
   }
 
-  void fail() => _streams.last.addError(StateError('broken'));
+  void fail([Object? error]) =>
+      _streams.last.addError(error ?? StateError('broken'));
+
+  int get live => _streams.length;
+
+  final _all = <StreamController<NeuronSignal>>[];
+  void emitOn(int index, NeuronSignal signal) {
+    final stream = _all[index];
+    if (!stream.isClosed) stream.add(signal);
+  }
 
   @override
   Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources) {
@@ -154,6 +278,7 @@ final class FakeLink implements NeuronLink {
       return controller.close();
     };
     _streams.add(controller);
+    _all.add(controller);
     return controller.stream;
   }
 
