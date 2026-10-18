@@ -5,6 +5,7 @@ on:
     branches: [master]
   schedule:
     - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,7 +32,8 @@ jobs:
 
       - name: Free space for native dependencies and container builds
         run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \n            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \n            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
+          docker image prune --all --force > /dev/null
           df -h /
 
       - name: Restore NuGet package cache
@@ -85,7 +87,8 @@ jobs:
 
       - name: Free space for the full nightly build
         run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \n            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \n            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
+          docker image prune --all --force > /dev/null
           df -h /
 
       - name: Restore NuGet package cache
@@ -101,6 +104,10 @@ jobs:
 
       - name: Build solution
         run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=true
+
+      # Ubuntu 24.04 blocks unprivileged user namespaces; Chromium's sandbox (kept on in product code) needs them.
+      - name: Allow the Chromium sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install Playwright browsers
         run: pwsh artifacts/bin/DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
