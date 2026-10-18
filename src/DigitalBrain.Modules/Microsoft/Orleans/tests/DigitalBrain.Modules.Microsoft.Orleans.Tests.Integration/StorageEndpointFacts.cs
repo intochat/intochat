@@ -54,13 +54,23 @@ public sealed class StorageEndpointFacts
     }
 
     [Fact]
-    public void ConfigurationReadsTheUriVariantKey()
+    public void TheClusteringClientReadsTheUriVariantKey()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [OrleansModule.Integration.Key(OrleansStorageHosting.RemindersField + StorageEndpoint.UriSuffix)] = "https://st.table.core.windows.net/",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)] = "https://st.table.core.windows.net/",
         }).Build();
-        Assert.NotNull(StorageEndpoint.Read(configuration, OrleansStorageHosting.RemindersField)!.ServiceUri);
+        Assert.Equal("st", OrleansStorageHosting.ClusteringClient(configuration, null).AccountName);
+    }
+
+    [Fact]
+    public void TheClusteringClientRefusesAConnectionBesideTheUriKey()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)] = "https://st.table.core.windows.net/",
+        }).Build();
+        Assert.Throws<InvalidOperationException>(() => OrleansStorageHosting.ClusteringClient(configuration, "UseDevelopmentStorage=true"));
     }
 
     [Theory]
@@ -70,23 +80,14 @@ public sealed class StorageEndpointFacts
         Assert.Equal(new Uri(value), StorageEndpoint.Select(Field, null, value)!.ServiceUri);
 
     [Fact]
-    public void TheIntegrationClientIdSelectsAUserAssignedIdentityOverTheEnvironment()
-    {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            [OrleansModule.Integration.Key(StorageEndpoint.ManagedIdentityClientIdField)] = "integration-id",
-            [StorageEndpoint.ClientIdVariable] = "environment-id",
-        }).Build();
-        Assert.Equal("integration-id", StorageEndpoint.CredentialOptions(configuration).ManagedIdentityClientId);
-    }
+    public void TheIntegrationClientIdSelectsAUserAssignedIdentityOverTheEnvironment() =>
+        Assert.Equal("integration-id", StorageEndpoint.CredentialOptions("integration-id", "environment-id").ManagedIdentityClientId);
 
     [Fact]
-    public void AzureClientIdIsTheFallbackClientId()
-    {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            [StorageEndpoint.ClientIdVariable] = "environment-id",
-        }).Build();
-        Assert.Equal("environment-id", StorageEndpoint.CredentialOptions(configuration).ManagedIdentityClientId);
-    }
+    public void AzureClientIdIsTheFallbackClientId() =>
+        Assert.Equal("environment-id", StorageEndpoint.CredentialOptions(null, "environment-id").ManagedIdentityClientId);
+
+    [Fact]
+    public void NoClientIdLeavesTheSystemAssignedIdentity() =>
+        Assert.Null(StorageEndpoint.CredentialOptions(" ", null).ManagedIdentityClientId);
 }

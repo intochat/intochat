@@ -1,5 +1,6 @@
 using Azure.Core;
 using Azure.Data.Tables;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
 using global::Orleans.Configuration;
@@ -27,9 +28,9 @@ public static class OrleansStorageHosting
     {
         ArgumentNullException.ThrowIfNull(silo);
         ArgumentNullException.ThrowIfNull(configuration);
-        var clustering = StorageEndpoint.Read(configuration, ClusteringField);
-        var grainState = StorageEndpoint.Read(configuration, GrainStateField);
-        var reminders = StorageEndpoint.Read(configuration, RemindersField);
+        var clustering = Read(configuration, ClusteringField);
+        var grainState = Read(configuration, GrainStateField);
+        var reminders = Read(configuration, RemindersField);
         var fields = new[] { (Field: ClusteringField, Value: clustering), (Field: GrainStateField, Value: grainState), (Field: RemindersField, Value: reminders) };
         var missing = fields.Where(pair => pair.Value is null).Select(pair => pair.Field).ToArray();
         if (missing.Length == fields.Length) { return AddMemory(silo, configuration); }
@@ -65,7 +66,7 @@ public static class OrleansStorageHosting
     {
         // Service URIs authenticate with the deployment identity, registered once like the C# module's.
         if (new[] { clustering, grainState, reminders }.Any(endpoint => endpoint.ServiceUri is not null))
-        { silo.Services.TryAddSingleton(_ => StorageEndpoint.Credential(configuration)); }
+        { silo.Services.TryAddSingleton(_ => Credential(configuration)); }
         silo.UseAzureStorageClustering(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(clustering, services)));
         silo.UseAzureTableReminderService(options => options.Configure<IServiceProvider>((o, services) => o.TableServiceClient = Tables(reminders, services)));
         // The platform's deployment identity and cookie keys live beside the grain state.
@@ -91,4 +92,23 @@ public static class OrleansStorageHosting
     private static TableServiceClient Tables(StorageEndpoint endpoint, IServiceProvider services) => endpoint.ServiceUri is { } uri
         ? new TableServiceClient(uri, services.GetRequiredService<TokenCredential>())
         : new TableServiceClient(endpoint.ConnectionString);
+
+    private static StorageEndpoint? Read(IConfiguration configuration, string field) => StorageEndpoint.Select(field,
+        configuration[OrleansModule.Integration.Key(field)],
+        configuration[OrleansModule.Integration.Key(field + StorageEndpoint.UriSuffix)]);
+
+    private static TokenCredential Credential(IConfiguration configuration) => new DefaultAzureCredential(StorageEndpoint.CredentialOptions(
+        configuration[OrleansModule.Integration.Key(StorageEndpoint.ManagedIdentityClientIdField)],
+        configuration[StorageEndpoint.ClientIdVariable] ?? Environment.GetEnvironmentVariable(StorageEndpoint.ClientIdVariable)));
+
+    // An Orleans client (the Aspire test session) joins clustering by the silo's rule: the connection
+    // it was handed, or the ClusteringUri setting, with the deployment identity for a service URI.
+    public static TableServiceClient ClusteringClient(IConfiguration configuration, string? connection)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var endpoint = StorageEndpoint.Select(ClusteringField, connection,
+            configuration[OrleansModule.Integration.Key(ClusteringField + StorageEndpoint.UriSuffix)])
+            ?? throw new InvalidOperationException("The orleans clustering store is not configured.");
+        return endpoint.ServiceUri is { } uri ? new TableServiceClient(uri, Credential(configuration)) : new TableServiceClient(endpoint.ConnectionString);
+    }
 }

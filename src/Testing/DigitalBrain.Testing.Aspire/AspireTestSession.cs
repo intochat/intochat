@@ -324,13 +324,8 @@ public sealed class AspireTestSession : IAsyncDisposable
             {
                 if (connection is not null)
                 {
-                    // The silo's rule: a service URI (or the ClusteringUri setting) uses the deployment identity.
                     var settings = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-                    var endpoint = StorageEndpoint.Select(OrleansStorageHosting.ClusteringField, connection,
-                        settings[OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)])!;
-                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = endpoint.ServiceUri is { } uri
-                        ? new Azure.Data.Tables.TableServiceClient(uri, StorageEndpoint.Credential(settings))
-                        : new Azure.Data.Tables.TableServiceClient(endpoint.ConnectionString));
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = OrleansStorageHosting.ClusteringClient(settings, connection));
                 }
                 else
                 {

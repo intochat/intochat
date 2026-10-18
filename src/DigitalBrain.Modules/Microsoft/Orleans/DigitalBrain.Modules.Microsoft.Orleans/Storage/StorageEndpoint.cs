@@ -1,32 +1,23 @@
-using Azure.Core;
 using Azure.Identity;
-using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.Orleans;
 
 // One Orleans store is reached either by a shared-key connection string or by a service URI that
 // authenticates with the deployment identity. The connection-string key also accepts an https
 // URI (http only for a loopback emulator), so a deployment can switch to the identity without renaming its key.
-public sealed record StorageEndpoint(string? ConnectionString, Uri? ServiceUri)
+internal sealed record StorageEndpoint(string? ConnectionString, Uri? ServiceUri)
 {
     public const string UriSuffix = "Uri";
     public const string ManagedIdentityClientIdField = "ManagedIdentityClientId";
     public const string ClientIdVariable = "AZURE_CLIENT_ID";
 
     // A user-assigned identity needs its client id; the integration setting wins over AZURE_CLIENT_ID.
-    public static DefaultAzureCredentialOptions CredentialOptions(IConfiguration configuration)
+    // Configuration is read only by OrleansStorageHosting, the substrate's credential boundary.
+    public static DefaultAzureCredentialOptions CredentialOptions(string? integrationClientId, string? environmentClientId)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
-        var clientId = configuration[OrleansModule.Integration.Key(ManagedIdentityClientIdField)];
-        if (string.IsNullOrWhiteSpace(clientId)) { clientId = configuration[ClientIdVariable] ?? Environment.GetEnvironmentVariable(ClientIdVariable); }
+        var clientId = string.IsNullOrWhiteSpace(integrationClientId) ? environmentClientId : integrationClientId;
         return string.IsNullOrWhiteSpace(clientId) ? new() : new() { ManagedIdentityClientId = clientId.Trim() };
     }
-
-    public static TokenCredential Credential(IConfiguration configuration) => new DefaultAzureCredential(CredentialOptions(configuration));
-
-    public static StorageEndpoint? Read(IConfiguration configuration, string field) => Select(field,
-        configuration[OrleansModule.Integration.Key(field)],
-        configuration[OrleansModule.Integration.Key(field + UriSuffix)]);
 
     public static StorageEndpoint? Select(string field, string? connectionString, string? serviceUri)
     {
