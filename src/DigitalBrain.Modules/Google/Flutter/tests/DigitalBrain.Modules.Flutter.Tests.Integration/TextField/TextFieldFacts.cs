@@ -54,8 +54,10 @@ public sealed class TextFieldFacts(FlutterHost host)
         var journal = await field.Read(0, 100);
         var changes = journal.Signals.OfType<TextFieldChanged>().ToArray();
         Assert.True(changes.Length >= 3);
-        Assert.All(changes.Skip(1), changed => Assert.Equal("", changed.Value));
-        await field.SetValue("");
+        Assert.All(changes, changed => Assert.DoesNotContain("hunter2", changed.Value, StringComparison.Ordinal));
+        Assert.All(changes, changed => Assert.DoesNotContain("typed before", changed.Value, StringComparison.Ordinal));
+        Assert.All(changes, changed => Assert.Equal("", changed.Value));
+        await field.Configure("Name", "text");
         Assert.Equal("", (await field.Read()).Value);
     }
 

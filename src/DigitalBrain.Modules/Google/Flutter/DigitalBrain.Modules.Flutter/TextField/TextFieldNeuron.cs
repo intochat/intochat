@@ -22,7 +22,8 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
 
     private static string Stored(string kind, string value) => !IsSecret(kind) ? value : value.Length == 0 ? "" : SecretSetMarker;
 
-    private static string Journalled(string kind, string value) => IsSecret(kind) ? "" : value;
+    // A field not yet configured may become a secret, so its value is not journalled either.
+    private static string Journalled(TextFieldState state, string value) => IsSecret(state.Kind) || state.Label.Length == 0 ? "" : value;
 
     public Task Configure(string label, string kind, string? submitButton = null)
     {
@@ -32,13 +33,16 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         { throw new ArgumentException("A submit button name must contain between 1 and 512 characters.", nameof(submitButton)); }
         if (!Kinds.Contains(kind)) { throw new ArgumentOutOfRangeException(nameof(kind)); }
         var next = Snapshot;
+        var wasSecret = IsSecret(next.Kind);
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
         next.Label = label.Trim();
         next.Kind = kind.Trim().ToLowerInvariant();
         next.SubmitButton = submitButton;
-        if (IsSecret(next.Kind) && next.Value.Length > 0 && next.Value != SecretSetMarker) { next.Value = SecretSetMarker; }
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next.Kind, next.Value)));
+        if (IsSecret(next.Kind) && next.Value.Length > 0) { next.Value = SecretSetMarker; }
+        // The marker is not a value: a secret that becomes plain text starts empty.
+        else if (wasSecret && !IsSecret(next.Kind)) { next.Value = ""; }
+        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, next.Value)));
     }
 
     public Task SetValue(string value)
@@ -48,7 +52,7 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
         next.Value = Stored(next.Kind, value);
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next.Kind, value)));
+        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, value)));
     }
 
     public async Task<bool> TrySetValue(string value, int expectedVersion)
