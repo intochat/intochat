@@ -27,5 +27,7 @@ public interface IDeployment : INeuron
     // the default response timeout. Refused unless the calling process is one of the cluster's instances.
     // Who is up is not this neuron's: the membership is DigitalBrain.Microsoft.Orleans.ICluster.
     Task<DeploymentSnapshot> Roll(string sha);
-    static string Key(string brainId) => $"{brainId}/aspire/deployment";
+    static string Key(string brainId) => $"{brainId}/{Relative}";
+    // The id inside its brain.
+    const string Relative = "aspire/deployment";
 }
