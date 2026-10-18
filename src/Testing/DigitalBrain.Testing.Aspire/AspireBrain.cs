@@ -38,6 +38,7 @@ internal sealed class AspireBrain : ITestBrain, ITrackedBrain
 
     public T Get<T>(string id) where T : class, INeuron => _session.Brains.Grain<T>(id);
     T IDigitalBrain.Get<T>(NeuronId id) => _session.Brains.Grain<T>(id.Name);
+    public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => _session.Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => _session.Brains.Open(BrainScope.CurrentId()).Kernel;
 

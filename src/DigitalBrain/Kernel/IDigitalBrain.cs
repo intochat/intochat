@@ -20,6 +20,10 @@ public interface IDigitalBrain
     /// <typeparam name="T">The neuron's contract.</typeparam>
     T Get<T>(NeuronId id) where T : INeuron;
 
+    // Transitional (clean-core 2a): resolves an id relative to this brain, the same grain as
+    // Get("{brain}/{relative}"). Callers move here before Get itself becomes relative.
+    T Neuron<T>(NeuronId relative) where T : INeuron;
+
     /// <summary>
     /// Streams the signals of kind <typeparamref name="T"/> that <paramref name="neuron"/> publishes
     /// until <paramref name="cancellationToken"/> ends it. Iterating the stream is the connection.

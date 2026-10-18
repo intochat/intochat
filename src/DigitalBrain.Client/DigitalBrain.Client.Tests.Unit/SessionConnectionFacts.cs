@@ -358,6 +358,25 @@ public sealed class SessionConnectionFacts
         Assert.Equal("Bearer token-1", invoke.Authorization);
     }
 
+    // The edge resolves the wire key as a raw grain key (RuntimeEdge: GetGrain(contract, invocation.Key)), so a
+    // brain-relative id must leave the sandbox as the same "{brain}/{relative}" key the raw-key path sends.
+    [Fact]
+    public async Task ARelativeNeuronCrossesTheEdgeWithTheRawKeyOfItsBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new FakeBrain();
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+
+        await connection.Neuron<ISource>("csharp/source").Double(1);
+        await connection.Get<ISource>("acc-brain/csharp/source").Double(1);
+
+        var keys = brain.Requests.Where(request => request.Path.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal))
+            .Select(request => request.Body!["key"]!.GetValue<string>()).ToArray();
+        Assert.Equal(["acc-brain/csharp/source", "acc-brain/csharp/source"], keys);
+        Assert.Equal(connection.Get<ISource>("acc-brain/csharp/source"), connection.Neuron<ISource>("csharp/source"));
+    }
+
     [Fact]
     public async Task OnSubscribesThenYieldsBatchSignalsThenAcknowledges()
     {

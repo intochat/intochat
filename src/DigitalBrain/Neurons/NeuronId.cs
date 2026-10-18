@@ -35,6 +35,16 @@ public readonly record struct NeuronId
 
     public override string ToString() => Name;
 
+    // Transitional (clean-core 2a): the full key "{brain}/{name}" that brain-relative addressing resolves while
+    // Get still takes full keys. Only implementations of IDigitalBrain call this.
+    public NeuronId Within(string brain)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
+        if (brain.Contains('/', StringComparison.Ordinal))
+        { throw new ArgumentException("A brain id has no path separator.", nameof(brain)); }
+        return new($"{brain}/{Name}");
+    }
+
     // System.Text.Json builds a struct through its parameterless constructor and cannot set the get-only
     // Name, so without this a publisher reaches a script nameless. A name is read back through the
     // constructor; a missing name is the unstamped default.

@@ -113,6 +113,8 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         public IBrain Self => throw new NotSupportedException();
         public IKernelView Kernel => throw new NotSupportedException();
 
+        public T Neuron<T>(NeuronId relative) where T : INeuron => throw new NotSupportedException();
+
         public T Get<T>(NeuronId id) where T : INeuron
         {
             var proxy = DispatchProxy.Create<T, CallRecorder>();
