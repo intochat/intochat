@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace DigitalBrain.Framework.Tests.Integration;
 
 [NeuronAlias("test.neutral-only")]
@@ -15,6 +17,18 @@ public sealed record NeutralAliasedSignal : Signal;
 [GenerateSerializer, Alias("test.orleans-signal")]
 public sealed record OrleansAliasedSignal : Signal;
 
+[GenerateSerializer, NeuronAlias("test.neutral-base")]
+public record NeutralAliasedBaseSignal : Signal;
+
+[GenerateSerializer]
+public sealed record NeutralUnaliasedDerivedSignal : NeutralAliasedBaseSignal;
+
+[GenerateSerializer, Alias("test.orleans-base")]
+public record OrleansAliasedBaseSignal : Signal;
+
+[GenerateSerializer]
+public sealed record OrleansUnaliasedDerivedSignal : OrleansAliasedBaseSignal;
+
 // PR 3 of the clean-core plan: the neutral alias is read first, the Orleans alias second, and the
 // strings every shipped contract resolves to are unchanged.
 public sealed class NeuronAliasFacts
@@ -25,6 +39,15 @@ public sealed class NeuronAliasFacts
         Assert.Equal("test.neutral-only", NeuronAliases.Of(typeof(INeutralAliasedNeuron)));
         Assert.Equal("test.neutral-first", NeuronAliases.Of(typeof(IDoublyAliasedNeuron)));
         Assert.Equal("test.orleans-only", NeuronAliases.Of(typeof(IOrleansAliasedNeuron)));
+    }
+
+    [Fact]
+    public void ADerivedSignalWithoutItsOwnAliasKeepsItsBaseAliasUnderBothAttributes()
+    {
+        Assert.Equal(typeof(OrleansUnaliasedDerivedSignal).GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias, NeuronAliases.Of(typeof(OrleansUnaliasedDerivedSignal)));
+        Assert.Equal("test.orleans-base", NeuronAliases.Of(typeof(OrleansUnaliasedDerivedSignal)));
+        Assert.Equal("test.neutral-base", NeuronAliases.Of(typeof(NeutralUnaliasedDerivedSignal)));
+        Assert.Equal(new SignalId("test.neutral-base"), SignalId.Of(typeof(NeutralUnaliasedDerivedSignal)));
     }
 
     [Fact]

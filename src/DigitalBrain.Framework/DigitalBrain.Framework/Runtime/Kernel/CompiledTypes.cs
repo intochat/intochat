@@ -27,7 +27,7 @@ public sealed class CompiledTypes
         foreach (var contract in _neurons.Values)
         {
             var alias = NeuronAliases.Of(contract);
-            if (string.IsNullOrWhiteSpace(alias)) { throw new InvalidOperationException($"Public neuron contract {contract.FullName} requires an Orleans alias."); }
+            if (string.IsNullOrWhiteSpace(alias)) { throw new InvalidOperationException($"Public neuron contract {contract.FullName} requires a [NeuronAlias] or [Alias]."); }
             if (!aliases.TryAdd(alias, contract)) { throw new InvalidOperationException($"Duplicate neuron alias '{alias}'."); }
         }
         Entries =

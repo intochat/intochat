@@ -26,6 +26,7 @@ public sealed class FieldAttribute(uint id) : Attribute
 [AttributeUsage(AttributeTargets.Interface, Inherited = false)]
 public sealed class DefaultNeuronTypeAttribute(string type) : Attribute
 {
+    /// <summary>The default neuron type name; the Orleans provider's generator reads this property.</summary>
     public string Type { get; } = type;
 }
 
