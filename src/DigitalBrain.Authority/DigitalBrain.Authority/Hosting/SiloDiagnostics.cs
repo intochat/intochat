@@ -27,10 +27,12 @@ public static class SiloDiagnostics
     public const int MaxCanaryLength = 256;
     private const string CanaryDirectory = "diagnostics";
     private const string CanaryFile = "canary.json";
+    private static readonly SemaphoreSlim CanaryWrites = new(1, 1);
 
     public static IServiceCollection AddSiloDiagnostics(this IServiceCollection services)
     {
         services.AddMetrics();
+        // Only a default: UseBrainOwnershipCounters replaces it whether it runs before or after this.
         services.TryAddSingleton<IBrainOwnershipCounters, NoBrainOwnershipCounters>();
         services.TryAddSingleton<BrainOwnershipMetrics>();
         return services;
@@ -71,14 +73,24 @@ public static class SiloDiagnostics
             var record = new CanaryRecord(write.Value, DateTimeOffset.UtcNow, Revision(configuration), Environment.MachineName);
             var path = CanaryPathOf(store.Value);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            // Written aside and moved over, so a reader sees the previous canary or this one, never a torn file.
-            var staging = path + ".tmp";
-            await using (var stream = new FileStream(staging, FileMode.Create, FileAccess.Write, FileShare.None))
+            // Written to a staging file unique to this write, then moved over, so a reader sees the previous canary or this
+            // one, never a torn file. Writes in this process are serialized; another silo's write uses its own staging name.
+            var staging = $"{path}.{Guid.NewGuid():N}.tmp";
+            await CanaryWrites.WaitAsync(ct);
+            try
             {
-                await JsonSerializer.SerializeAsync(stream, record, cancellationToken: ct);
-                stream.Flush(flushToDisk: true);
+                await using (var stream = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    await JsonSerializer.SerializeAsync(stream, record, cancellationToken: ct);
+                    stream.Flush(flushToDisk: true);
+                }
+                File.Move(staging, path, overwrite: true);
             }
-            File.Move(staging, path, overwrite: true);
+            finally
+            {
+                CanaryWrites.Release();
+                if (File.Exists(staging)) { File.Delete(staging); }
+            }
             return Results.Ok(record);
         });
         return endpoints;

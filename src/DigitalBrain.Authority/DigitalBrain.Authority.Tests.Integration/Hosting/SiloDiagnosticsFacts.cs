@@ -57,14 +57,14 @@ public sealed class SiloDiagnosticsFacts
         Assert.Equal(Environment.MachineName, report.Hostname);
         Assert.Equal("local", report.Storage.Mode);
         Assert.Equal(nameof(BrainLogFormat.Legacy), report.Storage.WriteFormat);
-        Assert.Equal(new BrainOwnershipCounts("none", 0, 0, 0, 0), report.Ownership);
+        Assert.Equal(new BrainOwnershipCounts("none", 0, 0, 0, 0, 0, 0), report.Ownership);
     }
 
     [Fact]
     public async Task A_registered_ownership_source_replaces_the_no_op_default()
     {
         var ct = TestContext.Current.CancellationToken;
-        var counts = new BrainOwnershipCounts("blobLease", 3, 1, 0, 2);
+        var counts = new BrainOwnershipCounts("blobLease", 3, 1, 0, 2, 40, 1);
         await using var app = await Start(Key, Directory.CreateTempSubdirectory("diag-").FullName, ct,
             services => services.AddSingleton<IBrainOwnershipCounters>(new FixedCounters(counts)));
         using var client = Client(app, Key);
@@ -91,6 +91,34 @@ public sealed class SiloDiagnosticsFacts
         var canary = await after.GetFromJsonAsync<CanaryRecord>(SiloDiagnostics.CanaryPath, ct);
         Assert.Equal("deploy-41", canary!.Value);
         Assert.Equal("r1", canary.Revision);
+    }
+
+    [Fact]
+    public async Task Ownership_counters_registered_after_the_platform_still_win()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var counts = new BrainOwnershipCounts("blobLease", 1, 0, 0, 0, 0, 0);
+        var services = new ServiceCollection();
+        services.AddSiloDiagnostics();
+        services.UseBrainOwnershipCounters(new FixedCounters(counts));
+        services.AddSiloDiagnostics();
+        await using var provider = services.BuildServiceProvider();
+        Assert.Equal(counts, provider.GetRequiredService<IBrainOwnershipCounters>().Snapshot());
+        Assert.Single(services, d => d.ServiceType == typeof(IBrainOwnershipCounters));
+        await Task.CompletedTask.WaitAsync(ct);
+    }
+
+    [Fact]
+    public async Task Parallel_canary_writes_each_succeed_and_leave_one_of_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var app = await Start(Key, Directory.CreateTempSubdirectory("diag-").FullName, ct);
+        using var client = Client(app, Key);
+        var values = Enumerable.Range(0, 8).Select(i => $"deploy-{i}").ToArray();
+        var responses = await Task.WhenAll(values.Select(v => client.PostAsJsonAsync(SiloDiagnostics.CanaryPath, new { value = v }, ct)));
+        foreach (var response in responses) { using (response) { response.EnsureSuccessStatusCode(); } }
+        var canary = await client.GetFromJsonAsync<CanaryRecord>(SiloDiagnostics.CanaryPath, ct);
+        Assert.Contains(canary!.Value, values);
     }
 
     [Theory]
