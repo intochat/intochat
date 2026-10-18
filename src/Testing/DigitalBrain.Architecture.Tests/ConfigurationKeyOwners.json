@@ -17,7 +17,10 @@
   "DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/OAuthFlowFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
+  "DigitalBrain.Platform.Tests.Unit/Storage/HostedExportFacts.cs",
+  "DigitalBrain.Platform.Tests.Unit/Storage/HostedPlatformStorageFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Platform/Compute/FeeOptions.cs",
+  "DigitalBrain.Platform/Hosting/HostedRuntimeOptions.cs",
   "DigitalBrain.ServiceDefaults/HealthProbes.cs"
 ]

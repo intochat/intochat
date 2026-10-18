@@ -12,31 +12,21 @@ namespace DigitalBrain.Architecture.Tests;
 public sealed class TestTierFacts
 {
     [Fact]
-    public void AModuleHasOneTestProjectNamedTests()
+    public void AModuleTestProjectCarriesATierSuffix()
     {
+        string[] tiers = [".Tests.Unit", ".Tests.Integration", ".Tests.E2E", ".Tests.Browser", ".Tests.Hosting"];
         var baseline = Baseline().LegacyModuleTestProjects.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
-        var conformingPerDirectory = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var project in ModuleTestProjects())
         {
             var name = Path.GetFileNameWithoutExtension(project);
-            if (name.Contains(".Tests.", StringComparison.Ordinal))
-            {
-                // <Module>.Tests.Hosting is the module's Aspire composition tier: it builds the
-                // application model and reads annotations, never a running brain.
-                if (name.EndsWith(".Tests.Hosting", StringComparison.Ordinal)) { continue; }
-                if (!baseline.Remove(name)) { offenders.Add(name); }
-                continue;
-            }
-            var directory = Path.GetDirectoryName(Path.GetDirectoryName(project))!;
-            conformingPerDirectory[directory] = conformingPerDirectory.GetValueOrDefault(directory) + 1;
+            if (tiers.Any(tier => name.EndsWith(tier, StringComparison.Ordinal))) { continue; }
+            if (!baseline.Remove(name)) { offenders.Add(name); }
         }
         Assert.True(offenders.Count == 0,
-            "A module ships one test project named <Module>.Tests. Migrate instead of adding: " + string.Join(", ", offenders));
+            "A module test project names its tier, <Module>.Tests.Unit|Integration|E2E|Browser|Hosting: " + string.Join(", ", offenders));
         Assert.True(baseline.Count == 0,
             "Migrated projects linger in TestTierBaseline.json LegacyModuleTestProjects; remove: " + string.Join(", ", baseline));
-        var crowded = conformingPerDirectory.Where(entry => entry.Value > 1).Select(entry => entry.Key).ToArray();
-        Assert.True(crowded.Length == 0, "One test project per module tests folder: " + string.Join(", ", crowded));
     }
 
     [Fact]
@@ -72,7 +62,7 @@ public sealed class TestTierFacts
     [Fact]
     public void TheEndToEndTierBelongsToTheProduct()
     {
-        string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit", "DigitalBrain.OS.Testing"];
+        string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Integration", "DigitalBrain.OS.Tests.Unit", "DigitalBrain.OS.Testing"];
         var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
         foreach (var project in TestProjects())
