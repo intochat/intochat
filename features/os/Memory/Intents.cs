@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS;
 using IntoChat.OS.AI.Agents.Intents;
 
 // Shared by "intend": where Memory's rephrasing agent and its answers live, how the ask and the model's
@@ -13,6 +14,23 @@ internal static class Intents
     public static string AgentKey(string appKey) => appKey + "/agents/intend";
 
     public static string ContextKey(string appKey) => appKey + "/context";
+
+    public static string ReminderKey(string appKey, Guid intentId) => appKey + "/cues/" + intentId;
+
+    // A signal cue matches by alias alone, or by alias and one top-level property holding exactly EqualTo as a string.
+    public static bool CueMatches(Cue cue, Signal signal)
+    {
+        if (cue.SignalAlias != NeuronAliasAttribute.Of(signal.GetType())) { return false; }
+        if (cue.Field is not { Length: > 0 } field) { return true; }
+        var json = JsonSerializer.SerializeToElement(signal, signal.GetType());
+        if (json.ValueKind != JsonValueKind.Object) { return false; }
+        foreach (var property in json.EnumerateObject())
+        {
+            if (string.Equals(property.Name, field, StringComparison.OrdinalIgnoreCase))
+            { return property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() == cue.EqualTo; }
+        }
+        return false;
+    }
 
     public static string WorkingKey(string appKey) => appKey + "/working";
 

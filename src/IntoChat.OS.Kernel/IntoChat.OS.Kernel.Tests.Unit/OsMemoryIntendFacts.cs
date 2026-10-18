@@ -1,4 +1,5 @@
 using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.AI.Agents.Intents.Signals;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -77,4 +78,22 @@ public sealed class OsMemoryIntendFacts
         Assert.Equal(global::Intents.Change.Remove, global::Intents.Decide("a", ""));
         Assert.Equal(global::Intents.Change.Skip, global::Intents.Decide(null, ""));
     }
+
+    private static readonly IntentHeard Heard = new("ino/memory/intents", Guid.NewGuid(), "r1");
+
+    [Fact]
+    public void ASignalCueMatchesByAliasAlone()
+        => Assert.True(global::Intents.CueMatches(new("signal", "k", "intents.heard", null, null, null), Heard));
+
+    [Fact]
+    public void ASignalCueWithAFieldMatchesOnlyThatValue()
+    {
+        Assert.True(global::Intents.CueMatches(new("signal", "k", "intents.heard", "RequestId", "r1", null), Heard));
+        Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.heard", "RequestId", "r2", null), Heard));
+        Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.heard", "Missing", "r1", null), Heard));
+    }
+
+    [Fact]
+    public void ADifferentAliasNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.rephrased", null, null, null), Heard));
 }

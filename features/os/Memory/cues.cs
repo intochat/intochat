@@ -1,0 +1,181 @@
+using System.Reflection;
+using IntoChat.OS;
+using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.AI.Agents.Intents.Signals;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Time.Reminders;
+using IntoChat.OS.Time.Reminders.Signals;
+
+// Cues move a Waiting intent forward. Every Waiting intent with cues is watched: a signal cue follows the
+// publisher named by its key (the neuron's contract is found through the kernel, the signal type from its
+// alias among the loaded contracts), a time cue starts an IReminder at {app}/cues/{intent id} and stops it on
+// its first tick. The first cue to fire moves the intent to Dispatched ("cue: <alias or time>"), and only
+// while it is still Waiting. An intent that stops waiting drops its watchers. A cue that cannot be watched is
+// written to {app}/status and the intent stays Waiting.
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
+var appKey = brain.Setting("App")!;
+var status = brain.Get<IText>(appKey + "/status");
+var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
+var watched = new Dictionary<Guid, CancellationTokenSource>();
+var gate = new SemaphoreSlim(1, 1);
+var watchers = new List<Task>();
+
+var following = Supervise("intent transitions", ct => brain.React<IntentTransitioned>(intents, token => SyncAll(token), ct));
+
+await foreach (var armed in brain.On<IntentArmed>(intents, () => SyncAll(brain.Stopping), brain.Stopping))
+{
+    await Sync(armed.IntentId, brain.Stopping);
+}
+await following;
+await Task.WhenAll(watchers.ToArray());
+
+// Start the watchers of every Waiting intent that has none and drop those of intents that stopped waiting.
+async Task SyncAll(CancellationToken ct)
+{
+    try
+    {
+        var snapshot = await intents.Read();
+        await gate.WaitAsync(ct);
+        try
+        {
+            foreach (var intent in snapshot.Intents) { Apply(intent, false); }
+            var live = snapshot.Intents.Where(intent => intent.State == IntentState.Waiting).Select(intent => intent.Id).ToHashSet();
+            foreach (var id in watched.Keys.Where(id => !live.Contains(id)).ToArray()) { Drop(id); }
+        }
+        finally { gate.Release(); }
+    }
+    catch (Exception error) when (!ct.IsCancellationRequested && !brain.Stopping.IsCancellationRequested)
+    { await Report("Memory could not read the intents for their cues: " + error.Message); }
+}
+
+// An armed intent restarts its watchers: its cues may have changed.
+async Task Sync(Guid id, CancellationToken ct)
+{
+    try
+    {
+        var snapshot = await intents.Read();
+        var intent = snapshot.Intents.FirstOrDefault(candidate => candidate.Id == id);
+        await gate.WaitAsync(ct);
+        try
+        {
+            if (intent is null) { Drop(id); } else { Apply(intent, true); }
+        }
+        finally { gate.Release(); }
+    }
+    catch (Exception error) when (!ct.IsCancellationRequested && !brain.Stopping.IsCancellationRequested)
+    { await Report("Memory could not arm the cues of intent " + id + ": " + error.Message); }
+}
+
+// Called under the gate.
+void Apply(Intent intent, bool restart)
+{
+    var tracked = watched.ContainsKey(intent.Id);
+    if (intent.State != IntentState.Waiting || intent.Cues.Length == 0) { if (tracked) { Drop(intent.Id); } return; }
+    if (tracked && !restart) { return; }
+    if (tracked) { Drop(intent.Id); }
+    var source = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
+    watched[intent.Id] = source;
+    foreach (var cue in intent.Cues) { watchers.Add(Watch(intent.Id, cue, source.Token)); }
+}
+
+void Drop(Guid id)
+{
+    if (!watched.Remove(id, out var source)) { return; }
+    source.Cancel();
+    source.Dispose();
+}
+
+async Task Watch(Guid id, Cue cue, CancellationToken ct)
+{
+    try
+    {
+        if (cue.Kind == "time") { await WatchTime(id, cue, ct); }
+        else { await WatchSignal(id, cue, ct); }
+    }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested || brain.Stopping.IsCancellationRequested) { }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { await Report("Memory could not watch a cue of intent " + id + ": " + error.Message + "; the intent stays Waiting."); }
+}
+
+async Task WatchTime(Guid id, Cue cue, CancellationToken ct)
+{
+    if (cue.At is not { } at) { throw new InvalidOperationException("a time cue has no time"); }
+    var reminder = brain.Get<IReminder>(Intents.ReminderKey(appKey, id));
+    var due = at - DateTimeOffset.UtcNow;
+    if (due < TimeSpan.FromSeconds(1)) { due = TimeSpan.FromSeconds(1); }
+    await reminder.Start(due, TimeSpan.FromDays(365));
+    await foreach (var _ in brain.On<ReminderTick>(reminder, ct))
+    {
+        await reminder.Stop();
+        await Fire(id, "time");
+        return;
+    }
+}
+
+async Task WatchSignal(Guid id, Cue cue, CancellationToken ct)
+{
+    var type = SignalType(cue.SignalAlias) ?? throw new InvalidOperationException("no loaded signal has the alias " + cue.SignalAlias);
+    var contract = await ContractOf(cue.PublisherKey, ct) ?? throw new InvalidOperationException("the key " + cue.PublisherKey + " is not a known neuron");
+    var get = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "Get" && method.IsGenericMethodDefinition
+        && method.GetParameters() is [{ ParameterType.Name: "NeuronId" }]);
+    var publisher = (INeuron)get.MakeGenericMethod(contract).Invoke(brain, [(NeuronId)cue.PublisherKey])!;
+    var on = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "On" && method.IsGenericMethodDefinition
+        && method.GetParameters() is [{ ParameterType.Name: "INeuron" }, { ParameterType.Name: "CancellationToken" }]);
+    var stream = (IAsyncEnumerable<Signal>)on.MakeGenericMethod(type).Invoke(brain, [publisher, ct])!;
+    await foreach (var signal in stream.WithCancellation(ct))
+    {
+        if (!Intents.CueMatches(cue, signal)) { continue; }
+        await Fire(id, cue.SignalAlias);
+        return;
+    }
+}
+
+async Task Fire(Guid id, string what)
+{
+    var snapshot = await intents.Read();
+    var intent = snapshot.Intents.FirstOrDefault(candidate => candidate.Id == id);
+    if (intent is not { State: IntentState.Waiting }) { return; }
+    await intents.Transition(id, IntentState.Dispatched, "cue: " + what, snapshot.Revision);
+}
+
+static Type? SignalType(string alias)
+    => AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf)
+        .FirstOrDefault(type => !type.IsAbstract && typeof(Signal).IsAssignableFrom(type) && NeuronAliasAttribute.Of(type) == alias);
+
+static IEnumerable<Type> TypesOf(Assembly assembly)
+{
+    try { return assembly.GetTypes(); }
+    catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
+}
+
+// The neuron contract of an existing instance: the kernel names its grain type by alias, a loaded interface carries it.
+async Task<Type?> ContractOf(string key, CancellationToken ct)
+{
+    await foreach (var instance in brain.Kernel.Instances(null, ct))
+    {
+        if (instance.Key != key) { continue; }
+        return AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf)
+            .FirstOrDefault(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && NeuronAliasAttribute.Of(type) == instance.Type);
+    }
+    return null;
+}
+
+async Task Report(string text)
+{
+    try { await status.Set(text); }
+    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+}
+
+async Task Supervise(string name, Func<CancellationToken, Task> watch)
+{
+    while (!brain.Stopping.IsCancellationRequested)
+    {
+        string problem;
+        try { await watch(brain.Stopping); problem = "ended"; }
+        catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { return; }
+        catch (Exception error) { problem = "failed: " + error.Message; }
+        await Report("Memory's watcher of " + name + " " + problem + "; restarting.");
+        try { await Task.Delay(TimeSpan.FromSeconds(5), brain.Stopping); }
+        catch (OperationCanceledException) { return; }
+    }
+}
