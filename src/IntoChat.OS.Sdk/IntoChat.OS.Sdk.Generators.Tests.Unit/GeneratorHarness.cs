@@ -6,7 +6,7 @@ namespace IntoChat.OS.Sdk.Generators.Tests.Unit;
 
 // Fixed reference set: TRUSTED_PLATFORM_ASSEMBLIES, the Sdk assembly (ModuleAttribute), the assembly that holds
 // Framework.Modules.Module (Framework now; Sdk after 09-07, so goldens must stay byte-identical) and the Orleans
-// assembly of ISiloBuilder. Fixture compilations must compile: no error diagnostics after generation.
+// assembly of ISiloBuilder and the Aspire hosting assembly of ModuleHosting<T>. Fixture compilations must compile: no error diagnostics after generation.
 internal static class GeneratorHarness
 {
     private static readonly Lazy<ImmutableArray<MetadataReference>> References = new(() =>
@@ -17,6 +17,7 @@ internal static class GeneratorHarness
             typeof(IntoChat.OS.Sdk.ModuleAttribute).Assembly.Location,
             typeof(IntoChat.OS.Framework.Modules.Module).Assembly.Location,
             typeof(Orleans.Hosting.ISiloBuilder).Assembly.Location,
+            typeof(IntoChat.OS.Aspire.Hosting.IIntoChatOSModuleHosting).Assembly.Location,
         };
         return [.. trusted.Concat(extra).Distinct(StringComparer.OrdinalIgnoreCase).Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))];
     });
@@ -31,6 +32,15 @@ internal static class GeneratorHarness
         => CSharpGeneratorDriver.Create(
             [new ModuleGenerator().AsSourceGenerator()],
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+
+    // Generated sources in hint-name order, each under a header, so one golden holds a whole case.
+    public static string Render(GeneratorDriver driver)
+        => string.Concat(driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources)
+            .OrderBy(source => source.HintName, StringComparer.Ordinal)
+            .Select(source => "// ==== " + source.HintName + " ====\n" + source.SourceText.ToString().Replace("\r\n", "\n", StringComparison.Ordinal)));
+
+    public static string GoldenDirectory([System.Runtime.CompilerServices.CallerFilePath] string file = "")
+        => Path.Combine(Path.GetDirectoryName(file)!, "Goldens");
 
     public static void AssertNoErrors(Compilation compilation, ImmutableArray<Diagnostic> diagnostics)
     {

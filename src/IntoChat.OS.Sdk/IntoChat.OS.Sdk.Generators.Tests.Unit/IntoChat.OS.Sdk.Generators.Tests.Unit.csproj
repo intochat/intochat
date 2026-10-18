@@ -5,6 +5,9 @@
     <ProjectReference Include="../IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" ReferenceOutputAssembly="true" />
     <ProjectReference Include="../IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
   </ItemGroup>
   <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+  <!-- Goldens are data compared as text, never compiled into the test assembly. -->
+  <ItemGroup><Compile Remove="Goldens/**" /><None Include="Goldens/**" /></ItemGroup>
 </Project>

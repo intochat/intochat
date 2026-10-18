@@ -1,0 +1,62 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
+namespace IntoChat.OS.Sdk.Generators.Tests.Unit;
+
+public sealed class CacheFacts
+{
+    private const string Module = """
+        using IntoChat.OS.Framework.Modules;
+        using IntoChat.OS.Sdk;
+        namespace Fixture;
+        [Module("cached")]
+        [Integration("cached", "Cached")]
+        [Secret("ApiKey")]
+        public sealed partial class CachedModule : Module;
+
+        [ModuleHosting(typeof(CachedModule))]
+        public sealed partial class CachedModuleHosting;
+        """;
+
+    private static readonly string[] Steps = ["ModuleModel", "HostingModel"];
+
+    private static GeneratorDriver Run(GeneratorDriver driver, Compilation compilation)
+        => driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void StepsAreCachedAndSourceIsReusedWhenAnUnrelatedTreeIsAdded()
+    {
+        var compilation = GeneratorHarness.Compile(Module);
+        var first = Run(GeneratorHarness.CreateDriver(), compilation);
+        var firstSources = first.GetRunResult().Results.Single().GeneratedSources;
+        Assert.Equal(2, firstSources.Length);
+
+        var changed = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("namespace Fixture; public sealed class Unrelated;", cancellationToken: TestContext.Current.CancellationToken));
+        var second = Run(first, changed).GetRunResult().Results.Single();
+        foreach (var step in Steps)
+        {
+            var outputs = second.TrackedSteps[step].Single().Outputs;
+            Assert.NotEmpty(outputs);
+            Assert.All(outputs, o => Assert.True(o.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged, $"{step}: {o.Reason}"));
+        }
+
+        foreach (var source in second.GeneratedSources)
+        {
+            var before = firstSources.Single(s => s.HintName == source.HintName);
+            Assert.Same(before.SourceText, source.SourceText);
+        }
+    }
+
+    [Fact]
+    public void PositiveControlChangingTheModuleIdModifiesTheStep()
+    {
+        var compilation = GeneratorHarness.Compile(Module);
+        var first = Run(GeneratorHarness.CreateDriver(), compilation);
+        var edited = CSharpSyntaxTree.ParseText(Module.Replace("[Module(\"cached\")]", "[Module(\"changed\")]", StringComparison.Ordinal),
+            cancellationToken: TestContext.Current.CancellationToken);
+        var second = Run(first, compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.Single(), edited)).GetRunResult().Results.Single();
+        var outputs = second.TrackedSteps["ModuleModel"].Single().Outputs;
+        Assert.All(outputs, o => Assert.True(o.Reason is IncrementalStepRunReason.Modified or IncrementalStepRunReason.New, o.Reason.ToString()));
+        Assert.Contains("\"changed\"", second.GeneratedSources.Single(s => s.HintName.Contains("CachedModule.g", StringComparison.Ordinal)).SourceText.ToString(), StringComparison.Ordinal);
+    }
+}
