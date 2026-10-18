@@ -142,7 +142,7 @@
   <Folder Name="/Modules/ModelContextProtocol/Mcp/">
     <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp/DigitalBrain.Modules.Mcp.csproj" />
-    <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/tests/DigitalBrain.Modules.Mcp.Tests/DigitalBrain.Modules.Mcp.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/tests/DigitalBrain.Modules.Mcp.Tests.Integration/DigitalBrain.Modules.Mcp.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Monnet/">
     <Project Path="src/DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet.Aspire.Hosting/DigitalBrain.Modules.Monnet.Aspire.Hosting.csproj" />

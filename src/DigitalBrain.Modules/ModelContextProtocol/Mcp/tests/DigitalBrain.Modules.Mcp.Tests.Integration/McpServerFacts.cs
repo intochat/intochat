@@ -12,7 +12,7 @@ using ModelContextProtocol.Server;
 
 namespace DigitalBrain.Mcp.Tests;
 
-public sealed class McpServerFacts
+public sealed class McpServerFacts(McpHost host)
 {
     private const string Server = "mcp/fake";
 
@@ -21,17 +21,18 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
 
-        var state = await brain.Get<IMcpServer>(brain.Owner.Key(Server)).Connect(new("Fake", server.Url), ct);
+        var state = await brain.Get<IMcpServer>(person.Key(Server)).Connect(new("Fake", server.Url), ct);
 
         Assert.True(state.Connected);
         Assert.Equal(["echo", "next", "pixel"], state.Tools.Select(tool => tool.Name).Order());
         Assert.Contains("\"text\"", state.Tools.Single(tool => tool.Name == "echo").InputSchema, StringComparison.Ordinal);
-        var capabilities = await Capabilities(brain).Read(brain.Owner.BrainId, ct);
+        var capabilities = await Capabilities(brain).Read(person.BrainId, ct);
         Assert.Equal(["echo", "next", "pixel"], capabilities.Select(entry => entry.Tool).Order());
-        Assert.All(capabilities, entry => Assert.Equal((brain.Owner.Key(Server), typeof(IMcpServer).FullName), (entry.Key, entry.Contract)));
+        Assert.All(capabilities, entry => Assert.Equal((person.Key(Server), typeof(IMcpServer).FullName), (entry.Key, entry.Contract)));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Capabilities(brain).Read("another-brain", ct));
     }
 
@@ -40,9 +41,10 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
-        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var mcp = brain.Get<IMcpServer>(person.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         var result = await mcp.Run("echo", """{"text":"hello"}""", ct);
@@ -56,9 +58,10 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
-        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var mcp = brain.Get<IMcpServer>(person.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         await mcp.Run("next", "{}", ct);
@@ -72,9 +75,10 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
-        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var mcp = brain.Get<IMcpServer>(person.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         var result = await mcp.Run("pixel", "{}", ct);
@@ -88,26 +92,28 @@ public sealed class McpServerFacts
     public async Task RunBeforeConnectIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IMcpServer>(brain.Owner.Key(Server)).Run("echo", "{}", ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IMcpServer>(person.Key(Server)).Run("echo", "{}", ct));
     }
 
     [Fact]
     public async Task AnUnreachableServerIsAStateErrorAndOffersNoTools()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
-        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var mcp = brain.Get<IMcpServer>(person.Key(Server));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => mcp.Connect(new("Gone", "http://127.0.0.1:1/mcp"), ct));
 
         var state = await mcp.Read();
         Assert.False(state.Connected);
         Assert.NotNull(state.Error);
-        Assert.Empty(await Capabilities(brain).Read(brain.Owner.BrainId, ct));
+        Assert.Empty(await Capabilities(brain).Read(person.BrainId, ct));
     }
 
     [Fact]
@@ -115,22 +121,20 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
-        await using var brain = await Start(ct);
-        using var caller = brain.Owner.AsCaller();
-        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
+        var brain = host.Brain;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var mcp = brain.Get<IMcpServer>(person.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         await mcp.Disconnect(ct);
 
         Assert.False((await mcp.Read()).Connected);
-        Assert.Empty(await Capabilities(brain).Read(brain.Owner.BrainId, ct));
+        Assert.Empty(await Capabilities(brain).Read(person.BrainId, ct));
     }
 
     private static IRuntimeCapabilitySource Capabilities(ITestBrain brain)
         => brain.Services.GetServices<IRuntimeCapabilitySource>().OfType<ToolCapabilitySource>().Single();
-
-    private static Task<ITestBrain> Start(CancellationToken ct)
-        => TestBrain.Create().WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);
 
     [McpServerToolType]
     public sealed class FakeTools
