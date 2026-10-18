@@ -7,6 +7,8 @@ internal sealed class CurrentBrain(IDigitalBrains brains, IKernelView kernel) : 
 {
     public T Get<T>(NeuronId id) where T : INeuron => brains.Grain<T>(id.Name);
 
+    public T Neuron<T>(NeuronId relative) where T : INeuron => Get<T>(relative.Within(BrainScope.CurrentId()));
+
     public IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal
         => brains.On<T>(neuron, cancellationToken);
 

@@ -233,6 +233,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
 
     public T Get<T>(string id) where T : class, INeuron => Brains.Grain<T>(id);
     T IDigitalBrain.Get<T>(NeuronId id) => Brains.Grain<T>(id.Name);
+    public T Neuron<T>(NeuronId relative) where T : INeuron => Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
 

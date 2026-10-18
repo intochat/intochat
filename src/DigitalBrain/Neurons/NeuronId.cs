@@ -35,6 +35,16 @@ public readonly record struct NeuronId
 
     public override string ToString() => Name;
 
+    // Transitional (clean-core 2a): the full key "{brain}/{name}" that brain-relative addressing resolves while
+    // Get still takes full keys. Only implementations of IDigitalBrain call this.
+    public NeuronId Within(string brain)
+    {
+        // The same rule as BrainScope.IsValidId (Framework), which this assembly cannot reference.
+        if (string.IsNullOrWhiteSpace(brain) || brain.Length > 200 || brain[0] == '@' || brain.Any(c => char.IsControl(c) || c is '/' or '\\' or ':'))
+        { throw new ArgumentException("A brain ID must contain 1-200 characters without path separators, ':' or a leading '@'.", nameof(brain)); }
+        return new($"{brain}/{Name}");
+    }
+
     // System.Text.Json builds a struct through its parameterless constructor and cannot set the get-only
     // Name, so without this a publisher reaches a script nameless. A name is read back through the
     // constructor; a missing name is the unstamped default.
