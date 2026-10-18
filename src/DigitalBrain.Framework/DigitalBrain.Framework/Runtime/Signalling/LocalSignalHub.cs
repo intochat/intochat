@@ -117,14 +117,17 @@ public sealed class LocalSignalHub(ILogger<LocalSignalHub> logger) : ILocalSigna
         }
         public Task Idle(CancellationToken cancellationToken)
         {
+            // A closed delivery never delivers what is still queued, so it counts as idle.
             lock (_idle)
-            { return _pending == 0 ? Task.CompletedTask : _drained.Task.WaitAsync(cancellationToken); }
+            { return _pending == 0 || Volatile.Read(ref _closed) != 0 ? Task.CompletedTask : _drained.Task.WaitAsync(cancellationToken); }
         }
         public void Close()
         {
             if (Interlocked.Exchange(ref _closed, 1) != 0) { return; }
             _queue.Writer.TryComplete();
             _lifetime.Cancel();
+            // Releases a flush that began while nudges were queued: they are dropped, never finished.
+            lock (_idle) { _drained.TrySetResult(); }
         }
         private void FinishOne()
         {
