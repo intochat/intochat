@@ -3,7 +3,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Salesforce;
 using Xunit;
 
-namespace DigitalBrain.Modules.Salesforce.Tests;
+namespace DigitalBrain.Modules.Salesforce.Tests.Integration;
 
 public sealed class SalesforceEndpointFacts
 {

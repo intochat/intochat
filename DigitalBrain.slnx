@@ -174,7 +174,7 @@
     <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Contracts/DigitalBrain.Modules.Salesforce.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce/DigitalBrain.Modules.Salesforce.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Salesforce/tests/DigitalBrain.Modules.Salesforce.Tests/DigitalBrain.Modules.Salesforce.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Salesforce/tests/DigitalBrain.Modules.Salesforce.Tests.Integration/DigitalBrain.Modules.Salesforce.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Supabase/">
     <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" />

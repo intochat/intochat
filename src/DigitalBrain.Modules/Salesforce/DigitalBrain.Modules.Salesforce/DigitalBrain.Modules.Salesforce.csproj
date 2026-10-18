@@ -6,7 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Salesforce.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Salesforce.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

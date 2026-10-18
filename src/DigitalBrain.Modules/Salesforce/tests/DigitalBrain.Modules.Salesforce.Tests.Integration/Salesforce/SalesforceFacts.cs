@@ -10,14 +10,15 @@ using DigitalBrain.Salesforce.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.Salesforce.Tests;
+namespace DigitalBrain.Modules.Salesforce.Tests.Integration;
 
-public sealed class SalesforceFacts
+public sealed class SalesforceFacts(SalesforceHost host)
 {
     private const string InstanceUrl = "https://acme.my.salesforce.com/";
     private static readonly SoqlQuery Soql = new("SELECT Id FROM Account WHERE Name != null LIMIT 10");
     private static readonly PrepareSalesforceWrite CreateAcme = new("createRecord", """{"Name":"Acme"}""");
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantConnectsTheOrgAndRecordsItsInstanceUrl()
     {
@@ -39,6 +40,7 @@ public sealed class SalesforceFacts
         Assert.DoesNotContain("access-token", JsonSerializer.Serialize(view), StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantWithoutAnHttpsInstanceUrlLeavesTheOrgDisconnected()
     {
@@ -54,6 +56,7 @@ public sealed class SalesforceFacts
         Assert.Equal(ConnectionStatus.Disconnected, (await org.Connection.Read()).Status);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AWriteWithALapsedSessionRefreshesFirst()
     {
@@ -72,6 +75,7 @@ public sealed class SalesforceFacts
         Assert.True(view.ExpiresAt > org.Clock.GetUtcNow());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantWithoutAnExpiryLivesTheDefaultSessionAndRefreshesOnceItLapses()
     {
@@ -95,6 +99,7 @@ public sealed class SalesforceFacts
         Assert.Equal("fresh-access-token", org.Fake.AccessToken);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARefreshWithoutAnExpiryAlsoLivesTheDefaultSession()
     {
@@ -115,6 +120,7 @@ public sealed class SalesforceFacts
         Assert.Single(org.Fake.RefreshTokens);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantForAnotherOrgDropsThePendingWrite()
     {
@@ -133,6 +139,7 @@ public sealed class SalesforceFacts
         Assert.Equal("https://other.my.salesforce.com/", (await org.Connection.Read()).Account);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARefusedRefreshExpiresTheConnectionAndKeepsTheTokenOutOfTheDetail()
     {
@@ -155,6 +162,7 @@ public sealed class SalesforceFacts
         Assert.DoesNotContain(FakeSalesforce.RefusalText, view.Detail, StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AProbeAsksSalesforceWithTheStoredTokenAndMapsItsAnswer()
     {
@@ -176,6 +184,7 @@ public sealed class SalesforceFacts
         Assert.Equal(ConnectionStatus.Connected, (await org.Connection.Probe()).Status);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFailedSchemaReadMarksTheConnectionFailingAndTheNextWriteStillRuns()
     {
@@ -193,6 +202,7 @@ public sealed class SalesforceFacts
         Assert.NotEmpty(preview.ToolSchemaHash);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ADisconnectClearsTheOrgAndPublishesConnectionDisconnected()
     {
@@ -212,6 +222,7 @@ public sealed class SalesforceFacts
         Assert.Empty(org.Fake.Requests);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AMemberOfAnotherBrainCannotQueryOrWriteTheOrg()
     {
@@ -226,6 +237,7 @@ public sealed class SalesforceFacts
         Assert.Empty(org.Fake.Requests);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task QueryRunsBoundedSoqlThroughSalesforceWithTheSealedAccessToken()
     {
@@ -242,6 +254,7 @@ public sealed class SalesforceFacts
         Assert.Equal("access-token", org.Fake.AccessToken);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task PrepareThenConfirmWritePublishesRecordWritten()
     {
@@ -265,7 +278,7 @@ public sealed class SalesforceFacts
     public async Task PrepareWriteRejectsAnUnadmittedTool()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var org = await Org.StartAsync(ct);
+        await using var org = await Org.ForPersonAsync(host, ct);
         await org.ConnectAsync(ct);
         using var caller = org.Owner.AsCaller();
 
@@ -276,19 +289,21 @@ public sealed class SalesforceFacts
     public async Task QueryRejectsUnboundedSoql()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var org = await Org.StartAsync(ct);
+        await using var org = await Org.ForPersonAsync(host, ct);
         using var caller = org.Owner.AsCaller();
 
         await Assert.ThrowsAsync<SalesforceUnavailableException>(() => org.Salesforce.Query(new("SELECT Id FROM Account"), ct));
     }
 
+    internal static TestBrain Compose(TestBrain brain, FakeSalesforce salesforce, ShiftedClock clock) => Org.Compose(brain, salesforce, clock);
+
     // One brain with the Salesforce module, its OAuth client and MCP endpoint pointed at the fake.
-    private sealed class Org(ITestBrain brain, FakeSalesforce salesforce, ShiftedClock clock) : IAsyncDisposable
+    private sealed class Org(ITestBrain brain, FakeSalesforce salesforce, ShiftedClock clock, Person? person = null) : IAsyncDisposable
     {
         public ITestBrain Brain => brain;
         public FakeSalesforce Fake => salesforce;
         public ShiftedClock Clock => clock;
-        public Person Owner => brain.Owner;
+        public Person Owner => person ?? brain.Owner;
         public string Key => ConnectionKeys.For(Owner.BrainId, "salesforce", "org");
         public ISalesforce Salesforce => brain.Get<ISalesforce>(Key);
         public IConnection Connection => brain.Get<IConnection>(Key);
@@ -297,23 +312,30 @@ public sealed class SalesforceFacts
         {
             var salesforce = await FakeSalesforce.StartAsync(ct);
             var clock = new ShiftedClock();
+            return new Org(await Compose(TestBrain.Create(), salesforce, clock).StartAsync(ct), salesforce, clock);
+        }
+
+        // A fresh person on the shared host, whose fake and clock are the host's.
+        public static async Task<Org> ForPersonAsync(SalesforceHost host, CancellationToken ct)
+            => new(host.Brain, host.Fake, host.Clock, await host.PersonAsync(ct: ct));
+
+        public static TestBrain Compose(TestBrain brain, FakeSalesforce salesforce, ShiftedClock clock)
+        {
             var connections = DigitalBrainConfiguration.ConnectionsSectionName;
-            var brain = await TestBrain.Create()
+            return brain
                 .WithModule<SalesforceModule, SalesforceModuleOptions>(options => { options.McpEndpoint = salesforce.McpEndpoint; options.AllowLoopbackMcp = true; })
                 .WithIntegration(SalesforceModule.Integration, "ConsumerKey", "consumer-key")
                 .WithIntegration(SalesforceModule.Integration, "ConsumerSecret", "consumer-secret")
                 .WithConfiguration($"{connections}:PublicOrigin", salesforce.Origin.AbsoluteUri)
                 .WithConfiguration($"{connections}:TokenEndpoints:salesforce", salesforce.TokenEndpoint.AbsoluteUri)
                 // Session lifetimes are minutes long; the facts move the wall clock past them.
-                .ConfigureServices(services => services.AddSingleton<TimeProvider>(clock))
-                .StartAsync(ct);
-            return new Org(brain, salesforce, clock);
+                .ConfigureServices(services => services.AddSingleton<TimeProvider>(clock));
         }
 
         // The owner's browser login: the platform exchanges the code at the fake's token endpoint.
         public async Task<HttpStatusCode> TryConnectAsync(CancellationToken ct)
         {
-            using var login = await Owner.Http.PostAsJsonAsync("/brains/owner/connections/org/login", new { connectorId = "salesforce", authMethodId = "org-oauth" }, ct);
+            using var login = await Owner.Http.PostAsJsonAsync($"/brains/{Owner.BrainId}/connections/org/login", new { connectorId = "salesforce", authMethodId = "org-oauth" }, ct);
             login.EnsureSuccessStatusCode();
             var url = new Uri((await login.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("url").GetString()!);
             var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
@@ -325,6 +347,7 @@ public sealed class SalesforceFacts
 
         public async ValueTask DisposeAsync()
         {
+            if (person is not null) { return; }
             await brain.DisposeAsync();
             await salesforce.DisposeAsync();
         }

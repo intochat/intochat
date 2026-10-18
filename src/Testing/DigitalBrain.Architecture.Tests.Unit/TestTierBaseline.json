@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Salesforce.Tests",
     "DigitalBrain.Modules.Supabase.Tests",
     "DigitalBrain.Modules.Time.Tests",
     "DigitalBrain.Modules.Twilio.Tests"

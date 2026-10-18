@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Modules.Salesforce.Tests;
+namespace DigitalBrain.Modules.Salesforce.Tests.Integration;
 
 // Salesforce on loopback: the OAuth token endpoint and the hosted MCP server the real adapter calls.
 // Like Salesforce, neither the code exchange nor a refresh answers with expires_in.
