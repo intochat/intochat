@@ -69,7 +69,7 @@ jobs:
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
             -p:CodeGraphRefresh=false \
-            "-p:ContainerImageTags=${VERSION};latest"
+            "-p:ContainerImageTags=\"${VERSION};latest\""
 
       - name: Publish UI image
         env:
