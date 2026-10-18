@@ -16,6 +16,7 @@ internal static class GmailBrain
 
     public static Task<ITestBrain> StartAsync(TokenEndpointStub stub, CancellationToken ct, string? posture = null)
     {
+        stub.Scope = "https://www.googleapis.com/auth/gmail.readonly";
         var builder = TestBrain.Create()
             .WithModule<GmailModule, GmailModuleOptions>(options => options.ProfileEndpoint = new(stub.Origin, "profile"))
             .WithIntegration(GmailModule.Integration, "ClientId", "integration-client")

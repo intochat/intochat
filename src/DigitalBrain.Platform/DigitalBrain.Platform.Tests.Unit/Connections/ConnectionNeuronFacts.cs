@@ -208,6 +208,8 @@ public sealed class ConnectionNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var tokens = await TokenEndpointStub.StartAsync(ct);
+        // Every refreshed token is already inside the 30-second lead, so each use refreshes again.
+        tokens.RefreshExpiresIn = 1;
         await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
             .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")

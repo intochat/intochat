@@ -1,3 +1,4 @@
+using DigitalBrain.Testing.Fakes;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +11,7 @@ public sealed class PlaywrightNeuronFacts
     public async Task Starting_after_desktop_attachment_replaces_it_with_a_managed_session()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
         using var caller = brain.Owner.AsCaller();
         var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
@@ -27,7 +28,7 @@ public sealed class PlaywrightNeuronFacts
     public async Task Attaching_publishes_ready_from_the_browser_and_deactivation_releases_the_page()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
@@ -45,14 +46,14 @@ public sealed class PlaywrightNeuronFacts
     public async Task Disconnect_interrupts_navigation_and_publishes_unavailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         await using var unavailable = await brain.Observe<BrowserUnavailable>(browser, ct);
         var id = new string('a', 32);
         await browser.Attach(new(1234, id), ct);
         var navigation = browser.Navigate("https://example.com", ct);
-        await provider.Pages[0].Started.Task.WaitAsync(ct);
+        await provider.Pages[0].NavigationStarted.Task.WaitAsync(ct);
         await browser.Detach(id, ct);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => navigation);
         Assert.Equal(id, (await unavailable.NextAsync(ct: ct)).SessionId);
@@ -64,7 +65,7 @@ public sealed class PlaywrightNeuronFacts
     public async Task A_second_connect_supersedes_an_attachment_still_in_progress()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { BlockFirst = true };
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true, BlockedSessionId = new string('a', 32) };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
@@ -83,7 +84,7 @@ public sealed class PlaywrightNeuronFacts
     public async Task A_pending_connection_rejects_actions_without_canceling_the_attachment()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { Release = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true, Release = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         var attach = browser.Attach(new(1234, new string('a', 32)), ct);
@@ -99,7 +100,7 @@ public sealed class PlaywrightNeuronFacts
     public async Task Disconnect_during_attachment_never_publishes_ready()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { BlockFirst = true };
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true, BlockedSessionId = new string('a', 32) };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
@@ -118,13 +119,13 @@ public sealed class PlaywrightNeuronFacts
     public async Task Repeated_connect_does_not_interrupt_navigation()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
         var browser = brain.Get<IPlaywright>("browser");
         var attachment = new BrowserAttachment(1234, new string('a', 32));
         await browser.Attach(attachment, ct);
         var navigation = browser.Navigate("https://example.com", ct);
-        await provider.Pages[0].Started.Task.WaitAsync(ct);
+        await provider.Pages[0].NavigationStarted.Task.WaitAsync(ct);
         await browser.Attach(attachment, ct);
         Assert.Single(provider.Pages);
         Assert.False(navigation.IsCompleted);
@@ -136,52 +137,14 @@ public sealed class PlaywrightNeuronFacts
     public async Task An_unattached_browser_fails_with_a_catchable_error()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new Provider());
+        await using var brain = await Start(new FakeBrowserSessionProvider { HangNavigation = true });
         var browser = brain.Get<IPlaywright>("browser");
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Navigate("https://example.com", ct));
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
     }
 
     // The browser session host stands in for a CDP-attached page whose attach and navigation timing the facts script.
-    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<PlaywrightModule>()
+    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<PlaywrightModule>()
         .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
-
-    private sealed class Provider : IBrowserSessionProvider
-    {
-        public bool BlockFirst;
-        public TaskCompletionSource? Release;
-        public List<Page> Pages { get; } = [];
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<IBrowserPageSession> StartAsync(string accountId, string sessionId, CancellationToken ct)
-            => AttachAsync(new(1234, sessionId), ct);
-        public async Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
-        {
-            Started.TrySetResult();
-            if (Release is { } release) { await release.Task.WaitAsync(ct); }
-            if (BlockFirst && attachment.SessionId == new string('a', 32)) { await Task.Delay(Timeout.Infinite, ct); }
-            var page = new Page();
-            Pages.Add(page);
-            return page;
-        }
-    }
-    private sealed class Page : IBrowserPageSession
-    {
-        public bool Disposed;
-        public bool Connected => !Disposed;
-        public string? Url => "https://example.com";
-        public string? Title => "Example";
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct)
-        {
-            Started.TrySetResult();
-            await Task.Delay(Timeout.Infinite, ct);
-            return new(url, "", "", []);
-        }
-        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
-        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new { expression }));
-        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
-    }
 }

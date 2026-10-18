@@ -1,3 +1,4 @@
+using DigitalBrain.Testing.Fakes;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.WebBrowser;
@@ -11,8 +12,11 @@ namespace DigitalBrain.Modules.Flutter.Tests.WebBrowser;
 
 public sealed class WebBrowserFacts
 {
+    // The shell's own pages (localhost:181xx) are exempt from the public-only navigation rule.
+    private const string AppPages = "http://localhost:181";
+
     private const string Session = "0123456789abcdef0123456789abcdef";
-    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<FlutterModule>()
+    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<FlutterModule>()
         .WithModule<PlaywrightModule>()
         // The shell's CDP page session: the debugging port lives on the user's device, so the fake stands in for the attachment.
         .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
@@ -25,7 +29,7 @@ public sealed class WebBrowserFacts
     public async Task Connecting_the_shell_attaches_the_declared_driver_and_publishes_ready_without_a_port()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -53,7 +57,7 @@ public sealed class WebBrowserFacts
     public async Task Disconnecting_detaches_the_driver_and_publishes_unavailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = Connector(brain, "research/browser");
@@ -69,7 +73,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task Failed_detachment_does_not_announce_disconnection_and_can_be_retried()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -95,7 +99,7 @@ public sealed class WebBrowserFacts
     public async Task A_pending_detach_cannot_announce_disconnection_or_overwrite_a_replacement_session()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -131,7 +135,7 @@ public sealed class WebBrowserFacts
     public async Task Deactivation_detaches_without_changing_status_or_dispatching_ui_events()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -152,7 +156,7 @@ public sealed class WebBrowserFacts
     public async Task Failed_cleanup_during_deactivation_does_not_dispatch_a_disconnect()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -172,7 +176,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task Recomposition_and_rebinding_do_not_replace_a_live_session_or_reset_observation()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = Connector(brain, "research/browser");
@@ -193,7 +197,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task Two_windows_sharing_a_debugging_port_drive_distinct_grains_without_crosstalk()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         await brain.Get<IWebBrowser>("workspace/first/browser").Configure("workspace/first/driver");
         await brain.Get<IWebBrowser>("workspace/second/browser").Configure("workspace/second/driver");
@@ -212,7 +216,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task A_stale_disconnect_cannot_detach_a_replacement_session()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var connector = Connector(brain, "research/browser");
         await connector.Connect(12345, Session);
@@ -227,7 +231,7 @@ public sealed class WebBrowserFacts
     public async Task ARestartedBrowserIsWaitingNotReady()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -249,7 +253,7 @@ public sealed class WebBrowserFacts
     public async Task Disconnecting_during_attachment_prevents_a_late_ready_status()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { Pending = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages, Pending = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var brain = await Start(provider);
         await brain.Get<IWebBrowser>("research/browser").Configure("research/driver");
         var connector = Connector(brain, "research/browser");
@@ -259,7 +263,7 @@ public sealed class WebBrowserFacts
         var disconnect = connector.Disconnect(Session);
         Assert.Equal(Session, (await unavailable.NextAsync(ct: ct)).SessionId);
         Assert.Null((await brain.Get<IPlaywright>("research/driver").Read()).SessionId);
-        var page = new Page();
+        var page = new FakeBrowserPageSession(provider);
         provider.Pending.SetResult(page);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect);
         await disconnect.WaitAsync(ct);
@@ -271,7 +275,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task Failed_attachment_reports_unavailable_and_can_be_retried()
     {
-        var provider = new Provider { Fail = true };
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages, Fail = true };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
@@ -312,7 +316,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task AnAttachedPageShowsTheBrowserUri()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("film/browser");
         await browser.Configure("film/browser");
@@ -331,7 +335,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task AnUnavailableShellBrowserReportsItsReason()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = Connector(brain, "research/browser");
@@ -354,7 +358,7 @@ public sealed class WebBrowserFacts
     [Fact]
     public async Task ANavigationFailureIsTheBrowsersError()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { AppOrigin = AppPages };
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("film/browser");
         await browser.Configure("film/browser");
@@ -371,56 +375,6 @@ public sealed class WebBrowserFacts
         Assert.Equal(BrowserConnection.Attached, recovered.Connection);
         Assert.Empty(recovered.Error);
         Assert.Equal("http://localhost:18110/", recovered.ActualUrl);
-    }
-
-    private sealed class Provider : IBrowserSessionProvider
-    {
-        public bool Fail { get; set; }
-        public TaskCompletionSource<IBrowserPageSession>? Pending { get; init; }
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public List<BrowserAttachment> Attachments { get; } = [];
-        public List<Page> Pages { get; } = [];
-        public bool IsAppPage(string url) => url.StartsWith("http://localhost:181", StringComparison.Ordinal);
-        public Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
-        {
-            Attachments.Add(attachment);
-            Started.TrySetResult();
-            if (Fail) { throw new InvalidOperationException("Browser unavailable"); }
-            if (Pending is not null) { return Pending.Task; }
-            var page = new Page();
-            Pages.Add(page);
-            return Task.FromResult<IBrowserPageSession>(page);
-        }
-    }
-    private sealed class Page : IBrowserPageSession
-    {
-        public bool FailDispose { get; set; }
-        public bool FailNavigate { get; set; }
-        public TaskCompletionSource? PendingDispose { get; set; }
-        public TaskCompletionSource DisposeStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public bool Disposed { get; private set; }
-        public bool Connected => !Disposed;
-        public string? Url { get; private set; } = "https://example.com";
-        public string? Title { get; private set; } = "Example";
-        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
-        public List<string> Navigations { get; } = [];
-        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct)
-        {
-            Navigations.Add(url);
-            if (FailNavigate) { throw new InvalidOperationException("Load rejected"); }
-            Url = url;
-            return SnapshotAsync(ct);
-        }
-        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("null");
-        public async ValueTask DisposeAsync()
-        {
-            DisposeStarted.TrySetResult();
-            if (FailDispose) { throw new InvalidOperationException("Detachment failed."); }
-            if (PendingDispose is { } pending) { await pending.Task; }
-            Disposed = true;
-        }
     }
 
     // Observation changes re-render the shell; these facts are about the session lifecycle.

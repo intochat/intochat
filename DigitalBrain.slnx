@@ -195,6 +195,7 @@
     <Project Path="src/Testing/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Fakes/DigitalBrain.Testing.Fakes.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Playwright/DigitalBrain.Testing.Playwright.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Tests/DigitalBrain.Testing.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />

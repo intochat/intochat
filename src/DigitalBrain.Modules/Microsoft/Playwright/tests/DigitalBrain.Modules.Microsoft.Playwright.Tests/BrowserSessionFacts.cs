@@ -1,3 +1,4 @@
+using DigitalBrain.Testing.Fakes;
 using DigitalBrain.Microsoft.Playwright;
 namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
 
@@ -6,7 +7,7 @@ public sealed class BrowserSessionFacts
     [Fact]
     public async Task Stale_detach_preserves_replacement_page()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var owner = new BrowserSessionOwner(provider);
         await owner.Attach(new(1234, new string('a', 32)), TestContext.Current.CancellationToken);
         await owner.Attach(new(1234, new string('b', 32)), TestContext.Current.CancellationToken);
@@ -20,11 +21,11 @@ public sealed class BrowserSessionFacts
     public async Task Cancellation_during_attachment_disposes_late_result()
     {
         var ready = new TaskCompletionSource<IBrowserPageSession>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var owner = new BrowserSessionOwner(new DelayedProvider(ready.Task));
+        var owner = new BrowserSessionOwner(new FakeBrowserSessionProvider { Pending = ready });
         using var ct = new CancellationTokenSource();
         var attach = owner.Attach(new(1234, new string('a', 32)), ct.Token);
         ct.Cancel();
-        var page = new Page();
+        var page = new FakeBrowserPageSession(new());
         ready.SetResult(page);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => attach);
         await owner.DisposeAsync();
@@ -34,12 +35,12 @@ public sealed class BrowserSessionFacts
     [Fact]
     public async Task Detach_cancels_active_operation_and_reports_disconnected()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var owner = new BrowserSessionOwner(provider);
         var id = new string('a', 32);
         await owner.Attach(new(1234, id), TestContext.Current.CancellationToken);
         var action = owner.Navigate("https://example.com", TestContext.Current.CancellationToken);
-        await provider.Pages[0].Started.Task;
+        await provider.Pages[0].NavigationStarted.Task;
         await owner.Detach(id, TestContext.Current.CancellationToken);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => action);
         Assert.False(owner.Read().Connected);
@@ -68,11 +69,11 @@ public sealed class BrowserSessionFacts
     public async Task Disposing_owner_cancels_pending_attach_and_disposes_late_page()
     {
         var ready = new TaskCompletionSource<IBrowserPageSession>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var owner = new BrowserSessionOwner(new DelayedProvider(ready.Task));
+        var owner = new BrowserSessionOwner(new FakeBrowserSessionProvider { Pending = ready });
         var attach = owner.Attach(new(1234, new string('a', 32)), TestContext.Current.CancellationToken);
         var disposing = owner.DisposeAsync().AsTask();
         Assert.False(owner.Read().Connected);
-        var page = new Page();
+        var page = new FakeBrowserPageSession(new());
         ready.SetResult(page);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => attach);
         await disposing;
@@ -81,12 +82,12 @@ public sealed class BrowserSessionFacts
     [Fact]
     public async Task Operations_are_serialized_while_read_remains_available()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var owner = new BrowserSessionOwner(provider);
         await owner.Attach(new(1234, new string('a', 32)), TestContext.Current.CancellationToken);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var first = owner.Navigate("https://example.com", cancellation.Token);
-        await provider.Pages[0].Started.Task;
+        await provider.Pages[0].NavigationStarted.Task;
         var second = owner.Snapshot(TestContext.Current.CancellationToken);
         Assert.False(second.IsCompleted);
         Assert.True(owner.Read().Connected);
@@ -97,7 +98,7 @@ public sealed class BrowserSessionFacts
     [Fact]
     public async Task Separate_owners_do_not_detach_each_other()
     {
-        var provider = new Provider();
+        var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var first = new BrowserSessionOwner(provider);
         await using var second = new BrowserSessionOwner(provider);
         await first.Attach(new(1234, new string('a', 32)), TestContext.Current.CancellationToken);
@@ -119,37 +120,5 @@ public sealed class BrowserSessionFacts
         Assert.True(next.TryReceive(1024));
         Assert.False(previous.TryReceive(1024));
         Assert.True(next.TryReceive(1024));
-    }
-    private sealed class DelayedProvider(Task<IBrowserPageSession> task) : IBrowserSessionProvider
-    {
-        public Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct) => task;
-    }
-    private sealed class Provider : IBrowserSessionProvider
-    {
-        public List<Page> Pages { get; } = [];
-        public Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
-        {
-            var page = new Page(); Pages.Add(page);
-            return Task.FromResult<IBrowserPageSession>(page);
-        }
-    }
-    private sealed class Page : IBrowserPageSession
-    {
-        public bool Disposed { get; private set; }
-        public bool Connected => !Disposed;
-        public string? Url => "https://example.com";
-        public string? Title => "Example";
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct)
-        {
-            Started.SetResult();
-            await Task.Delay(Timeout.Infinite, ct);
-            throw new InvalidOperationException();
-        }
-        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
-        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new { expression }));
-        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 }

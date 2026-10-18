@@ -1,3 +1,4 @@
+using DigitalBrain.Testing.Fakes;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +11,7 @@ public sealed class PageToolsFacts
     public async Task ConfiguringOffersTheThreePageTools()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new Provider());
+        await using var brain = await Start(new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft" });
         using var caller = brain.Owner.AsCaller();
 
         var pages = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
@@ -27,7 +28,7 @@ public sealed class PageToolsFacts
     public async Task ExecuteEvaluatesTheApisExecuteWithEncodedArguments()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { Result = "{\"ok\":true}" };
+        var provider = new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft", Evaluate = _ => "{\"ok\":true}" };
         await using var brain = await Start(provider);
         using var caller = brain.Owner.AsCaller();
         await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
@@ -48,7 +49,7 @@ public sealed class PageToolsFacts
     public async Task CommandsAreFilteredByIdSubstring()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new Provider { Result = """[{"id":"timeline.place"},{"id":"color.lumetri"},{"id":"timeline.razor"}]""" };
+        var provider = new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft", Evaluate = _ => """[{"id":"timeline.place"},{"id":"color.lumetri"},{"id":"timeline.razor"}]""" };
         await using var brain = await Start(provider);
         using var caller = brain.Owner.AsCaller();
         await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
@@ -64,7 +65,7 @@ public sealed class PageToolsFacts
     public async Task AHiddenPageIsAToolErrorNotAHang()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new Provider { Failure = "Error: page not rendering" });
+        await using var brain = await Start(new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft", EvaluateFailure = "Error: page not rendering" });
         using var caller = brain.Owner.AsCaller();
         await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
         var tools = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
@@ -80,41 +81,17 @@ public sealed class PageToolsFacts
     public async Task AnApiNameThatIsNotAnIdentifierIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new Provider());
+        await using var brain = await Start(new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft" });
         using var caller = brain.Owner.AsCaller();
 
         await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IPageTools>(brain.Owner.Key("pages/x"))
             .Configure(new("X", brain.Owner.Key("driver"), "filmcraft;alert(1)"), ct));
     }
 
+    private const string FilmCraftUrl = "http://127.0.0.1:18081/";
+
     // The browser session host stands in for a CDP-attached page whose timing and failures the facts script.
-    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<PlaywrightModule>().WithModule<ToolsModule>()
+    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<PlaywrightModule>().WithModule<ToolsModule>()
         .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
-
-    private sealed class Provider : IBrowserSessionProvider
-    {
-        public string Result { get; init; } = "null";
-        public string? Failure { get; init; }
-        public List<string> Expressions { get; } = [];
-        public Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
-            => Task.FromResult<IBrowserPageSession>(new Page(this));
-    }
-
-    private sealed class Page(Provider provider) : IBrowserPageSession
-    {
-        public bool Connected => true;
-        public string? Url => "http://127.0.0.1:18081/";
-        public string? Title => "FilmCraft";
-        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
-        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
-        public Task<string> EvaluateAsync(string expression, CancellationToken ct)
-        {
-            provider.Expressions.Add(expression);
-            return provider.Failure is { } failure ? Task.FromException<string>(new InvalidOperationException(failure)) : Task.FromResult(provider.Result);
-        }
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }
