@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire.Candidates;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
@@ -17,6 +18,7 @@ internal sealed class DeploymentNeuron(
     : Neuron<DeploymentState>(store), IDeployment, IDeploymentDriver, IRemindable, IRetainsSignals
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
+    private IDigitalBrain Brain => ServiceProvider.GetRequiredService<IDigitalBrains>().Open(BrainId);
     private readonly Guid activation = Guid.NewGuid();
     private IAsyncDisposable? membershipSubscription;
     private long membershipVersion = long.MinValue;
@@ -241,7 +243,7 @@ internal sealed class DeploymentNeuron(
         var rolledForward = Snapshot.Stage == DeploymentStage.Rolling;
         await Save(new DeploymentState { CurrentSha = current, Failure = failure }, Changed(current, DeploymentStage.Steady));
         await StopReminder();
-        if (rolledForward) { await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, current)).Finish(), "finish the promoted candidate"); }
+        if (rolledForward) { await Guarded(() => Brain.Neuron<ICandidate>(ICandidate.Relative(current)).Finish(), "finish the promoted candidate"); }
     }
 
     private async Task StopReminder()
@@ -277,13 +279,13 @@ internal sealed class DeploymentNeuron(
             await SaveQuietly(Snapshot with { CurrentSha = current });
         }
         // The candidate whose Promote was cut off by the restart ends here; its container is removed with it.
-        if (finished is not null) { await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, finished)).Finish(), "finish the promoted candidate"); }
+        if (finished is not null) { await Guarded(() => Brain.Neuron<ICandidate>(ICandidate.Relative(finished)).Finish(), "finish the promoted candidate"); }
         if (abandoned is not null)
         {
-            await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, abandoned)).Abandon($"the cluster restarted onto {current}, not {abandoned}"), "fail the abandoned promotion");
+            await Guarded(() => Brain.Neuron<ICandidate>(ICandidate.Relative(abandoned)).Abandon($"the cluster restarted onto {current}, not {abandoned}"), "fail the abandoned promotion");
         }
-        await Guarded(() => GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId)).Heal(), "heal the candidate queue");
-        await Guarded(async () => await candidates.Orphans(await GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId)).Known(), ct), "sweep orphan candidate containers");
+        await Guarded(() => Brain.Neuron<ICandidates>(ICandidates.Relative).Heal(), "heal the candidate queue");
+        await Guarded(async () => await candidates.Orphans(await Brain.Neuron<ICandidates>(ICandidates.Relative).Known(), ct), "sweep orphan candidate containers");
         var receiver = this.AsReference<IDeploymentDriver>();
         membershipSubscription = membership.Subscribe(snapshot => receiver.MembershipChanged(activation, snapshot));
         try { await MembershipChanged(activation, membership.Current); }

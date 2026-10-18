@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;
@@ -11,14 +12,15 @@ internal sealed class CandidateQueueNeuron(
     : Neuron<CandidateQueueState>(store), ICandidates
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
+    private IDigitalBrain Brain => ServiceProvider.GetRequiredService<IDigitalBrains>().Open(BrainId);
 
     public async Task<string> Propose(CandidateProposal proposal)
     {
         ArgumentNullException.ThrowIfNull(proposal);
         await Heal();
-        var cluster = await GrainFactory.GetGrain<IDeployment>(IDeployment.Key(BrainId)).Read();
+        var cluster = await Brain.Neuron<IDeployment>(IDeployment.Relative).Read();
         var prepared = await host.Prepare(cluster.CurrentSha, proposal.Summary, proposal.Files, CancellationToken.None);
-        var candidate = GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, prepared.Sha));
+        var candidate = Candidate(prepared.Sha);
         await candidate.Propose(proposal.Branch, proposal.Summary, proposal.Plan);
         if (Snapshot.Live is null)
         {
@@ -48,7 +50,7 @@ internal sealed class CandidateQueueNeuron(
 
     private static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 
-    private ICandidate Candidate(string sha) => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, sha));
+    private ICandidate Candidate(string sha) => Brain.Neuron<ICandidate>(ICandidate.Relative(sha));
 
     public Task<string?> Live() => Task.FromResult(Snapshot.Live);
 
@@ -64,6 +66,6 @@ internal sealed class CandidateQueueNeuron(
         if (Snapshot.Live != sha) { return; }
         var next = Snapshot.Queue.FirstOrDefault();
         await Save(Snapshot with { Live = next, Queue = next is null ? [] : Snapshot.Queue[1..] }, new CandidateChanged(sha, CandidateStage.Discarded));
-        if (next is not null) { await GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, next)).Begin(); }
+        if (next is not null) { await Candidate(next).Begin(); }
     }
 }

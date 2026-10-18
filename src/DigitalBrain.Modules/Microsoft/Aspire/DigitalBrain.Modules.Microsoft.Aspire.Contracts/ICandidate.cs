@@ -48,7 +48,9 @@ public interface ICandidate : INeuron
     // in any other stage.
     [AlwaysInterleave] Task<CandidateSnapshot> Finish();
     [AlwaysInterleave] Task<CandidateSnapshot> Abandon(string reason);
-    static string Key(string brainId, string sha) => $"{brainId}/aspire/candidate/{sha}";
+    static string Key(string brainId, string sha) => $"{brainId}/{Relative(sha)}";
+    // The id inside its brain.
+    static string Relative(string sha) => $"aspire/candidate/{sha}";
 }
 
 // The per-brain index: writes the files into a fresh worktree, queues, starts the next.
@@ -63,5 +65,7 @@ public interface ICandidates : INeuron
     // One-way calls are at most once: re-derives Live and Queue from the candidates' own stages, applying a lost
     // Ended and re-sending a lost Begin. Runs on every Propose and on the cluster's activation.
     [OneWay] Task Heal();
-    static string Key(string brainId) => $"{brainId}/aspire/candidates";
+    static string Key(string brainId) => $"{brainId}/{Relative}";
+    // The id inside its brain.
+    const string Relative = "aspire/candidates";
 }

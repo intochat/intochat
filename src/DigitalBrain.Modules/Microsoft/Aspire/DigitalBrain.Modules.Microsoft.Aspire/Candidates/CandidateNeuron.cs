@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire.Verification;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
@@ -16,8 +17,9 @@ internal sealed class CandidateNeuron(
     private string Key => this.GetPrimaryKeyString();
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
-    private ICandidates Index => GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId));
-    private IDeployment LiveCluster => GrainFactory.GetGrain<IDeployment>(IDeployment.Key(BrainId));
+    private IDigitalBrain Brain => ServiceProvider.GetRequiredService<IDigitalBrains>().Open(BrainId);
+    private ICandidates Index => Brain.Neuron<ICandidates>(ICandidates.Relative);
+    private IDeployment LiveCluster => Brain.Neuron<IDeployment>(IDeployment.Relative);
 
     public Task<CandidateSnapshot> Read() => Task.FromResult(Describe());
 
