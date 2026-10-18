@@ -3,8 +3,6 @@
     <IntoChatOSModule>true</IntoChatOSModule>
     <RootNamespace>IntoChat.OS.Sdk.SampleModule</RootNamespace>
   </PropertyGroup>
-  <!-- Compiles after 09-07 (Module<T> moves to the Sdk); until then the same source is the generator's SampleModule golden. -->
-  <ItemGroup><Compile Remove="SampleModule.cs" /><None Include="SampleModule.cs" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
   </ItemGroup>
