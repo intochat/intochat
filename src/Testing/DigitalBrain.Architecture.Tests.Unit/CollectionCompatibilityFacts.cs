@@ -4,19 +4,14 @@ using Orleans.Serialization;
 
 namespace DigitalBrain.Architecture.Tests.Unit;
 
-public sealed class CollectionCompatibilityFacts
+public sealed partial class CollectionCompatibilityFacts
 {
     [Fact]
     public void PreviouslyStoredCollectionsRemainReadable()
     {
         var samples = JsonSerializer.Deserialize<Sample[]>(File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "CollectionCompatibilitySamples.json")))!;
-        var services = new ServiceCollection();
-        services.AddSerializer(builder =>
-        {
-            foreach (var assembly in ProductionArchitecture.Assemblies) { builder.AddAssembly(assembly); }
-        });
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
         Assert.Equal(36, samples.Length);
@@ -30,6 +25,16 @@ public sealed class CollectionCompatibilityFacts
             var reloaded = serializer.Deserialize<object>(serializer.SerializeToArray(value));
             Assert.Equal(sample.Expected, JsonSerializer.Serialize(property.GetValue(reloaded), property.PropertyType, options));
         });
+    }
+
+    internal static ServiceProvider BuildProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddSerializer(builder =>
+        {
+            foreach (var assembly in ProductionArchitecture.Assemblies) { builder.AddAssembly(assembly); }
+        });
+        return services.BuildServiceProvider();
     }
 
     private sealed record Sample(string Type, string Member, string Representation, string Payload, string Expected);
