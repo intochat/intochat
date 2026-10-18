@@ -81,7 +81,7 @@ public static class CookieProtectionStorage
         }
     }
 
-    // DeploymentKit substitutes storage endpoints but does not execute Aspire's container provisioning.
+    // A cloud deployment substitutes storage endpoints but does not run Aspire's container provisioning.
     private sealed class ContainerStartup(ProtectionContainer store) : IHostedService
     {
         public Task StartAsync(CancellationToken cancellationToken)

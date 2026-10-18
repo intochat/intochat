@@ -22,11 +22,19 @@ public sealed record InstallConfig
     public string ServiceId { get; init; } = "";
     // Suffix of every versioned store: grainstate-v1, brainlease-v1, /data/brain/v1.
     public string StorageFormat { get; init; } = "v1";
+    // Settings per module id, read by that module's deployment: { "csharp": { "sandboxImage": "..." } }.
+    public Dictionary<string, Dictionary<string, string>> Modules { get; init; } = [];
 
     public static InstallConfig Parse(string json)
     {
         var config = JsonSerializer.Deserialize<InstallConfig>(json, Json) ?? throw new InvalidOperationException("The install config is empty.");
         return config.Validated();
+    }
+
+    public ModuleSettings SettingsFor(string module)
+    {
+        var entry = Modules.FirstOrDefault(pair => string.Equals(pair.Key, module, StringComparison.OrdinalIgnoreCase));
+        return entry.Value is null ? ModuleSettings.Empty : new ModuleSettings(entry.Value);
     }
 
     public InstallConfig Validated()

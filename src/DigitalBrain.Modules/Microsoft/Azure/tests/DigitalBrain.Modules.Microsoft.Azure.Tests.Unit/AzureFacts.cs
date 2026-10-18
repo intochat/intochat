@@ -71,7 +71,7 @@ public sealed class AzureFacts
             var arm = new RecordingAzure();
             var output = new StringWriter();
 
-            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], arm, output, new StringWriter(), TestContext.Current.CancellationToken);
+            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], arm, [], output, new StringWriter(), TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
             Assert.Empty(arm.Ensured);
@@ -123,7 +123,7 @@ public sealed class AzureFacts
             await File.WriteAllTextAsync(secrets, "{\"master-key\":\"k\"}", TestContext.Current.CancellationToken);
             var arm = new FailingAfter(2);
 
-            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--secrets-from", secrets], arm, new StringWriter(), error, TestContext.Current.CancellationToken);
+            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--secrets-from", secrets], arm, [], new StringWriter(), error, TestContext.Current.CancellationToken);
 
             Assert.Equal(1, code);
             Assert.Equal(2, arm.Ensured.Count);

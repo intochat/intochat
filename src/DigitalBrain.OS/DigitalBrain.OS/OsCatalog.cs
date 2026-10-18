@@ -33,6 +33,7 @@ public static partial class OsCatalog
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
         new DigitalBrain.Microsoft.Aspire.AspireModule(),
+        new DigitalBrain.Microsoft.Azure.AzureModule(),
         new DigitalBrain.Microsoft.CSharp.CSharpModule(),
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),

@@ -7,7 +7,7 @@ using DigitalBrain.Microsoft.Azure.Install;
 // The installer runs before any cluster exists: it ensures the Azure foundation and exits.
 if (AzureInstaller.IsInstall(args))
 {
-    Environment.ExitCode = await AzureInstaller.Run(args, new ArmAzure(), Console.Out, Console.Error, CancellationToken.None);
+    Environment.ExitCode = await AzureInstaller.Run(args, new ArmAzure(), OsCatalog.Modules, Console.Out, Console.Error, CancellationToken.None);
     return;
 }
 

@@ -155,3 +155,67 @@ public sealed record RoleGrantSpec : ResourceSpec
 
     public override string Kind => ResourceKinds.RoleGrant;
 }
+
+[GenerateSerializer, Alias("azure.spec.security-rule")]
+public sealed record SecurityRuleSpec
+{
+    [Id(0)] public string Name { get; init; } = "";
+    [Id(1)] public int Priority { get; init; }
+    // Inbound or Outbound.
+    [Id(2)] public string Direction { get; init; } = "Outbound";
+    // Allow or Deny.
+    [Id(3)] public string Access { get; init; } = "Allow";
+    // Tcp, Udp or *.
+    [Id(4)] public string Protocol { get; init; } = "Tcp";
+    [Id(5)] public string DestinationAddressPrefix { get; init; } = "*";
+    [Id(6)] public string DestinationPortRange { get; init; } = "*";
+}
+
+[GenerateSerializer, Alias("azure.spec.network-security-group")]
+public sealed record NetworkSecurityGroupSpec : ResourceSpec
+{
+    [Id(0)] public SecurityRuleSpec[] Rules { get; init; } = [];
+
+    public override string Kind => ResourceKinds.NetworkSecurityGroup;
+}
+
+[GenerateSerializer, Alias("azure.spec.virtual-network")]
+public sealed record VirtualNetworkSpec : ResourceSpec
+{
+    [Id(0)] public string AddressSpace { get; init; } = "10.0.0.0/16";
+
+    public override string Kind => ResourceKinds.VirtualNetwork;
+}
+
+// A subnet in a virtual network of the spec's resource group. A delegation service such as
+// Microsoft.App/environments reserves the subnet for it.
+[GenerateSerializer, Alias("azure.spec.subnet")]
+public sealed record SubnetSpec : ResourceSpec
+{
+    [Id(0)] public string VirtualNetwork { get; init; } = "";
+    [Id(1)] public string AddressPrefix { get; init; } = "";
+    [Id(2)] public string NetworkSecurityGroup { get; init; } = "";
+    [Id(3)] public string DelegationService { get; init; } = "";
+
+    public override string Kind => ResourceKinds.Subnet;
+}
+
+// A dynamic custom-container session pool: one Hyper-V session per caller running Image, pulled with
+// Identity (which needs AcrPull on the registry). Sessions never see the identity.
+[GenerateSerializer, Alias("azure.spec.session-pool")]
+public sealed record SessionPoolSpec : ResourceSpec
+{
+    [Id(0)] public string Environment { get; init; } = "";
+    [Id(1)] public string Image { get; init; } = "";
+    [Id(2)] public double Cpu { get; init; } = 1;
+    [Id(3)] public string Memory { get; init; } = "2Gi";
+    [Id(4)] public int TargetPort { get; init; } = 8080;
+    [Id(5)] public string Identity { get; init; } = "";
+    [Id(6)] public string RegistryServer { get; init; } = "";
+    [Id(7)] public int MaxSessions { get; init; } = 100;
+    [Id(8)] public int ReadySessions { get; init; } = 2;
+    [Id(9)] public int MaxAliveSeconds { get; init; } = 86400;
+    [Id(10)] public bool Egress { get; init; } = true;
+
+    public override string Kind => ResourceKinds.SessionPool;
+}
