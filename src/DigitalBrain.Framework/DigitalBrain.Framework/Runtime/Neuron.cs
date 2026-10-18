@@ -33,11 +33,23 @@ public abstract class Neuron : Grain, INeuron
 
     internal INeuronContext SpiContext => Context;
 
-    // Runs the Orleans lifecycle hook through the neutral one, so a neuron implements either.
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    private DeactivationCause? _cause;
+
+    // IDeactivatingNeuron runs from the grain lifecycle, so it runs even when a subclass's OnDeactivateAsync
+    // override skips base; the override below only records why (Orleans calls it before the lifecycle stops).
+    protected Neuron()
     {
-        if (this is IDeactivatingNeuron deactivating) { await deactivating.OnDeactivating(CauseOf(reason), cancellationToken); }
-        await base.OnDeactivateAsync(reason, cancellationToken);
+        if (this is IDeactivatingNeuron && ((IGrainBase)this).GrainContext is { } grain)
+        {
+            grain.ObservableLifecycle.Subscribe(nameof(IDeactivatingNeuron), GrainLifecycleStage.Activate, _ => Task.CompletedTask,
+                cancellationToken => ((IDeactivatingNeuron)this).OnDeactivating(_cause ?? DeactivationCause.Idle, cancellationToken));
+        }
+    }
+
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        _cause = CauseOf(reason);
+        return base.OnDeactivateAsync(reason, cancellationToken);
     }
 
     internal static DeactivationCause CauseOf(DeactivationReason reason) => reason.ReasonCode switch

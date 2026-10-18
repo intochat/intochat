@@ -11,21 +11,23 @@ public readonly record struct BrainId(string Value)
 // brain-less neurons (platform, cluster, ledger). StorageKey is the string GrainId.ToString() gives today.
 public readonly record struct NeuronAddress(string NeuronType, string Key)
 {
-    public BrainId? Brain => ScopeOf(Key) is { } brain ? new BrainId(brain) : null;
+    public BrainId? Brain => Key is not null && ScopeOf(Key) is { } brain ? new BrainId(brain) : null;
 
     public string StorageKey => $"{NeuronType}/{Key}";
 
     public override string ToString() => StorageKey;
 
-    // The same rule as Framework BrainKey.ScopeOf: the first '/'-segment when it is a valid brain id.
-    private static string? ScopeOf(string? key)
+    // The one brain-id rule (Framework BrainScope.IsValidId and BrainKey.ScopeOf delegate here): 1-200 characters,
+    // no control characters, no path separators and no ':'; a leading '@' is reserved for keys outside every brain.
+    public static bool IsBrainId([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value)
+        => !string.IsNullOrWhiteSpace(value) && value.Length <= 200 && value[0] != '@' && !value.Any(c => char.IsControl(c) || c is '/' or '\\' or ':');
+
+    // The brain a key belongs to: its first '/'-segment when that is a brain id. A key with no '/' names no brain.
+    public static string? ScopeOf(string key)
     {
-        if (key is null) { return null; }
+        ArgumentNullException.ThrowIfNull(key);
         var separator = key.IndexOf('/', StringComparison.Ordinal);
-        if (separator <= 0) { return null; }
-        var scope = key[..separator];
-        return scope.Length <= 200 && scope[0] != '@' && !scope.Any(c => char.IsControl(c) || c is '\\' or ':') && !string.IsNullOrWhiteSpace(scope)
-            ? scope : null;
+        return separator > 0 && IsBrainId(key[..separator]) ? key[..separator] : null;
     }
 }
 

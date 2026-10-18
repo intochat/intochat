@@ -42,6 +42,17 @@ public sealed class NeuronContextFacts(FrameworkHost host)
     }
 
     [Fact]
+    public async Task OnDeactivatingRunsEvenWhenAnOverrideSkipsBase()
+    {
+        var key = $"context/skipping-{Guid.NewGuid():N}";
+        var probe = host.Brain.Get<ISkippingProbe>(key);
+
+        await probe.Deactivate();
+
+        await ContextProbe.Deactivated(key).Task.WaitAsync(host.Brain.Execution.AssertionTimeout, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task SuppressRunsWithoutTheCallerAndRestoresIt()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -112,6 +123,30 @@ public sealed class ContextProbe : Neuron, IContextProbe, IDeactivatingNeuron
     public Task OnDeactivating(DeactivationCause cause, CancellationToken cancellationToken)
     {
         Deactivated(Context.Key).TrySetResult(cause);
+        return Task.CompletedTask;
+    }
+}
+
+[Alias("tests.framework.skipping-probe")]
+public interface ISkippingProbe : INeuron
+{
+    Task Deactivate();
+}
+
+// Overrides the Orleans hook without calling base; the neutral hook still runs.
+public sealed class SkippingProbe : Neuron, ISkippingProbe, IDeactivatingNeuron
+{
+    public Task Deactivate()
+    {
+        Context.Deactivate();
+        return Task.CompletedTask;
+    }
+
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task OnDeactivating(DeactivationCause cause, CancellationToken cancellationToken)
+    {
+        ContextProbe.Deactivated(Context.Key).TrySetResult(cause);
         return Task.CompletedTask;
     }
 }
