@@ -138,4 +138,23 @@ public sealed class HostedExportFacts
         Assert.DoesNotContain("secret", json);
         Assert.Equal(1, exported.OmittedRecords);
     }
+
+    // Characterization of the export before the default-deny change: an unmarked customer state is exported,
+    // and the permanent identity/secret names are omitted whatever they hold.
+    [Fact]
+    public async Task ExportCharacterizationExportsUnmarkedStateAndOmitsDeniedNames()
+    {
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-char-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
+        var bytes = serializer.SerializeToArray(new CustomerState("portable note"));
+        await log.Append("customer", "note", null, BrainRecordChange.Write, bytes, [], TestContext.Current.CancellationToken);
+        foreach (var name in new[] { "vault", "credential", "registration", "access", "account", "principal", "reminders" })
+        {
+            await log.Append("denied-" + name, name, null, BrainRecordChange.Write, bytes, [], TestContext.Current.CancellationToken);
+        }
+        var exported = log.Export((_, _, raw) => serializer.Deserialize<CustomerState>(raw));
+        Assert.Equal(["customer"], exported.Records.Select(x => x.GrainId).ToArray());
+        Assert.Equal(7, exported.OmittedRecords);
+    }
 }
