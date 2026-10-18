@@ -6,7 +6,7 @@ in the brain's shared presentation.
 Read through the scope-checked compute neuron. Refresh rereads authoritative state.
 No payments or simulated top-ups are offered by this app.
 */
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "usage";

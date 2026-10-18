@@ -1,11 +1,11 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Chat;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Chat;
 
 // The dock's mic: "voice" composes the surface and begins a voice message on the composer under the
 // request id. The composer captures the recording and voice.cs transcribes it into the draft. A
 // recording already being transcribed is never replaced; a capture that only began is begun again.
 // A replayed request is skipped, so a finished capture is never begun again.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.Key(brain);
 var app = brain.Get<IApp>(key);
 var composer = brain.Get<IComposer>(Ino.DataKey(brain) + "/composer");

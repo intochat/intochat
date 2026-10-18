@@ -11,7 +11,7 @@ import sys
 brain = sys.argv[1] if len(sys.argv) > 1 else "owner"
 needle = sys.argv[2] if len(sys.argv) > 2 else ""
 here = os.path.dirname(os.path.abspath(__file__))
-call = {"contract": "DigitalBrain.Microsoft.CSharp.Runtime.IBrainRuntime", "key": f"{brain}/runtime",
+call = {"contract": "IntoChat.OS.Microsoft.CSharp.Runtime.IBrainRuntime", "key": f"{brain}/runtime",
         "method": "Inspect", "arguments": "[]"}
 out = subprocess.run([sys.executable, os.path.join(here, "mcp.py"), "neurons_call", json.dumps(call)],
                      capture_output=True, text=True).stdout

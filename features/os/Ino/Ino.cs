@@ -1,23 +1,23 @@
 using System.Globalization;
 using System.Text.Json;
-using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Models;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Chat;
-using DigitalBrain.Flutter.Views;
-using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Flame.Scene;
-using DigitalBrain;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Form;
-using DigitalBrain.Integrations;
-using DigitalBrain.Microsoft.Windows;
-using DigitalBrain.Microsoft.CSharp.Files;
-using DigitalBrain.Postgres;
-using DigitalBrain.Mcp;
-using DigitalBrain.Microsoft.Playwright;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Models;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Flame.Scene;
+using IntoChat.OS;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Integrations;
+using IntoChat.OS.Microsoft.Windows;
+using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Postgres;
+using IntoChat.OS.Mcp;
+using IntoChat.OS.Microsoft.Playwright;
 
 // Shared by every synapse of the assistant: the app's key, its brain scope, the selected
 // conversation and the composed surface. A synapse is one reaction; this is the vocabulary
@@ -35,12 +35,12 @@ public static class Ino
         typeof(IWorkspace).FullName!, typeof(IAppStudio).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
         typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!, typeof(IText).FullName!,
-        typeof(DigitalBrain.Flutter.Table.ITable).FullName!, typeof(DigitalBrain.Flutter.Chart.IChart).FullName!,
-        typeof(DigitalBrain.Flutter.Image.IImage).FullName!];
+        typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
+        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!];
 
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string DataKey(DigitalBrainConnection brain) => brain.Setting("ChatDataApp") is { Length: > 0 } data ? data : Key(brain);
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string DataKey(IntoChatOSConnection brain) => brain.Setting("ChatDataApp") is { Length: > 0 } data ? data : Key(brain);
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
 
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
@@ -51,7 +51,7 @@ public static class Ino
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
     // instead of running twice. A turn that cannot start (a response is already running, the Model
     // setting names an unavailable model) says so on the status line and never stops the synapse.
-    public static async Task Answer(DigitalBrainConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId)
+    public static async Task Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId)
     {
         try
         {
@@ -85,13 +85,13 @@ public static class Ino
         }
     }
 
-    public static Task Status(DigitalBrainConnection brain, string text)
+    public static Task Status(IntoChatOSConnection brain, string text)
         => brain.Get<IText>(DataKey(brain) + "/status").Set(text);
 
-    public static long ProgramRevision(DigitalBrainConnection brain)
+    public static long ProgramRevision(IntoChatOSConnection brain)
         => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
-    public static async Task<ChatSelection> EnsureSelection(DigitalBrainConnection brain)
+    public static async Task<ChatSelection> EnsureSelection(IntoChatOSConnection brain)
     {
         var chat = brain.Get<IChat>(DataKey(brain) + "/transcript");
         if ((await chat.Read()).Selection is { } current) { return current; }
@@ -107,7 +107,7 @@ public static class Ino
         }
     }
 
-    public static async Task NewConversation(DigitalBrainConnection brain, Guid operationId)
+    public static async Task NewConversation(IntoChatOSConnection brain, Guid operationId)
     {
         var chat = brain.Get<IChat>(DataKey(brain) + "/transcript");
         var current = await EnsureSelection(brain);
@@ -116,7 +116,7 @@ public static class Ino
         if ((await chat.Read()).Selection == selected) { await Status(brain, ""); }
     }
 
-    public static async Task ComposeAsync(DigitalBrainConnection brain)
+    public static async Task ComposeAsync(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         await EnsureSelection(brain);
@@ -145,6 +145,6 @@ public static class Ino
 
     // Mood is part of the activity write. A second script that watches the activity and writes the
     // blackboard again starts another behavior for every state the sphere already received.
-    public static Task Advance(DigitalBrainConnection brain, string state, string detail)
+    public static Task Advance(IntoChatOSConnection brain, string state, string detail)
         => brain.Get<IApp>(Key(brain)).Progress(state, detail, new() { ["mood"] = MoodOf(state) });
 }

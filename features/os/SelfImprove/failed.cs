@@ -1,9 +1,9 @@
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Microsoft.Aspire;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Microsoft.Aspire;
 
 // A failure is shown, never retried; the candidate keeps its worktree for inspection. Each candidate is
 // followed only until it ends, so one that succeeds cannot hold up the next.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var index = brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain)));
 await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 {

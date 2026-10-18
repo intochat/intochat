@@ -1,11 +1,11 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Text.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Text.Signals;
 
 // App builds, one at a time: whenever "ask" queues an app request, every queued one goes to the Creator (the
 // brain's app studio authors the spec and builds the behaviors) and records the app it made. A request
 // found Building when this runs was interrupted by a restart of this script: it is recorded failed rather
 // than built twice, and asking again builds it.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Engineer.Scope(brain);
 
 await brain.React<TextChanged>(Engineer.Builds(brain), async ct =>

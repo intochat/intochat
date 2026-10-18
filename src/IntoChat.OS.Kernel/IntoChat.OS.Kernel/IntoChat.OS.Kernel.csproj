@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <!-- Local runs write grain state under this folder. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**</DefaultItemExcludes>
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <IsPackable>true</IsPackable>
+    <PackageId>IntoChat.OS.Kernel</PackageId>
+    <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The repository's features folder rides in the published image at {publish}/features, where
+         Properties/PublishProfiles/Container.pubxml points AppsOptions.Features. Never compiled here. -->
+    <None Include="../../../features/**/*" LinkBase="features" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" Pack="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Hosted/IntoChat.OS.Authority.Hosted.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The OS is the composition of the portable modules in the repo; OsCatalog names them in
+         code and the compiler checks the two agree. Hosting, contracts, testing and sandbox projects
+         ride along with their module or belong to other rings. The Windows edge is referenced below, explicitly. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.csproj"
+                      Exclude="../../IntoChat.OS.Modules/**/tests/**;
+                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Aspire.Hosting.csproj;
+                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Testing.csproj;
+                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj;
+                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Sandbox.csproj;
+                               ../../IntoChat.OS.Modules/Microsoft/Windows/**;
+                               ../../IntoChat.OS.Modules/Microsoft/Azure/**" />
+    <!-- The Azure module (OsCatalog) is the cloud face of the OS and backs the install command. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
+    <!-- The Windows edge (OsCatalog.WithWindowsEdge), composed only by a host running on Windows. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+  </ItemGroup>
+</Project>

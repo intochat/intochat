@@ -1,9 +1,9 @@
-using DigitalBrain.AI.Media;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Chat;
+using IntoChat.OS.AI.Media;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Chat;
 
 // A captured recording is transcribed; the composer's state when recognition returns decides the outcome.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = Ino.DataKey(brain);
 var composer = brain.Get<IComposer>(appKey + "/composer");
 await foreach (var captured in brain.On<ComposerVoiceCaptured>(composer, () => Transcribe(brain.Stopping), brain.Stopping))

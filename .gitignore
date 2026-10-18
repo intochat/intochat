@@ -13,6 +13,7 @@ logs/
 .grok/*
 !.grok/lsp.json
 .digitalbrain/
+.intochat-os/
 .agents/
 .superpowers/
 .worktrees/
@@ -28,7 +29,7 @@ node_modules/
 
 # Dart / Flutter clients
 **/.dart_tool/
-/src/DigitalBrain.Modules/Google/Flutter/app/build/
+/src/IntoChat.OS.Modules/Google/Flutter/app/build/
 **/packages/pubspec_overrides.yaml
 
 plans/stage1/logs/
@@ -39,7 +40,7 @@ apphost.out.log
 apphost.err.log
 *.log
 # Locally saved application sources and compiled artifacts.
-src/DigitalBrain/OS/DigitalBrain.OS.Host/applications/
+src/IntoChat.OS/OS/IntoChat.OS.Kernel.Host/applications/
 .test-results/
 # Scratch source bundles produced by file-application tests.
 .agent-facade-tests/

@@ -1,8 +1,8 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
 
 // "say": one line in the circle's chat; the chat dedups at-least-once delivery by the request id.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Room.Key(brain));
 await foreach (var request in brain.On(app, "say", brain.Stopping))
 {

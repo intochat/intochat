@@ -1,8 +1,8 @@
 using System.Globalization;
-using DigitalBrain.AI.Embeddings;
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Postgres.Tables;
+using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Postgres.Tables;
 
 // "reindex" rebuilds the index from scratch as a new generation: every row of the installed apps is written
 // under it, the rows' meaning vectors replace the vector index in one call, and only then does the
@@ -11,7 +11,7 @@ using DigitalBrain.Postgres.Tables;
 // switched left rows past the marker, and the next rebuild deletes them first. When what the rows would
 // store and embed is what the current complete generation holds, nothing is rebuilt: a redelivered or
 // repeated request costs one read of the installed apps.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var rows = brain.Get<ITable>(Memory.RowsKey(appKey));

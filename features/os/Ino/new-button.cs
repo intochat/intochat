@@ -1,7 +1,7 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Views;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Views;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var view = brain.Get<IView>(Ino.Key(brain) + "/view");
 var ledger = await RequestLedger.LoadAsync(brain, "new-button");
 await foreach (var clicked in brain.On<ViewAction>(view, brain.Stopping))

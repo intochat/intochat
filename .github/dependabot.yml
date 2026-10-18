@@ -12,9 +12,9 @@ updates:
 
   - package-ecosystem: pub
     directories:
-      - /src/DigitalBrain.Modules/Google/Flutter/app/core
-      - /src/DigitalBrain.Modules/Google/Flutter/app/ui
-      - /src/DigitalBrain.Modules/Google/Flutter/app/shell
+      - /src/IntoChat.OS.Modules/Google/Flutter/app/core
+      - /src/IntoChat.OS.Modules/Google/Flutter/app/ui
+      - /src/IntoChat.OS.Modules/Google/Flutter/app/shell
     schedule:
       interval: weekly
     open-pull-requests-limit: 10

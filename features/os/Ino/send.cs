@@ -1,10 +1,10 @@
-using DigitalBrain.AI.Routing;
-using DigitalBrain.Apps;
+using IntoChat.OS.AI.Routing;
+using IntoChat.OS.Apps;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.
 // A replayed request is skipped, so Jev is asked once per message.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Ino.Key(brain));
 var router = brain.Get<IRouter>(Ino.Scope(brain));
 var ledger = await RequestLedger.LoadAsync(brain, "send");

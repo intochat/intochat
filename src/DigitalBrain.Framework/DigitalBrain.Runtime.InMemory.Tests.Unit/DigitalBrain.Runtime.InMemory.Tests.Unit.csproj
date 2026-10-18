@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Orleans.Sdk" />
-    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
-    <ProjectReference Include="../DigitalBrain.Runtime.InMemory/DigitalBrain.Runtime.InMemory.csproj" />
-  </ItemGroup>
-  <ItemGroup><Using Remove="DigitalBrain.Testing" /></ItemGroup>
-</Project>

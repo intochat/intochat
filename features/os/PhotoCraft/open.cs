@@ -1,9 +1,9 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
 
 // Open: connect the app's MCP server (its tools join the brain's search), then show the app's own web
 // build in the shell's browser. Plain grain calls, safe to re-run.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(PhotoCraft.Key(brain));
 await PhotoCraft.Compose(brain);
 await Prepare(true);

@@ -1,8 +1,8 @@
-using DigitalBrain.AI.Routing;
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Text;
-using ITimer = DigitalBrain.Time.Timers.ITimer;
+using IntoChat.OS.AI.Routing;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
+using ITimer = IntoChat.OS.Time.Timers.ITimer;
 
 // "ask": the brain's router has Jev pick a capability and method, a language model fills the key and
 // arguments, and the call runs until Jev says the request is done. The result neuron names each method
@@ -10,7 +10,7 @@ using ITimer = DigitalBrain.Time.Timers.ITimer;
 // A started timer joins the router's timer list and is shown in the router's main layout; showing it never
 // replaces the routed answer. Handled request ids are neuron state, so a redelivered request is not
 // carried out twice.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Jev.Key(brain));
 var result = brain.Get<IText>(Jev.Name(brain, "result"));
 var handled = brain.Get<IText>(Jev.Name(brain, "handled"));

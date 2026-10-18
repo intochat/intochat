@@ -1,5 +1,5 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Text;
 
 // Delivery is at-least-once, and a fresh subscription is seeded with the requests the app retains, so a
 // request synapse would otherwise carry an old request out again: reopen a window the person closed,
@@ -14,7 +14,7 @@ public sealed class RequestLedger
 
     private RequestLedger(IText text, List<Guid> ids) { _text = text; _ids = ids; }
 
-    public static async Task<RequestLedger> LoadAsync(DigitalBrainConnection brain, string synapse)
+    public static async Task<RequestLedger> LoadAsync(IntoChatOSConnection brain, string synapse)
     {
         var text = brain.Get<IText>(Ino.DataKey(brain) + "/handled/" + synapse);
         var ids = (await text.Read()).Markdown.Split('\n', StringSplitOptions.RemoveEmptyEntries)

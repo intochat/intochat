@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Postgres.Tables;
-using DigitalBrain.Postgres.Tables.Signals;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Postgres.Tables.Signals;
 
 // Any row delete in a source table refreshes every view; run-on-row.cs does the same for upserts.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var tables = Views.Registry<ITable>(brain, appKey, view => view.Source.StartsWith("apptable:", StringComparison.Ordinal)

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>ArtCraft apps (PhotoCraft, FilmCraft) opened in a brain.</Description>
+    <RootNamespace>IntoChat.OS.Modules.ArtCraft.Contracts</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../IntoChat.OS/IntoChat.OS.csproj" />
+  </ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" /></ItemGroup>
+</Project>

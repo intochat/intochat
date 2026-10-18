@@ -1,8 +1,8 @@
 using System.Data;
 using System.Globalization;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Views;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Views;
 
 // Shared by the calculator's synapses. The keypad neuron is the truth: its first line is the
 // expression, the other lines are the clicks already applied, so a click delivered again is not
@@ -23,7 +23,7 @@ public static class Keypad
                 return Ui.Button("key-" + index, Labels[index], Keys[index]);
             })]))], extents: [96, 80, 80, 80, 80]);
 
-    public static async Task Press(DigitalBrainConnection brain, string action, Guid click)
+    public static async Task Press(IntoChatOSConnection brain, string action, Guid click)
     {
         var appKey = brain.Setting("App")!;
         var keypad = brain.Get<IText>(appKey + "/keypad");

@@ -1,10 +1,10 @@
 using System.Text.Json;
-using DigitalBrain.AI.Agents;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Chat;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Text;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.DataKey(brain);
 await foreach (var clicked in brain.On<ChatActionActivated>(brain.Get<IChat>(key + "/transcript"), brain.Stopping))
 {

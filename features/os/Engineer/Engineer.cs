@@ -2,13 +2,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using DigitalBrain.AI.Inference;
-using DigitalBrain.AI.Models;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.AI.Inference;
+using IntoChat.OS.AI.Models;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
 
 // Shared by every synapse: the app's keys, the request record and its neurons, the input rules, the
 // classifier call and the list rendering.
@@ -69,24 +69,24 @@ public static class Engineer
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     static readonly Regex AppName = new("^[a-z0-9][a-z0-9-]{0,62}$", RegexOptions.CultureInvariant);
 
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
 
-    public static string Scope(DigitalBrainConnection brain)
+    public static string Scope(IntoChatOSConnection brain)
     {
         var appKey = Key(brain);
         return brain.Setting("Brain") ?? appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
     }
 
-    public static string Name(DigitalBrainConnection brain) => IApp.NameOf(Scope(brain), Key(brain)) ?? "engineer";
+    public static string Name(IntoChatOSConnection brain) => IApp.NameOf(Scope(brain), Key(brain)) ?? "engineer";
 
-    public static IText Index(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/requests");
-    public static IText Targets(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/targets");
-    public static IText Changes(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/changes");
+    public static IText Index(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/requests");
+    public static IText Targets(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/targets");
+    public static IText Changes(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/changes");
     // Changed only when an app request is queued, so the builder is not woken by every other change.
-    public static IText Builds(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/builds");
-    static IText Neuron(DigitalBrainConnection brain, string id) => brain.Get<IText>(Key(brain) + "/requests/" + id);
+    public static IText Builds(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/builds");
+    static IText Neuron(IntoChatOSConnection brain, string id) => brain.Get<IText>(Key(brain) + "/requests/" + id);
 
-    public static async Task<Request?> Read(DigitalBrainConnection brain, string id)
+    public static async Task<Request?> Read(IntoChatOSConnection brain, string id)
     {
         var markdown = (await Neuron(brain, id).Read()).Markdown;
         if (markdown.Length == 0) { return null; }
@@ -95,13 +95,13 @@ public static class Engineer
     }
 
     // Every change to a request is followed by a change of {app}/changes, which the list follows.
-    public static async Task Save(DigitalBrainConnection brain, Request request)
+    public static async Task Save(IntoChatOSConnection brain, Request request)
     {
         await Neuron(brain, request.Id).Set(JsonSerializer.Serialize(request, Json));
         await Changes(brain).Set(Guid.NewGuid().ToString("N"));
     }
 
-    public static Task Bump(DigitalBrainConnection brain) => Changes(brain).Set(Guid.NewGuid().ToString("N"));
+    public static Task Bump(IntoChatOSConnection brain) => Changes(brain).Set(Guid.NewGuid().ToString("N"));
 
     public static async Task<string[]> Names(IText list)
     {
@@ -119,7 +119,7 @@ public static class Engineer
         await list.Set(JsonSerializer.Serialize(names.Append(name).TakeLast(keep).ToArray(), Json));
     }
 
-    public static async Task<Request[]> ReadAll(DigitalBrainConnection brain)
+    public static async Task<Request[]> ReadAll(IntoChatOSConnection brain)
     {
         var requests = new List<Request>();
         foreach (var id in await Names(Index(brain)))
@@ -197,7 +197,7 @@ public static class Engineer
 
     // One model call. The model writes the JSON object the schema describes; when the model does not
     // declare structured output, the schema rides in the instructions and the reply is read the same way.
-    public static async Task<Classification> Classify(DigitalBrainConnection brain, AppSnapshot snapshot, string text, CancellationToken ct)
+    public static async Task<Classification> Classify(IntoChatOSConnection brain, AppSnapshot snapshot, string text, CancellationToken ct)
     {
         var choice = snapshot.Settings.GetValueOrDefault("Model", "");
         var id = choice.Trim().Length > 0 ? choice.Trim() : DefaultModel;
@@ -228,7 +228,7 @@ public static class Engineer
     }
 
     // What the classifier knows of this brain: its apps and the neuron contracts installed.
-    static async Task<string> Context(DigitalBrainConnection brain, string text, CancellationToken ct)
+    static async Task<string> Context(IntoChatOSConnection brain, string text, CancellationToken ct)
     {
         var scope = Scope(brain);
         // App names only: one kernel call, never one call per app.
@@ -251,7 +251,7 @@ public static class Engineer
     }
 
     // The scratch app holds the synapses written from sentences that name no app of their own.
-    public static async Task<IApp> EnsureScratch(DigitalBrainConnection brain)
+    public static async Task<IApp> EnsureScratch(IntoChatOSConnection brain)
     {
         var scratch = brain.Get<IApp>(IApp.Key(Scope(brain), Scratch));
         if ((await scratch.Read()).Manifest.Title.Length > 0) { return scratch; }
@@ -273,7 +273,7 @@ public static class Engineer
     static string Seconds(long milliseconds) => (milliseconds / 1000.0).ToString("0.0", CultureInfo.InvariantCulture) + " s";
 
     // The list is rebuilt from the requests every time, never patched. Newest first.
-    public static async Task RenderAsync(DigitalBrainConnection brain)
+    public static async Task RenderAsync(IntoChatOSConnection brain)
     {
         var requests = (await ReadAll(brain)).OrderByDescending(request => request.ReceivedAt).ToArray();
         var lines = new StringBuilder("# Requests\n\n");
@@ -294,7 +294,7 @@ public static class Engineer
         await brain.Get<IText>(Key(brain) + "/list").Set(lines.ToString());
     }
 
-    public static async Task ComposeAsync(DigitalBrainConnection brain)
+    public static async Task ComposeAsync(IntoChatOSConnection brain)
     {
         var appKey = Key(brain);
         var main = brain.Get<ILayout>(appKey + "/main");

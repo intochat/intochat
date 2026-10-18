@@ -37,7 +37,7 @@ def ensure_notes():
         return
     manifest = {"title": "Notes", "description": "Short notes and automations around them.",
                 "operations": [{"name": "open", "description": "Open the notes."}], "settings": [], "slots": []}
-    print("create notes:", mcp("DigitalBrain.Apps.IApp", "owner/apps/notes", "Create",
+    print("create notes:", mcp("IntoChat.OS.Apps.IApp", "owner/apps/notes", "Create",
                                 [manifest, "# Notes\n\nA notes input (owner/apps/notes/input, a file input) and a notes answer text (owner/apps/notes/answer)."])[:200])
 
 
@@ -76,9 +76,9 @@ def main():
     print("DEMO:", json.dumps({k: demo.get(k) for k in ("status", "path", "elapsedMs", "attempts", "base", "errors", "wallMs")}))
     if demo["status"] == "Written":
         time.sleep(3)
-        print("capture:", mcp("DigitalBrain.Flutter.FileInput.IFileInput", "owner/apps/notes/input", "Capture", ["note.txt", "one two three four five six seven eight nine"])[:120])
+        print("capture:", mcp("IntoChat.OS.Flutter.FileInput.IFileInput", "owner/apps/notes/input", "Capture", ["note.txt", "one two three four five six seven eight nine"])[:120])
         for _ in range(20):
-            answer = mcp("DigitalBrain.Flutter.Text.IText", "owner/apps/notes/answer", "Read", [])
+            answer = mcp("IntoChat.OS.Flutter.Text.IText", "owner/apps/notes/answer", "Read", [])
             if '"markdown": ""' not in answer and "markdown" in answer:
                 break
             time.sleep(1)

@@ -1,11 +1,11 @@
-using DigitalBrain.Client;
-using DigitalBrain.Mcp;
+using IntoChat.OS.Client;
+using IntoChat.OS.Mcp;
 
 // A PhotoCraft tool changed the document outside an editor turn (the assistant ran PhotoCraft's tools
 // itself): the preview is rendered again from the active document. An editor turn is left to preview.cs,
 // which renders it when it ends; tools that only read are ignored, and an unchanged image is not written
 // again, so a late or repeated signal changes nothing.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var tools = PhotoCraft.Tools(brain);
 
 await foreach (var ran in brain.On<McpToolRan>(tools, brain.Stopping))

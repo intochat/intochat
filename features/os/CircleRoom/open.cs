@@ -1,8 +1,8 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Text;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 await Room.Compose(brain);
 await Room.Project(brain);
 await foreach (var request in brain.On(brain.Get<IApp>(Room.Key(brain)), "open", brain.Stopping))

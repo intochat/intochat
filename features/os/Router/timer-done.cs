@@ -1,12 +1,12 @@
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
-using DigitalBrain.Time.Timers.Signals;
-using ITimer = DigitalBrain.Time.Timers.ITimer;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Time.Timers.Signals;
+using ITimer = IntoChat.OS.Time.Timers.ITimer;
 
 // A tick from a timer the router started is recorded in the timer-rang neuron and the "Timer" text part
 // is rebuilt (Timers decides which timer a tick belongs to). The subscription follows the keys in the
 // timers neuron, inside this brain only. A tick delivered twice is recorded once.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Jev.Scope(brain);
 var rang = brain.Get<IText>(Jev.Name(brain, "timer-rang"));
 var timers = Sources.Named<IText, TextChanged>(brain.Get<IText>(Jev.Name(brain, "timers")), async (registry, ct) =>

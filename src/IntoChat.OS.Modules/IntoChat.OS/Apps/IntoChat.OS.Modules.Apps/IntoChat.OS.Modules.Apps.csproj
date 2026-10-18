@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>App manifests, install, versions and Save as app.</Description>
+    <RootNamespace>IntoChat.OS.Modules.Apps</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
+    <ProjectReference Include="../IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <ProjectReference Include="../../../Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../../AI/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+  </ItemGroup>
+</Project>

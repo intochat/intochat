@@ -1,9 +1,9 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Collection;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Collection;
 
 // One subscription: an activated entry is the parent (up:), a folder (it lists) or a file (it does not).
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 

@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <Description>In-memory runtime for neurons: activation, addressing, turns, state and timers on a TimeProvider, for host-free unit tests.</Description>
-    <RootNamespace>DigitalBrain.Runtime.InMemory</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
-  </ItemGroup>
-</Project>

@@ -1,11 +1,11 @@
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 
 // "ask": the request is recorded under its request id, classified with one model call and handed to its
 // builder; nothing here waits for a builder. A synapse goes to the fast path of its target app (follow.cs
 // reads the outcome), an app is queued for the Creator (build.cs), a module is recorded as blocked.
 // Delivery is at-least-once: a request already past classification is not handled again, and a request
 // left Writing asks the fast path again under the same operation id, which the app answers once.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Engineer.Key(brain));
 var scope = Engineer.Scope(brain);
 

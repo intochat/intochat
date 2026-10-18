@@ -9,7 +9,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
-    <!-- NU5104: .NET 11 is still RC, so stable DigitalBrain packages depend on prerelease Microsoft packages; remove at .NET 11 GA -->
+    <!-- NU5104: .NET 11 is still RC, so stable IntoChat.OS packages depend on prerelease Microsoft packages; remove at .NET 11 GA -->
     <NoWarn>$(NoWarn);NU5104</NoWarn>
     <!-- Web SDK defaults this true; on Linux that forces RID=linux-x64 for every project.
          Container publishes opt back in via PublishProfiles/Container.pubxml + release.yml. -->
@@ -23,17 +23,17 @@
     <RuntimeIdentifier></RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup>
-    <DigitalBrainVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</DigitalBrainVersion>
-    <VersionPrefix>$(DigitalBrainVersion)</VersionPrefix>
+    <IntoChatOSVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</IntoChatOSVersion>
+    <VersionPrefix>$(IntoChatOSVersion)</VersionPrefix>
     <Authors>Digital Brain Tech</Authors>
     <!-- MIT covers the SDK tier only: the vocabulary, contracts, client and testing packages. Runtime packages
          carry no licence expression until the runtime licence is decided (handbook vision/commercial.md). -->
-    <DigitalBrainSdkPackage Condition="'$(MSBuildProjectName)' == 'DigitalBrain' Or '$(MSBuildProjectName)' == 'DigitalBrain.Client'
-        Or '$(MSBuildProjectName)' == 'DigitalBrain.Client.Orleans' Or '$(MSBuildProjectName)' == 'DigitalBrain.Aspire.Client'
-        Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing' Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing.Aspire'
-        Or '$(MSBuildProjectName)' == 'DigitalBrain.Aspire.Testing' Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing.Playwright'
-        Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</DigitalBrainSdkPackage>
-    <PackageLicenseExpression Condition="'$(DigitalBrainSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
+    <IntoChatOSSdkPackage Condition="'$(MSBuildProjectName)' == 'IntoChat.OS' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client.Orleans' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Client'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Aspire'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Playwright'
+        Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</IntoChatOSSdkPackage>
+    <PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>
     <RepositoryUrl>https://github.com/intochat/os</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -49,23 +49,23 @@
 
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
-       and project shape, and get just the Aspire target from DigitalBrain.Testing.Aspire. -->
+       and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
-    <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:DigitalBrainTestTier`. -->
-    <DigitalBrainTestTier>Legacy</DigitalBrainTestTier>
-    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</DigitalBrainTestTier>
-    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</DigitalBrainTestTier>
-    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">E2E</DigitalBrainTestTier>
-    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Browser'))">Browser</DigitalBrainTestTier>
-    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Hosting'))">Hosting</DigitalBrainTestTier>
-    <!-- DigitalBrainNightly=false drops the nightly tiers (E2E, Browser) from `dotnet test`.
-         DigitalBrainE2E=false is the previous name, kept for one release. -->
-    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == '' And '$(DigitalBrainE2E)' == 'false'">false</DigitalBrainNightly>
-    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == ''">true</DigitalBrainNightly>
-    <IsTestProject Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestProject>
-    <IsTestingPlatformApplication Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestingPlatformApplication>
+    <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:IntoChatOSTestTier`. -->
+    <IntoChatOSTestTier>Legacy</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">E2E</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Browser'))">Browser</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Hosting'))">Hosting</IntoChatOSTestTier>
+    <!-- IntoChatOSNightly=false drops the nightly tiers (E2E, Browser) from `dotnet test`.
+         IntoChatOSE2E=false is the previous name, kept for one release. -->
+    <IntoChatOSNightly Condition="'$(IntoChatOSNightly)' == '' And '$(IntoChatOSE2E)' == 'false'">false</IntoChatOSNightly>
+    <IntoChatOSNightly Condition="'$(IntoChatOSNightly)' == ''">true</IntoChatOSNightly>
+    <IsTestProject Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'E2E' Or '$(IntoChatOSTestTier)' == 'Browser')">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'E2E' Or '$(IntoChatOSTestTier)' == 'Browser')">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
@@ -75,11 +75,11 @@
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
-    <Using Include="DigitalBrain.Testing" />
+    <Using Include="IntoChat.OS.Testing" />
   </ItemGroup>
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">
-    <Using Include="DigitalBrain.Testing.Aspire" />
-    <Using Include="DigitalBrain.OS.Testing" />
+    <Using Include="IntoChat.OS.Testing.Aspire" />
+    <Using Include="IntoChat.OS.Kernel.Testing" />
   </ItemGroup>
 
   <PropertyGroup>

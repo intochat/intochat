@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The OS composition hosted in the test process (OsTestBrain): no containers, no AppHost. -->
+  <ItemGroup>
+    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
+    <Using Include="IntoChat.OS.Kernel.Testing" />
+    <!-- Storage fixtures from earlier builds; facts read copies beside the test binary. -->
+    <None Include="Storage/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

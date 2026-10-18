@@ -1,0 +1,153 @@
+{
+  "IntoChat.OS": [
+    "Microsoft.Orleans.Core.Abstractions",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Aspire.Client": [
+    "Microsoft.Orleans.Clustering.AzureStorage"
+  ],
+  "IntoChat.OS.Aspire.Hosting": [
+    "Aspire.Hosting.Orleans"
+  ],
+  "IntoChat.OS.Aspire.Hosting.Tests.Unit": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Aspire.Server": [
+    "Microsoft.Orleans.Dashboard",
+    "Microsoft.Orleans.Serialization.SystemTextJson",
+    "Microsoft.Orleans.Server"
+  ],
+  "IntoChat.OS.Authority": [
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Authority.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Authority.Hosted": [
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Authority.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Client": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Client.Orleans": [
+    "Microsoft.Orleans.Client"
+  ],
+  "IntoChat.OS.Client.Orleans.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Framework": [
+    "Microsoft.Orleans.Server"
+  ],
+  "IntoChat.OS.Framework.Tests.E2E": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Framework.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.AI": [
+    "Microsoft.Orleans.Sdk",
+    "Microsoft.Orleans.Serialization.SystemTextJson"
+  ],
+  "IntoChat.OS.Modules.AI.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Apps.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.ArtCraft.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Circles.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.ClickHouse.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Flame.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Flutter": [
+    "Microsoft.Orleans.Serialization.SystemTextJson"
+  ],
+  "IntoChat.OS.Modules.Flutter.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Google.Gmail.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Mcp.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Aspire": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Aspire.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.CSharp": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "IntoChat.OS.Modules.Microsoft.CSharp.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.GitHub.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Orleans": [
+    "Microsoft.Orleans.Clustering.AzureStorage",
+    "Microsoft.Orleans.Persistence.AzureStorage",
+    "Microsoft.Orleans.Reminders",
+    "Microsoft.Orleans.Reminders.AzureStorage"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting": [
+    "Aspire.Hosting.Orleans"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Orleans.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Playwright.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Azure.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Roslyn.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Microsoft.Windows.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Postgres.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Salesforce.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Time": [
+    "Microsoft.Orleans.Reminders"
+  ],
+  "IntoChat.OS.Modules.Time.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Tools.Contracts": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Testing": [
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Testing.Aspire": [
+    "Microsoft.Orleans.Client",
+    "Microsoft.Orleans.Clustering.AzureStorage"
+  ],
+  "IntoChat.OS.Testing.Tests.Integration": [
+    "Microsoft.Orleans.Sdk"
+  ]
+}

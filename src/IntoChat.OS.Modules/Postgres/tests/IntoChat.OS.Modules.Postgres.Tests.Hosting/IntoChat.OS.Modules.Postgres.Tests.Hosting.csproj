@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Composition facts only: no in-process cluster, no IntoChat.OS.Testing. -->
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../../../Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
+  </ItemGroup>
+</Project>

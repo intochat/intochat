@@ -1,7 +1,7 @@
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Chat;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Chat;
 
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var chat = brain.Get<IChat>(Ino.DataKey(brain) + "/transcript");
 long delivered = -1;
 await foreach (var change in brain.On<ChatRunChanged>(chat, () => Reconcile(null), brain.Stopping))

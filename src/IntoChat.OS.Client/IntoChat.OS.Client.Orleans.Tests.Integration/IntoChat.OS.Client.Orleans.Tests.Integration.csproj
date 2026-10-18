@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>IntoChat.OS.Client.Orleans.Tests.Integration</RootNamespace></PropertyGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
+  </ItemGroup>
+</Project>

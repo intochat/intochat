@@ -1,0 +1,49 @@
+using IntoChat.OS;
+using IntoChat.OS.Aspire.Client;
+using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Authority;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Authority.Identity;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Orleans.Hosting;
+
+internal static class CompositionHost
+{
+    // The password Person registration gives "packed-user" (principal + "-password-123").
+    internal const string Password = "packed-user-password-123";
+
+    internal static async Task Run(string mode)
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Configuration["DigitalBrain:Auth:Posture"] = "Secured";
+        if (mode == "client")
+        {
+            builder.AddIntoChatOSClient(useAzureClustering: true);
+            await using var client = builder.Build();
+            client.MapGet("/health", () => Results.Ok());
+            client.MapGet("/verify", async (Orleans.IClusterClient cluster) =>
+                await cluster.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("packed-user", Password) is not null
+                    ? Results.Ok() : Results.Unauthorized());
+            await client.RunAsync();
+            return;
+        }
+        // The Orleans module owns clustering and providers in both Azure and local compositions.
+        builder.AddIntoChatOSServer(server => server.AddModule<IntoChat.OS.Microsoft.Orleans.OrleansModule>());
+        if (mode == "memory-server")
+        {
+            builder.UseOrleans(silo => silo.AddIntoChatOSPlatform());
+            builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        }
+        else { builder.AddIntoChatOSPlatform(); }
+        await using var app = builder.Build();
+        app.UsePlatformHttp();
+        app.MapIntoChatOSPlatform();
+        app.MapGet("/health", () => Results.Ok());
+        await app.RunAsync();
+    }
+}

@@ -1,18 +1,18 @@
 using System.Globalization;
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Chart;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Postgres;
-using AppTable = DigitalBrain.Postgres.Tables.ITable;
-using ViewTable = DigitalBrain.Flutter.Table.ITable;
-using ViewColumn = DigitalBrain.Flutter.Table.TableColumn;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Chart;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Postgres;
+using AppTable = IntoChat.OS.Postgres.Tables.ITable;
+using ViewTable = IntoChat.OS.Flutter.Table.ITable;
+using ViewColumn = IntoChat.OS.Flutter.Table.TableColumn;
 
 // The sole writer of query results: a refresh request names a view (or all views) and this behavior
 // reads the current source and filters, retries when it was superseded, and writes the table/chart.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var connection = brain.Setting("Account__db") ?? "";

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../../Google/Flutter/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <ProjectReference Include="../../../Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
+    <ProjectReference Include="../../../Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../../Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../../Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <ProjectReference Include="../../../ModelContextProtocol/Mcp/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../../Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
+  </ItemGroup>
+</Project>

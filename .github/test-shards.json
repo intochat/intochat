@@ -1,51 +1,51 @@
 {
   "shards": {
     "unit": [
-      "**/DigitalBrain.Architecture.Tests.Unit.dll",
-      "**/DigitalBrain.Aspire.Hosting.Tests.Unit.dll",
-      "**/DigitalBrain.Client.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Microsoft.Azure.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Microsoft.Playwright.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Microsoft.Roslyn.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Qdrant.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Time.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Tools.Tests.Unit.dll",
-      "**/DigitalBrain.Runtime.InMemory.Tests.Unit.dll",
+      "**/IntoChat.OS.Architecture.Tests.Unit.dll",
+      "**/IntoChat.OS.Aspire.Hosting.Tests.Unit.dll",
+      "**/IntoChat.OS.Client.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Qdrant.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Time.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Tools.Tests.Unit.dll",
+      "**/IntoChat.OS.Runtime.InMemory.Tests.Unit.dll",
       "**/*.Tests.Hosting.dll"
     ],
     "integration-a": [
-      "**/DigitalBrain.Modules.Microsoft.CSharp.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Salesforce.Tests.Integration.dll",
-      "**/DigitalBrain.Framework.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Mcp.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.ClickHouse.Tests.Integration.dll"
+      "**/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Salesforce.Tests.Integration.dll",
+      "**/IntoChat.OS.Framework.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Mcp.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.ClickHouse.Tests.Integration.dll"
     ],
     "integration-b": [
-      "**/DigitalBrain.Authority.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Apps.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Microsoft.Aspire.Tests.Integration.dll",
-      "**/DigitalBrain.Client.Orleans.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Time.Tests.Integration.dll",
-      "**/DigitalBrain.OS.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Microsoft.Windows.Tests.Integration.dll"
+      "**/IntoChat.OS.Authority.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Apps.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Integration.dll",
+      "**/IntoChat.OS.Client.Orleans.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Time.Tests.Integration.dll",
+      "**/IntoChat.OS.Kernel.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.dll"
     ],
     "integration-c": [
-      "**/DigitalBrain.Modules.AI.Tests.Integration.dll",
-      "**/DigitalBrain.OS.Tests.Unit.dll",
-      "**/DigitalBrain.Modules.Postgres.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Microsoft.GitHub.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Microsoft.Playwright.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Flame.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Google.Gmail.Tests.Integration.dll",
-      "**/DigitalBrain.Mcp.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.ArtCraft.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Microsoft.Orleans.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Supabase.Tests.Integration.dll"
+      "**/IntoChat.OS.Modules.AI.Tests.Integration.dll",
+      "**/IntoChat.OS.Kernel.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Postgres.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Flame.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.dll",
+      "**/IntoChat.OS.Mcp.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.ArtCraft.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Supabase.Tests.Integration.dll"
     ],
     "integration-d": [
-      "**/DigitalBrain.Modules.Flutter.Tests.Integration.dll",
-      "**/DigitalBrain.Testing.Tests.Integration.dll",
-      "**/DigitalBrain.Modules.Circles.Tests.Integration.dll"
+      "**/IntoChat.OS.Modules.Flutter.Tests.Integration.dll",
+      "**/IntoChat.OS.Testing.Tests.Integration.dll",
+      "**/IntoChat.OS.Modules.Circles.Tests.Integration.dll"
     ]
   }
 }

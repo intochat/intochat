@@ -1,10 +1,10 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Integrations;
-using DigitalBrain.Microsoft.Windows;
-using DigitalBrain.Flutter.Collection;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Integrations;
+using IntoChat.OS.Microsoft.Windows;
+using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
 
 static class Machine
 {
@@ -12,17 +12,17 @@ static class Machine
     public const string NotConnected = "No supported storage is connected. Connect a Windows PC and allow a folder. Other connectors do not expose file browsing here.";
     public const string Storages = "storages";
 
-    static string Scope(DigitalBrainConnection brain)
+    static string Scope(IntoChatOSConnection brain)
     {
         var appKey = brain.Setting("App")!;
         return brain.Setting("Brain") ?? appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
     }
 
-    public static async Task<ConnectionSummary[]> Connections(DigitalBrainConnection brain) =>
+    public static async Task<ConnectionSummary[]> Connections(IntoChatOSConnection brain) =>
         (await brain.Get<IConnectionRequests>(Scope(brain)).ListConnections())
             .Where(item => item.Kind == "windows").OrderBy(item => item.Id).ToArray();
 
-    static async Task<string> StorageLabel(DigitalBrainConnection brain, ConnectionSummary connection)
+    static async Task<string> StorageLabel(IntoChatOSConnection brain, ConnectionSummary connection)
     {
         if (!string.IsNullOrWhiteSpace(connection.Account)) { return connection.Account; }
         try
@@ -44,7 +44,7 @@ static class Machine
         return parts.Length == 2 ? (Uri.UnescapeDataString(parts[0]), Uri.UnescapeDataString(parts[1])) : null;
     }
 
-    public static async Task<(string Connection, string Path)?> Resolve(DigitalBrainConnection brain, string input)
+    public static async Task<(string Connection, string Path)?> Resolve(IntoChatOSConnection brain, string input)
     {
         if (input.Length == 0 || input == Storages) { return null; }
         var connections = await Connections(brain);
@@ -59,7 +59,7 @@ static class Machine
         return connection is null ? null : (connection, input);
     }
 
-    public static async Task<bool> IsFolder(DigitalBrainConnection brain, string id)
+    public static async Task<bool> IsFolder(IntoChatOSConnection brain, string id)
     {
         var location = await Resolve(brain, id);
         if (location is null || location.Value.Path.Length == 0) { return true; }
@@ -67,7 +67,7 @@ static class Machine
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return false; }
     }
 
-    public static async Task Browse(DigitalBrainConnection brain, string input, string? document = null)
+    public static async Task Browse(IntoChatOSConnection brain, string input, string? document = null)
     {
         var appKey = brain.Setting("App")!;
         var listing = brain.Get<ICollectionView>(appKey + "/listing");
@@ -158,7 +158,7 @@ static class Machine
         await brain.Get<IText>(appKey + "/content").Set(content);
     }
 
-    public static async Task Preview(DigitalBrainConnection brain, string input)
+    public static async Task Preview(IntoChatOSConnection brain, string input)
     {
         if (await Resolve(brain, input) is not { } file) { await Browse(brain, Storages); return; }
         var separator = file.Path.LastIndexOfAny(['\\', '/']);
@@ -168,7 +168,7 @@ static class Machine
 
     static string Label(string path) => path.TrimEnd('\\', '/').Split('\\', '/').LastOrDefault() is { Length: > 0 } label ? label : path;
 
-    public static async Task<string> Text(DigitalBrainConnection brain, string input)
+    public static async Task<string> Text(IntoChatOSConnection brain, string input)
     {
         if (await Resolve(brain, input) is not { } location) { return NotConnected; }
         var text = await brain.Get<IFileSystem>(WindowsKeys.Files(location.Connection)).Read(location.Path);
@@ -177,7 +177,7 @@ static class Machine
     }
 
     // A .cs file has an owning app only when its folder is named like an installed app of this brain.
-    static async Task<string> OwnerState(DigitalBrainConnection brain, string path)
+    static async Task<string> OwnerState(IntoChatOSConnection brain, string path)
     {
         var parts = path.Split('\\', '/');
         if (parts.Length < 2) { return ""; }

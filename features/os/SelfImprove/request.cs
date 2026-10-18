@@ -1,12 +1,12 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Microsoft.Aspire;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Microsoft.Aspire;
 
 // A request is a change set; the index commits it into a worktree and starts it when nothing
 // else is live. The answer is the sha in the last neuron (empty when the request was refused); the
 // list shows the stage. Delivery is at-least-once, so the handled neuron holds the last request id
 // answered and a redelivery of it proposes nothing.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(SelfImprove.Key(brain));
 var handled = brain.Get<IText>(SelfImprove.Key(brain) + "/handled");
 var last = brain.Get<IText>(SelfImprove.Key(brain) + "/last");

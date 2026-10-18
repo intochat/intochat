@@ -22,7 +22,7 @@ nonmatching filters and failed text previews are observable states. With no supp
 the side collection explains how to connect a Windows PC and allow a folder.
 */
 
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 
 static class App
 {

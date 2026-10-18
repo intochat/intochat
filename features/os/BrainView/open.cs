@@ -1,8 +1,8 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(BrainView.Key(brain));
 await BrainView.Compose(brain);
 await foreach (var request in brain.On(app, "open", brain.Stopping))

@@ -1,18 +1,18 @@
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using DigitalBrain;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Time.Reminders;
+using IntoChat.OS;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Time.Reminders;
 
 // A view is a durable definition the synapses share: what to query, which columns are filters and
 // how often to run. Every layout is derived from the registry, so composing is idempotent.
@@ -22,22 +22,22 @@ public static class Views
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public static async Task<View[]> All(DigitalBrainConnection brain, string appKey)
+    public static async Task<View[]> All(IntoChatOSConnection brain, string appKey)
     {
         var text = (await brain.Get<IText>(appKey + "/views").Read()).Markdown;
         return text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, Json) ?? [];
     }
 
-    public static async Task<View?> Current(DigitalBrainConnection brain, string appKey, string id)
+    public static async Task<View?> Current(IntoChatOSConnection brain, string appKey, string id)
         => (await All(brain, appKey)).FirstOrDefault(view => view.Id == id);
 
-    public static Task Save(DigitalBrainConnection brain, string appKey, View[] views)
+    public static Task Save(IntoChatOSConnection brain, string appKey, View[] views)
         => brain.Get<IText>(appKey + "/views").Set(JsonSerializer.Serialize(views, Json));
 
     // The set of neurons the views name, following the registry text: a synapse watches it with
     // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to. Views sharing a
     // neuron name it once.
-    public static Sources Registry<T>(DigitalBrainConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : INeuron
+    public static Sources Registry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : INeuron
         => Sources.Named<IText, TextChanged>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
         {
             var text = (await registry.Read()).Markdown;
@@ -45,7 +45,7 @@ public static class Views
             return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => (INeuron)brain.Get<T>(key)).ToArray();
         });
 
-    public static async Task Compose(DigitalBrainConnection brain, string appKey, View view)
+    public static async Task Compose(IntoChatOSConnection brain, string appKey, View view)
     {
         var root = $"{appKey}/views/{view.Id}";
         var children = new List<UiChildRef>();
@@ -68,12 +68,12 @@ public static class Views
     }
 
     // A registered view with an interval owns a durable reminder; run-on-tick turns its ticks into refreshes.
-    public static async Task Schedule(DigitalBrainConnection brain, string appKey, View view)
+    public static async Task Schedule(IntoChatOSConnection brain, string appKey, View view)
     {
         if (view.RefreshSeconds > 0) { await brain.Get<IReminder>($"{appKey}/views/{view.Id}/refresh").Start(TimeSpan.FromSeconds(view.RefreshSeconds), TimeSpan.FromSeconds(view.RefreshSeconds)); }
     }
 
-    public static async Task ComposeHome(DigitalBrainConnection brain, string appKey, View[] views)
+    public static async Task ComposeHome(IntoChatOSConnection brain, string appKey, View[] views)
     {
         var list = brain.Get<ICard>(appKey + "/list");
         await list.Set("Views", views.Length == 0 ? "No views yet. Ask the assistant to show a table or a chart." : string.Join("\n", views.Select(view => $"- {view.Title} ({view.Kind}, {view.Id})")));

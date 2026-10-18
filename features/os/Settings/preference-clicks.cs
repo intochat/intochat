@@ -1,13 +1,13 @@
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.Text;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Button.Signals;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Flutter.Text;
 
 // The two preference buttons post the request their action names; Save carries the draft and baseline.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var buttons = Sources.Of(brain.Get<IButton>(appKey + "/save-preferences"), brain.Get<IButton>(appKey + "/reload-preferences"));

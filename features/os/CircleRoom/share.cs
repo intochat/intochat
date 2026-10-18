@@ -1,9 +1,9 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Circles;
-using DigitalBrain.Client;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Circles;
+using IntoChat.OS.Client;
 
 // "share": the asking member's app goes into this circle brain; the circle core installs it (R124).
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Room.Key(brain));
 await foreach (var request in brain.On(app, "share", brain.Stopping))
 {

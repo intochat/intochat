@@ -1,13 +1,13 @@
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Button.Signals;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
 
 // The Send button posts the prompt as an "ask" request. Handled click ids are neuron state, so a click
 // delivered twice asks once.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Jev.Key(brain));
 var clicks = brain.Get<IText>(Jev.Name(brain, "clicks"));
 await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(Jev.Name(brain, "send")), brain.Stopping))

@@ -1,0 +1,202 @@
+<Solution>
+  <Folder Name="/Aspire/">
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting.Tests.E2E/IntoChat.OS.Aspire.Hosting.Tests.E2E.csproj" />
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting.Tests.Unit/IntoChat.OS.Aspire.Hosting.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
+    <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/Client/">
+    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans.Tests.Integration/IntoChat.OS.Client.Orleans.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
+    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
+  </Folder>
+  <Folder Name="/Framework/">
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.Tests.E2E/IntoChat.OS.Framework.Tests.E2E.csproj" />
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.Tests.Integration/IntoChat.OS.Framework.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory.Tests.Unit/IntoChat.OS.Runtime.InMemory.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
+  </Folder>
+  <Folder Name="/Mcp/">
+    <Project Path="src/IntoChat.OS.Mcp/IntoChat.OS.Mcp.Tests.Integration/IntoChat.OS.Mcp.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Mcp/IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/Modules/" />
+  <Folder Name="/Modules/AI/">
+    <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Aspire.Hosting/IntoChat.OS.Modules.AI.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Integration/IntoChat.OS.Modules.AI.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Hosting/IntoChat.OS.Modules.AI.Tests.Hosting.csproj" />
+  </Folder>
+  <Folder Name="/Modules/ArtCraft/" />
+  <Folder Name="/Modules/ArtCraft/ArtCraft/">
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Integration/IntoChat.OS.Modules.ArtCraft.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/ClickHouse/">
+    <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Contracts/IntoChat.OS.Modules.ClickHouse.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ClickHouse/tests/IntoChat.OS.Modules.ClickHouse.Tests.Integration/IntoChat.OS.Modules.ClickHouse.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/" />
+  <Folder Name="/Modules/IntoChat.OS/Apps/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/tests/IntoChat.OS.Modules.Apps.Tests.Integration/IntoChat.OS.Modules.Apps.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Circles/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/tests/IntoChat.OS.Modules.Circles.Tests.Integration/IntoChat.OS.Modules.Circles.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Flame/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/tests/IntoChat.OS.Modules.Flame.Tests.Integration/IntoChat.OS.Modules.Flame.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Tools/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Tools/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Tools/tests/IntoChat.OS.Modules.Tools.Tests.Unit/IntoChat.OS.Modules.Tools.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Google/" />
+  <Folder Name="/Modules/Google/Flutter/">
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Aspire.Hosting/IntoChat.OS.Modules.Flutter.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Hosting/IntoChat.OS.Modules.Flutter.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Integration/IntoChat.OS.Modules.Flutter.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Google/Gmail/">
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Integration/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/" />
+  <Folder Name="/Modules/Microsoft/Azure/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure.Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/tests/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/Roslyn/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/tests/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/Aspire/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/tests/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Integration/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/CSharp/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/GitHub/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Contracts/IntoChat.OS.Modules.Microsoft.GitHub.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub/IntoChat.OS.Modules.Microsoft.GitHub.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/GitHub/tests/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Hosting/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/Orleans/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans/IntoChat.OS.Modules.Microsoft.Orleans.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/Playwright/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/tests/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/tests/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Integration/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/tests/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Microsoft/Windows/">
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows.Contracts/IntoChat.OS.Modules.Microsoft.Windows.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/ModelContextProtocol/" />
+  <Folder Name="/Modules/ModelContextProtocol/Mcp/">
+    <Project Path="src/IntoChat.OS.Modules/ModelContextProtocol/Mcp/IntoChat.OS.Modules.Mcp.Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ModelContextProtocol/Mcp/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ModelContextProtocol/Mcp/tests/IntoChat.OS.Modules.Mcp.Tests.Integration/IntoChat.OS.Modules.Mcp.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Postgres/">
+    <Project Path="src/IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Contracts/IntoChat.OS.Modules.Postgres.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Hosting/IntoChat.OS.Modules.Postgres.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Integration/IntoChat.OS.Modules.Postgres.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Qdrant/">
+    <Project Path="src/IntoChat.OS.Modules/Qdrant/IntoChat.OS.Modules.Qdrant.Aspire.Hosting/IntoChat.OS.Modules.Qdrant.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Qdrant/IntoChat.OS.Modules.Qdrant/IntoChat.OS.Modules.Qdrant.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Qdrant/tests/IntoChat.OS.Modules.Qdrant.Tests.Unit/IntoChat.OS.Modules.Qdrant.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Salesforce/">
+    <Project Path="src/IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Aspire.Hosting/IntoChat.OS.Modules.Salesforce.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Contracts/IntoChat.OS.Modules.Salesforce.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Salesforce/tests/IntoChat.OS.Modules.Salesforce.Tests.Integration/IntoChat.OS.Modules.Salesforce.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Supabase/">
+    <Project Path="src/IntoChat.OS.Modules/Supabase/IntoChat.OS.Modules.Supabase.Aspire.Hosting/IntoChat.OS.Modules.Supabase.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Supabase/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Hosting/IntoChat.OS.Modules.Supabase.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Integration/IntoChat.OS.Modules.Supabase.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Time/">
+    <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Testing/">
+    <Project Path="src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Aspire/IntoChat.OS.Testing.Aspire.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Playwright/IntoChat.OS.Testing.Playwright.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Tests.Integration/IntoChat.OS.Testing.Tests.Integration.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+  </Folder>
+  <Folder Name="/Kernel/">
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/IntoChat.OS.Kernel.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+  </Folder>
+  <Folder Name="/Authority/">
+    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Hosted/IntoChat.OS.Authority.Hosted.csproj" />
+    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/IntoChat.OS.Authority.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+  </Folder>
+  <Folder Name="/Trust/">
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
+  <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
+</Solution>

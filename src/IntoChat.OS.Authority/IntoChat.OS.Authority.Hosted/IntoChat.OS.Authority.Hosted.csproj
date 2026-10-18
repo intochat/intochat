@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>The hosted-cloud runtime: one allocation's scope, machine-authenticated management, workspace hand-off, journal-backed platform storage and recovery export.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <PackageReference Include="Microsoft.Orleans.Reminders" />
+    <ProjectReference Include="../IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" /></ItemGroup>
+</Project>

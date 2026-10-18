@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../../../Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
+    <ProjectReference Include="../../../../Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" /></ItemGroup>
+</Project>

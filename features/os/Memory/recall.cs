@@ -1,7 +1,7 @@
-using DigitalBrain.AI.Embeddings;
-using DigitalBrain.Apps;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Postgres.Tables;
+using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Postgres.Tables;
 
 // "recall" ranks the current generation of the index against the question, by meaning and words: the
 // question is embedded and the vector index's nearest rows are merged with the words' rank. When the
@@ -10,7 +10,7 @@ using DigitalBrain.Postgres.Tables;
 // latest answer the surface shows; a request whose answer is already written was answered and is skipped,
 // so a redelivered request never replaces a newer latest answer. An empty or unreadable index is answered
 // from the installed apps by words, and a reindex is requested.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var rows = brain.Get<ITable>(Memory.RowsKey(appKey));

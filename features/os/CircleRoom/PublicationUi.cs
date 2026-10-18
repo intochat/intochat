@@ -1,11 +1,11 @@
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Card;
-using DigitalBrain.Flutter.Form;
-using DigitalBrain.Flutter.Layout;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.Card;
+using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Flutter.Layout;
 
 public static class PublicationUi
 {
@@ -13,30 +13,30 @@ public static class PublicationUi
     public sealed record Navigation(string Page = "feed", string? Publisher = null, AppPublicationRef? Publication = null);
     public static string Encode<T>(T value) => JsonSerializer.Serialize(value, Json);
     public static T Decode<T>(string value) => JsonSerializer.Deserialize<T>(value, Json) ?? throw new ArgumentException("Missing selection.");
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string FormKey(DigitalBrainConnection brain, AppPublicationRef reference) => Key(brain) + "/forms/" + reference.Digest;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string FormKey(IntoChatOSConnection brain, AppPublicationRef reference) => Key(brain) + "/forms/" + reference.Digest;
 
-    public static async Task<UiChildRef> Button(DigitalBrainConnection brain, string id, string label, string brainId, string application, string? operation = null, string? input = null, string? view = null)
+    public static async Task<UiChildRef> Button(IntoChatOSConnection brain, string id, string label, string brainId, string application, string? operation = null, string? input = null, string? view = null)
     {
         var key = Key(brain) + "/" + id;
         await brain.Get<IButton>(key).SetActivation(label, Encode(new { kind = "workspace", brainId, application, operation, input, view }));
         return new("button", key);
     }
 
-    public static async Task<UiChildRef> Card(DigitalBrainConnection brain, string id, string title, string body)
+    public static async Task<UiChildRef> Card(IntoChatOSConnection brain, string id, string title, string body)
     {
         var key = Key(brain) + "/" + id;
         await brain.Get<ICard>(key).Set(title, body);
         return new("card", key);
     }
 
-    public static async Task Layout(DigitalBrainConnection brain, string id, UiChildRef[] children, string mode = "list")
+    public static async Task Layout(IntoChatOSConnection brain, string id, UiChildRef[] children, string mode = "list")
     {
         var layout = brain.Get<ILayout>(Key(brain) + "/" + id);
         await layout.Set(new(mode, children), (await layout.Read()).Revision);
     }
 
-    public static async Task<UiChildRef[]> Preview(DigitalBrainConnection brain, AppPublication publication, string command, string label)
+    public static async Task<UiChildRef[]> Preview(IntoChatOSConnection brain, AppPublication publication, string command, string label)
     {
         var reference = publication.Reference;
         var form = brain.Get<IForm>(FormKey(brain, reference));

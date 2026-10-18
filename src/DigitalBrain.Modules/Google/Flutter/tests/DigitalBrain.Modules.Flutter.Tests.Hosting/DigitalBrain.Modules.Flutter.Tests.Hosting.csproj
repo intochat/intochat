@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- Composition facts only: no in-process cluster, no DigitalBrain.Testing. -->
-  <ItemGroup><Using Remove="DigitalBrain.Testing" /></ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../../../../Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
-  </ItemGroup>
-</Project>

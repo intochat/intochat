@@ -1,12 +1,12 @@
 using System.Text.Json;
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.TextField;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
 
 // Preference persistence: save, reload and reconcile arrive as requests (the preference buttons post
 // them from preference-clicks.cs), and the outcome (saved, reloaded or conflicted) is the status neuron.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var root = brain.Setting("Brain") is { Length: > 0 } scope ? scope + "/settings" : appKey;
 var app = brain.Get<IApp>(appKey);

@@ -2,15 +2,15 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain;
-using DigitalBrain.Client;
-using DigitalBrain.AI.Embeddings;
-using DigitalBrain.AI.Media;
-using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
-using DigitalBrain.Microsoft.CSharp.Runtime;
-using DigitalBrain.Postgres;
-using DigitalBrain.Postgres.Tables;
+using IntoChat.OS;
+using IntoChat.OS.Client;
+using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.AI.Media;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Postgres;
+using IntoChat.OS.Postgres.Tables;
 
 // Shared: the rows Memory indexes, the generation recall reads, how text becomes terms and meaning
 // vectors, how a question ranks the rows, and the markdown the surface shows.
@@ -69,12 +69,12 @@ internal static class Memory
         "a", "an", "and", "are", "as", "at", "be", "by", "do", "does", "for", "from", "has", "have", "if", "in", "into",
         "is", "it", "its", "of", "on", "or", "so", "than", "that", "the", "their", "then", "there", "these", "this",
         "to", "was", "were", "what", "when", "which", "while", "who", "will", "with", "you", "your",
-        "args", "async", "await", "class", "const", "cs", "digitalbrain", "else", "false", "foreach", "internal", "int",
+        "args", "async", "await", "class", "const", "cs", "intochat-os", "else", "false", "foreach", "internal", "int",
         "new", "null", "private", "public", "readonly", "record", "return", "sealed", "static", "string", "system",
         "task", "true", "using", "var", "void",
     };
 
-    public static string Scope(DigitalBrainConnection brain)
+    public static string Scope(IntoChatOSConnection brain)
     {
         var appKey = brain.Setting("App")!;
         return brain.Setting("Brain") ?? appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
@@ -88,7 +88,7 @@ internal static class Memory
     public static string EmbeddingKey(string scope) => scope + "/embedding";
 
     // This brain's installed apps, by name.
-    public static async Task<(string Name, AppSnapshot State)[]> Apps(DigitalBrainConnection brain)
+    public static async Task<(string Name, AppSnapshot State)[]> Apps(IntoChatOSConnection brain)
     {
         var scope = Scope(brain);
         var apps = new List<(string Name, AppSnapshot State)>();
@@ -102,14 +102,14 @@ internal static class Memory
     }
 
     // What the brain runtime reports for each behavior; null when the runtime could not be asked.
-    public static async Task<BehaviorView[]?> Behaviors(DigitalBrainConnection brain)
+    public static async Task<BehaviorView[]?> Behaviors(IntoChatOSConnection brain)
     {
         try { return [.. (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Scope(brain))).Inspect()).Behaviors]; }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return null; }
     }
 
     // Every row of the index as the installed apps are now, Memory's own program left out.
-    public static async Task<Row[]> Collect(DigitalBrainConnection brain)
+    public static async Task<Row[]> Collect(IntoChatOSConnection brain)
     {
         var appKey = brain.Setting("App")!;
         var scope = Scope(brain);
@@ -156,7 +156,7 @@ internal static class Memory
     private static string Head(string text, int length) => text.Length <= length ? text : text[..length];
 
     // Embeds texts in batches the model accepts; each vector answers the text at its position.
-    public static async Task<float[][]> Embed(DigitalBrainConnection brain, IReadOnlyList<string> texts)
+    public static async Task<float[][]> Embed(IntoChatOSConnection brain, IReadOnlyList<string> texts)
     {
         var model = brain.Get<IEmbeddingModel>(EmbeddingKey(Scope(brain)));
         var vectors = new List<float[]>(texts.Count);

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Modules.Supabase.Aspire.Hosting/IntoChat.OS.Modules.Supabase.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../../../Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
+  </ItemGroup>
+</Project>

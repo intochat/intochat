@@ -1,16 +1,16 @@
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 using System.Text.Json;
-using DigitalBrain.Client;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Microsoft.Aspire;
+using IntoChat.OS.Client;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Microsoft.Aspire;
 
 // Shared by every synapse: the app's key, its brain, the change-set shape and the list rendering.
 public static class SelfImprove
 {
-    public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
-    public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
+    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
+    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
 
     public static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 
@@ -57,7 +57,7 @@ public static class SelfImprove
 
     // The list is rebuilt from the kernel's candidate instances and the cluster every time, never patched.
     // Newest first, so the candidate just proposed heads the list.
-    public static async Task RenderListAsync(DigitalBrainConnection brain)
+    public static async Task RenderListAsync(IntoChatOSConnection brain)
     {
         var instances = new List<(DateTimeOffset Created, string Key)>();
         await foreach (var instance in brain.Kernel.Instances<ICandidate>(brain.Stopping)) { instances.Add((instance.Created, instance.Key)); }
@@ -74,7 +74,7 @@ public static class SelfImprove
         await brain.Get<IText>(Key(brain) + "/revisions").Set(lines.Count == 0 ? "_No candidates yet._\n\n" + live : string.Join("\n", lines) + "\n\n" + live);
     }
 
-    public static async Task ComposeAsync(DigitalBrainConnection brain)
+    public static async Task ComposeAsync(IntoChatOSConnection brain)
     {
         var appKey = Key(brain);
         string Name(string part) => appKey + "/" + part;

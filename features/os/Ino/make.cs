@@ -1,11 +1,11 @@
 using System.Text.Json;
-using DigitalBrain.Apps;
+using IntoChat.OS.Apps;
 
 // "make": the focused thing does what the sentence says. The sentence becomes one synapse through the fast
 // path of the focused app, or of the brain's "scratch" app when nothing focused is an app. Nothing waits for
 // the writer: the outcome is the target app's synapse record under this request id. A replayed id is skipped,
 // and the fast path itself answers a repeated operation id once.
-await using var brain = await DigitalBrainClient.ConnectAsync(args);
+await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.Key(brain);
 var app = brain.Get<IApp>(key);
 var scope = Ino.Scope(brain);
