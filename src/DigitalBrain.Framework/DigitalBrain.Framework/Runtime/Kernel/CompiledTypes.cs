@@ -26,7 +26,7 @@ public sealed class CompiledTypes
         var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
         foreach (var contract in _neurons.Values)
         {
-            var alias = contract.GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias;
+            var alias = NeuronAliases.Of(contract);
             if (string.IsNullOrWhiteSpace(alias)) { throw new InvalidOperationException($"Public neuron contract {contract.FullName} requires an Orleans alias."); }
             if (!aliases.TryAdd(alias, contract)) { throw new InvalidOperationException($"Duplicate neuron alias '{alias}'."); }
         }
@@ -82,7 +82,7 @@ public sealed class CompiledTypes
     }
 
     private static TypeEntry Signal(Type signal, string provider)
-        => new(signal.FullName!, signal.GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
+        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.FullName!, TypeKind.Signal, provider,
             signal.GetCustomAttribute<DescriptionAttribute>()?.Description ?? signal.Name,
             [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.DeclaringType != typeof(Signal))

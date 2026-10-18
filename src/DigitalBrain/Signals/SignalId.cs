@@ -1,7 +1,7 @@
 namespace DigitalBrain;
 
 /// <summary>
-/// A signal type's name: its <see cref="AliasAttribute"/> value, such as <c>time.tick</c>.
+/// A signal type's name: its <see cref="NeuronAliasAttribute"/> or <see cref="AliasAttribute"/> value, such as <c>time.tick</c>.
 /// </summary>
 /// <remarks>
 /// Exists because connections are stored in grain state, and stored state cannot hold a
@@ -20,6 +20,10 @@ public readonly record struct SignalId
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         Alias = alias;
     }
+
+    /// <exception cref="ArgumentException"><paramref name="signal"/> has no alias.</exception>
+    public static SignalId Of(Type signal)
+        => new(NeuronAliases.Of(signal) ?? throw new ArgumentException($"{signal.FullName} has no alias.", nameof(signal)));
 
     public override string ToString() => Alias;
 }
