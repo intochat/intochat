@@ -7,7 +7,9 @@ using DigitalBrain.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Google.Gmail.Tests;
+[assembly: AssemblyFixture(typeof(DigitalBrain.Modules.Google.Gmail.Tests.Integration.GmailHost))]
+
+namespace DigitalBrain.Modules.Google.Gmail.Tests.Integration;
 
 // A brain with the Gmail module whose Google is the token/profile stub.
 internal static class GmailBrain
@@ -15,9 +17,12 @@ internal static class GmailBrain
     public const string PushToken = "test-google-push";
 
     public static Task<ITestBrain> StartAsync(TokenEndpointStub stub, CancellationToken ct, string? posture = null)
+        => Compose(TestBrain.Create(), stub, posture).StartAsync(ct);
+
+    public static TestBrain Compose(TestBrain brain, TokenEndpointStub stub, string? posture = null)
     {
         stub.Scope = "https://www.googleapis.com/auth/gmail.readonly";
-        var builder = TestBrain.Create()
+        var builder = brain
             .WithModule<GmailModule, GmailModuleOptions>(options => options.ProfileEndpoint = new(stub.Origin, "profile"))
             .WithIntegration(GmailModule.Integration, "ClientId", "integration-client")
             .WithIntegration(GmailModule.Integration, "ClientSecret", "integration-secret")
@@ -26,7 +31,7 @@ internal static class GmailBrain
             // Google signs push deliveries with its own OIDC keys; the test cannot mint those, so the push gate accepts a fixed bearer.
             .ConfigureServices(services => services.AddSingleton<IGmailPushAuthenticator>(new TestPushAuthenticator()));
         if (posture is not null) { builder = builder.WithConfiguration(DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey, posture); }
-        return builder.StartAsync(ct);
+        return builder;
     }
 
     // Gmail's inbound grain behind the edge is not a neuron; the brain's grain factory reaches it.
@@ -56,31 +61,25 @@ internal static class GmailBrain
     }
 }
 
-// One brain shared by the collection; each fact works in its own person's brain or connection.
-public sealed class GmailHost : IAsyncLifetime
+// One brain shared by the assembly over one token/profile stub; each fact works in its own person's brain or connection.
+public sealed class GmailHost : BrainHostFixture
 {
     private TokenEndpointStub? _stub;
-    private ITestBrain? _brain;
 
-    public ITestBrain Brain => _brain ?? throw new InvalidOperationException("The Gmail host has not started yet.");
+    protected override TestBrain Configure(TestBrain brain)
+        => GmailBrain.Compose(brain, _stub ?? throw new InvalidOperationException("The stub starts first."));
 
-    public async ValueTask InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         _stub = await TokenEndpointStub.StartAsync(CancellationToken.None);
-        _brain = await GmailBrain.StartAsync(_stub, CancellationToken.None);
+        await base.InitializeAsync();
     }
 
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
-        if (_brain is not null) { await _brain.DisposeAsync(); }
-        if (_stub is not null) { await _stub.DisposeAsync(); }
+        await base.DisposeAsync();
+        if (_stub is { } stub) { await stub.DisposeAsync(); }
     }
-}
-
-[CollectionDefinition(Name)]
-public sealed class GmailHostCollection : ICollectionFixture<GmailHost>
-{
-    public const string Name = "gmail-host";
 }
 
 internal sealed class TestPushAuthenticator : IGmailPushAuthenticator

@@ -3,9 +3,8 @@ using System.Net.Http.Json;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Google.Gmail;
 
-namespace DigitalBrain.Modules.Google.Gmail.Tests;
+namespace DigitalBrain.Modules.Google.Gmail.Tests.Integration;
 
-[Collection(GmailHostCollection.Name)]
 public sealed class GmailWatchWebhookFacts(GmailHost host)
 {
     [Fact]

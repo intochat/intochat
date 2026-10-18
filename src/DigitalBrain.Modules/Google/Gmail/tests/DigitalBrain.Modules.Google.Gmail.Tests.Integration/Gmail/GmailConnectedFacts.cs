@@ -3,11 +3,12 @@ using DigitalBrain.Framework.Platform.Connections.Signals;
 using DigitalBrain.Google.Gmail;
 using Microsoft.AspNetCore.Http;
 
-namespace DigitalBrain.Modules.Google.Gmail.Tests;
+namespace DigitalBrain.Modules.Google.Gmail.Tests.Integration;
 
 // Each fact flips its own Google stub, so each starts its own brain.
 public sealed class GmailConnectedFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task AGrantConnectsTheMailboxAndTracksTheConnectionInItsBrain()
     {
@@ -25,6 +26,7 @@ public sealed class GmailConnectedFacts
         Assert.Equal([key], await brain.Grains().GetGrain<IConnectionIndex>(brain.Owner.BrainId).List());
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnExpiredAccessTokenIsRefreshedThroughThePlatformBeforeAPush()
     {
@@ -50,6 +52,7 @@ public sealed class GmailConnectedFacts
         { Assert.True((await brain.Get<IConnection>(key).Read()).ExpiresAt > DateTimeOffset.UtcNow); }
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APushRefreshesAConnectionAProbeFoundExpiredAndReconnectsIt()
     {
@@ -71,6 +74,7 @@ public sealed class GmailConnectedFacts
         { Assert.Equal(ConnectionStatus.Connected, (await brain.Get<IConnection>(key).Read()).Status); }
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AProbeAsksGoogleWithTheStoredTokenAndMapsItsAnswer()
     {

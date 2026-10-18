@@ -4,7 +4,7 @@ using DigitalBrain.Google.Gmail;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
-namespace DigitalBrain.Modules.Google.Gmail.Tests;
+namespace DigitalBrain.Modules.Google.Gmail.Tests.Integration;
 
 public sealed class GmailPushAuthenticationFacts
 {
@@ -15,6 +15,7 @@ public sealed class GmailPushAuthenticationFacts
         Assert.ThrowsAny<SecurityTokenException>(() => GmailPushAuthenticator.ValidatePushToken(new JwtSecurityTokenHandler().WriteToken(token), new OpenIdConnectConfiguration(), "audience", "service@project.iam.gserviceaccount.com"));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task SecuredHostLetsOnlyVerifiedPushThroughTheModuleGate()
     {

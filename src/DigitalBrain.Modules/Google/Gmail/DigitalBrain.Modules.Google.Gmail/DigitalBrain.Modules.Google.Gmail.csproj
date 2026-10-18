@@ -6,7 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Google.Gmail.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Google.Gmail.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

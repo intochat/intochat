@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Google.Gmail.Tests",
     "DigitalBrain.Modules.Mcp.Tests",
     "DigitalBrain.Modules.Microsoft.Aspire.Tests",
     "DigitalBrain.Modules.Microsoft.GitHub.Tests",
