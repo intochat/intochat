@@ -2,6 +2,7 @@ using IntoChat.OS;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Microsoft.GitHub;
 
@@ -11,7 +12,11 @@ public sealed class GitHubModuleOptions : IModuleOptions
 {
     public static readonly string SectionName = IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("github"));
 
-    public string PublicWebhookUrl { get; set; } = "";
+    // Host-side App registration (read by WithConfiguredGitHubApp); zero AppId means not configured.
+    [Setting] public long AppId { get; set; }
+    [Setting] public string ClientId { get; set; } = "";
+    [Setting] public Uri? PublicOrigin { get; set; }
+    [Setting] public string PublicWebhookUrl { get; set; } = "";
 
     public void Validate()
     {

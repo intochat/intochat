@@ -178,7 +178,7 @@ internal static class FlutterHostLaunch
             return fromOptions;
         }
 
-        if (TryConfiguredCommand(FlutterToolchainOptions.Read(configuration).FlutterCommand, out var fromConfig))
+        if (TryConfiguredCommand(configuration is null ? null : FlutterHostOptions.Overlay(new FlutterHostOptions(), configuration).FlutterCommand, out var fromConfig))
         {
             return fromConfig;
         }

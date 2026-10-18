@@ -3,14 +3,25 @@ namespace IntoChat.OS.Flutter.Aspire.Hosting;
 public sealed class FlutterHostOptions
 {
     public static readonly string SectionName =
-        IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleSection(new IntoChat.OS.Framework.Modules.ModuleId("flutter")) + ":Hosting";
+        IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(new IntoChat.OS.Framework.Modules.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
-    public static FlutterHostOptions Bind(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
+    // Overlays the module options (IntoChatOS:Modules:flutter:Options:Hosting) onto host options.
+    public static FlutterHostOptions Overlay(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(configuration);
-        global::Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(configuration.GetSection(SectionName), options);
+        var hosting = IntoChat.OS.Framework.Configuration.ModuleOptionsSerialization
+            .GetModuleOptions<IntoChat.OS.Flutter.FlutterModuleOptions>(configuration, "flutter").Hosting;
+        options.ResourceName = hosting.ResourceName;
+        options.ShellName = hosting.ShellName;
+        options.ChatName = hosting.ChatName;
+        options.FlutterCommand = hosting.FlutterCommand ?? options.FlutterCommand;
+        options.WorkingDirectory = hosting.WorkingDirectory ?? options.WorkingDirectory;
+        options.ReleaseBuild = hosting.ReleaseBuild;
+        options.WebContainer = hosting.WebContainer;
+        // The record's default device target is the desktop one; keep the web default unless configured away from it.
+        if (hosting.DeviceTarget != ShellNames.DefaultDeviceTarget) { options.DeviceTarget = hosting.DeviceTarget; }
         return options;
     }
 

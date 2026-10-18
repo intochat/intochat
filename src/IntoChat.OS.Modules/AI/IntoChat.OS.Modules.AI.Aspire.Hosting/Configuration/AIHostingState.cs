@@ -72,7 +72,7 @@ public static partial class AIHostingExtensions
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                     .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
-                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.Ollama, $"{marker.Name}:Model"), resource.Resource.ModelName);
+                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{marker.Name}:Model"), resource.Resource.ModelName);
             }
 
             if (_defaultLlmMarker is { } llmMarker)

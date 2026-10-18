@@ -35,7 +35,6 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         ArgumentNullException.ThrowIfNull(builder);
 
         var services = builder.Services;
-        AIOptionsRuntime.Register(services);
         var options = AIOptionsRuntime.Read(builder.Configuration);
 
         services.TryAddSingleton(TimeProvider.System);
