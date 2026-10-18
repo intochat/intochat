@@ -3,11 +3,12 @@ using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
+namespace DigitalBrain.Modules.Microsoft.Playwright.Tests.Integration;
 
-public sealed class PlaywrightNeuronFacts
+public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
 {
     [Fact]
+    [Trait("host", "own")]
     public async Task Starting_after_desktop_attachment_replaces_it_with_a_managed_session()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -25,6 +26,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task Attaching_publishes_ready_from_the_browser_and_deactivation_releases_the_page()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -43,6 +45,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task Disconnect_interrupts_navigation_and_publishes_unavailable()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -62,6 +65,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task A_second_connect_supersedes_an_attachment_still_in_progress()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -81,6 +85,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task A_pending_connection_rejects_actions_without_canceling_the_attachment()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -97,6 +102,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task Disconnect_during_attachment_never_publishes_ready()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -116,6 +122,7 @@ public sealed class PlaywrightNeuronFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task Repeated_connect_does_not_interrupt_navigation()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -137,8 +144,9 @@ public sealed class PlaywrightNeuronFacts
     public async Task An_unattached_browser_fails_with_a_catchable_error()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new FakeBrowserSessionProvider { HangNavigation = true });
-        var browser = brain.Get<IPlaywright>("browser");
+        var owner = await host.PersonAsync("unattached", ct);
+        using var caller = owner.AsCaller();
+        var browser = host.Brain.Get<IPlaywright>(owner.Key("browser"));
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Navigate("https://example.com", ct));
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
     }

@@ -1,6 +1,6 @@
 using DigitalBrain.Testing.Fakes;
 using DigitalBrain.Microsoft.Playwright;
-namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
+namespace DigitalBrain.Modules.Microsoft.Playwright.Tests.Unit;
 
 public sealed class BrowserSessionFacts
 {

@@ -4,7 +4,7 @@ using DigitalBrain.Microsoft.Playwright;
 using Microsoft.Extensions.Options;
 using Sdk = Microsoft.Playwright;
 
-namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
+namespace DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser;
 
 // A deployment app page (loopback, declared in AppOrigins) loads directly and accepts Evaluate;
 // everything else keeps the public-only research browser rules.

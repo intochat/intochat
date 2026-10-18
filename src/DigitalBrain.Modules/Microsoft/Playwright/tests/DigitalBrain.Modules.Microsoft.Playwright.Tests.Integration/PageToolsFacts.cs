@@ -3,11 +3,12 @@ using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
+namespace DigitalBrain.Modules.Microsoft.Playwright.Tests.Integration;
 
-public sealed class PageToolsFacts
+public sealed class PageToolsFacts(PlaywrightHost host)
 {
     [Fact]
+    [Trait("host", "own")]
     public async Task ConfiguringOffersTheThreePageTools()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -25,6 +26,7 @@ public sealed class PageToolsFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task ExecuteEvaluatesTheApisExecuteWithEncodedArguments()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -46,6 +48,7 @@ public sealed class PageToolsFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task CommandsAreFilteredByIdSubstring()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -62,6 +65,7 @@ public sealed class PageToolsFacts
     }
 
     [Fact]
+    [Trait("host", "own")]
     public async Task AHiddenPageIsAToolErrorNotAHang()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -81,11 +85,11 @@ public sealed class PageToolsFacts
     public async Task AnApiNameThatIsNotAnIdentifierIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new FakeBrowserSessionProvider { Url = FilmCraftUrl, Title = "FilmCraft" });
-        using var caller = brain.Owner.AsCaller();
+        var owner = await host.PersonAsync("pages", ct);
+        using var caller = owner.AsCaller();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IPageTools>(brain.Owner.Key("pages/x"))
-            .Configure(new("X", brain.Owner.Key("driver"), "filmcraft;alert(1)"), ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => host.Brain.Get<IPageTools>(owner.Key("pages/x"))
+            .Configure(new("X", owner.Key("driver"), "filmcraft;alert(1)"), ct));
     }
 
     private const string FilmCraftUrl = "http://127.0.0.1:18081/";

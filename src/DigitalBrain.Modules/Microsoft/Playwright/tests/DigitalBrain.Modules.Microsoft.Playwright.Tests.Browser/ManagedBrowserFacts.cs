@@ -1,7 +1,7 @@
 using DigitalBrain.Microsoft.Playwright;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
+namespace DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser;
 
 public sealed class ManagedBrowserFacts
 {
