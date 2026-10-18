@@ -68,7 +68,7 @@
   <Folder Name="/Modules/DigitalBrain/Tools/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools.Contracts/DigitalBrain.Modules.Tools.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/tests/DigitalBrain.Modules.Tools.Tests/DigitalBrain.Modules.Tools.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/tests/DigitalBrain.Modules.Tools.Tests.Unit/DigitalBrain.Modules.Tools.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Equifax/">
     <Project Path="src/DigitalBrain.Modules/Equifax/DigitalBrain.Modules.Equifax.Aspire.Hosting/DigitalBrain.Modules.Equifax.Aspire.Hosting.csproj" />

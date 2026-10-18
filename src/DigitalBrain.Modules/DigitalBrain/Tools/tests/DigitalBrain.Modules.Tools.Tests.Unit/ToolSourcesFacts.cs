@@ -1,4 +1,4 @@
-namespace DigitalBrain.Tools.Tests;
+namespace DigitalBrain.Tools.Tests.Unit;
 
 public sealed class ToolSourcesFacts
 {
