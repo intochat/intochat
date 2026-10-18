@@ -31,7 +31,7 @@ public sealed class BrainHostFixtureFacts
     }
 
     [Fact]
-    public async Task WithoutHttpStartsFasterThanWithHttp()
+    public async Task WithoutHttpHasNoHttpEdgeAndStillServes()
     {
         var ct = TestContext.Current.CancellationToken;
         // Measured on one machine: the first start with HTTP in a process took about 150 ms and one without about 85 ms
@@ -46,6 +46,17 @@ public sealed class BrainHostFixtureFacts
         await slim.Brain.RestartAsync(ct);
         Assert.Throws<InvalidOperationException>(() => slim.Brain.HttpClient);
         using (person.AsCaller()) { await slim.Brain.Get<IPulse>(person.Key("pulse")).Pulse(4); }
+    }
+
+    [Fact]
+    public async Task TwoSlimHostsRunSideBySide()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var first = new SlimPulseHost();
+        await using var second = new SlimPulseHost();
+        await Task.WhenAll(first.InitializeAsync().AsTask(), second.InitializeAsync().AsTask());
+        var people = await Task.WhenAll(first.PersonAsync("dana", ct), second.PersonAsync("erin", ct));
+        Assert.NotEqual(people[0].BrainId, people[1].BrainId);
     }
 
     [Fact]

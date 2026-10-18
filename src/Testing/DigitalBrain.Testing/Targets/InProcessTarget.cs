@@ -52,9 +52,10 @@ public sealed class InProcessTarget : ITestTarget
                 var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
                 return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
             }
-            catch (Exception error) when (attempt < StartAttempts && AddressInUse(error))
+            catch (Exception error)
             {
                 if (Directory.Exists(session.MachineDirectory)) { Directory.Delete(session.MachineDirectory, recursive: true); }
+                if (attempt == StartAttempts || !AddressInUse(error)) { throw; }
                 plan.Execution.Diagnostics?.Invoke(new TestDiagnostic("in-process-start",
                     $"Ports {siloPort}/{gatewayPort} were taken before the silo bound them; retrying ({attempt}/{StartAttempts - 1})."));
             }
@@ -76,6 +77,8 @@ public sealed class InProcessTarget : ITestTarget
         // Neither Development (which changes feature and token behaviour) nor Production (which refuses configured custody).
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         if (plan.Execution.Http) { builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}"); }
+        // Without UseUrls Kestrel would still listen on its default port; slim hosts replace it with a server that never binds.
+        else { builder.Services.AddSingleton<global::Microsoft.AspNetCore.Hosting.Server.IServer, NoHttpServer>(); }
         builder.Configuration.AddInMemoryCollection(TestLogging.QuietDefaults);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
