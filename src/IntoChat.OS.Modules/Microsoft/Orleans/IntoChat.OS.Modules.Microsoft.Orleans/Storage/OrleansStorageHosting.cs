@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Configuration;
 using Azure.Core;
 using Azure.Data.Tables;
 using Azure.Identity;
@@ -38,7 +39,7 @@ public static class OrleansStorageHosting
         {
             throw new InvalidOperationException($"The orleans integration is partial; missing: {string.Join(", ", missing)}. Set all three or none.");
         }
-        return AddAzure(silo, configuration, clustering!, grainState!, reminders!, configuration[OrleansModule.Integration.Key(GrainStateContainerField)]);
+        return AddAzure(silo, configuration, clustering!, grainState!, reminders!, HostConfiguration.IntegrationValue(configuration, OrleansModule.Integration, GrainStateContainerField));
     }
 
     // Orleans' own endpoint keys pick the ports, so two localhost silos in one machine (parallel test
@@ -94,12 +95,12 @@ public static class OrleansStorageHosting
         : new TableServiceClient(endpoint.ConnectionString);
 
     private static StorageEndpoint? Read(IConfiguration configuration, string field) => StorageEndpoint.Select(field,
-        configuration[OrleansModule.Integration.Key(field)],
-        configuration[OrleansModule.Integration.Key(field + StorageEndpoint.UriSuffix)]);
+        HostConfiguration.IntegrationValue(configuration, OrleansModule.Integration, field),
+        HostConfiguration.IntegrationValue(configuration, OrleansModule.Integration, field + StorageEndpoint.UriSuffix));
 
     private static TokenCredential Credential(IConfiguration configuration) => new DefaultAzureCredential(StorageEndpoint.CredentialOptions(
-        configuration[OrleansModule.Integration.Key(StorageEndpoint.ManagedIdentityClientIdField)],
-        configuration[StorageEndpoint.ClientIdVariable] ?? Environment.GetEnvironmentVariable(StorageEndpoint.ClientIdVariable)));
+        HostConfiguration.IntegrationValue(configuration, OrleansModule.Integration, StorageEndpoint.ManagedIdentityClientIdField),
+        HostConfiguration.Variable(configuration, StorageEndpoint.ClientIdVariable) ?? Environment.GetEnvironmentVariable(StorageEndpoint.ClientIdVariable)));
 
     // An Orleans client (the Aspire test session) joins clustering by the silo's rule: the connection
     // it was handed, or the ClusteringUri setting, with the deployment identity for a service URI.
@@ -107,7 +108,7 @@ public static class OrleansStorageHosting
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var endpoint = StorageEndpoint.Select(ClusteringField, connection,
-            configuration[OrleansModule.Integration.Key(ClusteringField + StorageEndpoint.UriSuffix)])
+            HostConfiguration.IntegrationValue(configuration, OrleansModule.Integration, ClusteringField + StorageEndpoint.UriSuffix))
             ?? throw new InvalidOperationException("The orleans clustering store is not configured.");
         return endpoint.ServiceUri is { } uri ? new TableServiceClient(uri, Credential(configuration)) : new TableServiceClient(endpoint.ConnectionString);
     }

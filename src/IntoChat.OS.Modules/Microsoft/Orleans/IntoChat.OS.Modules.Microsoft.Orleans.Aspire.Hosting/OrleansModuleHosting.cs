@@ -19,7 +19,7 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
         var options = configuration.GetModuleOptions<OrleansOptions>("orleans");
         // One source for the silo: the orleans module option. A deployment that did not choose one
         // explicitly carries its identity's container (a revision runs in its own copy).
-        if (string.IsNullOrWhiteSpace(configuration[GrainStateContainerKey]))
+        if (!HostConfiguration.IsModuleOptionSet(configuration, "orleans", nameof(OrleansOptions.GrainStateContainer)))
         { brain.AddProjection(new GrainStateContainer(brain.GrainStateContainer)); }
         if (!options.Azurite.Enabled) { return; }
 

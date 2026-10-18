@@ -4,8 +4,9 @@ using System.Text.RegularExpressions;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Module options bind through one mechanism (Module<TOptions> and GetModuleOptions). Ad hoc configuration reads in
-// module source are how the five legacy binding styles arose. Every remaining read is listed with a reason; the list
-// only shrinks. Entries are keyed by "<ProjectName>/<path inside the project>" plus the pattern name, not line numbers.
+// module source are how the five legacy binding styles arose. Host keys go through HostConfiguration in the Framework.
+// The owner list is closed at empty: the fact asserts it, so it cannot grow back without editing this fact.
+// The scan covers module assemblies only; a Sandbox executable is a process with its own configuration root.
 public sealed partial class ModuleConfigurationReadFacts
 {
     private sealed record Owner(string File, string Pattern, string Reason);
@@ -22,10 +23,12 @@ public sealed partial class ModuleConfigurationReadFacts
     [GeneratedRegex(@"\.GetSection\(", RegexOptions.CultureInvariant)]
     private static partial Regex GetSection();
 
-    [GeneratedRegex(@"\.Bind\(", RegexOptions.CultureInvariant)]
+    // A configuration bind: the binder, a configuration object or a section. A neuron's own Bind(reference) is not one.
+    [GeneratedRegex(@"ConfigurationBinder\.Bind\(|[Cc]onfiguration\s*\.Bind\(|GetSection\([^;]*\)\s*\.Bind\(", RegexOptions.CultureInvariant)]
     private static partial Regex Bind();
 
-    [GeneratedRegex(@"\.Get<[A-Za-z]+>\(\)", RegexOptions.CultureInvariant)]
+    // Get<T>() on a configuration or section; a server-feature collection's Get<T>() is not one.
+    [GeneratedRegex(@"(?:[Cc]onfiguration|GetSection\([^;]*\))\s*\.Get<[A-Za-z]+>\(\)", RegexOptions.CultureInvariant)]
     private static partial Regex GetOfT();
 
     [GeneratedRegex(@"[Cc]onfiguration\[", RegexOptions.CultureInvariant)]
@@ -39,6 +42,7 @@ public sealed partial class ModuleConfigurationReadFacts
         var modules = Repository.ModulesRoot + Path.DirectorySeparatorChar;
         return Repository.ProjectFiles("*.cs", path => !path.Contains($"{Path.DirectorySeparatorChar}tests{Path.DirectorySeparatorChar}", StringComparison.Ordinal),
                 project => project.Directory.StartsWith(modules, StringComparison.OrdinalIgnoreCase)
+                    && !project.Name.EndsWith(".Sandbox", StringComparison.Ordinal)
                     && !project.Name.EndsWith(".Tests", StringComparison.Ordinal) && !project.Name.Contains(".Tests.", StringComparison.Ordinal))
             .SelectMany(path =>
             {
@@ -50,20 +54,15 @@ public sealed partial class ModuleConfigurationReadFacts
     }
 
     [Fact]
-    public void LegacyBindingStylesOnlyInOwnerList()
+    public void ModuleCodeReadsConfigurationOnlyThroughOptionsAndHostConfiguration()
     {
         var path = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "ModuleConfigurationReadOwners.json");
-        var baseline = JsonSerializer.Deserialize<Owner[]>(File.ReadAllText(path), new JsonSerializerOptions(JsonSerializerDefaults.Web))!
-            .Select(owner => (owner.File, owner.Pattern)).ToHashSet();
-        var current = Hits().ToHashSet();
+        var owners = JsonSerializer.Deserialize<Owner[]>(File.ReadAllText(path), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Empty(owners);
 
-        var intruders = current.Except(baseline).Order().Select(hit => $"{hit.File} [{hit.Pattern}]").ToArray();
+        var intruders = Hits().Order().Select(hit => $"{hit.File} [{hit.Pattern}]").ToArray();
         Assert.True(intruders.Length == 0,
-            "Module configuration read outside the owner list. Bind through Module<TOptions> / GetModuleOptions, or "
-            + "deliberately add the file and pattern with a reason to ModuleConfigurationReadOwners.json:\n" + string.Join('\n', intruders));
-
-        var stale = baseline.Except(current).Order().Select(hit => $"{hit.File} [{hit.Pattern}]").ToArray();
-        Assert.True(stale.Length == 0,
-            "These owner entries no longer match any read; shrink ModuleConfigurationReadOwners.json so the ratchet holds:\n" + string.Join('\n', stale));
+            "Module configuration read in module source. Bind through Module<TOptions> / GetModuleOptions, or read a host "
+            + "key through HostConfiguration." + Environment.NewLine + string.Join(Environment.NewLine, intruders));
     }
 }

@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
@@ -65,8 +66,8 @@ internal static class PostgresHostingExtensions
             else
             {
                 _connection = brain.ApplicationBuilder.AddParameter(brain.ResourceName("postgres-connection"), () =>
-                    brain.ApplicationBuilder.Configuration["Parameters:postgres-connection"]
-                    ?? brain.ApplicationBuilder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")]
+                    HostConfiguration.Parameter(brain.ApplicationBuilder.Configuration, "postgres-connection")
+                    ?? HostConfiguration.IntegrationValue(brain.ApplicationBuilder.Configuration, PostgresModule.Integration, "ConnectionString")
                     ?? throw new InvalidOperationException($"Connection string '{configuration.ConnectionName}' is required."), secret: true)
                     .WithParentRelationship(module);
             }
