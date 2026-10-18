@@ -1,12 +1,13 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.OS;
 
 // Deployment/migration only. The installed Workspace program composes every visible control.
 internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain, AppInstaller installer, ILogger<OsWorkspaceRoot> logger,
-    IEnumerable<IFeatureMigration> migrations) : IUiRootProvider
+    IEnumerable<IFeatureMigration> migrations, IOptions<OsAppsOptions> options) : IUiRootProvider
 {
     public string ActivationApp => "workspace";
 
@@ -19,7 +20,7 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "circle"), new("os", "workspace"), new("os", "filmcraft"), new("os", "photocraft"), new("intochat", "customer-researcher") })
+        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "circle"), new("os", "workspace"), new("os", "filmcraft"), new("os", "photocraft") })
         {
             var app = grains.GetGrain<IApp>(IApp.Key(scope, required.Name));
             if ((await app.Read()).Manifest.Title.Length != 0) { continue; }
@@ -32,7 +33,7 @@ internal sealed class OsWorkspaceRoot(IGrainFactory grains, IDigitalBrain brain,
         {
             if (IApp.NameOf(scope, instance.Key) is not { } name) { continue; }
             var app = await grains.GetGrain<IApp>(instance.Key).Read();
-            if (app.Edited || app.Origin is not { Source: AppSource.Shipped } origin || origin.Publisher is not ("os" or "intochat")) { continue; }
+            if (app.Edited || app.Origin is not { Source: AppSource.Shipped } origin || !options.Value.TrustedPublishers.Contains(origin.Publisher)) { continue; }
             try { await installer.Update(name, cancellationToken); }
             catch (Exception error) when (error is not OperationCanceledException && name != "workspace")
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }

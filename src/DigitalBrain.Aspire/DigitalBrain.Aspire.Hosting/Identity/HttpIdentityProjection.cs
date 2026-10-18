@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
@@ -19,7 +19,7 @@ internal static class HttpIdentityProjection
         { throw new InvalidOperationException($"{IdentityHostOptions.SectionName} is required to host an HTTP identity."); }
         var identity = section.Get<IdentityHostOptions>() ?? new();
         if (!identity.Validate())
-        { throw new InvalidOperationException($"{IdentityHostOptions.SectionName} must name a cookie, protection application and protection container."); }
+        { throw new InvalidOperationException($"{IdentityHostOptions.SectionName} must name a cookie, protection application, protection container and session claims."); }
         return identity;
     }
 
@@ -31,6 +31,8 @@ internal static class HttpIdentityProjection
             (nameof(IdentityHostOptions.CookieName), identity.CookieName),
             (nameof(IdentityHostOptions.ProtectionApplicationName), identity.ProtectionApplicationName),
             (nameof(IdentityHostOptions.ProtectionContainerName), identity.ProtectionContainerName),
+            (nameof(IdentityHostOptions.AccountClaim), identity.AccountClaim),
+            (nameof(IdentityHostOptions.BrainClaim), identity.BrainClaim),
         })
         {
             resource.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(name)), value);

@@ -209,7 +209,7 @@ internal static class LiveSignalEndpoints
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
     }
 
-    private static string Envelope(Signal signal, long? sequence = null, bool replay = false) => JsonSerializer.Serialize(
+    internal static string Envelope(Signal signal, long? sequence = null, bool replay = false) => JsonSerializer.Serialize(
         new
         {
             type = signal.GetType().Name,

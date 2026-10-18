@@ -5,7 +5,7 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Microsoft.Orleans;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

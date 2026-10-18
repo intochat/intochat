@@ -3,7 +3,8 @@ using DigitalBrain.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 using Orleans.Timers;
-using Orleans.Serialization.Invocation;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Flutter.Chat;
 
@@ -15,15 +16,13 @@ internal sealed record ComposerStorage
 }
 
 [GrainType(UIVocabulary.ComposerType)]
-[MayInterleave(nameof(IsNudge))]
 internal sealed class ComposerNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ComposerStorage> store)
     : Neuron, IComposer, INeuronObserver, IComposerReconciliation, IComposerMigration
 {
     private ComposerState State => store.State.State;
     private IGrainTimer? _renewal;
-
-    public static bool IsNudge(IInvokable request) => request.GetInterfaceType() == typeof(INeuronObserver);
+    private long? _watermark;
 
     public async Task Follow(string chat)
     {
@@ -53,19 +52,39 @@ internal sealed class ComposerNeuron(
         await Reconcile(chat);
     }
 
-    Task INeuronObserver.OnSignalAsync(Signal signal)
+    async Task INeuronObserver.Nudge(SignalNudge nudge)
     {
-        if (signal is not ChatSelectionChanged changed || changed.Name != State.FollowedChat
-            || signal.Publisher.Name != GrainFactory.GetGrain<IChat>(changed.Name).GetGrainId().ToString())
-        { return Task.CompletedTask; }
-        return this.AsReference<IComposerReconciliation>().Reconcile(changed.Name);
+        if (State.FollowedChat is not { } chat || _watermark is not { } watermark || nudge.Sequence <= watermark) { return; }
+        var source = GrainFactory.GetGrain<IChat>(chat);
+        if (nudge.Publisher.Name != source.GetGrainId().ToString()) { return; }
+        var (signals, next) = await SignalPull.After(Journal, source.GetGrainId(), watermark, Logger);
+        _watermark = next;
+        foreach (var signal in signals)
+        {
+            if (signal is not ChatSelectionChanged changed || changed.Name != State.FollowedChat
+                || signal.Publisher.Name != source.GetGrainId().ToString())
+            { continue; }
+            await this.AsReference<IComposerReconciliation>().Reconcile(changed.Name);
+        }
+    }
+
+    private ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
+    private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ComposerNeuron>>();
+
+    // The first watch starts the watermark before subscribing, so nothing published in between is lost.
+    private async Task WatchChat(IChat source)
+    {
+        var first = _watermark is null;
+        if (first) { _watermark = await SignalPull.Head(Journal, source.GetGrainId()); }
+        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        if (first) { _watermark = (await SignalPull.After(Journal, source.GetGrainId(), _watermark!.Value, Logger)).Watermark; }
     }
 
     public async Task Reconcile(string chat)
     {
         if (State.FollowedChat != chat) { return; }
         var source = GrainFactory.GetGrain<IChat>(chat);
-        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        await WatchChat(source);
         var selection = (await source.Read()).Selection;
         if (State.FollowedChat == chat && selection is not null) { await ApplySelection(selection); }
     }
@@ -96,7 +115,7 @@ internal sealed class ComposerNeuron(
         if (!BrainKey.BelongsTo(chat, BrainKey.BrainOf(this.GetPrimaryKeyString())))
         { throw new UnauthorizedAccessException("The followed chat must belong to the composer's brain."); }
         var source = GrainFactory.GetGrain<IChat>(chat);
-        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        await WatchChat(source);
         var selection = (await source.Read()).Selection ?? throw new InvalidOperationException("Select the migrated chat source first.");
         if (State.Context.Length != 0 && (State.Context != selection.Agent || State.Generation > selection.Revision))
         { throw new InvalidOperationException("Migration must preserve the composer's selected source and cannot regress its generation."); }

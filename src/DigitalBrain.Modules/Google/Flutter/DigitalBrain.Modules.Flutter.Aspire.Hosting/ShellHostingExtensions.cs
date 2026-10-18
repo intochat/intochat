@@ -136,17 +136,6 @@ public static class ShellHostingExtensions
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
                 .WithParentRelationship(brain.Resource);
 
-            var localAccount = appHost.Configuration[LocalDesktopAccount.ConfigurationKey];
-            if (OperatingSystem.IsWindows() && LocalDesktopAccount.Enabled(appHost.ExecutionContext.IsRunMode,
-                appHost.Environment.IsDevelopment(), kind == FlutterHostKind.Window, true, localAccount))
-            {
-                var deployment = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(appHost.AppHostDirectory).ToUpperInvariant() + "|" + brain.Name)))[..24];
-                var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "DigitalBrain", "local-accounts", deployment);
-                host.WithEnvironment(LocalDesktopAccount.FileEnvironmentVariable, LocalDesktopAccount.Ensure(directory, localAccount!));
-            }
-
             if (kind == FlutterHostKind.Web)
             {
                 if (string.Equals(launch.DeviceTarget, ShellNames.DefaultWebDeviceTarget, StringComparison.OrdinalIgnoreCase))
@@ -306,7 +295,7 @@ public static class ShellHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            var corsOrigin = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
+            var corsOrigin = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {

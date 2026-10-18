@@ -6,7 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Windows.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Windows.Tests.Integration" />
     <ProjectReference Include="../DigitalBrain.Modules.Microsoft.Windows.Contracts/DigitalBrain.Modules.Microsoft.Windows.Contracts.csproj" />
     <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>

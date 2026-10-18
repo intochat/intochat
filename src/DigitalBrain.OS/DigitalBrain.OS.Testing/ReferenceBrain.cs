@@ -8,7 +8,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Salesforce;

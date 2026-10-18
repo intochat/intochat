@@ -12,6 +12,8 @@ permissions:
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
   e2e:
@@ -36,8 +38,8 @@ jobs:
         id: nuget-cache
         uses: actions/cache/restore@v6
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -56,8 +58,79 @@ jobs:
       - name: Warm the sandbox image layer cache
         run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
 
+      # ArtCraft hosts each app twice (MCP and web) at a pinned upstream commit; the refs match ArtCraftModuleHosting.
+      - name: Warm the ArtCraft image layer caches
+        run: |
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
+          docker build -f src/DigitalBrain.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/DigitalBrain.Modules/ArtCraft/docker
+
       - name: Test E2E
         run: dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E -c Release --no-build
 
       - name: Test Framework E2E
         run: dotnet test --project src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E -c Release --no-build
+
+  browser:
+    name: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Free space for the full nightly build
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          df -h /
+
+      - name: Restore NuGet package cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore DigitalBrain.slnx -v quiet
+
+      - name: Build solution
+        run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:DigitalBrainNightly=true
+
+      - name: Install Playwright browsers
+        run: pwsh artifacts/bin/DigitalBrain.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
+
+      - name: Test Browser
+        run: |
+          count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name '*.Tests.Browser.dll' | wc -l)
+          if [ "$count" -eq 0 ]; then echo "::error::no Browser test module was built"; exit 1; fi
+          dotnet test --test-modules "artifacts/bin/**/*.Tests.Browser.dll"
+
+  # Nightly red blocks tags, not merges: record it on one issue per day.
+  nightly-red:
+    name: nightly red
+    needs: [e2e, browser]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    timeout-minutes: 5
+    steps:
+      - name: Open or update the nightly issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="nightly red: $(date -u +%F)"
+          body="$GITHUB_WORKFLOW failed on ${GITHUB_SHA::9} (${{ github.event_name }}): $RUN_URL"
+          number=$(gh issue list --state open --limit 50 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          if [ -n "$number" ]; then gh issue comment "$number" --body "$body"
+          else gh label create nightly --force --color B60205 --description "Nightly E2E/Browser failure" > /dev/null
+            gh issue create --title "$title" --body "$body" --label nightly; fi

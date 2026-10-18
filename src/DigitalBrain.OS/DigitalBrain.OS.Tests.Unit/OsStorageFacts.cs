@@ -1,5 +1,5 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Platform.Storage;
+using DigitalBrain.Authority.Storage;
 using Microsoft.Extensions.Hosting;
 using Orleans.Storage;
 

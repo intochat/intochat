@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>The credential ring: secrets, integration registrations and accounts. Scripts can never see this assembly.</Description>
+    <RootNamespace>DigitalBrain.Authority</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <PackageReference Include="Microsoft.Orleans.Reminders" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.AspNetCore.Web" />
+  </ItemGroup>
+  <ItemGroup><Protobuf Include="Neurons/neurons.proto" GrpcServices="Both" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /><ProjectReference Include="../DigitalBrain.Authority.Contracts/DigitalBrain.Authority.Contracts.csproj" /></ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalBrain.Authority.Tests.Integration" />
+    <!-- The hosted-cloud package composes over the journal, directory and births it extends. -->
+    <InternalsVisibleTo Include="DigitalBrain.Authority.Hosted" />
+  </ItemGroup>
+</Project>

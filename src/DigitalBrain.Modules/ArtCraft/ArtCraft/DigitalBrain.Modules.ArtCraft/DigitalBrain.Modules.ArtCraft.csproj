@@ -5,7 +5,7 @@
     <RootNamespace>DigitalBrain.Modules.ArtCraft</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.ArtCraft.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.ArtCraft.Tests.Integration" />
     <ProjectReference Include="../DigitalBrain.Modules.ArtCraft.Contracts/DigitalBrain.Modules.ArtCraft.Contracts.csproj" />
     <ProjectReference Include="../../../ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
   </ItemGroup>

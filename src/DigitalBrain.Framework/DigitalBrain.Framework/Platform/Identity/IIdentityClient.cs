@@ -1,4 +1,4 @@
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 
 namespace DigitalBrain.Framework.Platform.Identity;
 

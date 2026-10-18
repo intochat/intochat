@@ -4,7 +4,7 @@ using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Person;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 
 namespace DigitalBrain.Flutter.Space;
 

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The OS composition hosted in the test process (OsTestBrain): no containers, no AppHost. -->
+  <ItemGroup>
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
+    <Using Include="DigitalBrain.OS.Testing" />
+  </ItemGroup>
+</Project>

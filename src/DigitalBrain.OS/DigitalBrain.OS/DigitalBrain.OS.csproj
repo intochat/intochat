@@ -19,18 +19,26 @@
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-    <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority/DigitalBrain.Authority.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Authority/DigitalBrain.Authority.Hosted/DigitalBrain.Authority.Hosted.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- The OS is the composition of every module in the repo; OsCatalog names them in code
-         and the compiler checks the two agree. Hosting, deployment, contracts, testing and
-         sandbox projects ride along with their module or belong to other rings. -->
+    <!-- The OS is the composition of the portable modules in the repo; OsCatalog names them in
+         code and the compiler checks the two agree. Hosting, contracts, testing and sandbox projects
+         ride along with their module or belong to other rings. The SV modules are not part of the OS
+         (they move to the platform repository); the Windows edge is referenced below, explicitly. -->
     <ProjectReference Include="../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.csproj"
                       Exclude="../../DigitalBrain.Modules/**/tests/**;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Aspire.Hosting.csproj;
-                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Deployment.csproj;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Testing.csproj;
                                ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Contracts.csproj;
-                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Sandbox.csproj" />
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Sandbox.csproj;
+                               ../../DigitalBrain.Modules/Monnet/**;
+                               ../../DigitalBrain.Modules/Equifax/**;
+                               ../../DigitalBrain.Modules/RiskSeal/**;
+                               ../../DigitalBrain.Modules/Twilio/**;
+                               ../../DigitalBrain.Modules/Microsoft/Windows/**" />
+    <!-- The Windows edge (OsCatalog.WithWindowsEdge), composed only by a host running on Windows. -->
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/DigitalBrain.Modules.Microsoft.Windows.csproj" />
   </ItemGroup>
 </Project>

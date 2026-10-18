@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("DigitalBrain.Modules.AI.Tests")]
+[assembly: InternalsVisibleTo("DigitalBrain.Modules.AI.Tests.Integration")]

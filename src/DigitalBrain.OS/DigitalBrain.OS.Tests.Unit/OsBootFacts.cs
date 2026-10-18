@@ -32,10 +32,8 @@ public sealed class OsBootFacts
             Assert.Equal("os", installed.Origin!.Publisher);
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
-        var researcher = await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read();
-        Assert.Equal(AppStatus.Live, researcher.Status);
-        Assert.Equal("intochat", researcher.Origin!.Publisher);
-        Assert.IsType<AppSource.Shipped>(researcher.Origin.Source);
+        // Vendor apps are a distribution's to name; the OS boots without them.
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read()).Manifest.Title);
         Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "assistant")).Read()).Manifest.Title);
         var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
@@ -72,8 +70,10 @@ public sealed class OsBootFacts
         Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
     }
 
+    // The workspace requires no vendor app, and migrates shipped apps only from trusted publishers:
+    // the OS trusts itself; a distribution adds its own publisher (and its own apps) through the options.
     [Fact]
-    public async Task ConnectingAnExistingWorkspaceInstallsAMissingCustomerResearcher()
+    public async Task ConnectingAnExistingWorkspaceRequiresNoVendorAppAndTrustsTheConfiguredPublishers()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create()
@@ -82,20 +82,17 @@ public sealed class OsBootFacts
             {
                 services.RemoveAll<IAppRuntime>();
                 services.AddSingleton<IAppRuntime, IdleRuntime>();
-                services.AddOperatingSystemApps(options => options.Apps.Remove(new("intochat", "customer-researcher")));
+                services.AddOperatingSystemApps(options => options.TrustedPublishers.Add("intochat"));
             })
             .StartAsync(ct);
         using var person = await brain.PersonAsync("ada", ct);
         using var caller = person.AsCaller();
-        var researcher = brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher"));
-        Assert.Empty((await researcher.Read()).Manifest.Title);
 
         await brain.Services.GetRequiredService<DigitalBrain.Flutter.IUiRootProvider>().Connect(ct);
 
-        var installed = await researcher.Read();
-        Assert.Equal(AppStatus.Live, installed.Status);
-        Assert.Equal("intochat", installed.Origin!.Publisher);
-        Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
+        Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "customer-researcher")).Read()).Manifest.Title);
+        Assert.Equal(["os", "intochat"], brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<OsAppsOptions>>().Value.TrustedPublishers);
+        Assert.Equal(["os"], new OsAppsOptions().TrustedPublishers);
     }
 
     [Fact]

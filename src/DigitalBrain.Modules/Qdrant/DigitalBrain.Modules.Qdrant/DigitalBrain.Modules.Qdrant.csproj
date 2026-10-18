@@ -5,11 +5,10 @@
     <RootNamespace>DigitalBrain.Modules.Qdrant</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Qdrant.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Qdrant.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Qdrant.Client" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
 </Project>

@@ -55,6 +55,7 @@ final class DeploymentChanged {
 // One event of GET /brains/{id}/live: the signal's simple type name, the neuron that published it,
 // and the signal itself as camelCase JSON. One {"type":"ready"} event follows the retained replay of
 // every source: the stream is connected and what comes after it is live.
+// The server pulls each source from its signal journal; sequence and replay are the client's watermark.
 final class LiveEnvelope {
   const LiveEnvelope({
     required this.type,

@@ -4,6 +4,9 @@ namespace DigitalBrain.Microsoft.Windows;
 internal static class MachineRoots
 {
     // A full path without a trailing separator, except a drive root, which keeps it ("E:\"; "E:" means E's current folder).
+    // Windows paths are case-insensitive; elsewhere "/Root" and "/root" are different folders.
+    private static StringComparison Comparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
     public static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
     public static string Resolve(string[] roots, string path)
@@ -14,8 +17,8 @@ internal static class MachineRoots
         foreach (var root in roots)
         {
             var inside = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
-            if (string.Equals(full, root, StringComparison.OrdinalIgnoreCase)
-                || full.StartsWith(inside, StringComparison.OrdinalIgnoreCase)) { return full; }
+            if (string.Equals(full, root, Comparison)
+                || full.StartsWith(inside, Comparison)) { return full; }
         }
         throw new UnauthorizedAccessException($"'{path}' is outside the folders allowed on this machine.");
     }

@@ -2,7 +2,6 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
-using Orleans.Serialization.Invocation;
 
 namespace DigitalBrain.Flutter.Chat;
 
@@ -14,9 +13,8 @@ internal sealed partial class ChatNeuron
     private bool _dirty;
     private bool _queued;
     private bool _watchReady;
+    private long _watermark;
     private IChatAgentSource Adapter => ServiceProvider.GetRequiredService<IChatAgentSource>();
-
-    public static bool IsNudge(IInvokable request) => request.GetInterfaceType() == typeof(INeuronObserver);
 
     public async Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
     {
@@ -106,11 +104,13 @@ internal sealed partial class ChatNeuron
         if (!_watchReady || _source?.GetGrainId() != next.GetGrainId())
         {
             var old = _source;
-            // Watch before reading; interleaved nudges cannot mutate durable state.
+            // Start the watermark before watching, so nothing published in between is lost.
             _source = next;
             _watchReady = false;
+            _watermark = await SignalPull.Head(Journal, next.GetGrainId());
             _sourceActivation = await next.Watch(this.AsReference<INeuronObserver>());
             _watchReady = true;
+            _watermark = (await SignalPull.After(Journal, next.GetGrainId(), _watermark, Logger)).Watermark;
             if (old is not null && old.GetGrainId() != next.GetGrainId()) { await old.Unwatch(this.AsReference<INeuronObserver>()); }
         }
         _dirty = true;
@@ -119,12 +119,19 @@ internal sealed partial class ChatNeuron
         await Reconcile();
     }
 
-    Task INeuronObserver.OnSignalAsync(Signal signal)
+    async Task INeuronObserver.Nudge(SignalNudge nudge)
     {
-        if (_source is null || signal.Publisher.Name != _source.GetGrainId().ToString()) { return Task.CompletedTask; }
+        if (_source is not { } source || nudge.Publisher.Name != source.GetGrainId().ToString() || nudge.Sequence <= _watermark) { return; }
+        var (signals, watermark) = await SignalPull.After(Journal, source.GetGrainId(), _watermark, Logger);
+        if (_source?.GetGrainId() != source.GetGrainId()) { return; }
+        _watermark = watermark;
+        if (signals.Length == 0) { return; }
         _dirty = true;
-        return QueueReconciliation();
+        await QueueReconciliation();
     }
+
+    private ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
+    private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ChatNeuron>>();
 
     private Task QueueReconciliation()
     {
@@ -172,7 +179,7 @@ internal sealed partial class ChatNeuron
         catch (Exception error)
         {
             _dirty = true;
-            ServiceProvider.GetRequiredService<ILogger<ChatNeuron>>().LogWarning(error, "Chat source reconciliation failed for {Chat}.", this.GetPrimaryKeyString());
+            Logger.LogWarning(error, "Chat source reconciliation failed for {Chat}.", this.GetPrimaryKeyString());
         }
     }
 

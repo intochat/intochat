@@ -37,6 +37,14 @@ public sealed class TestBrain
         return this;
     }
 
+    // A composition named as a list (the OS catalog): modules already declared keep their configuration.
+    internal TestBrain WithModules(IEnumerable<ModuleContract> modules)
+    {
+        EnsureMutable();
+        _composition.RequireModules(modules);
+        return this;
+    }
+
     public TestBrain WithOptions<TModule, TOptions>(Action<TOptions> options)
         where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
@@ -120,6 +128,14 @@ public sealed class TestBrain
         TestExecutionOptions.ValidateTimeout(timeout);
         EnsureMutable();
         _execution = _execution with { StartupTimeout = timeout };
+        return this;
+    }
+
+    // An in-process host with no HTTP edge: the silo and services are the product's, ITestBrain.HttpClient throws.
+    public TestBrain WithoutHttp()
+    {
+        EnsureMutable();
+        _execution = _execution with { Http = false };
         return this;
     }
 

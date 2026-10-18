@@ -15,6 +15,7 @@ public static class DigitalBrainNames
     public const string MasterKeyEnvironmentVariable = "DigitalBrain__MasterKey";
     public const string BrainStorageConfigurationKey = "DigitalBrain:Platform:Storage";
     public const string BrainStorageDirectoryConfigurationKey = BrainStorageConfigurationKey + ":Directory";
+    public const string BrainStorageWriteFormatConfigurationKey = BrainStorageConfigurationKey + ":WriteFormat";
     public const string ConfiguredCustodyAcknowledgedConfigurationKey = BrainStorageConfigurationKey + ":ConfiguredCustodyAcknowledged";
     // Shared with the Windows module without a dependency on the Platform implementation.
     public const string CustodyConfigurationKey = BrainStorageConfigurationKey + ":Custody";

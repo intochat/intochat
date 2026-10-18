@@ -65,7 +65,8 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var key in new[] { DigitalBrain.Framework.DigitalBrainNames.CustodyConfigurationKey,
-        DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey })
+        DigitalBrain.Framework.DigitalBrainNames.ConfiguredCustodyAcknowledgedConfigurationKey,
+        DigitalBrain.Framework.DigitalBrainNames.BrainStorageWriteFormatConfigurationKey })
     {
         if (builder.Configuration[key] is { Length: > 0 } value)
         { silo.WithEnvironment(key.Replace(":", "__"), value); }

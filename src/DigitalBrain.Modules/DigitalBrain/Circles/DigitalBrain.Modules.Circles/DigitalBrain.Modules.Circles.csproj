@@ -5,7 +5,7 @@
     <RootNamespace>DigitalBrain.Modules.Circles</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Circles.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Circles.Tests.Integration" />
     <ProjectReference Include="../DigitalBrain.Modules.Circles.Contracts/DigitalBrain.Modules.Circles.Contracts.csproj" />
     <!-- R124/T26-13: a circle brain's room is loaded, and an app shared into it, through the Apps module's FeatureLoader. -->
     <ProjectReference Include="../../Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />

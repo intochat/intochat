@@ -5,9 +5,6 @@ public sealed class FlutterHostOptions
     public static readonly string SectionName =
         DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.Modules.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
-    public static readonly string LocalAccountKey = SectionName + ":" + nameof(LocalAccount);
-
-    public string? LocalAccount { get; set; }
 
     public static FlutterHostOptions Bind(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
     {

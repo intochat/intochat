@@ -14,6 +14,9 @@
     <!-- Web SDK defaults this true; on Linux that forces RID=linux-x64 for every project.
          Container publishes opt back in via PublishProfiles/Container.pubxml + deploy.yml. -->
     <EnableSdkContainerSupport>false</EnableSdkContainerSupport>
+    <!-- Every project builds into artifacts/bin/<project>/<config>, so CI uploads one tree and
+         runs prebuilt test modules from that tree. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
   </PropertyGroup>
   <!-- GitHub Actions sets CI=true. Keep solution builds portable (no -r on .slnx). -->
   <PropertyGroup Condition="'$(CI)' == 'true'">
@@ -23,7 +26,14 @@
     <DigitalBrainVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</DigitalBrainVersion>
     <VersionPrefix>$(DigitalBrainVersion)</VersionPrefix>
     <Authors>Digital Brain Tech</Authors>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- MIT covers the SDK tier only: the vocabulary, contracts, client and testing packages. Runtime packages
+         carry no licence expression until the runtime licence is decided (handbook vision/commercial.md). -->
+    <DigitalBrainSdkPackage Condition="'$(MSBuildProjectName)' == 'DigitalBrain' Or '$(MSBuildProjectName)' == 'DigitalBrain.Client'
+        Or '$(MSBuildProjectName)' == 'DigitalBrain.Client.Orleans' Or '$(MSBuildProjectName)' == 'DigitalBrain.Aspire.Client'
+        Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing' Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing.Aspire'
+        Or '$(MSBuildProjectName)' == 'DigitalBrain.Aspire.Testing' Or '$(MSBuildProjectName)' == 'DigitalBrain.Testing.Playwright'
+        Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</DigitalBrainSdkPackage>
+    <PackageLicenseExpression Condition="'$(DigitalBrainSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>
     <RepositoryUrl>https://github.com/intochat/os</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -43,8 +53,19 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
-    <IsTestProject Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestProject>
-    <IsTestingPlatformApplication Condition="'$(DigitalBrainE2E)' == 'false' And $(MSBuildProjectName.EndsWith('.Tests.E2E'))">false</IsTestingPlatformApplication>
+    <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:DigitalBrainTestTier`. -->
+    <DigitalBrainTestTier>Legacy</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">E2E</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Browser'))">Browser</DigitalBrainTestTier>
+    <DigitalBrainTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Hosting'))">Hosting</DigitalBrainTestTier>
+    <!-- DigitalBrainNightly=false drops the nightly tiers (E2E, Browser) from `dotnet test`.
+         DigitalBrainE2E=false is the previous name, kept for one release. -->
+    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == '' And '$(DigitalBrainE2E)' == 'false'">false</DigitalBrainNightly>
+    <DigitalBrainNightly Condition="'$(DigitalBrainNightly)' == ''">true</DigitalBrainNightly>
+    <IsTestProject Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(DigitalBrainNightly)' == 'false' And ('$(DigitalBrainTestTier)' == 'E2E' Or '$(DigitalBrainTestTier)' == 'Browser')">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>

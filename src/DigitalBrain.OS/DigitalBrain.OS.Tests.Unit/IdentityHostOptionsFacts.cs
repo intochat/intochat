@@ -1,4 +1,4 @@
-using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Authority.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.OS.Tests.Unit;

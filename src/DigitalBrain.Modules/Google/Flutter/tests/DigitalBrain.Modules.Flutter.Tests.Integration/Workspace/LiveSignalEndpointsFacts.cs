@@ -1,0 +1,17 @@
+using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Flutter.Workspace;
+
+namespace DigitalBrain.Modules.Flutter.Tests.Integration.Workspace;
+
+public sealed class LiveSignalEndpointsFacts
+{
+    // The golden bytes are shared with the Dart mirror's check; a change here is a wire change.
+    [Fact]
+    public async Task TheEnvelopeShapeIsUnchanged()
+    {
+        var signal = new ChatChanged("brain/chat", 7) { Publisher = "brain/chat" };
+        var golden = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Contracts", "live-envelope.golden.json"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(golden, LiveSignalEndpoints.Envelope(signal, 42, replay: true));
+    }
+}

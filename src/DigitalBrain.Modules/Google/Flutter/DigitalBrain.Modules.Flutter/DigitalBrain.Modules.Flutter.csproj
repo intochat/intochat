@@ -14,7 +14,7 @@
     <ProjectReference Include="../../../DigitalBrain/Flame/DigitalBrain.Modules.Flame.Contracts/DigitalBrain.Modules.Flame.Contracts.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Flutter.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Flutter.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />

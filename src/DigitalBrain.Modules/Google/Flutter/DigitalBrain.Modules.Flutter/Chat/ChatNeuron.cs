@@ -2,14 +2,11 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain.Framework;
 using Orleans.Runtime;
-using Orleans.Concurrency;
-using Orleans.Serialization.Invocation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Flutter.Chat;
 
 [GrainType(UIVocabulary.ChatType)]
-[MayInterleave(nameof(IsNudge))]
 internal sealed partial class ChatNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ChatState> store)
     : Neuron<ChatState>(store), IChat, INeuronObserver, IChatReconciliation, IChatMigration

@@ -1,8 +1,8 @@
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
-using DigitalBrain.Platform;
-using DigitalBrain.Platform.Identity;
-using DigitalBrain.Platform.Storage;
+using DigitalBrain.Authority;
+using DigitalBrain.Authority.Identity;
+using DigitalBrain.Authority.Storage;
 using DigitalBrain.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;

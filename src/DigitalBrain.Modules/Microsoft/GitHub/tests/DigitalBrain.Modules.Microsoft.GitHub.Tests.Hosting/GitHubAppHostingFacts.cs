@@ -32,8 +32,11 @@ public sealed class GitHubAppHostingFacts
         Assert.Contains(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "PrivateKeyPem")), environment.Keys);
         Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "ClientSecret"))));
         Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "ClientId"))));
-        Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey)));
+        // Every host gets a connections origin (its own endpoint by default); OAuth overrides it with the public origin.
+        var origin = environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey)];
+        Assert.Equal(oauth, Equals(origin, "https://brain.example/"));
         Assert.Equal(webhook, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "WebhookSecret"))));
+        Assert.Equal(oauth, builder.Resources.OfType<ParameterResource>().Any(resource => resource.Name == "brain-github-app-client-secret"));
         Assert.Equal(1 + (oauth ? 1 : 0) + (webhook ? 1 : 0), builder.Resources.OfType<ParameterResource>().Count(resource => resource.Name.StartsWith("brain-github-app-", StringComparison.Ordinal)));
     }
 }

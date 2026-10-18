@@ -15,7 +15,7 @@ namespace DigitalBrain;
 public interface INeuron : IGrainWithStringKey
 {
     /// <summary>
-    /// Starts delivering this neuron's signals to <paramref name="observer"/>.
+    /// Starts nudging <paramref name="observer"/> whenever this neuron publishes.
     /// </summary>
     /// <returns>
     /// The current activation's id. A watcher compares it on reconnect to tell a resumed activation
@@ -31,8 +31,18 @@ public interface INeuron : IGrainWithStringKey
     [AlwaysInterleave] Task<Guid> Watch(INeuronObserver observer, string[] signals);
 
     /// <summary>
-    /// Stops delivering signals to <paramref name="observer"/>. Safe to call while signals are
-    /// being delivered; interleaves so a turn that tears down a watcher never deadlocks on it.
+    /// Stops nudging <paramref name="observer"/>. Safe to call while nudges are being
+    /// delivered; interleaves so a turn that tears down a watcher never deadlocks on it.
     /// </summary>
     [AlwaysInterleave] Task Unwatch(INeuronObserver observer);
+
+    /// <summary>
+    /// Reads up to <paramref name="limit"/> of this neuron's journalled signals with a sequence
+    /// greater than <paramref name="since"/>, oldest first.
+    /// </summary>
+    /// <remarks>
+    /// What a watcher calls after a nudge or on reconnect. Read-only and interleaving: it never
+    /// changes state and never waits behind the neuron's own turn.
+    /// </remarks>
+    [AlwaysInterleave, ReadOnly] Task<SignalPage> Read(long since, int limit);
 }

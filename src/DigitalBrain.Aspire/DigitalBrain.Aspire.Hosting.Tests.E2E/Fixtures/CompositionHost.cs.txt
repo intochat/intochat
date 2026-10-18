@@ -1,10 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Client;
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Platform;
+using DigitalBrain.Authority;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Platform.Identity;
+using DigitalBrain.Authority.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;

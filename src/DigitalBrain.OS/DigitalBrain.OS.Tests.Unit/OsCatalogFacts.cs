@@ -5,6 +5,19 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class OsCatalogFacts
 {
+    // The in-process OS (OsTestBrain) is the catalog minus the modules that need a container.
+    // The Windows edge is not in the catalog at all: only WithWindowsEdge adds it.
+    [Fact]
+    public void InProcessModulesIsModulesMinusTheContainerBackedOnes()
+    {
+        string[] containerBacked = ["postgres", "clickhouse", "supabase", "qdrant", "artcraft"];
+        var expected = OsCatalog.Modules.Select(module => module.Id.Value).Except(containerBacked, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(expected, OsCatalog.InProcessModules.Select(module => module.Id.Value));
+        Assert.All(containerBacked, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id));
+        Assert.DoesNotContain(OsCatalog.Modules, module => module.Id.Value == "windows");
+        Assert.Equal([.. OsCatalog.Modules.Select(module => module.Id.Value), "windows"], OsCatalog.WithWindowsEdge().Select(module => module.Id.Value));
+    }
+
     // The OS csproj references modules by glob; this guards its exclude patterns against
     // dropping a module the catalog composes (Playwright is the one nothing else pulls in).
     [Fact]
