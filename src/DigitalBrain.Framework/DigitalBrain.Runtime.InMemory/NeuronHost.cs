@@ -142,6 +142,8 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
             _timers.Clear();
         }
         await neuron.OnDeactivateAsync(new DeactivationReason(DeactivationReasonCode.ApplicationRequested, "Deactivate was requested."), CancellationToken.None);
+        // On Orleans the grain lifecycle runs the neutral hook; here the host does.
+        if (neuron is IDeactivatingNeuron deactivating) { await deactivating.OnDeactivating(DeactivationCause.Requested, CancellationToken.None); }
     }
 
     // One state object per [PersistentState] constructor parameter, read from the runtime's store.
