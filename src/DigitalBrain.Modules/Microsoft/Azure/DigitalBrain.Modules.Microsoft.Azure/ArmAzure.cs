@@ -1,0 +1,329 @@
+using System.Security.Cryptography;
+using System.Text;
+using global::Azure;
+using global::Azure.Core;
+using global::Azure.Identity;
+using global::Azure.ResourceManager;
+using global::Azure.ResourceManager.AppContainers;
+using global::Azure.ResourceManager.AppContainers.Models;
+using global::Azure.ResourceManager.Authorization;
+using global::Azure.ResourceManager.Authorization.Models;
+using global::Azure.ResourceManager.KeyVault;
+using global::Azure.ResourceManager.KeyVault.Models;
+using global::Azure.ResourceManager.ManagedServiceIdentities;
+using global::Azure.ResourceManager.Models;
+using global::Azure.ResourceManager.OperationalInsights;
+using global::Azure.ResourceManager.OperationalInsights.Models;
+using global::Azure.ResourceManager.Resources;
+using global::Azure.ResourceManager.Storage;
+using global::Azure.ResourceManager.Storage.Models;
+
+namespace DigitalBrain.Microsoft.Azure;
+
+// The real calls: one idempotent CreateOrUpdate (a PUT) per kind, under DefaultAzureCredential.
+// Nothing here is unit-tested against Azure; the first install run is the check.
+public sealed class ArmAzure : IAzureArm
+{
+    private readonly Lazy<ArmClient> _client = new(() => new ArmClient(new DefaultAzureCredential()));
+
+    public async Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        var sub = Subscription(subscription);
+        var location = new AzureLocation(spec.Location);
+        if (spec is ResourceGroupSpec group)
+        {
+            var data = new ResourceGroupData(location);
+            Apply(spec, data.Tags);
+            var made = await sub.GetResourceGroups().CreateOrUpdateAsync(WaitUntil.Completed, group.Name, data, ct);
+            return Ref(made.Value.Id, spec, group.Name);
+        }
+
+        var rg = (await sub.GetResourceGroupAsync(spec.ResourceGroup, ct)).Value;
+        return spec switch
+        {
+            IdentitySpec identity => await EnsureIdentity(rg, identity, location, ct),
+            LogWorkspaceSpec workspace => await EnsureWorkspace(rg, workspace, location, ct),
+            StorageAccountSpec account => await EnsureStorage(rg, account, location, ct),
+            FileShareSpec share => await EnsureShare(rg, share, ct),
+            BlobContainerSpec container => await EnsureContainer(rg, container, ct),
+            KeyVaultSpec vault => await EnsureVault(sub, rg, vault, location, ct),
+            SecretSpec secret => await EnsureSecret(rg, secret, ct),
+            ManagedEnvironmentSpec environment => await EnsureEnvironment(rg, environment, location, ct),
+            ContainerAppSpec app => await EnsureApp(rg, app, location, ct),
+            RoleGrantSpec grant => await EnsureGrant(rg, grant, ct),
+            _ => throw new NotSupportedException($"Azure resource kind '{spec.Kind}' is not supported."),
+        };
+    }
+
+    public async Task<ResourceRef?> Read(string subscription, ResourceRef resource, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        try
+        {
+            var generic = Client.GetGenericResource(new ResourceIdentifier(resource.Id));
+            var found = await generic.GetAsync(ct);
+            return resource with { Id = found.Value.Id.ToString() };
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return null; }
+    }
+
+    public async Task Remove(string subscription, ResourceRef resource, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        try { await Client.GetGenericResource(new ResourceIdentifier(resource.Id)).DeleteAsync(WaitUntil.Completed, ct); }
+        catch (RequestFailedException ex) when (ex.Status == 404) { }
+    }
+
+    public async Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct)
+    {
+        var found = new List<ResourceRef>();
+        var filter = $"tagName eq '{AzureTags.ManagedBy}' and tagValue eq '{AzureTags.ManagedByValue}'";
+        await foreach (var resource in Subscription(subscription).GetGenericResourcesAsync(filter, cancellationToken: ct))
+        {
+            var tags = resource.Data.Tags;
+            if (!(tags.TryGetValue(AzureTags.Env, out var env) && env == tagValue) && !(tags.TryGetValue(AzureTags.Owner, out var owner) && owner == tagValue)) { continue; }
+            found.Add(new ResourceRef(resource.Id.ToString(), resource.Data.ResourceType.ToString(), resource.Id.Name, resource.Id.ResourceGroupName ?? ""));
+        }
+        return [.. found];
+    }
+
+    private ArmClient Client => _client.Value;
+
+    private SubscriptionResource Subscription(string subscription) =>
+        Client.GetSubscriptionResource(SubscriptionResource.CreateResourceIdentifier(subscription));
+
+    private static ResourceRef Ref(ResourceIdentifier id, ResourceSpec spec, string name) =>
+        new(id.ToString(), spec.Kind, name, spec.ResourceGroup);
+
+    private static void Apply(ResourceSpec spec, IDictionary<string, string> tags)
+    {
+        foreach (var (name, value) in AzureTags.Merge(spec)) { tags[name] = value; }
+    }
+
+    private static async Task<ResourceRef> EnsureIdentity(ResourceGroupResource rg, IdentitySpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var data = new UserAssignedIdentityData(location);
+        Apply(spec, data.Tags);
+        var made = await rg.GetUserAssignedIdentities().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureWorkspace(ResourceGroupResource rg, LogWorkspaceSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var data = new OperationalInsightsWorkspaceData(location)
+        {
+            Sku = new OperationalInsightsWorkspaceSku(OperationalInsightsWorkspaceSkuName.PerGB2018),
+            RetentionInDays = spec.RetentionDays,
+        };
+        Apply(spec, data.Tags);
+        var made = await rg.GetOperationalInsightsWorkspaces().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureStorage(ResourceGroupResource rg, StorageAccountSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var content = new StorageAccountCreateOrUpdateContent(new StorageSku(new StorageSkuName(spec.Sku)), StorageKind.StorageV2, location)
+        {
+            MinimumTlsVersion = StorageMinimumTlsVersion.Tls1_2,
+            AllowBlobPublicAccess = false,
+        };
+        Apply(spec, content.Tags);
+        var made = await rg.GetStorageAccounts().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureShare(ResourceGroupResource rg, FileShareSpec spec, CancellationToken ct)
+    {
+        var account = (await rg.GetStorageAccountAsync(spec.StorageAccount, cancellationToken: ct)).Value;
+        var made = await account.GetFileService().GetFileShares()
+            .CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new FileShareData { ShareQuota = spec.QuotaGb }, cancellationToken: ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureContainer(ResourceGroupResource rg, BlobContainerSpec spec, CancellationToken ct)
+    {
+        var account = (await rg.GetStorageAccountAsync(spec.StorageAccount, cancellationToken: ct)).Value;
+        var made = await account.GetBlobService().GetBlobContainers()
+            .CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new BlobContainerData { PublicAccess = StoragePublicAccessType.None }, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureVault(SubscriptionResource sub, ResourceGroupResource rg, KeyVaultSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var tenant = Guid.TryParse(spec.TenantId, out var given) ? given : sub.Data.TenantId ?? throw new InvalidOperationException("The subscription has no tenant id.");
+        var properties = new global::Azure.ResourceManager.KeyVault.Models.KeyVaultProperties(tenant, new KeyVaultSku(KeyVaultSkuFamily.A, KeyVaultSkuName.Standard)) { EnableRbacAuthorization = true };
+        var content = new KeyVaultCreateOrUpdateContent(location, properties);
+        Apply(spec, content.Tags);
+        var made = await rg.GetKeyVaults().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureSecret(ResourceGroupResource rg, SecretSpec spec, CancellationToken ct)
+    {
+        var vault = (await rg.GetKeyVaultAsync(spec.Vault, ct)).Value;
+        var secrets = vault.GetKeyVaultSecrets();
+        if (!spec.Overwrite && (await secrets.ExistsAsync(spec.Name, ct)).Value)
+        {
+            return Ref((await secrets.GetAsync(spec.Name, ct)).Value.Id, spec, spec.Name);
+        }
+        var content = new KeyVaultSecretCreateOrUpdateContent(new SecretProperties { Value = spec.Value });
+        var made = await secrets.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureEnvironment(ResourceGroupResource rg, ManagedEnvironmentSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var workspace = (await rg.GetOperationalInsightsWorkspaceAsync(spec.LogWorkspace, ct)).Value;
+        var keys = (await workspace.GetSharedKeysAsync(ct)).Value;
+        var data = new ContainerAppManagedEnvironmentData(location)
+        {
+            AppLogsConfiguration = new ContainerAppLogsConfiguration
+            {
+                Destination = "log-analytics",
+                LogAnalyticsConfiguration = new ContainerAppLogAnalyticsConfiguration
+                {
+                    CustomerId = workspace.Data.CustomerId?.ToString(),
+                    SharedKey = keys.PrimarySharedKey,
+                },
+            },
+        };
+        data.WorkloadProfiles.Add(new ContainerAppWorkloadProfile("Consumption", "Consumption"));
+        if (spec.SubnetId is { Length: > 0 } subnet)
+        {
+            data.VnetConfiguration = new ContainerAppVnetConfiguration { InfrastructureSubnetId = new ResourceIdentifier(subnet) };
+        }
+        Apply(spec, data.Tags);
+        var made = await rg.GetContainerAppManagedEnvironments().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        foreach (var storage in spec.Storages)
+        {
+            var account = (await rg.GetStorageAccountAsync(storage.StorageAccount, cancellationToken: ct)).Value;
+            var accountKey = (await account.GetKeysAsync(cancellationToken: ct)).Value.Keys[0].Value;
+            var properties = new ContainerAppManagedEnvironmentStorageData
+            {
+                Properties = new ManagedEnvironmentStorageProperties
+                {
+                    AzureFile = new ContainerAppAzureFileProperties
+                    {
+                        AccountName = storage.StorageAccount,
+                        AccountKey = accountKey,
+                        ShareName = storage.ShareName,
+                        AccessMode = ContainerAppAccessMode.ReadWrite,
+                    },
+                },
+            };
+            await made.Value.GetContainerAppManagedEnvironmentStorages().CreateOrUpdateAsync(WaitUntil.Completed, storage.Name, properties, ct);
+        }
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<ResourceRef> EnsureApp(ResourceGroupResource rg, ContainerAppSpec spec, AzureLocation location, CancellationToken ct)
+    {
+        var environment = (await rg.GetContainerAppManagedEnvironmentAsync(spec.Environment, ct)).Value;
+        var identity = (await rg.GetUserAssignedIdentityAsync(spec.Identity, ct)).Value;
+        var identityId = identity.Id.ToString();
+        var clientId = identity.Data.ClientId?.ToString() ?? "";
+
+        var container = new ContainerAppContainer
+        {
+            Name = "app",
+            Image = spec.Image,
+            Resources = new AppContainerResources { Cpu = spec.Cpu, Memory = spec.Memory },
+        };
+        foreach (var (name, value) in spec.Variables.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            container.Env.Add(new ContainerAppEnvironmentVariable { Name = name, Value = value.Replace(ContainerAppSpec.IdentityClientIdToken, clientId, StringComparison.Ordinal) });
+        }
+        foreach (var secret in spec.Secrets)
+        {
+            container.Env.Add(new ContainerAppEnvironmentVariable { Name = secret.Variable, SecretRef = secret.Name });
+        }
+        foreach (var mount in spec.VolumeMounts)
+        {
+            container.VolumeMounts.Add(new ContainerAppVolumeMount { VolumeName = mount.Volume, MountPath = mount.MountPath });
+        }
+        var probeTypes = new[] { ContainerAppProbeType.Liveness, ContainerAppProbeType.Readiness, ContainerAppProbeType.Startup };
+        for (var i = 0; i < spec.ProbePaths.Length && i < probeTypes.Length; i++)
+        {
+            container.Probes.Add(new ContainerAppProbe
+            {
+                ProbeType = probeTypes[i],
+                HttpGet = new ContainerAppHttpRequestInfo(spec.IngressPort) { Path = spec.ProbePaths[i] },
+                FailureThreshold = probeTypes[i] == ContainerAppProbeType.Startup ? 30 : 3,
+                PeriodSeconds = 10,
+            });
+        }
+
+        var template = new ContainerAppTemplate
+        {
+            TerminationGracePeriodSeconds = spec.TerminationGracePeriodSeconds,
+            Scale = new ContainerAppScale { MinReplicas = spec.MinReplicas, MaxReplicas = spec.MaxReplicas },
+        };
+        template.Containers.Add(container);
+        foreach (var mount in spec.VolumeMounts)
+        {
+            template.Volumes.Add(new ContainerAppVolume { Name = mount.Volume, StorageType = ContainerAppStorageType.AzureFile, StorageName = mount.EnvironmentStorage, MountOptions = mount.MountOptions });
+        }
+
+        var configuration = new ContainerAppConfiguration
+        {
+            // The old revision is deactivated only once the new one is ready; lease ownership covers the overlap.
+            ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
+            Ingress = new ContainerAppIngressConfiguration { External = true, TargetPort = spec.IngressPort, Transport = ContainerAppIngressTransportMethod.Auto },
+        };
+        foreach (var port in spec.InternalPorts)
+        {
+            configuration.Ingress.AdditionalPortMappings.Add(new IngressPortMapping(false, port) { ExposedPort = port });
+        }
+        foreach (var secret in spec.Secrets)
+        {
+            configuration.Secrets.Add(new ContainerAppWritableSecret
+            {
+                Name = secret.Name,
+                KeyVaultUri = new Uri($"https://{secret.Vault}.vault.azure.net/secrets/{secret.VaultSecret}"),
+                Identity = identityId,
+            });
+        }
+        if (spec.RegistryServer.Length > 0)
+        {
+            configuration.Registries.Add(new ContainerAppRegistryCredentials { Server = spec.RegistryServer, Identity = identityId });
+        }
+
+        var data = new ContainerAppData(location)
+        {
+            EnvironmentId = environment.Id,
+            WorkloadProfileName = "Consumption",
+            Identity = new ManagedServiceIdentity(ManagedServiceIdentityType.UserAssigned),
+            Configuration = configuration,
+            Template = template,
+        };
+        data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
+        Apply(spec, data.Tags);
+        var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private async Task<ResourceRef> EnsureGrant(ResourceGroupResource rg, RoleGrantSpec spec, CancellationToken ct)
+    {
+        var principal = Guid.TryParse(spec.Principal, out var id)
+            ? id
+            : (await rg.GetUserAssignedIdentityAsync(spec.Principal, ct)).Value.Data.PrincipalId
+                ?? throw new InvalidOperationException($"Identity '{spec.Principal}' has no principal id.");
+        var subscription = rg.Id.SubscriptionId;
+        var definition = $"/subscriptions/{subscription}/providers/Microsoft.Authorization/roleDefinitions/{spec.RoleDefinitionId}";
+        var content = new RoleAssignmentCreateOrUpdateContent(new ResourceIdentifier(definition), principal)
+        {
+            PrincipalType = RoleManagementPrincipalType.ServicePrincipal,
+        };
+        var assignments = Client.GetRoleAssignments(new ResourceIdentifier(spec.Scope));
+        var made = await assignments.CreateOrUpdateAsync(WaitUntil.Completed, GrantName(spec.Scope, principal, spec.RoleDefinitionId), content, ct);
+        return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    // A role assignment's name is a guid; deriving it makes a second PUT hit the same assignment.
+    internal static string GrantName(string scope, Guid principal, string role)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{scope}|{principal}|{role}".ToLowerInvariant()));
+        return new Guid(hash.AsSpan(0, 16)).ToString();
+    }
+}
