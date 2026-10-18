@@ -1,9 +1,12 @@
 name: release
 
-# Tag v<VERSION>: release packages, GHCR images and a GitHub release. No tests: ci.yml owns them.
+# Agents: do not run this workflow, and do not push the tag yourself.
+# Create a GitHub release whose tag is v<VERSION> (the VERSION file). Publishing that
+# release starts this workflow. It packs, pushes packages and GHCR images, and uploads
+# the packages onto that release. No tests: ci.yml owns them.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -91,7 +94,8 @@ jobs:
             -t ghcr.io/intochat/os-sandbox:latest .
           docker push --all-tags ghcr.io/intochat/os-sandbox
 
-      - name: Create GitHub release
+      # The release already exists: publishing it is what started this workflow.
+      - name: Upload packages to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}" artifacts/*.nupkg
+        run: gh release upload "${GITHUB_REF_NAME}" artifacts/*.nupkg --clobber
