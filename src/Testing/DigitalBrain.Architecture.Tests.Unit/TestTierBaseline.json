@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.Microsoft.Windows.Tests",
     "DigitalBrain.Modules.Monnet.Tests",
     "DigitalBrain.Modules.Postgres.Tests",
     "DigitalBrain.Modules.RiskSeal.Tests",

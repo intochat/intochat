@@ -136,7 +136,7 @@
   <Folder Name="/Modules/Microsoft/Windows/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows.Contracts/DigitalBrain.Modules.Microsoft.Windows.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/DigitalBrain.Modules.Microsoft.Windows.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/tests/DigitalBrain.Modules.Microsoft.Windows.Tests/DigitalBrain.Modules.Microsoft.Windows.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/tests/DigitalBrain.Modules.Microsoft.Windows.Tests.Integration/DigitalBrain.Modules.Microsoft.Windows.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/ModelContextProtocol/" />
   <Folder Name="/Modules/ModelContextProtocol/Mcp/">

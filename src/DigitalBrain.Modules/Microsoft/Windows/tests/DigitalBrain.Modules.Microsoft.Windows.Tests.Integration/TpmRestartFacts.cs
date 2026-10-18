@@ -4,7 +4,7 @@ using DigitalBrain.Microsoft.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
 public interface ITpmCounter : INeuron { Task<int> Increment(); Task<int> Read(); }
 
@@ -23,6 +23,7 @@ public sealed class TpmCounterState { [Id(0)] public int Value { get; set; } }
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class TpmRestartFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task AStateWrittenUnderTpmCustodySurvivesARestart()
     {

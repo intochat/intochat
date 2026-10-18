@@ -1,18 +1,18 @@
 using DigitalBrain.Microsoft.Windows;
 using DigitalBrain.Microsoft.Windows.Signals;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
-public sealed class FilesAndConsoleFacts
+public sealed class FilesAndConsoleFacts(WindowsMachineHost shared)
 {
     [Fact]
     public async Task FilesAreWrittenAndReadInsideARoot()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var files = brain.Get<IFileSystem>(WindowsKeys.Files(host.Key));
 
         await files.Write(@"notes\a.txt", "hi there", ct);
@@ -26,9 +26,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var files = brain.Get<IFileSystem>(WindowsKeys.Files(host.Key));
         await using var written = await brain.Observe<FileWritten>(files, ct);
 
@@ -46,9 +46,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IFileSystem>(WindowsKeys.Files(host.Key)).Read(path, ct));
     }
@@ -58,9 +58,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var sibling = Directory.CreateDirectory(host.Root + "2").FullName;
         File.WriteAllText(Path.Combine(sibling, "x.txt"), "no");
 
@@ -72,9 +72,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var drive = Path.GetPathRoot(host.Root)!;
         File.WriteAllText(Path.Combine(host.Root, "d.txt"), "drive");
 
@@ -89,9 +89,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var files = brain.Get<IFileSystem>(WindowsKeys.Files(host.Key));
         await files.Write("a.txt", "x", ct);
 
@@ -105,9 +105,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
 
         var result = await brain.Get<IConsole>(WindowsKeys.Console(host.Key)).Run("cd", null, 30, ct);
 
@@ -120,9 +120,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IConsole>(WindowsKeys.Console(host.Key)).Run("dir", @"C:\", 30, ct));
     }
@@ -132,9 +132,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var other = host.Machine(Guid.NewGuid().ToString("N"));
 
         await Assert.ThrowsAsync<ServiceUnavailableException>(() => brain.Get<IFileSystem>(WindowsKeys.Files(other)).List(".", ct));
@@ -146,9 +146,9 @@ public sealed class FilesAndConsoleFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: true, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IFileSystem>(WindowsKeys.Files(host.Key)).List(".", ct));
     }

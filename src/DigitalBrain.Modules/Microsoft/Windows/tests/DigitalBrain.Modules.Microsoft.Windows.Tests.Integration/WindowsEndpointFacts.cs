@@ -6,10 +6,11 @@ using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Windows;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
-public sealed class WindowsEndpointFacts
+public sealed class WindowsEndpointFacts(WindowsMachineHost shared)
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task FolderSetupSelectsWindowsWhenOtherConnectionTypesAreComposed()
     {
@@ -33,16 +34,15 @@ public sealed class WindowsEndpointFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(false, false, ct);
-        await using var brain = host.Brain;
-        var http = brain.HttpClient;
-        var device = await http.GetFromJsonAsync<JsonElement>("/brains/owner/windows/device", ct);
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var http = host.Owner.Http;
+        var device = await http.GetFromJsonAsync<JsonElement>($"/brains/{host.Owner.BrainId}/windows/device", ct);
         Assert.Equal(host.MachineId, device.GetProperty("machineId").GetString());
         Assert.Equal(Environment.MachineName, device.GetProperty("machineName").GetString());
-        using var connected = await http.PostAsJsonAsync($"/brains/owner/connections/{host.MachineId}/connect",
+        using var connected = await http.PostAsJsonAsync($"/brains/{host.Owner.BrainId}/connections/{host.MachineId}/connect",
             new { connectorId = "windows", authMethodId = "device", value = host.MachineId }, ct);
         Assert.Equal(HttpStatusCode.OK, connected.StatusCode);
-        var roots = $"/brains/owner/windows/{host.MachineId}/roots";
+        var roots = $"/brains/{host.Owner.BrainId}/windows/{host.MachineId}/roots";
         Assert.Empty((await http.GetFromJsonAsync<string[]>(roots, ct))!);
         using var allowed = await http.PostAsJsonAsync($"{roots}/allow", new { path = host.Root }, ct);
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
@@ -57,13 +57,12 @@ public sealed class WindowsEndpointFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(false, false, ct);
-        await using var brain = host.Brain;
-        var http = brain.HttpClient;
-        var roots = $"/brains/owner/windows/{host.MachineId}/roots";
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var http = host.Owner.Http;
+        var roots = $"/brains/{host.Owner.BrainId}/windows/{host.MachineId}/roots";
         using var disconnected = await http.PostAsJsonAsync($"{roots}/allow", new { path = host.Root }, ct);
         Assert.Equal(HttpStatusCode.Conflict, disconnected.StatusCode);
-        using var connected = await http.PostAsJsonAsync($"/brains/owner/connections/{host.MachineId}/connect",
+        using var connected = await http.PostAsJsonAsync($"/brains/{host.Owner.BrainId}/connections/{host.MachineId}/connect",
             new { connectorId = "windows", authMethodId = "device", value = host.MachineId }, ct);
         connected.EnsureSuccessStatusCode();
         foreach (var path in new[] { "", "relative", Path.Combine(host.Root, "missing") })
@@ -71,7 +70,7 @@ public sealed class WindowsEndpointFacts
             using var invalid = await http.PostAsJsonAsync($"{roots}/allow", new { path }, ct);
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         }
-        using var other = await http.GetAsync($"/brains/owner/windows/{Guid.NewGuid():N}/roots", ct);
+        using var other = await http.GetAsync($"/brains/{host.Owner.BrainId}/windows/{Guid.NewGuid():N}/roots", ct);
         Assert.Equal(HttpStatusCode.NotFound, other.StatusCode);
         Assert.Empty((await http.GetFromJsonAsync<string[]>(roots, ct))!);
     }
@@ -81,10 +80,9 @@ public sealed class WindowsEndpointFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(false, false, ct);
-        await using var brain = host.Brain;
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var alice = await shared.PersonAsync("alice", ct);
+        var bob = await shared.PersonAsync("bob", ct);
         using var discovery = await alice.Http.GetAsync($"/brains/{bob.BrainId}/windows/device", ct);
         Assert.Equal(HttpStatusCode.Forbidden, discovery.StatusCode);
         using var write = await alice.Http.PostAsJsonAsync($"/brains/{bob.BrainId}/windows/{host.MachineId}/roots/allow", new { path = host.Root }, ct);

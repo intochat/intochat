@@ -1,18 +1,18 @@
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Microsoft.Windows;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
-public sealed class WindowsConnectionFacts
+public sealed class WindowsConnectionFacts(WindowsMachineHost shared)
 {
     [Fact]
     public async Task ThisMachineConnectsAndReportsItsFacts()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
 
         var view = await brain.Get<IConnection>(host.Key).Connect("device", host.MachineId);
         var facts = await brain.Get<IWindows>(host.Key).Facts();
@@ -28,9 +28,9 @@ public sealed class WindowsConnectionFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var other = Guid.NewGuid().ToString("N");
 
         await Assert.ThrowsAsync<ServiceUnavailableException>(() => brain.Get<IWindows>(host.Machine(other)).Facts());
@@ -42,9 +42,9 @@ public sealed class WindowsConnectionFacts
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
-        await using var brain = host.Brain;
-        using var caller = brain.Owner.AsCaller();
+        var host = await WindowsHost.ForPersonAsync(shared, connect: false, allowRoot: false, ct);
+        var brain = host.Brain;
+        using var caller = host.Owner.AsCaller();
         var machine = brain.Get<IWindows>(host.Key);
 
         await machine.AllowRoot(host.Root);

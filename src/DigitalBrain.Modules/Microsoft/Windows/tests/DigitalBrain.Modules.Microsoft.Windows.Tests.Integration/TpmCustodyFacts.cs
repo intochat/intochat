@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using DigitalBrain.Microsoft.Windows;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
 // Live-gated: these run against this PC's TPM through the Microsoft Platform Crypto Provider and skip where there is none.
 // The class is Windows-only for the analyzer; each fact still skips first where the provider is missing.

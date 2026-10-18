@@ -1,7 +1,7 @@
 using DigitalBrain.Microsoft.Windows;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
+namespace DigitalBrain.Modules.Microsoft.Windows.Tests.Integration;
 
 public sealed class MachineIdentityFacts
 {
