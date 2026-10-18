@@ -72,6 +72,9 @@ final class LiveEnvelope {
   final bool replay;
   bool get isReady => type == 'ready';
 
+  /// The reader fell behind; the server ends the stream, and reconnecting replays current state.
+  bool get isResync => type == 'resync';
+
   factory LiveEnvelope.fromJson(Map<String, dynamic> json) => LiveEnvelope(
     type: json['type'] as String,
     publisher: json['publisher'] as String? ?? '',
