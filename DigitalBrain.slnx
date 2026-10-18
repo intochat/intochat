@@ -203,6 +203,7 @@
   <Folder Name="/OS/">
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E/DigitalBrain.OS.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.Integration/DigitalBrain.OS.Tests.Integration.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit/DigitalBrain.OS.Tests.Unit.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
   </Folder>

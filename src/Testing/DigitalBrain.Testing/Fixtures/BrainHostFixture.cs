@@ -24,9 +24,10 @@ public abstract class BrainHostFixture : IAsyncLifetime
         using (owner.AsCaller()) { return await Brain.Observe<T>(source, ct).ConfigureAwait(false); }
     }
 
-    public async ValueTask InitializeAsync() => _brain = await Configure(TestBrain.Create()).StartAsync().ConfigureAwait(false);
+    // Hosts with their own collaborators (a fake model, a token endpoint) start them before, and stop them after, the base.
+    public virtual async ValueTask InitializeAsync() => _brain = await Configure(TestBrain.Create()).StartAsync().ConfigureAwait(false);
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
         if (_brain is { } brain) { await brain.DisposeAsync().ConfigureAwait(false); }

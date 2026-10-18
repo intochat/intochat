@@ -8,6 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Testing.Aspire" />
     <InternalsVisibleTo Include="DigitalBrain.Testing.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.OS.Testing" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

@@ -13,6 +13,17 @@ public static partial class OsCatalog
 {
     public static IReadOnlyList<Module> Modules { get; } = [.. BuiltIn(), .. Generated()];
 
+    // The composition a test process can host by itself: every module that needs no container or specific OS.
+    public static IReadOnlyList<Module> InProcessModules { get; } = [.. Modules.Where(module => !NeedsItsOwnMachine(module))];
+
+    private static bool NeedsItsOwnMachine(Module module) => module
+        is DigitalBrain.Postgres.PostgresModule        // a Postgres container
+        or DigitalBrain.ClickHouse.ClickHouseModule    // a ClickHouse container
+        or DigitalBrain.Supabase.SupabaseModule        // Postgres-backed: the Postgres container
+        or DigitalBrain.Qdrant.QdrantModule            // a Qdrant container
+        or DigitalBrain.ArtCraft.ArtCraftModule        // its Docker images
+        or DigitalBrain.Microsoft.Windows.WindowsModule; // Windows-only desktop automation
+
     private static Module[] BuiltIn() =>
     [
         new DigitalBrain.Microsoft.Orleans.OrleansModule(),
