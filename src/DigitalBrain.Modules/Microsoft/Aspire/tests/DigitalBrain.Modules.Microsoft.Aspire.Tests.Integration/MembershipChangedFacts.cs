@@ -8,6 +8,7 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class MembershipChangedFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task ChangesPublishWithoutPollingAndDeactivationReleasesTheSubscription()
     {

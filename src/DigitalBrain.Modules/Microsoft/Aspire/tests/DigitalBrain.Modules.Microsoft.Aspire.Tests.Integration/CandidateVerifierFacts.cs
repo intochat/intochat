@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
 
-public sealed class CandidateVerifierFacts
+public sealed class CandidateVerifierFacts(AspireHost host)
 {
     private const string Sha = "sha0001";
     private const string ReadKey = "neurons_call DigitalBrain.Apps.IApp owner/apps/calculator Read";
@@ -16,11 +16,13 @@ public sealed class CandidateVerifierFacts
     private static async Task<(ITestBrain Brain, FakeClusterHost Cluster)> StartAsync(CancellationToken ct)
     {
         var cluster = new FakeClusterHost();
-        var brain = await TestBrain.Create().WithModule<AspireModule>().WithModule<McpModule>().WithModule<ToolsModule>()
-            .ConfigureServices(services => services.AddSingleton<IClusterHost>(cluster))
-            .StartAsync(ct);
+        var brain = await Compose(TestBrain.Create(), cluster).StartAsync(ct);
         return (brain, cluster);
     }
+
+    internal static TestBrain Compose(TestBrain brain, FakeClusterHost cluster)
+        => brain.WithModule<AspireModule>().WithModule<McpModule>().WithModule<ToolsModule>()
+            .ConfigureServices(services => services.AddSingleton<IClusterHost>(cluster));
 
     // The service the module runs, read from the host and driven as the owner, as the candidate neuron drives it.
     private static async Task<VerificationReport> Verify(ITestBrain brain, string endpoint, VerificationPlan plan, CancellationToken ct)
@@ -38,8 +40,7 @@ public sealed class CandidateVerifierFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
         server.Answers["neurons_context"] = """{"principalId":"owner","brainId":"another"}""";
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
 
@@ -54,8 +55,7 @@ public sealed class CandidateVerifierFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
 
@@ -69,8 +69,7 @@ public sealed class CandidateVerifierFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
         server.Answers[ReadKey] = """{"name":"calculator"}""";
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([Read], [], TimeSpan.FromMinutes(1)), ct);
 
@@ -78,6 +77,7 @@ public sealed class CandidateVerifierFacts
         Assert.Equal(["context", "activation", "call DigitalBrain.Apps.IApp owner/apps/calculator Read"], report.Checks.Select(check => check.Name));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AMissingSpanFailsWithItsCount()
     {
@@ -100,8 +100,7 @@ public sealed class CandidateVerifierFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
         server.Answers[ReadKey] = """{"name":"other"}""";
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([Read, Read], ["seen"], TimeSpan.FromMinutes(1)), ct);
 
@@ -114,8 +113,7 @@ public sealed class CandidateVerifierFacts
     public async Task ACandidateThatCannotBeReachedFailsTheConnectCheck()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, "http://127.0.0.1:1", new([], [], TimeSpan.FromMinutes(1)), ct);
 
@@ -129,8 +127,7 @@ public sealed class CandidateVerifierFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
         server.Answers["neurons_context"] = "[]";
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
 
@@ -143,8 +140,7 @@ public sealed class CandidateVerifierFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
         server.Failures.Add("neurons_list DigitalBrain.Apps.IApp");
-        var (brain, _) = await StartAsync(ct);
-        await using var _ = brain;
+        var brain = host.Brain;
 
         var report = await Verify(brain, server, new([Read], [], TimeSpan.FromMinutes(1)), ct);
 

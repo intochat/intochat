@@ -29,6 +29,7 @@ public sealed class CandidateFacts
         return (brain, candidate);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ACandidateWalksBuildingStartingHealthyVerifiedPromoted()
     {
@@ -53,6 +54,7 @@ public sealed class CandidateFacts
         Assert.Equal(["gate sha0001", "publish sha0001", "run sha0001", "healthy sha0001", "commit sha0001", "remove sha0001"], host.Calls.Where(call => call != "orphans"));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task PromoteIsRefusedBeforeVerification()
     {
@@ -67,6 +69,7 @@ public sealed class CandidateFacts
         Assert.Equal(0, cluster.Restarts);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task PromotingTwiceRestartsTheClusterOnce()
     {
@@ -84,6 +87,7 @@ public sealed class CandidateFacts
         Assert.Equal(1, cluster.Restarts);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFailedBuildGateEndsAtBuildingWithItsReason()
     {
@@ -101,6 +105,7 @@ public sealed class CandidateFacts
         Assert.DoesNotContain("run sha0001", host.Calls);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnhealthyCandidateFailsAtStartingAndIsRemoved()
     {
@@ -117,6 +122,7 @@ public sealed class CandidateFacts
         Assert.Equal("remove sha0001", host.Calls[^1]);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AMissedExpectationFailsAtVerifyingAndRemovesTheContainer()
     {
@@ -133,6 +139,7 @@ public sealed class CandidateFacts
         Assert.Equal("remove sha0001", host.Calls[^1]);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task APromotionCutOffByTheRestartEndsWhenTheClusterReactivatesOnTheNewBuild()
     {
@@ -161,6 +168,7 @@ public sealed class CandidateFacts
         Assert.Equal($"remove {sha}", host.Calls.Last(call => call.StartsWith("remove", StringComparison.Ordinal)));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AProposalArrivingDuringACutOffPromotionCompletesAndTheQueueMovesOn()
     {
@@ -186,6 +194,7 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Promoted, (await first.Read()).Stage);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnexpectedStartFailureFailsTheCandidateAndTheNextOneStarts()
     {
@@ -206,6 +215,7 @@ public sealed class CandidateFacts
         Assert.Equal("sha0002", (await secondStarted.NextAsync(ct: ct)).Sha);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ACommitThatFailsFailsThePromotionWithoutRestarting()
     {
@@ -226,6 +236,7 @@ public sealed class CandidateFacts
         Assert.Equal("remove sha0001", host.Calls[^1]);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartThatFailsPutsTheLiveRefAndBuildBackAndFailsThePromotion()
     {
@@ -246,6 +257,7 @@ public sealed class CandidateFacts
         Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartThatNeverTookFailsThePromotingCandidateOnTheClustersNextActivation()
     {
@@ -269,6 +281,7 @@ public sealed class CandidateFacts
 
     // The cluster persisted a restart towards this very sha (a Promote retried after a crash): the activation
     // Promote's own Restart call causes finishes the candidate while Promote is still waiting on it.
+    [Trait("host", "own")]
     [Fact]
     public async Task APromoteThatActivatesTheClusterIntoItsOwnFinishDoesNotDeadlock()
     {
@@ -288,6 +301,7 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Promoted, result.Stage);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TwoStartsBuildOnce()
     {
@@ -304,6 +318,7 @@ public sealed class CandidateFacts
         Assert.Single(host.Calls, call => call == "gate sha0001");
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFailureWhoseCleanupFailsStillEndsFailed()
     {

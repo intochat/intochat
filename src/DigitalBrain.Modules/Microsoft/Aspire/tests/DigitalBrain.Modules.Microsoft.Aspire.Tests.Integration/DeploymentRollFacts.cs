@@ -2,6 +2,7 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class DeploymentRollFacts
 {
+    [Trait("host", "own")]
     [Fact(Timeout = 30_000)]
     public async Task ASingleRuntimeUpdateRestartsWithoutWaitingForANonexistentPeer()
     {
@@ -21,6 +22,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal("sha0001", (await grain.Read()).CurrentSha);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RollingRestartsEveryInstanceOnceAndEndsSteadyOnTheNewShaAfterTheHandover()
     {
@@ -46,6 +48,7 @@ public sealed class DeploymentRollFacts
         Assert.Empty(read.Remaining);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AHandoverFinishedOnAnotherSiloWaitsForTheHandedOverSilo()
     {
@@ -65,6 +68,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal("silo-0@sha0001", cluster.Waited[^1]);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartTheCliRefusesRollsTheClusterBackToThePreviousSha()
     {
@@ -87,6 +91,7 @@ public sealed class DeploymentRollFacts
         Assert.NotNull(read.Failure);
     }
 
+    [Trait("host", "own")]
     [Theory]
     [InlineData("silo-1@sha0001")]
     [InlineData("silo-1@sha0001 exits")]
@@ -112,6 +117,7 @@ public sealed class DeploymentRollFacts
         Assert.NotNull(read.Failure);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RollIsRefusedWhileRestarting()
     {
@@ -125,6 +131,7 @@ public sealed class DeploymentRollFacts
         Assert.Empty(cluster.RestartedSilos);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ALiveSwitchThatFailsRollsTheClusterBack()
     {
@@ -152,6 +159,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RollingResumesOnTheNextActivationWithoutAnotherRoll()
     {
@@ -182,6 +190,7 @@ public sealed class DeploymentRollFacts
         Assert.Empty(read.Remaining);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RollIsRefusedWhileRollingOntoAnotherSha()
     {
@@ -201,6 +210,7 @@ public sealed class DeploymentRollFacts
         Assert.Contains("rolling onto sha0001", refused.Message, StringComparison.Ordinal);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task EveryInstanceDrainsAndLeavesTheFrontBeforeItRestarts()
     {
@@ -216,6 +226,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal(expected, cluster.Steps);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFrontWithNoOtherRoutableInstanceRollsBackBeforeTheInstanceStops()
     {
@@ -236,6 +247,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RollIsRefusedInAProcessThatIsNotAClusterInstance()
     {
@@ -252,6 +264,7 @@ public sealed class DeploymentRollFacts
         Assert.Equal(DeploymentStage.Steady, (await grain.Read()).Stage);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARollBackStopsRatherThanRestartTheOnlyRoutableInstance()
     {

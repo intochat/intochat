@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Tests" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Tests.Integration" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Microsoft.Orleans.Reminders" />
     <ProjectReference Include="../DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />

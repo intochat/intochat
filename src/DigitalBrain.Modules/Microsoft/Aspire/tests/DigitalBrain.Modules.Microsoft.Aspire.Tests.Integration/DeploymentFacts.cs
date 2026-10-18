@@ -2,6 +2,7 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class DeploymentFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task RestartPointsTheLiveBuildAtTheShaAndRestartsTheSilos()
     {
@@ -19,6 +20,7 @@ public sealed class DeploymentFacts
         Assert.Equal("sha0001", read.TargetSha);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ARestartIsCompletedByTheNextActivationOnTheNewBuild()
     {
@@ -37,6 +39,7 @@ public sealed class DeploymentFacts
     }
 
     // The restart never took (the silo came back on another build): the next activation settles on what runs.
+    [Trait("host", "own")]
     [Fact]
     public async Task AnActivationOnAnotherBuildThanTheTargetSettlesOnWhatRuns()
     {
@@ -54,6 +57,7 @@ public sealed class DeploymentFacts
         Assert.Null(read.TargetSha);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task RestartingToTheSameShaTwiceRestartsOnce()
     {
@@ -68,6 +72,7 @@ public sealed class DeploymentFacts
         Assert.Equal(1, cluster.Restarts);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task OrphanCandidateContainersAreRemovedOnActivationKeepingTheLiveCandidate()
     {
@@ -84,6 +89,7 @@ public sealed class DeploymentFacts
         Assert.Equal([sha], host.OrphansKnown);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AFailingOrphanSweepDoesNotFailTheActivation()
     {

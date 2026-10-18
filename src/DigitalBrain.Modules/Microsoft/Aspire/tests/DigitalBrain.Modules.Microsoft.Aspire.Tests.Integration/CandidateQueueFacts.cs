@@ -2,6 +2,7 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class CandidateQueueFacts
 {
+    [Trait("host", "own")]
     [Fact]
     public async Task ASecondProposalQueuesUntilTheFirstEnds()
     {
@@ -21,6 +22,7 @@ public sealed class CandidateQueueFacts
         Assert.True(host.Calls.IndexOf("remove sha0001") < host.Calls.IndexOf("run sha0002"));
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheCandidateIsPreparedFromTheLiveClusterSha()
     {

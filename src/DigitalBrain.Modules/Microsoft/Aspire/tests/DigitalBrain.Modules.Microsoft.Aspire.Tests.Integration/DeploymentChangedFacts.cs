@@ -8,6 +8,7 @@ public sealed class DeploymentChangedFacts
     private static Task<ITestBrain> StartAsync(CancellationToken ct)
         => CandidateFacts.StartAsync(new FakeCandidateHost(), new FakeClusterHost(), new FakeVerifier(), ct, Sampling);
 
+    [Trait("host", "own")]
     [Fact]
     public async Task TheFirstSamplePublishesTheStageTheShaAndTheClustersSilos()
     {
@@ -23,6 +24,7 @@ public sealed class DeploymentChangedFacts
         Assert.Equal("Active", Assert.Single(first.Silos).State);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task AnUnchangedMembershipPublishesNothingUntilTheStageMoves()
     {
@@ -39,6 +41,7 @@ public sealed class DeploymentChangedFacts
         Assert.Equal(nameof(DeploymentStage.Restarting), next.Stage);
     }
 
+    [Trait("host", "own")]
     [Fact]
     public async Task ALateSubscriberIsSeededWithTheLastDeploymentChanged()
     {
