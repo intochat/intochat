@@ -1,9 +1,10 @@
-namespace DigitalBrain.Client;
+namespace DigitalBrain;
 
 // The stream behind brain.On<T>: a hand-written enumerator, not a compiler iterator, because a
 // consumer may dispose it while a read is in flight (a primed enumerator, a break, a failing
 // handler). Disposal cancels the pending read, lets it settle, and only then releases the
 // subscription, so an early exit never throws and never leaks the watch.
+// One stream serves DigitalBrain.Client and DigitalBrain.Client.Orleans; the Orleans client passes no extra tokens.
 internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
     CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation, Func<Task> onSubscribed) : IAsyncEnumerable<T>
 {

@@ -35,9 +35,9 @@ public sealed class VocabularyRingFacts
     }
 
     // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
-    // adding one is a design decision, made here.
+    // adding one is a design decision, made here. Both clients share the vocabulary's one WatchStream.
     private static readonly string[] InternalsConsumers =
-        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans.Tests.Integration", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts", "DigitalBrain.Testing"];
+        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans", "DigitalBrain.Client.Orleans.Tests.Integration", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts", "DigitalBrain.Testing"];
 
     [Fact]
     public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()

@@ -76,14 +76,11 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
-    <PackageVersion Include="Microsoft.Orleans.BroadcastChannel" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Client" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Clustering.AzureStorage" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Dashboard" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Dashboard.Abstractions" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Runtime" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.0" />
@@ -99,7 +96,6 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.assert" Version="4.0.2" />
-    <PackageVersion Include="Microsoft.Orleans.TestingHost" Version="10.4.0" />
     <!-- Restored, never referenced for assemblies: hosted tests read DCP and dashboard paths
          out of these packages because they build the Aspire model without an AppHost project. -->
     <PackageVersion Include="Aspire.Hosting.Orchestration.win-x64" Version="$(AspireVersion)" />

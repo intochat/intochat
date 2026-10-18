@@ -50,7 +50,7 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
                 return (subscription.ReadAllAsync(linked.Token), new LinkedHandle(subscription, linked));
             }
             catch { linked.Dispose(); throw; }
-        }, onSubscribed);
+        }, default, default, onSubscribed);
     }
 
     private sealed class LinkedHandle(IAsyncDisposable subscription, CancellationTokenSource linked) : IAsyncDisposable
