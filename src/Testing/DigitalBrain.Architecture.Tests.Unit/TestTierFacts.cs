@@ -15,18 +15,12 @@ public sealed class TestTierFacts
     public void AModuleTestProjectCarriesATierSuffix()
     {
         string[] tiers = [".Tests.Unit", ".Tests.Integration", ".Tests.E2E", ".Tests.Browser", ".Tests.Hosting"];
-        var baseline = Baseline().LegacyModuleTestProjects.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
-        foreach (var project in ModuleTestProjects())
-        {
-            var name = Path.GetFileNameWithoutExtension(project);
-            if (tiers.Any(tier => name.EndsWith(tier, StringComparison.Ordinal))) { continue; }
-            if (!baseline.Remove(name)) { offenders.Add(name); }
-        }
-        Assert.True(offenders.Count == 0,
+        var offenders = ModuleTestProjects()
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !tiers.Any(tier => name!.EndsWith(tier, StringComparison.Ordinal)))
+            .ToArray();
+        Assert.True(offenders.Length == 0,
             "A module test project names its tier, <Module>.Tests.Unit|Integration|E2E|Browser|Hosting: " + string.Join(", ", offenders));
-        Assert.True(baseline.Count == 0,
-            "Migrated projects linger in TestTierBaseline.json LegacyModuleTestProjects; remove: " + string.Join(", ", baseline));
     }
 
     [Fact]
@@ -114,7 +108,6 @@ public sealed class TestTierFacts
     }
 
     private sealed record TestTierBaseline(
-        string[] LegacyModuleTestProjects,
         string[] LegacyEndToEndReferencers,
         string[] LegacyAspireReferencingModuleTests,
         string[] LegacyFullStackBootFacts);
