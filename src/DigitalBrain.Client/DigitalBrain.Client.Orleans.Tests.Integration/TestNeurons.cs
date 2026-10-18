@@ -102,7 +102,8 @@ public sealed class SiloBrainListener : Neuron, ISiloBrainListener
         using var cancellation = new CancellationTokenSource();
         await using var subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(brain.Get<ITestEmitter>(sourceId), cancellation.Token);
         await cancellation.CancelAsync();
-        await Task.WhenAny(subscription.Completion, Task.Delay(TimeSpan.FromSeconds(5)));
+        // Wait on the completion itself, not a 5 s race against it: a stalled runner must not turn "not yet" into "never".
+        try { await subscription.Completion; } catch (OperationCanceledException) { }
         return subscription.Completion.IsCanceled;
     }
 
