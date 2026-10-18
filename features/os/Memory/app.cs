@@ -83,6 +83,7 @@ static class App
             new("recall", "Rank this brain's synapses and apps against the input by meaning and words, best first; the answer is the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
+            new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
         Settings:
         [
@@ -98,5 +99,6 @@ static class App
         [
             new("open", Label: "Memory"),
             new("recall", Kind: "text", Label: "Recall a synapse"),
+            new("remember", Kind: "text", Label: "Remember"),
         ]);
 }

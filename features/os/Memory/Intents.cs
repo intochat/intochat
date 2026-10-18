@@ -12,6 +12,17 @@ internal static class Intents
 
     public static string AgentKey(string appKey) => appKey + "/agents/intend";
 
+    public static string ContextKey(string appKey) => appKey + "/context";
+
+    public static string WorkingKey(string appKey) => appKey + "/working";
+
+    public const int WorkingLimit = 4_000;
+
+    public const int ActiveBudget = 6_000;
+
+    public static string RenderWorking(string text)
+        => (text ?? "").Length <= WorkingLimit ? text ?? "" : text![..WorkingLimit];
+
     public static string AnswerKey(string appKey, string requestId) => appKey + "/intents/" + requestId;
 
     public static Ask ParseAsk(string json)
@@ -72,7 +83,8 @@ internal static class Intents
         var builder = new StringBuilder();
         foreach (var intent in intents.Reverse().Where(intent => intent.State is not (IntentState.Done or IntentState.Abandoned)))
         {
-            var entry = "- `" + intent.Id + "` " + intent.State + ": " + (intent.Brief?.Goal ?? intent.Heard) + "\n";
+            var entry = "- `" + intent.Id + "` " + intent.State + ": " + (intent.Brief?.Goal ?? intent.Heard)
+                + (intent.Brief?.Acceptance is { Length: > 0 } acceptance ? " (accepted when: " + acceptance[0] + ")" : "") + "\n";
             if (builder.Length + entry.Length > budget) { break; }
             builder.Append(entry);
         }

@@ -51,4 +51,20 @@ public sealed class OsMemoryIntendFacts
         Assert.False(global::Intents.ShouldCompensate(Make("r1", IntentState.Rephrased), "r1"));
         Assert.False(global::Intents.ShouldCompensate(null, "r1"));
     }
+
+    [Fact]
+    public void RenderingTheWorkingMemoryEntryCutsAtFourThousand()
+    {
+        Assert.Equal(4_000, global::Intents.RenderWorking(new string('x', 5_000)).Length);
+        Assert.Equal("short", global::Intents.RenderWorking("short"));
+    }
+
+    [Fact]
+    public void AnActiveIntentShowsItsFirstAcceptanceLine()
+    {
+        var intent = new Intent(Guid.NewGuid(), "h", "c", "r", new("the goal", [], [], ["first check", "second check"]), 0.9, IntentState.Rephrased, [], [], []);
+        var rendered = global::Intents.RenderActive([intent], 6_000);
+        Assert.Contains("first check", rendered);
+        Assert.DoesNotContain("second check", rendered);
+    }
 }
