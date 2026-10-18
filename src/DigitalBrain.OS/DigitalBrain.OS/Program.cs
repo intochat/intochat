@@ -6,7 +6,8 @@ var builder = WebApplication.CreateBuilder(args);
 var webHostServices = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();
 // IntoChat is a distribution of the operating system: the composition is the OS's, and what is
 // IntoChat's own is branding, features and configuration (the AppHost names the ./features folder).
-builder.AddDigitalBrainServer(server => server.UseOrleansDashboard().AddOperatingSystem());
+builder.AddDigitalBrainServer(server => server.UseOrleansDashboard()
+    .AddOperatingSystem(OperatingSystem.IsWindows() ? OsCatalog.WithWindowsEdge() : OsCatalog.Modules));
 if (HostedRecoveryHost.IsRequested(builder.Configuration))
 {
     HostedRecoveryHost.Configure(builder, webHostServices);

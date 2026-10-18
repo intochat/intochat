@@ -1,5 +1,4 @@
 {
-  "appHostPath": "src/IntoChat/IntoChat.AppHost/IntoChat.AppHost.csproj",
   "appHost": {
     "path": "src/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj"
   }

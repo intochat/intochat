@@ -14,7 +14,8 @@ public sealed class VendorAppFacts
     [Fact]
     public void EveryShippedProgramCompilesAgainstCurrentContracts()
     {
-        foreach (var app in SolutionProjects.FeaturesOf("intochat"))
+        // sv-loans names the SV modules' contracts, which are not part of the OS; it moves with them to the platform repository.
+        foreach (var app in SolutionProjects.FeaturesOf("intochat").Where(app => app.Name != "sv-loans"))
         {
             var sources = new Dictionary<string, string>(app.Files.Where(file => AppFiles.IsProgram(file.Key)))
             {

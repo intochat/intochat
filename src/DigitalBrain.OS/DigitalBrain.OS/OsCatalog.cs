@@ -13,7 +13,7 @@ public static partial class OsCatalog
 {
     public static IReadOnlyList<Module> Modules { get; } = [.. BuiltIn(), .. Generated()];
 
-    // The composition a test process can host by itself: every module that needs no container or specific OS.
+    // The composition a test process can host by itself: every module that needs no container.
     public static IReadOnlyList<Module> InProcessModules { get; } = [.. Modules.Where(module => !NeedsItsOwnMachine(module))];
 
     private static bool NeedsItsOwnMachine(Module module) => module
@@ -21,8 +21,7 @@ public static partial class OsCatalog
         or DigitalBrain.ClickHouse.ClickHouseModule    // a ClickHouse container
         or DigitalBrain.Supabase.SupabaseModule        // Postgres-backed: the Postgres container
         or DigitalBrain.Qdrant.QdrantModule            // a Qdrant container
-        or DigitalBrain.ArtCraft.ArtCraftModule        // its Docker images
-        or DigitalBrain.Microsoft.Windows.WindowsModule; // Windows-only desktop automation
+        or DigitalBrain.ArtCraft.ArtCraftModule;       // its Docker images
 
     private static Module[] BuiltIn() =>
     [
@@ -37,15 +36,9 @@ public static partial class OsCatalog
         new DigitalBrain.Microsoft.CSharp.CSharpModule(),
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),
-        new DigitalBrain.Microsoft.Windows.WindowsModule(),
         new DigitalBrain.Postgres.PostgresModule(),
         new DigitalBrain.Qdrant.QdrantModule(),
         new DigitalBrain.Salesforce.SalesforceModule(),
-        // SV spikes are not part of this composition. Their modules stay in the repo.
-        // new DigitalBrain.Monnet.MonnetModule(),
-        // new DigitalBrain.Equifax.EquifaxModule(),
-        // new DigitalBrain.RiskSeal.RiskSealModule(),
-        // new DigitalBrain.Twilio.TwilioModule(),
         new DigitalBrain.Supabase.SupabaseModule(),
         new DigitalBrain.Time.TimeModule(),
         new DigitalBrain.Tools.ToolsModule(),
@@ -58,10 +51,15 @@ public static partial class OsCatalog
     // OsCatalog.Generated.cs so the composition grows without hand-editing this file.
     private static partial Module[] Generated();
 
-    public static DigitalBrainServerBuilder AddOperatingSystem(this DigitalBrainServerBuilder server)
+    // The Windows edge: the composition plus desktop automation of the Windows machine the host runs on.
+    // Only a host on Windows opts in; the portable composition never carries it.
+    public static IReadOnlyList<Module> WithWindowsEdge() => [.. Modules, new DigitalBrain.Microsoft.Windows.WindowsModule()];
+
+    // Composes the given modules (the portable composition by default) and the OS apps.
+    public static DigitalBrainServerBuilder AddOperatingSystem(this DigitalBrainServerBuilder server, IReadOnlyList<Module>? modules = null)
     {
         ArgumentNullException.ThrowIfNull(server);
-        foreach (var module in Modules) { server.AddModule(module); }
+        foreach (var module in modules ?? Modules) { server.AddModule(module); }
         // The OS is the composition plus its apps; a distribution cannot forget them.
         server.ConfigureServices(services => services.AddOperatingSystemApps());
         return server;

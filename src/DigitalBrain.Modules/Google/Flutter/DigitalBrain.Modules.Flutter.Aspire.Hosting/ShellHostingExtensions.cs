@@ -136,17 +136,6 @@ public static class ShellHostingExtensions
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
                 .WithParentRelationship(brain.Resource);
 
-            var localAccount = appHost.Configuration[LocalDesktopAccount.ConfigurationKey];
-            if (OperatingSystem.IsWindows() && LocalDesktopAccount.Enabled(appHost.ExecutionContext.IsRunMode,
-                appHost.Environment.IsDevelopment(), kind == FlutterHostKind.Window, true, localAccount))
-            {
-                var deployment = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(appHost.AppHostDirectory).ToUpperInvariant() + "|" + brain.Name)))[..24];
-                var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "DigitalBrain", "local-accounts", deployment);
-                host.WithEnvironment(LocalDesktopAccount.FileEnvironmentVariable, LocalDesktopAccount.Ensure(directory, localAccount!));
-            }
-
             if (kind == FlutterHostKind.Web)
             {
                 if (string.Equals(launch.DeviceTarget, ShellNames.DefaultWebDeviceTarget, StringComparison.OrdinalIgnoreCase))

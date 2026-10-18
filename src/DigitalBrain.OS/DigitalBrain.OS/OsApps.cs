@@ -12,6 +12,10 @@ public sealed record OsApp(string Publisher, string Name);
 public sealed class OsAppsOptions
 {
     public IList<OsApp> Apps { get; } = [];
+
+    // Publishers whose shipped, unedited apps the workspace migrates to the shipped view on connect.
+    // The OS trusts only itself; a distribution adds its own publisher.
+    public IList<string> TrustedPublishers { get; } = ["os"];
 }
 
 public static class OsAppsHosting
@@ -38,7 +42,7 @@ public static class OsAppsHosting
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
             // does not install a default twice.
-            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "router"), new OsApp("os", "calculator"), new OsApp("os", "filmcraft"), new OsApp("os", "photocraft"), new OsApp("intochat", "customer-researcher"), new OsApp("os", "datavisualizer"), new OsApp("os", "selfimprove"), new OsApp("os", "memory"), new OsApp("os", "ino"), new OsApp("os", "brainview"), new OsApp("os", "friends"), new OsApp("os", "circle"), new OsApp("os", "workspace"), new OsApp("os", "usage") })
+            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "router"), new OsApp("os", "calculator"), new OsApp("os", "filmcraft"), new OsApp("os", "photocraft"), new OsApp("os", "datavisualizer"), new OsApp("os", "selfimprove"), new OsApp("os", "memory"), new OsApp("os", "ino"), new OsApp("os", "brainview"), new OsApp("os", "friends"), new OsApp("os", "circle"), new OsApp("os", "workspace"), new OsApp("os", "usage") })
             { if (!os.Apps.Contains(app)) { os.Apps.Add(app); } }
         });
         return services.AddOperatingSystemBoot(configure);
