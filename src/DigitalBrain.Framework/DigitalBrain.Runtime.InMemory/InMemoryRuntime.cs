@@ -73,6 +73,10 @@ public sealed class InMemoryRuntime : INeuronResolver, IAsyncDisposable
         { await Task.WhenAll(busy); }
     }
 
+    // Completes once a call is waiting for the turn of the neuron at this key: a fact's synchronisation point before
+    // it moves the clock, since the waiting call's response timeout is armed by then.
+    public Task Waiting<T>(string fullKey) where T : class => Host(new NeuronAddress(NeuronTypeOf(typeof(T)), fullKey)).Waiting();
+
     public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts.Values) { await host.DisposeAsync(); }
@@ -133,6 +137,10 @@ public sealed class InMemoryRuntime : INeuronResolver, IAsyncDisposable
             var type = typeof(TImplementation);
             if (!typeof(Neuron).IsAssignableFrom(type) || type.IsAbstract)
             { throw new ArgumentException($"{type.FullName} is not a concrete neuron class.", nameof(TImplementation)); }
+            // Orleans' predicate takes an IInvokable this runtime does not build; refusing it keeps the two runtimes from
+            // scheduling the same class differently. Neutral classes use [InterleavesWhen].
+            if (type.IsDefined(typeof(Orleans.Concurrency.MayInterleaveAttribute), false))
+            { throw new NotSupportedException($"{type.FullName} declares Orleans [MayInterleave]; declare [InterleavesWhen] to run it in memory."); }
             var neuronType = NeuronTypeOfClass(type);
             if (!Classes.TryAdd(neuronType, type) && Classes[neuronType] != type)
             { throw new InvalidOperationException($"Neuron type '{neuronType}' is registered for {Classes[neuronType].FullName} and {type.FullName}."); }

@@ -7,7 +7,7 @@ namespace DigitalBrain.Runtime.InMemory;
 
 // The scheduling a contract method declares, read from the neutral attributes and, until contracts migrate,
 // the Orleans ones they replace. A class-level [Reentrant] interleaves every call; a neutral [InterleavesWhen]
-// predicate decides per call. Orleans' own [MayInterleave] predicate takes an IInvokable and is not evaluated here.
+// predicate decides per call. A class with Orleans' [MayInterleave] is refused at registration.
 internal sealed record CallMarkers(bool Interleaves, bool OneWay, TimeSpan? Timeout)
 {
     private static readonly ConcurrentDictionary<MethodInfo, CallMarkers> Methods = new();

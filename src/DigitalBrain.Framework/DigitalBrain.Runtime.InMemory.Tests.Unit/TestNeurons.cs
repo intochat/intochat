@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework;
 using DigitalBrain.Runtime;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.InMemory.Tests.Unit;
@@ -19,12 +17,13 @@ public sealed class Gate
     public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
-[Alias("tests.inmemory.counted")]
-public sealed record Counted(int Count) : Signal;
+[GenerateSerializer, Alias("tests.inmemory.counted")]
+public sealed record Counted([property: Id(0)] int Count) : Signal;
 
+[GenerateSerializer, Alias("tests.inmemory.counter-state")]
 public sealed class CounterState
 {
-    public int Count { get; set; }
+    [Id(0)] public int Count { get; set; }
 }
 
 [Alias("tests.inmemory.worker")]
@@ -40,6 +39,7 @@ public interface IWorker : INeuron
     Task<int> CallSelf();
     Task PostSelf(int count);
     Task Deactivate();
+    [Interleaves] Task DeactivateInterleaved();
     Task<Guid> Activation();
 }
 
@@ -79,6 +79,12 @@ public sealed class WorkerNeuron : Neuron, IWorker
     public Task PostSelf(int count) => Context.Self<IWorker>().Post(count);
 
     public Task Deactivate()
+    {
+        Context.Deactivate();
+        return Task.CompletedTask;
+    }
+
+    public Task DeactivateInterleaved()
     {
         Context.Deactivate();
         return Task.CompletedTask;
@@ -158,9 +164,8 @@ public sealed class RecordingObserver : INeuronObserver
 public static class Runtimes
 {
     public static InMemoryRuntime Create(TimeProvider time) => InMemoryRuntime.Create(time, runtime => runtime
-        .Use(services => services.Replace(ServiceDescriptor.Singleton<IStateCodec, JsonStateCodec>()))
         .AddNeuron<WorkerNeuron>().AddNeuron<CounterNeuron>().AddNeuron<TickerNeuron>()
-        .AddNeuron<HangingSource>().AddNeuron<SourceWatcher>().AddNeuron<Pinger>());
+        .AddNeuron<FailingDeactivation>().AddNeuron<HangingSource>().AddNeuron<SourceWatcher>().AddNeuron<Pinger>());
 }
 
 [Alias("tests.inmemory.hanging-source")]
@@ -213,11 +218,34 @@ public sealed class Pinger : Neuron, IPinger
     public Task<int> Ping() => Task.FromResult(++_pings);
 }
 
-internal static class RuntimeBuilders
+[Alias("tests.inmemory.failing-deactivation")]
+public interface IFailingDeactivation : INeuron
 {
-    public static IRuntimeBuilder Use(this IRuntimeBuilder builder, Action<IServiceCollection> configure)
+    Task Deactivate();
+    Task<Guid> Activation();
+}
+
+// Its deactivation hook throws; the address must stay callable.
+public sealed class FailingDeactivation : Neuron, IFailingDeactivation, IDeactivatingNeuron
+{
+    private readonly Guid _activation = Guid.NewGuid();
+
+    public Task Deactivate()
     {
-        configure(builder.Services);
-        return builder;
+        Context.Deactivate();
+        return Task.CompletedTask;
     }
+
+    public Task<Guid> Activation() => Task.FromResult(_activation);
+
+    public Task OnDeactivating(DeactivationCause cause, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Deactivation failed.");
+}
+
+[Orleans.Concurrency.MayInterleave(nameof(Never))]
+public sealed class OrleansPredicateNeuron : Neuron, IPinger
+{
+    public static bool Never(Orleans.Serialization.Invocation.IInvokable request) => request is null;
+
+    public Task<int> Ping() => Task.FromResult(0);
 }

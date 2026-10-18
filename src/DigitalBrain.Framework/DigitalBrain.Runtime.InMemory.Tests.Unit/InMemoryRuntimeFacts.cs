@@ -30,7 +30,7 @@ public sealed class InMemoryRuntimeFacts
 
         Assert.Equal(0, await worker.Peek().WaitAsync(_ct));
         var queued = worker.Count();
-        await Task.Yield();
+        await runtime.Waiting<IWorker>("brain-1/turns").WaitAsync(_ct);
         Assert.False(queued.IsCompleted);
 
         Gate.Of("brain-1/turns").Release.TrySetResult();
@@ -79,7 +79,8 @@ public sealed class InMemoryRuntimeFacts
         var a = runtime.ResolveKey<IWorker>("brain-1/cycle-a");
 
         var cycle = a.CallBack("brain-1/cycle-b");
-        await WhileRunning(runtime, () => time.Advance(InMemoryRuntime.DefaultCallTimeout - TimeSpan.FromSeconds(1)));
+        await runtime.Waiting<IWorker>("brain-1/cycle-a").WaitAsync(_ct);
+        time.Advance(InMemoryRuntime.DefaultCallTimeout - TimeSpan.FromSeconds(1));
         Assert.False(cycle.IsCompleted);
         time.Advance(TimeSpan.FromSeconds(1));
 
@@ -98,7 +99,8 @@ public sealed class InMemoryRuntimeFacts
         Assert.Equal(3, await worker.Count().WaitAsync(_ct));
 
         var awaitedSelf = worker.CallSelf();
-        await WhileRunning(runtime, () => time.Advance(InMemoryRuntime.DefaultCallTimeout));
+        await runtime.Waiting<IWorker>("brain-1/self").WaitAsync(_ct);
+        time.Advance(InMemoryRuntime.DefaultCallTimeout);
         await Assert.ThrowsAsync<TimeoutException>(() => awaitedSelf.WaitAsync(_ct));
     }
 
@@ -164,11 +166,34 @@ public sealed class InMemoryRuntimeFacts
         Assert.Equal(3, await ticker.Ticks());
     }
 
-    // Lets queued turns reach their timeouts before the clock moves.
-    internal static async Task WhileRunning(InMemoryRuntime runtime, Action advance)
+    [Fact]
+    public async Task ADeactivationThatThrowsStillReleasesTheTurn()
     {
-        for (var i = 0; i < 10; i++) { await Task.Yield(); }
-        advance();
-        _ = runtime;
+        await using var runtime = Runtimes.Create(new FakeTimeProvider());
+        var neuron = runtime.ResolveKey<IFailingDeactivation>("brain-1/failing");
+        var first = await neuron.Activation();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(neuron.Deactivate);
+
+        Assert.NotEqual(first, await neuron.Activation().WaitAsync(_ct));
     }
+
+    [Fact]
+    public async Task DeactivateInsideAnInterleavingCallTakesEffectAfterIt()
+    {
+        await using var runtime = Runtimes.Create(new FakeTimeProvider());
+        var worker = runtime.ResolveKey<IWorker>("brain-1/deactivate-interleaved");
+        var first = await worker.Activation();
+
+        await worker.DeactivateInterleaved();
+        await runtime.Idle().WaitAsync(_ct);
+
+        Assert.NotEqual(first, await worker.Activation());
+    }
+
+    [Fact]
+    public void AClassWithAnOrleansInterleavingPredicateIsRefused() =>
+        Assert.Throws<NotSupportedException>(() => InMemoryRuntime.Create(new FakeTimeProvider(), Register));
+
+    private static void Register(IRuntimeBuilder runtime) => runtime.AddNeuron<OrleansPredicateNeuron>();
 }

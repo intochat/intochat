@@ -14,7 +14,7 @@ public sealed class HangingWatchFacts
         var ct = TestContext.Current.CancellationToken;
         var time = new FakeTimeProvider();
         await using var runtime = Runtimes.Create(time);
-        const string source = "brain-1/source/hanging";
+        var source = $"brain-1/source/hanging-{Guid.NewGuid():N}";
         var watcher = runtime.ResolveKey<ISourceWatcher>("brain-1/watcher");
         var pinger = runtime.ResolveKey<IPinger>("brain-1/pinger");
         var hanging = runtime.ResolveKey<IHangingSource>(source);
@@ -26,8 +26,11 @@ public sealed class HangingWatchFacts
         Assert.Equal(1, await pinger.Ping().WaitAsync(ct));
         Assert.Empty((await hanging.Read(0, 10).WaitAsync(ct)).Signals);
         var queued = watcher.Pings();
-        await InMemoryRuntimeFacts.WhileRunning(runtime, () => time.Advance(TimeSpan.FromSeconds(1)));
+        // The queued call is blocked on the watcher's turn, not merely unscheduled.
+        await runtime.Waiting<ISourceWatcher>("brain-1/watcher").WaitAsync(ct);
+        time.Advance(TimeSpan.FromSeconds(1));
         await Assert.ThrowsAsync<TimeoutException>(() => watch.WaitAsync(ct));
+        time.Advance(TimeSpan.FromSeconds(1));
         Assert.False(queued.IsCompleted);
 
         HangingSource.Release(source);

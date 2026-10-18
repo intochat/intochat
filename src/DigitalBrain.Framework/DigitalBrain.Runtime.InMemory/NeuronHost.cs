@@ -20,6 +20,8 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
     private Neuron? _neuron;
     private bool _deactivate;
     private int _outstanding;
+    private int _waiters;
+    private TaskCompletionSource? _waiting;
     private TaskCompletionSource _quiet = Completed();
 
     public NeuronHost(InMemoryRuntime runtime, NeuronAddress address, Type neuronClass)
@@ -99,20 +101,59 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
         return work;
     }
 
+    // Completes once a call is waiting for this address's turn: the point at which its response timeout is armed.
+    public Task Waiting()
+    {
+        lock (_gate)
+        {
+            if (_waiters > 0) { return Task.CompletedTask; }
+            _waiting ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _waiting.Task;
+        }
+    }
+
     private async Task<object?> Turn(Func<Neuron, Task<object?>> body, bool interleave)
     {
         // Leave the caller's synchronous stack first, so a queued call never runs inside the caller's turn.
         await Task.Yield();
-        if (!interleave) { await _turn.WaitAsync(); }
+        if (!interleave) { await EnterTurn(); }
         try { return await body(await Activated()); }
         finally
         {
             if (!interleave)
             {
-                if (_deactivate) { await DeactivateNow(); }
-                _turn.Release();
+                try { if (_deactivate) { await DeactivateNow(); } }
+                finally { _turn.Release(); }
             }
+            // Deactivation asked for inside an interleaving call happens once the activation has a turn of its own.
+            else if (_deactivate) { _ = Track(DeactivateTurn()); }
         }
+    }
+
+    private async Task EnterTurn()
+    {
+        if (_turn.Wait(0)) { return; }
+        TaskCompletionSource? waiting;
+        lock (_gate)
+        {
+            _waiters++;
+            waiting = _waiting;
+            _waiting = null;
+        }
+        waiting?.TrySetResult();
+        try { await _turn.WaitAsync(); }
+        finally
+        {
+            lock (_gate) { _waiters--; }
+        }
+    }
+
+    private async Task<object?> DeactivateTurn()
+    {
+        await EnterTurn();
+        try { if (_deactivate) { await DeactivateNow(); } }
+        finally { _turn.Release(); }
+        return null;
     }
 
     private async Task<Neuron> Activated()
