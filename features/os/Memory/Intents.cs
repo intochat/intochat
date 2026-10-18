@@ -61,6 +61,10 @@ internal static class Intents
             ? [.. value.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!)]
             : [];
 
+    // An intent this request created and that never left Heard is orphaned by a failure: abandon it.
+    public static bool ShouldCompensate(Intent? intent, string requestId)
+        => intent is { State: IntentState.Heard } && intent.RequestId == requestId;
+
     // Active intents (not Done or Abandoned) as markdown, newest first; the intents arrive oldest first. Whole
     // intents are added while they fit the budget; the first that does not ends the list.
     public static string RenderActive(Intent[] intents, int budget)

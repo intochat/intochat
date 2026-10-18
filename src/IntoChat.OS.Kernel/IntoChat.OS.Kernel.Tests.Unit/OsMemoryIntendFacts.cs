@@ -41,4 +41,14 @@ public sealed class OsMemoryIntendFacts
         Assert.Contains("middle goal", rendered);
         Assert.DoesNotContain("oldest goal", rendered);
     }
+
+    [Fact]
+    public void OnlyAHeardIntentOfThisRequestIsAbandonedOnFailure()
+    {
+        static Intent Make(string request, IntentState state) => new(Guid.NewGuid(), "h", "c", request, null, 0, state, [], [], []);
+        Assert.True(global::Intents.ShouldCompensate(Make("r1", IntentState.Heard), "r1"));
+        Assert.False(global::Intents.ShouldCompensate(Make("r0", IntentState.Heard), "r1"));
+        Assert.False(global::Intents.ShouldCompensate(Make("r1", IntentState.Rephrased), "r1"));
+        Assert.False(global::Intents.ShouldCompensate(null, "r1"));
+    }
 }

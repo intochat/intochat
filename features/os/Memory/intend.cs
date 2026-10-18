@@ -47,26 +47,34 @@ async Task Intend(Intents.Ask ask)
     using var waiting = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
     waiting.CancelAfter(ceiling);
     var done = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+    // Ordering: the TurnFailed watcher is live first (its onSubscribed releases failedLive); the TurnCompleted
+    // watcher waits for that in its own onSubscribed, once its subscription is live, and only then starts the
+    // turn. So both subscriptions exist before the turn can publish, and a fast signal is never missed.
+    var failedLive = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var watchers = new[]
     {
         Task.Run(async () =>
         {
-            await foreach (var turn in brain.On<TurnCompleted>(agent, waiting.Token))
-            { if (turn.RunId == ask.RequestId) { done.TrySetResult(turn.Reply); return; } }
+            await foreach (var turn in brain.On<TurnFailed>(agent, () => { failedLive.TrySetResult(); return Task.CompletedTask; }, waiting.Token))
+            { if (turn.RunId == ask.RequestId) { done.TrySetException(new InvalidOperationException("the agent failed: " + turn.Error)); return; } }
         }),
         Task.Run(async () =>
         {
-            await foreach (var turn in brain.On<TurnFailed>(agent, waiting.Token))
-            { if (turn.RunId == ask.RequestId) { done.TrySetException(new InvalidOperationException("the agent failed: " + turn.Error)); return; } }
+            await foreach (var turn in brain.On<TurnCompleted>(agent, async () =>
+            {
+                try
+                {
+                    await failedLive.Task.WaitAsync(waiting.Token);
+                    await agent.Start(AgentTurn.Text(user, runId: ask.RequestId, model: model.Length > 0 ? model : null,
+                        instructions: snapshot.Files.GetValueOrDefault("prompts/intend.md", ""), contracts: []));
+                }
+                catch (Exception error) when (error is not OperationCanceledException) { done.TrySetException(error); }
+            }, waiting.Token))
+            { if (turn.RunId == ask.RequestId) { done.TrySetResult(turn.Reply); return; } }
         }),
     };
     string text;
-    try
-    {
-        await agent.Start(AgentTurn.Text(user, runId: ask.RequestId, model: model.Length > 0 ? model : null,
-            instructions: snapshot.Files.GetValueOrDefault("prompts/intend.md", ""), contracts: []));
-        text = await done.Task.WaitAsync(ceiling, brain.Stopping);
-    }
+    try { text = await done.Task.WaitAsync(ceiling, brain.Stopping); }
     catch (TimeoutException) { throw new TimeoutException("the agent did not answer in 30 seconds"); }
     finally
     {
@@ -76,7 +84,24 @@ async Task Intend(Intents.Ask ask)
 
     var reply = Intents.ParseReply(text) ?? throw new InvalidOperationException("the agent's reply was not the expected JSON");
     var id = await intents.Declare(new(ask.RequestId, ask.Message, ask.Conversation, reply.Continues));
-    var revision = (await intents.Read()).Revision;
-    await intents.Rephrase(id, reply.Brief, reply.Confidence, revision);
-    if (reply.Confidence >= gate) { await intents.Transition(id, IntentState.Confirmed, "confident", revision + 1); }
+    try
+    {
+        var revision = (await intents.Read()).Revision;
+        await intents.Rephrase(id, reply.Brief, reply.Confidence, revision);
+        if (reply.Confidence >= gate) { await intents.Transition(id, IntentState.Confirmed, "confident", revision + 1); }
+    }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    {
+        // Compensate: an intent this request created and left in Heard is abandoned; a continued one is untouched.
+        var reason = "intend failed: " + error.Message;
+        try
+        {
+            var current = await intents.Read();
+            if (Intents.ShouldCompensate(current.Intents.FirstOrDefault(intent => intent.Id == id), ask.RequestId))
+            { await intents.Transition(id, IntentState.Abandoned, reason, current.Revision); }
+        }
+        catch (Exception compensation) when (!brain.Stopping.IsCancellationRequested)
+        { throw new InvalidOperationException(error.Message + "; abandoning the intent also failed: " + compensation.Message, error); }
+        throw;
+    }
 }
