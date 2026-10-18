@@ -1,6 +1,5 @@
 {
   "LegacyModuleTestProjects": [
-    "DigitalBrain.Modules.AI.Tests",
     "DigitalBrain.Modules.Apps.Tests",
     "DigitalBrain.Modules.ArtCraft.Tests",
     "DigitalBrain.Modules.Circles.Tests",

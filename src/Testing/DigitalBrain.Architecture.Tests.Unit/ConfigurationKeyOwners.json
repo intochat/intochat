@@ -14,7 +14,7 @@
   "DigitalBrain.Framework/Platform/Identity/KernelCorsOptions.cs",
   "DigitalBrain.Framework/Platform/Integrations/IntegrationSchema.cs",
   "DigitalBrain.Framework/Runtime/Hosting/DigitalBrainNames.cs",
-  "DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
+  "DigitalBrain.Modules.AI.Tests.Integration/AIGrammarFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/OAuthFlowFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Storage/HostedExportFacts.cs",
