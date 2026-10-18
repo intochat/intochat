@@ -5,7 +5,7 @@ using Orleans.Runtime;
 using Orleans.Serialization;
 using Orleans.Storage;
 
-namespace DigitalBrain.Modules.Microsoft.Orleans.Tests;
+namespace DigitalBrain.Modules.Microsoft.Orleans.Tests.Integration;
 
 public sealed class MemoryStoresFacts
 {

@@ -7,7 +7,7 @@ using DigitalBrain.Microsoft.Orleans.Cluster;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
 
-namespace DigitalBrain.Modules.Microsoft.Orleans.Tests;
+namespace DigitalBrain.Modules.Microsoft.Orleans.Tests.Integration;
 
 public sealed class MembershipFeedFacts
 {

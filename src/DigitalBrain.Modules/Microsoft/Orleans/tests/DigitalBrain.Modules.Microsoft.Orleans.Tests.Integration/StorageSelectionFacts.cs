@@ -9,7 +9,7 @@ using Orleans.Hosting;
 using Orleans.Serialization;
 using Orleans.Storage;
 
-namespace DigitalBrain.Modules.Microsoft.Orleans.Tests;
+namespace DigitalBrain.Modules.Microsoft.Orleans.Tests.Integration;
 
 public sealed class StorageSelectionFacts
 {
