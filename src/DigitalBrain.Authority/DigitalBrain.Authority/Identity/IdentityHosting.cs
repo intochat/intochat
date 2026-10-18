@@ -15,6 +15,8 @@ public static class IdentityHosting
     public static void AddIdentity(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+        // The platform endpoints resolve Authority grains through it; a web host that brings its own grain factory gets it here.
+        services.TryAddSingleton<AuthorityNeurons>();
         services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName)
             .Validate(options => options.Posture is not null,
                 $"Configure {AuthOptions.PostureKey} (Open or Secured) before starting the host.")
