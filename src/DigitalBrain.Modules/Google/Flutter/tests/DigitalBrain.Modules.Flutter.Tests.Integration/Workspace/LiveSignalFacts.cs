@@ -290,7 +290,8 @@ public sealed class LiveSignalFacts
         List<string> received = [stream.Current];
         while (await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct)) { received.Add(stream.Current); }
         Assert.Equal(LiveSignalEndpoints.Resync, received[^1]);
-        Assert.InRange(received.Count, 2, 8 + 2);
+        // The pumps may overflow before the first read, so Resync can be the only envelope; at most the buffer drains first.
+        Assert.InRange(received.Count, 1, 8 + 2);
     }
 
     [Fact]
