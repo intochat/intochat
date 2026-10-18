@@ -2,8 +2,8 @@
   <ItemGroup>
     <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
     <ProjectReference Include="../IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
-    <ArchitectureProject Include="../../IntoChat.OS/**/*.csproj;../../IntoChat.OS.AppHost/**/*.csproj;../../IntoChat.OS.Client/**/*.csproj;../../IntoChat.OS.Framework/**/*.csproj;../../IntoChat.OS.Mcp/**/*.csproj;../../IntoChat.OS.Kernel/**/*.csproj;../../IntoChat.OS.Authority/**/*.csproj;../../IntoChat.OS.Trust/**/*.csproj;../../IntoChat.OS.Modules/**/*.csproj"
-                         Exclude="../../**/tests/**;../../**/*.Tests.csproj;../../**/*.Tests.*.csproj;../../**/*.Testing/**;../../**/*.Aspire.Hosting/**;../../**/*.Deployment/**;../../**/*.Sandbox/**" />
+    <ArchitectureProject Include="../../IntoChat.OS/**/*.csproj;../../IntoChat.OS.AppHost/**/*.csproj;../../IntoChat.OS.Client/**/*.csproj;../../IntoChat.OS.Framework/**/*.csproj;../../IntoChat.OS.Sdk/**/*.csproj;../../IntoChat.OS.Mcp/**/*.csproj;../../IntoChat.OS.Kernel/**/*.csproj;../../IntoChat.OS.Authority/**/*.csproj;../../IntoChat.OS.Trust/**/*.csproj;../../IntoChat.OS.Modules/**/*.csproj"
+                         Exclude="../../**/tests/**;../../**/*.Generators.csproj;../../**/*.Generators.Tests.*/**;../../**/*.Tests.csproj;../../**/*.Tests.*.csproj;../../**/*.Testing/**;../../**/*.Aspire.Hosting/**;../../**/*.Deployment/**;../../**/*.Sandbox/**" />
     <ProjectReference Include="@(ArchitectureProject)" />
     <None Include="TestTierBaseline.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="CollectionCompatibilitySamples.json" CopyToOutputDirectory="PreserveNewest" />

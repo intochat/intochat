@@ -169,6 +169,13 @@
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />
   </Folder>
+  <Folder Name="/Sdk/">
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators.Tests.Unit/IntoChat.OS.Sdk.Generators.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Identity/IntoChat.OS.Sdk.Identity.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.SampleModule/IntoChat.OS.Sdk.SampleModule.csproj" />
+  </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />

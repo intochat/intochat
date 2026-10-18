@@ -11,6 +11,7 @@
       "**/IntoChat.OS.Modules.Time.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Tools.Tests.Unit.dll",
       "**/IntoChat.OS.Runtime.InMemory.Tests.Unit.dll",
+      "**/IntoChat.OS.Sdk.Generators.Tests.Unit.dll",
       "**/*.Tests.Hosting.dll"
     ],
     "integration-a": [

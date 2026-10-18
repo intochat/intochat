@@ -1,4 +1,4 @@
-using Sdk = global::Microsoft.Playwright;
+using PlaywrightSdk = global::Microsoft.Playwright;
 
 namespace IntoChat.OS.Microsoft.Playwright;
 
@@ -25,8 +25,8 @@ public sealed partial class PlaywrightSessionProvider
             {
                 if (_workers.Count >= options.Value.MaxManagedAccounts)
                 { throw new InvalidOperationException("Managed browser account capacity is full."); }
-                var startup = Sdk.Playwright.CreateAsync();
-                Sdk.IPlaywright driver;
+                var startup = PlaywrightSdk.Playwright.CreateAsync();
+                PlaywrightSdk.IPlaywright driver;
                 try { driver = await startup.WaitAsync(linked.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { _ = DisposeLateDriverAsync(startup); throw; }
                 try
@@ -51,13 +51,13 @@ public sealed partial class PlaywrightSessionProvider
             }
             if (worker.Sessions.Count >= options.Value.MaxManagedSessionsPerAccount)
             { throw new InvalidOperationException("Managed browser session capacity is full for this account."); }
-            Sdk.IBrowserContext? context = null;
+            PlaywrightSdk.IBrowserContext? context = null;
             PageSession? session = null;
             var registered = false;
             try
             {
                 context = await worker.Browser.NewContextAsync(new()
-                { AcceptDownloads = false, ServiceWorkers = Sdk.ServiceWorkerPolicy.Block }).ConfigureAwait(false);
+                { AcceptDownloads = false, ServiceWorkers = PlaywrightSdk.ServiceWorkerPolicy.Block }).ConfigureAwait(false);
                 linked.Token.ThrowIfCancellationRequested();
                 var page = await context.NewPageAsync().ConfigureAwait(false);
                 // The context has one authorized page. Popup first requests also pass the context route.
@@ -93,10 +93,10 @@ public sealed partial class PlaywrightSessionProvider
         finally { _managedGate.Release(); }
     }
 
-    private async Task ReleaseAsync(string accountId, ManagedWorker worker, Sdk.IBrowserContext context, PageSession session)
+    private async Task ReleaseAsync(string accountId, ManagedWorker worker, PlaywrightSdk.IBrowserContext context, PageSession session)
     {
         try { await context.CloseAsync().ConfigureAwait(false); }
-        catch (Sdk.PlaywrightException) { /* Browser shutdown already closes its contexts. */ }
+        catch (PlaywrightSdk.PlaywrightException) { /* Browser shutdown already closes its contexts. */ }
         await _managedGate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -135,7 +135,7 @@ public sealed partial class PlaywrightSessionProvider
     private static async Task CloseWorkerAsync(ManagedWorker worker)
     {
         try { await worker.Browser.CloseAsync().ConfigureAwait(false); }
-        catch (Sdk.PlaywrightException) { }
+        catch (PlaywrightSdk.PlaywrightException) { }
         finally { worker.Driver.Dispose(); }
     }
 
@@ -155,10 +155,10 @@ public sealed partial class PlaywrightSessionProvider
         GC.SuppressFinalize(this);
     }
 
-    private sealed class ManagedWorker(Sdk.IPlaywright driver, Sdk.IBrowser browser)
+    private sealed class ManagedWorker(PlaywrightSdk.IPlaywright driver, PlaywrightSdk.IBrowser browser)
     {
-        public Sdk.IPlaywright Driver { get; } = driver;
-        public Sdk.IBrowser Browser { get; } = browser;
+        public PlaywrightSdk.IPlaywright Driver { get; } = driver;
+        public PlaywrightSdk.IBrowser Browser { get; } = browser;
         public HashSet<PageSession> Sessions { get; } = [];
     }
 }
