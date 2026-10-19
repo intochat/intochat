@@ -242,7 +242,11 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     return MaterialApp(
       title: 'IntoChat',
       debugShowCheckedModeBanner: false,
-      theme: UiTheme.baseDark(),
+      // v2 is the default for everyone and the gate runs before user
+      // settings load, so it always uses the IntoChat theme.
+      theme: UiTheme.light('intochat'),
+      darkTheme: UiTheme.dark('intochat'),
+      themeMode: UiTheme.modeFor('intochat'),
       home: _phase == _Phase.localFailed || _phase == _Phase.connectionFailed
           ? Scaffold(
               body: Center(

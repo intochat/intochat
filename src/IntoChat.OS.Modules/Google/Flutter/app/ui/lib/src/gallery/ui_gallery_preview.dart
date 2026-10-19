@@ -378,7 +378,7 @@ final class _GalleryPreviewState extends State<GalleryPreview> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: LumenPalette.line),
           color: widget.entry.dark
-              ? UiColors.midnight.page
+              ? UiTheme.dark('midnight').extension<UiColors>()!.page
               : LumenPalette.surface,
         ),
         child: Column(
