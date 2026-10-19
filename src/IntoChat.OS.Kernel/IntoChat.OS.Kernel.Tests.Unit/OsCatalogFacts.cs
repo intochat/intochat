@@ -49,7 +49,7 @@ public sealed class OsCatalogFacts
             var contracts = assembly + ".Contracts";
             if (!projects.Contains(contracts)) { continue; }
             // The host references every module Contracts project by glob; referencing the module project itself carries its contracts too (Tools).
-            Assert.True(mcp.Contains("IntoChat.OS.Modules.*.Contracts.csproj", StringComparison.Ordinal) ||mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
+            Assert.True(mcp.Contains("IntoChat.OS.Modules.*.Contracts.csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
         }
     }
 
