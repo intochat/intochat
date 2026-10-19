@@ -49,7 +49,11 @@ public static class IdentityHosting
                     return Task.CompletedTask;
                 };
             });
-        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Identity.ISessionIssuer, AccountSessionIssuer>();
+        // Host-only keys: modules reach these through IPrivilegedServices, which checks IdentityHostOptions.PrivilegedModules.
+        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
+        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
+            (provider, _) => (IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        services.TryAddSingleton<IntoChat.OS.Sdk.Identity.IPrivilegedServices, PrivilegedModuleGate>();
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
     }
