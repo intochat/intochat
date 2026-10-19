@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Framework.Platform.Identity;
@@ -24,9 +25,10 @@ public sealed class OwnerBootstrapWithoutLicenceFacts
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Open))
             .StartAsync(ct);
 
-        var authority = brain.Platform.BrainAuthority(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id);
-        var owner = await authority.Membership(AccountSession.DefaultLogin);
-        Assert.NotNull(owner);
-        Assert.Equal(MemberRole.Owner, owner.Role);
+        var identity = brain.Services.GetRequiredService<IIdentityClient>();
+        var account = await identity.ReadAccount(AccountSession.DefaultLogin);
+        Assert.NotNull(account);
+        Assert.Equal(AccountSession.DefaultLogin, account.OwnerPrincipalId);
+        Assert.NotEmpty(await identity.BrainsOf(AccountSession.DefaultLogin));
     }
 }
