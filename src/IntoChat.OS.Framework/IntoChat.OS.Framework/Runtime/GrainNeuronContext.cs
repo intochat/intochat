@@ -65,13 +65,13 @@ internal sealed class GrainNeuronContext(Grain grain, Action<TimeSpan> delayDeac
     }
 
     // The registry is locked: an interleaving turn or tick may start or stop a timer while another does.
-    // Timers are grain timers that keep the activation alive and do not interleave unless asked; reminders wait
+    // Timers are grain timers that neither keep the activation alive nor interleave unless asked; reminders wait
     // for the provider.
     private sealed class GrainTimers(Grain grain) : INeuronTimers
     {
         private readonly Dictionary<string, IGrainTimer> _running = new(StringComparer.Ordinal);
 
-        public IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false)
+        public IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false, bool keepAlive = false)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             ArgumentNullException.ThrowIfNull(tick);
@@ -80,7 +80,7 @@ internal sealed class GrainNeuronContext(Grain grain, Action<TimeSpan> delayDeac
                 DueTime = due,
                 Period = period ?? Timeout.InfiniteTimeSpan,
                 Interleave = interleave,
-                KeepAlive = true,
+                KeepAlive = keepAlive,
             });
             IGrainTimer? previous;
             lock (_running)

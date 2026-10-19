@@ -52,8 +52,8 @@ public interface IDeactivatingNeuron
 // Timers live with the activation; reminders are durable and reactivate the neuron. Ticks run as turns.
 public interface INeuronTimers
 {
-    // Replaces any timer of the same name. A null period fires once.
-    IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false);
+    // Replaces any timer of the same name. A null period fires once. keepAlive holds the activation while the timer runs.
+    IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false, bool keepAlive = false);
 
     Task Remind(string name, TimeSpan due, TimeSpan period);
 

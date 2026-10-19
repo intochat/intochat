@@ -143,7 +143,7 @@ public sealed class TickerNeuron : Neuron, ITicker
 
     public Task Start(TimeSpan due, TimeSpan? period)
     {
-        _timer = Context.Timers.Start("tick", due, period, _ => { _ticks++; return Task.CompletedTask; });
+        _timer = Context.Timers.Start("tick", due, period, _ => { _ticks++; return Task.CompletedTask; }, keepAlive: true);
         return Task.CompletedTask;
     }
 
