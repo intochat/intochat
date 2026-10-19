@@ -265,8 +265,12 @@ public sealed class IntentsFacts(AIHost host)
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
-        await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new(" ", "ship it", "conv/a")));
-        await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new(new string('r', IIntents.RequestIdLimit + 1), "ship it", "conv/a")));
+        var blank = await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new(" ", "ship it", "conv/a")));
+        Assert.Contains("request id", blank.Message);
+        var long_ = await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new(new string('r', IIntents.RequestIdLimit + 1), "ship it", "conv/a")));
+        Assert.Contains("request id", long_.Message);
+        Assert.Contains("200", long_.Message);
+        Assert.Empty((await intents.Read()).Intents);
     }
 
     [Fact]
@@ -276,7 +280,9 @@ public sealed class IntentsFacts(AIHost host)
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
-        await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new("req-1", new string('h', IIntents.HeardLimit + 1), "conv/a")));
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new("req-1", new string('h', IIntents.HeardLimit + 1), "conv/a")));
+        Assert.Contains("heard text", refused.Message);
+        Assert.Contains("8000", refused.Message);
         Assert.Empty((await intents.Read()).Intents);
     }
 
@@ -287,7 +293,8 @@ public sealed class IntentsFacts(AIHost host)
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
-        await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new("req-1", "ship it", "conv/a", Guid.NewGuid())));
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => intents.Declare(new("req-1", "ship it", "conv/a", Guid.NewGuid())));
+        Assert.Contains("to continue does not exist", refused.Message);
         Assert.Empty((await intents.Read()).Intents);
     }
 
@@ -298,20 +305,29 @@ public sealed class IntentsFacts(AIHost host)
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
-        await Assert.ThrowsAsync<ArgumentException>(async () => await intents.Rephrase(Guid.NewGuid(), Brief, 0.9, (await intents.Read()).Revision));
+        var refused = await Assert.ThrowsAsync<ArgumentException>(async () => await intents.Rephrase(Guid.NewGuid(), Brief, 0.9, (await intents.Read()).Revision));
+        Assert.Equal("id", refused.ParamName);
+        Assert.Contains("does not exist", refused.Message);
     }
 
-    [Fact]
-    public async Task ArmingATerminalIntentIsRefused()
+    [Theory]
+    [InlineData(IntentState.Done)]
+    [InlineData(IntentState.Abandoned)]
+    public async Task ArmingATerminalIntentIsRefused(IntentState terminal)
     {
         var ct = TestContext.Current.CancellationToken;
         var person = await host.PersonAsync(ct: ct);
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
         var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
-        await intents.Transition(id, IntentState.Abandoned, "no", (await intents.Read()).Revision);
+        if (terminal == IntentState.Done)
+        {
+            await intents.Rephrase(id, Brief, 0.9, (await intents.Read()).Revision);
+            foreach (var to in new[] { IntentState.Confirmed, IntentState.Dispatched, IntentState.Done }) { await intents.Transition(id, to, "step", (await intents.Read()).Revision); }
+        }
+        else { await intents.Transition(id, IntentState.Abandoned, "no", (await intents.Read()).Revision); }
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(async () => await intents.Arm(id, [], (await intents.Read()).Revision));
-        Assert.Contains("Abandoned", refused.Message);
+        Assert.Contains(terminal.ToString(), refused.Message);
     }
 
     [Fact]
@@ -324,9 +340,25 @@ public sealed class IntentsFacts(AIHost host)
         var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
         foreach (var bad in new[] { -0.1, 1.1, double.NaN })
         {
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await intents.Rephrase(id, Brief, bad, (await intents.Read()).Revision));
+            var refused = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await intents.Rephrase(id, Brief, bad, (await intents.Read()).Revision));
+            Assert.Equal("confidence", refused.ParamName);
+            Assert.Equal(bad, (double)refused.ActualValue!);
         }
         Assert.Equal(IntentState.Heard, Assert.Single((await intents.Read()).Intents).State);
+    }
+
+    [Fact]
+    public async Task ConfidenceAtTheBoundsIsAccepted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        await intents.Rephrase(id, Brief, 0, (await intents.Read()).Revision);
+        Assert.Equal(0, Assert.Single((await intents.Read()).Intents).Confidence);
+        await intents.Rephrase(id, Brief, 1, (await intents.Read()).Revision);
+        Assert.Equal(1, Assert.Single((await intents.Read()).Intents).Confidence);
     }
 
     [Fact]
