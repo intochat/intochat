@@ -5,6 +5,7 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.AI.Agents.Intents;
 
+[ExportableState]
 [GenerateSerializer, Alias("intents.state")]
 public sealed record IntentsState
 {

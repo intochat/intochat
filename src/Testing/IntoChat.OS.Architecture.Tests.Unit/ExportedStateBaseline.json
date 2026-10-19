@@ -16,6 +16,14 @@
     ]
   },
   {
+    "type": "IntoChat.OS.AI.Agents.Intents.IntentsState",
+    "state": "intents",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.AI.Agents.Intents.IntentsNeuron"
+    ]
+  },
+  {
     "type": "IntoChat.OS.AI.Embeddings.VectorIndexState",
     "state": "state",
     "exportedToday": true,
