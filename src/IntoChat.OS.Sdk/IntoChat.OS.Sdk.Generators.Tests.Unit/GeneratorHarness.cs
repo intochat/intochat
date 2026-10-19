@@ -39,8 +39,24 @@ internal static class GeneratorHarness
             .OrderBy(source => source.HintName, StringComparer.Ordinal)
             .Select(source => "// ==== " + source.HintName + " ====\n" + source.SourceText.ToString().Replace("\r\n", "\n", StringComparison.Ordinal)));
 
-    public static string GoldenDirectory([System.Runtime.CompilerServices.CallerFilePath] string file = "")
-        => Path.Combine(Path.GetDirectoryName(file)!, "Goldens");
+    // Goldens are copied beside the test assembly, so reads never depend on source paths (deterministic builds map them to /_/).
+    public static string GoldenDirectory() => Path.Combine(AppContext.BaseDirectory, "Goldens");
+
+    // Regeneration writes back to the source tree, found by walking up to the solution file.
+    private static string SourceGoldenDirectory()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Intochat.OS.slnx")))
+            {
+                var project = System.Xml.Linq.XDocument.Load(Path.Combine(directory.FullName, "Intochat.OS.slnx")).Descendants("Project")
+                    .Select(element => (string)element.Attribute("Path")!)
+                    .Single(path => path.EndsWith("IntoChat.OS.Sdk.Generators.Tests.Unit.csproj", StringComparison.Ordinal));
+                return Path.Combine(directory.FullName, Path.GetDirectoryName(project)!, "Goldens");
+            }
+        }
+        throw new InvalidOperationException("Intochat.OS.slnx not found above " + AppContext.BaseDirectory);
+    }
 
     public static void AssertNoErrors(Compilation compilation, ImmutableArray<Diagnostic> diagnostics)
     {
@@ -54,7 +70,7 @@ internal static class GeneratorHarness
         var normalised = actual.Replace("\r\n", "\n", StringComparison.Ordinal);
         if (Environment.GetEnvironmentVariable("INTOCHATOS_UPDATE_GOLDENS") == "1")
         {
-            File.WriteAllText(goldenPath, normalised);
+            File.WriteAllText(Path.Combine(SourceGoldenDirectory(), Path.GetFileName(goldenPath)), normalised);
             return;
         }
         Assert.Equal(File.ReadAllText(goldenPath).Replace("\r\n", "\n", StringComparison.Ordinal), normalised);

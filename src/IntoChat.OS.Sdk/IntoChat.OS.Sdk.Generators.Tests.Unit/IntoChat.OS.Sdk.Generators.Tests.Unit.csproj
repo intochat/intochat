@@ -9,5 +9,5 @@
   </ItemGroup>
   <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
   <!-- Goldens are data compared as text, never compiled into the test assembly. -->
-  <ItemGroup><Compile Remove="Goldens/**" /><None Include="Goldens/**" /></ItemGroup>
+  <ItemGroup><Compile Remove="Goldens/**" /><None Include="Goldens/**" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>
