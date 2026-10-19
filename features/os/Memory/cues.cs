@@ -19,8 +19,8 @@ var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
 var watched = new Dictionary<Guid, CancellationTokenSource>();
 var gate = new SemaphoreSlim(1, 1);
 var watchers = new HashSet<Task>();
-var signalTypes = new Intents.CueTypes(() => Load(type => !type.IsAbstract && !type.IsInterface && typeof(Signal).IsAssignableFrom(type)));
-var contractTypes = new Intents.CueTypes(() => Load(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)));
+var signalTypes = new Intents.CueTypes(() => Load(type => !type.IsAbstract && !type.IsInterface && typeof(Signal).IsAssignableFrom(type)), Assemblies);
+var contractTypes = new Intents.CueTypes(() => Load(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)), Assemblies);
 
 var following = Supervise("intent transitions", ct => brain.React<IntentTransitioned>(intents, token => SyncAll(token), ct));
 
@@ -185,6 +185,8 @@ async Task<bool> Fire(Guid id, string what)
     }
 }
 
+static int Assemblies() => AppDomain.CurrentDomain.GetAssemblies().Length;
+
 // Alias to type of every loaded type the filter accepts; the first type with an alias wins.
 static IReadOnlyDictionary<string, Type> Load(Func<Type, bool> accept)
 {
@@ -205,12 +207,17 @@ static IEnumerable<Type> TypesOf(Assembly assembly)
 // The neuron contract of an existing instance: the kernel names its grain type by alias, a loaded interface carries it.
 async Task<Type?> ContractOf(string key, CancellationToken ct)
 {
-    foreach (var alias in contractTypes.Aliases)
+    for (var round = 0; round < 2; round++)
     {
-        await foreach (var instance in brain.Kernel.Instances(alias, ct))
+        foreach (var (alias, contract) in contractTypes.Pairs)
         {
-            if (instance.Key == key) { return contractTypes.Resolve(alias); }
+            await foreach (var instance in brain.Kernel.Instances(alias, ct))
+            {
+                if (instance.Key == key) { return contract; }
+            }
         }
+        // A contract loaded since the first build: look again, once, unless nothing new was loaded.
+        if (round == 0 && !contractTypes.Refresh(key)) { break; }
     }
     return null;
 }

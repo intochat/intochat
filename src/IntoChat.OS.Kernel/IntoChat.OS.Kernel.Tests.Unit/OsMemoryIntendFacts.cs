@@ -127,7 +127,7 @@ public sealed class OsMemoryIntendFacts
     {
         var loads = 0;
         var known = new Dictionary<string, Type> { ["a"] = typeof(string) };
-        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(known); });
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(known); }, () => 0);
         Assert.Equal(typeof(string), cache.Resolve("a"));
         Assert.Equal(1, loads);
         Assert.Equal(typeof(string), cache.Resolve("a"));
@@ -137,6 +137,33 @@ public sealed class OsMemoryIntendFacts
         known["late"] = typeof(int);
         Assert.Equal(typeof(int), cache.Resolve("late"));
         Assert.Equal(3, loads);
+    }
+
+    [Fact]
+    public void APermanentlyUnknownAliasReloadsOnlyWhenAssembliesChange()
+    {
+        var loads = 0;
+        var assemblies = 10;
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(); }, () => assemblies);
+        for (var i = 0; i < 3; i++) { Assert.Null(cache.Resolve("typo")); }
+        Assert.Equal(2, loads);
+        assemblies++;
+        Assert.Null(cache.Resolve("typo"));
+        Assert.Equal(3, loads);
+    }
+
+    [Fact]
+    public void AContractMissRefreshesOnce()
+    {
+        var loads = 0;
+        var assemblies = 1;
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(); }, () => assemblies);
+        Assert.Empty(cache.Pairs);
+        Assert.True(cache.Refresh("k"));
+        Assert.False(cache.Refresh("k"));
+        Assert.Equal(2, loads);
+        assemblies++;
+        Assert.True(cache.Refresh("k"));
     }
 
     [Fact]
