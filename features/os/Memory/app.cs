@@ -84,6 +84,14 @@ cue is watched. When the signal arrives or the time passes, the first cue to fir
 Dispatched ("cue: <alias or time>"), and only while it is still Waiting. A cue that cannot be watched is
 written to `{app}/status` and the intent stays Waiting.
 
+## Scenario: Every completed turn becomes an episode
+
+When an Ino turn completes, Ino asks Memory to "capture" it with the conversation and run id. Memory's capture
+agent (prompt `capture.md`, `CaptureModel` setting) writes a third-person note of 2 to 10 bullets and an
+importance from 1 to 10 into `{app}/episodes` under `agent#run`; a failure, 30 seconds without a reply or a
+malformed reply stores the first 300 characters of each side instead, marked fallback. A run already captured
+is skipped.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
@@ -94,7 +102,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
@@ -105,11 +113,13 @@ static class App
             new("recall", "Rank this brain's synapses and apps against the input by meaning and words, best first; the answer is the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
+            new("capture", "Turn a finished turn into an episode: a short note and an importance in {app}/episodes; input is JSON {\"agent\",\"runId\"}. Done by Memory after each completed Ino turn."),
             new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
         Settings:
         [
             new("Model", "Model catalog id for the rephrasing agent; empty uses the default.", ""),
+            new("CaptureModel", "Model catalog id for the agent that writes episode notes; empty uses the default.", ""),
             new("ConfirmGate", "Confidence at or above which a rephrased intent is confirmed.", "0.8"),
         ],
         Slots:
