@@ -103,6 +103,37 @@ third parties, location and routines, and items below `ReviewGate` (default 0.75
 listed by "review" on `{app}/review`; credentials are dropped. Over 512 current facts the least important is
 archived and forgotten. Episodes are marked consolidated last; a failed batch is retried once its claims expire.
 
+## Scenario: A turn about a short preference is captured and consolidated into a profile fact
+
+After the user tells Ino "I like short answers", the turn's episode appears in `{app}/episodes` under `ino#<runId>`
+with a short third-person summary and importance 6, and is indexed into the life vector index. Once the quiet period
+passes the consolidation asserts the preference as a current Profile fact on the facts neuron, and the episode is
+marked consolidated.
+
+## Scenario: A health fact goes to review instead of the facts
+
+After the user says "I have a peanut allergy, keep that in mind", consolidation holds the item back although its
+confidence is 0.95: the review table gets one pending row whose reason starts with "sensitive: health" and names the
+episode, and the current facts hold nothing about peanuts. A secret in an episode is discarded and never reaches the
+review table. Invoking "review" lists the pending row on `{app}/review` and the context entry `review-count` carries
+the number waiting; "review-accept" with the row id asserts it once as a fact and marks the row accepted, and
+"review-reject" marks it rejected without asserting anything.
+
+## Scenario: Recall-life answers Found with sources and Absent with coverage
+
+With the profile fact "The user prefers short answers" current, invoking "recall-life" with a question about it writes
+`{app}/recalls/{requestId}` (and `{app}/recall`) beginning with Found and the fact's text, each source shown as
+`source: profile <date> fact:<id>`. A question nothing in memory is near in meaning to answers that nothing in memory
+answers it and names the coverage, the first and last episode dates and the number of facts. A Partial answer adds the
+neighbouring episodes of its best episode and the transcript around its run.
+
+## Scenario: Forgetting hides a fact everywhere but its history
+
+After a profile fact is forgotten through `IFacts.Forget` (for example when the user says "forget that I like short
+answers" and Ino calls it), `Current` no longer lists the fact, the `profile` context entry no longer renders it, the
+next conversation's turn does not carry it and recall-life never finds it. `Read` still returns it, marked Hidden,
+with its text.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
