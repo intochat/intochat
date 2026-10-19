@@ -25,6 +25,7 @@ public sealed class OsMemoryEpisodeFacts
         Assert.True(fallback.IsFallback);
         Assert.Contains(new string('u', 300), fallback.Summary);
         Assert.DoesNotContain(new string('u', 301), fallback.Summary);
+        Assert.Contains(new string('r', 300), fallback.Summary);
         Assert.DoesNotContain(new string('r', 301), fallback.Summary);
     }
 

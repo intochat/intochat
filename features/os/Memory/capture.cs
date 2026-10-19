@@ -27,7 +27,12 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
         var id = Episodes.Id(ask.Agent, ask.RunId);
         if (await episodes.Read(Key(id)) is not null) { continue; }
         var run = (await brain.Get<IAgent>(ask.Agent).Read()).Runs.FirstOrDefault(candidate => candidate.RunId == ask.RunId);
-        if (run is null || run.Status != AgentRunStatus.Completed) { continue; }
+        if (run is null || run.Status != AgentRunStatus.Completed)
+        {
+            await brain.Get<IText>(appKey + "/status").Set(Clip("capture skipped: run " + ask.RunId + " "
+                + (run is null ? "not found on " : "was not completed on ") + ask.Agent));
+            continue;
+        }
         var note = await Summarise(id, run);
         await episodes.Upsert(Key(id),
         [
@@ -40,10 +45,12 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
         // Best effort: the next completed turn is captured on its own.
-        try { await brain.Get<IText>(appKey + "/status").Set("capture failed: " + error.Message); }
+        try { await brain.Get<IText>(appKey + "/status").Set(Clip("capture failed: " + error.Message)); }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
     }
 }
+
+static string Clip(string text) => text.Length <= 200 ? text : text[..200];
 
 static TableValue[] Key(string id) => [new("id", JsonSerializer.Serialize(id))];
 
@@ -87,6 +94,9 @@ async Task<string> Ask(string runId, string user, string model, string prompt)
                 try
                 {
                     await failedLive.Task.WaitAsync(waiting.Token);
+                    // The agent is shared by every episode and keeps its transcript: clear it so each episode is
+                    // summarised in isolation and an earlier turn never leaks into a later note.
+                    await agent.Clear();
                     await agent.Start(AgentTurn.Text(user, runId: runId, model: model.Length > 0 ? model : null,
                         instructions: prompt, contracts: []));
                 }
