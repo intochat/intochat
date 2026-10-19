@@ -24,10 +24,6 @@
   "IntoChat.OS.Authority.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Authority.Hosted": [
-    "Microsoft.Orleans.Reminders",
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Authority.Tests.Integration": [
     "Microsoft.Orleans.Sdk"
   ],

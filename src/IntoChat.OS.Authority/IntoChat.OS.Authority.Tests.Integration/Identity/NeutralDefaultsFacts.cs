@@ -1,5 +1,4 @@
 using System.Reflection;
-using IntoChat.OS.Authority.Hosted;
 using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Configuration;
@@ -20,16 +19,13 @@ public sealed class NeutralDefaultsFacts
         Assert.Equal(("os.session", "os.v1", "os-protection-v1"), (identity.CookieName, identity.ProtectionApplicationName, identity.ProtectionContainerName));
         Assert.Equal(("os.account", "os.brain"), (identity.AccountClaim, identity.BrainClaim));
         Assert.Equal("identity-directory", identity.DirectoryKey);
-        var hosted = new HostedRuntimeOptions();
-        Assert.Equal(("os.hosted-grant", "os.runtime", "os.cloud-user", "os.cloud-session"),
-            (hosted.GrantClaim, hosted.RuntimeClaim, hosted.CloudUserClaim, hosted.CloudSessionClaim));
         Assert.Equal("os-state", IntoChatOSNames.GrainStateContainer);
     }
 
     [Fact]
     public void NoDefaultStringCarriesABrand()
     {
-        var defaults = new object[] { new IdentityHostOptions(), new HostedRuntimeOptions() };
+        var defaults = new object[] { new IdentityHostOptions() };
         var values = defaults.SelectMany(options => options.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.PropertyType == typeof(string))
                 .Select(property => (Name: options.GetType().Name + "." + property.Name, Value: (string?)property.GetValue(options) ?? "")))
@@ -48,12 +44,10 @@ public sealed class NeutralDefaultsFacts
             new(IdentityHostOptions.Key(nameof(IdentityHostOptions.AccountClaim)), brand + ".account"),
             new(IdentityHostOptions.Key(nameof(IdentityHostOptions.BrainClaim)), brand + ".brain"),
             new(IdentityHostOptions.Key(nameof(IdentityHostOptions.DirectoryKey)), brand + "-identity-directory"),
-            new(HostedRuntimeOptions.SectionName + ":" + nameof(HostedRuntimeOptions.RuntimeClaim), brand + ".runtime"),
         ]).Build();
         var configured = configuration.GetSection(IdentityHostOptions.SectionName).Get<IdentityHostOptions>()!;
         Assert.Equal((brand + ".account", brand + ".brain", brand + "-identity-directory"), (configured.AccountClaim, configured.BrainClaim, configured.DirectoryKey));
         Assert.True(configured.Validate());
-        Assert.Equal(brand + ".runtime", configuration.GetSection(HostedRuntimeOptions.SectionName).Get<HostedRuntimeOptions>()!.RuntimeClaim);
         Assert.False(new IdentityHostOptions { BrainClaim = " " }.Validate());
         Assert.False(new IdentityHostOptions { DirectoryKey = "" }.Validate());
     }

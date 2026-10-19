@@ -35,7 +35,6 @@ public sealed partial class PackagingFacts
             Assert.DoesNotContain("PackageLicenseExpression", csproj, StringComparison.Ordinal);
             Assert.DoesNotContain("PackageLicenseFile", csproj, StringComparison.Ordinal);
         });
-        Assert.Contains(packable, project => project.Name == "IntoChat.OS.Authority.Hosted");
     }
 
     [Fact]

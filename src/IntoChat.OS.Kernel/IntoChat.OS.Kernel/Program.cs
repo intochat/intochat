@@ -1,6 +1,5 @@
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Authority.Hosted;
 using IntoChat.OS.Microsoft.Azure;
 using IntoChat.OS.Microsoft.Azure.Install;
 
@@ -12,20 +11,9 @@ if (AzureInstaller.IsInstall(args))
 }
 
 var builder = WebApplication.CreateBuilder(args);
-var webHostServices = builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray();
 // A distribution of the operating system brings branding, features and configuration; the composition is the OS's.
-// A hosted-cloud allocation is configured through the Hosting section, and only then composes the hosted authority.
-if (HostedRuntimeOptions.IsHostedAllocation(builder.Configuration)) { builder.AddHostedAuthority(); }
 builder.AddIntoChatOSServer(server => server.UseOrleansDashboard()
     .AddOperatingSystem(OperatingSystem.IsWindows() ? OsCatalog.WithWindowsEdge() : OsCatalog.Modules));
-if (HostedRecoveryHost.IsRequested(builder.Configuration))
-{
-    HostedRecoveryHost.Configure(builder, webHostServices);
-    var recovery = builder.Build();
-    HostedRecoveryHost.Map(recovery);
-    recovery.Run();
-    return;
-}
 var app = builder.Build();
 app.MapIntoChatOSServer();
 app.Run();
