@@ -23,6 +23,9 @@ public sealed class IdentityHostOptions
 
     // false unmaps POST /identity/register and /identity/login (and drops them from the anonymous list)
     // so another module can own sign-in; session, logout, brains and grants stay.
+    // Module ids that may obtain ISessionIssuer and IIdentityProvisioning (IPrivilegedServices); empty denies every module.
+    public string[] PrivilegedModules { get; set; } = [];
+
     public bool BuiltInPasswordEndpoints { get; set; } = true;
 
     public bool Validate() => !string.IsNullOrWhiteSpace(CookieName)
