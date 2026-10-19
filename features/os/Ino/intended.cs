@@ -53,7 +53,7 @@ async Task EnsureWatch(Guid requestId)
             try { await Ino.Status(brain, "Could not follow Memory's brief: " + Ino.Clip(error.Message)); }
             catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
         }
-        finally { watches.TryRemove(requestId, out _); stop.Dispose(); }
+        finally { watches.TryRemove(KeyValuePair.Create(requestId, stop)); stop.Dispose(); }
     });
 }
 
@@ -63,7 +63,7 @@ async Task Watch(Guid requestId, string memoryKey, CancellationTokenSource stop)
     var answer = brain.Get<IText>(memoryKey + "/intents/" + requestId.ToString("N"));
     async Task Check()
     {
-        if (await Answer(requestId, memoryKey, null)) { await stop.CancelAsync(); }
+        if (await Answer(requestId, memoryKey, null)) { await PendingStore.Prune(brain); await stop.CancelAsync(); }
     }
     await foreach (var _ in brain.On<TextChanged>(answer, Check, stop.Token)) { await Check(); }
 }
@@ -77,7 +77,7 @@ async Task<bool> Answer(Guid requestId, string memoryKey, string? fallback)
     {
         case MemoryAnswer.Ok:
             var intent = PendingStore.Find((await intents.Read()).Intents, text, requestId);
-            await Act(requestId, intent?.Brief, intent?.State == IntentState.Confirmed, intent?.Id, null);
+            await Act(requestId, intent?.Brief, Ino.ConfirmedFor(intent, requestId), intent?.Id, null);
             return true;
         case MemoryAnswer.Failed:
             await Act(requestId, null, false, null, "Memory could not intend; answering without a brief");

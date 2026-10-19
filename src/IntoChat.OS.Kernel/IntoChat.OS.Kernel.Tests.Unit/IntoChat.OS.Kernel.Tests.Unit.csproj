@@ -8,6 +8,7 @@
     <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
     <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />
     <Compile Include="../../../features/os/Ino/Pending.cs" Link="Features/InoPending.cs" />
+    <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
