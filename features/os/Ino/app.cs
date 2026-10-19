@@ -170,6 +170,23 @@ With Memory not installed, sending a message shows the status "Memory is not ins
 When Memory has not answered within `IntendGate` (default 8 seconds), the status shows "Memory was slow to
 intend; answering without a brief" and the turn answers the message without a brief.
 
+## Scenario: The profile is rendered in the next conversation
+
+When Memory has consolidated "The user prefers short answers" as a current Profile fact, a message sent in a new
+conversation (for example "hello") is answered with the Memory context entry `profile` in the turn, which lists the
+fact as the line "- The user prefers short answers".
+
+## Scenario: Asked to remember or forget, the model uses the facts neuron
+
+Sending "remember that my sister is called Ana" has the model call `Assert` on the facts neuron with a Fact of that
+text and confirm it; sending "forget that I like short answers" has it read the facts, call `Forget` with the fact's id
+and the revision it read, and answer that it is forgotten. A correction asserts the new fact first and then invalidates
+the old one as superseded. Credentials, passwords, tokens and API keys are never asserted, even when asked.
+
+## Scenario: Pending review items are announced
+
+While Memory holds review items, the status line shows "Memory has 3 items to review", checked at most once an hour.
+
 Progress states are Ino's mood source: listening when input arrives, working while answering,
 completed after an answer, and attention on failure. Each of those writes publishes mood on the
 same activity call. No second script watches AppActivity.
