@@ -122,17 +122,17 @@ internal static class Intents
     public const int ProfileBudget = 3_000;
 
     // The facts the profile block shows: kind Profile, still valid and not hidden (what IFacts.Current() returns).
-    public static IntoChat.OS.AI.Agents.Facts.Fact[] ProfileOf(IntoChat.OS.AI.Agents.Facts.Fact[] facts)
+    public static Fact[] ProfileOf(Fact[] facts)
         => [.. facts.Where(fact => fact.Kind == FactKind.Profile && fact.ValidTo is null && !fact.Hidden)];
 
-    // Profile facts as "- text" lines, newest recorded first; whole lines are added while they fit the budget.
-    public static string RenderProfile(IntoChat.OS.AI.Agents.Facts.Fact[] facts, int budget)
+    // Profile facts as "- text" lines, newest recorded first; a line that does not fit is skipped and smaller ones still render.
+    public static string RenderProfile(Fact[] facts, int budget)
     {
         var builder = new StringBuilder();
         foreach (var fact in facts.OrderByDescending(fact => fact.Recorded))
         {
             var entry = "- " + Line(fact.Text) + "\n";
-            if (builder.Length + entry.Length > budget) { break; }
+            if (builder.Length + entry.Length > budget) { continue; }
             builder.Append(entry);
         }
         return builder.ToString();
