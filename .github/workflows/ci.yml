@@ -82,6 +82,9 @@ jobs:
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
+      - name: Module READMEs are current
+        run: dotnet run scripts/module-readmes.cs -- --check
+
       # Local-profile preflight dry run: fixtures stand in for the machine, so no secrets and no probes of the runner.
       - name: Preflight dry run (all green exits 0)
         run: dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
