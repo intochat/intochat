@@ -24,5 +24,6 @@
   "IntoChat.OS.Authority.Tests.Integration/Storage/HostedPlatformStorageFacts.cs",
   "IntoChat.OS.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "IntoChat.OS.Authority/Compute/FeeOptions.cs",
-  "IntoChat.OS.ServiceDefaults/HealthProbes.cs"
+  "IntoChat.OS.ServiceDefaults/HealthProbes.cs",
+  "IntoChat.OS.LocalSetup/LocalSetupKeys.cs"
 ]
