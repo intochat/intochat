@@ -11,7 +11,7 @@ using IntoChat.OS.Flutter.Text.Signals;
 // (the text of {app}/working, cut at 4,000 characters; removed when empty) and "active-intents" (the
 // Rephrased, Confirmed, Dispatched and Waiting intents, newest first, within 6,000 characters) and "profile"
 // (the current Profile facts, newest first, within 3,000 characters). Each
-// rebuild reads both sources and writes an entry only when its text differs from the one the context holds.
+// rebuild reads the three sources and writes an entry only when its text differs from the one the context holds.
 // "remember" replaces the working memory with its input; input over 4,000 characters is refused on
 // {app}/remember-status and the working memory is left unchanged.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

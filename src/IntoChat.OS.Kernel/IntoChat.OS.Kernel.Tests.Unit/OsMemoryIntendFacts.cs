@@ -298,4 +298,12 @@ public sealed class OsMemoryIntendFacts
         Assert.Equal([kept], live);
         Assert.Equal("- likes short answers\n", global::Intents.RenderProfile(live, 3_000));
     }
+
+    [Fact]
+    public void AnOversizedFactIsSkippedNotBlanking()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var text = global::Intents.RenderProfile([Profile(new string('x', 4_000), now), Profile("small", now.AddMinutes(-1))], 3_000);
+        Assert.Equal("- small\n", text);
+    }
 }
