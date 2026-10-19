@@ -44,6 +44,7 @@ public static class PlatformHosting
         services.TryAddSingleton<Storage.IBrainJournal, Storage.BrainJournal>();
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
+        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
         services.TryAddSingleton<IntoChat.OS.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         services.TryAddSingleton<AuthorityNeurons>();

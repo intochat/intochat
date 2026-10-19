@@ -25,6 +25,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton(NeuronTypeSearch.Create);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Framework.Platform.Secrets.ISecretRedactor, IntoChat.OS.Framework.Platform.Secrets.SecretRedactor>();
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

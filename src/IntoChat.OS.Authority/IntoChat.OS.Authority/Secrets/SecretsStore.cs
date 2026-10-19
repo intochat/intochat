@@ -41,6 +41,14 @@ internal sealed class SecretsStore(IKeyWrapper keys)
         return SecretCipher.Open(ownerKey, record.SealedSecret);
     }
 
+    // Every plaintext value of this vault, for masking only; the caller keeps them in locals.
+    internal string[] Values(SecretsState state)
+    {
+        if (string.IsNullOrEmpty(state.WrappedOwnerKey)) { return []; }
+        var ownerKey = keys.Unwrap(state.WrappedOwnerKey);
+        return [.. state.Fields.Values.Where(record => record.IsSecret && !string.IsNullOrEmpty(record.SealedSecret)).Select(record => SecretCipher.Open(ownerKey, record.SealedSecret))];
+    }
+
     private byte[] OwnerKey(SecretsState state)
     {
         if (!string.IsNullOrEmpty(state.WrappedOwnerKey))

@@ -36,6 +36,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extension
     public IConnectionIndex Connections(string brainId) => Resolve<IConnectionIndex>(brainId);
     public IntoChat.OS.Integrations.IConnectionRequests ConnectionRequests(string brainId) => Resolve<IntoChat.OS.Integrations.IConnectionRequests>(brainId);
     public ISecrets Secrets(string owner) => Resolve<ISecrets>(owner);
+    public IntoChat.OS.Authority.Secrets.ISecretVaultValues SecretValues(string owner) => Resolve<IntoChat.OS.Authority.Secrets.ISecretVaultValues>(owner);
     public IMarketplaceCatalog Marketplace() => Resolve<IMarketplaceCatalog>(IMarketplaceCatalog.Key);
 
     // Connection neurons keep the Framework's connector-aware resolution; a key from a caller goes
