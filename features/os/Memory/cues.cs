@@ -11,7 +11,7 @@ using IntoChat.OS.Time.Reminders.Signals;
 // alias among the loaded contracts), a time cue starts an IReminder at {app}/cues/{intent id} and stops it on
 // its first tick. The first cue to fire moves the intent to Dispatched ("cue: <alias or time>"), and only
 // while it is still Waiting. An intent that stops waiting drops its watchers. A cue that cannot be watched is
-// written to {app}/status and the intent stays Waiting.
+// written to {app}/status and the intent stays Waiting; its watchers are dropped so the next sync tries again.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var status = brain.Get<IText>(appKey + "/status");
@@ -94,7 +94,23 @@ async Task Watch(Guid id, Cue cue, CancellationToken ct)
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested || brain.Stopping.IsCancellationRequested) { }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Report("Memory could not watch a cue of intent " + id + ": " + error.Message + "; the intent stays Waiting."); }
+    {
+        await Report("Memory could not watch a cue of intent " + id + ": " + error.Message + "; the intent stays Waiting.");
+        await Forget(id, ct);
+    }
+}
+
+// A watcher that failed drops its intent's entry (only while it is still the one it was started under), so the
+// next SyncAll sees the Waiting intent untracked and starts its watchers again.
+async Task Forget(Guid id, CancellationToken ct)
+{
+    try
+    {
+        await gate.WaitAsync(brain.Stopping);
+        try { if (watched.TryGetValue(id, out var source) && source.Token == ct) { Drop(id); } }
+        finally { gate.Release(); }
+    }
+    catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { }
 }
 
 async Task WatchTime(Guid id, Cue cue, CancellationToken ct)
@@ -108,7 +124,7 @@ async Task WatchTime(Guid id, Cue cue, CancellationToken ct)
         await reminder.Start(due, TimeSpan.FromDays(365));
         await foreach (var _ in brain.On<ReminderTick>(reminder, ct))
         {
-            await Fire(id, "time");
+            if (!await Fire(id, "time")) { await Forget(id, ct); }
             return;
         }
     }
