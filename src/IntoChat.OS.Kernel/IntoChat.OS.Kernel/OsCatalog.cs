@@ -5,48 +5,53 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Kernel;
 
-// The one place the operating system's module composition is named. Modules describe
-// themselves on the instance (the id in the constructor); the catalog only lists them,
-// and every host of the OS registers modules through it. A distribution is a diff against
-// this composition, not a copy of it. The Workshop appends modules through Generated().
+// The one place the operating system's module composition is defined: discovered by reflection, not listed.
+// Every host of the OS registers modules through it. A distribution is a diff against this
+// composition, not a copy of it. The Workshop appends modules through Generated().
 public static partial class OsCatalog
 {
-    public static IReadOnlyList<Module> Modules { get; } = [.. BuiltIn(), .. Generated()];
+    public static IReadOnlyList<Module> Modules { get; } = [.. Discover(), .. Generated()];
 
     // The composition a test process can host by itself: every module that needs no container.
-    public static IReadOnlyList<Module> InProcessModules { get; } = [.. Modules.Where(module => !NeedsItsOwnMachine(module))];
+    public static IReadOnlyList<Module> InProcessModules { get; } = [.. Modules.Where(module => !module.RequiresContainer)];
 
-    private static bool NeedsItsOwnMachine(Module module) => module
-        is IntoChat.OS.Postgres.PostgresModule        // a Postgres container
-        or IntoChat.OS.ClickHouse.ClickHouseModule    // a ClickHouse container
-        or IntoChat.OS.Supabase.SupabaseModule        // Postgres-backed: the Postgres container
-        or IntoChat.OS.Qdrant.QdrantModule            // a Qdrant container
-        or IntoChat.OS.ArtCraft.ArtCraftModule;       // its Docker images
+    // Module types that are deliberately not in the portable composition: the Windows edge
+    // (added by WithWindowsEdge) and the template sample.
+    internal static bool IsExcluded(Type type)
+        => type == typeof(IntoChat.OS.Microsoft.Windows.WindowsModule) || type.Name == "SampleModule";
 
-    private static Module[] BuiltIn() =>
-    [
-        new IntoChat.OS.Microsoft.Orleans.OrleansModule(),
-        new IntoChat.OS.AI.AIModule(),
-        new IntoChat.OS.ArtCraft.ArtCraftModule(),
-        new IntoChat.OS.ClickHouse.ClickHouseModule(),
-        new IntoChat.OS.Apps.AppsModule(),
-        new IntoChat.OS.Flutter.FlutterModule(),
-        new IntoChat.OS.Google.Gmail.GmailModule(),
-        new IntoChat.OS.Microsoft.Aspire.AspireModule(),
-        new IntoChat.OS.Microsoft.Azure.AzureModule(),
-        new IntoChat.OS.Microsoft.CSharp.CSharpModule(),
-        new IntoChat.OS.Microsoft.GitHub.GitHubModule(),
-        new IntoChat.OS.Microsoft.Playwright.PlaywrightModule(),
-        new IntoChat.OS.Postgres.PostgresModule(),
-        new IntoChat.OS.Qdrant.QdrantModule(),
-        new IntoChat.OS.Salesforce.SalesforceModule(),
-        new IntoChat.OS.Supabase.SupabaseModule(),
-        new IntoChat.OS.Time.TimeModule(),
-        new IntoChat.OS.Tools.ToolsModule(),
-        new IntoChat.OS.Mcp.McpModule(),
-        new IntoChat.OS.Circles.CirclesModule(),
-        new IntoChat.OS.Flame.FlameModule(),
-    ];
+    // Every public, concrete Module with a public parameterless constructor in the module assemblies the
+    // OS ships (the Kernel's reference closure and the module assemblies beside it), minus the exclusions,
+    // ordered by Module.Order and then by id. A new module appears here without editing this file.
+    private static Module[] Discover()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<System.Reflection.Assembly>([typeof(OsCatalog).Assembly]);
+        foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll"))
+        {
+            try { queue.Enqueue(System.Reflection.Assembly.Load(System.Reflection.AssemblyName.GetAssemblyName(file))); }
+            catch (BadImageFormatException) { }
+            catch (FileLoadException) { }
+        }
+        var modules = new List<Module>();
+        while (queue.TryDequeue(out var assembly))
+        {
+            if (!seen.Add(assembly.FullName!)) { continue; }
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                try { queue.Enqueue(System.Reflection.Assembly.Load(reference)); }
+                catch (FileNotFoundException) { }
+                catch (FileLoadException) { }
+            }
+            foreach (var type in assembly.GetExportedTypes())
+            {
+                if (type.IsAbstract || !typeof(Module).IsAssignableFrom(type) || IsExcluded(type)) { continue; }
+                if (type.GetConstructor(Type.EmptyTypes) is null) { continue; }
+                modules.Add((Module)Activator.CreateInstance(type)!);
+            }
+        }
+        return [.. modules.OrderBy(module => module.Order).ThenBy(module => module.Id.ToString(), StringComparer.Ordinal)];
+    }
 
     // Modules the Workshop has added to this OS. Declared here, implemented in
     // OsCatalog.Generated.cs so the composition grows without hand-editing this file.

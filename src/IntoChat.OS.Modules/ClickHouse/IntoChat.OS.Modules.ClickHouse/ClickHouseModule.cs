@@ -13,6 +13,8 @@ namespace IntoChat.OS.ClickHouse;
 
 public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
+    public override bool RequiresContainer => true;
+
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.ClickHouse.Query.IClickHouse).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("clickhouse", "ClickHouse").RequiresSecret("ConnectionString");

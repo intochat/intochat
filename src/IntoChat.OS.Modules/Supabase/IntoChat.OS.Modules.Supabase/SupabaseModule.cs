@@ -11,6 +11,8 @@ namespace IntoChat.OS.Supabase;
 // Supabase is a deployment backing store. A person's Supabase database is a postgres connection.
 public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleId("supabase"))
 {
+    public override bool RequiresContainer => true;
+
     public static IntegrationSchema Integration => IntegrationSchema.For("supabase", "Supabase").RequiresSecret("ConnectionString");
 
     public const string ConnectionName = "supabase";

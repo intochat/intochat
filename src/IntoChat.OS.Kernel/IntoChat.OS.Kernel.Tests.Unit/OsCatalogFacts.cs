@@ -10,7 +10,8 @@ public sealed class OsCatalogFacts
     [Fact]
     public void InProcessModulesIsModulesMinusTheContainerBackedOnes()
     {
-        string[] containerBacked = ["postgres", "clickhouse", "supabase", "qdrant", "artcraft"];
+        string[] containerBacked = ["artcraft", "clickhouse", "postgres", "qdrant", "supabase"];
+        Assert.Equal(containerBacked, OsCatalog.Modules.Where(module => module.RequiresContainer).Select(module => module.Id.Value).Order(StringComparer.Ordinal));
         var expected = OsCatalog.Modules.Select(module => module.Id.Value).Except(containerBacked, StringComparer.OrdinalIgnoreCase);
         Assert.Equal(expected, OsCatalog.InProcessModules.Select(module => module.Id.Value));
         Assert.All(containerBacked, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id));
@@ -61,5 +62,37 @@ public sealed class OsCatalogFacts
     {
         var ids = OsCatalog.Modules.Select(module => module.Id.ToString()).ToArray();
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    // Orleans is first (Order); the rest follow by ordinal id.
+    [Fact]
+    public void OrleansComesFirstAndTheRestAreOrdinal()
+    {
+        var ids = OsCatalog.Modules.Select(module => module.Id.Value).ToArray();
+        Assert.Equal("orleans", ids[0]);
+        Assert.Equal(ids.Skip(1).Order(StringComparer.Ordinal), ids.Skip(1));
+    }
+
+    // Discovery reads the module assemblies the OS ships; a Module type found there that is neither
+    // cataloged nor an explicit exclusion means the discovery scope or the exclusion list is wrong.
+    [Fact]
+    public void EveryModuleTypeIsCatalogedOrExcluded()
+    {
+        using var dependencies = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.OS.Kernel.deps.json")));
+        var cataloged = OsCatalog.Modules.Select(module => module.GetType()).ToHashSet();
+        var shipped = dependencies.RootElement.GetProperty("libraries").EnumerateObject()
+            .Select(library => library.Name.Split('/')[0])
+            .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal));
+        foreach (var name in shipped)
+        {
+            System.Reflection.Assembly assembly;
+            try { assembly = System.Reflection.Assembly.Load(name); }
+            catch (FileNotFoundException) { continue; }
+            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IntoChat.OS.Framework.Modules.Module).IsAssignableFrom(type)))
+            {
+                Assert.True(cataloged.Contains(type) || OsCatalog.IsExcluded(type), type.FullName);
+            }
+        }
     }
 }
