@@ -44,6 +44,36 @@ public static class ContractsHost
         return false;
     }
 
+    // The contract surface of a hosting assembly: its neuron interfaces and signals plus every public type of the
+    // assembly their members name (parameters, results, properties, constructors). The rest is the module's own.
+    public static Type[] ContractTypes(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        var exported = assembly.GetExportedTypes().Where(type => type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true).ToHashSet();
+        var seen = new HashSet<Type>(exported.Where(type => (type.IsInterface && typeof(INeuron).IsAssignableFrom(type)) || typeof(Signal).IsAssignableFrom(type)));
+        var queue = new Queue<Type>(seen);
+        while (queue.TryDequeue(out var type))
+        {
+            foreach (var part in Members(type).SelectMany(Unwrap).Where(part => part.Assembly == assembly && exported.Contains(part) && seen.Add(part))) { queue.Enqueue(part); }
+        }
+        return [.. seen.OrderBy(type => type.FullName, StringComparer.Ordinal)];
+    }
+
+    private static IEnumerable<Type> Members(Type type)
+    {
+        const BindingFlags Declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        return type.GetMethods(Declared).SelectMany(method => method.GetParameters().Select(parameter => parameter.ParameterType).Append(method.ReturnType))
+            .Concat(type.GetProperties(Declared).Select(property => property.PropertyType))
+            .Concat(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()).Select(parameter => parameter.ParameterType));
+    }
+
+    private static IEnumerable<Type> Unwrap(Type type)
+    {
+        if (type.IsByRef || type.IsArray) { return Unwrap(type.GetElementType()!); }
+        if (type.IsGenericParameter) { return []; }
+        return type.IsGenericType ? type.GetGenericArguments().SelectMany(Unwrap).Prepend(type.GetGenericTypeDefinition()) : [type];
+    }
+
     // A custom attribute value is the 0x0001 prolog, then each string argument as a compressed length and UTF-8.
     private static string[] Strings(byte[] blob)
     {

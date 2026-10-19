@@ -170,6 +170,8 @@ public sealed class CSharpScriptCheck
         while (pending.TryPop(out var name))
         {
             if (!carried.Add(name)) { continue; }
+            // A hosting module assembly is carried for its contract surface only; its implementation's dependencies are not a script's to reach.
+            if (name.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)) { continue; }
             using var image = new System.Reflection.PortableExecutable.PEReader(File.OpenRead(available[name]));
             var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(image);
             foreach (var handle in metadata.AssemblyReferences)
