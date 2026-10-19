@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
 import '../../composition/neuron_view.dart';
+import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
 final class UiCard extends StatelessWidget {
@@ -12,12 +13,14 @@ final class UiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = UiColors.of(context);
+    final type = UiType.of(context);
     return DecoratedBox(
       key: Key('ui_card_${part.title}'),
       decoration: BoxDecoration(
-        color: UiPalette.surfaceRaised,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: UiPalette.line),
+        border: Border.all(color: colors.hairline),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -25,10 +28,10 @@ final class UiCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (part.title.isNotEmpty) ...[
-              Text(part.title, style: UiType.title),
+              Text(part.title, style: type.title),
               const SizedBox(height: 8),
             ],
-            if (part.body.isNotEmpty) Text(part.body, style: UiType.body),
+            if (part.body.isNotEmpty) Text(part.body, style: type.body),
             for (final child in part.children)
               SizedBox(
                 height: 200,
@@ -42,8 +45,8 @@ final class UiCard extends StatelessWidget {
               ),
             for (final field in part.fields) ...[
               const SizedBox(height: 8),
-              Text(field.label, style: UiType.meta),
-              Text(field.value, style: UiType.body),
+              Text(field.label, style: type.meta),
+              Text(field.value, style: type.body),
             ],
           ],
         ),

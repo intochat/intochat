@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../lumen/lumen_palette.dart';
-import 'ui_theme.dart';
 
 /// Semantic colour set for a UI palette, registered as a [ThemeExtension].
 /// IntoChat values are Figma's tokens verbatim; midnight, paper and lumen map
@@ -96,26 +95,27 @@ class UiColors extends ThemeExtension<UiColors> {
     errorBg: Color(0x29F3A99F),
   );
 
-  /// Mapped from [UiPalette]. Error is the dark theme's Material error
+  /// Mapped from the v1 midnight palette (v1 product palette). Error is the dark theme's Material
+  /// error
   /// (`ColorScheme.fromSeed`); accentHover, status backgrounds (16% alpha)
   /// and accentTint are derived.
   static const midnight = UiColors(
-    page: UiPalette.surface,
-    recessed: UiPalette.surfaceSunken,
-    surface: UiPalette.surfaceRaised,
-    strong: UiPalette.textPrimary,
-    body: UiPalette.textPrimary,
-    muted: UiPalette.textMuted,
-    subtle: UiPalette.textFaint,
-    hairline: UiPalette.line,
-    inputBorder: UiPalette.lineStrong,
-    accent: UiPalette.owner,
-    accentHover: UiPalette.owner,
+    page: Color(0xFF141720),
+    recessed: Color(0xFF11141B),
+    surface: Color(0xFF1B1F2A),
+    strong: Color(0xFFE9EBF2),
+    body: Color(0xFFE9EBF2),
+    muted: Color(0xFF969CAF),
+    subtle: Color(0xFF5E6474),
+    hairline: Color(0xFF292E3B),
+    inputBorder: Color(0xFF363C4C),
+    accent: Color(0xFF7B9BE3),
+    accentHover: Color(0xFF7B9BE3),
     accentTint: Color(0x297B9BE3),
-    onAccent: UiPalette.surface,
-    done: UiPalette.success,
+    onAccent: Color(0xFF141720),
+    done: Color(0xFF65C5A0),
     doneBg: Color(0x2965C5A0),
-    working: UiPalette.signal,
+    working: Color(0xFFE09261),
     workingBg: Color(0x29E09261),
     error: Color(0xFFFFB4AB),
     errorBg: Color(0x29FFB4AB),

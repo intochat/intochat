@@ -293,9 +293,9 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
               initialUsername: _lastUsername,
               errorMessage: _loginError,
             )
-          : const ColoredBox(
-              color: UiPalette.surface,
-              child: Center(child: CircularProgressIndicator()),
+          : ColoredBox(
+              color: UiColors.of(context).page,
+              child: const Center(child: CircularProgressIndicator()),
             ),
     );
   }

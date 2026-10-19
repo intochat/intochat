@@ -76,8 +76,8 @@ void main() {
   });
 
   test('legacy palettes map from existing tokens', () {
-    expect(UiColors.midnight.page, UiPalette.surface);
-    expect(UiColors.midnight.accent, UiPalette.owner);
+    expect(UiColors.midnight.page, const Color(0xFF141720));
+    expect(UiColors.midnight.accent, const Color(0xFF7B9BE3));
     expect(UiColors.lumen.page, const Color(0xFF060A08));
     expect(UiColors.lumen.accent, const Color(0xFF7CE0A8));
     expect(UiColors.paper, isNot(UiColors.lumen));

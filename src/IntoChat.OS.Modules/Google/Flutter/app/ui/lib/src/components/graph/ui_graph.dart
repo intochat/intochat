@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import 'graph_geometry.dart';
 import 'graph_models.dart';
 import 'graph_painter.dart';
@@ -124,6 +126,8 @@ final class _UiGraphState extends State<UiGraph>
                   children: [
                     CustomPaint(
                       painter: GraphPainter(
+                        colors: UiColors.of(context),
+                        type: UiType.of(context),
                         nodes: projected,
                         edges: projectedEdges,
                         pulse: widget.pulse,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
+import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
 /// Product spreadsheet control. Same widget for surfaces and chat bubbles.
@@ -12,24 +13,26 @@ final class UiSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = UiColors.of(context);
+    final type = UiType.of(context);
     final columns = part.columns;
     final columnCount = columns.isEmpty ? 1 : columns.length;
 
     return DecoratedBox(
       key: Key('ui_sheet_${part.title}'),
       decoration: BoxDecoration(
-        color: UiPalette.surfaceRaised,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: UiPalette.line),
+        border: Border.all(color: colors.hairline),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(part.title, style: UiType.title),
+            Text(part.title, style: type.title),
             const SizedBox(height: 2),
-            Text(part.sheetName, style: UiType.meta),
+            Text(part.sheetName, style: type.meta),
             const SizedBox(height: 10),
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight),
@@ -38,12 +41,10 @@ final class UiSheet extends StatelessWidget {
                 child: SingleChildScrollView(
                   child: Table(
                     defaultColumnWidth: const IntrinsicColumnWidth(),
-                    border: TableBorder.all(color: UiPalette.line, width: 1),
+                    border: TableBorder.all(color: colors.hairline, width: 1),
                     children: [
                       TableRow(
-                        decoration: const BoxDecoration(
-                          color: UiPalette.surfaceSunken,
-                        ),
+                        decoration: BoxDecoration(color: colors.recessed),
                         children: [
                           for (var i = 0; i < columnCount; i++)
                             _SheetCell(
@@ -79,9 +80,10 @@ final class _SheetCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final type = UiType.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Text(text, style: header ? UiType.metaStrong : UiType.meta),
+      child: Text(text, style: header ? type.metaStrong : type.meta),
     );
   }
 }
