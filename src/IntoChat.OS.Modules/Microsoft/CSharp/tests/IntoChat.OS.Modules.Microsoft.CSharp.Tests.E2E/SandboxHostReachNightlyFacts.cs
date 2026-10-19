@@ -52,7 +52,7 @@ public sealed class SandboxHostReachNightlyFacts
     private static string DockerfileOf(string root)
     {
         var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
-            .Select(entry => entry.Attribute("Path")!.Value.Replace('\', '/'))
+            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
             .Single(path => path.EndsWith("/" + SandboxProject + ".csproj", StringComparison.Ordinal));
         return Path.Combine(root, Path.GetDirectoryName(project)!, "Dockerfile");
     }
