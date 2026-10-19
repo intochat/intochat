@@ -18,6 +18,10 @@ public sealed class VocabularyRingFacts
     // are what scripts compile against, so they root reachability for the vocabulary's shapes.
     private static readonly Assembly[] Ring = ContractsRing();
 
+    // A module that hosts its own contracts (IntoChatOSContractsHost) sits outside the ring by its implementation
+    // references; its contract types still root the vocabulary's reachability.
+    private static readonly HashSet<Type> HostContracts = [.. ProductionArchitecture.Assemblies.Where(ContractRing.IsHost).SelectMany(ContractRing.ContractTypes)];
+
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(Sources)] = "A set of neurons for IIntoChatOS.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
@@ -156,9 +160,9 @@ public sealed class VocabularyRingFacts
         {
             // Walk shapes through the whole ring (a Contracts record can carry a vocabulary enum),
             // but only vocabulary types are judged by the rule.
-            foreach (var part in Unwrap(type).Where(p => Ring.Contains(p.Assembly) && seen.Add(p))) { queue.Enqueue(part); }
+            foreach (var part in Unwrap(type).Where(p => (Ring.Contains(p.Assembly) || HostContracts.Contains(p)) && seen.Add(p))) { queue.Enqueue(part); }
         }
-        var ringTypes = Ring.SelectMany(a => a.GetExportedTypes())
+        var ringTypes = Ring.SelectMany(a => a.GetExportedTypes()).Concat(HostContracts)
             .Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true).ToArray();
         foreach (var contract in ringTypes.Where(IsContract))
         {

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Framework.Caching;
+using IntoChat.OS.Client.Runtime;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -149,6 +150,10 @@ public sealed class CSharpScriptCheck
     // Exactly what the sandbox image carries: the .NET runtime, plus the vocabulary, the client and every
     // contract assembly with what they depend on. Nothing else this host loads (the framework ring, the
     // platform, drivers, the compiler) is a behavior's to reach; it would compile here and fail to load there.
+    // The assemblies a script compiles against, by simple name.
+    internal static IReadOnlyCollection<string> ReferenceNames()
+        => [.. References.Value.Select(reference => Path.GetFileNameWithoutExtension(((PortableExecutableReference)reference).FilePath)!)];
+
     private static MetadataReference[] LoadReferences()
     {
         var available = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
@@ -158,8 +163,10 @@ public sealed class CSharpScriptCheck
             .ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, StringComparer.OrdinalIgnoreCase);
         var runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
         var carried = new HashSet<string>(available.Where(entry => Path.GetDirectoryName(entry.Value) == runtime).Select(entry => entry.Key), StringComparer.OrdinalIgnoreCase);
-        var pending = new Stack<string>(available.Keys.Where(name => name is "IntoChat.OS" or "IntoChat.OS.Client"
-            || name.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)));
+        // A contract assembly is a *.Contracts project or a module assembly that declares it hosts its own contracts.
+        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "IntoChat.OS.Client"
+            || entry.Key.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)
+            || (entry.Key.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && ContractsHost.Declares(entry.Value))).Select(entry => entry.Key));
         while (pending.TryPop(out var name))
         {
             if (!carried.Add(name)) { continue; }

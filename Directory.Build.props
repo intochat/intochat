@@ -57,6 +57,16 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!-- A module whose contracts no other module references keeps them in its own assembly (IntoChatOSContractsHost).
+       The assembly declares it, so the sandbox image, the script compiler and the architecture facts find it by
+       that declaration, not by a .Contracts name. Such a package is a runtime package: it is not MIT-stamped. -->
+  <ItemGroup Condition="'$(IntoChatOSContractsHost)' == 'true'">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>IntoChat.OS.ContractsHost</_Parameter1>
+      <_Parameter2>true</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
        and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->

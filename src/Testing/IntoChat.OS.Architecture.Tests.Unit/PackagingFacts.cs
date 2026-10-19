@@ -41,6 +41,22 @@ public sealed partial class PackagingFacts
         Assert.Contains(packable, project => project.Name == "IntoChat.OS.Authority.Hosted");
     }
 
+    // A module that hosts its own contracts (IntoChatOSContractsHost) ships them inside its runtime package, so
+    // that package is not MIT-stamped and is not an SDK package; the declaration is the only thing that marks it.
+    [Fact]
+    public void AModuleThatHostsItsContractsIsARuntimePackage()
+    {
+        var hosts = Repository.Projects.Values.Where(project => File.ReadAllText(project.Path).Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal)).ToArray();
+        Assert.All(hosts, project =>
+        {
+            Assert.False(project.Name.EndsWith(".Contracts", StringComparison.Ordinal), project.Name);
+            Assert.DoesNotContain(project.Name, SdkPackages);
+            Assert.Contains(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == project.Name && ContractRing.IsHost(assembly));
+        });
+        Assert.Equal(hosts.Select(project => project.Name).Order(StringComparer.Ordinal),
+            ProductionArchitecture.Assemblies.Where(ContractRing.IsHost).Select(assembly => assembly.GetName().Name!).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void TheTemplatePackLivesOutsideTheSolutionAndIsMit()
     {
