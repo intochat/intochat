@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -19,6 +20,8 @@ jobs:
     name: e2e
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      IntoChatOS__Modules__artcraft__Options__ImageRegistry: ghcr.io/intochat
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,13 +69,22 @@ jobs:
       - name: Warm the sandbox image layer cache
         run: docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
 
-      # ArtCraft hosts each app twice (MCP and web) at a pinned upstream commit; the refs match ArtCraftModuleHosting.
-      - name: Warm the ArtCraft image layer caches
+      # ArtCraft images are built once per pinned ref by artcraft-images.yml and pulled here; the tags are the first
+      # 12 characters of the refs in ArtCraftModuleHosting (E2EWarmUpFacts pins them). A missing tag fails the step:
+      # run artcraft-images.yml first.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the ArtCraft images
         run: |
-          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/IntoChat.OS.Modules/ArtCraft/docker
-          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=photocraft --build-arg REF=d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a src/IntoChat.OS.Modules/ArtCraft/docker
-          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/IntoChat.OS.Modules/ArtCraft/docker
-          docker build -f src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile --build-arg APP=filmcraft --build-arg REF=7b6c134472287db4367fca80bcb498240ba36567 src/IntoChat.OS.Modules/ArtCraft/docker
+          for image in             ghcr.io/intochat/os-artcraft-photocraft-mcp:d7d5c6069c8f             ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f             ghcr.io/intochat/os-artcraft-filmcraft-mcp:7b6c13447228             ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228; do
+            docker pull "$image"
+            docker inspect --format '{{index .RepoDigests 0}}' "$image"
+          done
 
       - name: Test E2E
         run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E -c Release --no-build
