@@ -16,6 +16,14 @@
     ]
   },
   {
+    "type": "IntoChat.OS.AI.Agents.Facts.FactsState",
+    "state": "facts",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.AI.Agents.Facts.FactsNeuron"
+    ]
+  },
+  {
     "type": "IntoChat.OS.AI.Agents.Intents.IntentsState",
     "state": "intents",
     "exportedToday": true,
