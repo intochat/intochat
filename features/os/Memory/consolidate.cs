@@ -224,6 +224,7 @@ async Task Publish(Consolidation.Verdict item, string dedup, string version)
             if (!snapshot.Facts.Any(fact => fact.Id == old && fact.ValidTo is null && !fact.Hidden)) { return; }
             await facts.Invalidate(old, "superseded by " + id, id, snapshot.Revision);
         });
+        await Recall.Forget(brain, old.ToString("D"));
     }
 }
 

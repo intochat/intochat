@@ -53,7 +53,7 @@ public sealed class OsMemoryRecallFacts
         Assert.Contains("fact 2026-10-18 fact-1", found);
         Assert.DoesNotContain("episodes from", found);
 
-        var partial = global::Recall.Render("the invoice", global::Recall.Rank([Candidate("ep#1", "episode", 0.4, 1)], Now, 14), coverage);
+        var partial = global::Recall.Render("the invoice", global::Recall.Rank([Candidate("ep#1", "episode", 0.42, 1), Candidate("x", "episode", 0.3, 1), Candidate("y", "episode", 0.2, 1)], Now, 14), coverage);
         Assert.Contains("Partial", partial);
         Assert.Contains("episode 2026-10-18 ep#1", partial);
     }
@@ -71,5 +71,29 @@ public sealed class OsMemoryRecallFacts
         Assert.Equal(["a#2"], global::Recall.Expand("a#1", all).Select(episode => episode.Id));
         Assert.Equal(["a#2"], global::Recall.Expand("a#3", all).Select(episode => episode.Id));
         Assert.Empty(global::Recall.Expand("missing", all));
+    }
+
+    [Theory]
+    [InlineData(0.55, "Found")]
+    [InlineData(0.42, "Partial")]
+    [InlineData(0.35, "Absent")]
+    public void TheVerdictUsesLiftOverTheMedian(double best, string expected)
+        => Assert.Equal(expected, global::Recall.Verdict([0.2, 0.3, best]));
+
+    [Fact]
+    public void AFewCandidatesFallBackToAnAbsoluteSimilarity()
+    {
+        Assert.Equal("Found", global::Recall.Verdict([0.5]));
+        Assert.Equal("Absent", global::Recall.Verdict([0.2, 0.49]));
+        Assert.Equal("Absent", global::Recall.Verdict([]));
+    }
+
+    [Fact]
+    public void SupersededFactsAreFilteredOut()
+    {
+        var kept = global::Recall.Current(
+            [Candidate("fact:live", "fact", 0.9, 0), Candidate("fact:old", "fact", 0.9, 0), Candidate("episode:a#1", "episode", 0.9, 0)],
+            new HashSet<string> { "live" });
+        Assert.Equal(["fact:live", "episode:a#1"], kept.Select(item => item.Id));
     }
 }
