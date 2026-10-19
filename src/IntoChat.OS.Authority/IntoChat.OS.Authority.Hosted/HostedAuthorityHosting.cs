@@ -62,8 +62,8 @@ public static class HostedAuthorityHosting
         {
             var hosting = provider.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
             return hosting.IsConfigured
-                ? new HostedBrainAccess(new Identity.Directory.DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>()), hosting)
-                : IdentityHosting.LocalBrainAccess(provider);
+                ? new HostedBrainAccess(BrainAccess.Directory(provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>()), hosting)
+                : BrainAccess.Local(provider);
         });
         services.AddSingleton<IAuthorityHttpExtension, HostedHttp>();
         return services;

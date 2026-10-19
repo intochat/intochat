@@ -1,7 +1,6 @@
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.Options;
-using Orleans.Serialization;
 using Orleans.Storage;
 
 namespace IntoChat.OS.Authority.Hosted;
@@ -9,15 +8,15 @@ namespace IntoChat.OS.Authority.Hosted;
 // Platform account, principal and integration keys are not brain keys; one hosted allocation owns this journal.
 internal sealed class HostedPlatformGrainStorage : IGrainStorage
 {
-    private readonly BrainGrainStorage inner;
+    private readonly IGrainStorage inner;
     internal string Scope { get; }
 
-    public HostedPlatformGrainStorage(BrainLogs logs, Serializer serializer, IOptions<HostedRuntimeOptions> options)
+    public HostedPlatformGrainStorage(IServiceProvider services, IOptions<HostedRuntimeOptions> options)
     {
         var hosted = options.Value;
         if (!hosted.IsConfigured) { throw new InvalidOperationException("Durable hosted platform storage requires an allocation scope."); }
         Scope = BrainScope.Create(hosted.AccountId, hosted.BrainId).Id;
-        inner = new BrainGrainStorage(logs, serializer, Scope);
+        inner = PlatformGrainStorage.ForScope(services, Scope);
     }
 
     public Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => inner.ReadStateAsync(stateName, grainId, grainState);

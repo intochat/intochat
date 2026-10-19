@@ -5,7 +5,7 @@ using Orleans.Serialization;
 
 namespace IntoChat.OS.Authority.Hosted;
 
-internal sealed class HostedReminderTable(BrainLogs logs, Serializer serializer, IOptions<HostedRuntimeOptions> options) : IReminderTable
+internal sealed class HostedReminderTable(IBrainJournal journal, Serializer serializer, IOptions<HostedRuntimeOptions> options) : IReminderTable
 {
     private const string JournalKey = "$hosted-reminders";
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -84,15 +84,14 @@ internal sealed class HostedReminderTable(BrainLogs logs, Serializer serializer,
     private async Task LoadAsync()
     {
         if (entries is not null) { return; }
-        var record = (await logs.For(Scope)).Read(JournalKey, "table");
+        var record = await journal.ReadAsync(Scope, JournalKey, "table", CancellationToken.None);
         entries = record is null ? [] : serializer.Deserialize<HostedReminder[]>(record.Record);
         etag = record?.ETag;
     }
 
     private async Task PersistAsync(HostedReminder[] next)
     {
-        var log = await logs.For(Scope);
-        etag = await log.Append(JournalKey, "table", etag, BrainRecordChange.Write, serializer.SerializeToArray(next), [], CancellationToken.None);
+        etag = await journal.AppendAsync(Scope, JournalKey, "table", etag, BrainRecordChange.Write, serializer.SerializeToArray(next), CancellationToken.None);
         entries = next;
     }
 }

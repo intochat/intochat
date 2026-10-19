@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Reflection;
-using System.Text.Json;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Authority.Storage;
@@ -33,25 +32,26 @@ public static class HostedRecoveryHost
     {
         var scope = app.Services.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
         if (!scope.RecoveryOnly || !scope.IsConfigured) { throw new InvalidOperationException("Recovery host requires a complete authenticated scope."); }
-        app.MapGet("/runtime/management/v1/observation", async (HttpContext http, BrainLogs logs, RuntimeMachineAuthentication authentication, CancellationToken ct) =>
+        app.MapGet("/runtime/management/v1/observation", async (HttpContext http, IBrainJournal journal, RuntimeMachineAuthentication authentication, CancellationToken ct) =>
         {
             http.Response.Headers.CacheControl = "no-store";
             if (!await authentication.AuthenticateAsync(http, ct)) { return Results.Unauthorized(); }
-            var storage = await logs.CheckStorageAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
+            var storage = await journal.CheckAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
             var version = typeof(HostedRecoveryHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
             return Results.Ok(new HostedRuntimeObservation(1, version, scope.AccountId, scope.BrainId, scope.RuntimeId, storage, storage, storage));
         }).AllowAnonymous();
-        app.MapGet("/runtime/management/v1/export", async (HttpContext http, BrainLogs logs, HostedExportStateTypes types,
+        app.MapGet("/runtime/management/v1/export", async (HttpContext http, IServiceProvider services, HostedExportStateTypes types,
             IOptions<WorkshopOptions> workshop, RuntimeMachineAuthentication authentication, CancellationToken ct) =>
         {
             http.Response.Headers.CacheControl = "no-store";
             if (!await authentication.AuthenticateAsync(http, ct)) { http.Response.StatusCode = 401; return; }
-            var log = await logs.For(BrainScope.Create(scope.AccountId, scope.BrainId).Id).WaitAsync(ct);
-            var data = log.Export(types.Decode);
+            using var data = new MemoryStream();
+            await BrainJournalExport.WriteAsync(services, BrainScope.Create(scope.AccountId, scope.BrainId).Id, types.Decode, data, ct);
+            data.Position = 0;
             http.Response.ContentType = "application/zip";
             await using var archive = await ZipArchive.CreateAsync(http.Response.Body, ZipArchiveMode.Create, true, null, ct);
             await using (var state = archive.CreateEntry("brain.json").Open())
-            { await JsonSerializer.SerializeAsync(state, data, cancellationToken: ct); }
+            { await data.CopyToAsync(state, ct); }
             await using (var manifest = archive.CreateEntry("README.txt").Open())
             {
                 var text = "Customer export: readable JSON neuron state and artifacts. Platform authority, account credentials, connector credentials, workspace sessions and reminder registrations are omitted. This is a portable data export, not a byte-for-byte runtime backup. The JSON includes source type and state identifiers. Unknown state types are counted as omissions; encrypted backup recovery preserves the full runtime.\n";
@@ -94,14 +94,14 @@ internal sealed class HostedExportStateTypes
         var providers = services.GetServices<IGrainTypeProvider>().ToArray();
         foreach (var type in AppDomain.CurrentDomain.GetAssemblies().Where(x => !x.IsDynamic).SelectMany(Types))
         {
-            if (type.IsAbstract || type.ContainsGenericParameters || type.Assembly == typeof(BrainLogs).Assembly) { continue; }
+            if (type.IsAbstract || type.ContainsGenericParameters || type.Assembly == BrainJournalExport.StateAssembly) { continue; }
             foreach (var parameter in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).SelectMany(x => x.GetParameters()))
             {
                 var storage = parameter.GetCustomAttribute<PersistentStateAttribute>();
                 if (storage?.StorageName != IntoChatOSNames.ClusterGrainStorage || !parameter.ParameterType.IsGenericType ||
                     parameter.ParameterType.GetGenericTypeDefinition() != typeof(IPersistentState<>)) { continue; }
                 var state = parameter.ParameterType.GetGenericArguments()[0];
-                if (!StateExportPolicy.Default.Allows(storage.StateName, state)) { continue; }
+                if (!BrainJournalExport.Allows(storage.StateName, state)) { continue; }
                 foreach (var provider in providers)
                 {
                     if (provider.TryGetGrainType(type, out var grain)) { types.TryAdd((grain.ToString(), storage.StateName), state); break; }

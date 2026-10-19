@@ -54,7 +54,7 @@ public sealed class HostedExportFacts
             await log.Append(GrainId.Create("export-customer", scope + "/note").ToString(), "note", null,
                 BrainRecordChange.Write, serializer.SerializeToArray(new CustomerState("cold portable content")), [], ct);
             await log.Append("vault", "vault", null, BrainRecordChange.Write, serializer.SerializeToArray(new CustomerState("hidden-custody")), [], ct);
-            var reminders = new HostedReminderTable(original.Services.GetRequiredService<BrainLogs>(), serializer,
+            var reminders = new HostedReminderTable(original.Services.GetRequiredService<IBrainJournal>(), serializer,
                 global::Microsoft.Extensions.Options.Options.Create(new HostedRuntimeOptions { AccountId = "export-account", BrainId = "export-brain" }));
             await reminders.UpsertRow(new ReminderEntry
             {
