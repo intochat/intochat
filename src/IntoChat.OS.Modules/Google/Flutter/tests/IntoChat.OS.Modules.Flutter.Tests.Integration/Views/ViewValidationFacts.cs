@@ -46,7 +46,9 @@ public sealed class ViewValidationFacts
         Assert.Equal(valid.Reference, ViewValidation.Clone(new(1, 1, valid), "brain/apps/test/view").Root.Reference);
         Invalid(Ui.Reference("other", new("chat", "other/apps/test/chat")));
         Invalid(Ui.Reference("prefix", new("chat", "brain-other/apps/test/chat")));
-        foreach (var kind in new[] { "view", "layout", "surface", "card", "collection", "tabs", "unknown" })
+        foreach (var kind in new[] { "toggle", "progress", "infobar", "image" })
+        { Assert.Equal(kind, ViewValidation.Clone(new(1, 1, Ui.Reference(kind, new(kind, "brain/apps/test/" + kind))), "brain/apps/test/view").Root.Reference!.Kind); }
+        foreach (var kind in new[] { "view", "layout", "surface", "card", "collection", "tabs", "expander", "unknown" })
         { Invalid(Ui.Reference(kind, new(kind, "brain/apps/test/child"))); }
     }
 

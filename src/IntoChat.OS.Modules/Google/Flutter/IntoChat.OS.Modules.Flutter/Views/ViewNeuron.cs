@@ -63,7 +63,7 @@ internal static class ViewValidation
     internal static readonly JsonSerializerOptions Json = new() { MaxDepth = 128 };
     // Only leaf controls can be embedded: layouts and views can themselves refer to other nodes.
     private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser" };
+    { "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image" };
 
     public static UiView Clone(UiView view, string name)
     {

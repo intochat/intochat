@@ -8,14 +8,16 @@ void main() {
   Future<void> pump(
     WidgetTester tester,
     String kind,
-    Map<String, Map<String, dynamic>> definitions,
-  ) async {
+    Map<String, Map<String, dynamic>> definitions, {
+    bool settle = true,
+  }) async {
     events.clear();
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(extensions: const [UiColors.intochatLight]),
         home: Scaffold(
           body: NeuronView(
+            key: UniqueKey(),
             kind: kind,
             name: 'n',
             load: (k, name) async => {
@@ -27,7 +29,12 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
     expect(tester.takeException(), isNull);
     expect(find.text(RendererRegistry.fallbackLabel), findsNothing);
   }
@@ -67,18 +74,27 @@ void main() {
           .value,
       1.0,
     );
-    events.clear();
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: UiProgress(determinate: false, value: .3, label: 'Working'),
-      ),
-    );
+    await pump(tester, 'progress', {
+      'n': {'determinate': false, 'value': .3, 'label': 'Working'},
+    }, settle: false);
     expect(
       tester
           .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
           .value,
       isNull,
     );
+  });
+
+  testWidgets('wrong-typed fields render sanely', (tester) async {
+    for (final (kind, definition) in [
+      ('toggle', {'label': 3, 'on': 'yes'}),
+      ('progress', {'determinate': true, 'value': '0.5', 'label': 7}),
+      ('infobar', {'severity': 1, 'title': [], 'body': {}, 'visible': true}),
+      ('image', {'url': 42, 'prompt': false}),
+      ('expander', {'header': 9, 'expanded': 'true', 'children': 'x'}),
+    ]) {
+      await pump(tester, kind, {'n': definition});
+    }
   });
 
   Color barColor(WidgetTester tester) =>

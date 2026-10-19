@@ -364,6 +364,14 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  static String _text(Object? value, [String empty = '']) =>
+      value is String ? value : empty;
+  static double _number(Object? value) => switch (value) {
+    num n => n.toDouble(),
+    String t => double.tryParse(t) ?? 0,
+    _ => 0,
+  };
+
   void _act(String kind, String action) => unawaited(
     _dispatch({'kind': kind, 'name': widget.name, 'action': action})
         .catchError((Object _) {}),
@@ -471,9 +479,12 @@ class _NeuronViewState extends State<NeuronView> {
     final definition = Map<String, dynamic>.from(
       data['definition'] as Map? ?? data,
     );
-    final rawChildren = (definition['children'] as List? ?? [])
-        .take(128)
-        .toList();
+    final rawChildren =
+        (definition['children'] is List
+                ? definition['children'] as List
+                : const [])
+            .take(128)
+            .toList();
     final children = [
       for (final child in rawChildren)
         if (child is Map && child['kind'] is String && child['name'] is String)
@@ -939,35 +950,36 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'toggle':
         return UiToggle(
-          label: definition['label'] as String? ?? '',
+          label: _text(definition['label']),
           on: definition['on'] == true,
           onChanged: enabled ? (_) => _act('toggle', 'flip') : null,
         );
       case 'progress':
         return UiProgress(
           determinate: definition['determinate'] == true,
-          value: (definition['value'] as num? ?? 0).toDouble(),
-          label: definition['label'] as String? ?? '',
+          value: _number(definition['value']),
+          label: _text(definition['label']),
         );
       case 'infobar':
         if (definition['visible'] == false) return const SizedBox.shrink();
         return UiInfoBar(
-          severity: definition['severity'] as String? ?? 'info',
-          title: definition['title'] as String? ?? '',
-          body: definition['body'] as String? ?? '',
+          severity: _text(definition['severity'], 'info'),
+          title: _text(definition['title']),
+          body: _text(definition['body']),
           onDismiss: enabled ? () => _act('infobar', 'dismiss') : null,
         );
       case 'image':
         return UiImage.network(
-          url: definition['url'] as String? ?? '',
-          caption: definition['prompt'] as String? ?? '',
+          url: _text(definition['url']),
+          caption: _text(definition['prompt']),
         );
       case 'expander':
         return UiExpander(
-          part: UiExpanderPart.fromMetadata({
-            ...definition,
-            'name': widget.name,
-          }),
+          part: UiExpanderPart(
+            name: widget.name,
+            header: _text(definition['header']),
+            expanded: definition['expanded'] == true,
+          ),
           onToggle: enabled ? () => _act('expander', 'toggle') : null,
           children: children,
         );
