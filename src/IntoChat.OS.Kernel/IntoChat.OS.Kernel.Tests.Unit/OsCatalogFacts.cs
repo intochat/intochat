@@ -47,6 +47,12 @@ public sealed class OsCatalogFacts
         {
             var assembly = module.GetType().Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
+            // A module that hosts its own contracts has no Contracts project: the host must reference the module itself.
+            if (IntoChat.OS.Client.Runtime.ContractsHost.Declares(module.GetType().Assembly))
+            {
+                Assert.True(mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), assembly);
+                continue;
+            }
             if (!projects.Contains(contracts)) { continue; }
             // The host references every module Contracts project by glob; referencing the module project itself carries its contracts too (Tools).
             Assert.True(mcp.Contains("IntoChat.OS.Modules.*.Contracts.csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);

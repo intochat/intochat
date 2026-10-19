@@ -41,7 +41,6 @@
   <Folder Name="/Modules/ArtCraft/" />
   <Folder Name="/Modules/ArtCraft/ArtCraft/">
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Integration/IntoChat.OS.Modules.ArtCraft.Tests.Integration.csproj" />
   </Folder>

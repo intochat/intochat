@@ -59,9 +59,6 @@
   "IntoChat.OS.Modules.Apps.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.ArtCraft.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Circles.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
