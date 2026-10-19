@@ -1,6 +1,11 @@
 {
   "shards": {
     "unit": [
+      "**/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Postgres.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Supabase.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Salesforce.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.ClickHouse.Tests.Unit.dll",
       "**/IntoChat.OS.Architecture.Tests.Unit.dll",
       "**/IntoChat.OS.Aspire.Hosting.Tests.Unit.dll",
       "**/IntoChat.OS.Client.Tests.Unit.dll",

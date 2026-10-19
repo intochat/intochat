@@ -6,6 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005;CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.ClickHouse.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.ClickHouse.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>

@@ -8,6 +8,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Npgsql" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Supabase.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Supabase.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>

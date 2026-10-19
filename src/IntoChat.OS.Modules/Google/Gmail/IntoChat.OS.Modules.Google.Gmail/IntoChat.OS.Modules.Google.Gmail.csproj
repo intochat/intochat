@@ -7,6 +7,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>

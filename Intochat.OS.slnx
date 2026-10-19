@@ -49,6 +49,7 @@
     <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Contracts/IntoChat.OS.Modules.ClickHouse.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ClickHouse/tests/IntoChat.OS.Modules.ClickHouse.Tests.Integration/IntoChat.OS.Modules.ClickHouse.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ClickHouse/tests/IntoChat.OS.Modules.ClickHouse.Tests.Unit/IntoChat.OS.Modules.ClickHouse.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/" />
   <Folder Name="/Modules/IntoChat.OS/Apps/">
@@ -84,6 +85,7 @@
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Integration/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Unit/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/" />
   <Folder Name="/Modules/Microsoft/Azure/">
@@ -150,6 +152,7 @@
     <Project Path="src/IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Hosting/IntoChat.OS.Modules.Postgres.Tests.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Integration/IntoChat.OS.Modules.Postgres.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Unit/IntoChat.OS.Modules.Postgres.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Qdrant/">
     <Project Path="src/IntoChat.OS.Modules/Qdrant/IntoChat.OS.Modules.Qdrant.Aspire.Hosting/IntoChat.OS.Modules.Qdrant.Aspire.Hosting.csproj" />
@@ -161,12 +164,14 @@
     <Project Path="src/IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Contracts/IntoChat.OS.Modules.Salesforce.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Salesforce/tests/IntoChat.OS.Modules.Salesforce.Tests.Integration/IntoChat.OS.Modules.Salesforce.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Salesforce/tests/IntoChat.OS.Modules.Salesforce.Tests.Unit/IntoChat.OS.Modules.Salesforce.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Supabase/">
     <Project Path="src/IntoChat.OS.Modules/Supabase/IntoChat.OS.Modules.Supabase.Aspire.Hosting/IntoChat.OS.Modules.Supabase.Aspire.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Supabase/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Hosting/IntoChat.OS.Modules.Supabase.Tests.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Integration/IntoChat.OS.Modules.Supabase.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Unit/IntoChat.OS.Modules.Supabase.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Time/">
     <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
