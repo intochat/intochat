@@ -10,7 +10,7 @@ using IntoChat.OS.Time.Reminders;
 // episodes table under "agent#run". It runs in Memory after the turn completed, so it never blocks the turn.
 // Memory's own capture agent (prompt capture.md, CaptureModel setting, no tools) writes the note; when it fails,
 // is slow (30 seconds) or answers something that is not the JSON, a bounded fallback of the turn's own text is
-// stored, marked fallback. A run whose episode already exists is skipped, so a redelivery never writes twice.
+// stored, marked fallback. Either note is redacted (Consolidation.Redact) before it is stored or embedded. A run whose episode already exists is skipped, so a redelivery never writes twice.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -34,17 +34,12 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
                 + (run is null ? "not found on " : "was not completed on ") + ask.Agent));
             continue;
         }
-        var note = await Summarise(id, run);
-        await episodes.Upsert(Key(id),
-        [
-            new("agent", JsonSerializer.Serialize(ask.Agent)), new("run", JsonSerializer.Serialize(ask.RunId)),
-            new("at", JsonSerializer.Serialize((run.EndedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"))),
-            new("summary", JsonSerializer.Serialize(note.Summary)), new("importance", note.Importance.ToString()),
-            new("fallback", note.IsFallback ? "true" : "false"),
-            // Upsert takes every non-key column: a new episode is neither consolidated nor claimed.
-            new("consolidated_at", "null"), new("claim", "null"), new("claim_until", "null"),
-        ]);
-        await Recall.Index(brain, "episode:" + id, "episode", note.Summary, run.EndedAt ?? DateTimeOffset.UtcNow, note.Importance);
+        // Redacted before it is stored or embedded: a credential in the turn never reaches the episode or the life index.
+        var note = Episodes.Redacted(await Summarise(id, run));
+        var at = run.EndedAt ?? DateTimeOffset.UtcNow;
+        // Upsert takes every non-key column (Episodes.Row): a new episode is neither consolidated nor claimed.
+        await episodes.Upsert(Key(id), Episodes.Row(ask.Agent, ask.RunId, at, note));
+        await Recall.Index(brain, "episode:" + id, "episode", note.Summary, at, note.Importance);
         await Quiet();
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

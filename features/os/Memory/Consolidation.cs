@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using IntoChat.OS.AI.Agents.Facts;
 
 // Shared by "consolidate" and "review": where the consolidation keeps its state, how the model's verdict is
 // read, how an item is classified (the sensitivity policy), when a batch reflects and when an episode may be claimed.
@@ -35,19 +36,28 @@ internal static class Consolidation
 
     public static string VerdictsKey(string appKey) => appKey + "/verdicts";
 
-    // Credentials are never stored, not even for review: prefixed tokens, PEM headers, JWTs, bearer tokens, a password
-    // with its value, and a bare high-entropy token (32+ letters and digits with a digit and both cases, not part of a
+    // Credentials are never stored, not even for review: prefixed tokens, PEM headers, JWTs, bearer tokens, a password,
+    // passcode or pin with its value, and a bare high-entropy token (32+ letters and digits with a digit and both cases, not part of a
     // word, slug, path, GUID or dotted name, so git SHAs, GUIDs, dated slugs and paths never match).
     public static readonly Regex Secret = new(
         @"(?i:\b(sk|pk|rk)[-_](live|test)[-_][A-Za-z0-9]{8,}|\bsk-[A-Za-z0-9_-]{16,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bxox[a-z]-[A-Za-z0-9-]{10,})"
         + @"|\bAKIA[0-9A-Z]{16}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\beyJ[\w-]+\.[\w-]+\.[\w-]+|\bBearer\s+\S{16,}"
-        + @"|(?i:\b(password|passwd|pwd)\s*(\bis\b|[:=])\s*\S+)"
+        + @"|(?i:\b(password|passwd|pwd|passcode|pin)\s*(\bis\b|[:=])\s*\S+)"
         + @"|(?<![\w\-/.+])(?=[A-Za-z0-9+]*\d)(?=[A-Za-z0-9+]*[a-z])(?=[A-Za-z0-9+]*[A-Z])[A-Za-z0-9+]{32,}(?![\w\-/.+])",
         RegexOptions.CultureInvariant);
 
-    // A key, token or secret named with a value ("token: ...", "secret is ...") may be one: never published, reviewed.
-    public static readonly Regex CredentialHint = new(@"\b(api[ _-]?key|token|secret)\s*(\bis\b|[:=])",
+    // A key, token or secret named with a value ("token: ...", "secret is ...", "api key abc123def456") may be one:
+    // never published, reviewed. The match takes the value too, so Redact hides it.
+    public static readonly Regex CredentialHint = new(@"\b(api[ _-]?key|token|secret)(\s*(\bis\b|[:=])\s*\S*|\s+(?=[\w-]*\d)[\w-]{8,})",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    public const string RedactedSecret = "[a credential was supplied]";
+    public const string RedactedHint = "[a possible credential was supplied]";
+
+    // Text stored or embedded outside the classification (an episode's note or its fallback) never keeps a
+    // credential: every Secret match and every CredentialHint match is replaced by a marker.
+    public static string Redact(string? text)
+        => CredentialHint.Replace(Secret.Replace(text ?? "", RedactedSecret), RedactedHint);
 
     // The facts neuron's refusal when IFacts.Cap facts are current (FactsNeuron.Assert). It throws a plain
     // InvalidOperationException, so the message prefix is the contract; facts pin it on both sides.
@@ -98,6 +108,55 @@ internal static class Consolidation
 
     // The batch asks for insights when its episodes (none of them reflected yet) sum to the threshold.
     public static bool Reflect(IEnumerable<int> importances) => importances.Sum() >= ReflectionThreshold;
+
+    // A write that meets a revision conflict is read again and retried, up to Intents.FireAttempts in all.
+    public static async Task Retrying(Func<Task> write, CancellationToken stopping)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { await write(); return; }
+            catch (Exception error) when (Intents.ShouldRetry(error, attempt) && !stopping.IsCancellationRequested) { }
+        }
+    }
+
+    // A contradicted fact that is still current ends as superseded by its replacement (consolidation and review alike).
+    public static Task Supersede(IFacts facts, Guid old, Guid replacement, CancellationToken stopping)
+        => old == replacement ? Task.CompletedTask : Retrying(async () =>
+        {
+            var snapshot = await facts.Read();
+            if (!snapshot.Facts.Any(fact => fact.Id == old && fact.ValidTo is null && !fact.Hidden)) { return; }
+            await facts.Invalidate(old, "superseded by " + replacement, replacement, snapshot.Revision);
+        }, stopping);
+
+    // A batch that keeps failing (a poison episode, a verdict that cannot be applied) must not stall the episodes
+    // behind it. The episode's claim counts the batches that claimed it and never finished: "<batch id>;attempts:<n>".
+    // An episode claimed MaxAttempts times without finishing is parked: marked consolidated with the claim "parked:<reason>".
+    public const int MaxAttempts = 3;
+
+    private const string AttemptsMarker = ";attempts:";
+
+    public static string Claim(string batchId, int attempts) => batchId + AttemptsMarker + attempts.ToString(CultureInfo.InvariantCulture);
+
+    // The batch id of a claim (the whole claim when it carries no count).
+    public static string BatchOf(string? claim)
+    {
+        var text = claim ?? "";
+        var at = text.IndexOf(AttemptsMarker, StringComparison.Ordinal);
+        return at < 0 ? text : text[..at];
+    }
+
+    // How many batches claimed the episode without finishing: none without a claim, one for a claim without a count.
+    public static int AttemptsOf(string? claim)
+    {
+        if (string.IsNullOrEmpty(claim)) { return 0; }
+        var at = claim.IndexOf(AttemptsMarker, StringComparison.Ordinal);
+        return at >= 0 && int.TryParse(claim[(at + AttemptsMarker.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var count) ? count : 1;
+    }
+
+    // Parked instead of claimed again once MaxAttempts batches failed on it.
+    public static bool Parks(string? claim) => AttemptsOf(claim) >= MaxAttempts;
+
+    public static string Parked(string reason) => "parked:" + reason;
 
     // Unconsolidated, and either never claimed or its claim expired.
     public static bool Claimable(DateTimeOffset? consolidatedAt, string? claim, DateTimeOffset? claimUntil, DateTimeOffset now)

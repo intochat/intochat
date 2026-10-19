@@ -22,7 +22,10 @@ using IntoChat.OS.Time.Reminders.Signals;
 // Consolidation.DedupKey (a hash of its normalised kind, subject, text and episode ids), so a replay asserts,
 // reviews and declares nothing twice; a contradicted current fact is invalidated as superseded; working items replace
 // {app}/working; intent items are declared. Review items go to {app}/review-items. Episodes are marked consolidated
-// last. A failed batch leaves its claims to expire and arms the reminder to try again after they do.
+// last. A failed batch leaves its claims to expire and arms the reminder to try again after they do; the claim counts
+// the attempts ("<batch>;attempts:<n>"), and an episode three batches failed on is parked (consolidated, claim
+// "parked:<reason>", a status line) so the episodes behind it proceed. Asserted facts reach the life index through
+// facts-index.cs, which follows the facts neuron.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -100,17 +103,33 @@ async Task<bool> Batch()
         .OrderBy(row => row.Time("at") ?? DateTimeOffset.MaxValue).ToArray();
     var stored = (await ReadAll(verdicts)).ToDictionary(row => row.Text("id"), StringComparer.Ordinal);
     var plan = Consolidation.Next(
-        [.. all.Select(row => new Consolidation.Candidate(row.Text("id"), row.Text("claim"),
+        [.. all.Select(row => new Consolidation.Candidate(row.Text("id"), Consolidation.BatchOf(row.Text("claim")),
             Consolidation.Claimable(null, row.Text("claim"), row.Time("claim_until"), now)))],
         stored.Keys.ToHashSet(StringComparer.Ordinal), "consolidate-" + Guid.NewGuid().ToString("N"));
     if (plan is null) { return false; }
     var ids = plan.EpisodeIds.ToHashSet(StringComparer.Ordinal);
     var rows = all.Where(row => ids.Contains(row.Text("id"))).ToArray();
+    // Episodes that MaxAttempts batches failed on are parked, so the batch behind them proceeds.
+    var parked = rows.Where(row => Consolidation.Parks(row.Text("claim"))).ToArray();
+    if (parked.Length > 0)
+    {
+        var reason = Consolidation.Parked(Consolidation.MaxAttempts + " failed attempts");
+        foreach (var row in parked)
+        {
+            await Write(episodes, row, new()
+            {
+                ["consolidated_at"] = JsonSerializer.Serialize(now.ToString("O")), ["claim"] = JsonSerializer.Serialize(reason), ["claim_until"] = "null",
+            });
+        }
+        await Report("consolidation parked " + parked.Length + " episode(s) after " + Consolidation.MaxAttempts + " failed attempts: "
+            + string.Join(", ", parked.Select(row => row.Text("id"))));
+        return true;
+    }
     foreach (var row in rows)
     {
         await Write(episodes, row, new()
         {
-            ["claim"] = JsonSerializer.Serialize(plan.BatchId),
+            ["claim"] = JsonSerializer.Serialize(Consolidation.Claim(plan.BatchId, Consolidation.AttemptsOf(row.Text("claim")) + 1)),
             ["claim_until"] = JsonSerializer.Serialize((now + Consolidation.ClaimFor).ToString("O")),
         });
     }
@@ -216,19 +235,13 @@ async Task Publish(Consolidation.Verdict item, string dedup, string version)
     try { id = await facts.Assert(assertion); }
     catch (InvalidOperationException full) when (Consolidation.IsCapRefusal(full))
     {
-        await Retrying(Archive);
+        await Consolidation.Retrying(Archive, brain.Stopping);
         id = await facts.Assert(assertion);
     }
-    await Recall.Index(brain, "fact:" + id.ToString("D"), "fact", (item.Subject.Length > 0 ? item.Subject + ": " : "") + text, assertion.ValidFrom, item.Importance, kind.ToString().ToLowerInvariant());
-    if (item.Contradicts is { } contradicts && Guid.TryParse(contradicts, out var old) && old != id)
+    // The life index follows the facts neuron's signals (facts-index.cs), so it is not written here.
+    if (item.Contradicts is { } contradicts && Guid.TryParse(contradicts, out var old))
     {
-        await Retrying(async () =>
-        {
-            var snapshot = await facts.Read();
-            if (!snapshot.Facts.Any(fact => fact.Id == old && fact.ValidTo is null && !fact.Hidden)) { return; }
-            await facts.Invalidate(old, "superseded by " + id, id, snapshot.Revision);
-        });
-        await Recall.Forget(brain, old.ToString("D"));
+        await Consolidation.Supersede(facts, old, id, brain.Stopping);
     }
 }
 
@@ -258,16 +271,6 @@ async Task Review(Consolidation.Verdict item, string dedup, string reason, DateT
         new("reason", JsonSerializer.Serialize(reason)), new("contradicts", item.Contradicts is null ? "null" : JsonSerializer.Serialize(item.Contradicts)),
         new("at", JsonSerializer.Serialize(at.ToString("O"))), new("status", JsonSerializer.Serialize("pending")),
     ]);
-}
-
-// A write that meets a revision conflict is read again and retried, up to Intents.FireAttempts in all.
-async Task Retrying(Func<Task> write)
-{
-    for (var attempt = 1; ; attempt++)
-    {
-        try { await write(); return; }
-        catch (Exception error) when (Intents.ShouldRetry(error, attempt) && !brain.Stopping.IsCancellationRequested) { }
-    }
 }
 
 // Every column is written back, so an update never depends on whether Upsert merges or replaces.

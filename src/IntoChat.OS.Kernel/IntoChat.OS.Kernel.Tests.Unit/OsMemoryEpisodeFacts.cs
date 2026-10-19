@@ -141,6 +141,21 @@ public sealed class OsMemoryConsolidationFacts
     public void WorkMemoriesThatLookTechnicalArePublished(string text)
         => Assert.Equal(global::Consolidation.Disposition.Publish, Classified(text));
 
+    [Theory]
+    [InlineData("Their api key abc123def456 works")]
+    [InlineData("The token 9f8e7d6c5b4a lives in the vault")]
+    public void AKeywordFollowedByAValueGoesToReview(string text)
+        => Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Review, "possible credential"),
+            global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses));
+
+    [Theory]
+    [InlineData("The door passcode: 4821")]
+    [InlineData("Their card pin is 1234")]
+    [InlineData("pin=0000")]
+    public void APasscodeOrPinWithAValueIsDiscarded(string text)
+        => Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Discard, "secret"),
+            global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses));
+
     [Fact]
     public void ANamedSecretWithAValueGoesToReview()
     {
@@ -216,6 +231,74 @@ public sealed class OsMemoryConsolidationFacts
     }
 }
 
+// Credentials never reach an episode: Consolidation.Redact runs over the note and the fallback before capture stores them.
+public sealed class OsMemoryRedactionFacts
+{
+    [Fact]
+    public void TheFallbackRedactsASecret()
+    {
+        var fallback = global::Episodes.Fallback("my key is sk-live-4f9a8b7c6d5e4f3a2b1c and password: hunter22", "Noted, Bearer abcdefghijklmnop1234");
+        Assert.DoesNotContain("sk-live-4f9a8b7c6d5e4f3a2b1c", fallback.Summary);
+        Assert.DoesNotContain("hunter22", fallback.Summary);
+        Assert.DoesNotContain("abcdefghijklmnop1234", fallback.Summary);
+        Assert.Contains(global::Consolidation.RedactedSecret, fallback.Summary);
+    }
+
+    [Fact]
+    public void ASummaryRedactsABearerToken()
+    {
+        var note = global::Episodes.Redacted(new("- The user shared Bearer abcdefghijklmnop1234 for the API\n- Their api key abc123def456 works", 5, false));
+        Assert.DoesNotContain("abcdefghijklmnop1234", note.Summary);
+        Assert.DoesNotContain("abc123def456", note.Summary);
+        Assert.Contains(global::Consolidation.RedactedSecret, note.Summary);
+        Assert.Contains(global::Consolidation.RedactedHint, note.Summary);
+        Assert.Equal((5, false), (note.Importance, note.IsFallback));
+    }
+
+    [Fact]
+    public void PlainTextIsNotRedacted()
+        => Assert.Equal("- Prefers short answers; token rotation is on Fridays",
+            global::Consolidation.Redact("- Prefers short answers; token rotation is on Fridays"));
+
+    [Fact]
+    public void CaptureRowsMatchTheTableDefinition()
+    {
+        var row = global::Episodes.Row("ino", "run-1", DateTimeOffset.Parse("2026-10-19T10:00:00Z"), new("- x", 4, false));
+        var columns = global::Episodes.Definition.Columns.Select(column => column.Name).Except(global::Episodes.Definition.PrimaryKey).Order(StringComparer.Ordinal);
+        Assert.Equal(columns, row.Select(value => value.Column).Order(StringComparer.Ordinal));
+        Assert.Equal(row.Length, row.Select(value => value.Column).Distinct().Count());
+    }
+}
+
+// A batch that keeps failing parks its episodes after three attempts, so the episodes behind it proceed.
+public sealed class OsMemoryParkingFacts
+{
+    [Fact]
+    public void APoisonBatchIsParkedAfterThreeAttempts()
+    {
+        Assert.Equal(0, global::Consolidation.AttemptsOf(null));
+        Assert.Equal(1, global::Consolidation.AttemptsOf("consolidate-old"));
+        var claim = "consolidate-a";
+        for (var attempt = 1; attempt <= global::Consolidation.MaxAttempts; attempt++)
+        {
+            Assert.False(global::Consolidation.Parks(claim));
+            claim = global::Consolidation.Claim("consolidate-a", global::Consolidation.AttemptsOf(claim == "consolidate-a" ? null : claim) + 1);
+            Assert.Equal("consolidate-a", global::Consolidation.BatchOf(claim));
+            Assert.Equal(attempt, global::Consolidation.AttemptsOf(claim));
+        }
+        Assert.True(global::Consolidation.Parks(claim));
+        Assert.Equal("parked:3 failed attempts", global::Consolidation.Parked("3 failed attempts"));
+    }
+
+    [Fact]
+    public void AReplayFindsItsVerdictThroughACountedClaim()
+    {
+        var claim = global::Consolidation.Claim("old", 2);
+        var plan = global::Consolidation.Next([new("a#1", global::Consolidation.BatchOf(claim), true)], new HashSet<string> { "old" }, "new");
+        Assert.Equal(("old", true), (plan!.BatchId, plan.Replay));
+    }
+}
+
 // Memory's review helper (features/os/Memory/Reviews.cs) is compiled into this project.
 public sealed class OsMemoryReviewFacts
 {
@@ -240,4 +323,16 @@ public sealed class OsMemoryReviewFacts
     [Fact]
     public void AnUnexpectedStatusIsDistinct()
         => Assert.Equal(global::Reviews.Outcome.Unexpected, global::Reviews.Decide("weird", global::Reviews.Operation.Accept));
+
+    [Fact]
+    public void AnAcceptedRowIsRoutedByItsKind()
+    {
+        Assert.Equal(global::Reviews.Route.Fact, global::Reviews.RouteOf("profile"));
+        Assert.Equal(global::Reviews.Route.Fact, global::Reviews.RouteOf("fact"));
+        Assert.Equal(global::Reviews.Route.Fact, global::Reviews.RouteOf("insight"));
+        Assert.Equal(global::Reviews.Route.Intent, global::Reviews.RouteOf("intent"));
+        Assert.Equal(global::Reviews.Route.Working, global::Reviews.RouteOf("working"));
+        Assert.Equal(global::Reviews.Route.Unknown, global::Reviews.RouteOf("weird"));
+        Assert.Equal("review:abc", global::Reviews.IntentRequestId("abc"));
+    }
 }
