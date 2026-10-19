@@ -126,6 +126,7 @@ static class App
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
             new("capture", "Turn a finished turn into an episode: a short note and an importance in {app}/episodes; input is JSON {\"agent\",\"runId\"}. Done by Memory after each completed Ino turn."),
             new("review", "List the consolidation's pending review items (sensitive or unsure items never published) as the text neuron {app}/review."),
+            new("recall-life", "Recall from the user's life (facts and episodes) by meaning, recency, authority and importance; the answer is Found, Partial or Absent with sources, written as the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
         Settings:
@@ -135,6 +136,7 @@ static class App
             new("ConfirmGate", "Confidence at or above which a rephrased intent is confirmed.", "0.8"),
             new("QuietMinutes", "Minutes without a new episode after which consolidation runs.", "10"),
             new("ConsolidateModel", "Model catalog id for the agent that consolidates episodes into facts; empty uses the default.", ""),
+            new("HalfLifeDays", "Days after which a memory's recency weight halves in recall-life (never below 0.3).", "14"),
             new("ReviewGate", "Confidence below which a consolidated item goes to review instead of being published.", "0.75"),
         ],
         Slots:
