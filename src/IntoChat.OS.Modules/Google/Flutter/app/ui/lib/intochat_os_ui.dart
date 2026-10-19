@@ -23,6 +23,7 @@ export 'src/lumen/lumen_controls.dart';
 export 'src/lumen/lumen_palette.dart';
 export 'src/lumen/neuron_icon.dart';
 export 'src/models/ui_part.dart';
+export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 
 export 'src/components/image_canvas/image_recipe.dart';
