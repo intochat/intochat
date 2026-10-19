@@ -38,6 +38,8 @@ public interface IWorker : INeuron
     Task<int> CallBack(string otherKey);
     Task<int> CallSelf();
     Task PostSelf(int count);
+    Task DeferPost(int count);
+    Task DeferCount();
     Task Deactivate();
     [Interleaves] Task DeactivateInterleaved();
     Task<Guid> Activation();
@@ -77,6 +79,10 @@ public sealed class WorkerNeuron : Neuron, IWorker
     public Task<int> CallSelf() => Context.Self<IWorker>().Count();
 
     public Task PostSelf(int count) => Context.Self<IWorker>().Post(count);
+
+    public Task DeferPost(int count) => Defer<IWorker>(self => self.Post(count));
+
+    public Task DeferCount() => Defer<IWorker>(self => self.Count());
 
     public Task Deactivate()
     {

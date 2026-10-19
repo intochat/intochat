@@ -80,7 +80,7 @@ internal sealed class AgentNeuron(
             await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted, Error)) });
             // Announced once activation is done, so the request that woke the agent (a subscription, a
             // late Drive) is served first and a Start caller still gets the run's end.
-            await this.AsReference<IAgentDriver>().Interrupted(open.RunId, Error);
+            await Defer<IAgentDriver>(driver => driver.Interrupted(open.RunId, Error));
         }
     }
 
@@ -189,7 +189,8 @@ internal sealed class AgentNeuron(
         try
         {
             await AcquireContinuation(runId);
-            await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId);
+            var driven = turn with { RunId = runId };
+            await Defer<IAgentDriver>(driver => driver.Drive(driven, runId));
         }
         catch
         {

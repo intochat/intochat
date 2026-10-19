@@ -45,7 +45,7 @@ internal sealed class RouterNeuron(
         try
         {
             if (gate is not null) { await gate.Acquire(Scope, token); }
-            await this.AsReference<IRouterWork>().Decide(request.Id);
+            await Defer<IRouterWork>(work => work.Decide(request.Id));
         }
         catch (Exception error)
         {

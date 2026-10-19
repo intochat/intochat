@@ -624,7 +624,7 @@ internal sealed class BrainRuntimeNeuron(
     private async Task ReadAfterWatchAsync(string neuron)
     {
         await WatchOffTurn(neuron, again: false);
-        try { await this.AsReference<IBrainRuntimeArrivals>().Read(neuron); }
+        try { await Defer<IBrainRuntimeArrivals>(arrivals => arrivals.Read(neuron)); }
         catch (Exception error) { logger.LogDebug(error, "Brain {Brain} could not ask itself to read {Neuron}'s part log.", Brain, neuron); }
     }
 
@@ -728,7 +728,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             SyncWatched();
             // Off the activation turn: a source's log may be on a part this machine has yet to open.
-            _ = this.AsReference<IBrainRuntimeArrivals>().CatchUp();
+            _ = Defer<IBrainRuntimeArrivals>(arrivals => arrivals.CatchUp());
         }
         // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
         // their subscribe-then-read recovery runs against durable state, with fresh credentials.

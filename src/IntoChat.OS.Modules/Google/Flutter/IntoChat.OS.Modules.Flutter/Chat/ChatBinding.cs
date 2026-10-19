@@ -137,7 +137,7 @@ internal sealed partial class ChatNeuron
     {
         if (!_dirty || _queued) { return Task.CompletedTask; }
         _queued = true;
-        return this.AsReference<IChatReconciliation>().Reconcile();
+        return Defer<IChatReconciliation>(binding => binding.Reconcile());
     }
 
     public async Task Reconcile()
@@ -164,7 +164,7 @@ internal sealed partial class ChatNeuron
     {
         if (Snapshot.Selection is null) { return Task.CompletedTask; }
         _dirty = true;
-        return this.AsReference<IChatReconciliation>().Reconcile();
+        return Defer<IChatReconciliation>(binding => binding.Reconcile());
     }
 
     private async Task Renew()

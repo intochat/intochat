@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
+using System.Reflection;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -85,6 +88,20 @@ public abstract class Neuron : Grain, INeuron
             cancellationToken.ThrowIfCancellationRequested();
             await ((IActivationHandler)handler!).Activated(this, cancellationToken);
         }
+    }
+
+    private static readonly ConcurrentDictionary<MethodInfo, bool> OneWayTargets = new();
+
+    // Sends a one-way call to this neuron's own reference; it completes when sent, and the deferred work's failures surface in the target turn.
+    protected Task Defer<TSelf>(Expression<Func<TSelf, Task>> call) where TSelf : class
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        if (call.Body is not MethodCallExpression { Object: ParameterExpression } invocation)
+        { throw new ArgumentException("Defer takes a single call on the self reference, such as self => self.Method(args).", nameof(call)); }
+        var method = invocation.Method;
+        if (!OneWayTargets.GetOrAdd(method, static m => m.IsDefined(typeof(Orleans.Concurrency.OneWayAttribute), inherit: false) || m.IsDefined(typeof(OneWayCallAttribute), inherit: false)))
+        { throw new InvalidOperationException($"Defer target {method.DeclaringType?.Name}.{method.Name} must be [OneWay]"); }
+        return call.Compile()(Context.Self<TSelf>());
     }
 
     public virtual Task<Guid> Watch(INeuronObserver observer)

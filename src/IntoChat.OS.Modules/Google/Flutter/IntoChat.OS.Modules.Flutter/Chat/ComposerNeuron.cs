@@ -40,7 +40,7 @@ internal sealed class ComposerNeuron(
     {
         if (State.FollowedChat is not { } chat) { return Task.CompletedTask; }
         EnsureRenewal(chat);
-        return this.AsReference<IComposerReconciliation>().Reconcile(chat);
+        return Defer<IComposerReconciliation>(composer => composer.Reconcile(chat));
     }
 
     private void EnsureRenewal(string chat) => _renewal ??= this.RegisterGrainTimer(_ => Reconcile(chat),
@@ -65,7 +65,7 @@ internal sealed class ComposerNeuron(
             if (signal is not ChatSelectionChanged changed || changed.Name != State.FollowedChat
                 || signal.Publisher.Name != source.GetGrainId().ToString())
             { continue; }
-            await this.AsReference<IComposerReconciliation>().Reconcile(changed.Name);
+            await Defer<IComposerReconciliation>(composer => composer.Reconcile(changed.Name));
         }
     }
 
