@@ -92,12 +92,12 @@ public static class StorageFixtures
         var key = await keys.GetOrCreate(brainId, ct).ConfigureAwait(false);
         var types = new StateTypes(services);
         var objects = services.GetRequiredService<ObjectSerializer>();
-        using var log = new BrainLog(directory, brainId, key, services.GetRequiredService<Serializer>());
+        await using var log = new BrainLog(directory, brainId, key, services.GetRequiredService<Serializer>());
         var records = new List<StorageFixtureRecord>();
         var unreadable = new List<string>();
-        foreach (var (grainId, stateName) in log.RecordKeys().OrderBy(pair => pair.GrainId, StringComparer.Ordinal).ThenBy(pair => pair.StateName, StringComparer.Ordinal))
+        foreach (var (grainId, stateName) in (await log.RecordKeys().ConfigureAwait(false)).OrderBy(pair => pair.GrainId, StringComparer.Ordinal).ThenBy(pair => pair.StateName, StringComparer.Ordinal))
         {
-            var record = log.Read(grainId, stateName)!;
+            var record = (await log.Read(grainId, stateName).ConfigureAwait(false))!;
             if (types.Find(grainId, stateName) is not { } type) { unreadable.Add($"{grainId} {stateName}: no state type"); continue; }
             try
             {

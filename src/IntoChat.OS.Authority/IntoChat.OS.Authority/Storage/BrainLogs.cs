@@ -25,21 +25,30 @@ internal sealed class BrainLogs : IAsyncDisposable
         Directory.CreateDirectory(options.Value.Directory);
     }
 
-    public Task<BrainLog> For(string brainId)
+    public async Task<BrainLog> For(string brainId)
+    {
+        var (log, evicted) = Lookup(brainId);
+        // The evicted log's lease release can be a network call; it runs after the gate is free so other brains are not held behind it.
+        if (evicted is not null) { await evicted.DisposeAsync(); }
+        return await log;
+    }
+
+    private (Task<BrainLog> Log, BrainLog? Evicted) Lookup(string brainId)
     {
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
+            BrainLog? evicted = null;
             if (logs.TryGetValue(brainId, out var log))
             {
-                if (!log.IsCompletedSuccessfully || log.Result.Usable) { return log; }
-                // A log that lost its ownership or failed a write is dropped (without releasing a lost lease) and claimed afresh.
+                // A log that lost its ownership or failed a write is dropped and claimed afresh; its release runs outside the gate.
+                if (!(log.IsCompletedSuccessfully && log.Result is { Usable: false } stale)) { return (log, null); }
                 logs.Remove(brainId);
-                log.Result.Dispose();
+                evicted = stale;
             }
             log = Open(brainId);
             if (!log.IsFaulted) { logs[brainId] = log; } // Opens usually complete synchronously; a refused claim is not cached.
-            return log;
+            return (log, evicted);
         }
     }
 
@@ -52,7 +61,7 @@ internal sealed class BrainLogs : IAsyncDisposable
             var directory = keys.DirectoryOf(brainId);
             var lease = await ownership.ClaimAsync(directory, brainId, CancellationToken.None);
             try { return new(directory, brainId, await keys.GetOrCreate(brainId, CancellationToken.None), serializer, writeFormat, lease, files); }
-            catch { lease.Dispose(); throw; }
+            catch { await lease.DisposeAsync(); throw; }
         }
         catch
         {
@@ -63,7 +72,7 @@ internal sealed class BrainLogs : IAsyncDisposable
 
     internal async Task<bool> CheckStorageAsync(string brainId, CancellationToken ct)
     {
-        try { return (await For(brainId).WaitAsync(ct)).CheckStorage(ct); }
+        try { return await (await For(brainId).WaitAsync(ct)).CheckStorage(ct); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
         { return false; }
     }
@@ -82,7 +91,7 @@ internal sealed class BrainLogs : IAsyncDisposable
             BrainLog log;
             try { log = await task; }
             catch { continue; } // Failed opens already released their ownership.
-            log.Dispose();
+            await log.DisposeAsync();
         }
     }
 }

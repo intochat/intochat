@@ -131,10 +131,10 @@ public sealed class HostedExportFacts
     {
         await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var serializer = brain.Services.GetRequiredService<Serializer>();
-        using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
+        await using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
         await log.Append("customer", "state", null, BrainRecordChange.Write, serializer.SerializeToArray(new CustomerState("portable note")), [], TestContext.Current.CancellationToken);
         await log.Append("vault", "vault", null, BrainRecordChange.Write, serializer.SerializeToArray(new CustomerState("secret")), [], TestContext.Current.CancellationToken);
-        var exported = log.Export((_, _, bytes) => serializer.Deserialize<CustomerState>(bytes));
+        var exported = await log.Export((_, _, bytes) => serializer.Deserialize<CustomerState>(bytes), TestContext.Current.CancellationToken);
         var json = JsonSerializer.Serialize(exported);
         Assert.Contains("portable note", json);
         Assert.DoesNotContain("secret", json);
@@ -146,7 +146,7 @@ public sealed class HostedExportFacts
     {
         await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var serializer = brain.Services.GetRequiredService<Serializer>();
-        using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-char-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
+        await using var log = new BrainLog(Directory.CreateTempSubdirectory("brain-export-char-").FullName, "owner", RandomNumberGenerator.GetBytes(32), serializer);
         var marked = serializer.SerializeToArray(new CustomerState("portable note"));
         await log.Append("customer", "note", null, BrainRecordChange.Write, marked, [], TestContext.Current.CancellationToken);
         await log.Append("unmarked", "plain", null, BrainRecordChange.Write, serializer.SerializeToArray(new UnmarkedState("never copied")), [], TestContext.Current.CancellationToken);
@@ -154,8 +154,8 @@ public sealed class HostedExportFacts
         {
             await log.Append("denied-" + name, name, null, BrainRecordChange.Write, marked, [], TestContext.Current.CancellationToken);
         }
-        var exported = log.Export((_, state, raw) => state == "plain"
-            ? serializer.Deserialize<UnmarkedState>(raw) : serializer.Deserialize<CustomerState>(raw));
+        var exported = await log.Export((_, state, raw) => state == "plain"
+            ? serializer.Deserialize<UnmarkedState>(raw) : serializer.Deserialize<CustomerState>(raw), TestContext.Current.CancellationToken);
         Assert.Equal(["customer"], exported.Records.Select(x => x.GrainId).ToArray());
         Assert.DoesNotContain("never copied", JsonSerializer.Serialize(exported));
         Assert.Equal(1 + StateExportPolicy.HardDenied.Count, exported.OmittedRecords);

@@ -146,9 +146,9 @@ public sealed class GoldenBytesFacts : IDisposable
         var plain = SegmentSeal.Open(TestSealKey.Bytes(), $"brain-store|{BrainId}|initial|log", segment.AsSpan(offset + 4, length).ToArray());
         Matches(nameof(Golden.SegmentEntry), Golden.SegmentEntry, plain);
 
-        using var log = new BrainLog(_directory, BrainId, TestSealKey.Bytes(), Serializer, format);
+        await using var log = new BrainLog(_directory, BrainId, TestSealKey.Bytes(), Serializer, format);
         Assert.Equal(format, log.Format);
-        var record = log.Read(TimerGrain, "state");
+        var record = await log.Read(TimerGrain, "state");
         Assert.NotNull(record);
         Assert.Equal([1, 2, 3], record.Record);
         Assert.Equal(1, record.ETag);
@@ -163,7 +163,7 @@ public sealed class GoldenBytesFacts : IDisposable
         foreach (var format in new[] { BrainLogFormat.Legacy, BrainLogFormat.Framed })
         {
             var directory = Path.Combine(_directory, format.ToString());
-            using (var log = new BrainLog(directory, BrainId, TestSealKey.Bytes(), Serializer, format))
+            await using (var log = new BrainLog(directory, BrainId, TestSealKey.Bytes(), Serializer, format))
             {
                 var tick = Tick();
                 await log.Append(TimerGrain, "state", null, BrainRecordChange.Write, [1, 2, 3], [tick, tick, new Signal { Publisher = "brain-1/clock" }], TestContext.Current.CancellationToken);

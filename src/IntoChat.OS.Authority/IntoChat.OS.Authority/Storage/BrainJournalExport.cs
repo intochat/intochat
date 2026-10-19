@@ -15,7 +15,7 @@ public static class BrainJournalExport
     {
         ArgumentNullException.ThrowIfNull(services);
         var logs = (BrainLogs)(services.GetService(typeof(BrainLogs)) ?? throw new InvalidOperationException("Brain storage is not composed."));
-        var data = (await logs.For(scope).WaitAsync(ct)).Export(decode);
+        var data = await (await logs.For(scope).WaitAsync(ct)).Export(decode, ct);
         await JsonSerializer.SerializeAsync(destination, data, cancellationToken: ct);
     }
 }

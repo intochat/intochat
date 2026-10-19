@@ -29,7 +29,7 @@ public sealed class BrainRecoveryFacts
         var directory = Directory.CreateTempSubdirectory("brain-manifest-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
         var serializer = Serializer();
-        using (var log = new BrainLog(directory, "owner", key, serializer))
+        await using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [], ct);
             await log.Checkpoint(ct);
@@ -46,7 +46,7 @@ public sealed class BrainRecoveryFacts
         var directory = Directory.CreateTempSubdirectory("brain-compact-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
         var serializer = Serializer();
-        using (var log = new BrainLog(directory, "owner", key, serializer))
+        await using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             long? etag = null;
             for (var i = 0; i < 5; i++)
@@ -54,8 +54,8 @@ public sealed class BrainRecoveryFacts
             await log.Checkpoint(ct);
         }
         Assert.InRange(new FileInfo(Assert.Single(Directory.GetFiles(directory, "*.snapshot"))).Length, 100_000, 150_000);
-        using var recovered = new BrainLog(directory, "owner", key, serializer);
-        Assert.Equal(100_000, recovered.Read("g", "s")!.Record.Length);
+        await using var recovered = new BrainLog(directory, "owner", key, serializer);
+        Assert.Equal(100_000, (await recovered.Read("g", "s"))!.Record.Length);
         Assert.Equal(5, (await recovered.ReadSignals(0, 10, null, ct)).Length);
     }
 
@@ -66,14 +66,14 @@ public sealed class BrainRecoveryFacts
         var directory = Directory.CreateTempSubdirectory("brain-failure-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
         var serializer = Serializer();
-        using (var log = new BrainLog(directory, "owner", key, serializer, files: new FaultingBrainLogFiles(failingAppend: 2)))
+        await using (var log = new BrainLog(directory, "owner", key, serializer, files: new FaultingBrainLogFiles(failingAppend: 2)))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [], ct);
             await Assert.ThrowsAsync<IOException>(() => log.Append("g", "s", 1, BrainRecordChange.Write, [2], [new BrainLogFacts.Changed("unacknowledged")], ct));
             await Assert.ThrowsAsync<IOException>(() => log.Append("g", "s", 1, BrainRecordChange.Write, [3], [], ct));
         }
-        using var recovered = new BrainLog(directory, "owner", key, serializer);
-        Assert.Equal(new byte[] { 1 }, recovered.Read("g", "s")!.Record);
+        await using var recovered = new BrainLog(directory, "owner", key, serializer);
+        Assert.Equal(new byte[] { 1 }, (await recovered.Read("g", "s"))!.Record);
         Assert.Empty(await recovered.ReadSignals(0, 100, null, ct));
     }
 
@@ -84,7 +84,7 @@ public sealed class BrainRecoveryFacts
         var directory = Directory.CreateTempSubdirectory("brain-checkpoint-").FullName;
         var key = RandomNumberGenerator.GetBytes(32);
         var serializer = Serializer();
-        using (var log = new BrainLog(directory, "owner", key, serializer))
+        await using (var log = new BrainLog(directory, "owner", key, serializer))
         {
             await log.Append("g", "s", null, BrainRecordChange.Write, [1], [new BrainLogFacts.Changed("saved")], ct);
             await log.Checkpoint(ct);
@@ -92,8 +92,8 @@ public sealed class BrainRecoveryFacts
         var orphan = Guid.NewGuid().ToString("N");
         await File.WriteAllBytesAsync(Path.Combine(directory, orphan + ".snapshot"), [0], ct);
         await File.WriteAllTextAsync(Path.Combine(directory, "current.tmp"), orphan, ct);
-        using var recovered = new BrainLog(directory, "owner", key, serializer);
-        Assert.Equal(new byte[] { 1 }, recovered.Read("g", "s")!.Record);
+        await using var recovered = new BrainLog(directory, "owner", key, serializer);
+        Assert.Equal(new byte[] { 1 }, (await recovered.Read("g", "s"))!.Record);
         Assert.Equal("saved", Assert.IsType<BrainLogFacts.Changed>(Assert.Single(await recovered.ReadSignals(0, 10, null, ct)).Signal).Value);
     }
 
