@@ -21,4 +21,6 @@ public interface IIdentityProvisioning
     Task<Member?> Membership(string brainScopeId, string principalId);
 
     Task<Member?> EnsureMember(Member member);
+
+    Task RemovePrincipalMember(string brainScopeId, string principalId);
 }
