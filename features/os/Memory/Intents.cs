@@ -34,19 +34,35 @@ internal static class Intents
         return false;
     }
 
-    // Alias to type, built by load on first use and rebuilt once whenever a lookup misses (a module loaded since).
-    public sealed class CueTypes(Func<IReadOnlyDictionary<string, Type>> load)
+    // Alias to type, built by load on first use. A miss reloads once; the same miss is not retried until stamp
+    // (the loaded-assembly count) changes, so an alias nobody will ever define costs one scan, not one per lookup.
+    public sealed class CueTypes(Func<IReadOnlyDictionary<string, Type>> load, Func<int> stamp)
     {
         private IReadOnlyDictionary<string, Type>? map;
+        private readonly Dictionary<string, int> missed = [];
 
-        public IReadOnlyCollection<string> Aliases => (map ??= load()).Keys.ToArray();
+        public KeyValuePair<string, Type>[] Pairs => [.. map ??= load()];
 
         public Type? Resolve(string alias)
         {
             map ??= load();
             if (map.TryGetValue(alias, out var type)) { return type; }
-            map = load();
+            Refresh(alias);
             return map.GetValueOrDefault(alias);
+        }
+
+        // Reloads unless the same reason already missed at this stamp; true when it reloaded.
+        public bool Refresh(string reason)
+        {
+            var now = stamp();
+            lock (missed)
+            {
+                if (missed.TryGetValue(reason, out var at) && at == now) { return false; }
+                missed[reason] = now;
+            }
+            // Unsynchronised on purpose: concurrent loads are idempotent and the reference write is atomic.
+            map = load();
+            return true;
         }
     }
 
