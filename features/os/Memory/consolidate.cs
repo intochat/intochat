@@ -124,7 +124,7 @@ async Task<bool> Batch()
         var verdict = stored[plan.BatchId];
         items = JsonSerializer.Deserialize<Consolidation.Verdict[]>(verdict.Text("items")) ?? [];
         version = verdict.Text("prompt_version");
-        reflect = verdict.Cells.GetValueOrDefault("reflect") == "true";
+        reflect = Consolidation.Flag(verdict.Cells.GetValueOrDefault("reflect"));
         given = verdict.Text("episode_ids").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
     }
     else
@@ -210,7 +210,7 @@ async Task Publish(Consolidation.Verdict item, string dedup, string version)
     Guid id;
     // Assert answers a known dedup key before it checks the cap, so a fact is archived only for a genuinely new one.
     try { id = await facts.Assert(assertion); }
-    catch (InvalidOperationException full) when (full.Message.StartsWith("At most " + IFacts.Cap, StringComparison.Ordinal))
+    catch (InvalidOperationException full) when (Consolidation.IsCapRefusal(full))
     {
         await Retrying(Archive);
         id = await facts.Assert(assertion);

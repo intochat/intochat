@@ -78,7 +78,8 @@ public sealed class FactsFacts(AIHost host)
         var facts = host.Brain.Get<IFacts>(IFacts.Key(person.BrainId));
         for (var i = 0; i < IFacts.Cap; i++) { await facts.Assert(Assertion($"ep-{i}#0")); }
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => facts.Assert(Assertion("ep-over#0")));
-        Assert.Contains("512", refused.Message);
+        // Memory's consolidation recognises this refusal by its prefix (Consolidation.CapRefusalPrefix) to archive a fact.
+        Assert.StartsWith("At most 512 facts can be current", refused.Message);
         Assert.Equal(512, (await facts.Read()).Facts.Length);
     }
 

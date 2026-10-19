@@ -122,9 +122,56 @@ public sealed class OsMemoryConsolidationFacts
     [Theory]
     [InlineData("Session token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl")]
     [InlineData("Authorization: Bearer abcdefghijklmnop1234")]
-    [InlineData("Stored 3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a for later")]
-    [InlineData("The api key abc123def456 works")]
+    [InlineData("Stored Xq7Lm2Np9Rt4Vw8Yz3Bc6Df1Gh5Jk0Ms2Qa for later")]
+    [InlineData("password is hunter2hunter2")]
     public void MoreCredentialsAreDiscardedAsSecret(string text)
+    {
+        var decision = global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses);
+        Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Discard, "secret"), decision);
+    }
+
+    [Theory]
+    [InlineData("Merged commit 3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a into main")]
+    [InlineData("The intent 6f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b was dispatched")]
+    [InlineData("Plans live in ino-memory-remaining-plan-2026-10-19")]
+    [InlineData("Edits features/os/Memory/ConsolidationHelpersForTheBrainRuntime2026.cs often")]
+    [InlineData("Token rotation is scheduled for Fridays in the release plan")]
+    [InlineData("The user prefers their coffee black")]
+    [InlineData("Drinks tea, a habit since school")]
+    public void WorkMemoriesThatLookTechnicalArePublished(string text)
+        => Assert.Equal(global::Consolidation.Disposition.Publish, Classified(text));
+
+    [Fact]
+    public void ANamedSecretWithAValueGoesToReview()
+    {
+        var decision = global::Consolidation.Classify(Item("secret = hunter2hunter2"), 0.75, global::Consolidation.SensitiveClasses);
+        Assert.Equal(global::Consolidation.Disposition.Review, decision.Disposition);
+    }
+
+    [Fact]
+    public void TheStoredReflectFlagReadsLeniently()
+    {
+        Assert.True(global::Consolidation.Flag("true"));
+        Assert.True(global::Consolidation.Flag("True"));
+        Assert.True(global::Consolidation.Flag("1"));
+        Assert.True(global::Consolidation.Flag("\"true\""));
+        Assert.False(global::Consolidation.Flag("false"));
+        Assert.False(global::Consolidation.Flag(null));
+    }
+
+    [Fact]
+    public void TheCapRefusalIsRecognisedByTheFactsNeuronsWording()
+    {
+        // The exact message FactsNeuron.Assert throws at the cap; its integration fact pins the same prefix.
+        var refusal = new InvalidOperationException($"At most {(global::IntoChat.OS.AI.Agents.Facts.IFacts.Cap)} facts can be current; invalidate or forget one first.");
+        Assert.True(global::Consolidation.IsCapRefusal(refusal));
+        Assert.False(global::Consolidation.IsCapRefusal(new InvalidOperationException("something else")));
+    }
+
+    [Theory]
+    [InlineData("Session token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl")]
+    [InlineData("Authorization: Bearer abcdefghijklmnop1234")]
+    public void TokensAreDiscardedAsSecret(string text)
     {
         var decision = global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses);
         Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Discard, "secret"), decision);
