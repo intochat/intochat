@@ -20,6 +20,8 @@ var intents = brain.Get<IIntents>(IIntents.Key(Ino.Scope(brain)));
 var gate = new SemaphoreSlim(1, 1);
 var watches = new ConcurrentDictionary<Guid, CancellationTokenSource>();
 var lastNotice = DateTimeOffset.MinValue;
+var nextNoticeCheck = DateTimeOffset.MinValue;
+var noticeFailed = false;
 var scanning = Scan();
 
 // IntentRephrased is only a hint that Memory has the request: its answer text is what is acted on. A continued
@@ -117,13 +119,25 @@ async Task Act(Guid requestId, IntentBrief? brief, bool confirmed, Guid? intentI
 // Once an hour, when Memory's context carries a "review-count" entry, say how many memories await review.
 async Task NoticeReviews(DateTimeOffset now)
 {
-    if (now - lastNotice < TimeSpan.FromHours(1) || await Ino.MemoryKey(brain) is not { } memoryKey) { return; }
-    var entry = (await brain.Get<IAgentContext>(Ino.MemoryContextKey(memoryKey)).Read()).Entries.FirstOrDefault(e => e.Name == "review-count");
-    if (entry is null) { return; }
-    var count = new string(entry.Text.TakeWhile(char.IsDigit).ToArray());
-    if (count.Length == 0) { return; }
-    lastNotice = now;
-    await Ino.Status(brain, "Memory has " + count + " items to review");
+    if (now < nextNoticeCheck || now - lastNotice < TimeSpan.FromHours(1)) { return; }
+    nextNoticeCheck = now + TimeSpan.FromMinutes(1);
+    try
+    {
+        if (await Ino.MemoryKey(brain) is not { } memoryKey) { return; }
+        var entry = (await brain.Get<IAgentContext>(Ino.MemoryContextKey(memoryKey)).Read()).Entries.FirstOrDefault(e => e.Name == "review-count");
+        var count = new string((entry?.Text ?? "").TakeWhile(char.IsDigit).ToArray());
+        if (count.Length == 0) { return; }
+        lastNotice = now;
+        await Ino.Status(brain, "Memory has " + count + " items to review");
+        noticeFailed = false;
+    }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    {
+        if (noticeFailed) { return; }
+        noticeFailed = true;
+        try { await Ino.Status(brain, "Could not check Memory's review count: " + Ino.Clip(error.Message)); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
 }
 
 async Task Scan()
@@ -135,7 +149,6 @@ async Task Scan()
             await Task.Delay(TimeSpan.FromSeconds(2), brain.Stopping);
             var entries = await PendingStore.Entries(brain);
             var now = DateTimeOffset.UtcNow;
-            await NoticeReviews(now);
             var gateTime = Ino.IntendGate(await app.Read());
             foreach (var (requestId, pending) in entries)
             {
@@ -155,6 +168,7 @@ async Task Scan()
                         break;
                 }
             }
+            await NoticeReviews(now);
         }
         catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { return; }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
