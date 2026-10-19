@@ -19,5 +19,6 @@
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Runtime.InMemory" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" /></ItemGroup>
 </Project>
