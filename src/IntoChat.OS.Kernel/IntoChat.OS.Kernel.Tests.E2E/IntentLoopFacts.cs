@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.AI.Agents;
 using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Apps;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.AI.Models.OpenAI;
 using IntoChat.OS.Flutter.Text;
@@ -105,6 +107,52 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
                 text => text.Markdown.Contains("answering without a brief", StringComparison.Ordinal), TimeSpan.FromSeconds(15), ct);
             Assert.DoesNotContain(Act, await InoRequest(before, ct), StringComparison.Ordinal);
         }
+        finally
+        {
+            Host.Model.SystemOneOverride = previous;
+            // Memory's intend turn is still waiting on its delayed reply: let it end, so the next fact finds the agent idle.
+            var agent = Brain.Get<IAgent>(IApp.Key(WorkspaceId, "memory") + "/agents/intend");
+            await TestWait.UntilAsync(_ => agent.Read(), state => state.ActiveRun is null, TimeSpan.FromSeconds(60), ct);
+        }
+    }
+
+    [Fact(Timeout = 300_000)]
+    public async Task AContinuedMessageRebriefsTheSameIntent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        var previous = Host.Model.SystemOneOverride;
+        Host.Model.SystemOneOverride = Unsure;
+        try
+        {
+            if (!(await Intents().Read()).Intents.Any(intent => intent.State == IntentState.Dispatched && intent.Brief?.Goal == Goal))
+            { await DraftLaunchEmail(ct); }
+            var first = (await Intents().Read()).Intents.Last(intent => intent.State == IntentState.Dispatched && intent.Brief?.Goal == Goal);
+            const string French = "Draft the launch email in French";
+            var status = Brain.Get<IText>(WorkspaceId + "/apps/ino/status");
+            await status.Set("");
+
+            var before = Host.Model.Requests(ModelId).Count;
+            Host.Model.Script(ModelId, IntendReply(French, 0.95, first.Id), "Here it is in French.");
+            await Send("send", "make it French", ct);
+            // The first message's own Ino turn may still land after `before`, so the turn with the new brief is waited for.
+            var ino = await TestWait.UntilAsync(_ => Task.FromResult(Host.Model.Requests(ModelId).Skip(before).Select(RouterHostFixture.Text)
+                    .FirstOrDefault(text => text.Contains(InoPrompt, StringComparison.Ordinal) && text.Contains(French, StringComparison.Ordinal))),
+                text => text is not null, TimeSpan.FromSeconds(60), ct);
+
+            // routed.cs indexes its pending requests, newest last; Memory's answer to this one names the continued intent.
+            var request = (await Brain.Get<IText>(WorkspaceId + "/apps/ino/pending/index-routed").Read()).Markdown.Split('\n')[^1];
+            Assert.Equal("ok " + first.Id, (await Brain.Get<IText>(IApp.Key(WorkspaceId, "memory") + "/intents/" + request).Read()).Markdown);
+            // The continued intent keeps its first request id; Memory names it in its answer, so Ino finds its new brief.
+            // It is Dispatched, so the rephrase kept that state and the brief is shown rather than acted on.
+            Assert.Contains("Show this brief to the user", ino, StringComparison.Ordinal);
+            var after = await Intents().Read();
+            var continued = Assert.Single(after.Intents, intent => intent.Id == first.Id);
+            Assert.Equal(French, continued.Brief?.Goal);
+            Assert.Equal(IntentState.Dispatched, continued.State);
+            Assert.DoesNotContain(after.Intents, intent => intent.Heard == "make it French");
+            Assert.DoesNotContain("Memory could not intend", (await status.Read()).Markdown, StringComparison.Ordinal);
+        }
         finally { Host.Model.SystemOneOverride = previous; }
     }
 
@@ -133,11 +181,11 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
                 .FirstOrDefault(text => text.Contains(InoPrompt, StringComparison.Ordinal))),
             text => text is not null, TimeSpan.FromSeconds(60), ct))!;
 
-    private static FakeReply IntendReply(string goal, double confidence)
+    private static FakeReply IntendReply(string goal, double confidence, Guid? continues = null)
         => FakeReply.Text(JsonSerializer.Serialize(new
         {
             brief = new { goal, inputs = Array.Empty<string>(), constraints = Array.Empty<string>(), acceptance = new[] { goal + " is done" } },
             confidence,
-            continues = (string?)null,
+            continues = continues?.ToString(),
         }));
 }
