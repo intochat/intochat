@@ -106,4 +106,65 @@ public sealed class OsMemoryConsolidationFacts
         Assert.False(global::Consolidation.Claimable(null, "run1", now.AddMinutes(4), now));
         Assert.False(global::Consolidation.Claimable(now.AddHours(-1), null, null, now));
     }
+
+    private static global::Consolidation.Disposition Classified(string text)
+        => global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses).Disposition;
+
+    [Theory]
+    [InlineData("Wife is called Anna")]
+    [InlineData("Anna, a colleague, runs the Kyiv office")]
+    [InlineData("Has back pain most mornings")]
+    [InlineData("Earns $4000 a month")]
+    [InlineData("Works at the Lviv hub")]
+    public void APhraseThatSlippedThroughNowGoesToReview(string text)
+        => Assert.Equal(global::Consolidation.Disposition.Review, Classified(text));
+
+    [Theory]
+    [InlineData("Session token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl")]
+    [InlineData("Authorization: Bearer abcdefghijklmnop1234")]
+    [InlineData("Stored 3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a for later")]
+    [InlineData("The api key abc123def456 works")]
+    public void MoreCredentialsAreDiscardedAsSecret(string text)
+    {
+        var decision = global::Consolidation.Classify(Item(text), 0.75, global::Consolidation.SensitiveClasses);
+        Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Discard, "secret"), decision);
+    }
+
+    [Fact]
+    public void AStoredVerdictIsReplayedNotReasked()
+    {
+        global::Consolidation.Candidate[] candidates =
+            [new("a#1", "old", true), new("a#2", "old", true), new("a#3", null, true), new("a#4", "live", false)];
+        var replay = global::Consolidation.Next(candidates, new HashSet<string> { "old" }, "new");
+        Assert.NotNull(replay);
+        Assert.True(replay.Replay);
+        Assert.Equal("old", replay.BatchId);
+        Assert.Equal(["a#1", "a#2"], replay.EpisodeIds);
+
+        var fresh = global::Consolidation.Next(candidates, new HashSet<string>(), "new");
+        Assert.NotNull(fresh);
+        Assert.False(fresh.Replay);
+        Assert.Equal("new", fresh.BatchId);
+        Assert.Equal(["a#1", "a#2", "a#3"], fresh.EpisodeIds);
+        Assert.Null(global::Consolidation.Next([new("a#4", "live", false)], new HashSet<string>(), "new"));
+    }
+
+    [Fact]
+    public void TheDedupKeyIsStableAcrossOrderAndWhitespace()
+    {
+        var one = new global::Consolidation.Verdict("publish", ["a#2", "a#1"], "fact", "Prefers  tea", "User", 0.9, 5, "", null);
+        var two = new global::Consolidation.Verdict("review", ["a#1", "a#2"], "Fact", " prefers tea ", "user", 0.4, 2, "x", null);
+        Assert.Equal(global::Consolidation.DedupKey(one), global::Consolidation.DedupKey(two));
+        Assert.Matches("^[0-9a-f]{24}$", global::Consolidation.DedupKey(one));
+        Assert.NotEqual(global::Consolidation.DedupKey(one), global::Consolidation.DedupKey(one with { Text = "Prefers coffee" }));
+    }
+
+    [Fact]
+    public void TwoIntentsFromOneEpisodeGetDistinctRequestIds()
+    {
+        var first = new global::Consolidation.Verdict("publish", ["a#1"], "intent", "Book a flight", "travel", 0.9, 5, "", null);
+        var second = first with { Text = "Renew the passport" };
+        Assert.NotEqual(global::Consolidation.IntentRequestId(first), global::Consolidation.IntentRequestId(second));
+        Assert.StartsWith("consolidation:", global::Consolidation.IntentRequestId(first));
+    }
 }

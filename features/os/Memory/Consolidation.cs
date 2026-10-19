@@ -33,20 +33,28 @@ internal static class Consolidation
 
     public static string ArchiveKey(string appKey) => appKey + "/facts-archive";
 
+    public static string VerdictsKey(string appKey) => appKey + "/verdicts";
+
     // Credentials are never stored, not even for review.
     public static readonly Regex Secret = new(
         @"\b(sk|pk|rk)[-_](live|test)[-_][A-Za-z0-9]{8,}|\bsk-[A-Za-z0-9_-]{16,}|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{20,}|\bxox[abpr]-[A-Za-z0-9-]{10,}"
-        + @"|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(password|passwd|pwd|passcode|api[ _-]?key|secret|token|pin)\s*(is|[:=])\s*\S+",
+        + @"|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(password|passwd|pwd|passcode|api[ _-]?key|secret|token|pin)\s*(is|[:=])\s*\S+"
+        + @"|\beyJ[\w-]+\.[\w-]+\.[\w-]+|\bBearer\s+\S{16,}|\b(?=[A-Za-z0-9+/_-]*\d)[A-Za-z0-9+/_-]{32,}\b|\b(api[ _-]?key|token|secret)\s+\S{8,}",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     // Never auto-published; always sent to review.
     public static readonly IReadOnlyDictionary<string, Regex> SensitiveClasses = new Dictionary<string, Regex>
     {
-        ["health"] = Words(@"diagnos\w*|illness|disease|diabetes|cancer|depress\w*|anxiety|medication|medicine|prescription|therap\w*|pregnan\w*|allerg\w*|symptoms?|doctor|hospital|surgery|health"),
-        ["finances"] = Words(@"salary|income|debt|loans?|mortgage|bank\s+account|credit\s+card|iban|payments?|paid|invoices?|tax(es)?|savings|bankrupt\w*|finances?|financial"),
-        ["third party"] = Words(@"(his|her|their)\s+(wife|husband|partner|son|daughter|mother|father|boss|friend|colleague)|(wife|husband|partner|girlfriend|boyfriend|mother|father|sister|brother|colleague|friend|boss)\s+\p{Lu}\w*"),
-        ["location"] = Words(@"lives\s+(at|in|on)|home\s+address|address\s+is|street|apartment|commutes?|every\s+(morning|evening|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|routine|located\s+at"),
+        ["health"] = Words(@"diagnos\w*|illness|disease|diabetes|cancer|depress\w*|anxiety|medication|medicine|prescription|therap\w*|pregnan\w*|allerg\w*|symptoms?|doctor|hospital|surgery|health|pain|sleep\w*|weight|blood\s+pressure|adhd|mental"),
+        ["finances"] = Words(@"salary|income|earns?|owes?|debts?|loans?|mortgage|rent|budget|bank\s+account|credit\s+card|iban|payments?|paid|invoices?|tax(es)?|savings|bankrupt\w*|finances?|financial")
+            .Or(@"[$€£]\d"),
+        ["third party"] = Words(@"wife|husband|partner|girlfriend|boyfriend|manager|colleagues?|brothers?|sisters?|friends?|boss|kids?|child(ren)?|mother|father|mom|dad|sons?|daughters?")
+            .Or(@"\b\p{Lu}\w+,\s+(a|an|the|my|his|her|their)\s+\w+"),
+        ["location"] = Words(@"lives\s+(in|near|at|on)|works\s+at|neighbou?rhood|address|home\s+is|street|apartment|commutes?|every\s+(morning|evening|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|routine|located\s+at"),
     };
+
+    private static Regex Or(this Regex words, string pattern)
+        => new(words + "|" + pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static Regex Words(string alternatives)
         => new(@"\b(" + alternatives + @")\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -77,8 +85,36 @@ internal static class Consolidation
     public static string PromptVersion(string prompt)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(prompt ?? ""))).ToLowerInvariant()[..12];
 
-    // Idempotent per batch: the first episode id and the item's ordinal.
-    public static string DedupKey(Verdict item, int ordinal) => (item.EpisodeIds.FirstOrDefault() ?? "") + "#" + ordinal;
+    // The item's identity: normalised kind|subject|text and its sorted episode ids, hashed (24 hex). It never depends
+    // on the item's position, so a replayed or reordered verdict asserts, reviews and declares nothing twice.
+    public static string DedupKey(Verdict item)
+    {
+        var identity = Normal(item.Kind) + "|" + Normal(item.Subject) + "|" + Normal(item.Text) + "|"
+            + string.Join(",", item.EpisodeIds.Order(StringComparer.Ordinal));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant()[..24];
+    }
+
+    public static string IntentRequestId(Verdict item) => "consolidation:" + DedupKey(item);
+
+    private static string Normal(string text) => Regex.Replace((text ?? "").Trim(), @"\s+", " ").ToLowerInvariant();
+
+    // An unconsolidated episode as the batch planner sees it.
+    public sealed record Candidate(string Id, string? Claim, bool Claimable);
+
+    // What the next batch does: replay the stored verdict of an expired claim, or ask the model about new episodes.
+    public sealed record Plan(string BatchId, bool Replay, string[] EpisodeIds);
+
+    // Candidates in time order. An expired claim whose verdict was stored is replayed as it was (every claimable
+    // episode of that batch, the model is not asked again); otherwise up to BatchSize claimable episodes without a
+    // stored verdict start a new batch. Null when nothing is claimable.
+    public static Plan? Next(IReadOnlyList<Candidate> candidates, IReadOnlySet<string> storedBatches, string newBatchId)
+    {
+        var claimable = candidates.Where(candidate => candidate.Claimable).ToArray();
+        if (claimable.FirstOrDefault(candidate => candidate.Claim is { Length: > 0 } claim && storedBatches.Contains(claim)) is { } stored)
+        { return new(stored.Claim!, true, [.. claimable.Where(candidate => candidate.Claim == stored.Claim).Select(candidate => candidate.Id)]); }
+        var fresh = claimable.Take(BatchSize).Select(candidate => candidate.Id).ToArray();
+        return fresh.Length == 0 ? null : new(newBatchId, false, fresh);
+    }
 
     // Insights keep their evidence episode ids in the text: episode ids are not fact ids, so Links stay empty.
     public static string WithEvidence(string text, string[] episodeIds)
