@@ -26,11 +26,11 @@ namespace IntoChat.OS.Testing;
 public sealed class InProcessTarget : ITestTarget
 {
     private const int StartAttempts = 3;
-    private readonly Func<(int Silo, int Gateway)> _ports;
+    private readonly Func<PortReservation> _ports;
 
-    public InProcessTarget() : this(FreePorts) { }
+    public InProcessTarget() : this(() => PortReservation.Reserve(2)) { }
 
-    internal InProcessTarget(Func<(int Silo, int Gateway)> ports) => _ports = ports;
+    internal InProcessTarget(Func<PortReservation> ports) => _ports = ports;
 
     public async Task<ITestBrain> StartAsync(TestBrainPlan plan, CancellationToken cancellationToken)
     {
@@ -38,9 +38,10 @@ public sealed class InProcessTarget : ITestTarget
         if (plan.Client is not null) { throw new NotSupportedException("An in-process brain has no external client to configure; use ConfigureServices."); }
         for (var attempt = 1; ; attempt++)
         {
-            // Localhost clustering binds fixed default ports; parallel brains each take a free pair, and a restart
-            // rebinds the same pair. A pair is free when read, not reserved: a collision starts over on a new one.
-            var (siloPort, gatewayPort) = _ports();
+            // Orleans refuses port 0, so parallel brains each reserve a pair (held until the silo started) and a restart
+            // rebinds the same pair. A process outside the reservation can still take a port first: that starts over on a new pair.
+            using var reservation = _ports();
+            var (siloPort, gatewayPort) = (reservation.Ports[0], reservation.Ports[1]);
             var session = new InProcessSession(
                 new MemoryStores(),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
@@ -49,6 +50,7 @@ public sealed class InProcessTarget : ITestTarget
                 siloPort, gatewayPort);
             try
             {
+                reservation.ReleaseSockets();
                 var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
                 return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
             }
@@ -139,24 +141,6 @@ public sealed class InProcessTarget : ITestTarget
         await foreach (var manifest in manifests.Updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             if (manifest.Silos.ContainsKey(local)) { return; }
-        }
-    }
-
-    // Both listeners stay open while the ports are read, so the pair is distinct.
-    internal static (int Silo, int Gateway) FreePorts()
-    {
-        var silo = new TcpListener(IPAddress.Loopback, 0);
-        var gateway = new TcpListener(IPAddress.Loopback, 0);
-        try
-        {
-            silo.Start();
-            gateway.Start();
-            return (((IPEndPoint)silo.LocalEndpoint).Port, ((IPEndPoint)gateway.LocalEndpoint).Port);
-        }
-        finally
-        {
-            silo.Stop();
-            gateway.Stop();
         }
     }
 }

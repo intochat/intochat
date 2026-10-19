@@ -70,7 +70,12 @@ public sealed class BrainHostFixtureFacts
         taken.Start();
         var blocked = ((IPEndPoint)taken.LocalEndpoint).Port;
         var picks = 0;
-        var target = new InProcessTarget(() => Interlocked.Increment(ref picks) == 1 ? (blocked, InProcessTarget.FreePorts().Gateway) : InProcessTarget.FreePorts());
+        var target = new InProcessTarget(() =>
+        {
+            if (Interlocked.Increment(ref picks) != 1) { return PortReservation.Reserve(2); }
+            using var spare = PortReservation.Reserve(1);
+            return PortReservation.Of(blocked, spare.Ports[0]);
+        });
 
         await using var brain = await TestBrain.Create().WithModule<PulseModule>().WithoutHttp().On(target).StartAsync(ct);
 
