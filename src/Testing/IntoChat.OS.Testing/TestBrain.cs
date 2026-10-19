@@ -15,6 +15,7 @@ public sealed class TestBrain
     private readonly Dictionary<string, string?> _configuration = new(StringComparer.OrdinalIgnoreCase);
     private Action<IServiceCollection>? _services;
     private TestExecutionOptions _execution = new();
+    private ILicenseCheck? _licenseCheck;
     private ITestTarget _target = new InProcessTarget();
     private bool _started;
 
@@ -95,6 +96,16 @@ public sealed class TestBrain
         return this;
     }
 
+    // In-process only: the check the licence gate runs for modules that declare a LicenseProduct. The last call wins;
+    // without one such a module is absent as unlicensed. The Aspire target refuses it, an AppHost owns its own check.
+    public TestBrain WithLicenseCheck(ILicenseCheck check)
+    {
+        ArgumentNullException.ThrowIfNull(check);
+        EnsureMutable();
+        _licenseCheck = check;
+        return this;
+    }
+
     public TestBrain WithExecution(TestExecutionOptions execution)
     {
         ArgumentNullException.ThrowIfNull(execution);
@@ -171,7 +182,7 @@ public sealed class TestBrain
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);
