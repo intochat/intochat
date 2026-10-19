@@ -13,6 +13,11 @@ void main() {
       'IntoChat.OS.Flutter.Views.IView',
     );
     expect(NodeContracts.of('view').changed, 'ViewChanged');
+    expect(
+      NodeContracts.of('viewport').contract,
+      'IntoChat.OS.Flutter.Viewport.IViewport',
+    );
+    expect(NodeContracts.of('viewport').changed, 'ViewportChanged');
     expect(NodeContracts.of('surface').changed, 'SurfaceChanged');
     expect(
       NodeContracts.of('scene').contract,

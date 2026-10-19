@@ -7,6 +7,10 @@ final class NodeContract {
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
     'view': NodeContract('IntoChat.OS.Flutter.Views.IView', 'ViewChanged'),
+    'viewport': NodeContract(
+      'IntoChat.OS.Flutter.Viewport.IViewport',
+      'ViewportChanged',
+    ),
     'scene': NodeContract('IntoChat.OS.Flame.Scene.IScene', 'SceneChanged'),
     'text': NodeContract('IntoChat.OS.Flutter.Text.IText', 'TextChanged'),
     'button': NodeContract(
