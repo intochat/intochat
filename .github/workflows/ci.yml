@@ -82,6 +82,23 @@ jobs:
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
+      # Local-profile preflight dry run: fixtures stand in for the machine, so no secrets and no probes of the runner.
+      - name: Preflight dry run (all green exits 0)
+        run: dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
+
+      - name: Preflight dry run (Windows containers exits 1 and names the fix)
+        run: |
+          set +e
+          output=$(dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/docker-windows-containers.json)
+          code=$?
+          echo "$output"
+          [ "$code" -eq 1 ] || { echo "expected exit 1, got $code"; exit 1; }
+          echo "$output" | grep -q "fix:" || { echo "expected a fix line"; exit 1; }
+
+      - name: Preflight real probe (informational)
+        continue-on-error: true
+        run: dotnet run intochat-os.cs preflight --no-fail
+
       - name: Save NuGet package cache
         if: steps.nuget-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
