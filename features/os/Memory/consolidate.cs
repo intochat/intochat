@@ -215,6 +215,7 @@ async Task Publish(Consolidation.Verdict item, string dedup, string version)
         await Retrying(Archive);
         id = await facts.Assert(assertion);
     }
+    await Recall.Index(brain, "fact:" + id.ToString("D"), "fact", (item.Subject.Length > 0 ? item.Subject + ": " : "") + text, assertion.ValidFrom, item.Importance, kind.ToString().ToLowerInvariant());
     if (item.Contradicts is { } contradicts && Guid.TryParse(contradicts, out var old) && old != id)
     {
         await Retrying(async () =>

@@ -42,6 +42,7 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
             new("summary", JsonSerializer.Serialize(note.Summary)), new("importance", note.Importance.ToString()),
             new("fallback", note.IsFallback ? "true" : "false"),
         ]);
+        await Recall.Index(brain, "episode:" + id, "episode", note.Summary, run.EndedAt ?? DateTimeOffset.UtcNow, note.Importance);
         await Quiet();
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
