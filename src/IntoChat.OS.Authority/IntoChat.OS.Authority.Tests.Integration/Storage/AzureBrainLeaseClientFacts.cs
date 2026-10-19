@@ -3,6 +3,7 @@ using Azure;
 using Azure.Core.Pipeline;
 using Azure.Storage.Blobs;
 using IntoChat.OS.Authority.Storage;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
@@ -42,7 +43,7 @@ public sealed class AzureBrainLeaseClientFacts
     {
         var options = new BlobClientOptions { Transport = new HttpClientTransport(new HttpClient(service)) };
         options.Retry.MaxRetries = 0;
-        return new(new BlobContainerClient(new Uri("https://account.blob.core.windows.net/brainlease-v1"), options));
+        return new(new BlobContainerClient(new Uri("https://account.blob.core.windows.net/brainlease-v1"), options), NullLogger<AzureBrainLeaseClient>.Instance);
     }
 
     private sealed class FakeBlobService : HttpMessageHandler
