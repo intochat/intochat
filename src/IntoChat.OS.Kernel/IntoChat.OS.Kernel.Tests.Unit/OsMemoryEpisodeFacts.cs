@@ -236,4 +236,8 @@ public sealed class OsMemoryReviewFacts
         Assert.Equal("1 memory awaits review", global::Reviews.Render(1));
         Assert.Equal("3 memories await review", global::Reviews.Render(3));
     }
+
+    [Fact]
+    public void AnUnexpectedStatusIsDistinct()
+        => Assert.Equal(global::Reviews.Outcome.Unexpected, global::Reviews.Decide("weird", global::Reviews.Operation.Accept));
 }
