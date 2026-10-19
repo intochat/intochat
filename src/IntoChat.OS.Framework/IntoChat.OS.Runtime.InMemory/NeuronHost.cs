@@ -215,8 +215,7 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
         switch (result)
         {
             case Task task:
-                await task;
-                return method.ReturnType.IsGenericType ? method.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task) : null;
+                return await TaskBoxing.ResultAsync(task, method.ReturnType);
             case ValueTask valueTask:
                 await valueTask;
                 return null;
@@ -224,8 +223,7 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
                 if (result is not null && method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
                 {
                     var asTask = (Task)method.ReturnType.GetMethod(nameof(ValueTask<object>.AsTask))!.Invoke(result, null)!;
-                    await asTask;
-                    return asTask.GetType().GetProperty(nameof(Task<object>.Result))!.GetValue(asTask);
+                    return await TaskBoxing.ResultAsync(asTask, method.ReturnType);
                 }
                 return result;
         }

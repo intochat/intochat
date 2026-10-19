@@ -1,6 +1,6 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using IntoChat.OS.Framework.Caching;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -43,17 +43,26 @@ public sealed class CSharpScriptCheck
     private static readonly CSharpCompilationOptions Options = new(OutputKind.ConsoleApplication, deterministic: true, nullableContextOptions: NullableContextOptions.Enable);
     private static readonly EmitOptions Emit = new(debugInformationFormat: DebugInformationFormat.PortablePdb);
 
-    private const int CacheCapacity = 1024;
-    // Process-wide, keyed by the reference fingerprint, the synapse's path and source plus every shared file:
-    // the whole input of an emit. Only clean emits are kept.
-    private static readonly ConcurrentDictionary<string, CompiledBehavior> Emitted = new(StringComparer.Ordinal);
+    public const int CacheCapacity = 1024;
+    // Owned by whoever builds the check (the module registers one singleton), keyed by the reference fingerprint, the
+    // synapse's path and source plus every shared file: the whole input of an emit. Only clean emits are kept; the least
+    // recently used one goes when the cache is full.
+    private readonly BoundedCache<string, CompiledBehavior> _emitted;
     private long _emits;
     private readonly string _references;
 
-    public CSharpScriptCheck() : this(ReferenceFingerprint.Value) { }
+    public CSharpScriptCheck() : this(ReferenceFingerprint.Value, new(CacheCapacity, StringComparer.Ordinal)) { }
+
+    public CSharpScriptCheck(BoundedCache<string, CompiledBehavior> emitted) : this(ReferenceFingerprint.Value, emitted) { }
+
+    public CSharpScriptCheck(string referencesFingerprint) : this(referencesFingerprint, new(CacheCapacity, StringComparer.Ordinal)) { }
 
     // The fingerprint of the contract set the emits compile against; part of every cache key.
-    public CSharpScriptCheck(string referencesFingerprint) => _references = referencesFingerprint;
+    public CSharpScriptCheck(string referencesFingerprint, BoundedCache<string, CompiledBehavior> emitted)
+    {
+        _references = referencesFingerprint;
+        _emitted = emitted;
+    }
 
     public long Emits => Interlocked.Read(ref _emits);
 
@@ -79,7 +88,7 @@ public sealed class CSharpScriptCheck
         {
             ArgumentNullException.ThrowIfNull(source, path);
             var key = Hash(libraryKey + "\u0001" + path + "\u0000" + source);
-            if (Emitted.TryGetValue(key, out var known)) { assemblies[path] = known; continue; }
+            if (_emitted.TryGet(key, out var known)) { assemblies[path] = known; continue; }
             var trees = shared.Prepend(CSharpSyntaxTree.ParseText(SourceText.From(source, Encoding.UTF8), Parse, path)).ToArray();
             var compilation = CSharpCompilation.Create("behavior", trees, References.Value, Options);
             using var assembly = new MemoryStream();
@@ -99,8 +108,7 @@ public sealed class CSharpScriptCheck
                 var bytes = assembly.ToArray();
                 var behavior = new CompiledBehavior(bytes, symbols.ToArray(), Convert.ToHexStringLower(SHA256.HashData(bytes)));
                 assemblies[path] = behavior;
-                if (Emitted.Count >= CacheCapacity) { Emitted.Clear(); }
-                Emitted[key] = behavior;
+                _emitted.Set(key, behavior);
             }
         }
         return new(errors.Count == 0, errors, errors.Count == 0 ? assemblies : new Dictionary<string, CompiledBehavior>());
