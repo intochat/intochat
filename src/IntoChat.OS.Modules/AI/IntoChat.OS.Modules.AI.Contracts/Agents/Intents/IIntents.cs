@@ -53,4 +53,6 @@ public interface IIntents : INeuron
     static string Key(string brainId) => $"{brainId}/memory/intents";
 
     const int ActiveCap = 256;
+    const int RequestIdLimit = 200;
+    const int HeardLimit = 8_000;
 }
