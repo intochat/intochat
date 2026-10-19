@@ -78,6 +78,47 @@ public sealed partial class DartVocabularyFacts
         Assert.Empty(referenced.Except(NodeContracts().Select(entry => entry.Kind)));
     }
 
+    // Renderer vocabulary kinds the shell has no node contract for yet (no Flutter contract is watched for them). Known gap,
+    // pinned so the guard passes at head: a kind that gains a Dart entry must leave this list (checked below); a kind
+    // emitted by a UiChildRef call site must never be added here.
+    private static readonly string[] VocabularyKindsWithoutADartContract =
+        ["calendar", "clock", "color", "expander", "graph", "image", "infobar", "map", "progress", "rating", "sheet", "slider", "toggle", "tree", "video"];
+
+    [Fact]
+    public void EveryKindTheServerCanEmitHasADartNodeContract()
+    {
+        // Emittable = renderer vocabulary + the literal kind of every UiChildRef("<kind>", ...) in production source + watch-only kinds.
+        var emitters = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+        foreach (var kind in Vocabulary().Concat(WatchOnlyKinds)) { emitters[kind] = ["UIVocabulary / WatchOnlyKinds"]; }
+        foreach (var top in new[] { "features", "src" })
+        {
+            var directory = Path.Combine(UiContractFiles.Root, top);
+            if (!Directory.Exists(directory)) { continue; }
+            foreach (var file in Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(UiContractFiles.Root, file).Replace('\\', '/');
+                if (relative.Split('/').Any(part => part is "bin" or "obj" or "tests" or "test") || relative.Contains(".Tests", StringComparison.Ordinal)) { continue; }
+                foreach (Match call in LiteralUiChildRef().Matches(File.ReadAllText(file)))
+                {
+                    var kind = call.Groups["kind"].Value;
+                    if (!emitters.TryGetValue(kind, out var files)) { emitters[kind] = files = []; }
+                    files.Add(relative);
+                }
+            }
+        }
+        Assert.Contains("viewport", emitters.Keys); // the scan must see the Workspace's call site, or it is blind.
+        var tableKinds = NodeContracts().Select(contract => contract.Kind).ToHashSet();
+        var stale = VocabularyKindsWithoutADartContract.Where(tableKinds.Contains).ToArray();
+        Assert.True(stale.Length == 0, "VocabularyKindsWithoutADartContract lists kinds that now have a Dart entry: " + string.Join(", ", stale));
+        var calls = emitters.Where(entry => entry.Value.Any(source => source != "UIVocabulary / WatchOnlyKinds")).Select(entry => entry.Key);
+        Assert.Empty(calls.Intersect(VocabularyKindsWithoutADartContract));
+        var missing = emitters.Where(entry => !tableKinds.Contains(entry.Key) && !VocabularyKindsWithoutADartContract.Contains(entry.Key)).Select(entry => $"{entry.Key} (emitted by {string.Join(", ", entry.Value)})").ToArray();
+        Assert.True(missing.Length == 0, "Kinds the server can emit have no entry in node_contracts.dart:\n" + string.Join('\n', missing));
+    }
+
+    [GeneratedRegex(@"UiChildRef\(\s*""(?<kind>\w+)""")]
+    private static partial Regex LiteralUiChildRef();
+
     [GeneratedRegex(@"static const List<String> uiKinds = \[(?<body>[^\]]*)\];")]
     private static partial Regex UiKinds();
 
