@@ -24,4 +24,4 @@ docker pull ghcr.io/intochat/os-sandbox
 
 `os` is the kernel, `os-ui` is the Flutter web shell served by nginx, and `os-sandbox` is the C# sandbox.
 
-Documentation lives in the handbook: https://github.com/intochat/digitalbrain.docs
+Documentation: https://github.com/intochat/os.docs

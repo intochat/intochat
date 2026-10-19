@@ -1,6 +1,6 @@
 # Repository working instructions
 
-Product vision, requirements, architecture assessment, plans and status are maintained in the sibling repository `E:/intochat/digitalbrain.docs`. Start with its index.md and contributing.md. Do not create narrative documentation or plans in this product repository. Historical instructions and documents are archived in the documentation repository.
+Public documentation lives in the sibling repository `E:/intochat/os.docs` (GitHub `intochat/os.docs`, deployed as the docs site). Product vision, requirements, plans and status live in the private handbook `E:/intochat/handbook` (GitHub `intochat/handbook`); start with its index.md and contributing.md. Do not create narrative documentation or plans in this product repository. Historical instructions and documents are archived in the documentation repository.
 
 ## Code work
 
