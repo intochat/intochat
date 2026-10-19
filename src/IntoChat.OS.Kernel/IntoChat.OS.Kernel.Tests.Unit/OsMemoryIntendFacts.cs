@@ -115,4 +115,22 @@ public sealed class OsMemoryIntendFacts
         Assert.False(global::Intents.IsWaiting(Make(IntentState.Dispatched)));
         Assert.False(global::Intents.IsWaiting(null));
     }
+
+    [Fact]
+    public void TheAnswerNamesTheIntent()
+    {
+        var id = Guid.NewGuid();
+        Assert.Equal("ok " + id, global::Intents.Ok(id));
+    }
+
+    [Fact]
+    public void OnlyARephrasedIntentIsConfirmedAfterAConfidentRephrase()
+    {
+        static Intent Make(IntentState state) => new(Guid.NewGuid(), "h", "c", "r", null, 0.9, state, [], [], []);
+        Assert.True(global::Intents.ShouldConfirm(Make(IntentState.Rephrased), 0.9, 0.8));
+        Assert.False(global::Intents.ShouldConfirm(Make(IntentState.Rephrased), 0.5, 0.8));
+        Assert.False(global::Intents.ShouldConfirm(Make(IntentState.Dispatched), 0.9, 0.8));
+        Assert.False(global::Intents.ShouldConfirm(Make(IntentState.Waiting), 0.9, 0.8));
+        Assert.False(global::Intents.ShouldConfirm(null, 0.9, 0.8));
+    }
 }

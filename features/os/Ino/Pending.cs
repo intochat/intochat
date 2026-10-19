@@ -8,8 +8,10 @@ using IntoChat.OS.Flutter.Text;
 // was handed to Memory. Started is set once the answer's turn has been started, so a late Rephrased signal
 // and the slow-Memory scan never answer the same message twice. One JSON text per request at
 // {data}/pending/{requestId}; each writing synapse keeps the ids it wrote in its own index text
-// ({data}/pending/index-{synapse}), so every index has a single writer.
-public sealed record Pending(string Message, string Hint, string Conversation, DateTimeOffset StartedAt, bool Started)
+// ({data}/pending/index-{synapse}), so every index has a single writer. Attempts counts the answers that could
+// not start, the last of them at ReleasedAt.
+public sealed record Pending(string Message, string Hint, string Conversation, DateTimeOffset StartedAt, bool Started,
+    int Attempts = 0, DateTimeOffset? ReleasedAt = null)
 {
     public string Serialize() => JsonSerializer.Serialize(this);
 
@@ -32,9 +34,32 @@ public static class PendingStore
     public static string EntryKey(IntoChatOSConnection brain, Guid requestId) => Data(brain) + "/pending/" + requestId.ToString("N");
     public static string IndexKey(IntoChatOSConnection brain, string synapse) => Data(brain) + "/pending/index-" + synapse;
 
-    // The requests handed to Memory longer ago than the gate whose answer has not started.
+    public const int MaxAttempts = 3;
+
+    // The wait after the n-th answer that could not start: 2 s, 4 s, 8 s.
+    public static TimeSpan Backoff(int attempts) => TimeSpan.FromSeconds(2 << Math.Clamp(attempts - 1, 0, 2));
+
+    // The requests handed to Memory longer ago than the gate whose answer has not started and was never released.
     public static Guid[] Older(IReadOnlyDictionary<Guid, Pending> entries, DateTimeOffset now, TimeSpan gate)
-        => [.. entries.Where(entry => !entry.Value.Started && now - entry.Value.StartedAt >= gate).Select(entry => entry.Key)];
+        => [.. entries.Where(entry => Decide(entry.Value, now, gate) == PendingStep.Answer && entry.Value.Attempts == 0).Select(entry => entry.Key)];
+
+    // What the scan does with an entry: nothing while it is started or backing off, watch Memory's answer while
+    // the gate is open, and answer (from Memory's answer text, with or without a brief) once the gate has passed
+    // or a released request's backoff has.
+    public static PendingStep Decide(Pending pending, DateTimeOffset now, TimeSpan gate)
+        => pending.Started ? PendingStep.Wait
+            : pending.Attempts > 0 ? (now - (pending.ReleasedAt ?? pending.StartedAt) >= Backoff(pending.Attempts) ? PendingStep.Answer : PendingStep.Wait)
+            : now - pending.StartedAt >= gate ? PendingStep.Answer : PendingStep.Watch;
+
+    // The entry after an answer that could not start: given back with the attempt recorded, or, at the cap, kept
+    // claimed (so it is never tried again) for the one-hour prune. Retry is false at the cap.
+    public static (Pending Entry, bool Retry) Released(Pending pending, DateTimeOffset now)
+    {
+        var attempts = pending.Attempts + 1;
+        return attempts >= MaxAttempts
+            ? (pending with { Started = true, Attempts = attempts, ReleasedAt = now }, false)
+            : (pending with { Started = false, Attempts = attempts, ReleasedAt = now }, true);
+    }
 
     // Writes the entry and adds it to the synapse's index; entries older than an hour are deleted on the way.
     public static async Task Write(IntoChatOSConnection brain, string synapse, Guid requestId, Pending pending)
@@ -67,18 +92,34 @@ public static class PendingStore
 
     public static Task MarkStarted(IntoChatOSConnection brain, Guid requestId) => Claim(brain, requestId);
 
-    // A turn that could not start gives the request back, so the scan tries it again.
-    public static async Task Release(IntoChatOSConnection brain, Guid requestId)
+    // A turn that could not start gives the request back, so the scan tries it again after a backoff; false when
+    // the cap is reached and the request is not tried again.
+    public static async Task<bool> Release(IntoChatOSConnection brain, Guid requestId)
     {
-        if (await Read(brain, requestId) is { Started: true } pending)
-        { await brain.Get<IText>(EntryKey(brain, requestId)).Set((pending with { Started = false }).Serialize()); }
+        if (await Read(brain, requestId) is not { Started: true } pending) { return true; }
+        var (entry, retry) = Released(pending, DateTimeOffset.UtcNow);
+        await brain.Get<IText>(EntryKey(brain, requestId)).Set(entry.Serialize());
+        return retry;
     }
 
     public static bool KeepsClaim(AnswerOutcome outcome) => outcome != AnswerOutcome.Failed;
 
-    // Memory's answer under the request id: "ok" once the intent is rephrased (and confirmed when it was sure), "failed: ..." otherwise.
+    // Memory's answer under the request id: "ok <intent id>" once the intent is rephrased (and confirmed when it
+    // was sure), "failed: ..." otherwise.
     public static MemoryAnswer Classify(string text)
-        => text == "ok" ? MemoryAnswer.Ok : text.StartsWith("failed:", StringComparison.Ordinal) ? MemoryAnswer.Failed : MemoryAnswer.None;
+        => text == "ok" || text.StartsWith("ok ", StringComparison.Ordinal) ? MemoryAnswer.Ok
+            : text.StartsWith("failed:", StringComparison.Ordinal) ? MemoryAnswer.Failed : MemoryAnswer.None;
+
+    // The intent id of an "ok <intent id>" answer; null for a bare "ok" or any other text.
+    public static Guid? IntentId(string text)
+        => text.StartsWith("ok ", StringComparison.Ordinal) && Guid.TryParse(text.AsSpan(3).Trim(), out var id) ? id : null;
+
+    // The intent an "ok" answer names: by its id, or by the request id when the answer carries none. A continued
+    // intent keeps the request id it was first heard under, so only the id finds it.
+    public static Intent? Find(Intent[] intents, string answer, Guid requestId)
+        => IntentId(answer) is { } id
+            ? intents.FirstOrDefault(intent => intent.Id == id)
+            : intents.LastOrDefault(intent => intent.RequestId == requestId.ToString("N"));
 
     public static Guid[] Expired(IReadOnlyDictionary<Guid, Pending> entries, DateTimeOffset now)
         => [.. entries.Where(entry => now - entry.Value.StartedAt > Kept).Select(entry => entry.Key)];
@@ -110,6 +151,8 @@ public static class PendingStore
 public enum AnswerOutcome { Started, KeptInDraft, Failed }
 
 public enum MemoryAnswer { None, Ok, Failed }
+
+public enum PendingStep { Wait, Watch, Answer }
 
 public static partial class Ino
 {

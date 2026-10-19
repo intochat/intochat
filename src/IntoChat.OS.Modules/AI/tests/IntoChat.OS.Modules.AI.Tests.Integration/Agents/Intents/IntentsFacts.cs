@@ -123,6 +123,37 @@ public sealed class IntentsFacts(AIHost host)
     }
 
     [Fact]
+    public async Task AStaleRevisionRefusesATransitionAndLeavesTheIntent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        var stale = (await intents.Read()).Revision;
+        await intents.Rephrase(id, Brief, 0.9, stale);
+        await Assert.ThrowsAsync<RevisionConflictException>(() => intents.Transition(id, IntentState.Confirmed, "late", stale));
+        var after = await intents.Read();
+        Assert.Equal(IntentState.Rephrased, Assert.Single(after.Intents).State);
+        await intents.Transition(id, IntentState.Confirmed, "fresh", after.Revision);
+        Assert.Equal(IntentState.Confirmed, Assert.Single((await intents.Read()).Intents).State);
+    }
+
+    [Fact]
+    public async Task AStaleRevisionRefusesArmingAndKeepsTheCues()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var intents = host.Brain.Get<IIntents>(person.Key("memory/intents"));
+        var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
+        var stale = (await intents.Read()).Revision;
+        await intents.Arm(id, [new("time", "", "", null, null, DateTimeOffset.UtcNow.AddHours(1))], stale);
+        await Assert.ThrowsAsync<RevisionConflictException>(() => intents.Arm(id, [], stale));
+        Assert.Single(Assert.Single((await intents.Read()).Intents).Cues);
+    }
+
+    [Fact]
     public async Task ArmingPublishesIntentArmedAndKeepsTheCues()
     {
         var ct = TestContext.Current.CancellationToken;

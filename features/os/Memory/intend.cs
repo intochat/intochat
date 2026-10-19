@@ -9,7 +9,9 @@ using IntoChat.OS.Flutter.Text;
 // "intend" rephrases a message into a brief and records it as an intent. Memory's own agent is told to
 // rephrase, never to answer, given the message, the active intents and the working memory; its reply is
 // declared on the intents neuron, rephrased, and confirmed when its confidence reaches the ConfirmGate
-// setting. The answer under the request id is "ok" or "failed: <reason>"; a failure declares nothing, and
+// setting. The answer under the request id is "ok <intent id>" or "failed: <reason>"; the intent id matters
+// because a continued intent keeps the request id it was first heard under. Each write reads the revision afresh
+// and is retried on a revision conflict (Intents.ShouldRetry); a failure declares nothing, and
 // a request whose answer is already written is skipped, so a redelivery never declares twice.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
@@ -27,15 +29,14 @@ await foreach (var request in brain.On(app, "intend", brain.Stopping))
         var ask = Intents.ParseAsk(request.Input);
         answered = brain.Get<IText>(Intents.AnswerKey(appKey, ask.RequestId));
         if ((await answered.Read()).Markdown.Length > 0) { continue; }
-        await Intend(ask);
-        answer = "ok";
+        answer = Intents.Ok(await Intend(ask));
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { answer = "failed: " + error.Message; }
     await answered.Set(answer);
 }
 
-async Task Intend(Intents.Ask ask)
+async Task<Guid> Intend(Intents.Ask ask)
 {
     var snapshot = await app.Read();
     var model = snapshot.Settings.GetValueOrDefault("Model", "");
@@ -75,7 +76,14 @@ async Task Intend(Intents.Ask ask)
     };
     string text;
     try { text = await done.Task.WaitAsync(ceiling, brain.Stopping); }
-    catch (TimeoutException) { throw new TimeoutException("the agent did not answer in 30 seconds"); }
+    catch (TimeoutException)
+    {
+        // The turn would keep Memory's agent busy and the next intend would find it so: cancel it first.
+        try { await agent.CancelRun(ask.RequestId); }
+        catch (Exception cancel) when (!brain.Stopping.IsCancellationRequested)
+        { throw new TimeoutException("the agent did not answer in 30 seconds; cancelling its turn also failed: " + cancel.Message); }
+        throw new TimeoutException("the agent did not answer in 30 seconds");
+    }
     finally
     {
         waiting.Cancel();
@@ -86,9 +94,14 @@ async Task Intend(Intents.Ask ask)
     var id = await intents.Declare(new(ask.RequestId, ask.Message, ask.Conversation, reply.Continues));
     try
     {
-        var revision = (await intents.Read()).Revision;
-        await intents.Rephrase(id, reply.Brief, reply.Confidence, revision);
-        if (reply.Confidence >= gate) { await intents.Transition(id, IntentState.Confirmed, "confident", revision + 1); }
+        await Retrying(async () => await intents.Rephrase(id, reply.Brief, reply.Confidence, (await intents.Read()).Revision));
+        await Retrying(async () =>
+        {
+            var current = await intents.Read();
+            if (Intents.ShouldConfirm(current.Intents.FirstOrDefault(intent => intent.Id == id), reply.Confidence, gate))
+            { await intents.Transition(id, IntentState.Confirmed, "confident", current.Revision); }
+        });
+        return id;
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
@@ -103,5 +116,15 @@ async Task Intend(Intents.Ask ask)
         catch (Exception compensation) when (!brain.Stopping.IsCancellationRequested)
         { throw new InvalidOperationException(error.Message + "; abandoning the intent also failed: " + compensation.Message, error); }
         throw;
+    }
+}
+
+// A write that meets a revision conflict is read again and retried, up to Intents.FireAttempts in all.
+async Task Retrying(Func<Task> write)
+{
+    for (var attempt = 1; ; attempt++)
+    {
+        try { await write(); return; }
+        catch (Exception error) when (Intents.ShouldRetry(error, attempt) && !brain.Stopping.IsCancellationRequested) { }
     }
 }

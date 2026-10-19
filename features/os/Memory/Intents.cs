@@ -39,6 +39,14 @@ internal static class Intents
     // Only a revision conflict is worth another read; attempts are counted from one.
     public static bool ShouldRetry(Exception error, int attempt) => error is RevisionConflictException && attempt < FireAttempts;
 
+    // The answer written under the request id once the intent is rephrased: "ok <intent id>".
+    public static string Ok(Guid intentId) => "ok " + intentId;
+
+    // Confirming follows a confident rephrase only when the rephrase left the intent Rephrased: a continued
+    // intent that was Dispatched or Waiting keeps its state and is not confirmed again.
+    public static bool ShouldConfirm(Intent? intent, double confidence, double gate)
+        => confidence >= gate && intent is { State: IntentState.Rephrased };
+
     public static string WorkingKey(string appKey) => appKey + "/working";
 
     public const int WorkingLimit = 4_000;
