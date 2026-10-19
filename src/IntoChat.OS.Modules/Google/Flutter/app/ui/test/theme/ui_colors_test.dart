@@ -78,7 +78,38 @@ void main() {
   test('legacy palettes map from existing tokens', () {
     expect(UiColors.midnight.page, UiPalette.surface);
     expect(UiColors.midnight.accent, UiPalette.owner);
-    expect(UiColors.lumen.accent, LumenPalette.accent);
+    expect(UiColors.lumen.page, const Color(0xFF060A08));
+    expect(UiColors.lumen.accent, const Color(0xFF7CE0A8));
+    expect(UiColors.paper, isNot(UiColors.lumen));
+    expect(UiColors.midnight.error, const Color(0xFFFFB4AB));
+    expect(UiColors.paper.error, LumenPalette.error);
     expect(UiColors.paper.surface, LumenPalette.surface);
+  });
+
+  final all = {
+    'intochatLight': UiColors.intochatLight,
+    'intochatDark': UiColors.intochatDark,
+    'midnight': UiColors.midnight,
+    'paper': UiColors.paper,
+    'lumen': UiColors.lumen,
+  };
+
+  test('every palette has readable body text on page', () {
+    all.forEach((name, c) {
+      expect(
+        _contrast(c.body, c.page),
+        greaterThanOrEqualTo(4.5),
+        reason: name,
+      );
+    });
+  });
+
+  test('all palettes are pairwise distinct', () {
+    final list = all.values.toList();
+    for (var i = 0; i < list.length; i++) {
+      for (var j = i + 1; j < list.length; j++) {
+        expect(list[i], isNot(list[j]));
+      }
+    }
   });
 }

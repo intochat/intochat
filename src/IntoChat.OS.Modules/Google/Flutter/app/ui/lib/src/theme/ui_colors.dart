@@ -96,7 +96,9 @@ class UiColors extends ThemeExtension<UiColors> {
     errorBg: Color(0x29F3A99F),
   );
 
-  /// Mapped from [UiPalette].
+  /// Mapped from [UiPalette]. Error is the dark theme's Material error
+  /// (`ColorScheme.fromSeed`); accentHover, status backgrounds (16% alpha)
+  /// and accentTint are derived.
   static const midnight = UiColors(
     page: UiPalette.surface,
     recessed: UiPalette.surfaceSunken,
@@ -115,11 +117,12 @@ class UiColors extends ThemeExtension<UiColors> {
     doneBg: Color(0x2965C5A0),
     working: UiPalette.signal,
     workingBg: Color(0x29E09261),
-    error: Color(0xFFE5736A),
-    errorBg: Color(0x29E5736A),
+    error: Color(0xFFFFB4AB),
+    errorBg: Color(0x29FFB4AB),
   );
 
-  /// Mapped from the v1 light theme ([LumenPalette] values).
+  /// Mapped from the v1 light theme ([LumenPalette] values). done=accent,
+  /// accentHover and the 16% alpha status backgrounds are derived.
   static const paper = UiColors(
     page: LumenPalette.background,
     recessed: LumenPalette.surfaceMuted,
@@ -142,27 +145,29 @@ class UiColors extends ThemeExtension<UiColors> {
     errorBg: Color(0x29AD4F3F),
   );
 
-  /// Mapped from [LumenPalette].
+  /// Lumen: green on near-black, from `UiTheme.workspaceDark('lumen')`.
+  /// subtle, working and the 16% alpha backgrounds are derived; done=accent;
+  /// error is the dark base scheme's Material error.
   static const lumen = UiColors(
-    page: LumenPalette.background,
-    recessed: LumenPalette.surfaceMuted,
-    surface: LumenPalette.surface,
-    strong: LumenPalette.ink,
-    body: LumenPalette.ink,
-    muted: LumenPalette.muted,
-    subtle: LumenPalette.faint,
-    hairline: LumenPalette.line,
-    inputBorder: LumenPalette.lineStrong,
-    accent: LumenPalette.accent,
-    accentHover: LumenPalette.accent,
-    accentTint: LumenPalette.accentSoft,
-    onAccent: LumenPalette.surface,
-    done: LumenPalette.accent,
-    doneBg: LumenPalette.accentSoft,
-    working: LumenPalette.warning,
-    workingBg: Color(0x29986A37),
-    error: LumenPalette.error,
-    errorBg: Color(0x29AD4F3F),
+    page: Color(0xFF060A08),
+    recessed: Color(0xFF0F1813),
+    surface: Color(0xFF0B120F),
+    strong: Color(0xFFE3EFE8),
+    body: Color(0xFFE3EFE8),
+    muted: Color(0xFF8CA397),
+    subtle: Color(0xFF5F776A),
+    hairline: Color(0xFF1D2D24),
+    inputBorder: Color(0xFF3F5A4A),
+    accent: Color(0xFF7CE0A8),
+    accentHover: Color(0xFFA5F0C4),
+    accentTint: Color(0xFF12301F),
+    onAccent: Color(0xFF04170D),
+    done: Color(0xFF7CE0A8),
+    doneBg: Color(0x297CE0A8),
+    working: Color(0xFFD9A867),
+    workingBg: Color(0x29D9A867),
+    error: Color(0xFFFFB4AB),
+    errorBg: Color(0x29FFB4AB),
   );
 
   /// Resolves the colours from [Theme], falling back to [intochatLight] when
