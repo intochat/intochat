@@ -4,6 +4,7 @@
     <Compile Include="../../../features/os/Memory/Memory.cs" Link="Features/Memory.cs" />
     <Compile Include="../../../features/os/Memory/Shape.cs" Link="Features/Shape.cs" />
     <Compile Include="../../../features/os/Memory/Intents.cs" Link="Features/MemoryIntents.cs" />
+    <Compile Include="../../../features/os/Memory/Reviews.cs" Link="Features/MemoryReviews.cs" />
     <Compile Include="../../../features/os/Memory/Episodes.cs" Link="Features/MemoryEpisodes.cs" />
     <Compile Include="../../../features/os/Memory/Consolidation.cs" Link="Features/MemoryConsolidation.cs" />
     <Compile Include="../../../features/os/Memory/RecallLadder.cs" Link="Features/MemoryRecallLadder.cs" />

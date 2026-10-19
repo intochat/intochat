@@ -215,3 +215,25 @@ public sealed class OsMemoryConsolidationFacts
         Assert.StartsWith("consolidation:", global::Consolidation.IntentRequestId(first));
     }
 }
+
+// Memory's review helper (features/os/Memory/Reviews.cs) is compiled into this project.
+public sealed class OsMemoryReviewFacts
+{
+    [Fact]
+    public void AcceptingAReviewItemAssertsOnce()
+    {
+        Assert.Equal(global::Reviews.Outcome.Accept, global::Reviews.Decide("pending", global::Reviews.Operation.Accept));
+        Assert.Equal(global::Reviews.Outcome.AlreadyDone, global::Reviews.Decide("accepted", global::Reviews.Operation.Accept));
+        Assert.Equal(global::Reviews.Outcome.Reject, global::Reviews.Decide("pending", global::Reviews.Operation.Reject));
+        Assert.Equal(global::Reviews.Outcome.AlreadyDone, global::Reviews.Decide("rejected", global::Reviews.Operation.Accept));
+        Assert.Equal(global::Reviews.Outcome.Unknown, global::Reviews.Decide(null, global::Reviews.Operation.Reject));
+    }
+
+    [Fact]
+    public void TheCountRendersOnlyWhenPositive()
+    {
+        Assert.Equal("", global::Reviews.Render(0));
+        Assert.Equal("1 memory awaits review", global::Reviews.Render(1));
+        Assert.Equal("3 memories await review", global::Reviews.Render(3));
+    }
+}

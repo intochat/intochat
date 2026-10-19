@@ -1,6 +1,7 @@
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Context;
 using IntoChat.OS.AI.Agents.Facts;
 using IntoChat.OS.AI.Agents.Intents;
 using IntoChat.OS.AI.Agents.Signals;
@@ -37,6 +38,7 @@ var working = brain.Get<IText>(Intents.WorkingKey(appKey));
 var status = brain.Get<IText>(appKey + "/status");
 var reminder = brain.Get<IReminder>(Consolidation.ReminderKey(appKey));
 var defined = false;
+var context = brain.Get<IAgentContext>(Intents.ContextKey(appKey));
 
 TableDefinition reviewDefinition = new(
 [
@@ -77,6 +79,8 @@ async Task Drain()
             defined = true;
         }
         while (await Batch()) { }
+        try { await Reviews.Refresh(brain); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Report("consolidation could not update the review count: " + error.Message); }
         await RearmForClaims();
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

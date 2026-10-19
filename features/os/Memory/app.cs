@@ -126,6 +126,8 @@ static class App
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
             new("capture", "Turn a finished turn into an episode: a short note and an importance in {app}/episodes; input is JSON {\"agent\",\"runId\"}. Done by Memory after each completed Ino turn."),
             new("review", "List the consolidation's pending review items (sensitive or unsure items never published) as the text neuron {app}/review."),
+            new("review-accept", "Accept a review item: assert it as a fact (once) and mark the row accepted; input is the review row id."),
+            new("review-reject", "Reject a review item: mark the row rejected; input is the review row id."),
             new("recall-life", "Recall from the user's life (facts and episodes) by meaning, recency, authority and importance; the answer is Found, Partial or Absent with sources, written as the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
@@ -149,5 +151,6 @@ static class App
             new("open", Label: "Memory"),
             new("recall", Kind: "text", Label: "Recall a synapse"),
             new("remember", Kind: "text", Label: "Remember"),
+            new("review", Label: "Review memories"),
         ]);
 }
