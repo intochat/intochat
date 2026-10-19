@@ -6,6 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration" />
     <ProjectReference Include="../IntoChat.OS.Modules.Microsoft.Windows.Contracts/IntoChat.OS.Modules.Microsoft.Windows.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
