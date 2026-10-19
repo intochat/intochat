@@ -1,3 +1,4 @@
+using System.Runtime.Serialization;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Apps;
@@ -8,9 +9,11 @@ public sealed class AppState
 {
     [Id(0)] public AppManifest? Manifest { get; set; }
     [Id(1)] public string Spec { get; set; } = "";
-    [Id(2)] public Dictionary<string, string> Files { get; set; } = [];
-    [Id(3)] public Dictionary<string, string> Settings { get; set; } = [];
-    [Id(4)] public Dictionary<string, string> Connections { get; set; } = [];
+    // Files, settings and connections are entry arrays; the dictionaries are the older stored form, read once and
+    // then superseded by the next write (the Files, Settings and Connections views below prefer the arrays).
+    [Id(2), LegacyShape] public Dictionary<string, string>? LegacyFiles { get; set; }
+    [Id(3), LegacyShape] public Dictionary<string, string>? LegacySettings { get; set; }
+    [Id(4), LegacyShape] public Dictionary<string, string>? LegacyConnections { get; set; }
     [Id(5)] public string Version { get; set; } = "0.0.0";
     [Id(6)] public AppStatus Status { get; set; }
     [Id(7)] public string[] Activity { get; set; } = [];
@@ -20,7 +23,7 @@ public sealed class AppState
     [Id(11)] public string? BrainScopeId { get; set; }
     // The caller that created the app: what its running program acts as, so a restart keeps its identity.
     [Id(12)] public CallerContext? Principal { get; set; }
-    [Id(17)] public List<OperationReceipt> Receipts { get; set; } = [];
+    [Id(17)] public OperationReceipt[] Receipts { get; set; } = [];
     [Id(18)] public string? PublishedVersion { get; set; }
     [Id(19)] public AppOrigin? Origin { get; set; }
     [Id(20)] public bool Edited { get; set; }
@@ -43,14 +46,52 @@ public sealed class AppState
     [Id(35)] public string? MigrationSource { get; set; }
     [Id(36)] public string? MigrationTarget { get; set; }
     [Id(37)] public Signals.AppRequested[] MigrationRequests { get; set; } = [];
+    [Id(38)] public StringEntry[] FileEntries { get; set; } = [];
+    [Id(39)] public StringEntry[] SettingEntries { get; set; } = [];
+    [Id(40)] public StringEntry[] ConnectionEntries { get; set; } = [];
+
+    // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Files
+    {
+        get => StringEntry.ToMap(FileEntries, LegacyFiles);
+        set { FileEntries = StringEntry.From(value); LegacyFiles = null; }
+    }
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Settings
+    {
+        get => StringEntry.ToMap(SettingEntries, LegacySettings);
+        set { SettingEntries = StringEntry.From(value); LegacySettings = null; }
+    }
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Connections
+    {
+        get => StringEntry.ToMap(ConnectionEntries, LegacyConnections);
+        set { ConnectionEntries = StringEntry.From(value); LegacyConnections = null; }
+    }
+
+    public void PutFile(string path, string source) => Files = With(Files, path, source);
+    public void PutSetting(string name, string value) => Settings = With(Settings, name, value);
+    public void PutConnection(string slot, string id) => Connections = With(Connections, slot, id);
+
+    private static Dictionary<string, string> With(IReadOnlyDictionary<string, string> map, string key, string value)
+    {
+        var copy = new Dictionary<string, string>(map, StringComparer.Ordinal) { [key] = value };
+        return copy;
+    }
 
     public AppState Clone() => new()
     {
         Manifest = Manifest,
         Spec = Spec,
-        Files = new(Files, StringComparer.Ordinal),
-        Settings = new(Settings, StringComparer.Ordinal),
-        Connections = new(Connections, StringComparer.Ordinal),
+        LegacyFiles = LegacyFiles is null ? null : new(LegacyFiles, StringComparer.Ordinal),
+        LegacySettings = LegacySettings is null ? null : new(LegacySettings, StringComparer.Ordinal),
+        LegacyConnections = LegacyConnections is null ? null : new(LegacyConnections, StringComparer.Ordinal),
+        FileEntries = [.. FileEntries],
+        SettingEntries = [.. SettingEntries],
+        ConnectionEntries = [.. ConnectionEntries],
         Version = Version,
         Status = Status,
         Activity = [.. Activity],
@@ -89,7 +130,15 @@ public sealed record AppVersionRecord(
     [property: Id(1)] DateTimeOffset SavedAt,
     [property: Id(2)] AppManifest Manifest,
     [property: Id(3)] string Spec,
-    [property: Id(4)] Dictionary<string, string> Files);
+    [property: Id(4), LegacyShape] Dictionary<string, string>? LegacyFiles,
+    [property: Id(5)] StringEntry[] FileEntries)
+{
+    public AppVersionRecord(string version, DateTimeOffset savedAt, AppManifest manifest, string spec, IEnumerable<KeyValuePair<string, string>> files)
+        : this(version, savedAt, manifest, spec, null, StringEntry.From(files)) { }
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Files => StringEntry.ToMap(FileEntries, LegacyFiles);
+}
 
 [GenerateSerializer, Alias("apps.release-record")]
 public sealed record AppReleaseRecord(

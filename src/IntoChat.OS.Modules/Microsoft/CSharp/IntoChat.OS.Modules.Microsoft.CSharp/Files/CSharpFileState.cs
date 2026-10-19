@@ -1,3 +1,4 @@
+using System.Runtime.Serialization;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Microsoft.CSharp.Files;
@@ -9,11 +10,19 @@ namespace IntoChat.OS.Microsoft.CSharp.Files;
 internal sealed record CSharpFileState
 {
     [Id(0)] public string Program { get; init; } = "";
-    [Id(1)] public Dictionary<string, string> Settings { get; init; } = new(StringComparer.Ordinal);
+    [Id(1), LegacyShape] public Dictionary<string, string>? LegacySettings { get; init; }
     [Id(2)] public string? Hash { get; init; }
     [Id(3)] public bool Wanted { get; init; }
     [Id(4)] public CallerContext? Owner { get; init; }
     [Id(5)] public string Name { get; init; } = "";
     [Id(6)] public string Purpose { get; init; } = "";
     [Id(7)] public DateTimeOffset? Created { get; init; }
+    [Id(8)] public StringEntry[] SettingEntries { get; init; } = [];
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Settings
+    {
+        get => StringEntry.ToMap(SettingEntries, LegacySettings);
+        init { SettingEntries = StringEntry.From(value); LegacySettings = null; }
+    }
 }
