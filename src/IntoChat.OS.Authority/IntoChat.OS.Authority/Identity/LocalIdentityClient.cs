@@ -31,6 +31,12 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
         return await authority.Membership(member.PrincipalId);
     }
     public Task RemoveMember(string brainScopeId, string accountId) => Authority(brainScopeId).RemoveAccount(accountId);
+    public Task RemovePrincipalMember(string brainScopeId, string principalId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        return Authority(brainScopeId).RemovePrincipal(principalId);
+    }
     public async Task<CallDecision?> Authorize(CallRequest request)
     {
         var authority = Authority(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id);

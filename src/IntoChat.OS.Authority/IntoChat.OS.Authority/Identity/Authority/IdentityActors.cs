@@ -36,6 +36,8 @@ internal interface IBrainAuthority : IGrainWithStringKey
     Task EnsureMember(Member member);
     Task<bool> ProvisionOwner(Member owner);
     Task RemoveMember(string principalId);
+    // Removes one non-owner member by principal; the owner is refused and an unknown principal is a no-op.
+    Task RemovePrincipal(string principalId);
     // R125: set once, before the owner is provisioned.
     Task Classify(BrainKind kind);
     [Orleans.Concurrency.AlwaysInterleave] Task<BrainKind> Kind();
