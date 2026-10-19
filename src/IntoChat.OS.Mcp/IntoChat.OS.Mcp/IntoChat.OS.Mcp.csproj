@@ -11,6 +11,7 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />

@@ -122,9 +122,6 @@
   "IntoChat.OS.Modules.Time": [
     "Microsoft.Orleans.Reminders"
   ],
-  "IntoChat.OS.Modules.Time.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Tools.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
