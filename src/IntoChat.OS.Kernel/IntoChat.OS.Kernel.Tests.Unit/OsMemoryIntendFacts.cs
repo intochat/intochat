@@ -271,6 +271,23 @@ public sealed class OsMemoryIntendFacts
             IntoChat.OS.AI.Agents.Facts.FactScope.Private, [], hidden);
 
     [Fact]
+    public void RenderProfileKeepsExactlyThreeThousandAndDropsAWholeLineBeyond()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var facts = Enumerable.Range(0, 11).Select(i => Profile(new string((char)('a' + i), 297), now.AddMinutes(i))).ToArray();
+        var full = global::Intents.RenderProfile(facts, 3_000);
+        Assert.Equal(3_000, full.Length);
+        Assert.Equal(10, full.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.StartsWith("- " + new string('k', 297), full);
+        var shy = global::Intents.RenderProfile(facts, 2_999);
+        Assert.Equal(2_700, shy.Length);
+    }
+
+    [Fact]
+    public void RenderProfileCollapsesNewlinesAndTabsToOneLine()
+        => Assert.Equal("- a b c\n", global::Intents.RenderProfile([Profile("a\r\nb\tc", DateTimeOffset.UtcNow)], 3_000));
+
+    [Fact]
     public void RenderProfileCutsAtThreeThousand()
     {
         var now = DateTimeOffset.UtcNow;
