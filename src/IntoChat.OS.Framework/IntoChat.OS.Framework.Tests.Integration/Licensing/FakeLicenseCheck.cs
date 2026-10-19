@@ -13,7 +13,8 @@ public sealed class FakeLicenseCheck(Func<ModuleId, LicenseResult> verdict) : IL
         return verdict(module);
     }
 
-    public static FakeLicenseCheck Licensed { get; } = new(_ => new LicenseResult(true, "holder", null, null));
+    // A fresh fake per use: a shared instance would carry one fact's recorded calls into another.
+    public static FakeLicenseCheck Licensed => new(_ => new LicenseResult(true, "holder", null, null));
 
     public static FakeLicenseCheck Unlicensed(string reason) => new(_ => new LicenseResult(false, null, null, reason));
 }
