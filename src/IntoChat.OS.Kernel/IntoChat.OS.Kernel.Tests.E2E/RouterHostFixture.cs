@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Models;
+using IntoChat.OS.AI.Models.OpenAI;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Aspire.Hosting;
 using IntoChat.OS.Framework.Platform.Integrations;
@@ -10,7 +11,8 @@ using IntoChat.OS.Testing.Model;
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
 // The product boots with a local System One endpoint: the fake model answers /v1/systemone for
-// routing and the arg-fill chat, so a request routes through Jev and carries itself out offline.
+// routing and the arg-fill chat, so a request routes through Jev and carries itself out offline. The
+// default chat model is pinned to an OpenAI one, so an agent turn without a Model reaches the fake too.
 public sealed class RouterHostFixture : ReferenceBrainFixture
 {
     protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
@@ -23,7 +25,7 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
             [IntegrationSchema.Key("typesafe", "ApiKey")] = "fixture-key",
             [IntegrationSchema.Key("typesafe", "Endpoint")] = root,
         })
-            .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
+            .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint).WithDefaultLlm<IGpt56Luna>())
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithDashboardTelemetry()
             .StartAsync(cancellationToken);

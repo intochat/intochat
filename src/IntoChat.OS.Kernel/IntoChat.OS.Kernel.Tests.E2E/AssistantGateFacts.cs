@@ -23,6 +23,8 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
         var workspace = Brain.Get<IWorkspace>(scope);
         await using var changes = await Brain.Observe<TextChanged>(status, ct);
         await using var windows = await Brain.Observe<WorkspaceChanged>(workspace, ct);
+        // Other facts on this host run agent turns; only requests made during this fact count.
+        var before = LLMModel.All.ToDictionary(model => model.Id, model => Host.Model.Requests(model.Id).Count);
         var previous = Host.Model.SystemOneOverride;
         Host.Model.SystemOneOverride = request => RouterHostFixture.Choose(request, "calculator.open", "open", 0.95);
         try
@@ -36,7 +38,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
             // Navigation is confirmed through the workspace change stream.
             while ((await workspace.Read()).Path[^1] != scope + "/apps/calculator")
             { await windows.NextAsync(ct: ct); }
-            Assert.DoesNotContain(LLMModel.All.SelectMany(model => Host.Model.Requests(model.Id)),
+            Assert.DoesNotContain(LLMModel.All.SelectMany(model => Host.Model.Requests(model.Id).Skip(before[model.Id])),
                 request => RouterHostFixture.Text(request).Contains("You are the user's assistant", StringComparison.Ordinal));
         }
         finally { Host.Model.SystemOneOverride = previous; }
