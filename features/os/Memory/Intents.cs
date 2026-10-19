@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.AI.Agents.Intents;
@@ -60,8 +62,26 @@ internal static class Intents
         => rendered.Length == 0 ? (current is null ? Change.Skip : Change.Remove)
             : current == rendered ? Change.Skip : Change.Set;
 
+    // Cut at WorkingLimit characters, on a text-element boundary so a surrogate pair is never split.
     public static string RenderWorking(string text)
-        => (text ?? "").Length <= WorkingLimit ? text ?? "" : text![..WorkingLimit];
+    {
+        text ??= "";
+        if (text.Length <= WorkingLimit) { return text; }
+        var cut = 0;
+        foreach (var start in StringInfo.ParseCombiningCharacters(text))
+        {
+            if (start > WorkingLimit) { break; }
+            cut = start;
+        }
+        return text[..cut];
+    }
+
+    // One physical line: CR, LF and tabs become single spaces so text cannot break a list or a prompt.
+    public static string Line(string text) => Regex.Replace(text ?? "", "[\r\n\t]+", " ");
+
+    private static readonly IntentState[] ActiveStates = [IntentState.Rephrased, IntentState.Confirmed, IntentState.Dispatched, IntentState.Waiting];
+
+    public static Intent[] ActiveOf(Intent[] intents) => [.. intents.Where(intent => ActiveStates.Contains(intent.State))];
 
     public static string AnswerKey(string appKey, string requestId) => appKey + "/intents/" + requestId;
 
@@ -74,8 +94,10 @@ internal static class Intents
             if (root.ValueKind != JsonValueKind.Object) { throw new ArgumentException("The input is not a JSON object."); }
             var message = Text(root, "message");
             var requestId = Text(root, "requestId");
-            if (message.Length == 0 || requestId.Length == 0) { throw new ArgumentException("The input needs a message and a requestId."); }
-            return new(message, requestId, Text(root, "conversation"));
+            var conversation = Text(root, "conversation");
+            if (message.Length == 0 || requestId.Length == 0 || conversation.Length == 0)
+            { throw new ArgumentException("The input needs a message, a requestId and a conversation."); }
+            return new(message, requestId, conversation);
         }
         catch (JsonException error) { throw new ArgumentException("The input is not valid JSON: " + error.Message, error); }
     }
@@ -123,8 +145,10 @@ internal static class Intents
         var builder = new StringBuilder();
         foreach (var intent in intents.Reverse().Where(intent => intent.State is not (IntentState.Done or IntentState.Abandoned)))
         {
-            var entry = "- `" + intent.Id + "` " + intent.State + ": " + (intent.Brief?.Goal ?? intent.Heard)
-                + (intent.Brief?.Acceptance is { Length: > 0 } acceptance ? " (accepted when: " + acceptance[0] + ")" : "") + "\n";
+            var entry = "- `" + intent.Id + "` " + intent.State + ": " + Line(intent.Brief?.Goal ?? intent.Heard)
+                + (intent.Brief?.Acceptance is { Length: > 0 } acceptance ? " (accepted when: " + Line(acceptance[0]) + ")" : "") + "\n";
+            // A single intent over the whole budget is cut with an ellipsis rather than dropped.
+            if (builder.Length == 0 && entry.Length > budget && budget > 2) { entry = entry[..(budget - 2)] + "…\n"; }
             if (builder.Length + entry.Length > budget) { break; }
             builder.Append(entry);
         }

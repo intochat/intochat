@@ -18,11 +18,12 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
 var agent = brain.Get<IAgent>(Intents.AgentKey(appKey));
+var gateWarned = false;
 var ceiling = TimeSpan.FromSeconds(30);
 
 await foreach (var request in brain.On(app, "intend", brain.Stopping))
 {
-    var answered = brain.Get<IText>(Intents.AnswerKey(appKey, request.RequestId.ToString("N")));
+    var answered = brain.Get<IText>(Intents.AnswerKey(appKey, request.RequestId.ToString("D")));
     string answer;
     try
     {
@@ -40,7 +41,16 @@ async Task<Guid> Intend(Intents.Ask ask)
 {
     var snapshot = await app.Read();
     var model = snapshot.Settings.GetValueOrDefault("Model", "");
-    var gate = double.TryParse(snapshot.Settings.GetValueOrDefault("ConfirmGate", "0.8"), CultureInfo.InvariantCulture, out var parsed) ? parsed : 0.8;
+    var gate = 0.8;
+    if (snapshot.Settings.TryGetValue("ConfirmGate", out var gateText) && !double.TryParse(gateText, CultureInfo.InvariantCulture, out gate))
+    {
+        gate = 0.8;
+        if (!gateWarned)
+        {
+            gateWarned = true;
+            await brain.Get<IText>(appKey + "/status").Set("ConfirmGate is not a number; using 0.8");
+        }
+    }
     var active = Intents.RenderActive((await intents.Read()).Intents, 4000);
     var working = (await brain.Get<IText>(appKey + "/working").Read()).Markdown;
     var user = JsonSerializer.Serialize(new { message = ask.Message, activeIntents = active, workingMemory = working });
