@@ -1,4 +1,5 @@
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Sdk.Identity;
@@ -15,7 +16,7 @@ public sealed class PrivilegedModuleGateFacts
     private static ServiceProvider Host(params string[] privileged)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            privileged.Select((id, index) => KeyValuePair.Create<string, string?>($"IntoChatOS:Identity:PrivilegedModules:{index}", id))).Build();
+            privileged.Select((id, index) => KeyValuePair.Create<string, string?>($"{IdentityHostOptions.Key(nameof(IdentityHostOptions.PrivilegedModules))}:{index}", id))).Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
