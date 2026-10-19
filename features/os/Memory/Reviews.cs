@@ -13,7 +13,7 @@ internal static class Reviews
 {
     public enum Operation { Accept, Reject }
 
-    public enum Outcome { Accept, Reject, AlreadyDone, Unknown }
+    public enum Outcome { Accept, Reject, AlreadyDone, Unknown, Unexpected }
 
     public const string CountEntry = "review-count";
 
@@ -23,7 +23,8 @@ internal static class Reviews
         {
             "pending" => operation == Operation.Accept ? Outcome.Accept : Outcome.Reject,
             "accepted" or "rejected" => Outcome.AlreadyDone,
-            _ => Outcome.Unknown,
+            null => Outcome.Unknown,
+            _ => Outcome.Unexpected,
         };
 
     public static string Render(int count) => count <= 0 ? "" : count + (count == 1 ? " memory awaits review" : " memories await review");
@@ -85,6 +86,9 @@ internal static class Reviews
                 case Outcome.Unknown:
                     await Report(brain, appKey, "Memory has no review item " + id);
                     break;
+                case Outcome.Unexpected:
+                    await Report(brain, appKey, "review item has status " + row!.GetValueOrDefault("status"));
+                    break;
             }
             await Refresh(brain);
         }
@@ -102,7 +106,7 @@ internal static class Reviews
         var subject = row.GetValueOrDefault("subject", "");
         if (subject.Length > IFacts.SubjectLimit) { subject = subject[..IFacts.SubjectLimit]; }
         var confidence = double.TryParse(row.GetValueOrDefault("confidence"), CultureInfo.InvariantCulture, out var c) ? c : 1.0;
-        var importance = int.TryParse(row.GetValueOrDefault("importance"), CultureInfo.InvariantCulture, out var i) ? i : 5;
+        var importance = double.TryParse(row.GetValueOrDefault("importance"), CultureInfo.InvariantCulture, out var i) && double.IsFinite(i) ? (int)Math.Round(i) : 5;
         await facts.Assert(new FactAssertion(kind, text, subject, confidence, importance, DateTimeOffset.UtcNow, appKey, 0, "review", [], id));
     }
 
