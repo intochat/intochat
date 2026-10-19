@@ -308,6 +308,7 @@ public sealed class GrantFacts(AuthorityHost host)
         public Task<Member?> Membership(string brainScopeId, string principalId) => throw new NotSupportedException();
         public Task<Member?> EnsureMember(Member member) => throw new NotSupportedException();
         public Task RemoveMember(string brainScopeId, string accountId) => throw new NotSupportedException();
+        public Task RemovePrincipalMember(string brainScopeId, string principalId) => throw new NotSupportedException();
         public Task<Grant[]> ListGrants(string brainScopeId) => throw new NotSupportedException();
         public Task<Grant> GrantAsOwner(CallerContext caller, Grant grant) => throw new NotSupportedException();
         public Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode) => throw new NotSupportedException();
