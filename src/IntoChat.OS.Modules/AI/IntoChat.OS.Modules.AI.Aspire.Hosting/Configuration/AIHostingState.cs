@@ -6,6 +6,7 @@ using IntoChat.OS.AI.Models.FoundryLocal;
 using IntoChat.OS.AI.Voice;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Framework.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.AI.Aspire.Hosting;
 
@@ -15,7 +16,8 @@ public static partial class AIHostingExtensions
         IntoChatOSBuilder brain,
         IResourceBuilder<IntoChatOSModuleResource> module) : IntoChatOSModuleProjection
     {
-        private const string OllamaImageTag = "latest";
+        // Pinned: the image the container path was last verified against (ollama/ollama 0.40.6).
+        internal const string OllamaImageTag = "0.40.6";
 
         private readonly HashSet<Type> _markers = [];
         private readonly Dictionary<Type, IResourceBuilder<OllamaModelResource>> _ollamaModels = [];
@@ -118,14 +120,25 @@ public static partial class AIHostingExtensions
             => id.ToLowerInvariant().Replace(':', '-').Replace('.', '-').Replace('/', '-');
 
         internal IResourceBuilder<OllamaResource> EnsureOllama()
-            => _ollama ??= brain.ApplicationBuilder
+            => _ollama ??= AddOllama();
+
+        // GPU passthrough is the host's decision (IntoChatOS:Local:Gpu, set by the launcher's detection); a host
+        // without an NVIDIA runtime must still start the container.
+        private IResourceBuilder<OllamaResource> AddOllama()
+        {
+            var ollama = brain.ApplicationBuilder
                 .AddOllama(brain.ResourceName("ollama"))
-                .WithImageTag(OllamaImageTag)
-                .WithGPUSupport()
+                .WithImageTag(OllamaImageTag);
+            if (brain.ApplicationBuilder.Configuration.GetValue<bool>(IntoChatOSHostingOptions.LocalGpuKey))
+            {
+                ollama = ollama.WithGPUSupport();
+            }
+            return ollama
                 .WithDataVolume()
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
                 .WithParentRelationship(module);
+        }
     }
 
     private sealed class VoiceToTextHostingState(

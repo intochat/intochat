@@ -1,4 +1,7 @@
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using IntoChat.OS.Framework.Configuration;
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Aspire.Hosting;
 using IntoChat.OS.AI.Models;
@@ -33,16 +36,58 @@ public sealed record BrainProfile
     public required ClickHouseModuleOptions ClickHouse { get; init; }
     public required SupabaseModuleOptions Supabase { get; init; }
     public required AIOptions Ai { get; init; }
+    // The lean local run: no Postgres, Qdrant, ClickHouse, Supabase, GitHub, ArtCraft or Playwright hosting at all.
+    public bool Lean { get; init; }
 }
 
 public static class RunProfile
 {
     public static BrainProfile Local => Base() with { Ai = LocalAi() };
+    public static string DefaultLocalModel => new Qwen35().Id;
+
+    // The lean local run: Ollama runs on the host (endpoint only, no container), the default model is qwen3.5:4b unless
+    // the launcher passed IntoChatOS:Local:Model, and the C# sandbox is the one container beside Azurite.
+    public static BrainProfile LocalLean => LocalLeanWith(null);
     public static BrainProfile Cloud => Base() with { Ai = CloudAi() };
     public static BrainProfile Reference => Base() with
     {
         Ai = CloudAi().WithoutWebSearch().WithModelEndpoint(AiProvider.OpenAI, new Uri("http://127.0.0.1:1/v1/")),
     };
+
+    public static BrainProfile LocalLeanWith(string? model)
+    {
+        var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(LocalOllamaEndpoint)).WithoutWebSearch();
+        ai.Default.Model = nameof(IQwen35);
+        if (model is { Length: > 0 }) { ai.Ollama.Models[nameof(IQwen35)] = new AIModelOptions { Model = model }; }
+        return Base() with { Ai = ai, Lean = true };
+    }
+
+    // The modules a profile switched off (IntoChatOS:Modules:<id>:Enabled=false). The AppHost's configuration never reaches the
+    // kernel on its own, so each one is projected onto the kernel and MCP resources as an environment variable.
+    public static IReadOnlyList<string> DisabledModuleKeys(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return [.. configuration.GetSection(IntoChatOSConfiguration.ModulesSectionName).GetChildren()
+            .Select(module => IntoChatOSConfiguration.ModuleSection(module.Key) + ":Enabled")
+            .Where(key => configuration.GetValue<bool?>(key) == false)
+            .Order(StringComparer.Ordinal)];
+    }
+
+    public static IResourceBuilder<T> WithDisabledModules<T>(this IResourceBuilder<T> resource, IConfiguration configuration) where T : IResourceWithEnvironment
+    {
+        foreach (var key in DisabledModuleKeys(configuration)) { resource.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(key), "false"); }
+        return resource;
+    }
+
+    public const string LocalOllamaEndpoint = "http://localhost:11434";
+
+    // The profile names (IntoChatOSProfiles.Parse) select the brain: 'local' anywhere in the composition is the lean run,
+    // anything else is the product's Cloud brain.
+    public static BrainProfile ForName(IReadOnlyList<string> profiles, string? localModel = null)
+    {
+        ArgumentNullException.ThrowIfNull(profiles);
+        return profiles.Contains("local", StringComparer.OrdinalIgnoreCase) ? LocalLeanWith(localModel) : Cloud;
+    }
 
     public static void CopyOnto(AIOptions target, AIOptions source)
     {
@@ -68,18 +113,23 @@ public static class RunProfile
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(profile);
-        return brain
-            .WithHosting<OrleansModuleHosting, OrleansOptions>(profile.Orleans)
-            .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(profile.Postgres)
-            .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(profile.Qdrant)
-            .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(profile.ClickHouse)
-            .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(profile.Supabase)
-            .WithHosting<AIModuleHosting, AIOptions>(profile.Ai)
-            .WithHosting<GitHubModuleHosting>()
-            .WithHosting<AspireModuleHosting>()
-            .WithHosting<CSharpModuleHosting>()
-            .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps())
-            .WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
+        brain = brain.WithHosting<OrleansModuleHosting, OrleansOptions>(profile.Orleans);
+        if (!profile.Lean)
+        {
+            brain = brain
+                .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(profile.Postgres)
+                .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(profile.Qdrant)
+                .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(profile.ClickHouse)
+                .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(profile.Supabase);
+        }
+        brain = brain.WithHosting<AIModuleHosting, AIOptions>(profile.Ai);
+        if (!profile.Lean) { brain = brain.WithHosting<GitHubModuleHosting>(); }
+        brain = brain.WithHosting<AspireModuleHosting>().WithHosting<CSharpModuleHosting>();
+        return profile.Lean
+            ? brain
+            : brain
+                .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps())
+                .WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
     }
 
     private static BrainProfile Base() => new()
