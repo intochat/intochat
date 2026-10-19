@@ -43,7 +43,7 @@ public sealed class OsCatalogFacts
             .Descendants("Project").Select(project => Path.GetFileNameWithoutExtension(project.Attribute("Path")!.Value))
             .ToHashSet(StringComparer.Ordinal);
         var mcp = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Mcp"), "IntoChat.OS.Mcp.csproj"));
-        foreach (var module in OsCatalog.Modules)
+        foreach (var module in OsCatalog.WithWindowsEdge())
         {
             var assembly = module.GetType().Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";

@@ -143,7 +143,6 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/tests/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Windows/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows.Contracts/IntoChat.OS.Modules.Microsoft.Windows.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj" />

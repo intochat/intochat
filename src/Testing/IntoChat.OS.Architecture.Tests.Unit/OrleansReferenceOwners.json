@@ -113,9 +113,6 @@
   "IntoChat.OS.Modules.Microsoft.Roslyn.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.Microsoft.Windows.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Postgres.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],

@@ -11,7 +11,7 @@ public sealed class ScriptVisibilityFacts
     public void EveryModuleContractAssemblyIsScriptVisible()
     {
         var references = CSharpScriptCheck.ReferenceNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var contracts = new ModuleInventory(OsCatalog.Modules).ContractAssemblies();
+        var contracts = new ModuleInventory(OsCatalog.WithWindowsEdge()).ContractAssemblies();
         Assert.NotEmpty(contracts);
         foreach (var assembly in contracts)
         {
