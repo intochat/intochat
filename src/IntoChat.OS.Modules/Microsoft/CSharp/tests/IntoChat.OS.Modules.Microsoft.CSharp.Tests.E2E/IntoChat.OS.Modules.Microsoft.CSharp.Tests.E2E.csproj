@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Nightly tier: builds the sandbox image and starts it in Docker; IntoChatOSNightly=false leaves it out of dotnet test. -->
+  <ItemGroup>
+    <ProjectReference Include="../../../../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
+  </ItemGroup>
+</Project>

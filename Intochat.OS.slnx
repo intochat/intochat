@@ -107,6 +107,7 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/">
