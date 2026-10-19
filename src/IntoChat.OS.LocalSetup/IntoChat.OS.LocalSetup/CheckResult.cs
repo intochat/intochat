@@ -24,4 +24,10 @@ internal static class SizeText
         => bytes >= Gib
             ? (bytes / Gib).ToString("F1", CultureInfo.InvariantCulture) + " GB"
             : (bytes / (1024d * 1024)).ToString("F0", CultureInfo.InvariantCulture) + " MB";
+
+    // "1.2/3.4 GB" or "800/900 MB": both numbers in the unit the total needs.
+    public static string Pair(long completed, long total)
+        => total >= Gib
+            ? $"{(completed / Gib).ToString("F1", CultureInfo.InvariantCulture)}/{(total / Gib).ToString("F1", CultureInfo.InvariantCulture)} GB"
+            : $"{(completed / (1024d * 1024)).ToString("F0", CultureInfo.InvariantCulture)}/{(total / (1024d * 1024)).ToString("F0", CultureInfo.InvariantCulture)} MB";
 }
