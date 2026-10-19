@@ -41,8 +41,9 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
                 text => text.Contains(MemoryPrompt, StringComparison.Ordinal) && text.Contains("can you get the launch email going", StringComparison.Ordinal));
             Assert.Contains(Act, ino, StringComparison.Ordinal);
             Assert.Contains(Goal, ino, StringComparison.Ordinal);
+            await AssertIntendBeforeTurn(before, "can you get the launch email going", null, ct);
         }
-        finally { Host.Model.SystemOneOverride = previous; }
+        finally { Host.Model.SystemOneOverride = previous; Host.Model.Clear(ModelId); }
     }
 
     [Fact(Timeout = 300_000)]
@@ -63,8 +64,9 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
             await Send("send", "hello", ct);
             // The active-intents entry renders "`{id}` {State}: {goal}".
             Assert.Contains("Dispatched: " + Goal, await InoRequest(before, ct), StringComparison.Ordinal);
+            await AssertIntendBeforeTurn(before, "", "Say hello", ct);
         }
-        finally { Host.Model.SystemOneOverride = previous; }
+        finally { Host.Model.SystemOneOverride = previous; Host.Model.Clear(ModelId); }
     }
 
     [Fact(Timeout = 300_000)]
@@ -79,13 +81,15 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
         {
             var draft = JsonSerializer.Serialize(new[] { new { requestId = "explicit-1", heard = "remind me to call Ann", conversation = scope + "/apps/ino/conversations/main" } });
             var call = JsonSerializer.Serialize(new { contract = typeof(IIntents).FullName, key = IIntents.Key(scope), method = nameof(IIntents.Declare), arguments = draft });
+            var before = Host.Model.Requests(ModelId).Count;
             Host.Model.Script(ModelId, IntendReply("Remind the user to call Ann", 0.3), FakeReply.Tool("neurons_call", call), "Noted.");
             await Send("send", "remind me to call Ann", ct);
             await TestWait.UntilAsync(_ => Intents().Read(),
                 snapshot => snapshot.Intents.Any(intent => intent.Heard == "remind me to call Ann" && intent.RequestId == "explicit-1"),
                 TimeSpan.FromSeconds(60), ct);
+            await AssertIntendBeforeTurn(before, "remind me to call Ann", null, ct);
         }
-        finally { Host.Model.SystemOneOverride = previous; }
+        finally { Host.Model.SystemOneOverride = previous; Host.Model.Clear(ModelId); }
     }
 
     [Fact(Timeout = 300_000)]
@@ -100,16 +104,18 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
             var before = Host.Model.Requests(ModelId).Count;
             // Memory's intend turn is answered only well after IntendGate (8 s), and its late reply is not a brief,
             // so nothing is declared when it lands; Ino's turn takes the next reply.
-            Host.Model.Script(ModelId, FakeReply.Delayed(TimeSpan.FromSeconds(20), "not a brief"), "Answered.");
+            Host.Model.Script(ModelId, FakeReply.Delayed(TimeSpan.FromSeconds(12), "not a brief"), "Answered.");
             await Send("send", "what is on today", ct);
             var status = Brain.Get<IText>(WorkspaceId + "/apps/ino/status");
             await TestWait.UntilAsync(_ => status.Read(),
                 text => text.Markdown.Contains("answering without a brief", StringComparison.Ordinal), TimeSpan.FromSeconds(15), ct);
             Assert.DoesNotContain(Act, await InoRequest(before, ct), StringComparison.Ordinal);
+            await AssertIntendBeforeTurn(before, "what is on today", null, ct);
         }
         finally
         {
             Host.Model.SystemOneOverride = previous;
+            Host.Model.Clear(ModelId);
             // Memory's intend turn is still waiting on its delayed reply: let it end, so the next fact finds the agent idle.
             var agent = Brain.Get<IAgent>(IApp.Key(WorkspaceId, "memory") + "/agents/intend");
             await TestWait.UntilAsync(_ => agent.Read(), state => state.ActiveRun is null, TimeSpan.FromSeconds(60), ct);
@@ -152,11 +158,28 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
             Assert.Equal(IntentState.Dispatched, continued.State);
             Assert.DoesNotContain(after.Intents, intent => intent.Heard == "make it French");
             Assert.DoesNotContain("Memory could not intend", (await status.Read()).Markdown, StringComparison.Ordinal);
+            await AssertIntendBeforeTurn(before, "make it French", French, ct);
         }
-        finally { Host.Model.SystemOneOverride = previous; }
+        finally { Host.Model.SystemOneOverride = previous; Host.Model.Clear(ModelId); }
     }
 
     private static string Unsure(JsonElement request) => RouterHostFixture.Choose(request, "router.ask", "ask", 0.2);
+
+    // Memory's intend request (it carries the message) comes before Ino's turn request in the model's request log.
+    // Both are waited for: a previous message's late turn can still be landing after `before`.
+    private async Task AssertIntendBeforeTurn(int before, string message, string? briefText, CancellationToken ct)
+    {
+        (int Intend, int Turn) Find()
+        {
+            // Only requests since `before` are read: earlier ones are not this message's.
+            var texts = Host.Model.Requests(ModelId).Skip(before).Select(RouterHostFixture.Text).ToList();
+            return (texts.FindIndex(text => text.Contains(MemoryPrompt, StringComparison.Ordinal) && text.Contains(message, StringComparison.Ordinal)),
+                texts.FindIndex(text => text.Contains(InoPrompt, StringComparison.Ordinal)
+                    && (briefText is null || text.Contains(briefText, StringComparison.Ordinal))));
+        }
+        var (intend, turn) = await TestWait.UntilAsync(_ => Task.FromResult(Find()), found => found.Intend >= 0 && found.Turn >= 0, TimeSpan.FromSeconds(60), ct);
+        Assert.True(intend < turn, $"Memory's intend request ({intend}) came after Ino's turn request ({turn}).");
+    }
 
     private IIntents Intents() => Brain.Get<IIntents>(IIntents.Key(WorkspaceId));
 

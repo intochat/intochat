@@ -40,10 +40,19 @@ public sealed class FakeModelServer : IAsyncDisposable
     // A fallback for chat requests no model script matched; null keeps the echo default.
     public Func<JsonElement, FakeReply?>? ChatFallback { get; set; }
 
+    // Opt-in: a scripted model whose script is used up answers through ChatFallback. Off, it fails the request
+    // so a test that scripts too few replies sees it.
+    public bool FallbackWhenScriptExhausted { get; set; }
+
     public void Script(string modelId, params FakeReply[] replies)
     {
         var queue = _scripts.GetOrAdd(modelId, _ => new());
         foreach (var reply in replies) { queue.Enqueue(reply); }
+    }
+
+    public void Clear(string modelId)
+    {
+        if (_scripts.TryGetValue(modelId, out var script)) { script.Clear(); }
     }
 
     public IReadOnlyList<JsonElement> Requests(string modelId)
@@ -58,10 +67,10 @@ public sealed class FakeModelServer : IAsyncDisposable
 
         FakeReply reply;
         if (!_scripts.TryGetValue(model, out var script)) { reply = ChatFallback?.Invoke(request) ?? FakeReply.Text("You said: " + LastUserText(request)); }
-        // A scripted model whose script is used up answers through the fallback, when it has an answer.
+        // A scripted model whose script is used up answers through the fallback only when the host opted in.
         else if (!script.TryDequeue(out reply!))
         {
-            if (ChatFallback?.Invoke(request) is not { } fallback)
+            if (!FallbackWhenScriptExhausted || ChatFallback?.Invoke(request) is not { } fallback)
             { return Results.Problem($"Fake model '{model}' ran out of replies after {_answered.GetValueOrDefault(model)}.", statusCode: 500); }
             reply = fallback;
         }

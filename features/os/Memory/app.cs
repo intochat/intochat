@@ -62,6 +62,7 @@ failures the brain runtime reports for it, its last run time and, once it has ru
 runs, its p50. After the calculator's "add" runs three more times, `calculator/add.cs` shows three more
 runs. Shared files such as `memory/Memory.cs` show as shared. `{app}/types` lists the installed types by
 provider.
+
 ## Scenario: Intend rephrases a message into a brief
 
 Invoking "intend" with "fix the thing from yesterday" has Memory's own agent (prompt `intend.md`, `Model` setting)

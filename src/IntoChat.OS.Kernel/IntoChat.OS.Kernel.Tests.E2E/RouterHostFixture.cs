@@ -19,6 +19,7 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
     {
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
         Model.ChatFallback = Fill;
+        Model.FallbackWhenScriptExhausted = true;
         Model.SystemOneOverride = request => Choose(request, "timer", "Start", 0.95);
         return ReferenceBrain.Create(privateConfiguration: new Dictionary<string, string?>
         {
@@ -45,7 +46,7 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
     }
 
     internal static string Text(JsonElement request)
-        => string.Concat(request.GetProperty("messages").EnumerateArray().SelectMany(message =>
+        => string.Concat(request.GetProperty("messages").EnumerateArray().Where(message => message.TryGetProperty("content", out var content) && content.ValueKind is JsonValueKind.String or JsonValueKind.Array).SelectMany(message =>
             message.GetProperty("content").ValueKind == JsonValueKind.String
                 ? [message.GetProperty("content").GetString() ?? ""]
                 : message.GetProperty("content").EnumerateArray().Where(part => part.TryGetProperty("text", out _)).Select(part => part.GetProperty("text").GetString() ?? "")));
