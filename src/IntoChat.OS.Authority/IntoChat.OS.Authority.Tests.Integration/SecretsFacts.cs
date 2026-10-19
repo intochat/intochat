@@ -97,6 +97,33 @@ public sealed class SecretsFacts(AuthorityHost host)
     }
 
     [Fact]
+    public async Task AForeignCallerIsRefusedTheVaultValues()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var owner = brain.Owner;
+        var member = await owner.AddAccountMemberAsync(brain, "vault-intruder");
+        await brain.Platform.Secrets(owner.PrincipalId).Set(new CallerContext
+        {
+            PrincipalId = owner.PrincipalId,
+            AccountId = owner.AccountId,
+            BrainId = owner.BrainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        }, "gate.key", "Gate key", "gate-canary-91c4d7", ct);
+        var vault = brain.Platform.SecretValues(owner.PrincipalId);
+
+        using (member.AsCaller())
+        {
+            await Assert.ThrowsAsync<UntrustedCallerException>(vault.Values);
+        }
+        using (owner.AsCaller())
+        {
+            Assert.Contains("gate-canary-91c4d7", await vault.Values());
+        }
+    }
+
+    [Fact]
     public void AVaultListsItsPlaintextValuesForMaskingOnly()
     {
         var state = new SecretsState { Owner = Owner };

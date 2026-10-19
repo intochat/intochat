@@ -61,5 +61,15 @@ internal sealed class SecretsNeuron : Grain, ISecrets, ISecretVaultValues
         return Task.FromResult(_secrets.Resolve(_state.State, secret));
     }
 
-    public Task<string[]> Values() => Task.FromResult(_secrets.Values(_state.State));
+    // Plaintext leaves only to the stamped owner of this vault or to the Authority's own platform stamp.
+    public Task<string[]> Values()
+    {
+        if (!CallerContextStamper.TryGet(out var caller)
+            || !(caller.PrincipalId == this.GetPrimaryKeyString() || (caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform)))
+        {
+            throw new UntrustedCallerException("Only the vault's owner can list its values.");
+        }
+
+        return Task.FromResult(_secrets.Values(_state.State));
+    }
 }
