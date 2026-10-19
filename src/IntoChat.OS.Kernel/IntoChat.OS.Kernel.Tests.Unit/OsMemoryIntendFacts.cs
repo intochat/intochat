@@ -133,4 +133,64 @@ public sealed class OsMemoryIntendFacts
         Assert.False(global::Intents.ShouldConfirm(Make(IntentState.Waiting), 0.9, 0.8));
         Assert.False(global::Intents.ShouldConfirm(null, 0.9, 0.8));
     }
+
+    private static Intent Mk(string goal, IntentState state = IntentState.Rephrased, string[]? acceptance = null)
+        => new(Guid.NewGuid(), "h", "c", "r", new(goal, [], [], acceptance ?? []), 0.5, state, [], [], []);
+
+    [Fact]
+    public void ANewlineInAcceptanceDoesNotBreakTheList()
+    {
+        var rendered = global::Intents.RenderActive([Mk("g", acceptance: ["line one\r\nline two\tend"])], 10_000);
+        Assert.Single(rendered.TrimEnd('\n').Split('\n'));
+        Assert.Contains("line one line two end", rendered);
+        Assert.Equal("a b c", global::Intents.Line("a\nb\tc"));
+    }
+
+    [Fact]
+    public void AnOversizedNewestIntentIsTruncatedNotDropped()
+    {
+        var rendered = global::Intents.RenderActive([Mk(new string('x', 500))], 100);
+        Assert.NotEmpty(rendered);
+        Assert.True(rendered.Length <= 100);
+        Assert.Contains("…", rendered);
+    }
+
+    [Fact]
+    public void RenderWorkingNeverSplitsASurrogatePair()
+    {
+        var text = new string('x', 3_999) + "😀";
+        Assert.Equal(4_001, text.Length);
+        var cut = global::Intents.RenderWorking(text);
+        Assert.True(cut.Length <= 4_000);
+        Assert.False(char.IsHighSurrogate(cut[^1]));
+    }
+
+    [Fact]
+    public void RenderActiveOrdersNewestFirst()
+    {
+        var rendered = global::Intents.RenderActive([Mk("older"), Mk("newer")], 10_000);
+        Assert.True(rendered.IndexOf("newer", StringComparison.Ordinal) < rendered.IndexOf("older", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RenderActiveSkipsDoneAndAbandoned()
+    {
+        var kept = global::Intents.ActiveOf([Mk("doneGoal", IntentState.Done), Mk("abandonedGoal", IntentState.Abandoned), Mk("waitingGoal", IntentState.Waiting), Mk("heardGoal", IntentState.Heard)]);
+        Assert.Equal(["waitingGoal"], kept.Select(intent => intent.Brief!.Goal));
+        var rendered = global::Intents.RenderActive(kept, 10_000);
+        Assert.DoesNotContain("doneGoal", rendered);
+        Assert.DoesNotContain("abandonedGoal", global::Intents.RenderActive([Mk("abandonedGoal", IntentState.Abandoned)], 10_000));
+    }
+
+    [Fact]
+    public void ParseReplyAcceptsAFencedJsonBlock()
+        => Assert.NotNull(global::Intents.ParseReply("```json\n{\"brief\":{\"goal\":\"g\"},\"confidence\":0.7}\n```"));
+
+    [Fact]
+    public void ParseReplyWithoutConfidenceIsNull()
+        => Assert.Null(global::Intents.ParseReply("{\"brief\":{\"goal\":\"g\"}}"));
+
+    [Fact]
+    public void ParseAskRejectsAMissingConversation()
+        => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{\"message\":\"m\",\"requestId\":\"r\"}"));
 }
