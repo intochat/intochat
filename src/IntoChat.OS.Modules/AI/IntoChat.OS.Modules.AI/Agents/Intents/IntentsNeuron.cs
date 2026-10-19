@@ -21,8 +21,8 @@ internal sealed class IntentsNeuron(
     public async Task<Guid> Declare(IntentDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        if (string.IsNullOrWhiteSpace(draft.RequestId) || draft.RequestId.Length > 200) { throw new ArgumentException("An intent needs a request id of at most 200 characters.", nameof(draft)); }
-        if (string.IsNullOrWhiteSpace(draft.Heard) || draft.Heard.Length > 8000) { throw new ArgumentException("An intent needs heard text of at most 8000 characters.", nameof(draft)); }
+        if (string.IsNullOrWhiteSpace(draft.RequestId) || draft.RequestId.Length > IIntents.RequestIdLimit) { throw new ArgumentException($"An intent needs a request id of at most {IIntents.RequestIdLimit} characters.", nameof(draft)); }
+        if (string.IsNullOrWhiteSpace(draft.Heard) || draft.Heard.Length > IIntents.HeardLimit) { throw new ArgumentException($"An intent needs heard text of at most {IIntents.HeardLimit} characters.", nameof(draft)); }
         var known = Array.Find(Snapshot.Intents, item => item.RequestId == draft.RequestId);
         if (known is not null) { return known.Id; }
         if (draft.Continues is { } continues)
@@ -43,6 +43,7 @@ internal sealed class IntentsNeuron(
     public async Task Rephrase(Guid id, IntentBrief brief, double confidence, long expectedRevision)
     {
         ArgumentNullException.ThrowIfNull(brief);
+        if (double.IsNaN(confidence) || confidence < 0 || confidence > 1) { throw new ArgumentOutOfRangeException(nameof(confidence), confidence, "Confidence must be between 0 and 1."); }
         var intent = Find(id, expectedRevision);
         if (intent.State is IntentState.Done or IntentState.Abandoned) { throw new InvalidOperationException($"An intent in state {intent.State} cannot be rephrased."); }
         var keeps = intent.State is IntentState.Dispatched or IntentState.Waiting;
@@ -73,7 +74,7 @@ internal sealed class IntentsNeuron(
         var next = intent with
         {
             State = to,
-            History = [.. intent.History, new IntentTransition(to, DateTimeOffset.UtcNow, intent.RequestId, reason ?? "")],
+            History = [.. intent.History, new IntentTransition(to, DateTimeOffset.UtcNow, intent.RequestId, reason)],
         };
         await Save(Replace(next), new IntentTransitioned(this.GetPrimaryKeyString(), id, intent.State, to));
     }
@@ -82,6 +83,7 @@ internal sealed class IntentsNeuron(
     {
         ArgumentNullException.ThrowIfNull(cues);
         var intent = Find(id, expectedRevision);
+        if (intent.State is IntentState.Done or IntentState.Abandoned) { throw new InvalidOperationException($"An intent in state {intent.State} cannot be armed."); }
         await Save(Replace(intent with { Cues = [.. cues] }), new IntentArmed(this.GetPrimaryKeyString(), id));
     }
 
