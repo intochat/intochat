@@ -14,7 +14,7 @@ public sealed partial class CollectionCompatibilityFacts
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
-        Assert.Equal(36, samples.Length);
+        Assert.Equal(46, samples.Length);
         Assert.All(samples, sample =>
         {
             var value = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload));
