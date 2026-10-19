@@ -43,10 +43,12 @@ public sealed class RuntimeMachineAuthenticationFacts
         builder.Configuration[HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256"] = certificate.GetCertHashString(HashAlgorithmName.SHA256);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<BrainBirths>());
+        builder.Services.AddSingleton<IBrainBirths>(brain.Services.GetRequiredService<BrainBirths>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<PrincipalPasswords>());
         if (attachStorage)
         {
             builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Storage.BrainLogs>());
+            builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Storage.IBrainJournal>());
             builder.Services.AddSingleton(brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
             builder.Services.AddKeyedSingleton<Orleans.Storage.IGrainStorage>(IntoChat.OS.Framework.IntoChatOSNames.PlatformGrainStorage,
                 (services, _) => ActivatorUtilities.CreateInstance<HostedPlatformGrainStorage>(services));

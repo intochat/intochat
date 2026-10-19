@@ -33,7 +33,7 @@ internal static class HostedRuntimeEndpoints
     }
 
     private static async Task<IResult> EnsureAsync([FromServices] IOptions<HostedRuntimeOptions> options,
-        [FromServices] IIdentityClient identity, [FromServices] BrainBirths births,
+        [FromServices] IIdentityClient identity, [FromServices] IBrainBirths births,
         [FromServices] TimeProvider clock, [FromServices] IServiceProvider services, CancellationToken ct)
     {
         var scope = options.Value;
@@ -70,11 +70,11 @@ internal static class HostedRuntimeEndpoints
         var registered = owner?.AccountId == scope.AccountId && owner.OwnerPrincipalId == scope.AccountId &&
             await identity.BrainExists(BrainScope.Create(scope.AccountId, scope.BrainId).Id).WaitAsync(ct);
         var version = typeof(HostedRuntimeEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
-        var logs = services.GetService<BrainLogs>();
+        var logs = services.GetService<IBrainJournal>();
         var platform = services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.PlatformGrainStorage) as HostedPlatformGrainStorage;
         var storageAttached = registered && logs is not null && services.GetService<IReminderTable>() is HostedReminderTable &&
             platform?.Scope == BrainScope.Create(scope.AccountId, scope.BrainId).Id &&
-            await logs.CheckStorageAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
+            await logs.CheckAsync(BrainScope.Create(scope.AccountId, scope.BrainId).Id, ct);
         var lifetime = services.GetService<IHostApplicationLifetime>();
         var healthy = registered && storageAttached && lifetime?.ApplicationStarted.IsCancellationRequested == true &&
             !lifetime.ApplicationStopping.IsCancellationRequested;
