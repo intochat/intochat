@@ -63,9 +63,25 @@ internal static class Episodes
         catch (JsonException) { return null; }
     }
 
-    // The first 300 characters of each side, on a surrogate boundary, importance 3, marked as a fallback.
+    // The first 300 characters of each side, on a surrogate boundary, importance 3, marked as a fallback. Each side is
+    // redacted before it is cut, so no credential is stored, not even a cut one.
     public static Note Fallback(string? userText, string? reply)
-        => new("- The user said: " + Cut(userText) + "\n- The reply was: " + Cut(reply), 3, true);
+        => new("- The user said: " + Cut(Consolidation.Redact(userText)) + "\n- The reply was: " + Cut(Consolidation.Redact(reply)), 3, true);
+
+    // A note as it is stored: its summary redacted (Consolidation.Redact), whether the model or the fallback wrote it.
+    public static Note Redacted(Note note) => note with { Summary = Consolidation.Redact(note.Summary) };
+
+    // Every non-key column of Definition, as capture writes a new episode: neither consolidated nor claimed.
+    public static TableValue[] Row(string agent, string runId, DateTimeOffset at, Note note)
+        =>
+        [
+            new("agent", JsonSerializer.Serialize(agent)), new("run", JsonSerializer.Serialize(runId)),
+            new("at", JsonSerializer.Serialize(at.ToUniversalTime().ToString("O"))),
+            new("summary", JsonSerializer.Serialize(note.Summary)),
+            new("importance", note.Importance.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("fallback", note.IsFallback ? "true" : "false"),
+            new("consolidated_at", "null"), new("claim", "null"), new("claim_until", "null"),
+        ];
 
     private static string Cut(string? text)
     {

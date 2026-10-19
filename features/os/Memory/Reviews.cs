@@ -3,6 +3,7 @@ using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.AI.Agents.Context;
 using IntoChat.OS.AI.Agents.Facts;
+using IntoChat.OS.AI.Agents.Intents;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Postgres.Tables;
@@ -64,7 +65,7 @@ internal static class Reviews
 
     private static readonly SemaphoreSlim Deciding = new(1, 1);
 
-    // One decision: Accept asserts the fact then marks the row; Reject marks it. Failures are reported on {app}/status.
+    // One decision: Accept applies the row by its kind (RouteOf) then marks it; Reject marks it. Failures are reported on {app}/status.
     public static async Task Apply(IntoChatOSConnection brain, Operation kind, string id)
     {
         var appKey = brain.Setting("App")!;
@@ -97,8 +98,30 @@ internal static class Reviews
         finally { Deciding.Release(); }
     }
 
+    // What accepting a row does, by its kind: profile, fact and insight rows assert a fact, an intent row is declared,
+    // a working row replaces the working memory; any other kind is refused and the row stays pending.
+    public enum Route { Fact, Intent, Working, Unknown }
+
+    public static Route RouteOf(string? kind)
+        => kind switch { "profile" or "fact" or "insight" => Route.Fact, "intent" => Route.Intent, "working" => Route.Working, _ => Route.Unknown };
+
+    // The request id an accepted intent row is declared under, so a repeated accept declares nothing twice.
+    public static string IntentRequestId(string rowId) => "review:" + rowId;
+
     private static async Task Assert(IntoChatOSConnection brain, string appKey, string id, Dictionary<string, string> row)
     {
+        switch (RouteOf(row.GetValueOrDefault("kind")))
+        {
+            case Route.Intent:
+                await brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain))).Declare(new(IntentRequestId(id), row.GetValueOrDefault("text", ""), ""));
+                return;
+            case Route.Working:
+                // The remember path: the row's text replaces the working memory, cut at its limit.
+                await brain.Get<IText>(Intents.WorkingKey(appKey)).Set(Intents.RenderWorking(row.GetValueOrDefault("text", "")));
+                return;
+            case Route.Unknown:
+                throw new InvalidOperationException("the review item has kind \"" + row.GetValueOrDefault("kind") + "\", which Memory does not accept");
+        }
         var facts = brain.Get<IFacts>(IFacts.Key(Memory.Scope(brain)));
         var kind = row.GetValueOrDefault("kind", "") switch { "profile" => FactKind.Profile, "insight" => FactKind.Insight, _ => FactKind.Fact };
         var text = row.GetValueOrDefault("text", "");
@@ -107,7 +130,12 @@ internal static class Reviews
         if (subject.Length > IFacts.SubjectLimit) { subject = subject[..IFacts.SubjectLimit]; }
         var confidence = double.TryParse(row.GetValueOrDefault("confidence"), CultureInfo.InvariantCulture, out var c) ? c : 1.0;
         var importance = double.TryParse(row.GetValueOrDefault("importance"), CultureInfo.InvariantCulture, out var i) && double.IsFinite(i) ? (int)Math.Round(i) : 5;
-        await facts.Assert(new FactAssertion(kind, text, subject, confidence, importance, DateTimeOffset.UtcNow, appKey, 0, "review", [], id));
+        var asserted = await facts.Assert(new FactAssertion(kind, text, subject, confidence, importance, DateTimeOffset.UtcNow, appKey, 0, "review", [], id));
+        // A row that contradicts a current fact supersedes it, as consolidation does.
+        if (Guid.TryParse(row.GetValueOrDefault("contradicts"), out var old))
+        {
+            await Consolidation.Supersede(facts, old, asserted, brain.Stopping);
+        }
     }
 
     private static async Task Mark(ITable reviews, Dictionary<string, string> raw, string value)
