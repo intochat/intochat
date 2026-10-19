@@ -63,7 +63,11 @@ async Task Watch(Guid requestId, string memoryKey, CancellationTokenSource stop)
     var answer = brain.Get<IText>(memoryKey + "/intents/" + requestId.ToString("N"));
     async Task Check()
     {
-        if (await Answer(requestId, memoryKey, null)) { await PendingStore.Prune(brain); await stop.CancelAsync(); }
+        if (!await Answer(requestId, memoryKey, null)) { return; }
+        // Best effort: a failed prune must not keep the watch alive.
+        try { await PendingStore.Prune(brain); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+        await stop.CancelAsync();
     }
     await foreach (var _ in brain.On<TextChanged>(answer, Check, stop.Token)) { await Check(); }
 }
