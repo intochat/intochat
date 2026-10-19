@@ -2,4 +2,4 @@
 
 - Open pull requests against `master`.
 - CI must pass before a pull request is merged.
-- Product discussion and narrative documentation belong in the handbook repository: https://github.com/intochat/digitalbrain.docs
+- Documentation changes go to https://github.com/intochat/os.docs; product planning is internal

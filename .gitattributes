@@ -13,6 +13,10 @@
 *.sh text eol=lf
 *.bash text eol=lf
 
+# A Dockerfile is parsed by the Linux build engine; CRLF breaks RUN lines and shebang scripts copied into images.
+Dockerfile* text eol=lf
+*.Dockerfile text eol=lf
+
 # Dart/Flutter tooling expects LF (dart format on Linux CI).
 *.dart text eol=lf
 *.yaml text eol=lf

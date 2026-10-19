@@ -92,6 +92,13 @@ internal sealed class BrainAuthorityGrain(
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
         await Platform.Principal(member.PrincipalId).Joined(member.BrainId, State.Kind);
     }
+    public async Task RemovePrincipal(string principalId)
+    {
+        if (!State.Members.TryGetValue(principalId, out var member)) { return; }
+        if (member.Role == MemberRole.Owner || principalId == State.AccountId)
+        { throw new InvalidOperationException($"The owner of brain {this.GetPrimaryKeyString()} cannot be removed from it."); }
+        await RemoveMember(principalId);
+    }
     public async Task RemoveMember(string principalId)
     {
         var members = new Dictionary<string, Member>(State.Members);

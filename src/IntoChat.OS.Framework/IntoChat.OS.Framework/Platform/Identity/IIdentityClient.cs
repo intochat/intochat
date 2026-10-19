@@ -39,6 +39,9 @@ public interface IIdentityClient
     // account is never removed.
     Task RemoveMember(string brainScopeId, string accountId);
 
+    // Removes one non-owner member of the brain by principal id; the owner throws, an unknown principal is a no-op.
+    Task RemovePrincipalMember(string brainScopeId, string principalId);
+
     Task<CallDecision?> Authorize(CallRequest request);
 
     Task<Grant[]> ListGrants(string brainScopeId);

@@ -7,7 +7,9 @@ using IntoChat.OS.Flutter.Aspire.Hosting;
 using IntoChat.OS.Microsoft.Aspire;
 using IntoChat.OS.Microsoft.CSharp;
 using IntoChat.OS.ServiceDefaults;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.UserSecrets;
 
 // The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
 // (the apps module's Features option, under IntoChatOSConfiguration.ModuleOptionsSection).
@@ -18,12 +20,24 @@ var featuresKey = IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.Mo
 var builder = DistributedApplication.CreateBuilder(args);
 // Legacy product-name settings stop the app host outside Development (the app host has no AddServiceDefaults).
 LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
-// The profile symbol in this file is the selection: RunProfile.Cloud or RunProfile.Local.
+// `reset` clears this checkout's local run state and exits before any resource is added (Development and run mode only).
+if (args.Length > 0 && args[0] == "reset")
+{
+    var userSecretsId = Assembly.GetExecutingAssembly().GetCustomAttribute<UserSecretsIdAttribute>()?.UserSecretsId;
+    var secretsDirectory = userSecretsId is null ? null : Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(userSecretsId));
+    return await new LocalReset(
+        builder.Environment, builder.ExecutionContext.IsRunMode, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..")),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), builder.Configuration["AppHost:PathSha256"] ?? "",
+        secretsDirectory, new RealResetFileSystem(), new RealDockerCli(), Console.In, Console.Out, !Console.IsInputRedirected)
+        .RunAsync(args[1..], CancellationToken.None);
+}
+// IntoChatOS:Profile selects the brain ('+' composes presets): 'local' is the lean host-Ollama run, anything else the Cloud brain.
+var profiles = IntoChatOSProfiles.Parse(builder.Configuration[IntoChatOSProfiles.ProfileKey] ?? IntoChatOSProfiles.DefaultProfile);
 builder.Configuration.AddIntoChatOSProfiles(builder.AppHostDirectory);
 if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
-var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.Cloud, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
+var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.ForName(profiles, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]), IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 
@@ -59,6 +73,7 @@ var mcps = AspireModuleHosting.InstanceNames("intochat-os-mcp").Select(name =>
 AspireModuleHosting.AddFront(builder, "intochat-os-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http")));
 
 builder.Build().Run();
+return 0;
 
 // A live build is an executable the proxy reaches through a bare port (ASPNETCORE_HTTP_PORTS), which binds every interface; the
 // loopback-only rule for Open posture cannot be met there, so the opt-in is explicit (live builds are the candidate pipeline's).
@@ -71,6 +86,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
         .WithEnvironment("IntoChatOS__Platform__Storage__Directory", storageDirectory)
+        .WithDisabledModules(builder.Configuration)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var key in new[] { IntoChat.OS.Framework.IntoChatOSNames.CustodyConfigurationKey,
@@ -101,6 +117,7 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(intoChatOS.AsClient(shareHttpIdentity: true))
+        .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var silo in silos) { mcp.WaitFor(silo); }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);

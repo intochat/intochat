@@ -92,4 +92,4 @@ The IntoChat.OS repository splits each module's tests by project suffix. You can
 | `*.Tests.Hosting` | Aspire application model only (see `IntoChat.OS.Aspire.Testing`). |
 | `*.Tests.E2E`, `*.Tests.Browser` | The full product on Aspire, run nightly (see `IntoChat.OS.Testing.Aspire`, `IntoChat.OS.Testing.Playwright`). |
 
-The handbook has more: <https://intochat.github.io/digitalbrain.docs/reference/testing>.
+The handbook has more: <https://salmon-wave-084c9c30f.2.azurestaticapps.net/reference/testing>.

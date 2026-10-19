@@ -4,6 +4,7 @@
       "**/IntoChat.OS.Architecture.Tests.Unit.dll",
       "**/IntoChat.OS.Aspire.Hosting.Tests.Unit.dll",
       "**/IntoChat.OS.Client.Tests.Unit.dll",
+      "**/IntoChat.OS.LocalSetup.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.dll",

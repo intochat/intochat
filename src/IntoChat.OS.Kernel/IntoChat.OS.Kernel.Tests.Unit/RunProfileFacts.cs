@@ -2,6 +2,7 @@ extern alias AppHost;
 using AppHost::IntoChat.OS.AppHost;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.AI;
+using IntoChat.OS.Aspire.Hosting;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -23,6 +24,28 @@ public sealed class RunProfileFacts
         Assert.True(RunProfile.Cloud.Ai.Tavily.Enabled);
         Assert.Equal("http://127.0.0.1:1/v1/", RunProfile.Reference.Ai.OpenAI.Endpoint);
         Assert.False(RunProfile.Reference.Ai.Tavily.Enabled);
+    }
+
+    [Theory]
+    [InlineData("local", true)]
+    [InlineData("dev+local", true)]
+    [InlineData("local+dev", true)]
+    [InlineData("LOCAL", true)]
+    [InlineData("dev", false)]
+    [InlineData("", false)]
+    public void TheProfileNamesSelectTheLeanBrainOrTheCloudBrain(string profile, bool lean)
+    {
+        var selected = RunProfile.ForName(IntoChatOSProfiles.Parse(profile));
+        Assert.Equal(lean, selected.Lean);
+        Assert.Equal(lean ? "IQwen35" : "IDeepSeekV41Flash", selected.Ai.Default.Model);
+    }
+
+    [Fact]
+    public void ALeanBrainSkipsEveryHostingTheLocalRunDoesNotNeed()
+    {
+        Assert.True(RunProfile.LocalLean.Lean);
+        Assert.False(RunProfile.Cloud.Lean);
+        Assert.False(RunProfile.Local.Lean);
     }
 
     [Fact]
