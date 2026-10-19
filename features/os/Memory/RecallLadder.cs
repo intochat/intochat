@@ -15,8 +15,10 @@ using IntoChat.OS.Microsoft.CSharp.Runtime;
 internal static class Recall
 {
     public const double Floor = 0.3;
-    public const double FoundSimilarity = 0.5;
-    public const double PartialSimilarity = 0.3;
+    // Mirrors Memory's NearLift: an answer stands out from the median candidate by at least this much.
+    public const double NearLift = 0.18;
+    public const double LoneSimilarity = 0.5;
+    public const int MinimumSpread = 3;
     private const int TextLimit = 2000;
 
     public sealed record Candidate(string Id, string Tier, string Text, double Similarity, DateTimeOffset At, int Importance);
@@ -43,10 +45,24 @@ internal static class Recall
                 * (Math.Clamp(item.Importance, 0, 10) / 10.0 + 0.5)))
             .OrderByDescending(ranked => ranked.Score).ThenBy(ranked => ranked.Item.Id, StringComparer.Ordinal)];
 
+    // Found when the best candidate stands NearLift above the median candidate, Partial from half of that; with
+    // fewer than three candidates there is no median to measure against, so only a close match is Found.
+    public static string Verdict(IReadOnlyList<double> similarities)
+    {
+        if (similarities.Count == 0) { return "Absent"; }
+        var sorted = similarities.Order().ToArray();
+        if (sorted.Length < MinimumSpread) { return sorted[^1] >= LoneSimilarity ? "Found" : "Absent"; }
+        var lift = sorted[^1] - sorted[sorted.Length / 2];
+        return lift >= NearLift ? "Found" : lift >= NearLift / 2 ? "Partial" : "Absent";
+    }
+
+    // Facts no longer current (superseded, invalidated or forgotten) are never answers.
+    public static List<Candidate> Current(IEnumerable<Candidate> candidates, ISet<string> currentFactIds)
+        => [.. candidates.Where(item => !item.Id.StartsWith("fact:", StringComparison.Ordinal) || currentFactIds.Contains(item.Id["fact:".Length..]))];
+
     public static string Render(string query, IReadOnlyList<Ranked> ranked, Coverage coverage)
     {
-        var best = ranked.Count == 0 ? 0 : ranked.Max(item => item.Item.Similarity);
-        var verdict = best >= FoundSimilarity ? "Found" : best >= PartialSimilarity ? "Partial" : "Absent";
+        var verdict = Verdict([.. ranked.Select(item => item.Item.Similarity)]);
         var text = new StringBuilder("# Recall: " + query.Trim() + "\n\n" + verdict + "\n");
         if (verdict == "Absent")
         {
@@ -104,6 +120,12 @@ internal static class Recall
             ["tier"] = tier, ["kind"] = kind ?? tier, ["brain"] = scope, ["text"] = Clip(text), ["at"] = at.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
             ["importance"] = importance.ToString(CultureInfo.InvariantCulture),
         });
+
+    public static async Task Forget(IntoChatOSConnection brain, string factId)
+    {
+        try { await brain.Get<IVectorIndex>(LifeKey(Memory.Scope(brain))).Remove(["fact:" + factId]); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
 
     public static Dictionary<string, string> MustMatch(string scope) => new() { ["brain"] = scope };
 

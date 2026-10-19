@@ -43,20 +43,21 @@ async Task<string> Answer(string question)
     var current = await facts.Current();
     var coverage = new Recall.Coverage(stored.Count == 0 ? null : stored.Min(e => e.At), stored.Count == 0 ? null : stored.Max(e => e.At), current.Length);
     var ranked = new List<Recall.Ranked>();
-    if (question.Trim().Length > 0 && (await life.Read()).Count > 0)
+    if (question.Trim().Length > 0)
     {
         var query = (await Memory.Embed(brain, [question]))[0];
         var nearest = await life.Nearest(query, 20, Recall.MustMatch(scope));
-        ranked = Recall.Rank(nearest.Select(Recall.ToCandidate).OfType<Recall.Candidate>(), DateTimeOffset.UtcNow, halfLife);
+        var live = current.Select(fact => fact.Id.ToString("D")).ToHashSet(StringComparer.Ordinal);
+        ranked = Recall.Rank(Recall.Current(nearest.Select(Recall.ToCandidate).OfType<Recall.Candidate>(), live), DateTimeOffset.UtcNow, halfLife);
     }
     var text = Recall.Render(question, ranked, coverage);
-    if (ranked.Count == 0 || ranked.Max(item => item.Item.Similarity) >= Recall.FoundSimilarity
+    if (Recall.Verdict([.. ranked.Select(item => item.Item.Similarity)]) != "Partial"
         || ranked.FirstOrDefault(item => item.Item.Tier == "episode") is not { } top) { return text; }
     var id = top.Item.Id["episode:".Length..];
     var rungTwo = Recall.Expand(id, stored);
     if (rungTwo.Count > 0)
     { text += "\nNeighbouring episodes:\n" + string.Concat(rungTwo.Select(e => "- " + e.Summary.Trim().Replace("\n", " ") + "\n  source: episode " + e.At.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + " " + e.Id + "\n")); }
-    var hash = id.IndexOf('#');
+    var hash = id.LastIndexOf('#');
     if (hash > 0 && await Recall.Transcript(brain.Get<IAgent>(id[..hash]), id[(hash + 1)..]) is { Length: > 0 } transcript)
     { text += "\nTranscript around the run:\n\n" + transcript; }
     return text;
@@ -70,7 +71,12 @@ async Task<List<Recall.Episode>> EpisodeRows()
         var page = await episodes.Page(offset, 200);
         foreach (var cells in page)
         {
-            string Cell(string name) => cells.FirstOrDefault(c => c.Column == name)?.Json is { } json && JsonDocument.Parse(json).RootElement is { ValueKind: JsonValueKind.String } element ? element.GetString() ?? "" : "";
+            string Cell(string name)
+            {
+                if (cells.FirstOrDefault(c => c.Column == name)?.Json is not { } json) { return ""; }
+                using var document = JsonDocument.Parse(json);
+                return document.RootElement.ValueKind == JsonValueKind.String ? document.RootElement.GetString() ?? "" : "";
+            }
             if (DateTimeOffset.TryParse(Cell("at"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at))
             { result.Add(new(Cell("id"), Cell("agent"), at, Cell("summary"))); }
         }
