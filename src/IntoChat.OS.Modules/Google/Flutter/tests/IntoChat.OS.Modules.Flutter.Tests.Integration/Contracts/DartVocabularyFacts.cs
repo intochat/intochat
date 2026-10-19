@@ -69,6 +69,24 @@ public sealed partial class DartVocabularyFacts
         Assert.True(offenders.Count == 0, "node_contracts.dart drifted from the C# contracts:\n" + string.Join('\n', offenders));
     }
 
+    [Fact]
+    public void WatchOnlyKindsDoNotOverlapTheVocabulary()
+    {
+        // A renderer kind belongs in UIVocabulary, not the allow-list.
+        Assert.Empty(WatchOnlyKinds.Intersect(Vocabulary()));
+    }
+
+    [Fact]
+    public void EveryWatchOnlyKindAppearsInTheParsedDartTable()
+    {
+        // Watch-only kinds cannot go stale; they must all appear in node_contracts.dart.
+        var tableKinds = NodeContracts().Select(contract => contract.Kind).ToHashSet();
+        foreach (var watchOnlyKind in WatchOnlyKinds)
+        {
+            Assert.True(tableKinds.Contains(watchOnlyKind), $"{watchOnlyKind} is in WatchOnlyKinds but not in node_contracts.dart");
+        }
+    }
+
     [GeneratedRegex(@"static const List<String> uiKinds = \[(?<body>[^\]]*)\];")]
     private static partial Regex UiKinds();
 
