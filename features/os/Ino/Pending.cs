@@ -28,11 +28,8 @@ public static class PendingStore
     public static readonly TimeSpan Kept = TimeSpan.FromHours(1);
     public static readonly string[] Writers = ["routed", "send"];
 
-    // Ino.DataKey, repeated so this file compiles on its own into the unit tests.
-    private static string Data(IntoChatOSConnection brain) => brain.Setting("ChatDataApp") is { Length: > 0 } data ? data : brain.Setting("App")!;
-
-    public static string EntryKey(IntoChatOSConnection brain, Guid requestId) => Data(brain) + "/pending/" + requestId.ToString("N");
-    public static string IndexKey(IntoChatOSConnection brain, string synapse) => Data(brain) + "/pending/index-" + synapse;
+    public static string EntryKey(IntoChatOSConnection brain, Guid requestId) => Ino.DataKey(brain) + "/pending/" + requestId.ToString("N");
+    public static string IndexKey(IntoChatOSConnection brain, string synapse) => Ino.DataKey(brain) + "/pending/index-" + synapse;
 
     public const int MaxAttempts = 3;
 
@@ -90,8 +87,6 @@ public static class PendingStore
         return true;
     }
 
-    public static Task MarkStarted(IntoChatOSConnection brain, Guid requestId) => Claim(brain, requestId);
-
     // A turn that could not start gives the request back, so the scan tries it again after a backoff; false when
     // the cap is reached and the request is not tried again.
     public static async Task<bool> Release(IntoChatOSConnection brain, Guid requestId)
@@ -141,6 +136,9 @@ public static class PendingStore
         return entries;
     }
 
+    // Deletes the entries older than an hour; the watch path calls it so cleanup does not wait for the scan.
+    public static async Task Prune(IntoChatOSConnection brain) => await Entries(brain);
+
     public static async Task<Guid[]> Older(IntoChatOSConnection brain, TimeSpan gate)
         => Older(await Entries(brain), DateTimeOffset.UtcNow, gate);
 
@@ -156,6 +154,12 @@ public enum PendingStep { Wait, Watch, Answer }
 
 public static partial class Ino
 {
+    // Whether Memory's intent is acted on rather than asked about: Confirmed, or already Dispatched for this very
+    // request (Dispatched cannot be reversed, so a turn that failed to start after it is acted on again).
+    public static bool ConfirmedFor(Intent? intent, Guid requestId)
+        => intent is { State: IntentState.Confirmed }
+            || intent is { State: IntentState.Dispatched } && intent.RequestId == requestId.ToString("N");
+
     // The brief Memory wrote, as the turn's instruction: a confirmed brief is acted on, an unconfirmed one is asked about.
     public static string BriefInstructions(IntentBrief brief, bool confirmed)
     {

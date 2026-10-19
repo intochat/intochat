@@ -151,4 +151,40 @@ public sealed class OsInoIntentFacts
         var entries = new Dictionary<Guid, Pending> { [released] = new("a", "", "c", Now.AddMinutes(-5), false, 1, Now.AddSeconds(-10)) };
         Assert.Empty(PendingStore.Older(entries, Now, TimeSpan.FromSeconds(8)));
     }
+
+    private static Intent IntentIn(IntentState state, Guid requestId)
+        => new(Guid.NewGuid(), "heard", "", requestId.ToString("N"), null, 0, state, [], [], []);
+
+    [Fact]
+    public void ADispatchedIntentOfThisRequestIsActedOnRetry()
+    {
+        var request = Guid.NewGuid();
+        Assert.True(Ino.ConfirmedFor(IntentIn(IntentState.Confirmed, request), request));
+        Assert.True(Ino.ConfirmedFor(IntentIn(IntentState.Dispatched, request), request));
+        Assert.False(Ino.ConfirmedFor(IntentIn(IntentState.Dispatched, Guid.NewGuid()), request));
+        Assert.False(Ino.ConfirmedFor(IntentIn(IntentState.Rephrased, request), request));
+        Assert.False(Ino.ConfirmedFor(null, request));
+    }
+
+    [Fact]
+    public void ReleasedThenRetriedKeepsOneWatchPerRequest()
+    {
+        var request = Guid.NewGuid();
+        using var first = new CancellationTokenSource();
+        using var second = new CancellationTokenSource();
+        var watches = new System.Collections.Concurrent.ConcurrentDictionary<Guid, CancellationTokenSource>();
+        watches[request] = first;
+        watches[request] = second;
+        Assert.False(watches.TryRemove(KeyValuePair.Create(request, first)));
+        Assert.Same(second, watches[request]);
+        Assert.True(watches.TryRemove(KeyValuePair.Create(request, second)));
+    }
+
+    [Fact]
+    public void DataKeyFallsBackToTheAppKey()
+    {
+        Assert.Equal("chat", Ino.DataKey("chat", "app"));
+        Assert.Equal("app", Ino.DataKey("", "app"));
+        Assert.Equal("app", Ino.DataKey(null, "app"));
+    }
 }
