@@ -35,12 +35,33 @@ internal static class Consolidation
 
     public static string VerdictsKey(string appKey) => appKey + "/verdicts";
 
-    // Credentials are never stored, not even for review.
+    // Credentials are never stored, not even for review: prefixed tokens, PEM headers, JWTs, bearer tokens, a password
+    // with its value, and a bare high-entropy token (32+ letters and digits with a digit and both cases, not part of a
+    // word, slug, path, GUID or dotted name, so git SHAs, GUIDs, dated slugs and paths never match).
     public static readonly Regex Secret = new(
-        @"\b(sk|pk|rk)[-_](live|test)[-_][A-Za-z0-9]{8,}|\bsk-[A-Za-z0-9_-]{16,}|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{20,}|\bxox[abpr]-[A-Za-z0-9-]{10,}"
-        + @"|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(password|passwd|pwd|passcode|api[ _-]?key|secret|token|pin)\s*(is|[:=])\s*\S+"
-        + @"|\beyJ[\w-]+\.[\w-]+\.[\w-]+|\bBearer\s+\S{16,}|\b(?=[A-Za-z0-9+/_-]*\d)[A-Za-z0-9+/_-]{32,}\b|\b(api[ _-]?key|token|secret)\s+\S{8,}",
+        @"(?i:\b(sk|pk|rk)[-_](live|test)[-_][A-Za-z0-9]{8,}|\bsk-[A-Za-z0-9_-]{16,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bxox[a-z]-[A-Za-z0-9-]{10,})"
+        + @"|\bAKIA[0-9A-Z]{16}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\beyJ[\w-]+\.[\w-]+\.[\w-]+|\bBearer\s+\S{16,}"
+        + @"|(?i:\b(password|passwd|pwd)\s*(\bis\b|[:=])\s*\S+)"
+        + @"|(?<![\w\-/.+])(?=[A-Za-z0-9+]*\d)(?=[A-Za-z0-9+]*[a-z])(?=[A-Za-z0-9+]*[A-Z])[A-Za-z0-9+]{32,}(?![\w\-/.+])",
+        RegexOptions.CultureInvariant);
+
+    // A key, token or secret named with a value ("token: ...", "secret is ...") may be one: never published, reviewed.
+    public static readonly Regex CredentialHint = new(@"\b(api[ _-]?key|token|secret)\s*(\bis\b|[:=])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    // The facts neuron's refusal when IFacts.Cap facts are current (FactsNeuron.Assert). It throws a plain
+    // InvalidOperationException, so the message prefix is the contract; facts pin it on both sides.
+    public const string CapRefusalPrefix = "At most 512 facts can be current";
+
+    public static bool IsCapRefusal(Exception error)
+        => error is InvalidOperationException && error.Message.StartsWith(CapRefusalPrefix, StringComparison.Ordinal);
+
+    // A stored boolean cell read leniently: true, "true", "True" or 1.
+    public static bool Flag(string? literal)
+    {
+        var text = (literal ?? "").Trim().Trim('"');
+        return bool.TryParse(text, out var flag) ? flag : text == "1";
+    }
 
     // Never auto-published; always sent to review.
     public static readonly IReadOnlyDictionary<string, Regex> SensitiveClasses = new Dictionary<string, Regex>
@@ -49,7 +70,7 @@ internal static class Consolidation
         ["finances"] = Words(@"salary|income|earns?|owes?|debts?|loans?|mortgage|rent|budget|bank\s+account|credit\s+card|iban|payments?|paid|invoices?|tax(es)?|savings|bankrupt\w*|finances?|financial")
             .Or(@"[$€£]\d"),
         ["third party"] = Words(@"wife|husband|partner|girlfriend|boyfriend|manager|colleagues?|brothers?|sisters?|friends?|boss|kids?|child(ren)?|mother|father|mom|dad|sons?|daughters?")
-            .Or(@"\b\p{Lu}\w+,\s+(a|an|the|my|his|her|their)\s+\w+"),
+            .Or(@"(?-i:\b[A-Z][a-z]+,\s+(a|an|the|my|his|her|their)\s+\w+)"),
         ["location"] = Words(@"lives\s+(in|near|at|on)|works\s+at|neighbou?rhood|address|home\s+is|street|apartment|commutes?|every\s+(morning|evening|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|routine|located\s+at"),
     };
 
@@ -65,6 +86,7 @@ internal static class Consolidation
         var text = item.Text + "\n" + item.Subject;
         if (Secret.IsMatch(text)) { return new(Disposition.Discard, "secret"); }
         if (item.Disposition == "discard") { return new(Disposition.Discard, item.Reason.Length > 0 ? item.Reason : "transient"); }
+        if (CredentialHint.IsMatch(text)) { return new(Disposition.Review, "possible credential"); }
         foreach (var (name, pattern) in sensitiveClasses)
         {
             if (pattern.IsMatch(text)) { return new(Disposition.Review, "sensitive: " + name); }
