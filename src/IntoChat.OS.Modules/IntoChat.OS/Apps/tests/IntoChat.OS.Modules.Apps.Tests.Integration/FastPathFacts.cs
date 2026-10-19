@@ -17,6 +17,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
@@ -821,16 +822,20 @@ public sealed class FastPathFacts : IDisposable
     public async Task ADeploySlowerThanTheResponseTimeoutStillEndsWrittenWithTheFilePresent()
     {
         var ct = TestContext.Current.CancellationToken;
-        // The one real overrun left: CallTimeout is this fake's own WaitAsync on the wall clock (standing in for the
-        // Orleans response timeout), not read through a TimeProvider, so the deploy must outlast it in real time.
-        var runtime = new SlowAppRuntime(TimeSpan.FromMilliseconds(700));
+        // CallTimeout stands in for the Orleans response timeout and runs on this fact's clock: the fact lets it elapse once
+        // a call is waiting, and the deploy lands only after that call timed out, so no real time decides the order.
+        var time = new FakeTimeProvider();
+        var runtime = new SlowAppRuntime(TimeSpan.Zero) { LandsAfterATimeout = true, Time = time };
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("lemons.cs", Lemons));
         var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
         await using var written = await brain.Observe<SynapseWritten>(app, ct);
 
-        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+        var writing = app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+        await runtime.CallWaiting(ct);
+        time.Advance(CallTimeout);
+        await writing;
 
         var signal = await written.NextAsync(ct: ct);
         Assert.Equal(("lemons.cs", "hash:lemons.cs"), (signal.Path, signal.Hash));
@@ -1050,6 +1055,12 @@ public sealed class FastPathFacts : IDisposable
         private readonly Dictionary<string, Dictionary<string, string>> _current = new(StringComparer.Ordinal);
         private int _deploys;
         private int _timedOut;
+        private readonly SemaphoreSlim _waiting = new(0);
+
+        // What CallTimeout is measured on; a fact that must decide when a call times out supplies a FakeTimeProvider.
+        public TimeProvider Time { get; init; } = TimeProvider.System;
+        // Completes once a call is waiting on its deploy with the timeout already armed.
+        public async Task CallWaiting(CancellationToken cancellationToken) => Assert.True(await _waiting.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken), "No deploy call is waiting.");
 
         public Func<Dictionary<string, string>, bool> Never { get; set; } = _ => false;
         // A deploy lands right after a call waiting on it times out, instead of after the delay, and the next call
@@ -1079,7 +1090,15 @@ public sealed class FastPathFacts : IDisposable
                     _inFlight[key] = deploy;
                 }
             }
-            try { return await deploy.WaitAsync(CallTimeout, cancellationToken); }
+            try
+            {
+                using var armed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var timeout = Task.Delay(CallTimeout, Time, armed.Token);
+                _waiting.Release();
+                if (await Task.WhenAny(deploy, timeout) == timeout) { await timeout; throw new TimeoutException(); }
+                await armed.CancelAsync();
+                return await deploy;
+            }
             catch (TimeoutException)
             {
                 Interlocked.Increment(ref _timedOut);
