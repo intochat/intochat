@@ -1,0 +1,36 @@
+{
+  "os": "windows",
+  "commands": {
+    "docker info --format {{.OSType}} {{.MemTotal}} {{.NCPU}}": {
+      "exit": 0,
+      "stdout": "linux 8589934592 8"
+    },
+    "wsl -l -v": {
+      "exit": 0,
+      "stdoutBase64": "IAAgAE4AQQBNAEUAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFMAVABBAFQARQAgACAAIAAgACAAIAAgACAAIAAgACAAVgBFAFIAUwBJAE8ATgANAAoAKgAgAFUAYgB1AG4AdAB1AC0AMgA0AC4AMAA0ACAAIAAgACAAIAAgAFIAdQBuAG4AaQBuAGcAIAAgACAAIAAgACAAIAAgACAAMgANAAoAIAAgAGQAbwBjAGsAZQByAC0AZABlAHMAawB0AG8AcAAgACAAIAAgAFIAdQBuAG4AaQBuAGcAIAAgACAAIAAgACAAIAAgACAAMgANAAoA"
+    },
+    "netsh int ipv4 show excludedportrange protocol=tcp": {
+      "exit": 0,
+      "stdout": "\r\nProtocol tcp Port Exclusion Ranges\r\n\r\nStart Port    End Port\r\n----------    --------\r\n     49752       49851\r\n\r\n* - Administered port exclusions.\r\n"
+    },
+    "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader": {
+      "exit": 0,
+      "stdout": "NVIDIA GeForce RTX 4070, 12282 MiB"
+    },
+    "dotnet --version": {
+      "exit": 0,
+      "stdout": "11.0.100-rc.1"
+    },
+    "flutter --version": {
+      "exit": 0,
+      "stdout": "Flutter 3.35.0"
+    }
+  },
+  "http": {},
+  "freeBytes": {
+    "*": 200000000000
+  },
+  "boundPorts": [],
+  "env": {},
+  "files": {}
+}

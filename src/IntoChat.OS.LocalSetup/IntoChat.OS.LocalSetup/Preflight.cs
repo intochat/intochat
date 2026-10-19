@@ -25,6 +25,7 @@ public static class Preflight
     public static IReadOnlyList<IPreflightCheck> Checks { get; } =
     [
         new DockerEngineCheck(), new LinuxContainersCheck(), new DockerMemoryCheck(), new WslCheck(), new DiskCheck(), new PortsCheck(),
+        new OllamaCheck(), new ModelPresentCheck(), new GpuCheck(), new DotnetSdkCheck(), new FlutterCheck(),
     ];
 
     public static async Task<PreflightReport> CollectAsync(IProbeEnvironment environment, PreflightOptions options, CancellationToken cancellationToken)
