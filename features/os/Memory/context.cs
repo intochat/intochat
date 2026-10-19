@@ -1,13 +1,16 @@
 using IntoChat.OS.AI.Agents.Context;
+using IntoChat.OS.AI.Agents.Facts;
+using IntoChat.OS.AI.Agents.Facts.Signals;
 using IntoChat.OS.AI.Agents.Intents;
 using IntoChat.OS.AI.Agents.Intents.Signals;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Text.Signals;
 
-// Memory owns the agent context Ino attaches to its turns and keeps two entries current: "working-memory"
+// Memory owns the agent context Ino attaches to its turns and keeps three entries current: "working-memory"
 // (the text of {app}/working, cut at 4,000 characters; removed when empty) and "active-intents" (the
-// Rephrased, Confirmed, Dispatched and Waiting intents, newest first, within 6,000 characters). Each
+// Rephrased, Confirmed, Dispatched and Waiting intents, newest first, within 6,000 characters) and "profile"
+// (the current Profile facts, newest first, within 3,000 characters). Each
 // rebuild reads both sources and writes an entry only when its text differs from the one the context holds.
 // "remember" replaces the working memory with its input; input over 4,000 characters is refused on
 // {app}/remember-status and the working memory is left unchanged.
@@ -19,7 +22,9 @@ var working = brain.Get<IText>(Intents.WorkingKey(appKey));
 var status = brain.Get<IText>(appKey + "/status");
 var rememberStatus = brain.Get<IText>(appKey + "/remember-status");
 var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
+var facts = brain.Get<IFacts>(IFacts.Key(Memory.Scope(brain)));
 string[] contracts = [typeof(IIntents).FullName!];
+string[] factContracts = [typeof(IFacts).FullName!];
 var gate = new SemaphoreSlim(1, 1);
 
 // Each watcher is supervised: if its loop faults or ends before the brain stops, say so on {app}/status and
@@ -29,6 +34,9 @@ var watching = new[]
     Supervise("working memory", ct => brain.React<TextChanged>(working, Rebuild, ct)),
     Supervise("rephrased intents", ct => brain.React<IntentRephrased>(intents, Rebuild, ct)),
     Supervise("intent transitions", ct => brain.React<IntentTransitioned>(intents, Rebuild, ct)),
+    Supervise("asserted facts", ct => brain.React<FactAsserted>(facts, Rebuild, ct)),
+    Supervise("invalidated facts", ct => brain.React<FactInvalidated>(facts, Rebuild, ct)),
+    Supervise("forgotten facts", ct => brain.React<FactForgotten>(facts, Rebuild, ct)),
 };
 
 await foreach (var request in brain.On(app, "remember", brain.Stopping))
@@ -67,6 +75,8 @@ async Task Rebuild(CancellationToken ct)
         await Reconcile(entries, "working-memory", text);
         var live = Intents.ActiveOf((await intents.Read()).Intents);
         await Reconcile(entries, "active-intents", Intents.RenderActive(live, Intents.ActiveBudget));
+        var profile = Intents.ProfileOf(await facts.Current());
+        await Reconcile(entries, "profile", Intents.RenderProfile(profile, Intents.ProfileBudget), factContracts);
     }
     catch (Exception error) when (!ct.IsCancellationRequested && !brain.Stopping.IsCancellationRequested)
     {
@@ -76,12 +86,12 @@ async Task Rebuild(CancellationToken ct)
     finally { gate.Release(); }
 }
 
-async Task Reconcile(ContextEntry[] entries, string name, string text)
+async Task Reconcile(ContextEntry[] entries, string name, string text, string[]? entryContracts = null)
 {
     var current = entries.FirstOrDefault(entry => entry.Name == name);
     switch (Intents.Decide(current?.Text, text))
     {
         case Intents.Change.Remove: await context.Remove(name); break;
-        case Intents.Change.Set: await context.Set(new(name, text, contracts)); break;
+        case Intents.Change.Set: await context.Set(new(name, text, entryContracts ?? contracts)); break;
     }
 }

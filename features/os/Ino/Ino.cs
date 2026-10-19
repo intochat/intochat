@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using IntoChat.OS.AI.Agents;
+using IntoChat.OS.AI.Agents.Facts;
 using IntoChat.OS.AI.Agents.Intents;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.Apps;
@@ -37,7 +38,7 @@ public static partial class Ino
         typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!, typeof(IText).FullName!,
         typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
-        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!];
+        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!, typeof(IFacts).FullName!];
 
 
     public static double RouteGate(AppSnapshot snapshot)
