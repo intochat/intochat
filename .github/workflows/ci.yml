@@ -21,7 +21,7 @@ env:
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 # Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
-# modules. Shard membership lives in .github/test-shards.json; TestShardFacts holds every PR-gate
+# modules. Shard membership is by convention from .github/test-shards.json (tier globs, md5 buckets, pins); TestShardFacts holds every PR-gate
 # project to exactly one shard. The nightly tiers (E2E, Browser) run in e2e.yml.
 jobs:
   format:
@@ -113,20 +113,41 @@ jobs:
         run: |
           shards=.github/test-shards.json
           mkdir -p artifacts/shards
-          for shard in $(jq -r '.shards | keys[]' "$shards"); do
-            dirs=()
+          bucket() { echo $(( 16#$(printf '%s' "$1" | md5sum | cut -c1-8) % $2 )); }
+          # Golden bucket table: TestShardFacts asserts the same six names and values.
+          golden="IntoChat.OS.Kernel.Tests.Integration=1 IntoChat.OS.Modules.Time.Tests.Integration=2 IntoChat.OS.Modules.Postgres.Tests.Integration=3 IntoChat.OS.Modules.ArtCraft.Tests.Integration=0 IntoChat.OS.Modules.Apps.Tests.Integration=1 IntoChat.OS.Client.Orleans.Tests.Integration=3"
+          for entry in $golden; do
+            [ "$(bucket "${entry%=*}" 4)" = "${entry#*=}" ] || { echo "::error::bucket drift for $entry"; exit 1; }
+          done
+          rm -f artifacts/shards/*.txt
+          for tier in $(jq -r '.tiers | keys[]' "$shards"); do
+            n=$(jq -r --arg t "$tier" '.buckets[$t]' "$shards")
+            matched=0
             while read -r glob; do
               found=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}")
-              if [ -z "$found" ]; then echo "::error::$shard: $glob matches no test module"; exit 1; fi
-              while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done <<< "$found"
-            done < <(jq -r --arg s "$shard" '.shards[$s][]' "$shards")
+              if [ -z "$found" ]; then echo "::error::$tier: $glob matches no test module"; exit 1; fi
+              while read -r dll; do
+                project=$(basename "$dll" .dll)
+                pin=$(jq -r --arg p "$project" '.pins[$p] // empty' "$shards")
+                b=${pin:-$(bucket "$project" "$n")}
+                if [ "$n" -eq 1 ]; then shard=$tier; else letters=(a b c d e f g h); shard="$tier-${letters[$b]}"; fi
+                echo "$dll" >> "artifacts/shards/$shard.txt"
+                matched=$((matched + 1))
+              done <<< "$found"
+            done < <(jq -r --arg t "$tier" '.tiers[$t][]' "$shards")
+            echo "$tier: $matched modules"
+          done
+          for list in artifacts/shards/*.txt; do
+            shard=$(basename "$list" .txt)
+            dirs=()
+            while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done < "$list"
             for dir in "${dirs[@]}"; do
               if [ -d "$dir/release/runtimes" ]; then
                 find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
               fi
             done
             archive="artifacts/shards/$shard.tar.zst"
-            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "${dirs[@]}"
+            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "$list" "${dirs[@]}"
             echo "$shard: ${#dirs[@]} modules, $(du -h "$archive" | cut -f1)"
           done
           df -h /
@@ -201,12 +222,11 @@ jobs:
         id: globs
         run: |
           globs=()
-          while read -r glob; do
-            count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}" | wc -l)
-            echo "$glob -> $count"
-            if [ "$count" -eq 0 ]; then echo "::error::$glob matches no test module"; exit 1; fi
-            globs+=("artifacts/bin/$glob")
-          done < <(jq -r --arg s "${{ matrix.shard }}" '.shards[$s][]' .github/test-shards.json)
+          while read -r dll; do
+            [ -f "$dll" ] || { echo "::error::$dll missing from the shard archive"; exit 1; }
+            globs+=("$dll")
+          done < artifacts/shards/${{ matrix.shard }}.txt
+          echo "${#globs[@]} modules"
           echo "value=$(IFS=';'; echo "${globs[*]}")" >> "$GITHUB_OUTPUT"
 
       - name: Test
