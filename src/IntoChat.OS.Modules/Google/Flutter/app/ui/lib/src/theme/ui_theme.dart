@@ -4,6 +4,7 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
 import '../lumen/lumen_palette.dart';
+import 'ui_colors.dart';
 import 'ui_tokens.dart';
 
 /// Product color tokens. Shell and ui both consume these — do not re-declare
@@ -23,7 +24,79 @@ abstract final class UiPalette {
   static const success = Color(0xFF65C5A0);
 }
 
+/// Text styles for the ambient palette. Colours come from [UiColors.of];
+/// families are IntoChat's bundled fonts for the intochat palette and the v1
+/// system fonts for midnight, paper and lumen.
+@immutable
+final class UiTypeSet {
+  const UiTypeSet({
+    required this.title,
+    required this.heading,
+    required this.cardTitle,
+    required this.metric,
+    required this.body,
+    required this.bodyMuted,
+    required this.meta,
+    required this.metaStrong,
+    required this.empty,
+  });
+
+  final TextStyle title;
+  final TextStyle heading;
+  final TextStyle cardTitle;
+  final TextStyle metric;
+  final TextStyle body;
+  final TextStyle bodyMuted;
+  final TextStyle meta;
+  final TextStyle metaStrong;
+  final TextStyle empty;
+}
+
+/// The static styles below are deprecated aliases of the v1 midnight set;
+/// use [UiType.of]. They stay until every caller migrates (Task 5).
 abstract final class UiType {
+  static const fontPackage = 'intochat_os_ui';
+  static const sansFamily = 'Schibsted Grotesk';
+  static const intochatMonoFamily = 'JetBrains Mono';
+
+  /// Package-qualified family names usable from any package.
+  static const sans = 'packages/$fontPackage/$sansFamily';
+  static const mono = 'packages/$fontPackage/$intochatMonoFamily';
+
+  static UiTypeSet of(BuildContext context) {
+    final c = UiColors.of(context);
+    final intochat = c == UiColors.intochatLight || c == UiColors.intochatDark;
+    TextStyle s(
+      TextStyle v1,
+      Color color, {
+      bool isMono = false,
+      bool head = false,
+    }) {
+      final style = v1.copyWith(
+        fontFamily: intochat ? (isMono ? mono : sans) : null,
+        color: color,
+      );
+      if (!intochat || !head) return style;
+      return style.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.015 * (style.fontSize ?? 16),
+        height: 1.18,
+      );
+    }
+
+    return UiTypeSet(
+      title: s(title, c.strong),
+      heading: s(heading, c.strong, head: true),
+      cardTitle: s(cardTitle, c.strong),
+      metric: s(metric, c.strong),
+      body: s(body, c.body),
+      bodyMuted: s(bodyMuted, c.muted),
+      meta: s(meta, c.muted, isMono: true),
+      metaStrong: s(metaStrong, c.strong, isMono: true),
+      empty: s(empty, c.strong, head: true),
+    );
+  }
+
   static const monoFamily = 'Cascadia Mono';
   static const monoFallback = ['Consolas', 'Menlo', 'monospace'];
 
@@ -111,16 +184,161 @@ abstract final class UiType {
 }
 
 abstract final class UiTheme {
-  static const palettes = ['midnight', 'paper', 'lumen'];
+  static const palettes = ['intochat', 'midnight', 'paper', 'lumen'];
 
   static String paletteName(String? stored) => switch (stored) {
+    'dark' || 'midnight' => 'midnight',
     'light' || 'paper' => 'paper',
     'lumen' => 'lumen',
-    _ => 'midnight',
+    _ => 'intochat',
   };
 
-  static ThemeMode modeFor(String? stored) =>
-      paletteName(stored) == 'paper' ? ThemeMode.light : ThemeMode.dark;
+  static ThemeMode modeFor(String? stored) => switch (paletteName(stored)) {
+    'intochat' => ThemeMode.system,
+    'paper' => ThemeMode.light,
+    _ => ThemeMode.dark,
+  };
+
+  /// Light theme for a stored palette. v1 palettes reuse their unchanged
+  /// code path and only gain their [UiColors].
+  static ThemeData light(String? stored) => switch (paletteName(stored)) {
+    'intochat' => intochat(Brightness.light),
+    _ => _withColors(workspace(Brightness.light), UiColors.paper),
+  };
+
+  /// Dark theme for a stored palette.
+  static ThemeData dark(String? stored) => switch (paletteName(stored)) {
+    'intochat' => intochat(Brightness.dark),
+    'lumen' => _withColors(workspaceDark(stored), UiColors.lumen),
+    _ => _withColors(workspaceDark(stored), UiColors.midnight),
+  };
+
+  static ThemeData _withColors(ThemeData base, UiColors colors) =>
+      base.copyWith(
+        extensions: [
+          ...base.extensions.values.where((e) => e is! UiColors),
+          colors,
+        ],
+      );
+
+  /// IntoChat (Figma) theme: Schibsted Grotesk on warm neutrals, blue accent.
+  static ThemeData intochat(Brightness brightness) {
+    final c = brightness == Brightness.dark
+        ? UiColors.intochatDark
+        : UiColors.intochatLight;
+    final scheme = ColorScheme(
+      brightness: brightness,
+      primary: c.accent,
+      onPrimary: c.onAccent,
+      primaryContainer: c.accentTint,
+      onPrimaryContainer: c.strong,
+      secondary: c.accent,
+      onSecondary: c.onAccent,
+      error: c.error,
+      onError: c.onAccent,
+      errorContainer: c.errorBg,
+      onErrorContainer: c.error,
+      surface: c.surface,
+      onSurface: c.body,
+      onSurfaceVariant: c.muted,
+      surfaceContainerLowest: c.surface,
+      surfaceContainerLow: c.surface,
+      surfaceContainer: c.recessed,
+      surfaceContainerHigh: c.recessed,
+      surfaceContainerHighest: c.recessed,
+      outline: c.inputBorder,
+      outlineVariant: c.hairline,
+    );
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      fontFamily: UiType.sans,
+    ).textTheme.apply(bodyColor: c.body, displayColor: c.strong);
+    TextStyle? head(TextStyle? t) => t?.copyWith(
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.015 * (t.fontSize ?? 16),
+      height: 1.18,
+    );
+    final textTheme = base.copyWith(
+      displayLarge: head(base.displayLarge),
+      displayMedium: head(base.displayMedium),
+      displaySmall: head(base.displaySmall),
+      headlineLarge: head(base.headlineLarge),
+      headlineMedium: head(base.headlineMedium),
+      headlineSmall: head(base.headlineSmall),
+      bodyLarge: base.bodyLarge?.copyWith(fontSize: 16, height: 1.5),
+      bodyMedium: base.bodyMedium?.copyWith(height: 1.5),
+    );
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: c.inputBorder),
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      extensions: [const UiTokens(), c],
+      colorScheme: scheme,
+      fontFamily: UiType.sans,
+      scaffoldBackgroundColor: c.page,
+      canvasColor: c.page,
+      dividerColor: c.hairline,
+      textTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: c.page,
+        foregroundColor: c.strong,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: Border(bottom: BorderSide(color: c.hairline)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: UiType.sans,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border.copyWith(
+          borderSide: BorderSide(color: c.accent, width: 2),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: c.hairline),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: c.strong,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(
+          fontFamily: UiType.sans,
+          color: c.page,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
 
   static ThemeData workspaceDark(String? stored) {
     final base = workspace(Brightness.dark);
@@ -167,7 +385,7 @@ abstract final class UiTheme {
   /// chat tokens remain independent while workspace pages migrate.
   static ThemeData workspace(Brightness brightness) {
     final darkMode = brightness == Brightness.dark;
-    final base = darkMode ? dark() : light();
+    final base = darkMode ? baseDark() : baseLight();
     final scheme =
         ColorScheme.fromSeed(
           seedColor: LumenPalette.accent,
@@ -268,7 +486,8 @@ abstract final class UiTheme {
     );
   }
 
-  static ThemeData light() => ThemeData(
+  /// v1 light base (formerly `light()`).
+  static ThemeData baseLight() => ThemeData(
     useMaterial3: true,
     extensions: const [UiTokens()],
     brightness: Brightness.light,
@@ -304,7 +523,8 @@ abstract final class UiTheme {
     ),
   );
 
-  static ThemeData dark() {
+  /// v1 dark base (formerly `dark()`).
+  static ThemeData baseDark() {
     final scheme = ColorScheme.fromSeed(
       seedColor: UiPalette.signal,
       brightness: Brightness.dark,

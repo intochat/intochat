@@ -451,8 +451,8 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     navigatorKey: _navigator,
     scaffoldMessengerKey: _messenger,
     debugShowCheckedModeBanner: false,
-    theme: UiTheme.workspace(Brightness.light),
-    darkTheme: UiTheme.workspaceDark(store.settings.theme),
+    theme: UiTheme.light(store.settings.theme),
+    darkTheme: UiTheme.dark(store.settings.theme),
     themeMode: UiTheme.modeFor(store.settings.theme),
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(

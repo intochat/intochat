@@ -46,3 +46,10 @@ flutter:
     - assets/brands/gmail.svg
     - assets/brands/salesforce.svg
     - assets/brands/github.svg
+  fonts:
+    - family: Schibsted Grotesk
+      fonts:
+        - asset: assets/fonts/SchibstedGrotesk-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf

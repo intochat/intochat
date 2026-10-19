@@ -10,7 +10,7 @@ class WorkspacePreferences {
   String? defaultModelProfile;
   String displayName = '';
   String role = '';
-  String theme = 'midnight';
+  String theme = 'intochat';
   bool reducedMotion = false;
   bool compactDensity = false;
   Map<String, dynamic> toJson() => {
@@ -27,7 +27,7 @@ class WorkspacePreferences {
         ..defaultModelProfile = json['defaultModelProfile'] as String?
         ..displayName = _text(json['displayName'], '')
         ..role = _text(json['role'], '')
-        ..theme = UiTheme.paletteName(_text(json['theme'], 'midnight'))
+        ..theme = UiTheme.paletteName(_text(json['theme'], 'intochat'))
         ..reducedMotion = json['reducedMotion'] == true
         ..compactDensity = json['compactDensity'] == true;
 }

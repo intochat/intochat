@@ -242,7 +242,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     return MaterialApp(
       title: 'IntoChat',
       debugShowCheckedModeBanner: false,
-      theme: UiTheme.dark(),
+      theme: UiTheme.baseDark(),
       home: _phase == _Phase.localFailed || _phase == _Phase.connectionFailed
           ? Scaffold(
               body: Center(
