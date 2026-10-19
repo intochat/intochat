@@ -16,7 +16,8 @@ public sealed record Fact([property: Id(0)] Guid Id, [property: Id(1)] FactKind 
     [property: Id(9)] DateTimeOffset Recorded, [property: Id(10)] string SourcePublisher, [property: Id(11)] long SourceSequence,
     [property: Id(12)] string PromptVersion, [property: Id(13)] FactScope Scope, [property: Id(14)] Guid[] Links, [property: Id(15)] bool Hidden);
 
-// DedupKey: episode id + ordinal, so Assert is idempotent.
+// DedupKey: a content hash (Memory hashes the item's normalised kind, subject, text and episode ids), so Assert is
+// idempotent: a known key returns its fact, current or not.
 [GenerateSerializer, Alias("facts.assertion")]
 public sealed record FactAssertion([property: Id(0)] FactKind Kind, [property: Id(1)] string Text, [property: Id(2)] string Subject,
     [property: Id(3)] double Confidence, [property: Id(4)] int Importance, [property: Id(5)] DateTimeOffset ValidFrom,

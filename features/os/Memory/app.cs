@@ -89,19 +89,23 @@ written to `{app}/status` and the intent stays Waiting.
 When an Ino turn completes, Ino asks Memory to "capture" it with the conversation and run id. Memory's capture
 agent (prompt `capture.md`, `CaptureModel` setting) writes a third-person note of 2 to 10 bullets and an
 importance from 1 to 10 into `{app}/episodes` under `agent#run`; a failure, 30 seconds without a reply or a
-malformed reply stores the first 300 characters of each side instead, marked fallback. A run already captured
-is skipped.
+malformed reply stores the first 300 characters of each side instead, marked fallback. Either note is stored and
+embedded with every credential replaced by "[a credential was supplied]" or "[a possible credential was supplied]".
+A run already captured is skipped.
 
 ## Scenario: Quiet time consolidates episodes into facts
 
 Every captured episode restarts the reminder `{app}/consolidation`; once no episode arrives for `QuietMinutes`
 (default 10), and once at startup, Memory claims up to 20 unconsolidated episodes for five minutes and its consolidate
 agent (prompt `consolidate.md`, `ConsolidateModel` setting, 60 seconds) returns a verdict. Durable items are asserted on
-the facts neuron `{brain}/memory/facts` (idempotent per first episode id and ordinal; a contradicted fact is
-invalidated as superseded), working items replace `{app}/working`, intent items are declared. Health, finances,
+the facts neuron `{brain}/memory/facts` (idempotent per content-hash dedup key: a hash of the item's normalised kind,
+subject, text and episode ids; a contradicted fact is invalidated as superseded), working items replace `{app}/working`, intent items are declared. Health, finances,
 third parties, location and routines, and items below `ReviewGate` (default 0.75), go to the review table and are
 listed by "review" on `{app}/review`; credentials are dropped. Over 512 current facts the least important is
-archived and forgotten. Episodes are marked consolidated last; a failed batch is retried once its claims expire.
+archived and forgotten. Episodes are marked consolidated last; a failed batch is retried once its claims expire, and
+an episode three batches failed on is parked (`claim` reads `parked:<reason>` and `{app}/status` says so) so the
+episodes behind it proceed. Every current fact, whoever asserted it, is in the life index as `fact:<id>` until it is
+forgotten or invalidated.
 
 ## Scenario: A turn about a short preference is captured and consolidated into a profile fact
 
@@ -117,7 +121,8 @@ confidence is 0.95: the review table gets one pending row whose reason starts wi
 episode, and the current facts hold nothing about peanuts. A key-shaped secret (a prefixed token, PEM block, JWT, Bearer value, password=value or
 high-entropy string) is discarded with the reason `secret` and never reaches the review table, while a named
 credential hint ("token: ...", "api key is ...", "secret is ...") goes to review with the reason "possible credential". Invoking "review" lists the pending row on `{app}/review` and the context entry `review-count` carries
-the number waiting; "review-accept" with the row id asserts it once as a fact and marks the row accepted, and
+the number waiting; "review-accept" with the row id asserts it once as a fact (superseding the current fact it contradicts; an intent row
+is declared instead and a working row replaces `{app}/working`) and marks the row accepted, and
 "review-reject" marks it rejected without asserting anything.
 
 ## Scenario: Recall-life answers Found with sources and Absent with coverage
@@ -128,12 +133,14 @@ With the profile fact "The user prefers short answers" current, invoking "recall
 answers it and names the coverage, the first and last episode dates and the number of facts. A Partial answer adds the
 neighbouring episodes of its best episode and the transcript around its run.
 
-## Scenario: Forgetting hides a fact everywhere but its history
+## Scenario: Forgetting a fact removes it from the profile, recall and the model's view
 
 After a profile fact is forgotten through `IFacts.Forget` (for example when the user says "forget that I like short
 answers" and Ino calls it), `Current` no longer lists the fact, the `profile` context entry no longer renders it, the
-next conversation's turn does not carry it and recall-life never finds it. `Read` still returns it, marked Hidden,
-with its text.
+next conversation's turn does not carry it and its `fact:<id>` entry leaves the life index, so recall-life never
+answers with the fact. `Read` still returns it, marked Hidden, with its text, and asserting its dedup key again returns
+the hidden fact rather than a new one. The episodes it was learned from remain and may still be recalled at the
+episode tier; forgetting episodes is not part of this slice.
 
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.

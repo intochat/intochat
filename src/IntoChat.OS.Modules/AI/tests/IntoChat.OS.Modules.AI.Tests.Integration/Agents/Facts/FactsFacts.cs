@@ -57,6 +57,21 @@ public sealed class FactsFacts(AIHost host)
     }
 
     [Fact]
+    public async Task ReassertingAForgottenKeyReturnsTheHiddenFact()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var person = await host.PersonAsync(ct: ct);
+        using var caller = person.AsCaller();
+        var facts = host.Brain.Get<IFacts>(IFacts.Key(person.BrainId));
+        var id = await facts.Assert(Assertion("ep-1#0"));
+        await facts.Forget(id, "asked", (await facts.Read()).Revision);
+        var again = await facts.Assert(Assertion("ep-1#0"));
+        Assert.Equal(id, again);
+        Assert.Empty(await facts.Current());
+        Assert.True(Assert.Single((await facts.Read()).Facts).Hidden);
+    }
+
+    [Fact]
     public async Task AStaleRevisionIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
