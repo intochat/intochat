@@ -150,7 +150,8 @@ Workspace navigation owns focus; composition never changes it.
 Sending "fix the thing from yesterday" with Memory installed asks Memory's "intend" first, and Ino watches the
 answer `{memory}/intents/{requestId}`. When it reads `ok`, the turn starts with the brief Memory wrote for the
 message: when the intent is Confirmed the model acts on the brief, otherwise it shows the brief and asks
-before acting. When the answer reads `failed: <reason>` the turn answers the message without a brief.
+before acting. When the answer reads `failed: <reason>` the status shows "Memory could not intend; answering without a brief"
+and the turn answers the message without a brief.
 
 ## Scenario: An active intent is shown in a new conversation
 
@@ -162,7 +163,7 @@ the `IIntents` contract, and it then appears in the next conversation the same w
 ## Scenario: Memory not installed answers directly
 
 With Memory not installed, sending a message shows the status "Memory is not installed; answering directly"
-and the turn runs on the message alone, with no brief and no Memory context.
+(once per synapse lifetime, not on every message) and the turn runs on the message alone, with no brief and no Memory context.
 
 ## Scenario: Intend is slow
 
