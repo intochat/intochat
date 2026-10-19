@@ -33,7 +33,7 @@ final class UiProgress extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           child: LinearProgressIndicator(
             value: determinate ? fraction : null,
-            minHeight: 6,
+            minHeight: 8,
             color: c.accent,
             backgroundColor: c.recessed,
             semanticsLabel: label.isEmpty ? null : label,

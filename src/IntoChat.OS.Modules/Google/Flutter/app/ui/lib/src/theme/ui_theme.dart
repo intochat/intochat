@@ -298,7 +298,7 @@ abstract final class UiTheme {
       labelSmall: w(base.labelSmall),
     );
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide(color: c.inputBorder),
     );
     return ThemeData(
@@ -329,9 +329,36 @@ abstract final class UiTheme {
           textStyle: const TextStyle(
             fontFamily: UiType.sans,
             fontSize: 14,
-            fontWeight: FontWeight.w600,
-            fontVariations: [FontVariation('wght', 600)],
+            fontWeight: FontWeight.w700,
+            fontVariations: [FontVariation('wght', 700)],
           ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          backgroundColor: c.surface,
+          foregroundColor: c.strong,
+          side: BorderSide(color: c.inputBorder),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: UiType.sans,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontVariations: [FontVariation('wght', 700)],
+          ),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: c.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: c.hairline),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

@@ -36,7 +36,7 @@ final class UiInfoBar extends StatelessWidget {
         key: const Key('ui_info_bar'),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
