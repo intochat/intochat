@@ -29,6 +29,7 @@ public sealed class FakeModelServer : IAsyncDisposable
         var server = new FakeModelServer(app);
         app.MapPost("/v1/chat/completions", (Delegate)server.Respond);
         app.MapPost("/v1/systemone", (Delegate)server.RespondSystemOne);
+        app.MapPost("/v1/embeddings", (Delegate)server.RespondEmbeddings);
         await app.StartAsync(ct);
         return server;
     }
@@ -40,9 +41,16 @@ public sealed class FakeModelServer : IAsyncDisposable
     // A fallback for chat requests no model script matched; null keeps the echo default.
     public Func<JsonElement, FakeReply?>? ChatFallback { get; set; }
 
+    // Answers a chat request before any script: a background agent sharing a scripted model (a turn's capture,
+    // a consolidation) is answered by its prompt and never takes a reply scripted for the foreground turn.
+    public Func<JsonElement, FakeReply?>? Intercept { get; set; }
+
     // Opt-in: a scripted model whose script is used up answers through ChatFallback. Off, it fails the request
     // so a test that scripts too few replies sees it.
     public bool FallbackWhenScriptExhausted { get; set; }
+
+    // Opt-in: embeddings for /v1/embeddings. Unset, the endpoint is not served (an embedding request fails), as before.
+    public Func<string, float[]>? Embedder { get; set; }
 
     public void Script(string modelId, params FakeReply[] replies)
     {
@@ -66,7 +74,8 @@ public sealed class FakeModelServer : IAsyncDisposable
         _requests.GetOrAdd(model, _ => new()).Enqueue(request);
 
         FakeReply reply;
-        if (!_scripts.TryGetValue(model, out var script)) { reply = ChatFallback?.Invoke(request) ?? FakeReply.Text("You said: " + LastUserText(request)); }
+        if (Intercept?.Invoke(request) is { } intercepted) { reply = intercepted; }
+        else if (!_scripts.TryGetValue(model, out var script)) { reply = ChatFallback?.Invoke(request) ?? FakeReply.Text("You said: " + LastUserText(request)); }
         // A scripted model whose script is used up answers through the fallback only when the host opted in.
         else if (!script.TryDequeue(out reply!))
         {
@@ -85,6 +94,50 @@ public sealed class FakeModelServer : IAsyncDisposable
         var streaming = request.TryGetProperty("stream", out var stream) && stream.ValueKind == JsonValueKind.True;
         return streaming ? Stream(model, reply) : Complete(model, reply);
     }
+
+    private async Task<IResult> RespondEmbeddings(HttpContext http)
+    {
+        if (Embedder is not { } embed) { return Results.NotFound(); }
+        using var document = await JsonDocument.ParseAsync(http.Request.Body, cancellationToken: http.RequestAborted);
+        var request = document.RootElement;
+        var input = request.GetProperty("input");
+        string[] texts = input.ValueKind == JsonValueKind.Array ? [.. input.EnumerateArray().Select(item => item.GetString() ?? "")] : [input.GetString() ?? ""];
+        var base64 = request.TryGetProperty("encoding_format", out var format) && format.GetString() == "base64";
+        var data = texts.Select((text, index) =>
+        {
+            var vector = embed(text);
+            object embedding = base64 ? Convert.ToBase64String(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.AsSpan()).ToArray()) : vector;
+            return new { @object = "embedding", index, embedding };
+        }).ToArray();
+        var model = request.TryGetProperty("model", out var name) ? name.GetString() ?? "" : "";
+        return Results.Json(new { @object = "list", data, model, usage = new { prompt_tokens = 1, total_tokens = 1 } });
+    }
+
+    // A deterministic bag-of-words embedding: lower-cased words without common stop words, a trailing "s", "ed" or
+    // "ing" cut, each hashed into one of 256 dimensions, normalised. Texts sharing content words are near.
+    public static float[] WordHash(string text)
+    {
+        var vector = new float[256];
+        foreach (var raw in System.Text.RegularExpressions.Regex.Split((text ?? "").ToLowerInvariant(), "[^a-z]+"))
+        {
+            if (raw.Length == 0 || StopWords.Contains(raw)) { continue; }
+            var word = raw.Length > 5 && raw.EndsWith("ing", StringComparison.Ordinal) ? raw[..^3]
+                : raw.Length > 4 && raw.EndsWith("ed", StringComparison.Ordinal) ? raw[..^2]
+                : raw.Length > 3 && raw.EndsWith('s') ? raw[..^1] : raw;
+            var hash = 2166136261u;
+            foreach (var c in word) { hash = (hash ^ c) * 16777619u; }
+            vector[hash % 256] += 1;
+        }
+        var length = MathF.Sqrt(vector.Sum(value => value * value));
+        if (length == 0) { vector[0] = 1; length = 1; }
+        return [.. vector.Select(value => value / length)];
+    }
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    {
+        "a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for", "from", "with", "by", "is", "are", "was", "be", "it", "this", "that",
+        "what", "who", "how", "do", "does", "did", "i", "me", "my", "you", "your", "we", "user", "assistant", "now", "s",
+    };
 
     private async Task<IResult> RespondSystemOne(HttpContext http)
     {

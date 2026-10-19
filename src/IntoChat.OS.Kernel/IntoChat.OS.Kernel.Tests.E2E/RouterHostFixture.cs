@@ -20,6 +20,11 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
         Model.ChatFallback = Fill;
         Model.FallbackWhenScriptExhausted = true;
+        // Memory's life index embeds facts and episodes: a word-hash embedder makes its recall deterministic offline.
+        Model.Embedder = FakeModelServer.WordHash;
+        // Memory captures every completed turn and consolidates once quiet, on the same default model: those requests
+        // are answered by their prompt, so a fact's scripted replies stay its own turn's.
+        Model.Intercept = Background;
         Model.SystemOneOverride = request => Choose(request, "timer", "Start", 0.95);
         return ReferenceBrain.Create(privateConfiguration: new Dictionary<string, string?>
         {
@@ -43,6 +48,18 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
         return text.Contains("Method: " + nameof(IntoChat.OS.Apps.IApp.Request), StringComparison.Ordinal) || text.Contains("Request(", StringComparison.Ordinal)
             ? FakeReply.Text("{\"key\":\"" + scope + "/apps/calculator\",\"arguments\":[\"open\",\"\"]}")
             : FakeReply.Text("{\"key\":\"" + scope + "/timer\",\"arguments\":[\"00:05:00\",null]}");
+    }
+
+    internal const string CapturePrompt = "You are a third-person note-taker";
+    internal const string ConsolidatePrompt = "You consolidate a person's recent conversation episodes";
+
+    // A plain note for a capture and an empty verdict for a consolidation.
+    internal static FakeReply? Background(JsonElement request)
+    {
+        var text = Text(request);
+        return text.Contains(CapturePrompt, StringComparison.Ordinal) ? FakeReply.Text("{\"summary\":\"- The user sent a message.\n- The assistant replied.\",\"importance\":3}")
+            : text.Contains(ConsolidatePrompt, StringComparison.Ordinal) ? FakeReply.Text("{\"items\":[]}")
+            : null;
     }
 
     internal static string Text(JsonElement request)
