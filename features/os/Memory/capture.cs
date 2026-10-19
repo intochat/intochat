@@ -41,6 +41,8 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
             new("at", JsonSerializer.Serialize((run.EndedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"))),
             new("summary", JsonSerializer.Serialize(note.Summary)), new("importance", note.Importance.ToString()),
             new("fallback", note.IsFallback ? "true" : "false"),
+            // Upsert takes every non-key column: a new episode is neither consolidated nor claimed.
+            new("consolidated_at", "null"), new("claim", "null"), new("claim_until", "null"),
         ]);
         await Recall.Index(brain, "episode:" + id, "episode", note.Summary, run.EndedAt ?? DateTimeOffset.UtcNow, note.Importance);
         await Quiet();
