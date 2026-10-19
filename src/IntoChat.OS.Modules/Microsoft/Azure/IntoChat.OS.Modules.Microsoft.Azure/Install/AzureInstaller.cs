@@ -36,7 +36,7 @@ public static class AzureInstaller
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or JsonException)
         {
-            await error.WriteLineAsync($"install: {ex.Message}");
+            await error.WriteLineAsync($"install: {ex.Message}", ct);
             return 2;
         }
 
@@ -44,7 +44,7 @@ public static class AzureInstaller
         try { deployments = ModuleDeployments.Discover(modules); }
         catch (InvalidOperationException ex)
         {
-            await error.WriteLineAsync($"install: {ex.Message}");
+            await error.WriteLineAsync($"install: {ex.Message}", ct);
             return 2;
         }
 
@@ -54,7 +54,7 @@ public static class AzureInstaller
             try { provided = await SecretValues(secretsFrom, ct); }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException)
             {
-                await error.WriteLineAsync($"install: {ex.Message}");
+                await error.WriteLineAsync($"install: {ex.Message}", ct);
                 return 2;
             }
         }
@@ -64,7 +64,7 @@ public static class AzureInstaller
         async Task<ResourceRef> Ensure(ResourceSpec spec, CancellationToken token)
         {
             current = InstallPlan.DryRunLine(spec);
-            await output.WriteLineAsync(current);
+            await output.WriteLineAsync(current, token);
             planned.Add(spec);
             if (dryRun) { return new ResourceRef(ResourceIds.For(config.Subscription, spec), spec.Kind, spec.Name, spec.ResourceGroup); }
             return await arm.Ensure(config.Subscription, AzureTags.Tagged(spec), token);
@@ -95,11 +95,11 @@ public static class AzureInstaller
             }
             var osApp = InstallPlan.OsApp(config, variables, secrets);
             await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
-            if (dryRun) { await output.WriteLineAsync(InstallPlan.Summary(planned)); }
+            if (dryRun) { await output.WriteLineAsync(InstallPlan.Summary(planned), ct); }
         }
         catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException)
         {
-            await error.WriteLineAsync($"install: {current} failed: {ex.Message}");
+            await error.WriteLineAsync($"install: {current} failed: {ex.Message}", ct);
             return 1;
         }
         return 0;

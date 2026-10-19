@@ -85,25 +85,25 @@ public sealed class LocalReset(
     {
         if (!environment.IsDevelopment() || !isRunMode)
         {
-            await output.WriteLineAsync("reset refused: it only runs in the Development environment in run mode. Nothing was deleted.");
+            await output.WriteLineAsync("reset refused: it only runs in the Development environment in run mode. Nothing was deleted.", cancellationToken);
             return 1;
         }
         var list = flags.Contains("--list");
         var yes = flags.Contains("--yes");
         var plan = await BuildPlanAsync(flags.Contains("--include-secrets"), flags.Contains("--include-machine-id"), cancellationToken);
-        await output.WriteLineAsync(plan.Count == 0 ? "Nothing to reset." : "reset would delete:");
-        foreach (var target in plan) { await output.WriteLineAsync($"  [{target.Kind}] {target.Description}"); }
+        await output.WriteLineAsync(plan.Count == 0 ? "Nothing to reset." : "reset would delete:", cancellationToken);
+        foreach (var target in plan) { await output.WriteLineAsync($"  [{target.Kind}] {target.Description}", cancellationToken); }
         if (list || plan.Count == 0) { return 0; }
         if (!interactive && !yes)
         {
-            await output.WriteLineAsync("reset refused: input is not interactive; pass --yes to confirm. Nothing was deleted.");
+            await output.WriteLineAsync("reset refused: input is not interactive; pass --yes to confirm. Nothing was deleted.", cancellationToken);
             return 1;
         }
         if (!yes)
         {
-            await output.WriteAsync("Type yes to delete these: ");
+            await output.WriteAsync("Type yes to delete these: ", cancellationToken);
             var answer = await input.ReadLineAsync(cancellationToken);
-            if (answer != "yes") { await output.WriteLineAsync("aborted"); return 0; }
+            if (answer != "yes") { await output.WriteLineAsync("aborted", cancellationToken); return 0; }
         }
 
         foreach (var target in plan.Where(t => t.Kind == "container")) { await docker.RemoveContainerAsync(target.Reference, cancellationToken); }
@@ -112,10 +112,10 @@ public sealed class LocalReset(
         {
             var roots = target.Kind == "secrets" ? new[] { Path.GetFullPath(target.Reference) } : [WorkDirectory, ProductDirectory];
             var full = Path.GetFullPath(target.Reference);
-            if (!roots.Any(root => IsRootOrChild(root, full))) { await output.WriteLineAsync($"  skipped (outside the allowed roots): {full}"); continue; }
-            if (fileSystem.IsReparsePoint(full)) { await output.WriteLineAsync($"  skipped (reparse point): {full}"); continue; }
+            if (!roots.Any(root => IsRootOrChild(root, full))) { await output.WriteLineAsync($"  skipped (outside the allowed roots): {full}", cancellationToken); continue; }
+            if (fileSystem.IsReparsePoint(full)) { await output.WriteLineAsync($"  skipped (reparse point): {full}", cancellationToken); continue; }
             fileSystem.Delete(full);
-            await output.WriteLineAsync($"  deleted {full}");
+            await output.WriteLineAsync($"  deleted {full}", cancellationToken);
         }
         return 0;
     }

@@ -45,7 +45,7 @@ public sealed class AppCreatorFacts
         Assert.Equal("Shouter", authored.Manifest.Title);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
         await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
         Assert.Equal(authored.Manifest.Title, (await app.Read()).Manifest.Title);
     }
@@ -118,7 +118,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        var building = await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        var building = await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
         Assert.Equal(AppStatus.Building, building.Status);
 
         Assert.Equal(AppStatus.Live, (await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct)).Status);
@@ -144,7 +144,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status == AppStatus.Failed, ct);
         var failed = await app.Read();
@@ -169,7 +169,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var activity = await brain.Observe<AppActivity>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         var outcome = await activity.NextAsync(signal => signal.State is "completed" or "attention", ct);
         Assert.Equal("attention", outcome.State);
@@ -196,7 +196,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         var live = await app.Read();
@@ -223,7 +223,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         var live = await app.Read();
@@ -248,7 +248,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         Assert.Equal("// proof v1", (await app.Read()).Files["synapses/shout.cs"]);
@@ -271,7 +271,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         // The compiler accepted the file; the check still answers the shape the gates will refuse.
@@ -300,7 +300,7 @@ public sealed class AppCreatorFacts
         await app.WriteFile("notes.md", "not C#", Guid.NewGuid());
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
         var result = await app.Read();
@@ -327,7 +327,7 @@ public sealed class AppCreatorFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
 
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
 
         await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
         var result = await app.Read();
@@ -354,7 +354,7 @@ public sealed class AppCreatorFacts
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var activity = await brain.Observe<AppActivity>(app, ct);
-        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null);
+        await creator.Implement(intoChatOS, IApp.Key(Brain, "shouter"), null, TestContext.Current.CancellationToken);
         await sandbox.Entered.Task.WaitAsync(ct);
 
         await app.BeginBuild(null);

@@ -24,6 +24,8 @@ dotnet_separate_import_directive_groups = false
 #### Folders organize; public namespaces are flat
 dotnet_style_namespace_match_folder = false
 dotnet_diagnostic.IDE0130.severity = none
+# Forward the in-scope CancellationToken. Grain contract methods without a token parameter have no source for one (no contract changes).
+dotnet_diagnostic.CA2016.severity = error
 
 #### Soft style under preview-all — do not break the gate
 csharp_style_prefer_primary_constructors = true:suggestion

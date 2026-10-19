@@ -27,7 +27,7 @@ internal sealed class SecretsNeuron : Grain, ISecrets
 
         _state.State.Owner = this.GetPrimaryKeyString();
         var reference = _secrets.Set(_state.State, name, label, value);
-        await _state.WriteStateAsync();
+        await _state.WriteStateAsync(cancellationToken);
         return reference;
     }
 
@@ -44,7 +44,7 @@ internal sealed class SecretsNeuron : Grain, ISecrets
 
         if (_state.State.Fields.Remove(name))
         {
-            await _state.WriteStateAsync();
+            await _state.WriteStateAsync(cancellationToken);
         }
     }
 

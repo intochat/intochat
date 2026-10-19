@@ -44,7 +44,7 @@ public sealed class Kernel(IGrainFactory grains, Microsoft.Extensions.Options.IO
         List<Instance> running = [];
         foreach (var type in await grains.GetGrain<IInstanceTypes>(brain).List().WaitAsync(cancellationToken))
         {
-            var active = (await management.GetActiveGrains(GrainType.Create(type)).AsTask().WaitAsync(cancellationToken))
+            var active = (await management.GetActiveGrains(GrainType.Create(type), cancellationToken).AsTask().WaitAsync(cancellationToken))
                 .Select(id => id.Key.ToString()!).Where(key => BrainKey.BelongsTo(key, brain)).ToHashSet(StringComparer.Ordinal);
             if (active.Count == 0) { continue; }
             var known = await grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, type)).List().WaitAsync(cancellationToken);

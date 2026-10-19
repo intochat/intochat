@@ -66,9 +66,9 @@ internal static class AppsEndpoints
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), name, request.Text, ct)));
         }));
 
-        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, IIntoChatOS brain) => Respond(async () =>
+        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
         {
-            var snapshot = await creator.Implement(brain, Key(name), request?.Text);
+            var snapshot = await creator.Implement(brain, Key(name), request?.Text, ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
