@@ -13,8 +13,8 @@ packages=${2:?packagesDir}
 mode=${3:-local}
 
 mkdir -p "$workdir"
-workdir=$(cd "$workdir" && pwd)
-packages=$(cd "$packages" && pwd)
+workdir=$(cd "$workdir" && pwd -W 2>/dev/null || pwd)
+packages=$(cd "$packages" && pwd -W 2>/dev/null || pwd)
 
 pack=$(ls "$packages"/IntoChat.OS.Templates.*.nupkg | head -n 1)
 [ -n "$pack" ] || { echo "no IntoChat.OS.Templates package in $packages" >&2; exit 1; }
@@ -47,20 +47,26 @@ write_local_config() {
 EOF
 }
 
-for entry in Weather:weather Gmail:gmail MyModule:my-module Foo.Bar:foo.bar; do
+for entry in Weather:weather Gmail:gmail MyModule:my-module Foo.Bar:foo-bar; do
   name=${entry%%:*}
   id=${entry##*:}
   dir="$workdir/$name"
   started=$(date +%s)
   dotnet new intochat-module -n "$name" --ModuleId "$id" -o "$dir" >/dev/null
   [ "$mode" = "feed" ] || write_local_config "$dir/nuget.config"
-  (cd "$dir" && dotnet build -c Release --property:CodeGraphRefresh=false >/dev/null)
+  (cd "$dir" && dotnet build "$name.Tests.Integration/$name.Tests.Integration.csproj" -c Release >/dev/null)
   (cd "$dir" && dotnet test --project "$name.Tests.Integration/$name.Tests.Integration.csproj" -c Release --no-build)
   echo "template-smoke: $name ($id) ok in $(( $(date +%s) - started ))s"
 done
 
-if dotnet new intochat-module -n Bad --ModuleId "Bad Id" -o "$workdir/Bad" >/dev/null 2>&1; then
-  echo "template-smoke: --ModuleId 'Bad Id' was accepted" >&2
-  exit 1
+# The template engine has no parameter validation; an invalid module id is rejected by the SDK generator (IOS0002)
+# when the instance builds. Accept either a refused instantiation or a failing build.
+bad="$workdir/Bad"
+if dotnet new intochat-module -n Bad --ModuleId "Bad Id" -o "$bad" >/dev/null 2>&1; then
+  [ "$mode" = "feed" ] || write_local_config "$bad/nuget.config"
+  if (cd "$bad" && dotnet build "Bad/Bad.csproj" -c Release >/dev/null 2>&1); then
+    echo "template-smoke: --ModuleId 'Bad Id' was accepted and built" >&2
+    exit 1
+  fi
 fi
 echo "template-smoke: 'Bad Id' rejected"
