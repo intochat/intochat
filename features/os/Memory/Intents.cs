@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using IntoChat.OS;
+using IntoChat.OS.AI.Agents.Facts;
 using IntoChat.OS.AI.Agents.Intents;
 
 // Shared by "intend": where Memory's rephrasing agent and its answers live, how the ask and the model's
@@ -117,6 +118,25 @@ internal static class Intents
     private static readonly IntentState[] ActiveStates = [IntentState.Rephrased, IntentState.Confirmed, IntentState.Dispatched, IntentState.Waiting];
 
     public static Intent[] ActiveOf(Intent[] intents) => [.. intents.Where(intent => ActiveStates.Contains(intent.State))];
+
+    public const int ProfileBudget = 3_000;
+
+    // The facts the profile block shows: kind Profile, still valid and not hidden (what IFacts.Current() returns).
+    public static IntoChat.OS.AI.Agents.Facts.Fact[] ProfileOf(IntoChat.OS.AI.Agents.Facts.Fact[] facts)
+        => [.. facts.Where(fact => fact.Kind == FactKind.Profile && fact.ValidTo is null && !fact.Hidden)];
+
+    // Profile facts as "- text" lines, newest recorded first; whole lines are added while they fit the budget.
+    public static string RenderProfile(IntoChat.OS.AI.Agents.Facts.Fact[] facts, int budget)
+    {
+        var builder = new StringBuilder();
+        foreach (var fact in facts.OrderByDescending(fact => fact.Recorded))
+        {
+            var entry = "- " + Line(fact.Text) + "\n";
+            if (builder.Length + entry.Length > budget) { break; }
+            builder.Append(entry);
+        }
+        return builder.ToString();
+    }
 
     public static string AnswerKey(string appKey, string requestId) => appKey + "/intents/" + requestId;
 

@@ -264,4 +264,38 @@ public sealed class OsMemoryIntendFacts
     [Fact]
     public void ParseAskRejectsAMissingConversation()
         => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{\"message\":\"m\",\"requestId\":\"r\"}"));
+
+    private static IntoChat.OS.AI.Agents.Facts.Fact Profile(string text, DateTimeOffset recorded,
+        IntoChat.OS.AI.Agents.Facts.FactKind kind = IntoChat.OS.AI.Agents.Facts.FactKind.Profile, DateTimeOffset? validTo = null, bool hidden = false)
+        => new(Guid.NewGuid(), kind, text, "user", 1, 3, recorded, validTo, null, recorded, "p", 0, "v",
+            IntoChat.OS.AI.Agents.Facts.FactScope.Private, [], hidden);
+
+    [Fact]
+    public void RenderProfileCutsAtThreeThousand()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var facts = Enumerable.Range(0, 100).Select(i => Profile("fact number " + i + new string('x', 80), now.AddMinutes(i))).ToArray();
+        var text = global::Intents.RenderProfile(facts, 3_000);
+        Assert.True(text.Length <= 3_000);
+        Assert.StartsWith("- fact number 99", text);
+        Assert.EndsWith("\n", text);
+        Assert.All(text.TrimEnd('\n').Split('\n'), line => Assert.StartsWith("- fact number", line));
+    }
+
+    [Fact]
+    public void AForgottenFactIsNotRendered()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var kept = Profile("likes short answers", now);
+        var facts = new[]
+        {
+            kept,
+            Profile("old", now, validTo: now),
+            Profile("secret", now, hidden: true),
+            Profile("not profile", now, IntoChat.OS.AI.Agents.Facts.FactKind.Insight),
+        };
+        var live = global::Intents.ProfileOf(facts);
+        Assert.Equal([kept], live);
+        Assert.Equal("- likes short answers\n", global::Intents.RenderProfile(live, 3_000));
+    }
 }
