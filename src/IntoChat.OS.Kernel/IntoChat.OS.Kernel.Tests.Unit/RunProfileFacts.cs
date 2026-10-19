@@ -23,6 +23,7 @@ public sealed class RunProfileFacts
         Assert.True(RunProfile.Cloud.Ai.Tavily.Enabled);
         Assert.Equal("http://127.0.0.1:1/v1/", RunProfile.Reference.Ai.OpenAI.Endpoint);
         Assert.False(RunProfile.Reference.Ai.Tavily.Enabled);
+        Assert.Equal("IGpt56Luna", RunProfile.Reference.Ai.Default.Model);
     }
 
     [Fact]

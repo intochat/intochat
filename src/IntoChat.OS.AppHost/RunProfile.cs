@@ -39,9 +39,11 @@ public static class RunProfile
 {
     public static BrainProfile Local => Base() with { Ai = LocalAi() };
     public static BrainProfile Cloud => Base() with { Ai = CloudAi() };
+    // Only OpenAI is redirected to a local endpoint, so the default chat model must be an OpenAI one: the
+    // cloud default (OpenRouter) has no key here and every agent turn without a Model would fail.
     public static BrainProfile Reference => Base() with
     {
-        Ai = CloudAi().WithoutWebSearch().WithModelEndpoint(AiProvider.OpenAI, new Uri("http://127.0.0.1:1/v1/")),
+        Ai = CloudAi().WithDefaultLlm<IGpt56Luna>().WithoutWebSearch().WithModelEndpoint(AiProvider.OpenAI, new Uri("http://127.0.0.1:1/v1/")),
     };
 
     public static void CopyOnto(AIOptions target, AIOptions source)
