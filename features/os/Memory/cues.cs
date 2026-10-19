@@ -18,7 +18,9 @@ var status = brain.Get<IText>(appKey + "/status");
 var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
 var watched = new Dictionary<Guid, CancellationTokenSource>();
 var gate = new SemaphoreSlim(1, 1);
-var watchers = new List<Task>();
+var watchers = new HashSet<Task>();
+var signalTypes = new Intents.CueTypes(() => Load(type => !type.IsAbstract && !type.IsInterface && typeof(Signal).IsAssignableFrom(type)));
+var contractTypes = new Intents.CueTypes(() => Load(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)));
 
 var following = Supervise("intent transitions", ct => brain.React<IntentTransitioned>(intents, token => SyncAll(token), ct));
 
@@ -27,7 +29,9 @@ await foreach (var armed in brain.On<IntentArmed>(intents, () => SyncAll(brain.S
     await Sync(armed.IntentId, brain.Stopping);
 }
 await following;
-await Task.WhenAll(watchers.ToArray());
+Task[] pending;
+lock (watchers) { pending = [.. watchers]; }
+await Task.WhenAll(pending);
 
 // Start the watchers of every Waiting intent that has none and drop those of intents that stopped waiting.
 async Task SyncAll(CancellationToken ct)
@@ -75,7 +79,13 @@ void Apply(Intent intent, bool restart)
     if (tracked) { Drop(intent.Id); }
     var source = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
     watched[intent.Id] = source;
-    foreach (var cue in intent.Cues) { watchers.Add(Watch(intent.Id, cue, source.Token)); }
+    foreach (var cue in intent.Cues)
+    {
+        var task = Watch(intent.Id, cue, source.Token);
+        lock (watchers) { watchers.Add(task); }
+        // A finished watcher is not kept.
+        _ = task.ContinueWith(done => { lock (watchers) { watchers.Remove(done); } }, TaskScheduler.Default);
+    }
 }
 
 void Drop(Guid id)
@@ -138,7 +148,7 @@ async Task WatchTime(Guid id, Cue cue, CancellationToken ct)
 
 async Task WatchSignal(Guid id, Cue cue, CancellationToken ct)
 {
-    var type = SignalType(cue.SignalAlias) ?? throw new InvalidOperationException("no loaded signal has the alias " + cue.SignalAlias);
+    var type = signalTypes.Resolve(cue.SignalAlias) ?? throw new InvalidOperationException("no loaded signal has the alias " + cue.SignalAlias);
     var contract = await ContractOf(cue.PublisherKey, ct) ?? throw new InvalidOperationException("the key " + cue.PublisherKey + " is not a known neuron");
     var get = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "Get" && method.IsGenericMethodDefinition
         && method.GetParameters() is [{ ParameterType.Name: "NeuronId" }]);
@@ -175,9 +185,16 @@ async Task<bool> Fire(Guid id, string what)
     }
 }
 
-static Type? SignalType(string alias)
-    => AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf)
-        .FirstOrDefault(type => !type.IsAbstract && typeof(Signal).IsAssignableFrom(type) && NeuronAliasAttribute.Of(type) == alias);
+// Alias to type of every loaded type the filter accepts; the first type with an alias wins.
+static IReadOnlyDictionary<string, Type> Load(Func<Type, bool> accept)
+{
+    var map = new Dictionary<string, Type>();
+    foreach (var type in AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf).Where(accept))
+    {
+        if (NeuronAliasAttribute.Of(type) is { } alias) { map.TryAdd(alias, type); }
+    }
+    return map;
+}
 
 static IEnumerable<Type> TypesOf(Assembly assembly)
 {
@@ -188,11 +205,12 @@ static IEnumerable<Type> TypesOf(Assembly assembly)
 // The neuron contract of an existing instance: the kernel names its grain type by alias, a loaded interface carries it.
 async Task<Type?> ContractOf(string key, CancellationToken ct)
 {
-    await foreach (var instance in brain.Kernel.Instances(null, ct))
+    foreach (var alias in contractTypes.Aliases)
     {
-        if (instance.Key != key) { continue; }
-        return AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf)
-            .FirstOrDefault(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && NeuronAliasAttribute.Of(type) == instance.Type);
+        await foreach (var instance in brain.Kernel.Instances(alias, ct))
+        {
+            if (instance.Key == key) { return contractTypes.Resolve(alias); }
+        }
     }
     return null;
 }
@@ -200,7 +218,8 @@ async Task<Type?> ContractOf(string key, CancellationToken ct)
 async Task Report(string text)
 {
     try { await status.Set(text); }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { Console.Error.WriteLine("Memory could not write its status (" + error.Message + "): " + text); }
 }
 
 async Task Supervise(string name, Func<CancellationToken, Task> watch)

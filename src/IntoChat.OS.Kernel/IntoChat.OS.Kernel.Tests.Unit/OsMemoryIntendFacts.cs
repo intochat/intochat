@@ -94,6 +94,52 @@ public sealed class OsMemoryIntendFacts
     }
 
     [Fact]
+    public void ASignalCueMatchesCaseInsensitiveField()
+        => Assert.True(global::Intents.CueMatches(new("signal", "k", "intents.heard", "requestid", "r1", null), Heard));
+
+    [Fact]
+    public void ANonStringFieldValueNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "test.counted", "Count", "5", null), new CountedSignal(5)));
+
+    [Fact]
+    public void ANullEqualToNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.heard", "RequestId", null, null), Heard));
+
+    [Fact]
+    public void ANonObjectSignalNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "test.plain", "RequestId", "r1", null), new PlainSignal()));
+
+    [NeuronAlias("test.counted")]
+    private sealed record CountedSignal(int Count) : Signal;
+
+    [NeuronAlias("test.plain"), System.Text.Json.Serialization.JsonConverter(typeof(PlainConverter))]
+    private sealed record PlainSignal : Signal;
+
+    private sealed class PlainConverter : System.Text.Json.Serialization.JsonConverter<PlainSignal>
+    {
+        public override PlainSignal Read(ref System.Text.Json.Utf8JsonReader reader, Type type, System.Text.Json.JsonSerializerOptions options) => new();
+
+        public override void Write(System.Text.Json.Utf8JsonWriter writer, PlainSignal value, System.Text.Json.JsonSerializerOptions options) => writer.WriteStringValue("plain");
+    }
+
+    [Fact]
+    public void ACueTypeCacheMissRefreshesOnce()
+    {
+        var loads = 0;
+        var known = new Dictionary<string, Type> { ["a"] = typeof(string) };
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(known); });
+        Assert.Equal(typeof(string), cache.Resolve("a"));
+        Assert.Equal(1, loads);
+        Assert.Equal(typeof(string), cache.Resolve("a"));
+        Assert.Equal(1, loads);
+        Assert.Null(cache.Resolve("missing"));
+        Assert.Equal(2, loads);
+        known["late"] = typeof(int);
+        Assert.Equal(typeof(int), cache.Resolve("late"));
+        Assert.Equal(3, loads);
+    }
+
+    [Fact]
     public void ADifferentAliasNeverMatches()
         => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.rephrased", null, null, null), Heard));
 

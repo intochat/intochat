@@ -34,6 +34,22 @@ internal static class Intents
         return false;
     }
 
+    // Alias to type, built by load on first use and rebuilt once whenever a lookup misses (a module loaded since).
+    public sealed class CueTypes(Func<IReadOnlyDictionary<string, Type>> load)
+    {
+        private IReadOnlyDictionary<string, Type>? map;
+
+        public IReadOnlyCollection<string> Aliases => (map ??= load()).Keys.ToArray();
+
+        public Type? Resolve(string alias)
+        {
+            map ??= load();
+            if (map.TryGetValue(alias, out var type)) { return type; }
+            map = load();
+            return map.GetValueOrDefault(alias);
+        }
+    }
+
     public const int FireAttempts = 3;
 
     public static bool IsWaiting(Intent? intent) => intent is { State: IntentState.Waiting };
