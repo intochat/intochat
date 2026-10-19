@@ -19,6 +19,11 @@ import '../chat/ui_chat_transcript.dart';
 import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
+import '../components/expander/ui_expander.dart';
+import '../components/image/ui_image.dart';
+import '../components/infobar/ui_info_bar.dart';
+import '../components/progress/ui_progress.dart';
+import '../components/toggle/ui_toggle.dart';
 import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
@@ -358,6 +363,11 @@ class _NeuronViewState extends State<NeuronView> {
       /* Dispatch presents the failure and keeps the projection. */
     }
   }
+
+  void _act(String kind, String action) => unawaited(
+    _dispatch({'kind': kind, 'name': widget.name, 'action': action})
+        .catchError((Object _) {}),
+  );
 
   Future<void> _file() async {
     try {
@@ -926,6 +936,40 @@ class _NeuronViewState extends State<NeuronView> {
           enabled: enabled,
           onAction: _dispatch,
           secretSaver: widget.secretSaver,
+        );
+      case 'toggle':
+        return UiToggle(
+          label: definition['label'] as String? ?? '',
+          on: definition['on'] == true,
+          onChanged: enabled ? (_) => _act('toggle', 'flip') : null,
+        );
+      case 'progress':
+        return UiProgress(
+          determinate: definition['determinate'] == true,
+          value: (definition['value'] as num? ?? 0).toDouble(),
+          label: definition['label'] as String? ?? '',
+        );
+      case 'infobar':
+        if (definition['visible'] == false) return const SizedBox.shrink();
+        return UiInfoBar(
+          severity: definition['severity'] as String? ?? 'info',
+          title: definition['title'] as String? ?? '',
+          body: definition['body'] as String? ?? '',
+          onDismiss: enabled ? () => _act('infobar', 'dismiss') : null,
+        );
+      case 'image':
+        return UiImage.network(
+          url: definition['url'] as String? ?? '',
+          caption: definition['prompt'] as String? ?? '',
+        );
+      case 'expander':
+        return UiExpander(
+          part: UiExpanderPart.fromMetadata({
+            ...definition,
+            'name': widget.name,
+          }),
+          onToggle: enabled ? () => _act('expander', 'toggle') : null,
+          children: children,
         );
       default:
         return _FallbackRenderer(kind: widget.kind);

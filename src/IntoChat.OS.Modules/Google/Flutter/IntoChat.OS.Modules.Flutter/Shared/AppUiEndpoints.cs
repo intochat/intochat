@@ -6,10 +6,14 @@ using IntoChat.OS.Flutter.Card;
 using IntoChat.OS.Flutter.Chart;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Flutter.Expander;
 using IntoChat.OS.Flutter.FileInput;
+using IntoChat.OS.Flutter.Image;
 using IntoChat.OS.Flutter.Form;
 using IntoChat.OS.Flutter.ImageCanvas;
+using IntoChat.OS.Flutter.InfoBar;
 using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Flutter.Progress;
 using IntoChat.OS.Flutter.Select;
 using IntoChat.OS.Flutter.Space;
 using IntoChat.OS.Flutter.Surface;
@@ -17,6 +21,7 @@ using IntoChat.OS.Flutter.Table;
 using IntoChat.OS.Flutter.Tabs;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Flutter.Toggle;
 using IntoChat.OS.Flutter.Viewport;
 using IntoChat.OS.Flutter.Views;
 using IntoChat.OS.Flutter.VoiceInput;
@@ -95,6 +100,11 @@ internal static class AppUiEndpoints
                 "form" => Results.Ok(await brain.Get<IForm>(name).Read().WaitAsync(ct)),
                 "table" => Results.Ok(await brain.Get<ITable>(name).Read().WaitAsync(ct)),
                 "chart" => Results.Ok(await brain.Get<IChart>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ToggleType => Results.Ok(await brain.Get<IToggle>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ProgressType => Results.Ok(await brain.Get<IProgress>(name).Read().WaitAsync(ct)),
+                UIVocabulary.InfoBarType => Results.Ok(await brain.Get<IInfoBar>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ImageType => Results.Ok(await brain.Get<IImage>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ExpanderType => Results.Ok(await brain.Get<IExpander>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
                 UIVocabulary.VoiceInputType => Results.Ok(await brain.Get<IVoiceInput>(name).Read().WaitAsync(ct)),
@@ -163,6 +173,9 @@ internal static class AppUiEndpoints
                 case "select": await brain.Get<ISelect>(input.Name).Choose(input.Value ?? "").WaitAsync(ct); break;
                 case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;
                 case "tabs": await brain.Get<ITabs>(input.Name).Select(input.Value ?? "").WaitAsync(ct); break;
+                case UIVocabulary.ToggleType when input.Action == "flip": await brain.Get<IToggle>(input.Name).Flip().WaitAsync(ct); break;
+                case UIVocabulary.InfoBarType when input.Action == "dismiss": await brain.Get<IInfoBar>(input.Name).Dismiss().WaitAsync(ct); break;
+                case UIVocabulary.ExpanderType when input.Action == "toggle": await brain.Get<IExpander>(input.Name).Toggle().WaitAsync(ct); break;
                 case "collection":
                     var collection = brain.Get<ICollectionView>(input.Name);
                     if (input.Action == "select") { await collection.Select(input.Value ?? "", input.Revision).WaitAsync(ct); }

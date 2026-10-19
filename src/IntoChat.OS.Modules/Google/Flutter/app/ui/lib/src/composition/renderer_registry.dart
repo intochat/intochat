@@ -84,6 +84,11 @@ final class RendererRegistry {
     'voiceinput',
     'fileinput',
     'select',
+    'toggle',
+    'progress',
+    'infobar',
+    'image',
+    'expander',
   };
 
   /// Mirrors `IntoChat.OS.Contracts.Types.FieldKind`.
