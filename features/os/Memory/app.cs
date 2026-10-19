@@ -92,6 +92,17 @@ importance from 1 to 10 into `{app}/episodes` under `agent#run`; a failure, 30 s
 malformed reply stores the first 300 characters of each side instead, marked fallback. A run already captured
 is skipped.
 
+## Scenario: Quiet time consolidates episodes into facts
+
+Every captured episode restarts the reminder `{app}/consolidation`; once no episode arrives for `QuietMinutes`
+(default 10), and once at startup, Memory claims up to 20 unconsolidated episodes for five minutes and its consolidate
+agent (prompt `consolidate.md`, `ConsolidateModel` setting, 60 seconds) returns a verdict. Durable items are asserted on
+the facts neuron `{brain}/memory/facts` (idempotent per first episode id and ordinal; a contradicted fact is
+invalidated as superseded), working items replace `{app}/working`, intent items are declared. Health, finances,
+third parties, location and routines, and items below `ReviewGate` (default 0.75), go to the review table and are
+listed by "review" on `{app}/review`; credentials are dropped. Over 512 current facts the least important is
+archived and forgotten. Episodes are marked consolidated last; a failed batch is retried once its claims expire.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
@@ -114,6 +125,7 @@ static class App
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
             new("capture", "Turn a finished turn into an episode: a short note and an importance in {app}/episodes; input is JSON {\"agent\",\"runId\"}. Done by Memory after each completed Ino turn."),
+            new("review", "List the consolidation's pending review items (sensitive or unsure items never published) as the text neuron {app}/review."),
             new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
         Settings:
@@ -121,6 +133,9 @@ static class App
             new("Model", "Model catalog id for the rephrasing agent; empty uses the default.", ""),
             new("CaptureModel", "Model catalog id for the agent that writes episode notes; empty uses the default.", ""),
             new("ConfirmGate", "Confidence at or above which a rephrased intent is confirmed.", "0.8"),
+            new("QuietMinutes", "Minutes without a new episode after which consolidation runs.", "10"),
+            new("ConsolidateModel", "Model catalog id for the agent that consolidates episodes into facts; empty uses the default.", ""),
+            new("ReviewGate", "Confidence below which a consolidated item goes to review instead of being published.", "0.75"),
         ],
         Slots:
         [

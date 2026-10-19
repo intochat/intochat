@@ -4,6 +4,7 @@ using IntoChat.OS.AI.Agents.Signals;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Time.Reminders;
 
 // "capture" turns a finished turn into an episode: a short third-person note and an importance, kept in the
 // episodes table under "agent#run". It runs in Memory after the turn completed, so it never blocks the turn.
@@ -41,11 +42,27 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
             new("summary", JsonSerializer.Serialize(note.Summary)), new("importance", note.Importance.ToString()),
             new("fallback", note.IsFallback ? "true" : "false"),
         ]);
+        await Quiet();
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
         // Best effort: the next completed turn is captured on its own.
         try { await brain.Get<IText>(appKey + "/status").Set(Clip("capture failed: " + error.Message)); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
+}
+
+// Every new episode restarts the quiet-time reminder; consolidation runs once the brain has been quiet for QuietMinutes.
+async Task Quiet()
+{
+    try
+    {
+        var quiet = Consolidation.Quiet((await app.Read()).Settings.GetValueOrDefault("QuietMinutes", "10"));
+        await brain.Get<IReminder>(Consolidation.ReminderKey(appKey)).Start(quiet, TimeSpan.FromDays(365));
+    }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    {
+        try { await brain.Get<IText>(appKey + "/status").Set(Clip("capture could not arm consolidation: " + error.Message)); }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
     }
 }
