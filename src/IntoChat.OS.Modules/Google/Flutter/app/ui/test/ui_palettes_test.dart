@@ -115,14 +115,60 @@ void main() {
     expect(type.title.color, UiColors.intochatLight.strong);
     expect(type.body.fontFamily, contains('Schibsted Grotesk'));
     expect(type.meta.fontFamily, contains('JetBrains Mono'));
+    expect(type.heading.fontWeight, FontWeight.w800);
+    expect(type.heading.fontVariations, [const FontVariation('wght', 800)]);
+    expect(type.meta.fontVariations, [const FontVariation('wght', 500)]);
+  });
+
+  test('intochat textTheme pins variable-font weights', () {
+    final t = UiTheme.light('intochat').textTheme;
+    expect(t.headlineMedium!.fontVariations, [
+      const FontVariation('wght', 800),
+    ]);
+    expect(t.bodyMedium!.fontVariations, [
+      FontVariation(
+        'wght',
+        (t.bodyMedium!.fontWeight ?? FontWeight.w400).value.toDouble(),
+      ),
+    ]);
+  });
+
+  testWidgets('lerped intochat UiColors keep IntoChat fonts', (tester) async {
+    late UiTypeSet type;
+    final mid = UiColors.intochatLight.lerp(UiColors.intochatDark, 0.5);
+    final base = UiTheme.light('intochat');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: base.copyWith(
+          extensions: [
+            ...base.extensions.values.where((e) => e is! UiColors),
+            mid,
+          ],
+        ),
+        home: Builder(
+          builder: (context) {
+            type = UiType.of(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(type.body.fontFamily, contains('Schibsted Grotesk'));
+    expect(type.body.color, mid.body);
   });
 
   test('lumen is green on near-black and differs from midnight', () {
     final lumen = UiTheme.workspaceDark('lumen');
     final midnight = UiTheme.workspaceDark('midnight');
+    expect(lumen.brightness, Brightness.dark);
     expect(lumen.scaffoldBackgroundColor.computeLuminance(), lessThan(0.02));
     final primary = lumen.colorScheme.primary;
     expect(primary.g, greaterThan(primary.r));
+    expect(primary.g, greaterThan(primary.b));
+    expect(
+      midnight.scaffoldBackgroundColor,
+      UiTheme.workspace(Brightness.dark).scaffoldBackgroundColor,
+    );
     expect(
       lumen.scaffoldBackgroundColor,
       isNot(midnight.scaffoldBackgroundColor),

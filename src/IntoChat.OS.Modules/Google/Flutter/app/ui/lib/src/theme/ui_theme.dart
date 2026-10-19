@@ -63,9 +63,25 @@ abstract final class UiType {
   static const sans = 'packages/$fontPackage/$sansFamily';
   static const mono = 'packages/$fontPackage/$intochatMonoFamily';
 
+  /// Pins the variable font's `wght` axis to [TextStyle.fontWeight] (default
+  /// 400) so bundled variable fonts render the requested weight.
+  static TextStyle withWeightAxis(TextStyle style) => style.copyWith(
+    fontVariations: [
+      FontVariation(
+        'wght',
+        (style.fontWeight ?? FontWeight.w400).value.toDouble(),
+      ),
+    ],
+  );
+
   static UiTypeSet of(BuildContext context) {
     final c = UiColors.of(context);
-    final intochat = c == UiColors.intochatLight || c == UiColors.intochatDark;
+    // Family comes from the theme's text, not from UiColors: colours are
+    // lerped during theme animation, the font family is not.
+    final intochat =
+        Theme.of(context).textTheme.bodyMedium?.fontFamily
+            ?.contains(sansFamily) ??
+        false;
     TextStyle s(
       TextStyle v1,
       Color color, {
@@ -76,11 +92,15 @@ abstract final class UiType {
         fontFamily: intochat ? (isMono ? mono : sans) : null,
         color: color,
       );
-      if (!intochat || !head) return style;
-      return style.copyWith(
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.015 * (style.fontSize ?? 16),
-        height: 1.18,
+      if (!intochat) return style;
+      return withWeightAxis(
+        head
+            ? style.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.015 * (style.fontSize ?? 16),
+                height: 1.18,
+              )
+            : style,
       );
     }
 
@@ -259,15 +279,23 @@ abstract final class UiTheme {
       letterSpacing: -0.015 * (t.fontSize ?? 16),
       height: 1.18,
     );
-    final textTheme = base.copyWith(
-      displayLarge: head(base.displayLarge),
-      displayMedium: head(base.displayMedium),
-      displaySmall: head(base.displaySmall),
-      headlineLarge: head(base.headlineLarge),
-      headlineMedium: head(base.headlineMedium),
-      headlineSmall: head(base.headlineSmall),
-      bodyLarge: base.bodyLarge?.copyWith(fontSize: 16, height: 1.5),
-      bodyMedium: base.bodyMedium?.copyWith(height: 1.5),
+    TextStyle? w(TextStyle? t) => t == null ? null : UiType.withWeightAxis(t);
+    final textTheme = TextTheme(
+      displayLarge: w(head(base.displayLarge)),
+      displayMedium: w(head(base.displayMedium)),
+      displaySmall: w(head(base.displaySmall)),
+      headlineLarge: w(head(base.headlineLarge)),
+      headlineMedium: w(head(base.headlineMedium)),
+      headlineSmall: w(head(base.headlineSmall)),
+      titleLarge: w(base.titleLarge),
+      titleMedium: w(base.titleMedium),
+      titleSmall: w(base.titleSmall),
+      bodyLarge: w(base.bodyLarge?.copyWith(fontSize: 16, height: 1.5)),
+      bodyMedium: w(base.bodyMedium?.copyWith(height: 1.5)),
+      bodySmall: w(base.bodySmall),
+      labelLarge: w(base.labelLarge),
+      labelMedium: w(base.labelMedium),
+      labelSmall: w(base.labelSmall),
     );
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
@@ -302,6 +330,7 @@ abstract final class UiTheme {
             fontFamily: UiType.sans,
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            fontVariations: [FontVariation('wght', 600)],
           ),
         ),
       ),
@@ -335,6 +364,7 @@ abstract final class UiTheme {
           fontFamily: UiType.sans,
           color: c.page,
           fontSize: 12,
+          fontVariations: const [FontVariation('wght', 400)],
         ),
       ),
     );
