@@ -12,6 +12,12 @@ that already does what they need before writing a new one. When the question can
 index has no vectors, recall ranks by words alone and says so. Runs nudge the ranking toward the synapse
 that ran more. Memory leaves itself out of its index.
 
+"intend" is Memory's first policy: given a message, Memory's own agent rephrases it (it must not answer)
+into a brief with a confidence, which is declared on the brain's intents neuron `{brain}/memory/intents`
+and rephrased; at or above the `ConfirmGate` setting (default 0.8) the intent is also confirmed. The answer
+`{app}/intents/{requestId}` is `ok` or `failed: <reason>` (agent failure, malformed reply or 30 seconds
+without one), and a failure declares nothing.
+
 Indexing is explicit: "reindex" rebuilds every row from scratch from what is installed now, as a new
 generation that recall switches to only once every row and vector of it is written, and "open" asks for
 one. An app changed later is found after the next reindex; a reindex whose rows would be what the
@@ -56,6 +62,27 @@ failures the brain runtime reports for it, its last run time and, once it has ru
 runs, its p50. After the calculator's "add" runs three more times, `calculator/add.cs` shows three more
 runs. Shared files such as `memory/Memory.cs` show as shared. `{app}/types` lists the installed types by
 provider.
+## Scenario: Intend rephrases a message into a brief
+
+Invoking "intend" with "fix the thing from yesterday" has Memory's own agent (prompt `intend.md`, `Model` setting)
+rephrase it, without answering it, into a brief with a confidence. The intent is declared on
+`{brain}/memory/intents` and rephrased; at or above `ConfirmGate` (default 0.8) it is also confirmed. The answer
+`{app}/intents/{requestId}` reads `ok`. A malformed agent reply, an agent failure or 30 seconds without a reply
+answers `failed: <reason>` and declares nothing.
+
+## Scenario: Remember replaces the working memory
+
+Invoking "remember" with "the user prefers short answers" replaces the text of `{app}/working`, which the
+context neuron `working-memory` then carries into Ino's turns, next to `active-intents`. Input over 4,000
+characters is refused: `{app}/status` says so and the working memory is unchanged.
+
+## Scenario: A cue moves a waiting intent forward
+
+A Waiting intent with a signal cue (a signal alias, optionally a top-level field equal to a value) or a time
+cue is watched. When the signal arrives or the time passes, the first cue to fire moves the intent to
+Dispatched ("cue: <alias or time>"), and only while it is still Waiting. A cue that cannot be watched is
+written to `{app}/status` and the intent stays Waiting.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
@@ -66,7 +93,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.0.8";
+    public const string Version = "1.1.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
@@ -76,8 +103,14 @@ static class App
             new("open", "Show this brain's apps, each synapse's status, runs, failures and p50 run time, and the installed types, then reindex."),
             new("recall", "Rank this brain's synapses and apps against the input by meaning and words, best first; the answer is the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
+            new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
+            new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
-        Settings: [],
+        Settings:
+        [
+            new("Model", "Model catalog id for the rephrasing agent; empty uses the default.", ""),
+            new("ConfirmGate", "Confidence at or above which a rephrased intent is confirmed.", "0.8"),
+        ],
         Slots:
         [
             new("tables", "postgres"),
@@ -87,5 +120,6 @@ static class App
         [
             new("open", Label: "Memory"),
             new("recall", Kind: "text", Label: "Recall a synapse"),
+            new("remember", Kind: "text", Label: "Remember"),
         ]);
 }

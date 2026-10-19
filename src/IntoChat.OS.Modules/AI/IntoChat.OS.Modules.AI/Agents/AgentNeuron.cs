@@ -270,7 +270,7 @@ internal sealed class AgentNeuron(
             await ReleaseContinuation(runId);
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
-                turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, definition.Contexts,
+                turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, turn.Contexts ?? definition.Contexts,
                 turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
             var loop = new AgentTurnLoop(ServiceProvider).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
             try
@@ -386,6 +386,8 @@ internal sealed class AgentNeuron(
         if (message.Content.Any(content => content is not (AiText or AiImage or AiAudio)) || message.Content.OfType<AiText>().Sum(content => (long)content.Text.Length) is 0 or > 32000)
         { throw new ArgumentException("User messages carry 1-32000 characters of text, with images or audio, never tool calls or reasoning.", nameof(turn)); }
         if (turn.RunId is { Length: > 200 }) { throw new ArgumentException("A run id has at most 200 characters.", nameof(turn)); }
+        if (turn.Contexts is { } contexts && (contexts.Length > 32 || contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)))
+        { throw new ArgumentException("A turn names at most 32 contexts, each 1-512 characters.", nameof(turn)); }
         _ = InferenceMapping.ToChatMessage(message);
         var runId = string.IsNullOrWhiteSpace(turn.RunId) ? Guid.NewGuid().ToString("N") : turn.RunId;
         if (Committed.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)

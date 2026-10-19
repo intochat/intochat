@@ -3,6 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
@@ -197,6 +198,10 @@ public sealed class AspireTestSession : IAsyncDisposable
                     resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
                         context.EnvironmentVariables[ServerHostingExtensions.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
                 }
+                // The harness exposes the host on the network on purpose, so it opts in to the Open-posture network check here, where the exposure is decided.
+                resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                    context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(
+                        AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true"));
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
                 // so clear both or every session binds the same endpoint. The endpoint also stays
                 // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands

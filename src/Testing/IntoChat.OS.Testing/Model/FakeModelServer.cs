@@ -58,9 +58,20 @@ public sealed class FakeModelServer : IAsyncDisposable
 
         FakeReply reply;
         if (!_scripts.TryGetValue(model, out var script)) { reply = ChatFallback?.Invoke(request) ?? FakeReply.Text("You said: " + LastUserText(request)); }
+        // A scripted model whose script is used up answers through the fallback, when it has an answer.
         else if (!script.TryDequeue(out reply!))
-        { return Results.Problem($"Fake model '{model}' ran out of replies after {_answered.GetValueOrDefault(model)}.", statusCode: 500); }
+        {
+            if (ChatFallback?.Invoke(request) is not { } fallback)
+            { return Results.Problem($"Fake model '{model}' ran out of replies after {_answered.GetValueOrDefault(model)}.", statusCode: 500); }
+            reply = fallback;
+        }
         _answered.AddOrUpdate(model, 1, (_, count) => count + 1);
+        if (reply is FakeReply.DelayedReply delayed)
+        {
+            try { await Task.Delay(delayed.Delay, http.RequestAborted); }
+            catch (OperationCanceledException) { return Results.StatusCode(499); }
+            reply = delayed.Reply;
+        }
 
         var streaming = request.TryGetProperty("stream", out var stream) && stream.ValueKind == JsonValueKind.True;
         return streaming ? Stream(model, reply) : Complete(model, reply);

@@ -145,6 +145,30 @@ status line and writes nothing.
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
+## Scenario: A vague message becomes a brief
+
+Sending "fix the thing from yesterday" with Memory installed asks Memory's "intend" first, and Ino watches the
+answer `{memory}/intents/{requestId}`. When it reads `ok`, the turn starts with the brief Memory wrote for the
+message: when the intent is Confirmed the model acts on the brief, otherwise it shows the brief and asks
+before acting. When the answer reads `failed: <reason>` the turn answers the message without a brief.
+
+## Scenario: An active intent is shown in a new conversation
+
+When Memory is installed, its context neuron (`working-memory` and `active-intents`) is attached to every
+turn. After an intent has been declared and is still active, a message sent in a new conversation is
+answered with that intent rendered in the turn's context. The model can also declare an intent itself through
+the `IIntents` contract, and it then appears in the next conversation the same way.
+
+## Scenario: Memory not installed answers directly
+
+With Memory not installed, sending a message shows the status "Memory is not installed; answering directly"
+and the turn runs on the message alone, with no brief and no Memory context.
+
+## Scenario: Intend is slow
+
+When Memory has not answered within `IntendGate` (default 8 seconds), the status shows "Memory was slow to
+intend; answering without a brief" and the turn answers the message without a brief.
+
 Progress states are Ino's mood source: listening when input arrives, working while answering,
 completed after an answer, and attention on failure. Each of those writes publishes mood on the
 same activity call. No second script watches AppActivity.
@@ -155,7 +179,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "3.0.0"; // Proposed migration release.
+    public const string Version = "3.1.0"; // Proposed migration release.
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
         Description: "Talk to your brain, use its capabilities, and create apps.",
@@ -172,6 +196,7 @@ static class App
         [
             new("Model", "Model catalog id; empty uses the default.", ""),
             new("RouteGate", "Confidence required for a direct route.", "0.8"),
+            new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8"),
         ],
         Slots: [], Icon: "icon.svg",
         Toolbar:
