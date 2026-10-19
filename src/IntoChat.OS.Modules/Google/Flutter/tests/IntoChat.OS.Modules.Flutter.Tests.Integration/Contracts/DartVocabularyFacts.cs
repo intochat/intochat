@@ -47,16 +47,20 @@ public sealed partial class DartVocabularyFacts
         Assert.Equal(Vocabulary().Except(CSharpOnlyKinds), RendererKinds());
     }
 
+    // Kinds the shell watches but that are not renderer vocabulary: the Workspace's "viewport" node hosts the focused
+    // app's root and is rendered by NeuronView itself, not by a RendererRegistry entry.
+    private static readonly string[] WatchOnlyKinds = ["viewport"];
+
     [Fact]
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(21, table.Length);
+        Assert.Equal(22, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in table)
         {
-            if (!Vocabulary().Contains(kind)) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
+            if (!Vocabulary().Contains(kind) && !WatchOnlyKinds.Contains(kind)) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
             var type = assemblies.Select(assembly => assembly.GetType(contract)).SingleOrDefault(found => found is not null);
             if (type is null || !type.IsInterface || !typeof(INeuron).IsAssignableFrom(type)) { offenders.Add($"{kind}: {contract} is not a neuron contract"); continue; }
             if (!type.Assembly.GetExportedTypes().Any(signal => typeof(Signal).IsAssignableFrom(signal) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
