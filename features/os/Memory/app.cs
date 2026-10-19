@@ -62,6 +62,27 @@ failures the brain runtime reports for it, its last run time and, once it has ru
 runs, its p50. After the calculator's "add" runs three more times, `calculator/add.cs` shows three more
 runs. Shared files such as `memory/Memory.cs` show as shared. `{app}/types` lists the installed types by
 provider.
+## Scenario: Intend rephrases a message into a brief
+
+Invoking "intend" with "fix the thing from yesterday" has Memory's own agent (prompt `intend.md`, `Model` setting)
+rephrase it, without answering it, into a brief with a confidence. The intent is declared on
+`{brain}/memory/intents` and rephrased; at or above `ConfirmGate` (default 0.8) it is also confirmed. The answer
+`{app}/intents/{requestId}` reads `ok`. A malformed agent reply, an agent failure or 30 seconds without a reply
+answers `failed: <reason>` and declares nothing.
+
+## Scenario: Remember replaces the working memory
+
+Invoking "remember" with "the user prefers short answers" replaces the text of `{app}/working`, which the
+context neuron `working-memory` then carries into Ino's turns, next to `active-intents`. Input over 4,000
+characters is refused: `{app}/status` says so and the working memory is unchanged.
+
+## Scenario: A cue moves a waiting intent forward
+
+A Waiting intent with a signal cue (a signal alias, optionally a top-level field equal to a value) or a time
+cue is watched. When the signal arrives or the time passes, the first cue to fire moves the intent to
+Dispatched ("cue: <alias or time>"), and only while it is still Waiting. A cue that cannot be watched is
+written to `{app}/status` and the intent stays Waiting.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
