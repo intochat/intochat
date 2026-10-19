@@ -153,20 +153,6 @@ public sealed class OsMemoryIntendFacts
     }
 
     [Fact]
-    public void AContractMissRefreshesOnce()
-    {
-        var loads = 0;
-        var assemblies = 1;
-        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(); }, () => assemblies);
-        Assert.Empty(cache.Pairs);
-        Assert.True(cache.Refresh("k"));
-        Assert.False(cache.Refresh("k"));
-        Assert.Equal(2, loads);
-        assemblies++;
-        Assert.True(cache.Refresh("k"));
-    }
-
-    [Fact]
     public void ADifferentAliasNeverMatches()
         => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.rephrased", null, null, null), Heard));
 
@@ -236,6 +222,18 @@ public sealed class OsMemoryIntendFacts
         var cut = global::Intents.RenderWorking(text);
         Assert.True(cut.Length <= 4_000);
         Assert.False(char.IsHighSurrogate(cut[^1]));
+    }
+
+    [Fact]
+    public void TruncationNeverSplitsASurrogatePair()
+    {
+        var rendered = global::Intents.RenderActive([Mk(new string('x', 45) + "😀" + new string('y', 50))], 100);
+        Assert.True(rendered.Length <= 100);
+        for (var i = 0; i < rendered.Length; i++)
+        {
+            if (char.IsHighSurrogate(rendered[i])) { Assert.True(i + 1 < rendered.Length && char.IsLowSurrogate(rendered[i + 1])); }
+            if (char.IsLowSurrogate(rendered[i])) { Assert.True(i > 0 && char.IsHighSurrogate(rendered[i - 1])); }
+        }
     }
 
     [Fact]

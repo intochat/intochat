@@ -42,13 +42,16 @@ async Task<Guid> Intend(Intents.Ask ask)
     var snapshot = await app.Read();
     var model = snapshot.Settings.GetValueOrDefault("Model", "");
     var gate = 0.8;
-    if (snapshot.Settings.TryGetValue("ConfirmGate", out var gateText) && !double.TryParse(gateText, CultureInfo.InvariantCulture, out gate))
+    if (snapshot.Settings.TryGetValue("ConfirmGate", out var gateText)
+        && (!double.TryParse(gateText, CultureInfo.InvariantCulture, out gate) || !double.IsFinite(gate) || gate < 0 || gate > 1))
     {
         gate = 0.8;
         if (!gateWarned)
         {
             gateWarned = true;
-            await brain.Get<IText>(appKey + "/status").Set("ConfirmGate is not a number; using 0.8");
+            // Best effort: a warning that cannot be written must not fail the request.
+            try { await brain.Get<IText>(appKey + "/status").Set("ConfirmGate is not a number in 0..1; using 0.8"); }
+            catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
         }
     }
     var active = Intents.RenderActive((await intents.Read()).Intents, 4000);

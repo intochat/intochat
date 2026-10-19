@@ -205,19 +205,12 @@ static IEnumerable<Type> TypesOf(Assembly assembly)
 }
 
 // The neuron contract of an existing instance: the kernel names its grain type by alias, a loaded interface carries it.
+// An alias not yet loaded is looked up again by CueTypes, throttled per alias.
 async Task<Type?> ContractOf(string key, CancellationToken ct)
 {
-    for (var round = 0; round < 2; round++)
+    await foreach (var instance in brain.Kernel.Instances(null, ct))
     {
-        foreach (var (alias, contract) in contractTypes.Pairs)
-        {
-            await foreach (var instance in brain.Kernel.Instances(alias, ct))
-            {
-                if (instance.Key == key) { return contract; }
-            }
-        }
-        // A contract loaded since the first build: look again, once, unless nothing new was loaded.
-        if (round == 0 && !contractTypes.Refresh(key)) { break; }
+        if (instance.Key == key) { return contractTypes.Resolve(instance.Type); }
     }
     return null;
 }

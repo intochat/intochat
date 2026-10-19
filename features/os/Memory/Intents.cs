@@ -41,8 +41,6 @@ internal static class Intents
         private IReadOnlyDictionary<string, Type>? map;
         private readonly Dictionary<string, int> missed = [];
 
-        public KeyValuePair<string, Type>[] Pairs => [.. map ??= load()];
-
         public Type? Resolve(string alias)
         {
             map ??= load();
@@ -52,7 +50,7 @@ internal static class Intents
         }
 
         // Reloads unless the same reason already missed at this stamp; true when it reloaded.
-        public bool Refresh(string reason)
+        private bool Refresh(string reason)
         {
             var now = stamp();
             lock (missed)
@@ -98,14 +96,19 @@ internal static class Intents
     public static string RenderWorking(string text)
     {
         text ??= "";
-        if (text.Length <= WorkingLimit) { return text; }
+        return text.Length <= WorkingLimit ? text : text[..CutAt(text, WorkingLimit)];
+    }
+
+    // The largest text-element start at or before limit.
+    private static int CutAt(string text, int limit)
+    {
         var cut = 0;
         foreach (var start in StringInfo.ParseCombiningCharacters(text))
         {
-            if (start > WorkingLimit) { break; }
+            if (start > limit) { break; }
             cut = start;
         }
-        return text[..cut];
+        return cut;
     }
 
     // One physical line: CR, LF and tabs become single spaces so text cannot break a list or a prompt.
@@ -180,7 +183,7 @@ internal static class Intents
             var entry = "- `" + intent.Id + "` " + intent.State + ": " + Line(intent.Brief?.Goal ?? intent.Heard)
                 + (intent.Brief?.Acceptance is { Length: > 0 } acceptance ? " (accepted when: " + Line(acceptance[0]) + ")" : "") + "\n";
             // A single intent over the whole budget is cut with an ellipsis rather than dropped.
-            if (builder.Length == 0 && entry.Length > budget && budget > 2) { entry = entry[..(budget - 2)] + "…\n"; }
+            if (builder.Length == 0 && entry.Length > budget && budget > 2) { entry = entry[..CutAt(entry, budget - 2)] + "…\n"; }
             if (builder.Length + entry.Length > budget) { break; }
             builder.Append(entry);
         }

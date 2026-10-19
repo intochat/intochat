@@ -64,7 +64,7 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
             await Send("send", "hello", ct);
             // The active-intents entry renders "`{id}` {State}: {goal}".
             Assert.Contains("Dispatched: " + Goal, await InoRequest(before, ct), StringComparison.Ordinal);
-            await AssertIntendBeforeTurn(before, "", "Say hello", ct);
+            await AssertIntendBeforeTurn(before, "hello", "Say hello", ct);
         }
         finally { Host.Model.SystemOneOverride = previous; Host.Model.Clear(ModelId); }
     }
@@ -175,6 +175,7 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
             var texts = Host.Model.Requests(ModelId).Skip(before).Select(RouterHostFixture.Text).ToList();
             return (texts.FindIndex(text => text.Contains(MemoryPrompt, StringComparison.Ordinal) && text.Contains(message, StringComparison.Ordinal)),
                 texts.FindIndex(text => text.Contains(InoPrompt, StringComparison.Ordinal)
+                    && text.Contains(message, StringComparison.Ordinal)
                     && (briefText is null || text.Contains(briefText, StringComparison.Ordinal))));
         }
         var (intend, turn) = await TestWait.UntilAsync(_ => Task.FromResult(Find()), found => found.Intend >= 0 && found.Turn >= 0, TimeSpan.FromSeconds(60), ct);
