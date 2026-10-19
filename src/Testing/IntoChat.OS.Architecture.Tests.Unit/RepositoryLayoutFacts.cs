@@ -26,7 +26,9 @@ public sealed class RepositoryLayoutFacts
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).ToArray();
         Assert.Equal(paths.Length, paths.Distinct(comparer).Count());
         var disk = Repository.SourceFiles(Repository.SourceRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
-        Assert.Equal(disk, paths.Order().ToArray(), comparer);
+        Assert.True(disk.SequenceEqual(paths.Order(), comparer),
+            "Solution entries differ from the projects on disk; fix with `dotnet run scripts/sync-solution.cs`.\nOn disk only: "
+            + string.Join(", ", disk.Except(paths, comparer)) + "\nIn the solution only: " + string.Join(", ", paths.Except(disk, comparer)));
         var sourceRoot = Repository.Relative(Repository.SourceRoot);
         var modulesRoot = Repository.Relative(Repository.ModulesRoot);
         foreach (var entry in entries)
