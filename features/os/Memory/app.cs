@@ -114,8 +114,9 @@ marked consolidated.
 
 After the user says "I have a peanut allergy, keep that in mind", consolidation holds the item back although its
 confidence is 0.95: the review table gets one pending row whose reason starts with "sensitive: health" and names the
-episode, and the current facts hold nothing about peanuts. A secret in an episode is discarded and never reaches the
-review table. Invoking "review" lists the pending row on `{app}/review` and the context entry `review-count` carries
+episode, and the current facts hold nothing about peanuts. A key-shaped secret (a prefixed token, PEM block, JWT, Bearer value, password=value or
+high-entropy string) is discarded with the reason `secret` and never reaches the review table, while a named
+credential hint ("token: ...", "api key is ...", "secret is ...") goes to review with the reason "possible credential". Invoking "review" lists the pending row on `{app}/review` and the context entry `review-count` carries
 the number waiting; "review-accept" with the row id asserts it once as a fact and marks the row accepted, and
 "review-reject" marks it rejected without asserting anything.
 
@@ -123,7 +124,7 @@ the number waiting; "review-accept" with the row id asserts it once as a fact an
 
 With the profile fact "The user prefers short answers" current, invoking "recall-life" with a question about it writes
 `{app}/recalls/{requestId}` (and `{app}/recall`) beginning with Found and the fact's text, each source shown as
-`source: profile <date> fact:<id>`. A question nothing in memory is near in meaning to answers that nothing in memory
+`source: profile <date> fact:<id>`. A question when no memory stands out from the rest answers that nothing in memory
 answers it and names the coverage, the first and last episode dates and the number of facts. A Partial answer adds the
 neighbouring episodes of its best episode and the transcript around its run.
 
