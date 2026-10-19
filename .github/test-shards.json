@@ -1,6 +1,11 @@
 {
   "shards": {
     "unit": [
+      "**/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Apps.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Flutter.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.AI.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.dll",
       "**/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit.dll",

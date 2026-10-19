@@ -6,6 +6,7 @@
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Octokit" />

@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Storage.Blobs" />

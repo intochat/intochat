@@ -37,6 +37,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" />
   </ItemGroup>
 

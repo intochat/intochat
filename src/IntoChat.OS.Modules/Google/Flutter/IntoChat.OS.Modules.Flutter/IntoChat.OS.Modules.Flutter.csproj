@@ -14,6 +14,7 @@
     <ProjectReference Include="../../../IntoChat.OS/Flame/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Flutter.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Flutter.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>

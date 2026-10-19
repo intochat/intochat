@@ -36,6 +36,7 @@
     <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Integration/IntoChat.OS.Modules.AI.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Hosting/IntoChat.OS.Modules.AI.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Unit/IntoChat.OS.Modules.AI.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/ArtCraft/" />
   <Folder Name="/Modules/ArtCraft/ArtCraft/">
@@ -56,6 +57,7 @@
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/tests/IntoChat.OS.Modules.Apps.Tests.Integration/IntoChat.OS.Modules.Apps.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Apps/tests/IntoChat.OS.Modules.Apps.Tests.Unit/IntoChat.OS.Modules.Apps.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/Circles/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
@@ -81,6 +83,7 @@
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Hosting/IntoChat.OS.Modules.Flutter.Tests.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Integration/IntoChat.OS.Modules.Flutter.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Unit/IntoChat.OS.Modules.Flutter.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Gmail/">
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
@@ -114,11 +117,13 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Contracts/IntoChat.OS.Modules.Microsoft.GitHub.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub/IntoChat.OS.Modules.Microsoft.GitHub.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/tests/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Hosting/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Hosting.csproj" />
