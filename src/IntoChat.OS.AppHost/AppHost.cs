@@ -18,12 +18,13 @@ var featuresKey = IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.Mo
 var builder = DistributedApplication.CreateBuilder(args);
 // Legacy product-name settings stop the app host outside Development (the app host has no AddServiceDefaults).
 LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
-// The profile symbol in this file is the selection: RunProfile.Cloud or RunProfile.Local.
+// IntoChatOS:Profile selects the brain ('+' composes presets): 'local' is the lean host-Ollama run, anything else the Cloud brain.
+var profiles = IntoChatOSProfiles.Parse(builder.Configuration[IntoChatOSProfiles.ProfileKey] ?? IntoChatOSProfiles.DefaultProfile);
 builder.Configuration.AddIntoChatOSProfiles(builder.AppHostDirectory);
 if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
-var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.Cloud, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
+var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.ForName(profiles, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]), IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 
@@ -71,6 +72,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
         .WithEnvironment("IntoChatOS__Platform__Storage__Directory", storageDirectory)
+        .WithDisabledModules(builder.Configuration)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var key in new[] { IntoChat.OS.Framework.IntoChatOSNames.CustodyConfigurationKey,
@@ -101,6 +103,7 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(intoChatOS.AsClient(shareHttpIdentity: true))
+        .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var silo in silos) { mcp.WaitFor(silo); }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
