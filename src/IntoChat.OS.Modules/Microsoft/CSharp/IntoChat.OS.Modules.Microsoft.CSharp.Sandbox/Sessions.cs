@@ -81,7 +81,7 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
                     break;
                 }
                 // An ensure can refresh credentials while the original handshake is in flight.
-                catch (Exception error) when (error is not OperationCanceledException && token != open.Token) { }
+                catch (Exception error) when (error is not OperationCanceledException && token != open.Token) { _logger.LogDebug(error, "Session handshake superseded by refreshed credentials; retrying"); }
             }
             var session = new Session(connection, loader, loggers.CreateLogger("Session " + start.Brain));
             open.Attach(session);

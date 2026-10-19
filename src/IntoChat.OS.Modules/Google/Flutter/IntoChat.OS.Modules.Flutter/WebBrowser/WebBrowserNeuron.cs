@@ -2,6 +2,9 @@ using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Flutter.WebBrowser.Signals;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using IntoChat.OS.Microsoft.Playwright;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -151,9 +154,10 @@ internal sealed class WebBrowserNeuron(
         if (_session is { } session)
         {
             try { await Driver.Detach(session, cancellationToken).WaitAsync(cancellationToken); }
-            catch (Exception)
+            catch (Exception error)
             {
                 // Cleanup is best effort: the driver or silo may already be stopping.
+                ServiceProvider.GetRequiredService<ILogger<WebBrowserNeuron>>().LogSwallowed(error, "detaching the driver session while deactivating");
             }
         }
         await base.OnDeactivateAsync(reason, cancellationToken);

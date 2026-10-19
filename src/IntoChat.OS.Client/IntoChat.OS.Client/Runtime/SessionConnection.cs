@@ -184,22 +184,23 @@ public sealed class SessionConnection : IAsyncDisposable
         var backoff = TimeSpan.FromSeconds(1);
         while (!cancellationToken.IsCancellationRequested)
         {
-            try
-            {
-                using var response = await SendAsync(HttpMethod.Get, RuntimeProtocol.Stream, null, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                await EnsureSuccessAsync(response, "open the session stream", cancellationToken).ConfigureAwait(false);
-                await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-                await foreach (var item in SseParser.Create(body).EnumerateAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    backoff = TimeSpan.FromSeconds(1);
-                    Dispatch(item);
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested) { /* the stream dropped; reopen it */ }
+            // A dropped stream (any failure) settles the task; the backoff below reopens it, and cancellation ends the loop there.
+            await Task.WhenAny(ReadStreamAsync()).ConfigureAwait(false);
             try { await Task.Delay(backoff, cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
             backoff = TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, MaximumBackoff.Ticks));
+        }
+
+        async Task ReadStreamAsync()
+        {
+            using var response = await SendAsync(HttpMethod.Get, RuntimeProtocol.Stream, null, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            await EnsureSuccessAsync(response, "open the session stream", cancellationToken).ConfigureAwait(false);
+            await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await foreach (var item in SseParser.Create(body).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+            {
+                backoff = TimeSpan.FromSeconds(1);
+                Dispatch(item);
+            }
         }
     }
 
@@ -228,7 +229,7 @@ public sealed class SessionConnection : IAsyncDisposable
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
                 try { await ReportAsync(new RuntimeReport(Heartbeat: true), "heartbeat", cancellationToken).ConfigureAwait(false); }
-                catch (Exception error) when (error is HttpRequestException or InvalidOperationException) { /* the brain's reminder relaunches a silent session */ }
+                catch (Exception error) when (error is HttpRequestException or InvalidOperationException) { continue; } // the brain's reminder relaunches a silent session
             }
         }
         catch (OperationCanceledException) { }

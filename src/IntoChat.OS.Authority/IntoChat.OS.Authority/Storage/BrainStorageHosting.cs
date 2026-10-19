@@ -68,7 +68,7 @@ public static class BrainStorageHosting
         var container = options.ConnectionString is { Length: > 0 } connection
             ? new BlobContainerClient(connection, options.ContainerName)
             : new BlobContainerClient(options.ContainerUri!, Credential(options.ManagedIdentityClientId));
-        return new BlobLeaseBrainLogOwnership(new AzureBrainLeaseClient(container), provider.GetRequiredService<TimeProvider>(),
+        return new BlobLeaseBrainLogOwnership(new AzureBrainLeaseClient(container, provider.GetRequiredService<ILogger<AzureBrainLeaseClient>>()), provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<BlobLeaseBrainLogOwnership>>(), options.ClaimTimeout, options.WriteTimeout);
     }
 

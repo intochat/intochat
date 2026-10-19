@@ -39,7 +39,7 @@ internal sealed class BrainDatabases(IIntegrationHandle integration, Func<string
             // CREATE DATABASE cannot be parameterized; the name is hash-derived, never user input.
             await using var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", connection);
             try { await create.ExecuteNonQueryAsync(ct); }
-            catch (PostgresException error) when (error.SqlState == "42P04") { } // created by a concurrent Ensure
+            catch (PostgresException error) when (error.SqlState == "42P04") { return; } // created by a concurrent Ensure
         }
         catch (PostgresException) { throw; }
         catch (NpgsqlException) { throw new PostgresUnavailableException("Postgres is unreachable or the database connection failed."); }

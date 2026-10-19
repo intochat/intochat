@@ -57,13 +57,13 @@ internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumera
             await _lifetime.CancelAsync().ConfigureAwait(false);
             if (_inFlight is { } inFlight)
             {
-                try { await inFlight.ConfigureAwait(false); }
-                catch (Exception) { /* the read already reported to its awaiter; disposal only waits for it to settle */ }
+                // The read already reported to its awaiter; disposal only waits for it to settle.
+                await Task.WhenAny(inFlight).ConfigureAwait(false);
             }
             if (_signals is { } signals)
             {
-                try { await signals.DisposeAsync().ConfigureAwait(false); }
-                catch (Exception) { /* a settled iterator disposes; a faulted one has nothing left to release */ }
+                // A settled iterator disposes; a faulted one has nothing left to release.
+                await Task.WhenAny(signals.DisposeAsync().AsTask()).ConfigureAwait(false);
             }
             if (_handle is { } handle) { await handle.DisposeAsync().ConfigureAwait(false); }
             _lifetime.Dispose();

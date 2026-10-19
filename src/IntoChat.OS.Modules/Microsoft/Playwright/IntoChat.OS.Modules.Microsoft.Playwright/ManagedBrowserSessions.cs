@@ -95,8 +95,8 @@ public sealed partial class PlaywrightSessionProvider
 
     private async Task ReleaseAsync(string accountId, ManagedWorker worker, PlaywrightSdk.IBrowserContext context, PageSession session)
     {
-        try { await context.CloseAsync().ConfigureAwait(false); }
-        catch (PlaywrightSdk.PlaywrightException) { /* Browser shutdown already closes its contexts. */ }
+        // Browser shutdown already closes its contexts; a failed close needs nothing more.
+        await Task.WhenAny(context.CloseAsync()).ConfigureAwait(false);
         await _managedGate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -134,8 +134,7 @@ public sealed partial class PlaywrightSessionProvider
 
     private static async Task CloseWorkerAsync(ManagedWorker worker)
     {
-        try { await worker.Browser.CloseAsync().ConfigureAwait(false); }
-        catch (PlaywrightSdk.PlaywrightException) { }
+        try { await Task.WhenAny(worker.Browser.CloseAsync()).ConfigureAwait(false); }
         finally { worker.Driver.Dispose(); }
     }
 

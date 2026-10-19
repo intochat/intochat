@@ -1,13 +1,15 @@
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Framework.Compute;
 
 // Meters every call a factory client makes: the item is "{clientName}:{method}" so the ledger can
 // group a connector's traffic. A request that carries the integration-funding header bills through
 // the deployment integration; everything else rides the payer's own connection.
-public sealed class MeteredHttpHandler(ICostMeter meter, string clientName) : DelegatingHandler
+public sealed class MeteredHttpHandler(ICostMeter meter, string clientName, ILogger<MeteredHttpHandler>? logger = null) : DelegatingHandler
 {
     public const string IntegrationFundingHeader = "x-intochatos-funding";
 
@@ -24,6 +26,7 @@ public sealed class MeteredHttpHandler(ICostMeter meter, string clientName) : De
         catch (Exception exception) when (exception is not BudgetExhaustedException)
         {
             // Metering observes the call; a call with no trace or caller (token refresh, startup) still goes through.
+            logger?.LogSwallowed(exception, "http call metering failed");
         }
         return response;
     }
@@ -39,7 +42,7 @@ public sealed class MeteredHttpHandlerFilter(IServiceProvider services) : IHttpM
     {
         if (services.GetService<ICostMeter>() is { } meter)
         {
-            builder.AdditionalHandlers.Add(new MeteredHttpHandler(meter, builder.Name ?? ""));
+            builder.AdditionalHandlers.Add(new MeteredHttpHandler(meter, builder.Name ?? "", services.GetService<ILogger<MeteredHttpHandler>>()));
         }
         next(builder);
     };

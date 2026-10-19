@@ -175,6 +175,8 @@ internal static class FlutterVmService
                 }
                 catch (WebSocketException)
                 {
+                    // The peer is gone without a close handshake; abort releases the socket.
+                    _socket.Abort();
                 }
             }
 

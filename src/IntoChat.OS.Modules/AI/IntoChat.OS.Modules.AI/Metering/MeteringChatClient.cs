@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.AI.Metering;
 
@@ -10,7 +12,7 @@ namespace IntoChat.OS.AI.Metering;
 // updates just as ChatResponseExtensions.ToChatResponse(IEnumerable{ChatResponseUpdate})
 // aggregates it, so a turn is never counted twice.
 internal sealed class MeteringChatClient(
-    IChatClient innerClient, ICostMeter meter, Funding funding, string model)
+    IChatClient innerClient, ICostMeter meter, Funding funding, string model, ILogger? logger = null)
     : DelegatingChatClient(innerClient)
 {
     public override async Task<ChatResponse> GetResponseAsync(
@@ -69,7 +71,11 @@ internal sealed class MeteringChatClient(
             await Task.WhenAll(classes.Where(entry => entry.Tokens is not null)
                 .Select(entry => RecordAsync($"{item}:{entry.Class}", entry.Tokens!.Value, $"{id}:{entry.Class}", cancellationToken))).ConfigureAwait(false);
         }
-        catch { /* Metering is an observer: a ledger fault must never fail the model call. */ }
+        catch (Exception exception)
+        {
+            // Metering is an observer: a ledger fault must never fail the model call.
+            logger?.LogSwallowed(exception, "model call metering failed");
+        }
     }
 
     private Task RecordAsync(string item, long tokens, string costId, CancellationToken cancellationToken)

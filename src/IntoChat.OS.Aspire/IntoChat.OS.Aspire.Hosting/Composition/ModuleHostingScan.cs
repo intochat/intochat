@@ -20,8 +20,8 @@ public static class ModuleHostingScan
             foreach (var reference in assembly.GetReferencedAssemblies())
             {
                 try { queue.Enqueue(Assembly.Load(reference)); }
-                catch (FileNotFoundException) { }
-                catch (FileLoadException) { }
+                catch (FileNotFoundException) { continue; } // an optional reference that is not deployed
+                catch (FileLoadException) { continue; }
             }
             foreach (var type in assembly.GetExportedTypes())
             {

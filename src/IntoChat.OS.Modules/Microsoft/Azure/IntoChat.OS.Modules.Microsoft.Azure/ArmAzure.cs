@@ -101,7 +101,7 @@ public sealed class ArmAzure : IAzureArm
     {
         ArgumentNullException.ThrowIfNull(resource);
         try { await Client.GetGenericResource(new ResourceIdentifier(resource.Id)).DeleteAsync(WaitUntil.Completed, ct); }
-        catch (RequestFailedException ex) when (ex.Status == 404) { }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return; } // already gone
     }
 
     public async Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct)

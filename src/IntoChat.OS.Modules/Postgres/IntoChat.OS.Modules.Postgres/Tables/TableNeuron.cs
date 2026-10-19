@@ -1,4 +1,7 @@
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using IntoChat.OS.Postgres.Tables.Signals;
 
 namespace IntoChat.OS.Postgres.Tables;
@@ -56,7 +59,8 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         try { await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None); }
         // A revoked or deleted connection holds the user's own database: nothing here can reach it,
         // and an uninstall must still retire the app's other tables.
-        catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException) { }
+        catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException)
+        { ServiceProvider.GetRequiredService<ILogger<TableNeuron>>().LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
         await Persist(new());
     }
 

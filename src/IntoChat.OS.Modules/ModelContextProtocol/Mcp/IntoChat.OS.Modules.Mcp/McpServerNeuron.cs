@@ -125,7 +125,7 @@ internal sealed class McpServerNeuron(
             if (document.RootElement.ValueKind == JsonValueKind.Object)
             { return document.RootElement.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone()); }
         }
-        catch (JsonException) { }
+        catch (JsonException error) { throw new ArgumentException("arguments must be a JSON object.", nameof(arguments), error); }
         throw new ArgumentException("arguments must be a JSON object.", nameof(arguments));
     }
 

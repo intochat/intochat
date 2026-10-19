@@ -107,8 +107,9 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
     private static async Task DisposeLateDriverAsync(Task<PlaywrightSdk.IPlaywright> startup)
     {
         // CreateAsync has no cancellation API. Own and clean any driver returned after cancellation.
-        try { (await startup.ConfigureAwait(false)).Dispose(); }
-        catch (Exception) { /* The caller already received cancellation; cleanup consumes late startup errors. */ }
+        // The caller already received cancellation; cleanup consumes late startup errors.
+        await Task.WhenAny(startup).ConfigureAwait(false);
+        if (startup.IsCompletedSuccessfully) { startup.Result.Dispose(); }
     }
 
     private sealed class PageSession(PlaywrightSdk.IPlaywright driver, PlaywrightSdk.IBrowser browser, PlaywrightSdk.IPage page, PlaywrightModuleOptions apps, Func<Task>? release = null) : IBrowserPageSession
@@ -273,8 +274,7 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
                 }
                 catch (PlaywrightSdk.PlaywrightException)
                 {
-                    try { await route.AbortAsync("connectionfailed").ConfigureAwait(false); }
-                    catch (PlaywrightSdk.PlaywrightException) { }
+                    await Task.WhenAny(route.AbortAsync("connectionfailed")).ConfigureAwait(false);
                 }
                 return;
             }
@@ -338,8 +338,7 @@ public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensio
             catch (Exception error) when (error is HttpRequestException or IOException or System.Net.Sockets.SocketException or ArgumentException
                 or InvalidOperationException or OperationCanceledException or PlaywrightSdk.PlaywrightException)
             {
-                try { await route.AbortAsync("blockedbyclient").ConfigureAwait(false); }
-                catch (PlaywrightSdk.PlaywrightException) { }
+                await Task.WhenAny(route.AbortAsync("blockedbyclient")).ConfigureAwait(false);
             }
         }
 

@@ -17,7 +17,7 @@ public sealed class SwallowFacts
         var sites = new List<Site>();
         foreach (var clause in CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes().OfType<CatchClauseSyntax>())
         {
-            var empty = clause.Block.Statements.Count == 0;
+            var empty = clause.Block.Statements.Count == 0 && !IsCancellation(clause);
             var broad = clause.Declaration is null || clause.Declaration.Type.ToString() is "Exception" or "System.Exception";
             var handled = clause.Block.DescendantNodes().Any(node => node is ThrowStatementSyntax or ThrowExpressionSyntax
                 || (node is InvocationExpressionSyntax call && MemberName(call).StartsWith("Log", StringComparison.Ordinal)));
@@ -25,6 +25,10 @@ public sealed class SwallowFacts
         }
         return sites;
     }
+
+    // Cancellation is control flow, not a failure: a catch for OperationCanceledException alone may stay empty.
+    private static bool IsCancellation(CatchClauseSyntax clause)
+        => clause.Declaration?.Type.ToString() is "OperationCanceledException" or "System.OperationCanceledException" or "TaskCanceledException" or "System.Threading.Tasks.TaskCanceledException";
 
     private static string MemberName(InvocationExpressionSyntax call) => call.Expression switch
     {
