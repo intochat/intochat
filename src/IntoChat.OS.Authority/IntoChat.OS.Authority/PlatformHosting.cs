@@ -41,12 +41,14 @@ public static class PlatformHosting
         services.TryAddSingleton<IntoChat.OS.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<Storage.BrainStorageKeys>();
+        services.TryAddSingleton<Storage.IBrainJournal, Storage.BrainJournal>();
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
         services.TryAddSingleton<IntoChat.OS.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<BrainBirths>();
+        services.TryAddSingleton<IBrainBirths>(provider => provider.GetRequiredService<BrainBirths>());
         services.TryAddSingleton<PrincipalPasswords>();
         silo.AddStartupTask<Identity.OwnerBootstrap>(ServiceLifecycleStage.Active + 1);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
