@@ -80,7 +80,7 @@ public static class BrainStorageHosting
     }
 
     // Whether AddBrainStorage has run on these services.
-    internal static bool IsComposed(IServiceCollection services) => services.Any(d => d.ServiceType == typeof(BrainStorageComposed));
+    public static bool IsComposed(IServiceCollection services) => services.Any(d => d.ServiceType == typeof(BrainStorageComposed));
 
     private static IHostedStorageExtension[] HostedStorageExtensions(IServiceCollection services) =>
         [.. services.Where(d => d.ServiceType == typeof(IHostedStorageExtension)).Select(d => d.ImplementationInstance).OfType<IHostedStorageExtension>()];

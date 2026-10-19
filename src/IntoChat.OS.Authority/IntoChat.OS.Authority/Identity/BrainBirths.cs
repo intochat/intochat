@@ -5,7 +5,7 @@ namespace IntoChat.OS.Authority.Identity;
 
 // R57: the trust side records who owns a brain; the brain neuron is born here, on the machine, and the machine
 // binds itself to the brain's account first (R55) so it can act for it at the trust side.
-internal sealed class BrainBirths(AuthorityNeurons neurons)
+internal sealed class BrainBirths(AuthorityNeurons neurons) : IBrainBirths
 {
     public async Task<Member> Born(BrainProvision provision)
     {
