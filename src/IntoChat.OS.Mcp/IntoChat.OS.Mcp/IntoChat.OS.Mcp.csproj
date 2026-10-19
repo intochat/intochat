@@ -9,6 +9,7 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj" Exclude="../../IntoChat.OS.Modules/**/tests/**" />
     <!-- A module that hosts its own contracts (IntoChatOSContractsHost) has no Contracts project for the glob above: reference it itself. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />

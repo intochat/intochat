@@ -74,9 +74,6 @@
   "IntoChat.OS.Modules.Flutter.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.Google.Gmail.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Mcp.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
