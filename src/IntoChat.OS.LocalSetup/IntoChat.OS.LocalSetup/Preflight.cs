@@ -66,6 +66,30 @@ public static class Preflight
         var report = await CollectAsync(environment, options, cancellationToken).ConfigureAwait(false);
         var exitCode = report.ExitCode(command.NoFail);
         PreflightRenderer.Render(report, exitCode, command.Json, output);
-        return exitCode;
+        var pullExit = await PullIfRequestedAsync(environment, command, report, output, cancellationToken).ConfigureAwait(false);
+        return command.NoFail ? exitCode : Math.Max(exitCode, pullExit);
+    }
+
+    // `--pull`: download the configured model when Ollama is up and the tag is missing, printing progress. 0 or 1.
+    public static async Task<int> PullIfRequestedAsync(IProbeEnvironment environment, LauncherCommand command, PreflightReport report, TextWriter output, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(output);
+        if (!command.Pull) { return 0; }
+        if (!report.OllamaReachable)
+        {
+            await output.WriteLineAsync("Cannot pull the model: Ollama is not reachable.").ConfigureAwait(false);
+            return 1;
+        }
+        if (!report.ModelMissing)
+        {
+            await output.WriteLineAsync("Model is already installed; nothing to pull.").ConfigureAwait(false);
+            return 0;
+        }
+        var result = await ModelPuller.PullAsync(environment.Http, command.ModelOptions, new ConsolePullProgress(output), cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded) { await output.WriteLineAsync("Model pull failed: " + result.Error).ConfigureAwait(false); }
+        return result.Succeeded ? 0 : 1;
     }
 }

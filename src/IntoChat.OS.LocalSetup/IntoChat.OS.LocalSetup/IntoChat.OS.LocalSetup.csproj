@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>IntoChat.OS.LocalSetup</RootNamespace>
-    <Description>Preflight checks, model pull and launcher command parsing behind intochat-os.cs. No Aspire or Orleans references.</Description>
+    <Description>Preflight checks, model pull and launcher command parsing behind intochat-os.cs.</Description>
   </PropertyGroup>
 </Project>
