@@ -48,8 +48,8 @@ public sealed class OsCatalogFacts
             var assembly = module.GetType().Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
             if (!projects.Contains(contracts)) { continue; }
-            // Referencing the module project itself carries its contracts too (Tools).
-            Assert.True(mcp.Contains(contracts + ".csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
+            // The host references every module Contracts project by glob; referencing the module project itself carries its contracts too (Tools).
+            Assert.True(mcp.Contains("IntoChat.OS.Modules.*.Contracts.csproj", StringComparison.Ordinal) ||mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
         }
     }
 
@@ -93,6 +93,24 @@ public sealed class OsCatalogFacts
             {
                 Assert.True(cataloged.Contains(type) || OsCatalog.IsExcluded(type), type.FullName);
             }
+        }
+    }
+
+    // The AppHost references hosting projects by glob; a hosting project in the solution whose assembly
+    // the host process cannot load would leave its module unhosted, so it fails here instead of silently.
+    [Fact]
+    public void EveryAspireHostingProjectIsReachableFromTheAppHost()
+    {
+        var onDisk = System.Xml.Linq.XDocument.Load(Path.Combine(SolutionProjects.Root, "Intochat.OS.slnx"))
+            .Descendants("Project").Select(project => project.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Where(path => path.Contains("/IntoChat.OS.Modules/", StringComparison.Ordinal) && !path.Contains("/tests/", StringComparison.Ordinal)
+                && path.EndsWith(".Aspire.Hosting.csproj", StringComparison.Ordinal))
+            .Select(path => Path.GetFileNameWithoutExtension(path)).ToArray();
+        Assert.NotEmpty(onDisk);
+        foreach (var name in onDisk)
+        {
+            var exception = Record.Exception(() => System.Reflection.Assembly.Load(name));
+            Assert.True(exception is null, name + " is not reachable from the AppHost references");
         }
     }
 }

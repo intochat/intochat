@@ -8,7 +8,7 @@ namespace IntoChat.OS.Aspire.Hosting;
 public static class ModuleHostingScan
 {
     // Adapters referenced by the given root assemblies, indexed by the module they claim.
-    // An unclaimed module simply has no adapter — absence of the package is not an error.
+    // An unclaimed module simply has no adapter; a hosting assembly that is referenced but cannot be loaded throws.
     public static IReadOnlyDictionary<ModuleId, IIntoChatOSModuleHosting> Resolve(params Assembly[] roots)
     {
         var adapters = new Dictionary<ModuleId, IIntoChatOSModuleHosting>();
@@ -20,7 +20,8 @@ public static class ModuleHostingScan
             foreach (var reference in assembly.GetReferencedAssemblies())
             {
                 try { queue.Enqueue(Assembly.Load(reference)); }
-                catch (FileNotFoundException) { continue; } // an optional reference that is not deployed
+                // A missing hosting adapter silently leaves its module unhosted; any other absence is benign.
+                catch (FileNotFoundException missing) when (!IsHostingAssembly(missing.FileName ?? reference.Name)) { continue; }
                 catch (FileLoadException) { continue; }
             }
             foreach (var type in assembly.GetExportedTypes())
@@ -32,4 +33,7 @@ public static class ModuleHostingScan
         }
         return adapters;
     }
+
+    private static bool IsHostingAssembly(string? name)
+        => name is not null && name.Split(',')[0].EndsWith(".Aspire.Hosting", StringComparison.Ordinal);
 }
