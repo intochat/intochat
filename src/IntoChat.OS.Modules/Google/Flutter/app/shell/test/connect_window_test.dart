@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  galleryConnectTests();
   testWidgets('offers only the server catalog and never invents providers', (
     tester,
   ) async {
@@ -168,6 +169,67 @@ void main() {
       ['work%20db%2F2/probe', 'work%20db%2F2/disconnect'],
     );
   });
+}
+
+void galleryConnectTests() {
+  testWidgets(
+    'a gallery Connect preselects its connector and signs in as the user',
+    (tester) async {
+      final calls = <(String, Map<String, Object?>?)>[];
+      final opened = <Uri>[];
+      Future<Object?> request(String path, {Map<String, Object?>? body}) async {
+        calls.add((path, body));
+        return path.endsWith('/login')
+            ? {'url': 'https://accounts.google.com/o/oauth2/v2/auth?state=s'}
+            : [];
+      }
+
+      Future<Object?> catalog(
+        String path, {
+        Map<String, Object?>? body,
+      }) async => [
+        {
+          'id': 'github',
+          'displayName': 'GitHub',
+          'authMethods': ['token'],
+        },
+        {
+          'id': 'gmail',
+          'displayName': 'Gmail',
+          'authMethods': ['google-oauth'],
+        },
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ConnectWindow(
+              request: request,
+              connectorRequest: catalog,
+              initialConnectorId: 'gmail',
+              initialConnectionId: 'gmail',
+              onOpen: (url) async => opened.add(url),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('connect_name')))
+            .controller!
+            .text,
+        'gmail',
+      );
+      await tester.tap(find.byKey(const Key('connect_oauth')));
+      await tester.pumpAndSettle();
+      final login = calls.singleWhere((call) => call.$1 == 'gmail/login');
+      expect(login.$2, {
+        'connectorId': 'gmail',
+        'authMethodId': 'google-oauth',
+      });
+      expect(opened.single.host, 'accounts.google.com');
+    },
+  );
 }
 
 final class _Harness {

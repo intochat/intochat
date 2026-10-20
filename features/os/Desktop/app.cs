@@ -20,10 +20,11 @@ The dock holds Ino, pinned and open apps only. `gallery` shows or hides the gall
 which installs for real and opens the app in a window, or shows why not.
 
 ## Scenario: Connect
-Connections (Gmail, Salesforce) sit under From others. `connect:<connectorId>` asks the
-platform for the provider's sign-in page; the card then shows a sign-in button that opens
-it in the browser. After the callback stores the connection the card reads Connected.
-A connector this host has not configured shows "not available on this host".
+Connections (Gmail and Salesforce first) sit under From others. Connect is a button whose
+activation hands the shell {kind: connections, connector}: the shell's connection window signs
+in as the user (no app starts a login). After the callback stores the connection, connected.cs
+re-renders and the card reads Connected. A connector this host has not configured shows
+"Not available on this host."
 */
 using IntoChat.OS.Apps;
 static class App

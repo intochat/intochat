@@ -7,16 +7,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Connections;
 
-// What a login start did: the provider's page, or why not. Unavailable marks a connector this deployment does not offer.
-internal sealed record LoginStart(Uri? Url, bool Conflict, string? Error, bool Unavailable = false);
+// What a login start did: the provider's page, or why not (Conflict: 409, else 400).
+internal sealed record LoginStart(Uri? Url, bool Conflict, string? Error);
 
-// The one browser-login start: the HTTP endpoint and the gallery's LoginUrl both come here.
+// The one browser-login start, behind the user's own HTTP session (the shell's connection window, also
+// from the desktop gallery's Connect). No app starts a login: connections never belong to an app.
 internal static class ConnectionLogin
 {
     public static async Task<LoginStart> StartAsync(IServiceProvider services, string brainId, string connectionId, string connectorId, string authMethodId, string? target, CancellationToken ct)
     {
         var neurons = services.GetRequiredService<AuthorityNeurons>();
-        if (await UnavailableError(services, connectorId, ct) is { } unavailable) { return new(null, true, unavailable, Unavailable: true); }
+        if (await UnavailableError(services, connectorId, ct) is { } unavailable) { return new(null, true, unavailable); }
         if (await TakenError(neurons, connectionId, connectorId) is { } taken) { return new(null, true, taken); }
         var key = ConnectionKeys.For(brainId, connectorId, connectionId);
         try

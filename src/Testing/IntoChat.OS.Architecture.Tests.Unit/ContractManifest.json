@@ -840,7 +840,6 @@
     "IntoChat.OS.Instance": "kernel.instance; Type=0, Key=1, Created=2, Creator=3",
     "IntoChat.OS.InstanceCreated": "kernel.instance-created; Type=0, Key=1",
     "IntoChat.OS.InstanceRetired": "kernel.instance-retired; Type=0, Key=1",
-    "IntoChat.OS.Integrations.ConnectUrl": "integrations.connect-url; Url=0, Message=1",
     "IntoChat.OS.Integrations.ConnectionRef": "integrations.account-ref; Kind=0, Id=1",
     "IntoChat.OS.Integrations.ConnectionRequested": "integrations.account-requested; Kind=0, Id=1",
     "IntoChat.OS.Integrations.ConnectionSummary": "integrations.connection-summary; Kind=0, Id=1, Neuron=2, Status=3, Account=4, LastProbedAt=5",

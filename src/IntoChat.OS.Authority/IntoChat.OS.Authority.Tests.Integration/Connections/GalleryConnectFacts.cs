@@ -1,11 +1,12 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;
 
-// The gallery's Connect: a script asks the brain's connection requests for the provider's sign-in
-// page through the same login start the HTTP endpoint uses, and reads which connectors are offered.
+// The gallery's connections: which connectors this host offers and whether the brain has them connected.
+// Connect itself is the user's own HTTP login (the shell's connection window); no script starts one.
 [Trait("host", "own")]
 public sealed class GalleryConnectFacts : IAsyncLifetime
 {
@@ -28,45 +29,29 @@ public sealed class GalleryConnectFacts : IAsyncLifetime
     private IConnectionRequests Requests => _brain.Get<IConnectionRequests>(_brain.Owner.BrainId);
 
     [Fact]
-    public async Task AConfiguredConnectorAnswersTheProvidersHttpsSignInPage()
+    public async Task AnOfferedConnectorReadsConnectedAfterTheUsersLoginCallback()
     {
         var ct = TestContext.Current.CancellationToken;
-        using (_brain.Owner.AsCaller())
-        {
-            var login = await Requests.LoginUrl("example");
-            Assert.Null(login.Message);
-            var url = new Uri(login.Url!);
-            Assert.Equal("https://provider.test/authorize", url.GetLeftPart(UriPartial.Path));
-            Assert.Equal("client-id", System.Web.HttpUtility.ParseQueryString(url.Query)["client_id"]);
-            Assert.Equal(new ConnectorOffer("example", "Example", true, false), Assert.Single(await Requests.ListOffers()));
-
-            // The callback stores the connection: the offer now reads connected.
-            var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
-            using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={state}", ct);
-            callback.EnsureSuccessStatusCode();
-            Assert.True(Assert.Single(await Requests.ListOffers()).Connected);
-            Assert.Equal(ConnectionStatus.Connected, (await _brain.Get<IConnection>(ConnectionKeys.For(_brain.Owner.BrainId, "example", "example")).Read()).Status);
-        }
+        using (_brain.Owner.AsCaller()) { Assert.Equal(new ConnectorOffer("example", "Example", true, false), Assert.Single(await Requests.ListOffers())); }
+        using var start = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/example/login", new { connectorId = "example", authMethodId = "oauth" }, ct);
+        var url = new Uri((await start.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("url").GetString()!);
+        Assert.Equal("https", url.Scheme);
+        using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={System.Web.HttpUtility.ParseQueryString(url.Query)["state"]}", ct);
+        callback.EnsureSuccessStatusCode();
+        using (_brain.Owner.AsCaller()) { Assert.True(Assert.Single(await Requests.ListOffers()).Connected); }
     }
 
     [Fact]
-    public async Task AnUnconfiguredConnectorIsNotAvailableAndNoUrlIsMade()
+    public async Task AnUnconfiguredConnectorIsOfferedAsNotAvailable()
     {
         await _brain.Platform.Integration("example-oauth").Clear("ClientId");
-        using (_brain.Owner.AsCaller())
-        {
-            var login = await Requests.LoginUrl("example");
-            Assert.Null(login.Url);
-            Assert.Contains("not available on this host", login.Message, StringComparison.Ordinal);
-            Assert.Equal(new ConnectorOffer("example", "Example", false, false), Assert.Single(await Requests.ListOffers()));
-            Assert.Contains("not available on this host", (await Requests.LoginUrl("nope")).Message, StringComparison.Ordinal);
-        }
+        using (_brain.Owner.AsCaller()) { Assert.Equal(new ConnectorOffer("example", "Example", false, false), Assert.Single(await Requests.ListOffers())); }
     }
 
     [Fact]
     public async Task AnotherBrainsCallerIsRefusedByTheBrainGate()
     {
         var alice = await _brain.PersonAsync("alice", TestContext.Current.CancellationToken);
-        using (alice.AsCaller()) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Requests.LoginUrl("example")); }
+        using (alice.AsCaller()) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Requests.ListOffers); }
     }
 }

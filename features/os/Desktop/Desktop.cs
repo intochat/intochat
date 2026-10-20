@@ -4,6 +4,7 @@ using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Button;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Compute;
 using IntoChat.OS.Flutter.Person;
@@ -15,7 +16,7 @@ using IntoChat.OS.Flutter.Workspace;
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, SignIn? SignIn = null);
+    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -37,12 +38,8 @@ public static class Desktop
     // Durable: whether the apps gallery is showing, and the last Get's refusal shown in it.
     public static IText ShowGallery(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/gallery");
     public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
-    // Durable: the connector whose Connect is waiting for the browser; its sign-in button carries the {url}.
-    public static IText Connecting(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/connecting");
-    // When that Connect started (round-trip "o"): the platform's login lasts ten minutes, so the sign-in button does too.
-    public static IText ConnectingSince(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/connecting-since");
-    public static readonly TimeSpan SignInLifetime = TimeSpan.FromMinutes(10);
-    public static string SignInKey(IntoChatOSConnection brain) => Key(brain) + "/signin";
+    // The gallery's Connect buttons: one button neuron per connector under this prefix.
+    public static string ConnectButtons(IntoChatOSConnection brain) => Key(brain) + "/connect";
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -74,8 +71,7 @@ public static class Desktop
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
         var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        var signIn = gallery ? PendingSignIn((await Connecting(brain).Read()).Markdown, (await ConnectingSince(brain).Read()).Markdown, DateTimeOffset.UtcNow, SignInKey(brain)) : null;
-        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, signIn);
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain));
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
@@ -108,16 +104,20 @@ public static class Desktop
         => !outcome.Ok ? outcome.Message ?? "That app could not be installed."
             : opened ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
 
-    // The pending sign-in, unless none was started or its login has expired.
-    public static SignIn? PendingSignIn(string connector, string since, DateTimeOffset now, string button)
-        => connector.Length > 0 && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var started) && now - started < SignInLifetime
-            ? new SignIn(connector, button) : null;
+    // What a Connect button hands the shell: open its connection window for this connector in this brain.
+    public static string ConnectActivation(string brainId, string connectorId)
+        => System.Text.Json.JsonSerializer.Serialize(new { kind = "connections", brainId, connector = connectorId });
 
-    // Clears a pending sign-in (the gallery hid, or the connection now exists).
-    public static async Task ClearSignIn(IntoChatOSConnection brain)
+    // Each connectable connector's button carries its activation before the gallery references it.
+    private static async Task SetConnectButtons(IntoChatOSConnection brain, IReadOnlyList<GalleryEntry> entries)
     {
-        await Connecting(brain).Set("");
-        await ConnectingSince(brain).Set("");
+        foreach (var entry in entries.Where(entry => entry is { Kind: "connection", Available: true, Installed: false, ConnectorId: not null }))
+        {
+            var button = brain.Get<IButton>(Gallery.ConnectButton(ConnectButtons(brain), entry.ConnectorId!));
+            var activation = ConnectActivation(Scope(brain), entry.ConnectorId!);
+            var current = await button.Read();
+            if (current.Activation != activation || current.Label != "Connect") { await button.SetActivation("Connect", activation); }
+        }
     }
 
     // Opens the installed app in a window beside the others (or focuses its window); false if it cannot.
@@ -186,6 +186,7 @@ public static class Desktop
             var current = await stale.Read();
             if (current.Target is not null) { await stale.Set(null, current.Revision); }
         }
+        if (model.Entries is { } shownEntries) { await SetConnectButtons(brain, shownEntries); }
         // A fresh publisher per render continues whichever version another synapse left.
         await new ViewPublisher(brain.Get<IView>(ViewKey(brain)), Revision(brain)).Publish(DesktopLayout.Render(model));
     }

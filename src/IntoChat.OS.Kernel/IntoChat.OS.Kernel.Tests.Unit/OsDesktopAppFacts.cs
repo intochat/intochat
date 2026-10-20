@@ -220,61 +220,34 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
-    public void ConnectionsOfferConnectAndShowConnectedOrNotAvailable()
+    public void ConnectionsOfferAConnectButtonNeuronAndShowConnectedOrNotAvailable()
     {
-        var buttons = Flatten(Gallery.Render(Connections, null, null)).Where(node => node.Kind == UiNodeKind.Button).ToArray();
-        var gmail = Assert.Single(buttons, node => node.Action == "connect:gmail");
-        Assert.Equal(("Connect", true), (gmail.Text, gmail.Enabled));
-        var salesforce = Assert.Single(buttons, node => node.Key.Contains("salesforce", StringComparison.Ordinal));
-        Assert.Equal(("Not available", false), (salesforce.Text, salesforce.Enabled));
-        Assert.DoesNotContain(buttons, node => node.Key.Contains("github", StringComparison.Ordinal));
-        Assert.Contains(Flatten(Gallery.Render(Connections, null, null)), node => node.Kind == UiNodeKind.Card && node.Text == "GitHub" && node.Detail == "Connected.");
-        // Every connection sits under From others.
+        var tree = Flatten(Gallery.Render(Connections, null, "brain/apps/desktop/connect")).ToArray();
+        var gmail = Assert.Single(tree, node => node.Key == "connect-connection/gmail");
+        Assert.Equal((UiNodeKind.Reference, new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/connect/gmail")), (gmail.Kind, gmail.Reference));
+        var salesforce = Assert.Single(tree, node => node.Key == "connect-connection/salesforce");
+        Assert.Equal((UiNodeKind.Button, "Not available", false), (salesforce.Kind, salesforce.Text, salesforce.Enabled));
+        Assert.DoesNotContain(tree, node => node.Key == "connect-connection/github");
+        Assert.Contains(tree, node => node.Key == "entry-connection/github" && node.Text == "GitHub" && node.Detail == "Connected.");
         var others = Assert.Single(Gallery.Render(Connections, null, null).Children, node => node.Key == "section-others");
         Assert.Equal(3, Flatten(others).Count(node => node.Kind == UiNodeKind.Card));
     }
 
     [Fact]
-    public void AConnectInProgressShowsTheSignInButtonThatOpensTheBrowser()
+    public void ConnectHandsTheShellItsConnectionWindowForTheConnector()
     {
-        var tree = Gallery.Render(Connections, null, new SignIn("gmail", "brain/apps/desktop/signin"));
-        var reference = Assert.Single(Flatten(tree), node => node.Kind == UiNodeKind.Reference);
-        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/signin"), reference.Reference);
-        Assert.DoesNotContain(Flatten(tree), node => node.Action == "connect:gmail");
-        // The sign-in only shows on its own connector's card.
-        Assert.DoesNotContain(Flatten(Gallery.Render(Connections, null, new SignIn("github", "x"))), node => node.Kind == UiNodeKind.Reference);
+        var activation = System.Text.Json.JsonDocument.Parse(Desktop.ConnectActivation("brain-1", "gmail")).RootElement;
+        Assert.Equal(("connections", "brain-1", "gmail"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString(), activation.GetProperty("connector").GetString()));
+        Assert.False(activation.TryGetProperty("url", out _));
     }
 
     [Fact]
-    public void ConnectionCardsAreKeyedUnderTheirOwnPrefix()
-    {
-        var keys = Flatten(Gallery.Render(Connections, null, new SignIn("gmail", "x"))).Where(node => node.Key.Contains("gmail", StringComparison.Ordinal)).Select(node => node.Key).ToArray();
-        Assert.Equal(["entry-connection/gmail", "signin-connection/gmail"], keys);
-        Assert.Contains(Flatten(Gallery.Render(Connections, null, null)), node => node.Key == "connect-connection/gmail");
-    }
-
-    [Fact]
-    public void ASignInLastsAsLongAsThePlatformsLogin()
-    {
-        var started = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
-        var since = started.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Equal(new SignIn("gmail", "b"), Desktop.PendingSignIn("gmail", since, started.AddMinutes(9), "b"));
-        Assert.Null(Desktop.PendingSignIn("gmail", since, started.AddMinutes(10), "b"));
-        Assert.Null(Desktop.PendingSignIn("", since, started, "b"));
-        Assert.Null(Desktop.PendingSignIn("gmail", "", started, "b"));
-    }
-
-    [Fact]
-    public void HidingTheGalleryEndsAPendingSignIn()
-        => Assert.Contains("Desktop.ClearSignIn(brain)", Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["apps.cs"], StringComparison.Ordinal);
-
-    [Fact]
-    public void ConnectHasASmallHandler()
+    public void NoScriptStartsALoginAndConnectedHasASmallHandler()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Contains("\"connect:\"", bundle.Files["connect.cs"], StringComparison.Ordinal);
-        Assert.Contains("LoginUrl", bundle.Files["connect.cs"], StringComparison.Ordinal);
-        Assert.All((string[])["connect.cs", "connected.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
+        Assert.DoesNotContain("connect.cs", bundle.Files.Keys);
+        Assert.All(bundle.Files.Values, file => Assert.DoesNotContain("/login", file, StringComparison.Ordinal));
+        Assert.InRange(bundle.Files["connected.cs"].Split('\n').Length, 1, 40);
     }
 
     private static readonly GalleryEntry[] Connections =

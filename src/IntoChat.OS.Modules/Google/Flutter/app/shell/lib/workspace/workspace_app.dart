@@ -276,6 +276,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               width: 560,
               height: 520,
               child: ConnectWindow(
+                // The desktop gallery's Connect preselects its connector (and names the connection after it).
+                initialConnectorId: action['connector'] as String?,
+                initialConnectionId: action['connector'] as String?,
                 request: (path, {body}) =>
                     client.workspaceConnectionsRequest(brain, path, body: body),
                 connectorRequest: (path, {body}) =>
