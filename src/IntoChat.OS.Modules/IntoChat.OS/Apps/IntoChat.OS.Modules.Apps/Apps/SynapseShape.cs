@@ -23,8 +23,20 @@ public static class SynapseShape
     // A layout class: shared code with a static `Render` that returns a `UiNode`. It is the example of how an app
     // composes its view, so the fast path shows it to the model, unlike other shared files.
     public static bool IsLayout(string source)
-        => IsShared(source) && CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
-            .Any(method => method.Identifier.ValueText == "Render" && method.Modifiers.Any(SyntaxKind.StaticKeyword) && method.ReturnType.ToString() == "UiNode");
+    {
+        var root = CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot();
+        return !root.Members.OfType<GlobalStatementSyntax>().Any() && root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Any(method => method.Identifier.ValueText == "Render" && method.Modifiers.Any(SyntaxKind.StaticKeyword) && LastName(method.ReturnType) == "UiNode");
+    }
+
+    // UiNode, UiNode? and Flutter.Views.UiNode all end in the identifier UiNode.
+    private static string? LastName(TypeSyntax type) => type switch
+    {
+        NullableTypeSyntax nullable => LastName(nullable.ElementType),
+        QualifiedNameSyntax qualified => LastName(qualified.Right),
+        SimpleNameSyntax simple => simple.Identifier.ValueText,
+        _ => null,
+    };
 
     // Every program file of a bundle; app.cs and data files are not programs.
     public static ScriptCompilationDiagnostic[] Check(IReadOnlyDictionary<string, string> files)
