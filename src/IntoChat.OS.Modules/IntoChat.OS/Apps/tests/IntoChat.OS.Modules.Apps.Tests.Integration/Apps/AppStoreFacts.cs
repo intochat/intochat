@@ -1,3 +1,4 @@
+using IntoChat.OS.Integrations;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 
@@ -168,5 +169,12 @@ public sealed class AppStoreFacts
         Assert.Equal("mine", Assert.Single(entries, entry => entry.Name == "notes").Group);
         Assert.Equal("others", Assert.Single(entries, entry => entry.Name == "echo").Group);
         Assert.Equal(new InstallOutcome(true, "echo", null), await Store(brain, alice).Get("intochat", "echo"));
+    }
+
+    [Fact]
+    public void GmailAndSalesforceLeadTheConnectionsThenTheRestByName()
+    {
+        ConnectorOffer[] offers = [new("github", "GitHub", true, false), new("salesforce", "Salesforce", false, false), new("asana", "Asana", true, false), new("gmail", "Gmail", true, false)];
+        Assert.Equal(["gmail", "salesforce", "asana", "github"], AppStoreNeuron.Ordered(offers).Select(offer => offer.Id));
     }
 }

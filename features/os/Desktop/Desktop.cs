@@ -39,6 +39,9 @@ public static class Desktop
     public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
     // Durable: the connector whose Connect is waiting for the browser; its sign-in button carries the {url}.
     public static IText Connecting(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/connecting");
+    // When that Connect started (round-trip "o"): the platform's login lasts ten minutes, so the sign-in button does too.
+    public static IText ConnectingSince(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/connecting-since");
+    public static readonly TimeSpan SignInLifetime = TimeSpan.FromMinutes(10);
     public static string SignInKey(IntoChatOSConnection brain) => Key(brain) + "/signin";
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
@@ -71,7 +74,7 @@ public static class Desktop
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
         var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        var signIn = gallery && (await Connecting(brain).Read()).Markdown is { Length: > 0 } connector ? new SignIn(connector, SignInKey(brain)) : null;
+        var signIn = gallery ? PendingSignIn((await Connecting(brain).Read()).Markdown, (await ConnectingSince(brain).Read()).Markdown, DateTimeOffset.UtcNow, SignInKey(brain)) : null;
         return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, signIn);
     }
 
@@ -104,6 +107,18 @@ public static class Desktop
     public static string GetNotice(InstallOutcome outcome, bool opened)
         => !outcome.Ok ? outcome.Message ?? "That app could not be installed."
             : opened ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
+
+    // The pending sign-in, unless none was started or its login has expired.
+    public static SignIn? PendingSignIn(string connector, string since, DateTimeOffset now, string button)
+        => connector.Length > 0 && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var started) && now - started < SignInLifetime
+            ? new SignIn(connector, button) : null;
+
+    // Clears a pending sign-in (the gallery hid, or the connection now exists).
+    public static async Task ClearSignIn(IntoChatOSConnection brain)
+    {
+        await Connecting(brain).Set("");
+        await ConnectingSince(brain).Set("");
+    }
 
     // Opens the installed app in a window beside the others (or focuses its window); false if it cannot.
     public static async Task<bool> Open(IntoChatOSConnection brain, Guid request, string name)

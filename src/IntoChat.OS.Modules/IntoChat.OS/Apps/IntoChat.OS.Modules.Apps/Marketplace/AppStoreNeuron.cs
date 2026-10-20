@@ -2,13 +2,14 @@ using IntoChat.OS;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps;
 
 // The Marketplace for a brain's scripts: the gallery grouped Built-in / Mine / From others, and
 // Get, which installs through AppInstaller and answers a refusal as a message instead of throwing.
 [GrainType("apps.store")]
-internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller installer) : Neuron, IAppStore
+internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller installer, ILogger<AppStoreNeuron> logger) : Neuron, IAppStore
 {
     private string Scope => BrainKey.ScopeOf(this.GetPrimaryKeyString()) ?? this.GetPrimaryKeyString();
 
@@ -53,18 +54,28 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         return entries;
     }
 
-    // Connectors (Gmail, Salesforce) sit under From others: Installed is connected; one the host has not
-    // configured still shows, as not available. A brain without the connection catalog shows apps only.
+    // Connectors sit under From others, Gmail and Salesforce first: Installed is connected; one the host has
+    // not configured still shows, as not available. A host composing no connector answers none. A failing
+    // connection catalog is logged and the gallery still shows its apps.
     private async Task<GalleryEntry[]> Connections()
     {
-        try
+        ConnectorOffer[] offers;
+        try { offers = await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers(); }
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            return [.. (await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers()).Select(offer => new GalleryEntry("others", "", offer.Id, offer.DisplayName,
-                offer.Connected ? "Connected." : offer.Available ? "Connect your " + offer.DisplayName + " account." : "Not available on this host.",
-                null, offer.Connected, false, null, "connection", offer.Id, offer.Available))];
+            logger.LogWarning(error, "The gallery could not read the connection catalog of {Brain}; it shows apps only.", Scope);
+            return [];
         }
-        catch (Exception error) when (error is not OperationCanceledException) { return []; }
+        return [.. Ordered(offers).Select(offer => new GalleryEntry("others", "", offer.Id, offer.DisplayName,
+            offer.Connected ? "Connected." : offer.Available ? "Connect your " + offer.DisplayName + " account." : "Not available on this host.",
+            null, offer.Connected, false, null, "connection", offer.Id, offer.Available))];
     }
+
+    private static readonly string[] Featured = ["gmail", "salesforce"];
+
+    internal static IEnumerable<ConnectorOffer> Ordered(IEnumerable<ConnectorOffer> offers)
+        => offers.OrderBy(offer => Array.IndexOf(Featured, offer.Id) is var at and >= 0 ? at : Featured.Length)
+            .ThenBy(offer => offer.DisplayName, StringComparer.OrdinalIgnoreCase);
 
     private static bool Forked(AppSnapshot app) => app is { Origin: not null, Edited: true };
 

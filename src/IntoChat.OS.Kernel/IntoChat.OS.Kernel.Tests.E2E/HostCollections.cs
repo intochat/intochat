@@ -18,3 +18,7 @@ public sealed class RouterHostCollection : ICollectionFixture<RouterHostFixture>
 // cluster host: machine-wide state no other host may share; it boots its own AppHost too, so it runs serially as well.
 [CollectionDefinition("Candidate host", DisableParallelization = true)]
 public sealed class CandidateHostCollection;
+
+// The gallery's real OAuth Connect against a loopback Google stub.
+[CollectionDefinition("Connect host", DisableParallelization = true)]
+public sealed class ConnectHostCollection : ICollectionFixture<ConnectHostFixture>;

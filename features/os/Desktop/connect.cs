@@ -18,6 +18,7 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Desktop.View
         if (login.Url is { } url)
         { await brain.Get<IButton>(Desktop.SignInKey(brain)).SetActivation("Sign in", JsonSerializer.Serialize(new { url })); }
         await Desktop.Connecting(brain).Set(login.Url is null ? "" : connector);
+        await Desktop.ConnectingSince(brain).Set(DateTimeOffset.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
         await Desktop.Notice(brain).Set(login.Message ?? "");
         await Desktop.Show(brain);
     }

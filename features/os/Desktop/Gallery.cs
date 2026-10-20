@@ -22,7 +22,8 @@ public static class Gallery
     // Keys carry group, publisher and name joined by '/', which no name contains: an original and its copy never collide.
     private static UiNode Entry(GalleryEntry entry, SignIn? signIn)
     {
-        var id = entry.Group + "/" + entry.Publisher + "/" + entry.Name;
+        // Connections key by connector alone, under their own prefix, so no app listing can collide with one.
+        var id = entry.Kind == "connection" ? "connection/" + entry.ConnectorId : entry.Group + "/" + entry.Publisher + "/" + entry.Name;
         UiNode[] action = entry.Kind == "connection" ? Connection(id, entry, signIn)
             : entry.Kind != "app" ? []
             : entry.Installed ? [Ui.Button("open-" + id, "Open", "open:" + (entry.InstalledName ?? entry.Name))]

@@ -246,6 +246,29 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
+    public void ConnectionCardsAreKeyedUnderTheirOwnPrefix()
+    {
+        var keys = Flatten(Gallery.Render(Connections, null, new SignIn("gmail", "x"))).Where(node => node.Key.Contains("gmail", StringComparison.Ordinal)).Select(node => node.Key).ToArray();
+        Assert.Equal(["entry-connection/gmail", "signin-connection/gmail"], keys);
+        Assert.Contains(Flatten(Gallery.Render(Connections, null, null)), node => node.Key == "connect-connection/gmail");
+    }
+
+    [Fact]
+    public void ASignInLastsAsLongAsThePlatformsLogin()
+    {
+        var started = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+        var since = started.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(new SignIn("gmail", "b"), Desktop.PendingSignIn("gmail", since, started.AddMinutes(9), "b"));
+        Assert.Null(Desktop.PendingSignIn("gmail", since, started.AddMinutes(10), "b"));
+        Assert.Null(Desktop.PendingSignIn("", since, started, "b"));
+        Assert.Null(Desktop.PendingSignIn("gmail", "", started, "b"));
+    }
+
+    [Fact]
+    public void HidingTheGalleryEndsAPendingSignIn()
+        => Assert.Contains("Desktop.ClearSignIn(brain)", Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["apps.cs"], StringComparison.Ordinal);
+
+    [Fact]
     public void ConnectHasASmallHandler()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
