@@ -46,6 +46,22 @@ public sealed class OsDesktopAppFacts
         Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "focus:a");
     }
 
+    // An app's view fills its window: rows share the window area and each window's content takes
+    // what its chrome leaves (an unbounded height breaks views that expand, such as Ino's chat).
+    [Fact]
+    public void EachWindowGivesItsContentABoundedArea()
+    {
+        var tree = DesktopLayout.Render(Model(4, "b", narrow: false));
+        var windows = Assert.Single(tree.Children, node => node.Key == "windows");
+        Assert.Equal(windows.Children.Select(_ => 0.0), windows.Extents ?? []);
+        foreach (var id in new[] { "a", "b", "c", "d" })
+        {
+            var frame = Assert.Single(Flatten(tree), node => node.Key == "frame-" + id);
+            Assert.Equal(["window-" + id, "content-" + id], frame.Children.Select(node => node.Key));
+            Assert.Equal([DesktopLayout.ChromeHeight, 0], frame.Extents ?? []);
+        }
+    }
+
     [Fact]
     public void DockButtonsOpenTheirApp()
     {

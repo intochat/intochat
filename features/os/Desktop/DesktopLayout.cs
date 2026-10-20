@@ -6,6 +6,8 @@ public static class DesktopLayout
 {
     // Many windows wrap into rows of this many, so six or more never overflow one row.
     public const int PerRow = 3;
+    // A window's title and buttons; its app's view fills the rest of the window.
+    public const double ChromeHeight = 112;
 
     public static UiNode Render(DesktopModel m)
     {
@@ -17,15 +19,19 @@ public static class DesktopLayout
         var focus = m.FocusedId is { } id && m.Windows.Any(window => window.Id == id) ? id : m.Windows[^1].Id;
         var shown = m.Narrow ? m.Windows.Where(window => window.Id == focus).ToArray() : [.. m.Windows];
         var rows = shown.Chunk(PerRow).Select((row, i) => Ui.Row("windows-" + i, [.. row.Select(window => Window(window, m))])).ToArray();
-        return Ui.Column("desktop", [Ui.Column("windows", rows), dock], extents: [0, 68]);
+        // Rows share the window area, so every window's view gets a bounded height.
+        return Ui.Column("desktop", [Ui.Column("windows", rows, extents: [.. rows.Select(_ => 0.0)]), dock], extents: [0, 68]);
     }
 
-    private static UiNode Window(WindowModel window, DesktopModel m) => Ui.Card("window-" + window.Id, window.Title, children:
+    private static UiNode Window(WindowModel window, DesktopModel m) => Ui.Column("frame-" + window.Id,
     [
-        Ui.Row("chrome-" + window.Id, [Ui.Button("focus-" + window.Id, "Focus", "focus:" + window.Id), .. Pin(window, m),
-            Ui.Button("close-" + window.Id, "Close", "close:" + window.Id)], gap: 4),
+        Ui.Card("window-" + window.Id, window.Title, children:
+        [
+            Ui.Row("chrome-" + window.Id, [Ui.Button("focus-" + window.Id, "Focus", "focus:" + window.Id), .. Pin(window, m),
+                Ui.Button("close-" + window.Id, "Close", "close:" + window.Id)], gap: 4),
+        ]),
         Ui.Reference("content-" + window.Id, new(UIVocabulary.ViewportType, window.ViewportKey)),
-    ]);
+    ], gap: 4, extents: [ChromeHeight, 0]);
 
     // Ino is always first in the dock, so its window offers no pin toggle.
     private static UiNode[] Pin(WindowModel window, DesktopModel m) => window.Id == "ino" ? []
