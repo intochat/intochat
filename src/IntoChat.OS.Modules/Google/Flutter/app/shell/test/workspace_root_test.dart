@@ -112,6 +112,22 @@ void main() {
     );
     await fixture.dispose();
   });
+
+  testWidgets('reconnect that never changes the root says when it will', (
+    tester,
+  ) async {
+    final server = ReconnectServer(switches: false)
+      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+    final fixture = await ApplicationFixture.start(tester, server: server);
+    await tester.tap(find.text('Classic layout'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    await tester.pump();
+    expect(server.connects, 11);
+    expect(find.text('Layout will change on next start'), findsOneWidget);
+    await fixture.dispose();
+  });
 }
 
 class ActivationServer extends ApplicationServer {
@@ -144,19 +160,22 @@ class ActivationServer extends ApplicationServer {
 }
 
 class ReconnectServer extends ApplicationServer {
+  ReconnectServer({this.switches = true});
+  final bool switches;
   int connects = 0;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     if (request.url.path.endsWith('/apps/connect')) {
       connects++;
-      if (connects == 1) {
+      if (connects == 1 || !switches) {
         return json({
           'root': {'kind': 'button', 'name': 'brain-1/apps/source/go'},
           'activationApp': 'navigation',
         });
       }
     }
-    if (request.url.path.endsWith('/apps/node') && connects == 1) {
+    if (request.url.path.endsWith('/apps/node') &&
+        (connects == 1 || !switches)) {
       return json({
         'label': 'Classic layout',
         'enabled': true,

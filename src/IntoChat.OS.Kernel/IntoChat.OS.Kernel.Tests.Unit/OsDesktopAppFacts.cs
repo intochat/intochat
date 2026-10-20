@@ -116,6 +116,15 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
+    public void ClassicNewDesktopUsesTheDesktopsLayoutActivationShape()
+    {
+        var workspace = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "workspace").Files["Workspace.cs"];
+        var names = System.Text.Json.JsonDocument.Parse(Desktop.LayoutActivation("b", "desktop")).RootElement.EnumerateObject().Select(property => property.Name).ToArray();
+        Assert.Equal(["kind", "brainId", "application", "operation", "input"], names);
+        Assert.Contains("new { kind = \"reconnect\", brainId = Scope(brain), application = \"desktop\", operation = \"layout\", input = \"desktop\" }", workspace, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LayoutAndSettingsHaveSmallHandlers()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");

@@ -239,12 +239,19 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         action['input'] as String? ?? '',
       );
     }
-    final before = _rootName;
-    for (var attempt = 0; attempt < 10 && mounted; attempt++) {
-      await _selectBrain(brain, reconnect: true);
-      if (_rootName != before || operation == null) return;
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+    // A fixed root (INTOCHATOS_ROOT) never changes on connect: say so at once.
+    if (_root.isEmpty) {
+      final before = _rootName;
+      for (var attempt = 0; attempt < 10 && mounted; attempt++) {
+        await _selectBrain(brain, reconnect: true);
+        if (_rootName != before || operation == null) return;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
     }
+    if (!mounted) return;
+    _messenger.currentState?.showSnackBar(
+      const SnackBar(content: Text('Layout will change on next start')),
+    );
   }
 
   Future<void> _activate(Map<String, dynamic> action) async {
@@ -256,8 +263,11 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         return;
       }
       // The layout switch: hand the app its request, then connect again and mount the new root.
-      if (action['kind'] == 'reconnect' && _brain != null) {
-        await _reconnect(action);
+      // Only the desktop's layout switch may reconnect; any other reconnect is ignored.
+      if (action['kind'] == 'reconnect') {
+        if (action['application'] == 'desktop' && _brain != null) {
+          await _reconnect(action);
+        }
         return;
       }
       final brain = action['brainId'] as String? ?? _brain!;
