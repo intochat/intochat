@@ -18,13 +18,16 @@ public static class Desktop
 
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string ViewKey(IntoChatOSConnection brain) => Key(brain) + "/view";
-    public static string Scope(IntoChatOSConnection brain) => Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
+    public static string Scope(IntoChatOSConnection brain)
+    {
+        var at = Key(brain).IndexOf("/apps/", StringComparison.Ordinal);
+        return at < 0 ? throw new InvalidOperationException("The desktop key is not an app key: " + Key(brain)) : Key(brain)[..at];
+    }
     public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
-    public static async Task<DesktopModel> Model(IntoChatOSConnection brain)
+    public static async Task<DesktopModel> Model(IntoChatOSConnection brain, WorkspaceState state)
     {
-        var state = await State(brain).Read();
         var installed = new Dictionary<string, AppSnapshot>(StringComparer.Ordinal);
         await foreach (var instance in brain.Kernel.Instances<IApp>(brain.Stopping))
         {
@@ -48,12 +51,13 @@ public static class Desktop
     // Each window is a viewport onto its app's view; the desktop tree only references it.
     public static async Task Start(IntoChatOSConnection brain, ViewPublisher publisher)
     {
-        var model = await Model(brain);
+        // One read: the model and the viewports come from the same workspace state.
         var state = await State(brain).Read();
-        foreach (var window in model.Windows)
+        var model = await Model(brain, state);
+        foreach (var (window, view) in model.Windows.Zip(state.OpenViews))
         {
             var viewport = brain.Get<IViewport>(window.ViewportKey);
-            await viewport.Set(state.OpenViews.First(view => view.Id == window.Id), (await viewport.Read()).Revision);
+            await viewport.Set(view, (await viewport.Read()).Revision);
         }
         await publisher.Publish(DesktopLayout.Render(model));
         await brain.Get<IApp>(Key(brain)).Present(Revision(brain), new(new Sphere("icon.svg", []),

@@ -7,7 +7,8 @@ namespace IntoChat.OS.Kernel.Tests.E2E;
 [Collection("Reference host")]
 public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<ShippedAppsFixture>
 {
-    public static TheoryData<string, string> ShippedApps => new(ShippedAppsFixture.Features.Select(feature => (feature.Owner, feature.Bundle.Name)));
+    // The desktop is the v2 root, not a windowed app; DesktopStartFacts covers it until Task 9 moves journeys to it.
+    public static TheoryData<string, string> ShippedApps => new(ShippedAppsFixture.Features.Where(feature => feature.Bundle.Name != "desktop").Select(feature => (feature.Owner, feature.Bundle.Name)));
 
     [Theory(Timeout = 120_000)]
     [MemberData(nameof(ShippedApps))]

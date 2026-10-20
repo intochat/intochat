@@ -32,6 +32,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         var ct = TestContext.Current.CancellationToken;
         _brain = await host.LeaseAsync(ct);
         _person = await Brain.PersonAsync("apps-" + Guid.NewGuid().ToString("N"), ct);
+        // Stopgap until Task 9 moves journeys to the desktop: these journeys drive the v1 Workspace.
+        await ClassicAsync(Person.BrainId, ct);
         _browser = await Brain.OpenBrowserAsync(new BrowserOptions { Headless = true, AssertionTimeout = TimeSpan.FromSeconds(15) }, ct);
         await BrainFact.SignInAsync(Page, Brain, Person, ct);
         using var caller = Person.AsCaller();
@@ -78,6 +80,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         using var caller = Person.AsCaller();
         var circle = await Brain.Get<ICircleFactory>(ICircleFactory.Key(Person.BrainId)).Create("e2e-room").WaitAsync(ct);
         _ownedCircle = circle;
+        await ClassicAsync(circle, ct);
         await LoadAsync(Features.Single(feature => feature.Bundle.Name == "circle"), ct);
         await ShowAsync("circle", ct);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Circles", Exact = true }).ClickAsync();
@@ -85,6 +88,20 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         _circle = circle;
         using var member = Person.AsCallerIn(circle);
         await TestWait.UntilAsync(_ => App("workspace").Read(), snapshot => snapshot.Presentation is { Root: not null, Error: null }, TimeSpan.FromSeconds(30), ct);
+    }
+
+    // Stopgap until Task 9 moves journeys to the desktop: the journeys drive the v1 Workspace root,
+    // so each scope they connect to keeps the classic layout.
+    private async Task ClassicAsync(string scope, CancellationToken ct)
+    {
+        using var caller = Person.AsCallerIn(scope);
+        var desktop = Brain.Get<IApp>(IApp.Key(scope, "desktop"));
+        if ((await desktop.Read().WaitAsync(ct)).Manifest.Title.Length == 0)
+        {
+            var feature = Features.Single(item => item.Owner == "os" && item.Bundle.Name == "desktop");
+            await desktop.Import(feature.Bundle, new AppOrigin(feature.Owner, new AppSource.Shipped(), feature.Bundle.Name, feature.Bundle.Version)).WaitAsync(ct);
+        }
+        await desktop.Configure(new() { ["Layout"] = "classic" }, []).WaitAsync(ct);
     }
 
     public async Task FinishAsync(CancellationToken ct)
@@ -122,7 +139,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         var names = new List<string>();
         await foreach (var instance in Brain.Kernel.Instances<IApp>(ct))
         {
-            if (IApp.NameOf(Scope, instance.Key) is { } name && name != "workspace") { names.Add(name); }
+            if (IApp.NameOf(Scope, instance.Key) is { } name && name is not ("workspace" or "desktop")) { names.Add(name); }
         }
         foreach (var name in names) { await App(name).Delete().WaitAsync(ct); }
         Console.WriteLine($"[app-e2e] removed {names.Count} apps: {watch.Elapsed.TotalSeconds:F2}s");
