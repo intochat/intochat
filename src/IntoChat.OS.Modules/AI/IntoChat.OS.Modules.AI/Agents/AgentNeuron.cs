@@ -155,6 +155,18 @@ internal sealed class AgentNeuron(
         finally { _mutating = false; }
     }
 
+    public async Task Post(string text, string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        // A replayed post (same id) never adds a second entry.
+        if (State.ActiveRun?.RunId == id || State.Runs.Any(run => run.RunId == id)) { return; }
+        var now = DateTimeOffset.UtcNow;
+        var run = new AgentRun(id, AgentRunStatus.Completed, "", now, now, text);
+        await Persist(State with { Transcript = [.. State.Transcript, new AiMessage("assistant", [new AiText(text)])], Runs = Keep(State.Runs, run) });
+        await Notify(new TurnCompleted(Key, id, text));
+    }
+
     public async Task<string> Start(AgentTurn turn)
     {
         var (runId, replay) = Admit(turn);

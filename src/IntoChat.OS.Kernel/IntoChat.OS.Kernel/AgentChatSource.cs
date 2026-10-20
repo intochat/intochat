@@ -16,13 +16,14 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, [.. runs.SelectMany(run => new[]
         {
-            new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText),
+            // An assistant-only entry (IAgent.Post, e.g. a greeting) shows no user bubble.
+            run.UserText.Length == 0 ? null : new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText),
             new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
             {
                 Status = run.Status.ToString().ToLowerInvariant(), Error = run.Error,
                 Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
             },
-        })])
+        }).OfType<ChatEntry>()])
         {
             Actions = state.ActiveRun is { } running
                 ? [new("stop/" + running.RunId, "Stop", JsonSerializer.Serialize(new { runId = running.RunId }))] : [],

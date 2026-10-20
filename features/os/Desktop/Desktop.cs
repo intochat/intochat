@@ -31,6 +31,8 @@ public static class Desktop
     public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     // Until the shell reports its width, the narrow flag is the desktop's own state (set by `narrow:<bool>`).
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
+    // Durable: set once Ino has been asked to greet, so a restart never greets again.
+    public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
     // Hidden apps (the desktop itself, the workspace, services) never become windows: no recursion.
@@ -117,6 +119,18 @@ public static class Desktop
         }
         // A fresh publisher per render continues whichever version another synapse left.
         await new ViewPublisher(brain.Get<IView>(ViewKey(brain)), Revision(brain)).Publish(DesktopLayout.Render(model));
+    }
+
+    // First start for a brain: open Ino's window, focus it, and ask Ino to greet (pointing to the gallery).
+    public static async Task FirstRun(IntoChatOSConnection brain)
+    {
+        if ((await Greeted(brain).Read()).Markdown == "true") { return; }
+        var ino = IApp.Key(Scope(brain), "ino");
+        if (string.IsNullOrEmpty((await brain.Get<IApp>(ino).Read()).Manifest.Title)) { return; }
+        await Change(brain, Guid.NewGuid(), state => Task.FromResult<WorkspaceUpdate?>(new(
+            state.OpenViews.Any(view => view.Id == "ino") ? state.OpenViews : [.. state.OpenViews, new WorkspaceViewRef("ino", ino, "full", "")], "ino", state.Pins)));
+        await brain.Get<IApp>(ino).Request("open", "greet");
+        await Greeted(brain).Set("true");
     }
 
     public static async Task Start(IntoChatOSConnection brain)

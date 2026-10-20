@@ -6,7 +6,11 @@ var app = brain.Get<IApp>(Ino.Key(brain));
 await Ino.ComposeAsync(brain);
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
-    try { await Ino.ComposeAsync(brain); }
+    try
+    {
+        await Ino.ComposeAsync(brain);
+        if (request.Input == "greet") { await Ino.Greet(brain); }
+    }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
         await app.FailPresentation(Ino.ProgramRevision(brain), error.Message);
