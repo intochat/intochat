@@ -12,7 +12,8 @@ public static class DesktopLayout
         var dock = Dock(m);
         // The gallery sits over the windows, above the dock, until `gallery` closes it.
         if (m.ShowGallery) { return Ui.Column("desktop", [Gallery.Render(m.Entries ?? [], m.Notice, m.ConnectButtons), dock], extents: [0, 68]); }
-        if (m.Windows.Count == 0) { return Ui.Column("desktop", [dock]); }
+        // An empty desktop keeps the (empty) window area, so the dock stays at the bottom.
+        if (m.Windows.Count == 0) { return Ui.Column("desktop", [Ui.Column("windows", []), dock], extents: [0, 68]); }
         var focus = m.FocusedId is { } id && m.Windows.Any(window => window.Id == id) ? id : m.Windows[^1].Id;
         var shown = m.Narrow ? m.Windows.Where(window => window.Id == focus).ToArray() : [.. m.Windows];
         var rows = shown.Chunk(PerRow).Select((row, i) => Ui.Row("windows-" + i, [.. row.Select(window => Window(window, m))])).ToArray();

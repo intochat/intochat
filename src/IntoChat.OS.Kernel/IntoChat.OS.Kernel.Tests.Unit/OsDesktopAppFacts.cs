@@ -19,12 +19,16 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["start.cs"], bundle.Files.Where(file => file.Value.Contains("\"start\"", StringComparison.Ordinal) && file.Key != "app.cs").Select(file => file.Key));
     }
 
+    // Option A: the dock is at the bottom even before any window opens.
     [Fact]
-    public void AnEmptyDesktopShowsTheDockOnly()
+    public void AnEmptyDesktopShowsNoWindowsAndTheDockAtTheBottom()
     {
         var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("calculator", "Calculator", null, false, false)], false, false, null);
         var tree = DesktopLayout.Render(model);
-        var dock = Assert.Single(tree.Children);
+        Assert.Equal(["windows", "dock"], tree.Children.Select(node => node.Key));
+        Assert.Equal([0, 68], tree.Extents ?? []);
+        Assert.Empty(tree.Children[0].Children);
+        var dock = tree.Children[1];
         Assert.Equal(("dock", UiNodeKind.Row), (dock.Key, dock.Kind));
         Assert.Equal("Ino", Flatten(dock).First(node => node.Kind == UiNodeKind.Button).Text);
     }
@@ -106,7 +110,7 @@ public sealed class OsDesktopAppFacts
     {
         var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false), new("calc", "Calc", null, false, true)],
             false, false, null, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic");
-        var dock = Assert.Single(DesktopLayout.Render(model).Children);
+        var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
         var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
         Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
         Assert.Contains(buttons, node => node.Key == "gallery" && node.Text == "Apps");
