@@ -90,16 +90,20 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
     {
         var ct = TestContext.Current.CancellationToken;
         var desktop = WorkspaceId + "/apps/desktop";
-        // Another account publishes an app this user does not have.
+        // Another account publishes two apps this user does not have.
         var name = "echo" + Guid.NewGuid().ToString("N")[..8];
+        var clash = "clash" + Guid.NewGuid().ToString("N")[..8];
         using (var author = await Brain.PersonAsync("author-" + Guid.NewGuid().ToString("N"), ct))
         using (author.AsCaller())
         {
-            var app = Brain.Get<IApp>(IApp.Key(author.BrainId, name));
-            await app.Create(new("Echo " + name, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
-            await app.BeginBuild(null);
-            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
-            await app.Publish();
+            foreach (var published in new[] { name, clash })
+            {
+                var app = Brain.Get<IApp>(IApp.Key(author.BrainId, published));
+                await app.Create(new("Echo " + published, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
+                await app.BeginBuild(null);
+                await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
+                await app.Publish();
+            }
         }
         using var caller = User.AsCaller();
         await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
@@ -116,6 +120,16 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.Equal(name, (await Brain.Get<IWorkspace>(WorkspaceId).Read()).FocusedViewId);
         // The entry now offers Open.
         await Until(desktop, nodes => nodes.Any(node => node.Action == "open:" + name && node.Text == "Open"), ct);
+
+        // The user then makes an app of their own under the second name, while its Get is still shown:
+        // getting the listing is refused with a notice, and the gallery stays.
+        var getClash = get.Action[..get.Action.LastIndexOf('/')] + "/" + clash;
+        await Until(desktop, nodes => nodes.Any(node => node.Action == getClash), ct);
+        await Brain.Get<IApp>(IApp.Key(WorkspaceId, clash)).Create(new("Mine", "mine", [new("ask", "ask it")], [], []), "## Scenario: Mine\nIt is mine.");
+        await ClickAction(desktop, getClash, ct);
+        var refused = await Until(desktop, nodes => nodes.Any(node => node.Key == "notice"), ct);
+        Assert.False(string.IsNullOrWhiteSpace(Assert.Single(refused, node => node.Key == "notice").Text));
+        Assert.Contains(refused, node => node.Key == "gallery-panel");
     }
 
     // A minimal real synapse: it answers "ask" requests by doing nothing.

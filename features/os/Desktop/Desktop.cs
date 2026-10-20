@@ -67,8 +67,8 @@ public static class Desktop
         var gallery = (await ShowGallery(brain).Read()).Markdown == "true";
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
-        var entries = gallery ? await brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List() : null;
-        return new(windows, state.FocusedViewId, dock, narrow, gallery, notice, await Usage(brain), await Person(brain), entries);
+        var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries);
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
@@ -89,8 +89,32 @@ public static class Desktop
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
     }
 
-    // Opens the installed app in a window beside the others (or focuses its window).
-    public static Task Open(IntoChatOSConnection brain, Guid request, string name) => Change(brain, request, async state =>
+    // A store that cannot answer still leaves the desktop (and an empty gallery) rendering.
+    public static async Task<(IReadOnlyList<GalleryEntry> Entries, string? Notice)> LoadGallery(Func<Task<IReadOnlyList<GalleryEntry>>> list, string? notice)
+    {
+        try { return (await list(), notice); }
+        catch (Exception error) when (error is not OperationCanceledException) { return ([], "The gallery could not be loaded."); }
+    }
+
+    // What the gallery says after Get: the refusal, or that the install worked but the window did not open.
+    public static string GetNotice(InstallOutcome outcome, bool opened)
+        => !outcome.Ok ? outcome.Message ?? "That app could not be installed."
+            : opened ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
+
+    // Opens the installed app in a window beside the others (or focuses its window); false if it cannot.
+    public static async Task<bool> Open(IntoChatOSConnection brain, Guid request, string name)
+    {
+        var opened = false;
+        await Change(brain, request, async state =>
+        {
+            var next = await Opening(brain, state, name);
+            opened = next is not null;
+            return next;
+        });
+        return opened;
+    }
+
+    private static async Task<WorkspaceUpdate?> Opening(IntoChatOSConnection brain, WorkspaceState state, string name)
     {
         var app = IApp.Key(Scope(brain), name);
         if (IApp.NameOf(Scope(brain), app) != name || Hidden.Contains(name)) { return null; }
@@ -100,7 +124,7 @@ public static class Desktop
         var existing = state.OpenViews.FirstOrDefault(view => view.App == app);
         var views = existing is null ? [.. state.OpenViews, new WorkspaceViewRef(name, app, "full", "")] : state.OpenViews;
         return new WorkspaceUpdate(views, existing?.Id ?? name, state.Pins);
-    });
+    }
 
     // Window verbs change the durable workspace; restore.cs re-renders on the resulting WorkspaceChanged.
     public static async Task Change(IntoChatOSConnection brain, Guid request, Func<WorkspaceState, Task<WorkspaceUpdate?>> change)

@@ -136,7 +136,9 @@ public sealed class OsDesktopAppFacts
     {
         var tree = Gallery.Render(Entries, null);
         Assert.Equal("gallery-panel", tree.Key);
-        Assert.Equal(["Built-in", "Mine", "From others"], tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)).Select(node => node.Text));
+        Assert.Equal(["Built-in", "Mine", "From others"], tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)).Select(node => node.Children[0].Text));
+        // The heading is set once, as the section's first child.
+        Assert.All(tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)), section => Assert.Null(section.Text));
         Assert.Contains(Flatten(tree), node => node.Kind == UiNodeKind.Button && node.Action == "gallery");
     }
 
@@ -187,6 +189,34 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("\"gallery\"", bundle.Files["apps.cs"], StringComparison.Ordinal);
         Assert.Contains("\"get:\"", bundle.Files["get.cs"], StringComparison.Ordinal);
         Assert.All((string[])["apps.cs", "get.cs", "open.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
+    }
+
+    [Fact]
+    public void CardKeysNeverCollideEvenWhenNamesContainDashes()
+    {
+        GalleryEntry[] tricky = [new("others", "a-b", "c", "One", "", null, false, false, null), new("others", "a", "b-c", "Two", "", null, false, false, null)];
+        var keys = Flatten(Gallery.Render(tricky, null)).Select(node => node.Key).ToArray();
+        Assert.Equal(keys.Length, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public void GetNoticesSeparateInstallFromOpenFailures()
+    {
+        Assert.Equal("", Desktop.GetNotice(new(true, "echo", null), opened: true));
+        Assert.Equal("Already have it.", Desktop.GetNotice(new(false, null, "Already have it."), opened: false));
+        Assert.Equal("That app could not be installed.", Desktop.GetNotice(new(false, null, null), opened: false));
+        Assert.Equal("Installed echo, but it could not be opened.", Desktop.GetNotice(new(true, "echo", null), opened: false));
+    }
+
+    [Fact]
+    public async Task AGalleryThatCannotLoadStillRendersWithANotice()
+    {
+        var (entries, notice) = await Desktop.LoadGallery(() => throw new InvalidOperationException("store down"), null);
+        Assert.Empty(entries);
+        Assert.Equal("The gallery could not be loaded.", notice);
+        var (loaded, kept) = await Desktop.LoadGallery(() => Task.FromResult<IReadOnlyList<GalleryEntry>>(Entries), "Earlier");
+        Assert.Equal((4, "Earlier"), (loaded.Count, kept));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => Desktop.LoadGallery(() => throw new OperationCanceledException(), null));
     }
 
     private static readonly GalleryEntry[] Entries =

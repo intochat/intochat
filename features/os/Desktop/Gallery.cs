@@ -13,14 +13,13 @@ public static class Gallery
         Ui.Row("gallery-bar", [Ui.Text("gallery-title", "Apps"), Ui.Button("gallery-close", "Close", "gallery")], gap: 4, extents: [0, 96]),
         .. notice is { Length: > 0 } ? [Ui.Text("notice", notice)] : Array.Empty<UiNode>(),
         .. Sections.Select(section => Ui.Column("section-" + section.Group,
-            [Ui.Text("heading-" + section.Group, section.Heading), .. entries.Where(entry => entry.Group == section.Group).Select(Entry)], gap: 4)
-            with { Text = section.Heading }),
+            [Ui.Text("heading-" + section.Group, section.Heading), .. entries.Where(entry => entry.Group == section.Group).Select(Entry)], gap: 4)),
     ]);
 
-    // Keys carry publisher and name, so an original and its copy never collide.
+    // Keys carry group, publisher and name joined by '/', which no name contains: an original and its copy never collide.
     private static UiNode Entry(GalleryEntry entry)
     {
-        var id = entry.Group + "-" + entry.Publisher + "-" + entry.Name;
+        var id = entry.Group + "/" + entry.Publisher + "/" + entry.Name;
         UiNode[] action = entry.Kind != "app" ? []
             : entry.Installed ? [Ui.Button("open-" + id, "Open", "open:" + (entry.InstalledName ?? entry.Name))]
             : [Ui.Button("get-" + id, "Get", "get:" + entry.Publisher + "/" + entry.Name)];
