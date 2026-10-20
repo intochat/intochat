@@ -35,6 +35,9 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         var target = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/calculator").Read(),
             state => state.Target is not null, Patience, ct);
         Assert.Equal(WorkspaceId + "/apps/calculator", target.Target!.App);
+        var second = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + other).Read(),
+            state => state.Target is not null, Patience, ct);
+        Assert.Equal(WorkspaceId + "/apps/" + other, second.Target!.App);
         Assert.Equal(other, (await workspace.Read()).FocusedViewId);
 
         await Click(desktop, "focus-calculator", "focus:calculator", ct);
@@ -42,6 +45,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
 
         await Click(desktop, "close-" + other, "close:" + other, ct);
         await Until(desktop, nodes => Has(nodes, "calculator") && !Has(nodes, other), ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + other).Read(), state => state.Target is null, Patience, ct);
 
         // Restart: a new program generation re-runs start.cs, which reads the durable workspace.
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;

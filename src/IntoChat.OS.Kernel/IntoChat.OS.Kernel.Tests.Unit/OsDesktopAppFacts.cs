@@ -79,6 +79,13 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("WorkspaceChanged", bundle.Files["restore.cs"], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void HiddenAppsNeverBecomeWindows()
+    {
+        IntoChat.OS.Flutter.Workspace.WorkspaceViewRef[] views = [new("desktop", "brain/apps/desktop", "full", ""), new("workspace", "brain/apps/workspace", "full", ""), new("calculator", "brain/apps/calculator", "full", "")];
+        Assert.Equal(["calculator"], Desktop.Windowed("brain", views).Select(view => view.Id));
+    }
+
     private static DesktopModel Model(int count, string? focused, bool narrow)
     {
         var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())
