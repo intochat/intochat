@@ -62,8 +62,9 @@ internal static class ViewValidation
 {
     internal static readonly JsonSerializerOptions Json = new() { MaxDepth = 128 };
     // Only leaf controls can be embedded: layouts and views can themselves refer to other nodes.
+    // A viewport is the one window: it shows an app's view chosen by its owner (the desktop's windows).
     private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image" };
+    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image" };
 
     public static UiView Clone(UiView view, string name)
     {

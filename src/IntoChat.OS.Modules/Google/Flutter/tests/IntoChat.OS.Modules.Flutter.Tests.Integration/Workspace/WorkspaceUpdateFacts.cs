@@ -51,10 +51,14 @@ public sealed class WorkspaceUpdateFacts
         var workspace = brain.Get<IWorkspace>(scope);
         using (brain.Owner.AsCaller())
         { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => workspace.Apply(new([], null, []), "op", 0)); }
+        using (brain.Owner.AsApp(scope + "/apps/calculator"))
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => workspace.Apply(new([], null, []), "op", 0)); }
         using (brain.Owner.AsApp(scope + "/apps/workspace"))
         {
             await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([], "missing", []), "op", 0));
             await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([new("a", "other/brain/apps/private", "full", "")], "a", []), "op", 0));
         }
+        using (brain.Owner.AsApp(scope + "/apps/desktop"))
+        { Assert.Empty((await workspace.Apply(new([], null, []), "desktop-op", (await workspace.Read()).Revision)).OpenViews); }
     }
 }

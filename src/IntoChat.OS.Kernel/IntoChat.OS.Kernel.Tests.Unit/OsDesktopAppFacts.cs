@@ -1,4 +1,5 @@
 using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -31,12 +32,58 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void WindowsSitSideBySideAboveTheDock()
     {
-        var model = new DesktopModel([new("calculator", "brain/apps/calculator", "Calculator", "brain/apps/desktop/window-calculator")], "calculator",
-            [new("ino", "Ino", null, true, false)], false, false, null);
-        var tree = DesktopLayout.Render(model);
+        var tree = DesktopLayout.Render(Model(2, "b", narrow: false));
         Assert.Equal(["windows", "dock"], tree.Children.Select(node => node.Key));
-        var window = Assert.Single(Flatten(tree), node => node.Kind == UiNodeKind.Reference);
-        Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("viewport", "brain/apps/desktop/window-calculator"), window.Reference);
+        Assert.Equal([new UiChildRef(UIVocabulary.ViewportType, "brain/apps/desktop/window/a"), new UiChildRef(UIVocabulary.ViewportType, "brain/apps/desktop/window/b")],
+            Flatten(tree).Where(node => node.Kind == UiNodeKind.Reference).Select(node => node.Reference));
+        var chrome = Assert.Single(Flatten(tree), node => node.Key == "window-a");
+        Assert.Equal((UiNodeKind.Card, "App a"), (chrome.Kind, chrome.Text));
+        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "close:a");
+        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "focus:a");
+    }
+
+    [Fact]
+    public void DockButtonsOpenTheirApp()
+    {
+        var tree = DesktopLayout.Render(Model(0, null, narrow: false));
+        Assert.Equal("open:ino", Assert.Single(Flatten(tree), node => node.Key == "dock-ino").Action);
+    }
+
+    [Fact]
+    public void SevenWindowsWrapIntoRowsWithoutThrowing()
+    {
+        var tree = DesktopLayout.Render(Model(7, "g", narrow: false));
+        Assert.Equal(7, Flatten(tree).Count(node => node.Kind == UiNodeKind.Reference));
+        var rows = Assert.Single(tree.Children, node => node.Key == "windows").Children;
+        Assert.True(rows.Length > 1);
+        Assert.All(rows, row => Assert.InRange(row.Children.Length, 1, DesktopLayout.PerRow));
+    }
+
+    [Fact]
+    public void NarrowShowsOnlyTheFocusedWindow()
+    {
+        var tree = DesktopLayout.Render(Model(3, "b", narrow: true));
+        var only = Assert.Single(Flatten(tree), node => node.Kind == UiNodeKind.Reference);
+        Assert.Equal("brain/apps/desktop/window/b", only.Reference!.Name);
+    }
+
+    [Fact]
+    public void EachWindowVerbHasItsOwnSmallHandler()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        foreach (var (file, prefix) in new[] { ("open.cs", "\"open:\""), ("close.cs", "\"close:\""), ("focus.cs", "\"focus:\""), ("narrow.cs", "\"narrow:\"") })
+        {
+            Assert.Contains(prefix, bundle.Files[file], StringComparison.Ordinal);
+            Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40);
+        }
+        Assert.Contains("WorkspaceChanged", bundle.Files["restore.cs"], StringComparison.Ordinal);
+    }
+
+    private static DesktopModel Model(int count, string? focused, bool narrow)
+    {
+        var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())
+            .Select(id => new WindowModel(id, "brain/apps/" + id, "App " + id, "brain/apps/desktop/window/" + id)).ToArray();
+        return new(windows, focused, [new("ino", "Ino", null, true, false)], narrow, false, null);
     }
 
     private static IEnumerable<UiNode> Flatten(UiNode root)

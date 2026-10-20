@@ -7,6 +7,12 @@ start.cs alone handles it. Layout "classic" keeps the v1 Workspace as the root.
 
 ## Scenario: Starting shows the dock
 Invoking "start" publishes the desktop view with a dock row, Ino pinned first.
+
+## Scenario: Windows side by side
+Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<id>` and
+`close:<id>` act on one window; restore.cs re-renders on every workspace change, so a
+restarted desktop shows the same windows and focus. `narrow:<true|false>` shows only the
+focused window.
 */
 using IntoChat.OS.Apps;
 static class App

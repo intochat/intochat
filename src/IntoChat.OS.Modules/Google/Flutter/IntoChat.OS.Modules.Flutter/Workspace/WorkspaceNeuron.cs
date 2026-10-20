@@ -16,8 +16,9 @@ internal sealed class WorkspaceNeuron(
 
     public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId != Brain + "/apps/workspace")
-        { throw new UnauthorizedAccessException("Only the workspace app may apply navigation state."); }
+        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App
+            || caller.AppId != Brain + "/apps/workspace" && caller.AppId != Brain + "/apps/desktop")
+        { throw new UnauthorizedAccessException("Only the workspace and desktop apps may apply navigation state."); }
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters."); }
