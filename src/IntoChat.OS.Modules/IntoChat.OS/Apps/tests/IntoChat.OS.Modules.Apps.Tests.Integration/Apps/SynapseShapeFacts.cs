@@ -95,6 +95,14 @@ public sealed class SynapseShapeFacts
         Assert.False(SynapseShape.IsShared(OneReaction));
     }
 
+    [Fact]
+    public void ALayoutClassIsSharedCodeWithAStaticRenderReturningAUiNode()
+    {
+        Assert.True(SynapseShape.IsLayout("public static class L { public static UiNode Render(int m) => null; }"));
+        Assert.False(SynapseShape.IsLayout("public static class Text { public static string Upper(string t) => t; }"));
+        Assert.False(SynapseShape.IsLayout(OneReaction));
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task AWriteThatIsNotOneReactionIsNeverDeployed()

@@ -380,6 +380,15 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public void TheBuilderBuildsAppsAsALayoutClassPlusHandlers()
+    {
+        foreach (var phrase in new[] { "layout class", "Layout.cs", "static UiNode Render", "ViewPublisher", "UIVocabulary.ViewType", "ViewAction", "verb:<arg>", "at most 40 lines", "No colours", "Never encode a command as JSON" })
+        {
+            Assert.Contains(phrase, AgentPrompts.Builder, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
     public void TheBuilderDistinguishesRendererKindsFromChildNames()
     {
         Assert.Contains("Read the UI contracts", AgentPrompts.Builder, StringComparison.Ordinal);

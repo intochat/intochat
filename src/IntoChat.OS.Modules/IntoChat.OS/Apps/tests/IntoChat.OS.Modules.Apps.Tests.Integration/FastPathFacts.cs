@@ -466,6 +466,23 @@ public sealed class FastPathFacts : IDisposable
 
     [Trait("host", "own")]
     [Fact]
+    public async Task ALayoutClassIsAnExampleButOtherSharedFilesAreNot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        WriteFeature("os", "Orchard", "orchard", "OrchardLayout.cs", "public static class OrchardLayout { public static UiNode Render(int lemons) => null; /* LAYOUT-LEMONS */ }");
+        File.WriteAllText(Path.Combine(_features, "os", "Orchard", "Helper.cs"), "public static class Helper { public static int Twice(int n) => n * 2; /* HELPER-LEMONS */ }");
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "lemons orchard layout", ct);
+
+        Assert.Contains(ranking.Examples, example => example.Source.Contains("LAYOUT-LEMONS", StringComparison.Ordinal));
+        Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("HELPER-LEMONS", StringComparison.Ordinal));
+        Assert.Null(ranking.Base);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task AStrongMatchIsTheBaseTheModelForks()
     {
         var ct = TestContext.Current.CancellationToken;

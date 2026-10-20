@@ -20,6 +20,12 @@ public static class SynapseShape
     public static bool IsShared(string source)
         => !CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().Members.OfType<GlobalStatementSyntax>().Any();
 
+    // A layout class: shared code with a static `Render` that returns a `UiNode`. It is the example of how an app
+    // composes its view, so the fast path shows it to the model, unlike other shared files.
+    public static bool IsLayout(string source)
+        => IsShared(source) && CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Any(method => method.Identifier.ValueText == "Render" && method.Modifiers.Any(SyntaxKind.StaticKeyword) && method.ReturnType.ToString() == "UiNode");
+
     // Every program file of a bundle; app.cs and data files are not programs.
     public static ScriptCompilationDiagnostic[] Check(IReadOnlyDictionary<string, string> files)
     {

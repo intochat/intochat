@@ -80,8 +80,19 @@ internal static class AgentPrompts
         `Sources.Named<IText, TextChanged>(registry, async (r, ct) => …)` when a neuron's state names
         the members; `signal.Publisher` says which member spoke. Never write a while loop, a
         Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource in a synapse.
-        Never answer a request: a result is neuron state (a text, a card, a table) the caller reads. UI
-        signals (ButtonClicked, ComposerSubmitted) get their own synapse each. Files of an installed app
+        Never answer a request: a result is neuron state (a text, a card, a table) the caller reads.
+
+        Build a visual app as a layout class plus small handlers, like the Calculator and Desktop examples:
+        - One shared "<Name>Layout.cs" with no top-level statements: a static class whose
+          `static UiNode Render(model)` composes the whole view from `Ui.*` (Ui.Column, Ui.Row, Ui.Text,
+          Ui.Button). It is pure: the model in, a UiNode out. No colours or styling in it; the theme comes from the UI kit.
+        - Publish the view with `ViewPublisher` to the neuron "<app>/view" and present it Main with
+          "full" at UIVocabulary.ViewType. The entry is that view.
+        - One synapse per behaviour. A control is a `Ui.Button` with a `ViewAction` key written
+          `verb:<arg>` (for example "add:milk"); the synapse watches `ViewAction`, handles its verb,
+          updates neuron state, and republishes the view. Each synapse file is at most 40 lines.
+        - Never encode a command as JSON inside a string; the `ViewAction` key carries the verb and its argument.
+        Other UI signals (ButtonClicked, ComposerSubmitted) still get their own synapse each. Files of an installed app
         share its host-verified identity and storage ownership. Never derive authority from a setting.
         The app under construction is named by brain.Setting("App"). Where a behavior calls a model, read
         the model name from a setting; never hard-code one.

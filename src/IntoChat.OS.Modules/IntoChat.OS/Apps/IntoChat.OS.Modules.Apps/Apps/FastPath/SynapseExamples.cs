@@ -81,7 +81,7 @@ internal sealed class SynapseExamples(
             .OrderByDescending(example => example.Score).ThenBy(example => example.Name, StringComparer.Ordinal)];
         // Fork-first: the base is the best scored synapse whose meaning alone is close enough to fork, so among
         // candidates about as close the proven one wins. A failing one is the base only when every candidate is failing.
-        var basis = scored.Where(example => example.Similarity >= forkThreshold).OrderBy(example => Failing(Behavior(example))).FirstOrDefault();
+        var basis = scored.Where(example => example.Similarity >= forkThreshold && !SynapseShape.IsShared(example.Source)).OrderBy(example => Failing(Behavior(example))).FirstOrDefault();
         return new([.. scored.Take(Take)], basis);
     }
 
@@ -138,7 +138,7 @@ internal sealed class SynapseExamples(
         {
             foreach (var (path, source) in files.OrderBy(file => file.Key, StringComparer.Ordinal))
             {
-                if (!AppFiles.IsProgram(path) || SynapseShape.IsShared(source) || !seen.Add(source)) { continue; }
+                if (!AppFiles.IsProgram(path) || (SynapseShape.IsShared(source) && !SynapseShape.IsLayout(source)) || !seen.Add(source)) { continue; }
                 examples.Add(new(origin, path, Spec(manifest, path, source), source, behavior(path)));
             }
         }
