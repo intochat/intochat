@@ -12,7 +12,6 @@
       "roslyn": { "Enabled": false },
       "time": { "Enabled": false },
       "windows": { "Enabled": false },
-      "flutter": { "Enabled": false },
       "salesforce": { "Enabled": false },
       "gmail": { "Enabled": false }
     }
