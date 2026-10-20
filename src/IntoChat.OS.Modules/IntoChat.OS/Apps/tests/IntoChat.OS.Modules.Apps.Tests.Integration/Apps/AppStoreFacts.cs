@@ -118,4 +118,55 @@ public sealed class AppStoreFacts
         Assert.Equal("Alice's echo", after.Manifest.Title);
         Assert.Null(after.Origin);
     }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnUneditedInstalledForeignAppIsOneEntryFromOthers()
+    {
+        await using var brain = await Start();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Publish(brain, intochat, "echo", "Echo");
+        using var _ = alice.AsCaller();
+        await Store(brain, alice).Get("intochat", "echo");
+
+        var echo = Assert.Single(await Store(brain, alice).List(), entry => entry.Name == "echo");
+
+        Assert.Equal(("others", true, "echo", "Echo"), (echo.Group, echo.Installed, echo.InstalledName, echo.Title));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnEditedCopyIsOnlyMineAndCalledACopy()
+    {
+        await using var brain = await Start();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Publish(brain, intochat, "echo", "Echo");
+        using var _ = alice.AsCaller();
+        await Store(brain, alice).Get("intochat", "echo");
+        await brain.Get<IApp>(IApp.Key(alice.BrainId, "echo")).WriteFile("notes.md", "mine now", Guid.NewGuid());
+
+        var echo = Assert.Single(await Store(brain, alice).List(), entry => entry.Name == "echo");
+
+        Assert.Equal(("mine", "Copy of Echo", true, "echo"), (echo.Group, echo.Title, echo.Installed, echo.InstalledName));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AScriptSeesTheSameGroupsAsItsOwner()
+    {
+        await using var brain = await Start();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Publish(brain, intochat, "echo", "Echo");
+        await Publish(brain, alice, "notes", "Notes");
+
+        using var _ = alice.AsApp(IApp.Key(alice.BrainId, "notes"));
+        var entries = await Store(brain, alice).List();
+
+        Assert.Equal("mine", Assert.Single(entries, entry => entry.Name == "notes").Group);
+        Assert.Equal("others", Assert.Single(entries, entry => entry.Name == "echo").Group);
+        Assert.Equal(new InstallOutcome(true, "echo", null), await Store(brain, alice).Get("intochat", "echo"));
+    }
 }

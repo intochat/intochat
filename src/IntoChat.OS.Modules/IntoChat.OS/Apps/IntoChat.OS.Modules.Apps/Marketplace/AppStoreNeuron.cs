@@ -16,30 +16,42 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         var account = CallerContextStamper.TryGet(out var caller) ? caller.AccountId : null;
         var listings = await marketplace.List(default);
         var installed = await InstalledApps.Read(ServiceProvider.GetRequiredService<IIntoChatOS>(), Scope, default);
+        var held = installed.ToDictionary(app => app.Name, app => app.Snapshot, StringComparer.Ordinal);
         var entries = new List<GalleryEntry>();
         var shown = new HashSet<string>(StringComparer.Ordinal);
         foreach (var listing in listings)
         {
             var entry = await installer.Entry(listing, default);
+            if (entry.Installed) { shown.Add(listing.Name); }
+            // An edited copy is a fork: it shows once, under Mine, and its listing's card is not shown.
+            if (entry.Installed && held.TryGetValue(listing.Name, out var local) && Forked(local))
+            {
+                entries.Add(new("mine", listing.Publisher, listing.Name, $"Copy of {listing.Title}", local.Manifest.Description,
+                    local.Manifest.Icon, true, false, listing.Name));
+                continue;
+            }
             var group = listing.Source switch
             {
                 AppSource.Shipped => "builtin",
                 AppSource.Brain brain when brain.AccountId == account => "mine",
                 _ => "others",
             };
-            if (entry.Installed) { shown.Add(listing.Name); }
             entries.Add(new(group, listing.Publisher, listing.Name, listing.Title, listing.Description, listing.Icon,
                 entry.Installed, entry.UpdateAvailable, entry.Installed ? listing.Name : null));
         }
-        // What the brain holds that no listing shows: its own apps and edited copies are Mine.
-        foreach (var (name, app) in installed.Where(held => held.Snapshot.Manifest.Title.Length > 0 && (!shown.Contains(held.Name) || held.Snapshot is { Origin: not null, Edited: true })))
+        // What the brain holds that no listing shows. An app neuron that was never created answers
+        // an empty manifest title, so those are skipped. Own apps and edited copies are Mine.
+        foreach (var (name, app) in installed.Where(app => app.Snapshot.Manifest.Title.Length > 0 && !shown.Contains(app.Name)))
         {
             var mine = app.Origin is null || app.Edited;
-            entries.Add(new(mine ? "mine" : "others", app.Origin?.Publisher ?? "", name, app.Manifest.Title, app.Manifest.Description,
+            var title = Forked(app) ? $"Copy of {app.Manifest.Title}" : app.Manifest.Title;
+            entries.Add(new(mine ? "mine" : "others", app.Origin?.Publisher ?? "", name, title, app.Manifest.Description,
                 app.Manifest.Icon, true, InstalledApps.UpdateAvailable(app, listings), name));
         }
         return entries;
     }
+
+    private static bool Forked(AppSnapshot app) => app is { Origin: not null, Edited: true };
 
     public async Task<InstallOutcome> Get(string publisher, string name)
     {
