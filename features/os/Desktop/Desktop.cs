@@ -3,6 +3,8 @@ using IntoChat.OS;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Compute;
+using IntoChat.OS.Flutter.Person;
 using IntoChat.OS.Flutter.Viewport;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Views;
@@ -10,7 +12,8 @@ using IntoChat.OS.Flutter.Workspace;
 
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
-public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice);
+public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
+    string? Usage = null, string? Person = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -48,13 +51,27 @@ public static class Desktop
         string Title(string name) => installed.GetValueOrDefault(name)?.Manifest.Title ?? name;
         var windows = Windowed(Scope(brain), state.OpenViews).Select(view => new WindowModel(view.Id, view.App,
             Title(IApp.NameOf(Scope(brain), view.App) ?? view.Id), Key(brain) + "/window/" + view.Id)).ToArray();
+        // Ino first, then pinned apps, then the rest (until the gallery lists them, Task 5).
         var pinned = state.Pins.Select(view => view.Id).ToHashSet(StringComparer.Ordinal);
         var dock = installed.OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
             .ThenBy(pair => pair.Value.Manifest.Title, StringComparer.OrdinalIgnoreCase)
             .Select(pair => new DockItem(pair.Key, pair.Value.Manifest.Title, pair.Value.Manifest.Icon,
                 pair.Key == "ino" || pinned.Contains(pair.Key), windows.Any(window => window.Id == pair.Key))).ToArray();
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
-        return new(windows, state.FocusedViewId, dock, narrow, false, null);
+        return new(windows, state.FocusedViewId, dock, narrow, false, null, await Usage(brain), await Person(brain));
+    }
+
+    // Usage and the person are optional: a brain without them still shows its dock.
+    private static async Task<string?> Usage(IntoChatOSConnection brain)
+    {
+        try { return "$" + ((await brain.Get<ICompute>(Scope(brain) + "/compute").Read()).SpentMicros / 1_000_000m).ToString("0.00", CultureInfo.InvariantCulture); }
+        catch (Exception error) when (error is not OperationCanceledException) { return null; }
+    }
+
+    private static async Task<string?> Person(IntoChatOSConnection brain)
+    {
+        try { return (await brain.Get<IPerson>(Scope(brain) + "/profile").Read()).DisplayName is { Length: > 0 } name ? name : null; }
+        catch (Exception error) when (error is not OperationCanceledException) { return null; }
     }
 
     // Window verbs change the durable workspace; restore.cs re-renders on the resulting WorkspaceChanged.

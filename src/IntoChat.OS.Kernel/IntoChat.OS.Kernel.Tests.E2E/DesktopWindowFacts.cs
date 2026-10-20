@@ -58,6 +58,27 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.Equal("calculator", (await workspace.Read()).FocusedViewId);
     }
 
+    [Fact(Timeout = 360_000)]
+    public async Task PinningKeepsAnAppInTheWorkspacePinsAndUnpinningRemovesIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        var desktop = WorkspaceId + "/apps/desktop";
+        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        await Connect(ct);
+        await Click(desktop, "dock-calculator", "open:calculator", ct);
+
+        await Click(desktop, "pin-calculator", "pin:calculator", ct);
+        await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.Any(view => view.Id == "calculator"), Patience, ct);
+        var dock = await Until(desktop, nodes => nodes.Any(node => node.Key == "unpin-calculator"), ct);
+        Assert.Equal("dock-ino", dock.First(node => node.Key.StartsWith("dock-", StringComparison.Ordinal)).Key);
+
+        await Click(desktop, "unpin-calculator", "unpin:calculator", ct);
+        await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.All(view => view.Id != "calculator"), Patience, ct);
+    }
+
     private async Task Connect(CancellationToken ct)
     {
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);

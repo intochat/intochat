@@ -86,6 +86,43 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["calculator"], Desktop.Windowed("brain", views).Select(view => view.Id));
     }
 
+    [Fact]
+    public void TheDockShowsInoFirstThenTheGalleryAndUsageAvatarAndMoreOnTheRight()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false), new("calc", "Calc", null, false, true)],
+            false, false, null, Usage: "$1.25", Person: "Vlad");
+        var dock = Assert.Single(DesktopLayout.Render(model).Children);
+        var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
+        Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
+        Assert.Contains(buttons, node => node.Key == "gallery" && node.Text == "Apps");
+        var right = Assert.Single(Flatten(dock), node => node.Key == "right");
+        Assert.Equal(["usage", "avatar", "more"], right.Children.Select(node => node.Key));
+        Assert.Contains(Flatten(right), node => node.Text == "$1.25");
+        Assert.Contains(Flatten(right), node => node.Text == "Vlad");
+        Assert.Equal(["settings", "layout:classic"], Flatten(Assert.Single(right.Children, node => node.Key == "more"))
+            .Where(node => node.Kind == UiNodeKind.Button).Select(node => node.Action));
+    }
+
+    [Fact]
+    public void WindowsOfferPinOrUnpinButInoStaysPinned()
+    {
+        var windows = new WindowModel[] { new("ino", "brain/apps/ino", "Ino", "w/ino"), new("notes", "brain/apps/notes", "Notes", "w/notes"), new("calc", "brain/apps/calc", "Calc", "w/calc") };
+        var model = new DesktopModel(windows, "calc", [new("ino", "Ino", null, true, true), new("notes", "Notes", null, true, true), new("calc", "Calc", null, false, true)], false, false, null);
+        var actions = Flatten(DesktopLayout.Render(model)).Select(node => node.Action).ToArray();
+        Assert.Contains("unpin:notes", actions);
+        Assert.Contains("pin:calc", actions);
+        Assert.DoesNotContain(actions, action => action is "pin:ino" or "unpin:ino");
+    }
+
+    [Fact]
+    public void PinAndUnpinHaveOneSmallHandler()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("\"pin:\"", bundle.Files["dock.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"unpin:\"", bundle.Files["dock.cs"], StringComparison.Ordinal);
+        Assert.InRange(bundle.Files["dock.cs"].Split('\n').Length, 1, 40);
+    }
+
     private static DesktopModel Model(int count, string? focused, bool narrow)
     {
         var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())
