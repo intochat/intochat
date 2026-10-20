@@ -44,6 +44,13 @@ abstract final class UiType {
   static const sans = 'packages/$fontPackage/$sansFamily';
   static const mono = 'packages/$fontPackage/$intochatMonoFamily';
 
+  /// IntoChat heading treatment: w800, -0.015em tracking, 1.18 line height.
+  static TextStyle intochatHeading(TextStyle style) => style.copyWith(
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.015 * (style.fontSize ?? 16),
+    height: 1.18,
+  );
+
   /// Pins the variable font's `wght` axis to [TextStyle.fontWeight] (default
   /// 400) so bundled variable fonts render the requested weight.
   static TextStyle withWeightAxis(TextStyle style) => style.copyWith(
@@ -74,15 +81,7 @@ abstract final class UiType {
         color: color,
       );
       if (!intochat) return style;
-      return withWeightAxis(
-        head
-            ? style.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.015 * (style.fontSize ?? 16),
-                height: 1.18,
-              )
-            : style,
-      );
+      return withWeightAxis(head ? intochatHeading(style) : style);
     }
 
     return UiTypeSet(
@@ -259,11 +258,8 @@ abstract final class UiTheme {
       brightness: brightness,
       fontFamily: UiType.sans,
     ).textTheme.apply(bodyColor: c.body, displayColor: c.strong);
-    TextStyle? head(TextStyle? t) => t?.copyWith(
-      fontWeight: FontWeight.w800,
-      letterSpacing: -0.015 * (t.fontSize ?? 16),
-      height: 1.18,
-    );
+    TextStyle? head(TextStyle? t) =>
+        t == null ? null : UiType.intochatHeading(t);
     TextStyle? w(TextStyle? t) => t == null ? null : UiType.withWeightAxis(t);
     final textTheme = TextTheme(
       displayLarge: w(head(base.displayLarge)),

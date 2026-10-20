@@ -1,3 +1,8 @@
+@Tags(['golden'])
+library;
+
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
@@ -5,6 +10,14 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'kit_sheet.dart';
 
 void main() {
+  if (!Platform.isWindows) {
+    test(
+      'kit goldens',
+      () {},
+      skip: 'Goldens are Windows-rendered; Windows-local regression net only.',
+    );
+    return;
+  }
   final cases = <String, ThemeData Function()>{
     'intochat_light': () => UiTheme.light('intochat'),
     'intochat_dark': () => UiTheme.dark('intochat'),

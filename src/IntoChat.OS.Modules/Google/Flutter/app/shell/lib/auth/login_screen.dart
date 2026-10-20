@@ -238,7 +238,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                           child: Text(
                             error,
                             key: const Key('login-error'),
-                            style: type.body.copyWith(color: colors.working),
+                            style: type.body.copyWith(color: colors.error),
                           ),
                         ),
                       ],
@@ -247,8 +247,6 @@ final class _LoginScreenState extends State<LoginScreen> {
                         key: const Key('login-submit'),
                         onPressed: _busy ? null : _submit,
                         style: FilledButton.styleFrom(
-                          backgroundColor: colors.done,
-                          foregroundColor: colors.recessed,
                           minimumSize: const Size.fromHeight(48),
                         ),
                         child: _busy

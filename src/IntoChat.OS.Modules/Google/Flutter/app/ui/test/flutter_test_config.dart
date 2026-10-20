@@ -10,9 +10,17 @@ import 'package:flutter_test/flutter_test.dart';
 /// are not loaded and fall back to the test font.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
-  Future<void> load(String family, String path) async {
-    final file = File(path);
-    if (!file.existsSync()) return;
+  // `flutter test` runs with the package root as cwd.
+  final root = Directory.current.path;
+  Future<void> load(String family, String path, {bool bundled = true}) async {
+    final file = File(bundled ? '$root/$path' : path);
+    if (!file.existsSync()) {
+      if (!bundled) return; // SDK-provided icon font; optional.
+      throw StateError(
+        'Bundled font missing for "$family": ${file.path}. '
+        'Goldens and text metrics need the files under ui/assets/fonts.',
+      );
+    }
     final loader = FontLoader(family)
       ..addFont(file.readAsBytes().then(ByteData.sublistView));
     await loader.load();
@@ -30,6 +38,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     await load(
       'MaterialIcons',
       '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      bundled: false,
     );
   }
   await testMain();

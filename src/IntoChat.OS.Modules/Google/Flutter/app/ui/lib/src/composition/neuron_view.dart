@@ -372,10 +372,15 @@ class _NeuronViewState extends State<NeuronView> {
     _ => 0,
   };
 
-  void _act(String kind, String action) => unawaited(
-    _dispatch({'kind': kind, 'name': widget.name, 'action': action})
-        .catchError((Object _) {}),
-  );
+  // `_dispatch` shows the failure in a snackbar before rethrowing; the
+  // rethrow is only absorbed here so it is not reported as unhandled.
+  Future<void> _act(String kind, String action) async {
+    try {
+      await _dispatch({'kind': kind, 'name': widget.name, 'action': action});
+    } catch (_) {
+      /* Presented by _dispatch's status path. */
+    }
+  }
 
   Future<void> _file() async {
     try {
