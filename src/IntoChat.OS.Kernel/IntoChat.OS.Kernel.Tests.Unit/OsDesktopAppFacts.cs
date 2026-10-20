@@ -124,11 +124,78 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
-    public void DockOrderIsInoFirstThenPinnedThenTheRestByTitle()
+    public void DockOrderIsInoFirstThenPinnedThenOpenAppsOnly()
     {
-        var titles = new Dictionary<string, string> { ["zeta"] = "Zeta", ["alpha"] = "Alpha", ["ino"] = "Ino", ["notes"] = "Notes", ["beta"] = "Beta" };
-        Assert.Equal(["ino", "notes", "zeta", "alpha", "beta"], Desktop.DockOrder(titles, new HashSet<string> { "zeta", "notes" }));
+        var titles = new Dictionary<string, string> { ["zeta"] = "Zeta", ["alpha"] = "Alpha", ["ino"] = "Ino", ["notes"] = "Notes", ["beta"] = "Beta", ["gamma"] = "Gamma" };
+        // Everything else is reached through the gallery.
+        Assert.Equal(["ino", "notes", "zeta", "beta"], Desktop.DockOrder(titles, new HashSet<string> { "zeta", "notes" }, new HashSet<string> { "beta", "notes" }));
     }
+
+    [Fact]
+    public void TheGalleryHasBuiltInMineAndFromOthersInOrder()
+    {
+        var tree = Gallery.Render(Entries, null);
+        Assert.Equal("gallery-panel", tree.Key);
+        Assert.Equal(["Built-in", "Mine", "From others"], tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)).Select(node => node.Text));
+        Assert.Contains(Flatten(tree), node => node.Kind == UiNodeKind.Button && node.Action == "gallery");
+    }
+
+    [Fact]
+    public void InstalledEntriesOfferOpenAndForeignOnesOfferGet()
+    {
+        var actions = Flatten(Gallery.Render(Entries, null)).Where(node => node.Kind == UiNodeKind.Button).Select(node => (node.Text, node.Action)).ToArray();
+        Assert.Contains(("Open", "open:calculator"), actions);
+        Assert.Contains(("Open", "open:notes-2"), actions);
+        Assert.Contains(("Get", "get:alice/weather"), actions);
+        Assert.DoesNotContain(actions, action => action.Action == "get:shipped/calculator");
+    }
+
+    [Fact]
+    public void AGetFailureShowsItsNoticeAndStillTheGallery()
+    {
+        var tree = Gallery.Render(Entries, "You already have an app called weather.");
+        Assert.Equal("You already have an app called weather.", Assert.Single(Flatten(tree), node => node.Key == "notice").Text);
+        Assert.Equal(3, tree.Children.Count(node => node.Key.StartsWith("section-", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void AnOriginalAndItsCopyAreDistinguishable()
+    {
+        var cards = Flatten(Gallery.Render(Entries, null)).Where(node => node.Kind == UiNodeKind.Card).ToArray();
+        Assert.Equal(cards.Length, cards.Select(node => node.Key).Distinct().Count());
+        Assert.Contains(cards, node => node.Text == "Notes");
+        Assert.Contains(cards, node => node.Text == "Copy of Notes");
+    }
+
+    [Fact]
+    public void TheDesktopShowsTheGalleryAboveTheDockWhenAsked()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, true, "Nope", Entries: Entries);
+        var tree = DesktopLayout.Render(model);
+        Assert.Equal(["gallery-panel", "dock"], tree.Children.Select(node => node.Key));
+        // The view refuses duplicate keys: the gallery and the dock's Apps button must not collide.
+        var keys = Flatten(tree).Select(node => node.Key).ToArray();
+        Assert.Equal(keys.Length, keys.Distinct().Count());
+        Assert.Contains(Flatten(tree), node => node.Key == "notice" && node.Text == "Nope");
+        Assert.DoesNotContain(DesktopLayout.Render(model with { ShowGallery = false }).Children, node => node.Key == "gallery-panel");
+    }
+
+    [Fact]
+    public void GalleryAndGetHaveSmallHandlers()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("\"gallery\"", bundle.Files["apps.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"get:\"", bundle.Files["get.cs"], StringComparison.Ordinal);
+        Assert.All((string[])["apps.cs", "get.cs", "open.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
+    }
+
+    private static readonly GalleryEntry[] Entries =
+    [
+        new("others", "alice", "weather", "Weather", "Forecasts", null, false, false, null),
+        new("builtin", "shipped", "calculator", "Calculator", "Sums", null, true, false, "calculator"),
+        new("mine", "me", "notes", "Notes", "Mine", null, true, false, "notes"),
+        new("mine", "shipped", "notes-2", "Copy of Notes", "Edited", null, true, false, "notes-2"),
+    ];
 
     [Fact]
     public void AFailedFirstRunNeverSkipsStart()

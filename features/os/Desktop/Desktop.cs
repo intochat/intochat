@@ -15,7 +15,7 @@ using IntoChat.OS.Flutter.Workspace;
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null);
+    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -34,6 +34,9 @@ public static class Desktop
     // Until the shell reports its width, the narrow flag is the desktop's own state (set by `narrow:<bool>`).
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
     // Durable: set once Ino's greeting is seen, so later starts never greet again.
+    // Durable: whether the apps gallery is showing, and the last Get's refusal shown in it.
+    public static IText ShowGallery(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/gallery");
+    public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -55,18 +58,22 @@ public static class Desktop
         string Title(string name) => installed.GetValueOrDefault(name)?.Manifest.Title ?? name;
         var windows = Windowed(Scope(brain), state.OpenViews).Select(view => new WindowModel(view.Id, view.App,
             Title(IApp.NameOf(Scope(brain), view.App) ?? view.Id), Key(brain) + "/window/" + view.Id)).ToArray();
-        // Ino first, then pinned apps, then the rest (until the gallery lists them, Task 5).
         var pinned = state.Pins.Select(view => view.Id).ToHashSet(StringComparer.Ordinal);
-        var dock = DockOrder(installed.ToDictionary(pair => pair.Key, pair => pair.Value.Manifest.Title), pinned)
+        var open = windows.Select(window => window.Id).ToHashSet(StringComparer.Ordinal);
+        var dock = DockOrder(installed.ToDictionary(pair => pair.Key, pair => pair.Value.Manifest.Title), pinned, open)
             .Select(name => new DockItem(name, installed[name].Manifest.Title, installed[name].Manifest.Icon,
                 name == "ino" || pinned.Contains(name), windows.Any(window => window.Id == name))).ToArray();
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
-        return new(windows, state.FocusedViewId, dock, narrow, false, null, await Usage(brain), await Person(brain));
+        var gallery = (await ShowGallery(brain).Read()).Markdown == "true";
+        var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
+        // The gallery is read from the store only while it shows.
+        var entries = gallery ? await brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List() : null;
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, notice, await Usage(brain), await Person(brain), entries);
     }
 
-    // Ino first, then pinned apps, then the rest (until the gallery lists them, Task 5); each group by title.
-    public static string[] DockOrder(IReadOnlyDictionary<string, string> titles, IReadOnlySet<string> pinned)
-        => [.. titles.OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
+    // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
+    public static string[] DockOrder(IReadOnlyDictionary<string, string> titles, IReadOnlySet<string> pinned, IReadOnlySet<string> open)
+        => [.. titles.Where(pair => pair.Key == "ino" || pinned.Contains(pair.Key) || open.Contains(pair.Key)).OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
             .ThenBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase).Select(pair => pair.Key)];
 
     // Usage and the person are optional: a brain without them still shows its dock.
@@ -81,6 +88,19 @@ public static class Desktop
         try { return (await brain.Get<IPerson>(Scope(brain) + "/profile").Read()).DisplayName is { Length: > 0 } name ? name : null; }
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
     }
+
+    // Opens the installed app in a window beside the others (or focuses its window).
+    public static Task Open(IntoChatOSConnection brain, Guid request, string name) => Change(brain, request, async state =>
+    {
+        var app = IApp.Key(Scope(brain), name);
+        if (IApp.NameOf(Scope(brain), app) != name || Hidden.Contains(name)) { return null; }
+        var installed = await brain.Get<IApp>(app).Read();
+        if (string.IsNullOrEmpty(installed.Manifest.Title)) { return null; }
+        app = installed.MigrationTarget ?? app;
+        var existing = state.OpenViews.FirstOrDefault(view => view.App == app);
+        var views = existing is null ? [.. state.OpenViews, new WorkspaceViewRef(name, app, "full", "")] : state.OpenViews;
+        return new WorkspaceUpdate(views, existing?.Id ?? name, state.Pins);
+    });
 
     // Window verbs change the durable workspace; restore.cs re-renders on the resulting WorkspaceChanged.
     public static async Task Change(IntoChatOSConnection brain, Guid request, Func<WorkspaceState, Task<WorkspaceUpdate?>> change)

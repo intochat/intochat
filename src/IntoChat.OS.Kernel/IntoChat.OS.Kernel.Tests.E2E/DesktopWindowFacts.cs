@@ -24,12 +24,16 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        var dock = await Until(desktop, nodes => nodes.Any(node => node.Key == "dock-calculator"), ct);
+        // The dock is narrow (Ino, pins, open apps): other installed apps open from the gallery.
+        await Click(desktop, "gallery", "gallery", ct);
+        var gallery = await Until(desktop, nodes => nodes.Any(node => node.Action == "open:calculator"), ct);
         // Any second installed app beside the calculator.
-        var other = dock.First(node => node.Key.StartsWith("dock-", StringComparison.Ordinal) && node.Key is not ("dock-calculator" or "dock-ino")).Key["dock-".Length..];
+        var other = gallery.First(node => node.Action is { } action && action.StartsWith("open:", StringComparison.Ordinal)
+            && action is not ("open:calculator" or "open:ino" or "open:circle")).Action!["open:".Length..];
 
-        await Click(desktop, "dock-calculator", "open:calculator", ct);
-        await Click(desktop, "dock-" + other, "open:" + other, ct);
+        await ClickAction(desktop, "open:calculator", ct);
+        await ClickAction(desktop, "open:" + other, ct);
+        await Click(desktop, "gallery-close", "gallery", ct);
         var both = await Until(desktop, nodes => Has(nodes, "calculator") && Has(nodes, other), ct);
         Assert.Equal([UIVocabulary.ViewportType], both.Where(node => node.Key == "content-calculator" || node.Key == "content-" + other).Select(node => node.Reference!.Kind).Distinct());
         var target = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/calculator").Read(),
@@ -68,7 +72,9 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        await Click(desktop, "dock-calculator", "open:calculator", ct);
+        await Click(desktop, "gallery", "gallery", ct);
+        await ClickAction(desktop, "open:calculator", ct);
+        await Click(desktop, "gallery-close", "gallery", ct);
 
         await Click(desktop, "pin-calculator", "pin:calculator", ct);
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.Any(view => view.Id == "calculator"), Patience, ct);
@@ -77,6 +83,55 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
 
         await Click(desktop, "unpin-calculator", "unpin:calculator", ct);
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.All(view => view.Id != "calculator"), Patience, ct);
+    }
+
+    [Fact(Timeout = 360_000)]
+    public async Task GettingAnotherAccountsAppInstallsItAndOpensItInAWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var desktop = WorkspaceId + "/apps/desktop";
+        // Another account publishes an app this user does not have.
+        var name = "echo" + Guid.NewGuid().ToString("N")[..8];
+        using (var author = await Brain.PersonAsync("author-" + Guid.NewGuid().ToString("N"), ct))
+        using (author.AsCaller())
+        {
+            var app = Brain.Get<IApp>(IApp.Key(author.BrainId, name));
+            await app.Create(new("Echo " + name, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
+            await app.BeginBuild(null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
+            await app.Publish();
+        }
+        using var caller = User.AsCaller();
+        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        await Connect(ct);
+        await Click(desktop, "gallery", "gallery", ct);
+        var gallery = await Until(desktop, nodes => nodes.Any(node => node.Action?.EndsWith("/" + name, StringComparison.Ordinal) == true), ct);
+        var get = gallery.First(node => node.Action?.EndsWith("/" + name, StringComparison.Ordinal) == true);
+        Assert.Equal(("Get", true), (get.Text, get.Action!.StartsWith("get:", StringComparison.Ordinal)));
+
+        await ClickAction(desktop, get.Action, ct);
+        var window = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + name).Read(), state => state.Target is not null, Patience, ct);
+        Assert.Equal(WorkspaceId + "/apps/" + name, window.Target!.App);
+        Assert.Equal(name, (await Brain.Get<IWorkspace>(WorkspaceId).Read()).FocusedViewId);
+        // The entry now offers Open.
+        await Until(desktop, nodes => nodes.Any(node => node.Action == "open:" + name && node.Text == "Open"), ct);
+    }
+
+    // A minimal real synapse: it answers "ask" requests by doing nothing.
+    private const string Echo = """
+        using IntoChat.OS.Apps;
+        using IntoChat.OS.Client;
+        await using var brain = await IntoChatOSClient.ConnectAsync(args);
+        await foreach (var request in brain.On(brain.Get<IApp>(brain.Setting("App")!), "ask", brain.Stopping)) { }
+        """;
+
+    private async Task ClickAction(string desktop, string action, CancellationToken ct)
+    {
+        var view = await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(),
+            published => published is not null && Flatten(published.Root).Any(node => node.Action == action && node.Kind == UiNodeKind.Button), Patience, ct);
+        var key = Flatten(view!.Root).First(node => node.Action == action && node.Kind == UiNodeKind.Button).Key;
+        await Brain.Get<IView>(desktop + "/view").Activate(view.Generation, key, action, Guid.NewGuid());
     }
 
     private async Task Connect(CancellationToken ct)

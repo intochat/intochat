@@ -13,6 +13,11 @@ Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<id
 `close:<id>` act on one window; restore.cs re-renders on every workspace change, so a
 restarted desktop shows the same windows and focus. `narrow:<true|false>` shows only the
 focused window.
+
+## Scenario: Apps gallery
+The dock holds Ino, pinned and open apps only. `gallery` shows or hides the gallery
+(Built-in, Mine, From others): installed entries Open, others Get (`get:<publisher>/<name>`),
+which installs for real and opens the app in a window, or shows why not.
 */
 using IntoChat.OS.Apps;
 static class App

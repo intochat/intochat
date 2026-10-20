@@ -10,6 +10,8 @@ public static class DesktopLayout
     public static UiNode Render(DesktopModel m)
     {
         var dock = Dock(m);
+        // The gallery sits over the windows, above the dock, until `gallery` closes it.
+        if (m.ShowGallery) { return Ui.Column("desktop", [Gallery.Render(m.Entries ?? [], m.Notice), dock], extents: [0, 68]); }
         if (m.Windows.Count == 0) { return Ui.Column("desktop", [dock]); }
         var focus = m.FocusedId is { } id && m.Windows.Any(window => window.Id == id) ? id : m.Windows[^1].Id;
         var shown = m.Narrow ? m.Windows.Where(window => window.Id == focus).ToArray() : [.. m.Windows];
@@ -30,7 +32,7 @@ public static class DesktopLayout
             ? [Ui.Button("unpin-" + window.Id, "Unpin", "unpin:" + window.Id)]
             : [Ui.Button("pin-" + window.Id, "Pin", "pin:" + window.Id)];
 
-    // Apps on the left (Ino, pins, open apps, then the gallery); usage, avatar and more on the right.
+    // Apps on the left (Ino, pins, open apps, then the gallery button); usage, avatar and more on the right.
     private static UiNode Dock(DesktopModel m) => Ui.Row("dock",
     [
         Ui.Row("apps", [.. m.Dock.Select(item => Ui.Button("dock-" + item.Key, item.Title, "open:" + item.Key)), Ui.Button("gallery", "Apps", "gallery")], gap: 4),
