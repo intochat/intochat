@@ -7,7 +7,7 @@ namespace IntoChat.OS.Flutter.Views;
 
 [GrainType(UIVocabulary.ViewType)]
 internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ViewState> store)
-    : Neuron<ViewState>(store), IView
+    : Neuron<ViewState>(store), IView, IRetainsSignals
 {
     public Task Publish(UiView view)
     {
@@ -22,7 +22,17 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
                 return Task.CompletedTask;
             }
         }
-        return Save(new() { View = next }, new ViewChanged(this.GetPrimaryKeyString(), next.Generation, next.Version));
+        return Save(new() { View = next, Changes = Snapshot.Changes + 1 }, new ViewChanged(this.GetPrimaryKeyString(), next.Generation, next.Version));
+    }
+
+    // The last ViewChanged, replayed to a watch opened after it (a reloaded shell would otherwise keep
+    // the view it read before the publish). Its sequence counts publications: small enough for a web client.
+    public Task<RetainedSignal[]> Retained(string signal, long since)
+    {
+        if (signal != nameof(ViewChanged) || Snapshot.View is not { } view) { return Task.FromResult<RetainedSignal[]>([]); }
+        var sequence = Math.Max(Snapshot.Changes, 1);
+        return Task.FromResult<RetainedSignal[]>(sequence <= since ? []
+            : [new(sequence, new ViewChanged(this.GetPrimaryKeyString(), view.Generation, view.Version) { Publisher = Id })]);
     }
 
     [ReadOnly] public Task<UiView?> Read() => Task.FromResult(Snapshot.View is { } view ? ViewValidation.Clone(view, this.GetPrimaryKeyString()) : null);
@@ -56,6 +66,8 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
 internal sealed class ViewState
 {
     [Id(0)] public UiView? View { get; set; }
+    // Publications so far: the retained ViewChanged's sequence (a view saved before this counted none).
+    [Id(1)] public long Changes { get; set; }
 }
 
 internal static class ViewValidation
