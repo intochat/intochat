@@ -300,7 +300,7 @@
   "Contracts": {
     "IntoChat.OS.AI.Agents.AgentDefinition": "ai.agent-definition; DisplayName=0, Description=1, Instructions=2, Model=3, Contracts=4, Capabilities=5, RoutingExamples=6, MaxModelCalls=7, Timeout=8, MaxHistoryMessages=9, Options=10, Contexts=11",
     "IntoChat.OS.AI.Agents.AgentReply": "ai.agent-reply; RunId=0, Text=1, Messages=2, Usage=3",
-    "IntoChat.OS.AI.Agents.AgentRun": "ai.agent-run; RunId=0, Status=1, UserText=2, StartedAt=3, EndedAt=4, Reply=5, Model=6, Usage=7, Error=8, ToolCalls=9",
+    "IntoChat.OS.AI.Agents.AgentRun": "ai.agent-run; RunId=0, Status=1, UserText=2, StartedAt=3, EndedAt=4, Reply=5, Model=6, Usage=7, Error=8, ToolCalls=9, Posted=10",
     "IntoChat.OS.AI.Agents.AgentState": "ai.agent-state; Revision=0, Definition=1, Summary=2, ActiveRun=3, Runs=4, Version=5",
     "IntoChat.OS.AI.Agents.AgentStorage": "agent.storage; Revision=0, Definition=1, Transcript=2, Summary=3, ActiveRun=4, Runs=5, Version=6",
     "IntoChat.OS.AI.Agents.AgentToolCall": "ai.agent-tool-call; CallId=0, Name=1, Arguments=2, Result=3, Code=4, Error=5",

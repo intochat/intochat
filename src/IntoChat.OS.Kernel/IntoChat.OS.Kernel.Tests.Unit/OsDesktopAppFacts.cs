@@ -123,6 +123,22 @@ public sealed class OsDesktopAppFacts
         Assert.InRange(bundle.Files["dock.cs"].Split('\n').Length, 1, 40);
     }
 
+    [Fact]
+    public void DockOrderIsInoFirstThenPinnedThenTheRestByTitle()
+    {
+        var titles = new Dictionary<string, string> { ["zeta"] = "Zeta", ["alpha"] = "Alpha", ["ino"] = "Ino", ["notes"] = "Notes", ["beta"] = "Beta" };
+        Assert.Equal(["ino", "notes", "zeta", "alpha", "beta"], Desktop.DockOrder(titles, new HashSet<string> { "zeta", "notes" }));
+    }
+
+    [Fact]
+    public void AFailedFirstRunNeverSkipsStart()
+    {
+        var start = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["start.cs"];
+        // FirstRun has its own try; Start runs in a separate try after it.
+        Assert.Contains("try { await Desktop.FirstRun(brain); }", start, StringComparison.Ordinal);
+        Assert.Contains("try { await Desktop.Start(brain); }", start, StringComparison.Ordinal);
+    }
+
     private static DesktopModel Model(int count, string? focused, bool narrow)
     {
         var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())

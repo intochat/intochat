@@ -1,8 +1,10 @@
 using System.Globalization;
 using IntoChat.OS;
+using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Compute;
 using IntoChat.OS.Flutter.Person;
 using IntoChat.OS.Flutter.Viewport;
@@ -31,7 +33,7 @@ public static class Desktop
     public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     // Until the shell reports its width, the narrow flag is the desktop's own state (set by `narrow:<bool>`).
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
-    // Durable: set once Ino has been asked to greet, so a restart never greets again.
+    // Durable: set once Ino's greeting is seen, so later starts never greet again.
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -55,13 +57,17 @@ public static class Desktop
             Title(IApp.NameOf(Scope(brain), view.App) ?? view.Id), Key(brain) + "/window/" + view.Id)).ToArray();
         // Ino first, then pinned apps, then the rest (until the gallery lists them, Task 5).
         var pinned = state.Pins.Select(view => view.Id).ToHashSet(StringComparer.Ordinal);
-        var dock = installed.OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
-            .ThenBy(pair => pair.Value.Manifest.Title, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => new DockItem(pair.Key, pair.Value.Manifest.Title, pair.Value.Manifest.Icon,
-                pair.Key == "ino" || pinned.Contains(pair.Key), windows.Any(window => window.Id == pair.Key))).ToArray();
+        var dock = DockOrder(installed.ToDictionary(pair => pair.Key, pair => pair.Value.Manifest.Title), pinned)
+            .Select(name => new DockItem(name, installed[name].Manifest.Title, installed[name].Manifest.Icon,
+                name == "ino" || pinned.Contains(name), windows.Any(window => window.Id == name))).ToArray();
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
         return new(windows, state.FocusedViewId, dock, narrow, false, null, await Usage(brain), await Person(brain));
     }
+
+    // Ino first, then pinned apps, then the rest (until the gallery lists them, Task 5); each group by title.
+    public static string[] DockOrder(IReadOnlyDictionary<string, string> titles, IReadOnlySet<string> pinned)
+        => [.. titles.OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
+            .ThenBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase).Select(pair => pair.Key)];
 
     // Usage and the person are optional: a brain without them still shows its dock.
     private static async Task<string?> Usage(IntoChatOSConnection brain)
@@ -121,16 +127,19 @@ public static class Desktop
         await new ViewPublisher(brain.Get<IView>(ViewKey(brain)), Revision(brain)).Publish(DesktopLayout.Render(model));
     }
 
-    // First start for a brain: open Ino's window, focus it, and ask Ino to greet (pointing to the gallery).
+    // Until Ino's greeting exists (Ino may reject it while answering), each start opens and focuses
+    // Ino's window and asks it to greet; the greeting's fixed id keeps it to one.
     public static async Task FirstRun(IntoChatOSConnection brain)
     {
         if ((await Greeted(brain).Read()).Markdown == "true") { return; }
         var ino = IApp.Key(Scope(brain), "ino");
         if (string.IsNullOrEmpty((await brain.Get<IApp>(ino).Read()).Manifest.Title)) { return; }
+        if ((await brain.Get<IChat>(ino + "/transcript").Read()).Selection is { } selection
+            && (await brain.Get<IAgent>(selection.Agent).Read()).Runs.Any(run => run.Posted && run.RunId == "post/greeting"))
+        { await Greeted(brain).Set("true"); return; }
         await Change(brain, Guid.NewGuid(), state => Task.FromResult<WorkspaceUpdate?>(new(
             state.OpenViews.Any(view => view.Id == "ino") ? state.OpenViews : [.. state.OpenViews, new WorkspaceViewRef("ino", ino, "full", "")], "ino", state.Pins)));
         await brain.Get<IApp>(ino).Request("open", "greet");
-        await Greeted(brain).Set("true");
     }
 
     public static async Task Start(IntoChatOSConnection brain)
