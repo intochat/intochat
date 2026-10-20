@@ -15,7 +15,7 @@ using IntoChat.OS.Flutter.Workspace;
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null);
+    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, SignIn? SignIn = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -37,6 +37,9 @@ public static class Desktop
     // Durable: whether the apps gallery is showing, and the last Get's refusal shown in it.
     public static IText ShowGallery(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/gallery");
     public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
+    // Durable: the connector whose Connect is waiting for the browser; its sign-in button carries the {url}.
+    public static IText Connecting(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/connecting");
+    public static string SignInKey(IntoChatOSConnection brain) => Key(brain) + "/signin";
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -68,7 +71,8 @@ public static class Desktop
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
         var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries);
+        var signIn = gallery && (await Connecting(brain).Read()).Markdown is { Length: > 0 } connector ? new SignIn(connector, SignInKey(brain)) : null;
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, signIn);
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.

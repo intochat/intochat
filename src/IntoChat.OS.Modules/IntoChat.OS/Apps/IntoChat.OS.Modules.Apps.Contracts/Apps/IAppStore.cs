@@ -4,7 +4,8 @@ using Orleans.Metadata;
 namespace IntoChat.OS.Apps;
 
 // One gallery card: which group it sits in ("builtin" | "mine" | "others"), what it is
-// ("app" | "connection"), and whether this brain already has it.
+// ("app" | "connection"), and whether this brain already has it (a connection: is connected).
+// Available is false for a connection this host has not configured: it shows, but cannot connect.
 [GenerateSerializer, Alias("apps.store.entry")]
 public sealed record GalleryEntry(
     [property: Id(0)] string Group,
@@ -17,7 +18,8 @@ public sealed record GalleryEntry(
     [property: Id(7)] bool UpdateAvailable,
     [property: Id(8)] string? InstalledName,
     [property: Id(9)] string Kind = "app",
-    [property: Id(10)] string? ConnectorId = null);
+    [property: Id(10)] string? ConnectorId = null,
+    [property: Id(11)] bool Available = true);
 
 // What Get did: the installed app's name, or why nothing was installed.
 [GenerateSerializer, Alias("apps.store.outcome")]

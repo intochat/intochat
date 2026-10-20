@@ -134,7 +134,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void TheGalleryHasBuiltInMineAndFromOthersInOrder()
     {
-        var tree = Gallery.Render(Entries, null);
+        var tree = Gallery.Render(Entries, null, null);
         Assert.Equal("gallery-panel", tree.Key);
         Assert.Equal(["Built-in", "Mine", "From others"], tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)).Select(node => node.Children[0].Text));
         // The heading is set once, as the section's first child.
@@ -145,7 +145,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void InstalledEntriesOfferOpenAndForeignOnesOfferGet()
     {
-        var actions = Flatten(Gallery.Render(Entries, null)).Where(node => node.Kind == UiNodeKind.Button).Select(node => (node.Text, node.Action)).ToArray();
+        var actions = Flatten(Gallery.Render(Entries, null, null)).Where(node => node.Kind == UiNodeKind.Button).Select(node => (node.Text, node.Action)).ToArray();
         Assert.Contains(("Open", "open:calculator"), actions);
         Assert.Contains(("Open", "open:notes-2"), actions);
         Assert.Contains(("Get", "get:alice/weather"), actions);
@@ -155,7 +155,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void AGetFailureShowsItsNoticeAndStillTheGallery()
     {
-        var tree = Gallery.Render(Entries, "You already have an app called weather.");
+        var tree = Gallery.Render(Entries, "You already have an app called weather.", null);
         Assert.Equal("You already have an app called weather.", Assert.Single(Flatten(tree), node => node.Key == "notice").Text);
         Assert.Equal(3, tree.Children.Count(node => node.Key.StartsWith("section-", StringComparison.Ordinal)));
     }
@@ -163,7 +163,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void AnOriginalAndItsCopyAreDistinguishable()
     {
-        var cards = Flatten(Gallery.Render(Entries, null)).Where(node => node.Kind == UiNodeKind.Card).ToArray();
+        var cards = Flatten(Gallery.Render(Entries, null, null)).Where(node => node.Kind == UiNodeKind.Card).ToArray();
         Assert.Equal(cards.Length, cards.Select(node => node.Key).Distinct().Count());
         Assert.Contains(cards, node => node.Text == "Notes");
         Assert.Contains(cards, node => node.Text == "Copy of Notes");
@@ -195,7 +195,7 @@ public sealed class OsDesktopAppFacts
     public void CardKeysNeverCollideEvenWhenNamesContainDashes()
     {
         GalleryEntry[] tricky = [new("others", "a-b", "c", "One", "", null, false, false, null), new("others", "a", "b-c", "Two", "", null, false, false, null)];
-        var keys = Flatten(Gallery.Render(tricky, null)).Select(node => node.Key).ToArray();
+        var keys = Flatten(Gallery.Render(tricky, null, null)).Select(node => node.Key).ToArray();
         Assert.Equal(keys.Length, keys.Distinct().Count());
     }
 
@@ -218,6 +218,48 @@ public sealed class OsDesktopAppFacts
         Assert.Equal((4, "Earlier"), (loaded.Count, kept));
         await Assert.ThrowsAsync<OperationCanceledException>(() => Desktop.LoadGallery(() => throw new OperationCanceledException(), null));
     }
+
+    [Fact]
+    public void ConnectionsOfferConnectAndShowConnectedOrNotAvailable()
+    {
+        var buttons = Flatten(Gallery.Render(Connections, null, null)).Where(node => node.Kind == UiNodeKind.Button).ToArray();
+        var gmail = Assert.Single(buttons, node => node.Action == "connect:gmail");
+        Assert.Equal(("Connect", true), (gmail.Text, gmail.Enabled));
+        var salesforce = Assert.Single(buttons, node => node.Key.Contains("salesforce", StringComparison.Ordinal));
+        Assert.Equal(("Not available", false), (salesforce.Text, salesforce.Enabled));
+        Assert.DoesNotContain(buttons, node => node.Key.Contains("github", StringComparison.Ordinal));
+        Assert.Contains(Flatten(Gallery.Render(Connections, null, null)), node => node.Kind == UiNodeKind.Card && node.Text == "GitHub" && node.Detail == "Connected.");
+        // Every connection sits under From others.
+        var others = Assert.Single(Gallery.Render(Connections, null, null).Children, node => node.Key == "section-others");
+        Assert.Equal(3, Flatten(others).Count(node => node.Kind == UiNodeKind.Card));
+    }
+
+    [Fact]
+    public void AConnectInProgressShowsTheSignInButtonThatOpensTheBrowser()
+    {
+        var tree = Gallery.Render(Connections, null, new SignIn("gmail", "brain/apps/desktop/signin"));
+        var reference = Assert.Single(Flatten(tree), node => node.Kind == UiNodeKind.Reference);
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/signin"), reference.Reference);
+        Assert.DoesNotContain(Flatten(tree), node => node.Action == "connect:gmail");
+        // The sign-in only shows on its own connector's card.
+        Assert.DoesNotContain(Flatten(Gallery.Render(Connections, null, new SignIn("github", "x"))), node => node.Kind == UiNodeKind.Reference);
+    }
+
+    [Fact]
+    public void ConnectHasASmallHandler()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("\"connect:\"", bundle.Files["connect.cs"], StringComparison.Ordinal);
+        Assert.Contains("LoginUrl", bundle.Files["connect.cs"], StringComparison.Ordinal);
+        Assert.All((string[])["connect.cs", "connected.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
+    }
+
+    private static readonly GalleryEntry[] Connections =
+    [
+        new("others", "", "gmail", "Gmail", "Connect your Gmail account.", null, false, false, null, "connection", "gmail"),
+        new("others", "", "salesforce", "Salesforce", "Not available on this host.", null, false, false, null, "connection", "salesforce", Available: false),
+        new("others", "", "github", "GitHub", "Connected.", null, true, false, null, "connection", "github"),
+    ];
 
     private static readonly GalleryEntry[] Entries =
     [

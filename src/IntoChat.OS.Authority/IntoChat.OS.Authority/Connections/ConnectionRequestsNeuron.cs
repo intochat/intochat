@@ -71,4 +71,25 @@ internal sealed class ConnectionRequestsNeuron(
         await Save(next, new ConnectionRequested(account.Kind, account.Id));
         return account;
     }
+
+    [ReadOnly]
+    public async Task<ConnectorOffer[]> ListOffers()
+    {
+        var offered = (await catalog.ListAsync(CancellationToken.None)).Select(entry => entry.Id).ToHashSet(StringComparer.Ordinal);
+        var connected = (await ListConnections()).Where(row => row.Status == "connected").Select(row => row.Kind).ToHashSet(StringComparer.Ordinal);
+        return [.. connectors.Where(connector => connector.OAuthMethods.Length > 0)
+            .Select(connector => new ConnectorOffer(connector.Id, connector.DisplayName, offered.Contains(connector.Id), connected.Contains(connector.Id)))];
+    }
+
+    public async Task<ConnectUrl> LoginUrl(string connectorId)
+    {
+        var brain = this.GetPrimaryKeyString();
+        if (BrainScope.CurrentId() != brain) { return new(null, "Connections are made only in your own brain."); }
+        var connector = connectors.FirstOrDefault(declared => declared.Id == connectorId);
+        var unavailable = $"{connector?.DisplayName ?? connectorId} is not available on this host.";
+        if (connector?.OAuthMethods.FirstOrDefault() is not { } method) { return new(null, unavailable); }
+        // The gallery keeps one connection per connector, named by the connector.
+        var start = await ConnectionLogin.StartAsync(ServiceProvider, brain, connector.Id, connector.Id, method.Id, null, CancellationToken.None);
+        return start.Url is { } url ? new(url.AbsoluteUri, null) : new(null, start.Unavailable ? unavailable : start.Error);
+    }
 }

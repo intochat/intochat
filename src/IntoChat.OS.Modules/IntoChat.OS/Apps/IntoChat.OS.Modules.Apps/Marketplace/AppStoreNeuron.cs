@@ -1,5 +1,6 @@
 using IntoChat.OS;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps;
@@ -48,7 +49,21 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
             entries.Add(new(mine ? "mine" : "others", app.Origin?.Publisher ?? "", name, title, app.Manifest.Description,
                 app.Manifest.Icon, true, InstalledApps.UpdateAvailable(app, listings), name));
         }
+        entries.AddRange(await Connections());
         return entries;
+    }
+
+    // Connectors (Gmail, Salesforce) sit under From others: Installed is connected; one the host has not
+    // configured still shows, as not available. A brain without the connection catalog shows apps only.
+    private async Task<GalleryEntry[]> Connections()
+    {
+        try
+        {
+            return [.. (await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers()).Select(offer => new GalleryEntry("others", "", offer.Id, offer.DisplayName,
+                offer.Connected ? "Connected." : offer.Available ? "Connect your " + offer.DisplayName + " account." : "Not available on this host.",
+                null, offer.Connected, false, null, "connection", offer.Id, offer.Available))];
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return []; }
     }
 
     private static bool Forked(AppSnapshot app) => app is { Origin: not null, Edited: true };
