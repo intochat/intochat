@@ -145,8 +145,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     }
   }
 
-  Future<void> _selectBrain(String brain, {String? show}) async {
-    if (_brain == brain) return;
+  Future<void> _selectBrain(
+    String brain, {
+    String? show,
+    bool reconnect = false,
+  }) async {
+    if (_brain == brain && !reconnect) return;
     if (_root.isNotEmpty) {
       _space?.dispose();
       _space = null;
@@ -222,12 +226,38 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     );
   }
 
+  // The request is handled asynchronously, so connect again (a few times, briefly) until the root changes.
+  Future<void> _reconnect(Map<String, dynamic> action) async {
+    final brain = _brain!;
+    final app = action['application'] as String?;
+    final operation = action['operation'] as String?;
+    if (app != null && operation != null) {
+      await widget.programmingClient!.requestApp(
+        brain,
+        app,
+        operation,
+        action['input'] as String? ?? '',
+      );
+    }
+    final before = _rootName;
+    for (var attempt = 0; attempt < 10 && mounted; attempt++) {
+      await _selectBrain(brain, reconnect: true);
+      if (_rootName != before || operation == null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
+        return;
+      }
+      // The layout switch: hand the app its request, then connect again and mount the new root.
+      if (action['kind'] == 'reconnect' && _brain != null) {
+        await _reconnect(action);
         return;
       }
       final brain = action['brainId'] as String? ?? _brain!;

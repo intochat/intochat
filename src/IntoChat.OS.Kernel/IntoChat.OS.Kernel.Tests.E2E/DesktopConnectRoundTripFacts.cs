@@ -25,7 +25,8 @@ public sealed class DesktopConnectRoundTripFacts(ConnectHostFixture host) : Brai
         var brain = Brain;
         var desktop = WorkspaceId + "/apps/desktop";
         using var caller = User.AsCaller();
-        await brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(brain, User, ct);
         using (var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct)) { connected.EnsureSuccessStatusCode(); }
         await Click(brain, desktop, "gallery", ct);

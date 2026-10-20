@@ -16,7 +16,7 @@ using IntoChat.OS.Flutter.Workspace;
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null);
+    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null, string? LayoutButton = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -40,6 +40,13 @@ public static class Desktop
     public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
     // The gallery's Connect buttons: one button neuron per connector under this prefix.
     public static string ConnectButtons(IntoChatOSConnection brain) => Key(brain) + "/connect";
+    // The layout the next connect shows ("classic" or "desktop"); the kernel's root reads it.
+    public static IText Layout(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/layout");
+    // More's Classic layout: a button neuron whose activation asks the shell to switch and connect again.
+    public static string LayoutButton(IntoChatOSConnection brain) => Key(brain) + "/classic";
+    public static string? ChosenLayout(string input) => input is "classic" or "desktop" ? input : null;
+    public static string LayoutActivation(string brainId, string layout) => System.Text.Json.JsonSerializer.Serialize(
+        new { kind = "reconnect", brainId, application = "desktop", operation = "layout", input = layout });
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -71,7 +78,7 @@ public static class Desktop
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
         var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain));
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain), LayoutButton(brain));
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
@@ -187,6 +194,9 @@ public static class Desktop
             if (current.Target is not null) { await stale.Set(null, current.Revision); }
         }
         if (model.Entries is { } shownEntries) { await SetConnectButtons(brain, shownEntries); }
+        var classic = brain.Get<IButton>(LayoutButton(brain));
+        var switching = LayoutActivation(Scope(brain), "classic");
+        if ((await classic.Read()).Activation != switching) { await classic.SetActivation("Classic layout", switching); }
         // A fresh publisher per render continues whichever version another synapse left.
         await new ViewPublisher(brain.Get<IView>(ViewKey(brain)), Revision(brain)).Publish(DesktopLayout.Render(model));
     }

@@ -8,12 +8,12 @@ namespace IntoChat.OS.Kernel.Tests.Unit;
 public sealed class OsDesktopAppFacts
 {
     [Fact]
-    public void TheDesktopDeclaresOneStartOperationAndALayoutSetting()
+    public void TheDesktopDeclaresStartAndLayoutOperations()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Equal(["start"], bundle.Manifest.Operations.Select(operation => operation.Name));
-        var layout = Assert.Single(bundle.Manifest.Settings);
-        Assert.Equal(("Layout", "desktop"), (layout.Name, layout.Default));
+        Assert.Equal(["start", "layout"], bundle.Manifest.Operations.Select(operation => operation.Name));
+        // The layout is the desktop's own text (apps/desktop/layout), not a setting: a configure would redeploy the desktop.
+        Assert.Empty(bundle.Manifest.Settings);
         Assert.Contains("start.cs", bundle.Files.Keys);
         // One startup signal: only start.cs subscribes to `start`.
         Assert.Equal(["start.cs"], bundle.Files.Where(file => file.Value.Contains("\"start\"", StringComparison.Ordinal) && file.Key != "app.cs").Select(file => file.Key));
@@ -90,7 +90,7 @@ public sealed class OsDesktopAppFacts
     public void TheDockShowsInoFirstThenTheGalleryAndUsageAvatarAndMoreOnTheRight()
     {
         var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false), new("calc", "Calc", null, false, true)],
-            false, false, null, Usage: "$1.25", Person: "Vlad");
+            false, false, null, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic");
         var dock = Assert.Single(DesktopLayout.Render(model).Children);
         var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
         Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
@@ -99,8 +99,30 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["usage", "avatar", "more"], right.Children.Select(node => node.Key));
         Assert.Contains(Flatten(right), node => node.Text == "$1.25");
         Assert.Contains(Flatten(right), node => node.Text == "Vlad");
-        Assert.Equal(["settings", "layout:classic"], Flatten(Assert.Single(right.Children, node => node.Key == "more"))
-            .Where(node => node.Kind == UiNodeKind.Button).Select(node => node.Action));
+        var more = Flatten(Assert.Single(right.Children, node => node.Key == "more")).ToArray();
+        Assert.Equal(["settings"], more.Where(node => node.Kind == UiNodeKind.Button).Select(node => node.Action));
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/classic"), Assert.Single(more, node => node.Key == "more-classic").Reference);
+    }
+
+    [Fact]
+    public void TheLayoutSwitchHandsTheShellAReconnectThatChangesTheLayoutFirst()
+    {
+        var activation = System.Text.Json.JsonDocument.Parse(Desktop.LayoutActivation("brain-1", "classic")).RootElement;
+        Assert.Equal(("reconnect", "brain-1", "desktop", "layout", "classic"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString(),
+            activation.GetProperty("application").GetString(), activation.GetProperty("operation").GetString(), activation.GetProperty("input").GetString()));
+        Assert.Equal("classic", Desktop.ChosenLayout("classic"));
+        Assert.Equal("desktop", Desktop.ChosenLayout("desktop"));
+        Assert.Null(Desktop.ChosenLayout("v3"));
+    }
+
+    [Fact]
+    public void LayoutAndSettingsHaveSmallHandlers()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("\"layout\"", bundle.Files["layout-switch.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"settings\"", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        Assert.Contains("Desktop.Open", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        Assert.All((string[])["layout-switch.cs", "settings.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
     }
 
     [Fact]

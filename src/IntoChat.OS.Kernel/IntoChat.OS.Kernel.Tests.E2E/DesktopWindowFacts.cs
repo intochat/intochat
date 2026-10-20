@@ -21,7 +21,8 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
         // The dock is narrow (Ino, pins, open apps): other installed apps open from the gallery.
@@ -53,7 +54,8 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
 
         // Restart: a new program generation re-runs start.cs, which reads the durable workspace.
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
         var restored = await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(),
@@ -69,7 +71,8 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
         await Click(desktop, "gallery", "gallery", ct);
@@ -106,7 +109,8 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
             }
         }
         using var caller = User.AsCaller();
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
         await Click(desktop, "gallery", "gallery", ct);

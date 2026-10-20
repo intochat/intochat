@@ -91,6 +91,27 @@ void main() {
     expect(reads(), settled + 1);
     await fixture.dispose();
   });
+
+  // The layout switch hands the shell {kind: reconnect}: it connects again and mounts the new root.
+  testWidgets('reconnect activation connects again and mounts the new root', (
+    tester,
+  ) async {
+    final server = ReconnectServer()
+      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+    final fixture = await ApplicationFixture.start(tester, server: server);
+    await tester.tap(find.text('Classic layout'));
+    await tester.pumpAndSettle();
+    expect(server.connects, 2);
+    final switched = server.requestsTo('/brains/brain-1/apps/desktop/request');
+    expect(switched.single.body['operation'], 'layout');
+    expect(switched.single.body['input'], 'classic');
+    expect(find.text('Ask the assistant'), findsOneWidget);
+    expect(
+      server.requestsTo('/brains/brain-1/apps/navigation/request'),
+      isEmpty,
+    );
+    await fixture.dispose();
+  });
 }
 
 class ActivationServer extends ApplicationServer {
@@ -115,6 +136,36 @@ class ActivationServer extends ApplicationServer {
           'application': 'target',
           'operation': 'profile',
           'input': 'person-1',
+        }),
+      });
+    }
+    return super.send(request);
+  }
+}
+
+class ReconnectServer extends ApplicationServer {
+  int connects = 0;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.url.path.endsWith('/apps/connect')) {
+      connects++;
+      if (connects == 1) {
+        return json({
+          'root': {'kind': 'button', 'name': 'brain-1/apps/source/go'},
+          'activationApp': 'navigation',
+        });
+      }
+    }
+    if (request.url.path.endsWith('/apps/node') && connects == 1) {
+      return json({
+        'label': 'Classic layout',
+        'enabled': true,
+        'activation': jsonEncode({
+          'kind': 'reconnect',
+          'brainId': 'brain-1',
+          'application': 'desktop',
+          'operation': 'layout',
+          'input': 'classic',
         }),
       });
     }

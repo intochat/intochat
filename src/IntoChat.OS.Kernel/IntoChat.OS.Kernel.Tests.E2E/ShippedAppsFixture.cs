@@ -101,7 +101,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             var feature = Features.Single(item => item.Owner == "os" && item.Bundle.Name == "desktop");
             await desktop.Import(feature.Bundle, new AppOrigin(feature.Owner, new AppSource.Shipped(), feature.Bundle.Name, feature.Bundle.Version)).WaitAsync(ct);
         }
-        await desktop.Configure(new() { ["Layout"] = "classic" }, []).WaitAsync(ct);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(IApp.Key(scope, "desktop") + "/layout").Set("classic").WaitAsync(ct);
     }
 
     public async Task FinishAsync(CancellationToken ct)

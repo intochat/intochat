@@ -18,7 +18,8 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
 
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);
@@ -40,7 +41,8 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var transcript = Brain.Get<IChat>(WorkspaceId + "/apps/ino/transcript");
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
 
@@ -54,7 +56,8 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
 
         // Second start: a new program generation re-runs start.cs; the durable flag keeps it to one greeting.
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
-        await Brain.Get<IApp>(desktop).Configure(new() { ["Layout"] = "desktop" }, []);
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
         await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(), view => view!.Generation > before, TimeSpan.FromSeconds(90), ct);

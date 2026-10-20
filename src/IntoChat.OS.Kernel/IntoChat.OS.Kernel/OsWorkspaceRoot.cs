@@ -1,5 +1,6 @@
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Options;
 
@@ -39,8 +40,9 @@ internal sealed class OsWorkspaceRoot(IIntoChatOS brain, AppInstaller installer,
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }
         }
         // v2 for everyone unless the person chose the classic layout; classic is v1, unchanged.
+        // The choice is the desktop's own text (layout-switch.cs writes it), read fresh on every connect.
         var desktop = brain.Neuron<IApp>("apps/desktop");
-        if ((await desktop.Read()).Settings.GetValueOrDefault("Layout") == "classic")
+        if ((await brain.Neuron<IText>("apps/desktop/layout").Read()).Markdown == "classic")
         {
             await brain.Neuron<IApp>("apps/workspace").Request("open", "");
             return new("layout", IApp.Key(scope, "workspace") + "/root");

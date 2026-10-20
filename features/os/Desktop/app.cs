@@ -3,7 +3,7 @@
 The v2 root: windows side by side above a dock (apps left; usage and profile right).
 On narrow screens the focused window fills the screen. One startup signal: the
 desktop's `start` request composes it from the workspace state and installed apps;
-start.cs alone handles it. Layout "classic" keeps the v1 Workspace as the root.
+start.cs alone handles it. The layout text "classic" keeps the v1 Workspace as the root.
 
 ## Scenario: Starting shows the dock
 Invoking "start" publishes the desktop view with a dock row, Ino pinned first.
@@ -25,6 +25,12 @@ activation hands the shell {kind: connections, connector}: the shell's connectio
 in as the user (no app starts a login). After the callback stores the connection, connected.cs
 re-renders and the card reads Connected. A connector this host has not configured shows
 "Not available on this host."
+
+## Scenario: Classic layout
+More holds Settings (`settings` opens the Settings app in a window) and Classic layout, a button
+whose activation hands the shell {kind: reconnect} with the `layout` request: layout-switch.cs
+stores "classic" or "desktop" in the desktop's layout text and the shell connects again, so the
+next root is the v1 Workspace (or the desktop). Open views are the same workspace either way.
 */
 using IntoChat.OS.Apps;
 static class App
@@ -33,6 +39,7 @@ static class App
     public const string Version = "0.1.0";
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
-        Operations: [new("start", "Compose the desktop from the open windows and installed apps.")],
-        Settings: [new("Layout", "desktop or classic", "desktop")], Slots: [], Icon: "icon.svg");
+        Operations: [new("start", "Compose the desktop from the open windows and installed apps."),
+            new("layout", "Choose the layout the next connect shows: desktop or classic.")],
+        Settings: [], Slots: [], Icon: "icon.svg");
 }
