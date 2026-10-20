@@ -22,15 +22,10 @@ internal static class AppsEndpoints
 
         apps.MapGet("", (IIntoChatOS brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
-            var scope = BrainScope.CurrentId();
-            List<string> names = [];
-            await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
-            names.Sort(StringComparer.Ordinal);
             var listings = await marketplace.List(ct);
             var items = new List<object>();
-            foreach (var name in names)
+            foreach (var (name, snapshot) in await InstalledApps.Read(brain, BrainScope.CurrentId(), ct))
             {
-                var snapshot = await App(brain, name).Read().WaitAsync(ct);
                 items.Add(new
                 {
                     name,
@@ -45,10 +40,7 @@ internal static class AppsEndpoints
                         ? new { publisher = origin.Publisher, name = origin.Name, version = origin.Version }
                         : null,
                     edited = snapshot.Edited,
-                    // The same rule as AppInstaller.Entry: an unedited copy whose publisher listed a newer version.
-                    updateAvailable = snapshot.Origin is { } source && !snapshot.Edited
-                        && listings.FirstOrDefault(listing => listing.Publisher == source.Publisher && listing.Name == source.Name) is { } listed
-                        && AppVersions.Compare(listed.Version, source.Version) > 0,
+                    updateAvailable = InstalledApps.UpdateAvailable(snapshot, listings),
                 });
             }
             return Results.Ok(items);
