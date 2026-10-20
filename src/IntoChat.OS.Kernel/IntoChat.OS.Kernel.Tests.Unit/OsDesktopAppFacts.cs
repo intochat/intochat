@@ -11,7 +11,7 @@ public sealed class OsDesktopAppFacts
     public void TheDesktopDeclaresStartAndLayoutOperations()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Equal(["start", "layout"], bundle.Manifest.Operations.Select(operation => operation.Name));
+        Assert.Equal(["start", "layout", "narrow"], bundle.Manifest.Operations.Select(operation => operation.Name));
         // The layout is the desktop's own text (apps/desktop/layout), not a setting: a configure would redeploy the desktop.
         Assert.Empty(bundle.Manifest.Settings);
         Assert.Contains("start.cs", bundle.Files.Keys);
@@ -71,12 +71,27 @@ public sealed class OsDesktopAppFacts
     public void EachWindowVerbHasItsOwnSmallHandler()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        foreach (var (file, prefix) in new[] { ("open.cs", "\"open:\""), ("close.cs", "\"close:\""), ("focus.cs", "\"focus:\""), ("narrow.cs", "\"narrow:\"") })
+        foreach (var (file, prefix) in new[] { ("open.cs", "\"open:\""), ("close.cs", "\"close:\""), ("focus.cs", "\"focus:\"") })
         {
             Assert.Contains(prefix, bundle.Files[file], StringComparison.Ordinal);
             Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40);
         }
         Assert.Contains("WorkspaceChanged", bundle.Files["restore.cs"], StringComparison.Ordinal);
+    }
+
+    // Width is the shell's to report: no visible toggle; narrow.cs takes the shell's `narrow` request.
+    [Fact]
+    public void TheDockHasNoNarrowButtonAndTheShellsWidthHintIsARequest()
+    {
+        foreach (var narrow in new[] { false, true })
+        {
+            var tree = DesktopLayout.Render(Model(2, "b", narrow));
+            Assert.DoesNotContain(Flatten(tree), node => node.Key == "narrow" || node.Action?.StartsWith("narrow", StringComparison.Ordinal) == true);
+        }
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("AppRequested", bundle.Files["narrow.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"narrow\"", bundle.Files["narrow.cs"], StringComparison.Ordinal);
+        Assert.InRange(bundle.Files["narrow.cs"].Split('\n').Length, 1, 40);
     }
 
     [Fact]

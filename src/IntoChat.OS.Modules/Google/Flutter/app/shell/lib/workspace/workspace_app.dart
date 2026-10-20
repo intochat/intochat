@@ -11,6 +11,7 @@ import '../connections/connectors_menu.dart';
 import '../space/neuron_space.dart';
 import '../space/space_controller.dart';
 import 'home/app_detail_screen.dart';
+import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
 import 'workspace_settings.dart';
@@ -223,6 +224,23 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     if (manifest.icon != icon || shellIcon(icon) != null) return null;
     return client.readBytes(
       '/brains/${Uri.encodeComponent(brain)}/apps/${Uri.encodeComponent(app)}/icon',
+    );
+  }
+
+  // The desktop root lays out one window on a narrow screen: tell it which side of 900 px the window is.
+  Widget _widthHinted(Widget root) {
+    final brain = _brain!;
+    if (_renderKind != 'view' || _rootName != '$brain/apps/desktop/view') {
+      return root;
+    }
+    return WidthHint(
+      key: ValueKey('width:$_rootName'),
+      onNarrow: (narrow) => unawaited(
+        widget.programmingClient!
+            .requestApp(brain, 'desktop', 'narrow', '$narrow')
+            .then<void>((_) {}, onError: (Object _) {}),
+      ),
+      child: root,
     );
   }
 
@@ -508,27 +526,29 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     home: Scaffold(
       body: _rootName != null && _brain != null
           ? SafeArea(
-              child: NeuronView(
-                key: ValueKey(_rootName),
-                kind: _renderKind,
-                name: _rootName!,
-                load: (kind, name) => widget.programmingClient!.appRequest(
-                  _brain!,
-                  'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-                ),
-                // Reads once per change signal instead of every 2 s.
-                watch: (kind, name) => widget.programmingClient!
-                    .watchNode(_brain!, kind, name)
-                    .map((_) {}),
-                onAction: (event) async {
-                  await widget.programmingClient!.appRequest(
+              child: _widthHinted(
+                NeuronView(
+                  key: ValueKey(_rootName),
+                  kind: _renderKind,
+                  name: _rootName!,
+                  load: (kind, name) => widget.programmingClient!.appRequest(
                     _brain!,
-                    'event',
-                    body: event,
-                  );
-                },
-                onActivate: (action) => unawaited(_activate(action)),
-                scenes: widget.programmingClient!.scenes(_brain!),
+                    'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                  ),
+                  // Reads once per change signal instead of every 2 s.
+                  watch: (kind, name) => widget.programmingClient!
+                      .watchNode(_brain!, kind, name)
+                      .map((_) {}),
+                  onAction: (event) async {
+                    await widget.programmingClient!.appRequest(
+                      _brain!,
+                      'event',
+                      body: event,
+                    );
+                  },
+                  onActivate: (action) => unawaited(_activate(action)),
+                  scenes: widget.programmingClient!.scenes(_brain!),
+                ),
               ),
             )
           : _space == null

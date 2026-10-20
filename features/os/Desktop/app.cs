@@ -11,8 +11,8 @@ Invoking "start" publishes the desktop view with a dock row, Ino pinned first.
 ## Scenario: Windows side by side
 Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<id>` and
 `close:<id>` act on one window; restore.cs re-renders on every workspace change, so a
-restarted desktop shows the same windows and focus. `narrow:<true|false>` shows only the
-focused window.
+restarted desktop shows the same windows and focus. Below 900 logical pixels the shell sends
+the `narrow` request (true; false when wider again) and only the focused window shows.
 
 ## Scenario: Apps gallery
 The dock holds Ino, pinned and open apps only. `gallery` shows or hides the gallery
@@ -40,6 +40,7 @@ static class App
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),
-            new("layout", "Choose the layout the next connect shows: desktop or classic.")],
+            new("layout", "Choose the layout the next connect shows: desktop or classic."),
+            new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise.")],
         Settings: [], Slots: [], Icon: "icon.svg");
 }

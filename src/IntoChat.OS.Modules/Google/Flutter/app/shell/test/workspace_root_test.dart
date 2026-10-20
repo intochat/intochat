@@ -1,6 +1,7 @@
 import 'dart:convert' show jsonEncode, jsonDecode;
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:flutter/widgets.dart' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
@@ -113,6 +114,38 @@ void main() {
     await fixture.dispose();
   });
 
+  // The desktop root learns the window's width: narrow below 900 logical px, again on each crossing.
+  testWidgets(
+    'desktop root sends its narrow width hint on mount and on crossing',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      addTearDown(tester.view.reset);
+      final server = DesktopServer()
+        ..root = {'kind': 'view', 'name': 'brain-1/apps/desktop/view'};
+      final fixture = await ApplicationFixture.start(tester, server: server);
+      List<String?> hints() => [
+        for (final r in server.requestsTo(
+          '/brains/brain-1/apps/desktop/request',
+        ))
+          if (r.body['operation'] == 'narrow') r.body['input'] as String?,
+      ];
+      expect(hints(), ['false']);
+      tester.view.physicalSize = const Size(700, 800);
+      await tester.pumpAndSettle();
+      expect(hints(), ['false', 'true']);
+      await fixture.dispose();
+    },
+  );
+
+  testWidgets('other roots get no width hint', (tester) async {
+    final server = ApplicationServer()
+      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+    final fixture = await ApplicationFixture.start(tester, server: server);
+    expect(server.requestsTo('/brains/brain-1/apps/desktop/request'), isEmpty);
+    await fixture.dispose();
+  });
+
   testWidgets('reconnect that never changes the root says when it will', (
     tester,
   ) async {
@@ -187,6 +220,23 @@ class ReconnectServer extends ApplicationServer {
           'input': 'classic',
         }),
       });
+    }
+    return super.send(request);
+  }
+}
+
+class DesktopServer extends ApplicationServer {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.url.path.endsWith('/apps/node')) {
+      return json({
+        'generation': 1,
+        'root': {'key': 'desktop', 'kind': 'text', 'text': 'Desktop'},
+      });
+    }
+    if (request.url.path.endsWith('/apps/desktop/request')) {
+      requests.add(RecordedAppRequest(request.url.path, body(request)));
+      return json({'requestId': 'r'});
     }
     return super.send(request);
   }

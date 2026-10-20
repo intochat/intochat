@@ -32,7 +32,7 @@ public static class Desktop
         return at < 0 ? throw new InvalidOperationException("The desktop key is not an app key: " + Key(brain)) : Key(brain)[..at];
     }
     public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
-    // Until the shell reports its width, the narrow flag is the desktop's own state (set by `narrow:<bool>`).
+    // Whether the shell's window is narrow (< 900 logical px), as its `narrow` request last reported.
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
     // Durable: set once Ino's greeting is seen, so later starts never greet again.
     // Durable: whether the apps gallery is showing, and the last Get's refusal shown in it.

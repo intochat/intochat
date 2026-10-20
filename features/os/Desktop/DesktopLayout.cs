@@ -36,7 +36,6 @@ public static class DesktopLayout
     private static UiNode Dock(DesktopModel m) => Ui.Row("dock",
     [
         Ui.Row("apps", [.. m.Dock.Select(item => Ui.Button("dock-" + item.Key, item.Title, "open:" + item.Key)), Ui.Button("gallery", "Apps", "gallery")], gap: 4),
-        Ui.Button("narrow", m.Narrow ? "Side by side" : "One window", "narrow:" + (m.Narrow ? "false" : "true")),
         Ui.Row("right",
         [
             Ui.Text("usage", m.Usage ?? "Usage"),
@@ -44,5 +43,5 @@ public static class DesktopLayout
             Ui.Row("more", [Ui.Button("more-settings", "Settings", "settings"), m.LayoutButton is { } classic
                 ? Ui.Reference("more-classic", new(UIVocabulary.ButtonType, classic)) : Ui.Button("more-classic", "Classic layout", "layout", enabled: false)], gap: 4),
         ], gap: 4, extents: [72, 72, 0]),
-    ], extents: [0, 120, 360]);
+    ], extents: [0, 360]);
 }

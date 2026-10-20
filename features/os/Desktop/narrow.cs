@@ -1,15 +1,20 @@
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
 
-// `narrow:<true|false>`: on a narrow screen only the focused window shows. The shell has no
-// width hint yet, so this flag is the desktop's own state; the shell activates it below 900px.
+// `narrow` (true or false): the shell's width hint. Below 900 logical pixels it sends true and
+// only the focused window shows; false when the window is wide again.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
-await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Desktop.ViewKey(brain)), brain.Stopping))
+await foreach (var request in brain.On<AppRequested>(brain.Get<IApp>(Desktop.Key(brain)), brain.Stopping))
 {
-    if (!clicked.Action.StartsWith("narrow:", StringComparison.Ordinal)) { continue; }
+    if (request.Operation != "narrow") { continue; }
+    if (request.Input is not ("true" or "false"))
+    { Console.Error.WriteLine("Desktop's width hint is true or false, not " + request.Input); continue; }
     try
     {
-        await Desktop.Narrow(brain).Set(clicked.Action == "narrow:true" ? "true" : "false");
+        // Only a change re-renders: the shell reports on every connect.
+        if ((await Desktop.Narrow(brain).Read()).Markdown == request.Input) { continue; }
+        await Desktop.Narrow(brain).Set(request.Input);
         await Desktop.Show(brain);
     }
     catch (Exception error) when (error is not OperationCanceledException)
