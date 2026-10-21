@@ -180,8 +180,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         catch
         {
             // Cleanup is best effort: a failing removal must not replace the error that ended the run.
-            try { await Remove(sha, CancellationToken.None); }
-            catch (CandidateHostException) { }
+            await Task.WhenAny(Remove(sha, CancellationToken.None));
             throw;
         }
     }
@@ -209,7 +208,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
                         using var response = await http.GetAsync(new Uri($"http://localhost:{health}/health"), limit.Token);
                         if (response.IsSuccessStatusCode) { break; }
                     }
-                    catch (HttpRequestException) { }
+                    catch (HttpRequestException)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1), limit.Token);
+                        continue;
+                    }
                     await Task.Delay(TimeSpan.FromSeconds(1), limit.Token);
                 }
             }
@@ -415,8 +418,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
                     using var response = await http.GetAsync(new Uri($"http://127.0.0.1:{azuritePort}/{CandidateStorage.AccountName}?comp=properties&restype=service"), limit.Token);
                     break;
                 }
-                catch (HttpRequestException) { }
-                await Task.Delay(TimeSpan.FromMilliseconds(250), limit.Token);
+                catch (HttpRequestException)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), limit.Token);
+                    continue;
+                }
             }
             foreach (var container in new[] { PostgresOf(sha), ClickHouseOf(sha) })
             {

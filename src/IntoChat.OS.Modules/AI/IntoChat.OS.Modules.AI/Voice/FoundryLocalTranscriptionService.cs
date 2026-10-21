@@ -3,6 +3,7 @@ using IntoChat.OS.AI.Voice;
 using Microsoft.AI.Foundry.Local;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -201,9 +202,9 @@ public sealed class FoundryLocalTranscriptionService :
                 await _model.UnloadAsync().ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception exception)
         {
-            // best-effort
+            _logger.LogSwallowed(exception, "model unload during dispose");
         }
     }
 
@@ -303,9 +304,9 @@ public sealed class FoundryLocalTranscriptionService :
         {
             await _model.UnloadAsync().ConfigureAwait(false);
         }
-        catch
+        catch (Exception exception)
         {
-            // best-effort
+            _logger.LogSwallowed(exception, "model unload before the cpu variant");
         }
 
         var cpuVariant = _model.Variants

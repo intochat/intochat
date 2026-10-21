@@ -24,7 +24,7 @@ internal sealed class FlutterWebBuildHealthCheck(
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var ready = false;
-        try
+        async Task ReadAsync()
         {
             await foreach (var line in readLines(cancellationToken).WithCancellation(cancellationToken))
             {
@@ -35,10 +35,9 @@ internal sealed class FlutterWebBuildHealthCheck(
                 { ready = true; }
             }
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            // A replaced executable instance loses its log stream; the bundle probe still decides.
-        }
+        // A replaced executable instance loses its log stream; the bundle probe still decides.
+        await Task.WhenAny(ReadAsync()).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         if (ready) { return HealthCheckResult.Healthy(); }
         // This check guards the release web-server device, which serves main.dart.js only once
         // its single compilation landed. Some runtimes never surface the process's stdout, so

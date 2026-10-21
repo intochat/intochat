@@ -15,7 +15,7 @@ internal sealed class Git(IProcessRunner processes, string repository)
     public async Task RemoveWorktree(string path, CancellationToken ct)
     {
         try { await Run(repository, ct, "worktree", "remove", "--force", path); }
-        catch (InvalidOperationException) { }
+        catch (InvalidOperationException) { return; } // the worktree is already gone
     }
     public Task Stage(string worktree, CancellationToken ct) => Run(worktree, ct, "add", "-A");
     public Task Commit(string worktree, string message, CancellationToken ct) => Run(worktree, ct, "commit", "-m", message, "--allow-empty");

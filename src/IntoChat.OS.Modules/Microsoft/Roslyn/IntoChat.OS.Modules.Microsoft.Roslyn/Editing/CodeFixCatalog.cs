@@ -50,6 +50,7 @@ public sealed class CodeFixCatalog
             catch (TargetInvocationException)
             {
                 // A fixer whose constructor needs the IDE host is not usable here.
+                continue;
             }
         }
 

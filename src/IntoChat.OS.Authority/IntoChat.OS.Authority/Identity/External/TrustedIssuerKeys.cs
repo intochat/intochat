@@ -40,8 +40,9 @@ internal sealed partial class TrustedIssuerKeys : IDisposable
             if (!names.Add(issuer.Name)) { return $"{key}:Name '{issuer.Name}' is listed twice."; }
             if (string.IsNullOrWhiteSpace(issuer.Audience) || issuer.Audience.Length > 500) { return $"{key}:Audience must name this install (1-500 characters)."; }
             try { using var _ = ExternalSignInTicket.ImportPublicKey(issuer.PublicKey); }
-            catch (Exception error) when (error is FormatException or CryptographicException or ArgumentException)
-            { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
+            catch (FormatException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
+            catch (CryptographicException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
+            catch (ArgumentException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
         }
         return null;
     }

@@ -166,7 +166,7 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
             }
             finally { _changes.Release(); }
         }
-        catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException) { }
+        catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException) { logger.LogDebug(error, "Behavior reload ended: the session is closing"); }
     }
 
     private Task AnswerLogsAsync(LogsRequestEvent request, CancellationToken cancellationToken)

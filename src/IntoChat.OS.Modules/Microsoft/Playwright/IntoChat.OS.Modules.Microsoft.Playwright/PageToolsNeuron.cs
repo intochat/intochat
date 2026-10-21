@@ -83,7 +83,7 @@ internal sealed partial class PageToolsNeuron(
             if (document.RootElement.ValueKind == JsonValueKind.Object) { return document; }
             document.Dispose();
         }
-        catch (JsonException) { }
+        catch (JsonException error) { throw new ArgumentException("arguments must be a JSON object.", nameof(arguments), error); }
         throw new ArgumentException("arguments must be a JSON object.", nameof(arguments));
     }
 

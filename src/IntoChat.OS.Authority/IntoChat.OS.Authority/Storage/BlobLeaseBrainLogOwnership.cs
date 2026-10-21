@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
+using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Storage;
@@ -16,13 +17,13 @@ internal interface IBrainLeaseClient
 }
 
 // The lease container must already exist (provisioned with the environment); one empty blob per brain carries the lease.
-internal sealed class AzureBrainLeaseClient(BlobContainerClient container) : IBrainLeaseClient
+internal sealed class AzureBrainLeaseClient(BlobContainerClient container, ILogger<AzureBrainLeaseClient> logger) : IBrainLeaseClient
 {
     public async Task<string?> TryAcquireAsync(string brainId, TimeSpan duration, CancellationToken ct)
     {
         var blob = container.GetBlobClient(brainId);
         try { await blob.UploadAsync(BinaryData.Empty, overwrite: false, ct); }
-        catch (RequestFailedException error) when (error.Status is 409 or 412) { /* Exists already, possibly leased by another writer. */ }
+        catch (RequestFailedException error) when (error.Status is 409 or 412) { logger.LogSwallowed(error, "lease blob exists already, possibly leased by another writer"); }
         try { return (await blob.GetBlobLeaseClient(Guid.NewGuid().ToString()).AcquireAsync(duration, cancellationToken: ct)).Value.LeaseId; }
         catch (RequestFailedException error) when (error.Status == 409) { return null; }
     }

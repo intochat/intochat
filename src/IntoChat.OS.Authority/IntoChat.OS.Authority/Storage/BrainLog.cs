@@ -51,6 +51,12 @@ internal sealed class BrainLog : IAsyncDisposable
     }
 
     // The per-brain writer lock, the default ownership token.
+    private static bool TryDelete(string path)
+    {
+        try { File.Delete(path); return true; }
+        catch (IOException) { return false; }
+    }
+
     internal static IBrainLogLease Claim(string directory, string brainId) => FileLockBrainLogOwnership.Claim(directory, brainId);
 
     public long LastSignal => Volatile.Read(ref lastSignal);
@@ -225,7 +231,7 @@ internal sealed class BrainLog : IAsyncDisposable
             catch (Exception error)
             {
                 failure = error;
-                try { File.Delete(staged); } catch (IOException) { /* Never read: only "current" names a generation. */ }
+                TryDelete(staged); // Never read: only "current" names a generation.
                 throw;
             }
             generation = next;
@@ -233,8 +239,8 @@ internal sealed class BrainLog : IAsyncDisposable
             // Old complete generation remains until the manifest points to the new one.
             foreach (var suffix in new[] { ".snapshot", ".log" })
             {
-                try { File.Delete(Path.Combine(directory, previous + suffix)); }
-                catch (IOException) { /* Unreachable generations may be removed on a later maintenance run. */ }
+                // Unreachable generations may be removed on a later maintenance run.
+                TryDelete(Path.Combine(directory, previous + suffix));
             }
         }
         finally { gate.Release(); }

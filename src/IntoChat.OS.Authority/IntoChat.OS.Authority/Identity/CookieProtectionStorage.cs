@@ -64,7 +64,7 @@ public static class CookieProtectionStorage
                     blob.Upload(stream, new BlobUploadOptions { Conditions = conditions });
                     return;
                 }
-                catch (RequestFailedException failure) when (failure.Status is 409 or 412) { }
+                catch (RequestFailedException failure) when (failure.Status is 409 or 412) { continue; } // another silo appended first: re-read and retry
             }
         }
 

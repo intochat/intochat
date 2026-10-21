@@ -33,11 +33,18 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : Neuron, IConsol
         try { await process.WaitForExitAsync(timeout.Token); }
         catch (OperationCanceledException)
         {
-            try { process.Kill(entireProcessTree: true); } catch (Exception kill) when (kill is InvalidOperationException or NotSupportedException) { }
+            TryKill(process);
             if (cancellationToken.IsCancellationRequested) { throw; }
             throw new TimeoutException($"The command ran longer than {seconds} seconds.");
         }
         return new CommandResult(process.ExitCode, Clip(await output), Clip(await error));
+    }
+
+    // The process may have exited between the timeout and the kill.
+    private static bool TryKill(Process process)
+    {
+        try { process.Kill(entireProcessTree: true); return true; }
+        catch (Exception kill) when (kill is InvalidOperationException or NotSupportedException) { return false; }
     }
 
     private static string Clip(string text) => text.Length <= MaxOutputChars ? text : text[..MaxOutputChars];

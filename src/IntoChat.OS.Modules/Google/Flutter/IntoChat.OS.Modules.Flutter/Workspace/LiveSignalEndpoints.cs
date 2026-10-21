@@ -7,6 +7,7 @@ using IntoChat.OS.Apps.Signals;
 using IntoChat.OS.Circles;
 using IntoChat.OS.Circles.Signals;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Diagnostics;
 using IntoChat.OS.Microsoft.Aspire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -168,7 +169,7 @@ internal static class LiveSignalEndpoints
                     await Task.WhenAll(replayed);
                     await outbox.Write(Ready, stop.Token);
                 }
-                catch (Exception closed) when (closed is OperationCanceledException or ChannelClosedException) { }
+                catch (Exception closed) when (closed is OperationCanceledException or ChannelClosedException) { log.LogSwallowed(closed, "live stream closed before ready"); }
             }, CancellationToken.None);
             while (await outbox.Reader.WaitToReadAsync(ct))
             {

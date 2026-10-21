@@ -29,7 +29,7 @@ internal static class LoadedContracts
         {
             if (!reference.Name!.StartsWith("IntoChat.OS", StringComparison.Ordinal) || !seen.Add(reference.Name)) { continue; }
             try { foreach (var next in Assembly.Load(reference).GetReferencedAssemblies()) { pending.Enqueue(next); } }
-            catch (FileNotFoundException) { }
+            catch (FileNotFoundException) { continue; } // an optional reference that is not deployed
         }
         return true;
     }

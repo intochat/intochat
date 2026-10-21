@@ -159,18 +159,17 @@ internal static class SourceSet
             await _lifetime.CancelAsync().ConfigureAwait(false);
             if (_inFlight is { } inFlight)
             {
-                try { await inFlight.ConfigureAwait(false); }
-                catch (Exception) { /* the read already reported to its awaiter; disposal only waits for it to settle */ }
+                // The read already reported to its awaiter; disposal only waits for it to settle.
+                await Task.WhenAny(inFlight).ConfigureAwait(false);
             }
             if (_follow is { } follow)
             {
-                try { await follow.ConfigureAwait(false); }
-                catch (Exception) { /* reported through the channel */ }
+                // A failure is reported through the channel; disposal only waits for the loop to settle.
+                await Task.WhenAny(follow).ConfigureAwait(false);
             }
             foreach (var member in _members.Values)
             {
-                try { await member.Pump.ConfigureAwait(false); }
-                catch (Exception) { /* reported through the channel */ }
+                await Task.WhenAny(member.Pump).ConfigureAwait(false);
                 member.Stop.Dispose();
             }
             _members.Clear();

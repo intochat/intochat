@@ -63,7 +63,7 @@ internal static class AIClients
                         GenerationOf(provider, model.Provider));
                     IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
                     return provider.GetService<ICostMeter>() is { } meter
-                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(model.Provider), model.Id)
+                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(model.Provider), model.Id, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
                         : limited;
                 });
         }
@@ -142,7 +142,7 @@ internal static class AIClients
         // aggregation, and never a second entry for the same call.
         if (meterProvider is not null && meterModel is not null && provider.GetService<ICostMeter>() is { } meter)
         {
-            pipeline = pipeline.Use(inner => new MeteringChatClient(inner, meter, FundingOf(meterProvider), meterModel));
+            pipeline = pipeline.Use(inner => new MeteringChatClient(inner, meter, FundingOf(meterProvider), meterModel, loggerFactory?.CreateLogger<MeteringChatClient>()));
         }
         if (provider.GetService<ProviderExecutionGate>() is { } execution)
         { pipeline = pipeline.Use(inner => new LimitedChatClient(inner, execution)); }

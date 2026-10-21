@@ -101,7 +101,7 @@ public sealed class ArmAzure : IAzureArm
     {
         ArgumentNullException.ThrowIfNull(resource);
         try { await Client.GetGenericResource(new ResourceIdentifier(resource.Id)).DeleteAsync(WaitUntil.Completed, ct); }
-        catch (RequestFailedException ex) when (ex.Status == 404) { }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return; } // already gone
     }
 
     public async Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct)
@@ -200,7 +200,7 @@ public sealed class ArmAzure : IAzureArm
         var client = Secrets(spec.Vault);
         KeyVaultSecret? existing = null;
         try { existing = (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value; }
-        catch (RequestFailedException ex) when (ex.Status == 404) { }
+        catch (RequestFailedException ex) when (ex.Status == 404) { existing = null; }
         if (!spec.Overwrite && existing is not null)
         {
             return SecretRef(spec, existing);

@@ -99,7 +99,9 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
             var snapshot = await installer.Install(publisher, name, default);
             return new(true, snapshot.Name, null);
         }
-        catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException or ArgumentException)
-        { return new(false, null, error.Message); }
+        catch (InvalidOperationException error) { return new(false, null, error.Message); }
+        catch (KeyNotFoundException error) { return new(false, null, error.Message); }
+        catch (UnauthorizedAccessException error) { return new(false, null, error.Message); }
+        catch (ArgumentException error) { return new(false, null, error.Message); }
     }
 }

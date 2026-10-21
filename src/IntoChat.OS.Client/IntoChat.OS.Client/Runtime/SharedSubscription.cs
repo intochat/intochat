@@ -113,8 +113,8 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
 
     private async Task SendQuietlyAsync(Report report)
     {
-        try { await SendAsync(report, CancellationToken.None).ConfigureAwait(false); }
-        catch (Exception) { /* the brain resends what it still holds; a later acknowledgement covers it */ }
+        // The brain resends what it still holds; a later acknowledgement covers a failed send.
+        await Task.WhenAny(SendAsync(report, CancellationToken.None)).ConfigureAwait(false);
     }
 
     private readonly record struct Report(long Watermark, long CpuMicroseconds, long WallMicroseconds, int Batches, bool Skipped);
