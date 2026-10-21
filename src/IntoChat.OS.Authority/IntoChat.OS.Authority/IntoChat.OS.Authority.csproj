@@ -15,7 +15,7 @@
     <PackageReference Include="Grpc.AspNetCore.Web" />
   </ItemGroup>
   <ItemGroup><Protobuf Include="Neurons/neurons.proto" GrpcServices="Both" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /><ProjectReference Include="../IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" /><ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Identity/IntoChat.OS.Sdk.Identity.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /><ProjectReference Include="../IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" /><ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Identity/IntoChat.OS.Sdk.Identity.csproj" /><ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" /></ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" />
     <!-- Golden bytes pin the journal envelope and sealed segment layout (clean-core W1, section 6). -->
