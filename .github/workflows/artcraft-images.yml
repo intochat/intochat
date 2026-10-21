@@ -1,0 +1,75 @@
+name: artcraft-images
+
+# Agents: do not trigger this workflow. It builds the four ArtCraft images once per pinned upstream ref
+# and pushes them to GHCR so e2e.yml pulls them instead of spending ~37 minutes on Rust builds.
+# Tags are immutable: an existing <ref12> tag is never rebuilt or overwritten.
+# The refs below must match ArtCraftModuleHosting.PhotoCraftRef / FilmCraftRef (E2EWarmUpFacts pins this).
+on:
+  schedule:
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'src/IntoChat.OS.Modules/ArtCraft/docker/**'
+      - 'src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/ArtCraftModuleHosting.cs'
+      - '.github/workflows/artcraft-images.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: ${{ matrix.app }}-${{ matrix.kind }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: photocraft, kind: mcp, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile }
+          - { app: photocraft, kind: web, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile }
+          - { app: filmcraft, kind: mcp, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.Modules/ArtCraft/docker/craft-mcp.Dockerfile }
+          - { app: filmcraft, kind: web, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.Modules/ArtCraft/docker/craft-web.Dockerfile }
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free space and move docker to the large disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/chromium \
+            /usr/share/miniconda /opt/az /opt/microsoft/msedge /usr/lib/jvm /usr/local/julia*
+          docker image prune --all --force > /dev/null
+          sudo systemctl stop docker docker.socket
+          sudo mkdir -p /mnt/docker
+          { sudo cat /etc/docker/daemon.json 2>/dev/null || echo '{}'; } | jq '. + {"data-root":"/mnt/docker"}' | sudo tee /etc/docker/daemon.json.new > /dev/null
+          sudo mv /etc/docker/daemon.json.new /etc/docker/daemon.json
+          sudo systemctl start docker
+          df -h / /mnt
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push when the tag is absent
+        env:
+          APP: ${{ matrix.app }}
+          KIND: ${{ matrix.kind }}
+          REF: ${{ matrix.ref }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          tag="${REF::12}"
+          image="ghcr.io/intochat/os-artcraft-${APP}-${KIND}"
+          if docker manifest inspect "${image}:${tag}" > /dev/null 2>&1; then
+            echo "${image}:${tag} already exists; tags are immutable, skipping." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker build -f "${DOCKERFILE}" --build-arg APP="${APP}" --build-arg REF="${REF}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            -t "${image}:${tag}" src/IntoChat.OS.Modules/ArtCraft/docker
+          docker push "${image}:${tag}"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "${image}:${tag}")"
+          echo "pushed ${digest}" | tee -a "$GITHUB_STEP_SUMMARY"

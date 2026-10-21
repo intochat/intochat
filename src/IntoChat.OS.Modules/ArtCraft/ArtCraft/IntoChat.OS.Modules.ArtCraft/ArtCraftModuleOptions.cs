@@ -19,6 +19,10 @@ public sealed class ArtCraftModuleOptions : IModuleOptions
     public string? PhotoCraftWeb { get; set; }
     public string? FilmCraftWeb { get; set; }
 
+    // When set (e.g. ghcr.io/intochat), the apps run the prebuilt os-artcraft-<app>-<mcp|web> images tagged with the
+    // first 12 characters of the pinned ref; null builds the Dockerfiles locally.
+    public string? ImageRegistry { get; set; }
+
     public ArtCraftModuleOptions WithHostedApps()
     {
         Host = true;

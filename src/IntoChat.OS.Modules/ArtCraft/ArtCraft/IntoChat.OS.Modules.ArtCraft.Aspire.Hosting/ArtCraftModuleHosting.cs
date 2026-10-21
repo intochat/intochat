@@ -26,18 +26,26 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
             ("filmcraft", FilmCraftRef, ArtCraftModuleOptions.FilmCraftMcpPort, ArtCraftModuleOptions.FilmCraftWebPort),
         })
         {
-            brain.ApplicationBuilder.AddDockerfile(brain.ResourceName(app + "-mcp"), docker, "craft-mcp.Dockerfile")
-                .WithBuildArg("APP", app).WithBuildArg("REF", reference)
+            var mcp = Image(brain, options, docker, app, "mcp", reference, "craft-mcp.Dockerfile")
                 .WithHttpEndpoint(port: mcpPort, targetPort: 8000, name: "mcp", isProxied: false)
-                .WithHttpHealthCheck("/status", endpointName: "mcp")
-                .WithLifetime(ContainerLifetime.Persistent)
-                .WithParentRelationship(module.Resource);
-            brain.ApplicationBuilder.AddDockerfile(brain.ResourceName(app + "-web"), docker, "craft-web.Dockerfile")
-                .WithBuildArg("APP", app).WithBuildArg("REF", reference)
+                .WithHttpHealthCheck("/status", endpointName: "mcp");
+            var web = Image(brain, options, docker, app, "web", reference, "craft-web.Dockerfile")
                 .WithHttpEndpoint(port: webPort, targetPort: 80, name: "http", isProxied: false)
-                .WithHttpHealthCheck("/", endpointName: "http")
-                .WithLifetime(ContainerLifetime.Persistent)
-                .WithParentRelationship(module.Resource);
+                .WithHttpHealthCheck("/", endpointName: "http");
+            foreach (var resource in new[] { mcp, web })
+            {
+                resource.WithLifetime(ContainerLifetime.Persistent).WithParentRelationship(module.Resource);
+            }
         }
+    }
+    // The warm workflow (artcraft-images.yml) publishes ghcr.io/intochat/os-artcraft-<app>-<mcp|web>:<ref12>.
+    private static IResourceBuilder<ContainerResource> Image(IntoChatOSBuilder brain, ArtCraftModuleOptions options, string docker, string app, string kind, string reference, string dockerfile)
+    {
+        var name = brain.ResourceName(app + "-" + kind);
+        if (string.IsNullOrWhiteSpace(options.ImageRegistry))
+        {
+            return brain.ApplicationBuilder.AddDockerfile(name, docker, dockerfile).WithBuildArg("APP", app).WithBuildArg("REF", reference);
+        }
+        return brain.ApplicationBuilder.AddContainer(name, $"{options.ImageRegistry.TrimEnd('/')}/os-artcraft-{app}-{kind}", reference[..12]);
     }
 }
