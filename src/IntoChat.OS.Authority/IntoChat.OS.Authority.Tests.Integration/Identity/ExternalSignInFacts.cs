@@ -206,8 +206,14 @@ public sealed class ExternalSignInFacts : IDisposable
         var header = Encode(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { alg = "ES256", typ = "JWT", kid = claims.Issuer }));
         var payload = Encode(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
         {
-            iss = claims.Issuer, aud = claims.Audience, exp = claims.ExpiresAt.ToUnixTimeSeconds(), jti = claims.Jti,
-            email = claims.Email, name = claims.Name, email_verified = claims.EmailVerified, amr = claims.Amr,
+            iss = claims.Issuer,
+            aud = claims.Audience,
+            exp = claims.ExpiresAt.ToUnixTimeSeconds(),
+            jti = claims.Jti,
+            email = claims.Email,
+            name = claims.Name,
+            email_verified = claims.EmailVerified,
+            amr = claims.Amr,
         }));
         var signature = _key.SignData(System.Text.Encoding.ASCII.GetBytes(header + "." + payload), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         return header + "." + payload + "." + Encode(signature);
