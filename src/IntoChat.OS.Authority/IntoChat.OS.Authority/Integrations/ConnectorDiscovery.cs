@@ -1,6 +1,7 @@
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Authority.Integrations;
 

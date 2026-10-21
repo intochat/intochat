@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace IntoChat.OS;
+namespace IntoChat.OS.Integrations;
 
 // The storage capability: a connection that offers it declares IStorage.Capability in its
 // connector's Capabilities, and its connection neuron (keyed by the connection key) implements

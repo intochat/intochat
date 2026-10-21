@@ -5,6 +5,7 @@ using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Parts;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows.Signals;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;

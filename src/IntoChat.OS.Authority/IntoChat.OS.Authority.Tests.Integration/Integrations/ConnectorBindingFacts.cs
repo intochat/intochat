@@ -7,6 +7,7 @@ using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Tests.Integration.Connections;
+using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

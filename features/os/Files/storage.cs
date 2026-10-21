@@ -1,4 +1,3 @@
-using IntoChat.OS;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Integrations;

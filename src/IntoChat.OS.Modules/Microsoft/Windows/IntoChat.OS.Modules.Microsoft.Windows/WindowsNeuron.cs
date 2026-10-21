@@ -1,5 +1,6 @@
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Microsoft.Windows;
 
