@@ -1,12 +1,14 @@
 {
-    "name": "IntoCaht",
-    "short_name": "IntoCaht",
-    "start_url": ".",
+    "name": "IntoChat",
+    "short_name": "IntoChat",
+    "id": "./",
+    "start_url": "./",
+    "scope": "./",
     "display": "standalone",
     "background_color": "#0B1220",
     "theme_color": "#0B1220",
-    "description": "IntoCaht chat and product shell.",
-    "orientation": "portrait-primary",
+    "description": "IntoChat chat and product shell.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

@@ -42,9 +42,13 @@ abstract final class IntoChatOSHostEnv {
     if (fromDefine.isNotEmpty) {
       return fromDefine;
     }
-    final fromQuery = surface.queryUiBase();
-    if (fromQuery != null) {
-      return fromQuery;
+    final fromPage = rememberedUiBase(
+      query: surface.queryUiBase(),
+      stored: surface.storedUiBase(),
+      remember: surface.storeUiBase,
+    );
+    if (fromPage != null) {
+      return fromPage;
     }
     final servedValue = servedConfig[uiBaseVariable] ?? '';
     if (servedValue.isNotEmpty) {
@@ -75,6 +79,24 @@ abstract final class IntoChatOSHostEnv {
     throw StateError(
       '$uiBaseVariable is required (AppHost WithFlutterHost injects it).',
     );
+  }
+
+  /// The kernel URL a browser page was pointed at. A `uiBase` query wins and is
+  /// remembered, because an installed PWA starts from its manifest start_url,
+  /// which carries no query: the next start reconnects to the same OS, local or
+  /// hosted. Without a query the remembered value applies.
+  static String? rememberedUiBase({
+    required String? query,
+    required String? stored,
+    required void Function(String value) remember,
+  }) {
+    if (query != null && query.isNotEmpty) {
+      if (query != stored) {
+        remember(query);
+      }
+      return query;
+    }
+    return stored == null || stored.isEmpty ? null : stored;
   }
 
   static String resolveShell({
