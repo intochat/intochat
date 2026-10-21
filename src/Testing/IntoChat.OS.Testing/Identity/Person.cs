@@ -76,11 +76,12 @@ public sealed class Person : IDisposable
     public IDisposable AsApp(string appId, string? conversationId = null) => AsAppIn(BrainId, appId, conversationId);
 
     // An app installed in another brain the person is a member of, running for them: the app proxy stamps the
-    // app's own principal, on behalf of this person.
+    // app's own principal, on behalf of this person. An empty app id presents a malformed app stamp (no app key, so
+    // no app principal) for facts proving modules refuse an app caller that names no app.
     public IDisposable AsAppIn(string brainId, string appId, string? conversationId = null)
         => Enter(new CallerContext
         {
-            PrincipalId = AppPrincipal.Id(appId),
+            PrincipalId = string.IsNullOrWhiteSpace(appId) ? PrincipalId : AppPrincipal.Id(appId),
             OnBehalfOf = PrincipalId,
             AccountId = AccountId,
             BrainId = brainId,
