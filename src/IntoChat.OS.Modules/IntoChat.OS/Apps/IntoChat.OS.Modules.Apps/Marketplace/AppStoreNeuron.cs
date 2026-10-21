@@ -15,6 +15,8 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
 
     public async Task<IReadOnlyList<GalleryEntry>> List()
     {
+        // Only the brain's own callers see its gallery, as only they may Get from it.
+        if (BrainScope.CurrentId() != Scope) { return []; }
         var account = CallerContextStamper.TryGet(out var caller) ? caller.AccountId : null;
         var listings = await marketplace.List(default);
         var installed = await InstalledApps.Read(ServiceProvider.GetRequiredService<IIntoChatOS>(), Scope, default);
@@ -79,11 +81,21 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
 
     private static bool Forked(AppSnapshot app) => app is { Origin: not null, Edited: true };
 
+    // The person, or the desktop the OS ships (its gallery), installs; another app may read the gallery but not install from it.
+    private async Task<bool> MayInstall()
+    {
+        if (!CallerContextStamper.TryGet(out var caller)) { return false; }
+        if (caller.Kind == CallerKind.User) { return true; }
+        return caller.Kind == CallerKind.App && caller.AppId == IApp.Key(Scope, "desktop")
+            && ShippedApps.Is(await GrainFactory.GetGrain<IApp>(caller.AppId).Read(), "desktop");
+    }
+
     public async Task<InstallOutcome> Get(string publisher, string name)
     {
         try
         {
             if (BrainScope.CurrentId() != Scope) { return new(false, null, "Apps install only into your own brain."); }
+            if (!await MayInstall()) { return new(false, null, "Only you or the desktop can install apps."); }
             var snapshot = await installer.Install(publisher, name, default);
             return new(true, snapshot.Name, null);
         }

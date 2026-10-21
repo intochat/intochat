@@ -168,7 +168,47 @@ public sealed class AppStoreFacts
 
         Assert.Equal("mine", Assert.Single(entries, entry => entry.Name == "notes").Group);
         Assert.Equal("others", Assert.Single(entries, entry => entry.Name == "echo").Group);
-        Assert.Equal(new InstallOutcome(true, "echo", null), await Store(brain, alice).Get("intochat", "echo"));
+        // Seeing the gallery is not installing from it: only the person or the shipped desktop installs.
+        var refused = await Store(brain, alice).Get("intochat", "echo");
+        Assert.False(refused.Ok);
+        Assert.NotNull(refused.Message);
+        Assert.Equal("", (await brain.Get<IApp>(IApp.Key(alice.BrainId, "echo")).Read()).Manifest.Title);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task TheShippedDesktopInstallsAndAnAppThatOnlyBearsItsNameDoesNot()
+    {
+        await using var brain = await Start();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Publish(brain, intochat, "echo", "Echo");
+        await Publish(brain, intochat, "notes", "Notes");
+        var desktop = brain.Get<IApp>(IApp.Key(alice.BrainId, "desktop"));
+        await desktop.Import(new("desktop", "0.1.1", new("Desktop", "the desktop", [new("open", "")], [], []), Spec, []),
+            new("mallory", new AppSource.Brain("account-mallory", "mallory"), "desktop", "0.1.1"));
+
+        using (alice.AsApp(IApp.Key(alice.BrainId, "desktop")))
+        { Assert.False((await Store(brain, alice).Get("intochat", "echo")).Ok); }
+
+        await desktop.RecordOrigin(new("os", new AppSource.Shipped(), "desktop", "0.1.1"));
+        using (alice.AsApp(IApp.Key(alice.BrainId, "desktop")))
+        { Assert.Equal(new InstallOutcome(true, "notes", null), await Store(brain, alice).Get("intochat", "notes")); }
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnotherBrainSeesNoGallery()
+    {
+        await using var brain = await Start();
+        var alice = await brain.PersonAsync("alice", Ct);
+        var bob = await brain.PersonAsync("bob", Ct);
+        await Publish(brain, alice, "notes", "Notes");
+
+        // The brain gate refuses the call; were it ever to pass, the store itself shows nothing.
+        using var _ = bob.AsCaller();
+        try { Assert.Empty(await Store(brain, alice).List()); }
+        catch (UnauthorizedAccessException) { }
     }
 
     [Fact]
