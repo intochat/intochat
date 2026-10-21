@@ -29,6 +29,7 @@ internal static class IdentityEndpoints
             routes.MapPost("/identity/register", RegisterAsync);
             routes.MapPost("/identity/login", LoginAsync);
         }
+        External.ExternalSignIn.Map(routes);
         routes.MapGet("/identity/session", Session);
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
