@@ -87,7 +87,7 @@ public static class AzureInstaller
             var secrets = new List<SecretRef>();
             foreach (var (module, deployment) in deployments)
             {
-                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct);
+                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct, provided, dryRun);
                 current = $"deploy module {module}";
                 await deployment.Deploy(context);
                 foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }

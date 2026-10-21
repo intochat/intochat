@@ -222,7 +222,10 @@ public sealed class ModuleDeploymentFacts
             TestContext.Current.CancellationToken);
     }
 
-    public sealed class OrphanModule;
+    public sealed class OrphanModule() : Module(new ModuleId("orphan"))
+    {
+        public override void Configure(ISiloBuilder silo) { }
+    }
 
     private sealed class HostModule() : Module(new ModuleId("host"))
     {
@@ -231,6 +234,12 @@ public sealed class ModuleDeploymentFacts
 
     public sealed class OrphanDeployment : ModuleDeployment<OrphanModule>
     {
-        public override Task Deploy(ModuleDeploymentContext context) => Task.CompletedTask;
+        public override async Task Deploy(ModuleDeploymentContext context)
+        {
+            if (context.Settings.Get("secret") is { } key)
+            {
+                await context.Ensure(new SecretSpec { Name = "module-secret", Vault = context.Foundation.KeyVault.Name, Value = context.RequireSecret(key), Overwrite = true });
+            }
+        }
     }
 }
