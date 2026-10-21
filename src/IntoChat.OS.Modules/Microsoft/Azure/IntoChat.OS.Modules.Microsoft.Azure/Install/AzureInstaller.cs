@@ -114,7 +114,7 @@ public static class AzureInstaller
         {
             foreach (var (name, value) in JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(secretsFrom, ct)) ?? [])
             {
-                if (value.Length > 0) { values[name] = value; }
+                if (!string.IsNullOrWhiteSpace(value)) { values[name] = value; }
             }
         }
         if (!values.ContainsKey(InstallPlan.MasterKeySecret))

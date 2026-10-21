@@ -39,6 +39,13 @@ public sealed class ModuleSecretFacts
             Assert.DoesNotContain("private-test-value", error.ToString(), StringComparison.Ordinal);
             Assert.DoesNotContain(azure.Ensured, spec => spec.Name == "module-secret");
 
+            await File.WriteAllTextAsync(secrets, """{"master-key":"test-master","GoogleAuth:ClientSecret":null}""", TestContext.Current.CancellationToken);
+            error = new StringWriter();
+            code = await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--secrets-from", secrets], new RecordingAzure(),
+                [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken);
+            Assert.Equal(1, code);
+            Assert.Contains("GoogleAuth:ClientSecret", error.ToString(), StringComparison.Ordinal);
+
             azure = new RecordingAzure();
             Assert.Equal(0, await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--dry-run"], azure,
                 [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken));
