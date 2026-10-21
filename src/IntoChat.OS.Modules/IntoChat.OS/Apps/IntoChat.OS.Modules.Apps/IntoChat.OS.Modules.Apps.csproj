@@ -5,6 +5,7 @@
     <RootNamespace>IntoChat.OS.Modules.Apps</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
     <ProjectReference Include="../IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />

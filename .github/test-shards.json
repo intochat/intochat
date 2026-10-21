@@ -1,6 +1,22 @@
 {
   "shards": {
     "unit": [
+      "**/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Apps.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Flutter.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.AI.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Mcp.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Circles.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Flame.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Postgres.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Supabase.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.Salesforce.Tests.Unit.dll",
+      "**/IntoChat.OS.Modules.ClickHouse.Tests.Unit.dll",
       "**/IntoChat.OS.Architecture.Tests.Unit.dll",
       "**/IntoChat.OS.Aspire.Hosting.Tests.Unit.dll",
       "**/IntoChat.OS.Client.Tests.Unit.dll",
