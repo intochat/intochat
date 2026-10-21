@@ -7,6 +7,7 @@
     <Compile Include="../../../features/os/BrainView/BrainView.cs" Link="Features/BrainView.cs" />
     <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
     <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />
+    <Compile Include="../../../features/os/Ino/InoTools.cs" Link="Features/InoTools.cs" />
     <Compile Include="../../../features/os/Ino/Pending.cs" Link="Features/InoPending.cs" />
     <Compile Include="../../../features/os/Desktop/Desktop.cs" Link="Features/Desktop.cs" />
     <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />

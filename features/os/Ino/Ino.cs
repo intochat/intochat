@@ -79,7 +79,8 @@ public static partial class Ino
             var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
             if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
             var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
-            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: Contracts,
+            var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
+            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: contracts,
                     contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
                 with { Model = model, RunId = runId, Intent = intentId?.ToString() });
             return AnswerOutcome.Started;

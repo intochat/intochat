@@ -42,7 +42,8 @@ async Task Reconcile()
                 var snapshot = await app.Read();
                 var choice = snapshot.Settings.GetValueOrDefault("Model", "");
                 var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
-                await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: Ino.Contracts)
+                var contracts = InoTools.Select(Ino.Contracts, await brain.Kernel.Types(brain.Stopping));
+                await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: contracts)
                     with { RunId = runId, Model = model });
                 // The composer asks the model directly; an earlier route's status no longer applies.
                 await Ino.Status(brain, "");
