@@ -1,3 +1,4 @@
+using System.Runtime.Serialization;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Microsoft.CSharp.Runtime;
@@ -7,9 +8,17 @@ namespace IntoChat.OS.Microsoft.CSharp.Runtime;
 internal sealed record ProgramAssignment(
     [property: Id(0)] string Owner,
     [property: Id(1)] string Hash,
-    [property: Id(2)] Dictionary<string, string> Settings,
+    [property: Id(2), LegacyShape] Dictionary<string, string>? LegacySettings,
     [property: Id(3)] CallerContext? Principal,
-    [property: Id(4)] BehaviorAssembly[] Behaviors);
+    [property: Id(4)] BehaviorAssembly[] Behaviors,
+    [property: Id(5)] StringEntry[] SettingEntries)
+{
+    public ProgramAssignment(string owner, string hash, IEnumerable<KeyValuePair<string, string>> settings, CallerContext? principal, BehaviorAssembly[] behaviors)
+        : this(owner, hash, null, principal, behaviors, StringEntry.From(settings)) { }
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Settings => StringEntry.ToMap(SettingEntries, LegacySettings);
+}
 
 // One synapse of a program: its path within the program and the assembly it compiled to.
 [GenerateSerializer, Alias("microsoft.csharp.behavior-assembly")]
@@ -36,6 +45,22 @@ internal sealed record BrainRuntimeState
     [Id(0)] public ProgramAssignment[] Programs { get; init; } = [];
     [Id(1)] public Subscription[] Subscriptions { get; init; } = [];
     [Id(2)] public SessionRecord? Session { get; init; }
-    [Id(3)] public Dictionary<string, string> Initialized { get; init; } = new(StringComparer.Ordinal);
-    [Id(4)] public Dictionary<string, string> AssignmentRevisions { get; init; } = new(StringComparer.Ordinal);
+    [Id(3), LegacyShape] public Dictionary<string, string>? LegacyInitialized { get; init; }
+    [Id(4), LegacyShape] public Dictionary<string, string>? LegacyAssignmentRevisions { get; init; }
+    [Id(5)] public StringEntry[] InitializedEntries { get; init; } = [];
+    [Id(6)] public StringEntry[] AssignmentRevisionEntries { get; init; } = [];
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> Initialized
+    {
+        get => StringEntry.ToMap(InitializedEntries, LegacyInitialized);
+        init { InitializedEntries = StringEntry.From(value); LegacyInitialized = null; }
+    }
+
+    [IgnoreDataMember]
+    public IReadOnlyDictionary<string, string> AssignmentRevisions
+    {
+        get => StringEntry.ToMap(AssignmentRevisionEntries, LegacyAssignmentRevisions);
+        init { AssignmentRevisionEntries = StringEntry.From(value); LegacyAssignmentRevisions = null; }
+    }
 }

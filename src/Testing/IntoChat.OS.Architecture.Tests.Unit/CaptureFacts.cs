@@ -114,3 +114,11 @@ public sealed partial class CollectionCompatibilityFacts
         CaptureWriter.Write("CollectionCompatibilitySamples.json", refreshed);
     }
 }
+
+public sealed partial class PersistedStateFacts
+{
+    [Fact(Explicit = true)]
+    public void CapturePersistedStateCollectionBaseline()
+        => CaptureWriter.Write("PersistedStateCollectionBaseline.json",
+            CaptureWriter.Ordered(CaptureWriter.Ordered(States.SelectMany(PersistedStateRules.ConcreteCollectionMembers))));
+}

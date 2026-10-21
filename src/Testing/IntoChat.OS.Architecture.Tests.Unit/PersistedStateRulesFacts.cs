@@ -1,4 +1,5 @@
 using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -26,6 +27,34 @@ public sealed class PersistedStateRulesFacts
         Assert.Contains(typeof(GrainState), states);
         Assert.Contains(states.SelectMany(PersistedStateRules.ShapeViolations),
             violation => violation.Contains("GrainState.Values: persisted collections", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConcreteCollectionsAreRefusedUnlessBaselinedOrLegacyShape()
+    {
+        var violations = PersistedStateRules.ShapeViolations(typeof(ConcreteCollections)).ToArray();
+        foreach (var member in new[] { "Map", "Items", "Set", "Sorted", "Line", "Pile", "Nested" })
+        {
+            Assert.Contains(violations, violation => violation.Contains($"ConcreteCollections.{member}: persisted collections must be arrays", StringComparison.Ordinal));
+        }
+        Assert.DoesNotContain(violations, violation => violation.Contains("ConcreteCollections.Array", StringComparison.Ordinal));
+        Assert.DoesNotContain(violations, violation => violation.Contains("ConcreteCollections.Older", StringComparison.Ordinal));
+        Assert.Contains(violations, violation => violation.Contains("ConcreteCollections.Unmarked", StringComparison.Ordinal));
+    }
+
+    [GenerateSerializer]
+    internal sealed class ConcreteCollections
+    {
+        [Id(0)] public Dictionary<string, string> Map { get; set; } = [];
+        [Id(1)] public List<string> Items { get; set; } = [];
+        [Id(2)] public HashSet<string> Set { get; set; } = [];
+        [Id(3)] public SortedDictionary<string, string> Sorted { get; set; } = [];
+        [Id(4)] public Queue<string> Line { get; set; } = [];
+        [Id(5)] public Stack<string> Pile { get; set; } = [];
+        [Id(6)] public StringEntry[] Array { get; set; } = [];
+        [Id(7), LegacyShape] public Dictionary<string, string>? Older { get; set; }
+        [Id(8)] public List<string>[] Nested { get; set; } = [];
+        [Id(9)] public Dictionary<string, string[]>? Unmarked { get; set; }
     }
 
     private sealed class PositionalOwner(IPersistentState<PositionalState> state)

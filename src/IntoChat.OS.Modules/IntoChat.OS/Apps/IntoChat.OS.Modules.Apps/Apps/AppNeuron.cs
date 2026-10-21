@@ -77,7 +77,7 @@ internal sealed partial class AppNeuron(
         next.Manifest = manifest.Validated();
         // Newly declared settings get their defaults; chosen values survive.
         foreach (var setting in manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
         next.Version = Bump(next.Version, minor: false);
         await RequireCompiles(next);
         Record(next);
@@ -96,7 +96,7 @@ internal sealed partial class AppNeuron(
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
-        next.Files[path] = source;
+        next.PutFile(path, source);
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
@@ -127,7 +127,7 @@ internal sealed partial class AppNeuron(
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
-        next.Files[path] = source;
+        next.PutFile(path, source);
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
@@ -147,8 +147,8 @@ internal sealed partial class AppNeuron(
             { await hook.RequireRebindable(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), slot, CancellationToken.None); }
         }
         var next = Snapshot.Clone();
-        foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
-        foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }
+        foreach (var (name, value) in settings ?? []) { next.PutSetting(name, value); }
+        foreach (var (slot, id) in connections ?? []) { next.PutConnection(slot, id); }
         AdvanceProgram(next);
         await Persist(next);
         // The running program reads its settings from the deployment configuration, so a
@@ -167,7 +167,7 @@ internal sealed partial class AppNeuron(
         next.Edited = true;
         next.Manifest = record.Manifest;
         next.Spec = record.Spec;
-        next.Files = new(record.Files, StringComparer.Ordinal);
+        next.Files = record.Files;
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         AdvanceProgram(next);
@@ -291,9 +291,9 @@ internal sealed partial class AppNeuron(
         {
             next.Manifest = manifest.Validated();
             foreach (var setting in manifest.Settings)
-            { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
+            { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
         }
-        foreach (var (path, source) in files) { next.Files[path] = source; }
+        foreach (var (path, source) in files) { next.PutFile(path, source); }
         next.Edited = true;
         next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
@@ -339,7 +339,7 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
-        next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, new(next.Files, StringComparer.Ordinal));
+        next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, next.Files);
         next.Publisher = caller.PersonId;
         var releases = Releases();
         var release = Release(next.Published, caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId));
@@ -384,7 +384,7 @@ internal sealed partial class AppNeuron(
             if (Snapshot.Manifest is not null && Snapshot.Installation == installation)
             {
                 if (Snapshot.Edited || Snapshot.Status == AppStatus.Live) { return Describe(Snapshot); }
-                var held = new AppBundle(Name(), Snapshot.Version, Snapshot.Manifest, Snapshot.Spec, Snapshot.Files);
+                var held = new AppBundle(Name(), Snapshot.Version, Snapshot.Manifest, Snapshot.Spec, new(Snapshot.Files, StringComparer.Ordinal));
                 if (held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest)
                 { throw new InvalidOperationException("This installed copy has changed; it cannot resume the original install."); }
                 return await Land(Snapshot.Clone());
@@ -397,9 +397,9 @@ internal sealed partial class AppNeuron(
         next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
-        next.Files = new(bundle.Files, StringComparer.Ordinal);
+        next.Files = bundle.Files;
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
-        next.Connections = [];
+        next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
         next.Installation = installation;
         Adopt(next, origin);
@@ -428,9 +428,9 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
-        next.Files = new(bundle.Files, StringComparer.Ordinal);
+        next.Files = bundle.Files;
         foreach (var setting in bundle.Manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
         next.Version = bundle.Version;
         Adopt(next, origin);
         // Settings, connections and the app's stored data stay; only the program is the bundle's.
@@ -657,7 +657,7 @@ internal sealed partial class AppNeuron(
         if (refused.Length == 0 && entry.Source is { } staged)
         {
             next.Edited = true;
-            next.Files[entry.Path!] = staged;
+            next.PutFile(entry.Path!, staged);
             next.Version = Bump(next.Version, minor: false);
             Record(next);
         }
@@ -782,8 +782,7 @@ internal sealed partial class AppNeuron(
 
     private void Record(AppState next)
     {
-        var record = new AppVersionRecord(next.Version, clock.GetUtcNow(), next.Manifest!, next.Spec,
-            new(next.Files, StringComparer.Ordinal));
+        var record = new AppVersionRecord(next.Version, clock.GetUtcNow(), next.Manifest!, next.Spec, next.Files);
         // One entry per version: a version saved again replaces its entry.
         next.History = [.. next.History.Where(held => held.Version != next.Version).TakeLast(MaxHistory - 1), record];
     }
@@ -792,8 +791,7 @@ internal sealed partial class AppNeuron(
 
     private static void Receipt(AppState next, Guid operationId)
     {
-        next.Receipts.Add(new(operationId, "", ""));
-        while (next.Receipts.Count > MaxReceipts) { next.Receipts.RemoveAt(0); }
+        next.Receipts = [.. next.Receipts.Append(new OperationReceipt(operationId, "", "")).TakeLast(MaxReceipts)];
     }
 
     private void RequireCreated()

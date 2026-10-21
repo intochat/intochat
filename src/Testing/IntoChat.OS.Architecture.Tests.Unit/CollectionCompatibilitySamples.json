@@ -250,5 +250,75 @@
     "Representation": "list",
     "Payload": "MAE2kXVVP2RiLmdpdGh1Yi5wdWxsLXJlcXVlc3Qtc25hcHNob3ToAAHBAcEBAQEBAcEBwQHBAcEBMQFSdUZraVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbZGIuZ2l0aHViLmNoZWNrXV0AAyHoQBlsZWdhY3ktdmFsdWUBAcEdwR3BHcEdwR0hgAAAAAAAAAAAgQAAAAAAAAAA4ODgAQEhgAAAAAAAAAAAgQAAAAAAAAAA4CGAAAAAAAAAAACBAAAAAAAAAADgwQHBAQEBwQHg",
     "Expected": "[{\"Name\":\"legacy-value\",\"AppId\":0,\"Kind\":\"legacy-value\",\"State\":\"legacy-value\",\"Conclusion\":\"legacy-value\",\"Sha\":\"legacy-value\",\"AttemptId\":\"legacy-value\",\"UpdatedAt\":\"0001-01-01T00:00:00+00:00\"}]"
+  },
+  {
+    "Type": "IntoChat.OS.Apps.AppState",
+    "Member": "Files",
+    "Representation": "dictionary",
+    "Payload": "MAHUM7HmF2FwcHMuc3RhdGUywAFBASEwATEs1C4dU3RyaW5nQ29tcGFyZXIAAwEB4AEFQQthbHBoYUAHb25lQAliZXRhQAd0d2/gIeAh4EELMC4wLjAJAwEh4CHgQSEAAAAAAAAAAAAAAAAAAAAAIYAAAAAAAAAAAIEAAAAAAAAAAODBAcEBJeDBAcEBAQHBAcEBIeABAcE/AQEh4CHgwQEBAcEBwQEBAcEBwQHBASHg4A==",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Apps.AppState",
+    "Member": "Settings",
+    "Representation": "dictionary",
+    "Payload": "MAHUM7HmF2FwcHMuc3RhdGUywAFBASHgITABMSzULh1TdHJpbmdDb21wYXJlcgADAQHgAQVBC2FscGhhQAdvbmVACWJldGFAB3R3b+Ah4EELMC4wLjAJAwEh4CHgQSEAAAAAAAAAAAAAAAAAAAAAIYAAAAAAAAAAAIEAAAAAAAAAAODBAcEBJeDBAcEBAQHBAcEBIeABAcE/AQEh4CHgwQEBAcEBwQEBAcEBwQHBASHg4A==",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Apps.AppState",
+    "Member": "Connections",
+    "Representation": "dictionary",
+    "Payload": "MAHUM7HmF2FwcHMuc3RhdGUywAFBASHgIeAhMAExLNQuHVN0cmluZ0NvbXBhcmVyAAMBAeABBUELYWxwaGFAB29uZUAJYmV0YUAHdHdv4EELMC4wLjAJAwEh4CHgQSEAAAAAAAAAAAAAAAAAAAAAIYAAAAAAAAAAAIEAAAAAAAAAAODBAcEBJeDBAcEBAQHBAcEBIeABAcE/AQEh4CHgwQEBAcEBwQEBAcEBwQHBASHg4A==",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Apps.AppState",
+    "Member": "Receipts",
+    "Representation": "list",
+    "Payload": "MAHUM7HmF2FwcHMuc3RhdGUywAFBASHgIeAh4EELMC4wLjAJAwEh4CHgQSEAAAAAAAAAAAAAAAAAAAAAIYAAAAAAAAAAAIEAAAAAAAAAAODBAcEBJQAFIehAIS6MHH8AAABAgAAAAAAAAAFBA2FBA2LgIOhAIS6MHH8AAABAgAAAAAAAAAJBA2NBA2Tg4MEBwQEBAcEBwQEh4AEBwUEBASHgIeDBAQEBwQHBAQEBwQHBAcEBIeDg",
+    "Expected": "[{\"OperationId\":\"7f1c8c2e-0000-4000-8000-000000000001\",\"RequestHash\":\"a\",\"Result\":\"b\"},{\"OperationId\":\"7f1c8c2e-0000-4000-8000-000000000002\",\"RequestHash\":\"c\",\"Result\":\"d\"}]"
+  },
+  {
+    "Type": "IntoChat.OS.Apps.AppVersionRecord",
+    "Member": "Files",
+    "Representation": "dictionary",
+    "Payload": "MAHi5pjUJ2FwcHMudmVyc2lvbi1yZWNvcmToQAsxLjAuMCGAAIC19/V/nwiBAAAAAAAAAADgwQFBCXNwZWMhMAExLNQuHVN0cmluZ0NvbXBhcmVyAAMBAeABBUELYWxwaGFAB29uZUAJYmV0YUAHdHdv4OA=",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Flutter.Workspace.ProblemReportsState",
+    "Member": "Reports",
+    "Representation": "list",
+    "Payload": "MAEqkf6OMXVpLnByb2JsZW0tcmVwb3J0cy1zdGF0ZeggAAUh6EARaW50ZW50LTFBF3dvcmtzcGFjZS0xQRFpdCBicm9rZSGAAIC19/V/nwiBAAAAAAAAAADg4CDoQBFpbnRlbnQtMkEXd29ya3NwYWNlLTJBHWl0IGJyb2tlIGFnYWluIYAAgLX39X+fCIEAAAAAAAAAAODg4OA=",
+    "Expected": "[{\"IntentId\":\"intent-1\",\"WorkspaceId\":\"workspace-1\",\"Message\":\"it broke\",\"ReportedAt\":\"1970-01-01T00:00:00+00:00\"},{\"IntentId\":\"intent-2\",\"WorkspaceId\":\"workspace-2\",\"Message\":\"it broke again\",\"ReportedAt\":\"1970-01-01T00:00:00+00:00\"}]"
+  },
+  {
+    "Type": "IntoChat.OS.Microsoft.CSharp.Files.CSharpFileState",
+    "Member": "Settings",
+    "Representation": "dictionary",
+    "Payload": "MAGmhA8QN21pY3Jvc29mdC5jc2hhcnAuZmlsZS1zdGF0ZehAASEwATEs1C4dU3RyaW5nQ29tcGFyZXIAAwEB4AEFQQthbHBoYUAHb25lQAliZXRhQAd0d2/gwQEBAcEBwQXBBcEB4A==",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeState",
+    "Member": "Initialized",
+    "Representation": "dictionary",
+    "Payload": "MAESl7c3PW1pY3Jvc29mdC5jc2hhcnAucnVudGltZS1zdGF0Zegg4CHgwQEhMAExLNQuHVN0cmluZ0NvbXBhcmVyAAMBAeABBUELYWxwaGFAB29uZUAJYmV0YUAHdHdv4CE4BQADAQHg4OA=",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeState",
+    "Member": "AssignmentRevisions",
+    "Representation": "dictionary",
+    "Payload": "MAESl7c3PW1pY3Jvc29mdC5jc2hhcnAucnVudGltZS1zdGF0Zegg4CHgwQEhMAExLNQuHVN0cmluZ0NvbXBhcmVyAAMBAeDgITgFAAMBAeABBUELYWxwaGFAB29uZUAJYmV0YUAHdHdv4OA=",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
+  },
+  {
+    "Type": "IntoChat.OS.Microsoft.CSharp.Runtime.ProgramAssignment",
+    "Member": "Settings",
+    "Representation": "dictionary",
+    "Payload": "MAFmqAyTR21pY3Jvc29mdC5jc2hhcnAucHJvZ3JhbS1hc3NpZ25tZW506EALb3duZXJBCWhhc2ghMAExLNQuHVN0cmluZ0NvbXBhcmVyAAMBAeABBUELYWxwaGFAB29uZUAJYmV0YUAHdHdv4MEBIeDg",
+    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
   }
 ]

@@ -767,7 +767,7 @@ internal sealed class BrainRuntimeNeuron(
         if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
         {
             session = new(Guid.NewGuid().ToString("N"), SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow());
-            await Save(Snapshot with { Session = session, Initialized = new(StringComparer.Ordinal) }, Changed());
+            await Save(Snapshot with { Session = session, Initialized = new Dictionary<string, string>() }, Changed());
             await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         }
         return EdgeUrl() is { } edge ? new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), edge) : null;
@@ -814,7 +814,7 @@ internal sealed class BrainRuntimeNeuron(
         => new(behavior.Id(program.Owner), behavior.Hash,
             Reachable(await assemblies.ReadUrl(behavior.Hash, AssemblyUrlLifetime, CancellationToken.None)),
             Reachable(await assemblies.ReadUrl(behavior.Hash + ".pdb", AssemblyUrlLifetime, CancellationToken.None)),
-            program.Settings, AssignmentRevision(program, behavior));
+            new(program.Settings, StringComparer.Ordinal), AssignmentRevision(program, behavior));
 
     private string AssignmentRevision(ProgramAssignment program, BehaviorAssembly behavior)
         // Pre-generation persisted assignments get a stable legacy identity until their first Apply.

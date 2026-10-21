@@ -22,9 +22,10 @@ internal sealed class ProblemReportsNeuron(
         }
 
         var report = new ProblemReport(intentId, workspaceId, message, DateTimeOffset.UtcNow);
-        store.State.Reports.Add(report);
+        var previous = store.State.Reports;
+        store.State = store.State with { Reports = [.. previous, report] };
         try { await store.WriteStateAsync(); }
-        catch { store.State.Reports.Remove(report); throw; }
+        catch { store.State = store.State with { Reports = previous }; throw; }
         return report;
     }
 

@@ -4,5 +4,5 @@ namespace IntoChat.OS.Flutter.Workspace;
 [ExportableState]
 public sealed record ProblemReportsState
 {
-    [Id(0)] public List<ProblemReport> Reports { get; init; } = [];
+    [Id(0)] public ProblemReport[] Reports { get; init; } = [];
 }

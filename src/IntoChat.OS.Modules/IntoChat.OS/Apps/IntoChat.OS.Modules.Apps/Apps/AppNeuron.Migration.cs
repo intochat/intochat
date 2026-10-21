@@ -49,9 +49,9 @@ internal sealed partial class AppNeuron
         }
         var original = await GrainFactory.GetGrain<IAppMigration>(source).Archive(migration);
         var next = Snapshot.Clone();
-        foreach (var (key, value) in original.Settings) { next.Settings[key] = value; }
-        foreach (var (key, value) in original.Connections) { next.Connections[key] = value; }
-        next.Settings["ChatDataApp"] = source;
+        foreach (var (key, value) in original.Settings) { next.PutSetting(key, value); }
+        foreach (var (key, value) in original.Connections) { next.PutConnection(key, value); }
+        next.PutSetting("ChatDataApp", source);
         next.Principal ??= original.Principal;
         next.MigrationSource = source;
         AddRequests(next, original.RequestRetention);
@@ -91,7 +91,7 @@ internal sealed partial class AppNeuron
         }
         next = Snapshot.Clone();
         next.Status = AppStatus.Live;
-        next.Settings["CompletedAppMigration"] = migration;
+        next.PutSetting("CompletedAppMigration", migration);
         await Persist(next);
     }
 

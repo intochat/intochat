@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -76,7 +78,29 @@ internal static class PersistedStateRules
                 && member.GetCustomAttribute<IdAttribute>()!.Id == 1) { continue; }
             yield return $"{type.FullName}.{member.Name}: persisted collections must use concrete arrays, not collection interfaces";
         }
+        foreach (var name in ConcreteCollectionMembers(type).Where(name => !Baseline.Contains(name)))
+        {
+            yield return $"{name}: persisted collections must be arrays (a keyed map is an entry array), not Dictionary/List/HashSet/SortedDictionary/Queue/Stack";
+        }
     }
+
+    // QUAL-03: persisted state holds arrays. A member that still holds a concrete collection is listed here
+    // (type full name + "." + member), never grows, and goes away with its migration. A member marked
+    // [LegacyShape] is the read-only older form of a migrated member and is exempt.
+    internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)
+        .Where(member => !member.IsDefined(typeof(LegacyShapeAttribute)) && ContainsConcreteCollection(ContractRules.MemberType(member)))
+        .Select(member => $"{type.FullName}.{member.Name}");
+
+    internal static readonly HashSet<string> Baseline = JsonSerializer.Deserialize<string[]>(
+        File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "PersistedStateCollectionBaseline.json")))!.ToHashSet(StringComparer.Ordinal);
+
+    private static readonly Type[] ConcreteCollections =
+        [typeof(Dictionary<,>), typeof(List<>), typeof(HashSet<>), typeof(SortedDictionary<,>), typeof(Queue<>), typeof(Stack<>)];
+
+    private static bool ContainsConcreteCollection(Type type) =>
+        (type.IsGenericType && ConcreteCollections.Contains(type.GetGenericTypeDefinition()))
+        || (type.HasElementType && ContainsConcreteCollection(type.GetElementType()!))
+        || (type.IsGenericType && type.GetGenericArguments().Any(ContainsConcreteCollection));
 
     private static bool ContainsInterfaceCollection(Type type) =>
         (type.IsInterface && typeof(System.Collections.IEnumerable).IsAssignableFrom(type))

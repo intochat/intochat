@@ -59,7 +59,7 @@ internal sealed partial class CSharpFileNeuron(
         if (settings.Count > MaximumSettings) { throw new ArgumentException($"At most {MaximumSettings} settings are allowed.", nameof(settings)); }
         if (settings.Keys.FirstOrDefault(name => !SettingName().IsMatch(name)) is { } invalid)
         { throw new ArgumentException($"Setting '{invalid}' must contain only letters, digits and underscores.", nameof(settings)); }
-        return Keep(Snapshot with { Settings = new(settings, StringComparer.Ordinal) }, new CSharpFileChanged(FileId));
+        return Keep(Snapshot with { Settings = settings }, new CSharpFileChanged(FileId));
     }
 
     public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default) => AssignAsync(Snapshot.Program);
