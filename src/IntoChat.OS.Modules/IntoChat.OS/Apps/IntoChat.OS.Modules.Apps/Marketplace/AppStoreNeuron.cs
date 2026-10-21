@@ -87,7 +87,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         if (!CallerContextStamper.TryGet(out var caller)) { return false; }
         if (caller.Kind == CallerKind.User) { return true; }
         return caller.Kind == CallerKind.App && caller.AppId == IApp.Key(Scope, "desktop")
-            && ShippedApps.Is(await GrainFactory.GetGrain<IApp>(caller.AppId).Read(), "desktop");
+            && ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(caller.AppId).Read(), "desktop");
     }
 
     public async Task<InstallOutcome> Get(string publisher, string name)

@@ -81,7 +81,12 @@ public sealed class ArmRepeatabilityFacts
         var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
         var app = new ContainerAppSpec
         {
-            Name = "test-api", ResourceGroup = "rg", Location = "polandcentral", Environment = "test-env", Identity = "test-id", Image = "acr.azurecr.io/api:1",
+            Name = "test-api",
+            ResourceGroup = "rg",
+            Location = "polandcentral",
+            Environment = "test-env",
+            Identity = "test-id",
+            Image = "acr.azurecr.io/api:1",
             Variables = new Dictionary<string, string> { ["B"] = "second", ["A"] = "first" },
         };
 
@@ -103,7 +108,12 @@ public sealed class ArmRepeatabilityFacts
         var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
         var app = new ContainerAppSpec
         {
-            Name = "test-api", ResourceGroup = "rg", Location = "polandcentral", Environment = "test-env", Identity = "test-id", Image = "acr.azurecr.io/api:1",
+            Name = "test-api",
+            ResourceGroup = "rg",
+            Location = "polandcentral",
+            Environment = "test-env",
+            Identity = "test-id",
+            Image = "acr.azurecr.io/api:1",
         };
         await arm.Ensure(AzureHttp.Subscription, app, TestContext.Current.CancellationToken);
         handler.BindCustomDomain();

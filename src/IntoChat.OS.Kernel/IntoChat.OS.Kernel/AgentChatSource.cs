@@ -39,7 +39,8 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
         if (!run.Posted) { yield return new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText); }
         yield return new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
         {
-            Status = run.Status.ToString().ToLowerInvariant(), Error = run.Error,
+            Status = run.Status.ToString().ToLowerInvariant(),
+            Error = run.Error,
             Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
         };
     }

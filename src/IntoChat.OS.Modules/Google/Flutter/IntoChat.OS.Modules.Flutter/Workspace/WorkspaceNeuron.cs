@@ -5,6 +5,7 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Space;
 using IntoChat.OS.Flutter.Workspace.Signals;
 using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Flutter.Workspace;
 
@@ -51,7 +52,7 @@ internal sealed class WorkspaceNeuron(
     {
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
-        return ShippedApps.Is(await GrainFactory.GetGrain<IApp>(app).Read(), named);
+        return ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(app).Read(), named);
     }
 
     private void CheckViews(WorkspaceViewRef[] views)
