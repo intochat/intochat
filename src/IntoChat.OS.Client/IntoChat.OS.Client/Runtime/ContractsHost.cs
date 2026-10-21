@@ -39,8 +39,8 @@ public static class ContractsHost
                 if (Strings(blob) is [MetadataKey, "true"]) { return true; }
             }
         }
-        catch (BadImageFormatException) { }
-        catch (IOException) { }
+        catch (BadImageFormatException) { return false; }
+        catch (IOException) { return false; }
         return false;
     }
 

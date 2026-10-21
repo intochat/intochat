@@ -30,8 +30,8 @@ public static partial class OsCatalog
         foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll"))
         {
             try { queue.Enqueue(System.Reflection.Assembly.Load(System.Reflection.AssemblyName.GetAssemblyName(file))); }
-            catch (BadImageFormatException) { }
-            catch (FileLoadException) { }
+            catch (BadImageFormatException) { continue; }
+            catch (FileLoadException) { continue; }
         }
         var modules = new List<Module>();
         while (queue.TryDequeue(out var assembly))
@@ -40,8 +40,8 @@ public static partial class OsCatalog
             foreach (var reference in assembly.GetReferencedAssemblies())
             {
                 try { queue.Enqueue(System.Reflection.Assembly.Load(reference)); }
-                catch (FileNotFoundException) { }
-                catch (FileLoadException) { }
+                catch (FileNotFoundException) { continue; }
+                catch (FileLoadException) { continue; }
             }
             foreach (var type in assembly.GetExportedTypes())
             {
