@@ -29,7 +29,11 @@ public sealed class RemovePrincipalMemberFacts(AuthorityHost host)
         Assert.NotNull(await s.Identity.Membership(s.Scope, s.Other));
         await s.Identity.RemovePrincipalMember(s.Scope, s.Other);
         Assert.Null(await s.Identity.Membership(s.Scope, s.Other));
-        Assert.DoesNotContain(await s.Identity.BrainsOf(s.Other), entry => entry.Id == s.Brain || entry.Id == s.Scope);
+        // Access revocation above is synchronous; the principal index receives a OneWay notification.
+        var brains = await TestWait.UntilAsync(_ => s.Identity.BrainsOf(s.Other),
+            entries => entries.All(entry => entry.Id != s.Brain && entry.Id != s.Scope),
+            TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(brains, entry => entry.Id == s.Brain || entry.Id == s.Scope);
     }
 
     [Fact]
