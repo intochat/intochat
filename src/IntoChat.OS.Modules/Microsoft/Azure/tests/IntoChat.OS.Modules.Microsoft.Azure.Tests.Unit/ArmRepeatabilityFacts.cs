@@ -74,6 +74,70 @@ public sealed class ArmRepeatabilityFacts
     }
 
     [Fact]
+    public async Task Generated_secret_is_created_when_absent_and_never_replaced()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+        var spec = new SecretSpec { Name = "google-secret", Vault = "test-kv", Generator = SecretGenerators.Base64(32), ResourceGroup = "rg", Location = "polandcentral" };
+
+        Assert.Null(await arm.ReadSecret("test-kv", "google-secret", TestContext.Current.CancellationToken));
+        await arm.Ensure(AzureHttp.Subscription, spec, TestContext.Current.CancellationToken);
+        var first = await arm.ReadSecret("test-kv", "google-secret", TestContext.Current.CancellationToken);
+        await arm.Ensure(AzureHttp.Subscription, spec, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.SecretWrites);
+        Assert.Equal(32, Convert.FromBase64String(first!).Length);
+        Assert.Equal(first, await arm.ReadSecret("test-kv", "google-secret", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Generated_secret_keeps_a_value_an_earlier_install_wrote()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+        var spec = new SecretSpec { Name = "google-secret", Vault = "test-kv", ResourceGroup = "rg", Location = "polandcentral" };
+        await arm.Ensure(AzureHttp.Subscription, spec with { Value = "existing", Overwrite = true }, TestContext.Current.CancellationToken);
+
+        await arm.Ensure(AzureHttp.Subscription, spec with { Generator = SecretGenerators.P256Pkcs8 }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.SecretWrites);
+        Assert.Equal("existing", await arm.ReadSecret("test-kv", "google-secret", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task External_secret_is_read_only_and_a_missing_one_names_the_command_to_set_it()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+        var spec = new SecretSpec { Name = "google-secret", Vault = "test-kv", External = true, Value = "ignored", Overwrite = true, ResourceGroup = "rg", Location = "polandcentral" };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => arm.Ensure(AzureHttp.Subscription, spec, TestContext.Current.CancellationToken));
+        Assert.Contains("az keyvault secret set --vault-name test-kv --name google-secret", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, handler.SecretWrites);
+
+        await arm.Ensure(AzureHttp.Subscription, spec with { External = false, Value = "set-by-operator" }, TestContext.Current.CancellationToken);
+        await arm.Ensure(AzureHttp.Subscription, spec, TestContext.Current.CancellationToken);
+        Assert.Equal(1, handler.SecretWrites);
+        Assert.Equal("set-by-operator", await arm.ReadSecret("test-kv", "google-secret", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void Generators_make_random_bytes_and_a_signing_key_whose_public_key_derives()
+    {
+        Assert.Equal(48, Convert.FromBase64String(SecretGenerators.Generate(SecretGenerators.Base64(48))).Length);
+        Assert.NotEqual(SecretGenerators.Generate(SecretGenerators.Base64(32)), SecretGenerators.Generate(SecretGenerators.Base64(32)));
+        var key = SecretGenerators.Generate(SecretGenerators.P256Pkcs8);
+        using var ecdsa = System.Security.Cryptography.ECDsa.Create();
+        ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(SecretGenerators.P256PublicKey(key)), out _);
+        Assert.Equal(256, ecdsa.KeySize);
+        Assert.Throws<ArgumentException>(() => SecretGenerators.Generate("base64:0"));
+        Assert.Throws<ArgumentException>(() => SecretGenerators.Generate("rot13"));
+    }
+
+    [Fact]
     public async Task Identical_container_template_does_not_send_another_update_but_a_changed_image_does()
     {
         using var handler = new AzureHttp();

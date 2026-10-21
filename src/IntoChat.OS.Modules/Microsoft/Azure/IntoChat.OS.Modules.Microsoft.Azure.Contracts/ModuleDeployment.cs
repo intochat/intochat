@@ -60,7 +60,8 @@ public sealed class ModuleDeploymentContext(
     Func<ResourceSpec, CancellationToken, Task<ResourceRef>> ensure,
     CancellationToken cancellationToken,
     IReadOnlyDictionary<string, string>? secretValues = null,
-    bool dryRun = false)
+    bool dryRun = false,
+    Func<string, string, CancellationToken, Task<string?>>? readVaultSecret = null)
 {
     private readonly Dictionary<string, string> _variables = new(StringComparer.Ordinal);
     private readonly List<SecretRef> _secrets = [];
@@ -81,6 +82,16 @@ public sealed class ModuleDeploymentContext(
         if (secretValues?.TryGetValue(name, out var value) == true && !string.IsNullOrWhiteSpace(value)) { return value; }
         if (IsDryRun) { return "dry-run"; }
         throw new InvalidOperationException($"The secrets file needs '{name}'.");
+    }
+
+    // The current value of a secret in the foundation vault, for values derived at install time (a public key from a private
+    // one). Null when absent; a dry run, which never touches Azure, gets null for every secret.
+    public Task<string?> ReadVaultSecret(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return IsDryRun || readVaultSecret is null
+            ? Task.FromResult<string?>(null)
+            : readVaultSecret(Foundation.KeyVault.Name, name, CancellationToken);
     }
 
     // <prefix>-<env>-<suffix>, the same naming the foundation uses.
