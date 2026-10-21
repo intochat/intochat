@@ -22,4 +22,9 @@ internal static class MachineRoots
         }
         throw new UnauthorizedAccessException($"'{path}' is outside the folders allowed on this machine.");
     }
+
+    // The longest allowed root holding an already resolved full path.
+    public static string Containing(string[] roots, string full) => roots
+        .Where(root => string.Equals(full, root, Comparison) || full.StartsWith(Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar, Comparison))
+        .MaxBy(root => root.Length) ?? throw new UnauthorizedAccessException($"'{full}' is outside the folders allowed on this machine.");
 }

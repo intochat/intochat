@@ -9,6 +9,6 @@ var app = brain.Get<IApp>(appKey);
 
 await foreach (var activated in brain.On<CollectionActivated>(brain.Get<ICollectionView>(appKey + "/listing"), brain.Stopping))
 {
-    if (activated.ItemId == Machine.Storages) { await app.Request("browse", Machine.Storages); }
-    else { await app.Request(await Machine.IsFolder(brain, activated.ItemId) ? "browse" : "read", activated.ItemId); }
+    if (activated.ItemId == Store.Storages) { await app.Request("browse", Store.Storages); }
+    else { await app.Request(await Store.IsFolder(brain, activated.ItemId) ? "browse" : "read", activated.ItemId); }
 }

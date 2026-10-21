@@ -80,6 +80,11 @@
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
+    "type": "IntoChat.OS.Google.Gmail.DriveState",
+    "state": "google-drive",
+    "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
     "type": "IntoChat.OS.Google.Gmail.GmailState",
     "state": "gmail",
     "reason": "connector credentials/connection state (ConnectionState), never exported"

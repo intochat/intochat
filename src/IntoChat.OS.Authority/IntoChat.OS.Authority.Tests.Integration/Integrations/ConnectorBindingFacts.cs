@@ -7,6 +7,7 @@ using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Tests.Integration.Connections;
+using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -141,5 +142,13 @@ public sealed class ConnectorBindingFacts
     {
         Assert.Throws<InvalidOperationException>(() => ConnectorDiscovery.Validate([ExampleModule.Connector], []));
         ConnectorDiscovery.Validate([ExampleModule.Connector], [ExampleModule.Integration]);
+    }
+
+    [Fact]
+    public void AStorageConnectorMustListAStorageNeuron()
+    {
+        var storage = ExampleModule.Connector with { Capabilities = [IStorage.Capability] };
+        Assert.Throws<InvalidOperationException>(() => ConnectorDiscovery.Validate([storage], [ExampleModule.Integration]));
+        ConnectorDiscovery.Validate([storage with { Neurons = [typeof(IStorage)] }], [ExampleModule.Integration]);
     }
 }

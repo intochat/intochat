@@ -16,14 +16,18 @@ internal static class GmailBrain
 {
     public const string PushToken = "test-google-push";
 
-    public static Task<ITestBrain> StartAsync(TokenEndpointStub stub, CancellationToken ct, string? posture = null)
-        => Compose(TestBrain.Create(), stub, posture).StartAsync(ct);
+    public static Task<ITestBrain> StartAsync(TokenEndpointStub stub, CancellationToken ct, string? posture = null, Uri? drive = null)
+        => Compose(TestBrain.Create(), stub, posture, drive).StartAsync(ct);
 
-    public static TestBrain Compose(TestBrain brain, TokenEndpointStub stub, string? posture = null)
+    public static TestBrain Compose(TestBrain brain, TokenEndpointStub stub, string? posture = null, Uri? drive = null)
     {
         stub.Scope = "https://www.googleapis.com/auth/gmail.readonly";
         var builder = brain
-            .WithModule<GmailModule, GmailModuleOptions>(options => options.ProfileEndpoint = new(stub.Origin, "profile"))
+            .WithModule<GmailModule, GmailModuleOptions>(options =>
+            {
+                options.ProfileEndpoint = new(stub.Origin, "profile");
+                if (drive is not null) { options.DriveEndpoint = drive; }
+            })
             .WithIntegration(GmailModule.Integration, "ClientId", "integration-client")
             .WithIntegration(GmailModule.Integration, "ClientSecret", "integration-secret")
             .WithConfiguration(IntoChatOSConfiguration.ConnectionsPublicOriginKey, stub.Origin.AbsoluteUri)

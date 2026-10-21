@@ -5,6 +5,7 @@ using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Parts;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows.Signals;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,8 +18,9 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
 {
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
-        Neurons = [typeof(IWindows), typeof(IFileSystem), typeof(IConsole)],
+        Neurons = [typeof(IWindows), typeof(IStorage), typeof(IFileSystem), typeof(IConsole)],
         Signals = [typeof(FileWritten)],
+        Capabilities = [IStorage.Capability],
     };
 
     public override Assembly? Contracts => typeof(IWindows).Assembly;

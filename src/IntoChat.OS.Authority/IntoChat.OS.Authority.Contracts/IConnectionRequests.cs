@@ -33,7 +33,11 @@ public sealed record ConnectionSummary(
     [property: Id(2)] string Neuron,
     [property: Id(3)] string Status,
     [property: Id(4)] string? Account,
-    [property: Id(5)] DateTimeOffset? LastProbedAt);
+    [property: Id(5)] DateTimeOffset? LastProbedAt)
+{
+    // The capability kinds its connector declares; callers discover storage connections by "storage".
+    [Id(6)] public string[] Capabilities { get; init; } = [];
+}
 
 [GenerateSerializer, Alias("integrations.account-requested")]
 public sealed record ConnectionRequested([property: Id(0)] string Kind, [property: Id(1)] string Id) : Signal;
