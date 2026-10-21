@@ -755,7 +755,7 @@
     "IntoChat.OS.Flutter.Views.UiView": "ui.view; Generation=0, Version=1, Root=2",
     "IntoChat.OS.Flutter.Views.ViewAction": "ui.view-action; Name=0, Key=1, Action=2, RequestId=3, Generation=4",
     "IntoChat.OS.Flutter.Views.ViewChanged": "ui.view-changed; Name=0, Generation=1, Version=2",
-    "IntoChat.OS.Flutter.Views.ViewState": "ui.view-state; View=0",
+    "IntoChat.OS.Flutter.Views.ViewState": "ui.view-state; View=0, Changes=1",
     "IntoChat.OS.Flutter.VoiceInput.IVoiceInput": "voiceinput (not generated); ; methods: Read()=read",
     "IntoChat.OS.Flutter.VoiceInput.Signals.VoiceCaptured": "ui.voice-captured; Name=0, Audio=1, MimeType=2",
     "IntoChat.OS.Flutter.VoiceInput.Signals.VoiceInputChanged": "ui.voiceinput-changed; Name=0, Revision=1",
