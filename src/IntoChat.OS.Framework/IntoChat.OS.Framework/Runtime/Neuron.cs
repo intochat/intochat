@@ -109,7 +109,7 @@ public abstract class Neuron : Grain, INeuron
                 if (onRenewed is not null) { await onRenewed(); }
             }
             catch (Exception error) when (error is not OperationCanceledException)
-            { }
+            { logger.LogWarning(error, "A watch renewal of {Neuron} failed; the next tick retries.", Id.Name); }
         }, interleave, keepAlive));
         return renewal;
     }
