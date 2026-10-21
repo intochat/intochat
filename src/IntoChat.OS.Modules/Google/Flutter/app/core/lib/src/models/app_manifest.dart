@@ -1,4 +1,4 @@
-// Mirrors IntoChat.OS.Apps.AppManifest and AppToolbarEntry as the shell reads them from
+// Mirrors IntoChat.OS.Apps.AppManifest, AppRequirements and AppToolbarEntry as the shell reads them from
 // GET /brains/{brain}/apps/{name} under "manifest".
 
 enum AppToolbarKind {
@@ -36,6 +36,30 @@ class AppToolbarEntry {
       );
 }
 
+// What the app needs (AppManifest.Requires): the install view lists it so installing is one consent.
+class AppRequirements {
+  const AppRequirements({
+    this.semanticTypes = const [],
+    this.connectors = const [],
+    this.secrets = const [],
+  });
+  final List<String> semanticTypes, connectors, secrets;
+  bool get isEmpty =>
+      semanticTypes.isEmpty && connectors.isEmpty && secrets.isEmpty;
+  static List<String> _ids(Object? json) => [
+    for (final id in json as List? ?? const []) id as String,
+  ];
+  factory AppRequirements.fromJson(Map<String, dynamic> json) =>
+      AppRequirements(
+        semanticTypes: _ids(json['semanticTypes']),
+        connectors: _ids(json['connectors']),
+        secrets: _ids(json['secrets']),
+      );
+  static AppRequirements? read(Object? json) => json is Map
+      ? AppRequirements.fromJson(Map<String, dynamic>.from(json))
+      : null;
+}
+
 class AppManifest {
   const AppManifest({
     required this.title,
@@ -43,11 +67,13 @@ class AppManifest {
     required this.operations,
     this.icon,
     this.toolbar = const [],
+    this.requires,
   });
   final String title, description;
   final List<String> operations;
   final String? icon;
   final List<AppToolbarEntry> toolbar;
+  final AppRequirements? requires;
   factory AppManifest.fromJson(Map<String, dynamic> json) => AppManifest(
     title: json['title'] as String? ?? '',
     description: json['description'] as String? ?? '',
@@ -60,5 +86,6 @@ class AppManifest {
       for (final entry in json['toolbar'] as List? ?? const [])
         AppToolbarEntry.fromJson(Map<String, dynamic>.from(entry as Map)),
     ],
+    requires: AppRequirements.read(json['requires']),
   );
 }

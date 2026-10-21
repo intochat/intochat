@@ -1,3 +1,5 @@
+import 'app_manifest.dart';
+
 // Mirrors the Apps module's Marketplace records; the listing is what a publisher released.
 
 // Where a listed app's bundle is read from: a person's brain, or the catalog shipped in the image.
@@ -51,11 +53,13 @@ class MarketplaceListing {
     required this.description,
     required this.version,
     required this.icon,
+    this.requires,
   });
   final String publisher;
   final AppSource source;
   final String name, title, description, version;
   final String? icon;
+  final AppRequirements? requires;
   factory MarketplaceListing.fromJson(Map<String, dynamic> json) =>
       MarketplaceListing(
         publisher: json['publisher'] as String? ?? '',
@@ -65,6 +69,7 @@ class MarketplaceListing {
         description: json['description'] as String? ?? '',
         version: json['version'] as String? ?? '',
         icon: json['icon'] as String?,
+        requires: AppRequirements.read(json['requires']),
       );
 }
 

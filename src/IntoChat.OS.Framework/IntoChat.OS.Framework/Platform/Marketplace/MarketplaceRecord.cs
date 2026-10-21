@@ -11,4 +11,8 @@ public sealed record MarketplaceRecord(
     [property: Id(4)] string Title,
     [property: Id(5)] string Description,
     [property: Id(6)] string Version,
-    [property: Id(7)] string? Icon);
+    [property: Id(7)] string? Icon,
+    // Phase F: the listing's AppRequirements, spelled out (Framework does not know the Apps contracts). Additive.
+    [property: Id(8)] string[]? RequiresSemanticTypes = null,
+    [property: Id(9)] string[]? RequiresConnectors = null,
+    [property: Id(10)] string[]? RequiresSecrets = null);

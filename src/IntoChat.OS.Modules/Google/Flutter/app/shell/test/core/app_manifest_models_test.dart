@@ -35,6 +35,29 @@ void main() {
     expect(manifest.toolbar.first.label, 'Play');
   });
 
+  test('a manifest and a listing carry what the app requires', () {
+    final requires = {
+      'semanticTypes': ['person.email'],
+      'connectors': ['windows'],
+      'secrets': null,
+    };
+    final manifest = AppManifest.fromJson({
+      'title': 'Files',
+      'operations': [],
+      'requires': requires,
+    });
+    expect(manifest.requires!.semanticTypes, ['person.email']);
+    expect(manifest.requires!.connectors, ['windows']);
+    expect(manifest.requires!.secrets, isEmpty);
+    final listing = MarketplaceListing.fromJson({
+      'publisher': 'os',
+      'name': 'files',
+      'requires': requires,
+    });
+    expect(listing.requires!.connectors, ['windows']);
+    expect(AppManifest.fromJson({'title': 'Echo'}).requires, isNull);
+  });
+
   test('a manifest without a toolbar has none', () {
     expect(
       AppManifest.fromJson({'title': 'Echo', 'operations': [], 'toolbar': null})

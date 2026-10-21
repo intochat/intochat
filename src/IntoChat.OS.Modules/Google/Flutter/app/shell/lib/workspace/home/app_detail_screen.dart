@@ -177,6 +177,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         : _manifest['icon'] != null && _installedName != null
         ? '${_appPath(_installedName!)}/icon'
         : null;
+    final requires = listing?.requires;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -221,6 +222,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               if (description.isNotEmpty)
                 Text(description, key: const ValueKey('detail-description')),
               const SizedBox(height: 16),
+              if (listing != null &&
+                  !installed &&
+                  requires != null &&
+                  !requires.isEmpty)
+                _Requirements(requires),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -284,6 +290,39 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// What installing grants: the app's declared needs, shown once before Install, which is the consent.
+class _Requirements extends StatelessWidget {
+  const _Requirements(this.requires);
+  final AppRequirements requires;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    Widget group(String label, List<String> ids) => ids.isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('$label: ${ids.join(', ')}'),
+          );
+    return Padding(
+      key: const ValueKey('detail-requires'),
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Installing allows this app to use',
+            style: textTheme.titleSmall,
+          ),
+          group('Your data', requires.semanticTypes),
+          group('Connections', requires.connectors),
+          group('Secrets', requires.secrets),
+        ],
       ),
     );
   }

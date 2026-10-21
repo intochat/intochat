@@ -355,7 +355,7 @@ internal sealed partial class AppNeuron(
         // (a listing whose bundle Install cannot read).
         await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
             caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
-            next.Version, manifest.Icon));
+            next.Version, manifest.Icon, manifest.Requires));
         return Describe(Snapshot);
     }
 

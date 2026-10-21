@@ -73,6 +73,7 @@ public static class AppDeclaration
         ];
         if (manifest.Icon is not null) { arguments.Add("Icon: " + Literal(manifest.Icon)); }
         if (manifest.Toolbar is not null) { arguments.Add("Toolbar: " + List(manifest.Toolbar.Select(Entry))); }
+        if (manifest.Requires is { } requires) { arguments.Add("Requires: " + Requirements(requires)); }
         text.Append(string.Join(",\n", arguments.Select(argument => "        " + argument.Replace(": \n", ":\n", StringComparison.Ordinal)))).Append(");\n}\n");
         return text.ToString();
     }
@@ -87,6 +88,17 @@ public static class AppDeclaration
         if (entry.Max is { } max) { parts.Add("Max: " + max.ToString("R", CultureInfo.InvariantCulture)); }
         return $"new({string.Join(", ", parts)})";
     }
+
+    private static string Requirements(AppRequirements requires)
+    {
+        List<string> parts = [];
+        if (requires.SemanticTypes is { } types) { parts.Add("SemanticTypes: " + Inline(types)); }
+        if (requires.Connectors is { } connectors) { parts.Add("Connectors: " + Inline(connectors)); }
+        if (requires.Secrets is { } secrets) { parts.Add("Secrets: " + Inline(secrets)); }
+        return $"new({string.Join(", ", parts)})";
+    }
+
+    private static string Inline(IEnumerable<string> items) => "[" + string.Join(", ", items.Select(Literal)) + "]";
 
     private static string List(IEnumerable<string> items)
     {

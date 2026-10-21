@@ -48,7 +48,7 @@ public sealed class FeatureCatalog
     public async Task<IReadOnlyList<MarketplaceListing>> Listings()
         => [.. (await Bundles()).Select(entry => new MarketplaceListing(
             entry.Key.Owner, new AppSource.Shipped(), entry.Key.Name,
-            entry.Value.Manifest.Title, entry.Value.Manifest.Description, entry.Value.Version, entry.Value.Manifest.Icon))];
+            entry.Value.Manifest.Title, entry.Value.Manifest.Description, entry.Value.Version, entry.Value.Manifest.Icon, entry.Value.Manifest.Requires))];
 
     // Writes the bundle into the owner's folder and reloads, so Find and Listings switch to the new
     // contents together. A failed reload leaves the previous snapshot in place.

@@ -31,7 +31,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "files";
-    public const string Version = "2.1.0";
+    public const string Version = "2.1.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Files",
@@ -50,5 +50,6 @@ static class App
         [
             new("up", Icon: "arrow-up", Label: "Up"),
             new("open", Icon: "folder", Label: "Storages"),
-        ]);
+        ],
+        Requires: new(Connectors: ["windows", "google-drive"]));
 }

@@ -94,6 +94,34 @@ public sealed class AppInstallerFacts
         Assert.NotNull(await identity.Membership(alice.BrainId, alice.PrincipalId));
     }
 
+    // Phase F: the listing carries what the app requires, and installing it is the one consent: the installer
+    // grants each required semantic type to the installed copy.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task InstallingGrantsWhatTheListingRequires()
+    {
+        await using var brain = await Start();
+        var publisher = await brain.PersonAsync("intochat", Ct);
+        var source = Mine(brain, publisher);
+        using (publisher.AsCaller())
+        {
+            await source.Create(Manifest() with { Requires = new(["person.email"], ["gmail"]) }, Spec);
+            await source.BeginBuild(null);
+            await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
+            await source.Publish();
+        }
+        var listing = await brain.Services.GetRequiredService<MarketplaceView>().Read("intochat", "echo", Ct);
+        Assert.Equal(["person.email"], listing!.Requires!.SemanticTypes!);
+        var alice = await brain.PersonAsync("alice", Ct);
+
+        using var _ = alice.AsCaller();
+        await Installer(brain).Install("intochat", "echo", Ct);
+
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var grant = Assert.Single(await identity.ListGrants(alice.BrainId), grant => grant.SemanticTypeId == "person.email");
+        Assert.Equal((IApp.Key(alice.BrainId, "echo"), IntoChat.OS.Authority.Identity.GrantMode.Always), (grant.AppId, grant.Mode));
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task InstallingAnAppNotInTheMarketplaceIsNotFound()

@@ -22,8 +22,10 @@ class _FakeMarket {
     this.installed = false,
     this.edited = false,
     this.update = false,
+    this.listingJson = _listingJson,
   });
   bool installed, edited, update;
+  final Map<String, dynamic> listingJson;
   final calls = <String>[];
 
   Map<String, dynamic> get _app => {
@@ -51,7 +53,7 @@ class _FakeMarket {
     const market = '/brains/b1/marketplace/intochat/customer-researcher';
     if (method == 'GET' && path == market) {
       return {
-        'listing': _listingJson,
+        'listing': listingJson,
         'installed': installed,
         'updateAvailable': update && !edited,
       };
@@ -76,6 +78,39 @@ Widget _host(Widget child) => MaterialApp(home: child);
 
 void main() {
   final listing = MarketplaceListing.fromJson(_listingJson);
+
+  testWidgets('install shows what the app requires before the one consent', (
+    tester,
+  ) async {
+    final requiring = {
+      ..._listingJson,
+      'requires': {
+        'semanticTypes': ['person.email'],
+        'connectors': ['gmail'],
+        'secrets': ['openai-key'],
+      },
+    };
+    final server = _FakeMarket(listingJson: requiring);
+    await tester.pumpWidget(
+      _host(
+        AppDetailScreen(
+          workspaceId: 'b1',
+          request: server.request,
+          listing: MarketplaceListing.fromJson(requiring),
+          onOpen: (name) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('detail-requires')), findsOneWidget);
+    expect(find.text('Your data: person.email'), findsOneWidget);
+    expect(find.text('Connections: gmail'), findsOneWidget);
+    expect(find.text('Secrets: openai-key'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('install-app')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('detail-requires')), findsNothing);
+  });
 
   testWidgets('a marketplace app shows what it is and installs in one step', (
     tester,
