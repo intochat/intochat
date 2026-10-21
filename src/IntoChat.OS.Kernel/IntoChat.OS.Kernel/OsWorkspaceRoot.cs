@@ -41,8 +41,13 @@ internal sealed class OsWorkspaceRoot(IIntoChatOS brain, AppInstaller installer,
         }
         // v2 for everyone unless the person chose the classic layout; classic is v1, unchanged.
         // The choice is the desktop's own text (layout-switch.cs writes it), read fresh on every connect.
+        // Only the desktop the OS ships is the v2 root: an app that merely bears the name (own, foreign
+        // or edited) would otherwise gain the desktop's workspace authority, so v1 is shown instead.
         var desktop = brain.Neuron<IApp>("apps/desktop");
-        if ((await brain.Neuron<IText>("apps/desktop/layout").Read()).Markdown == "classic")
+        var shipped = ShippedApps.Is(await desktop.Read(), "desktop", options.Value.TrustedPublishers);
+        if (!shipped)
+        { logger.LogWarning("The app named desktop in {Brain} is not the shipped desktop; the classic layout is shown.", scope); }
+        if (!shipped || (await brain.Neuron<IText>("apps/desktop/layout").Read()).Markdown == "classic")
         {
             await brain.Neuron<IApp>("apps/workspace").Request("open", "");
             return new("layout", IApp.Key(scope, "workspace") + "/root");
