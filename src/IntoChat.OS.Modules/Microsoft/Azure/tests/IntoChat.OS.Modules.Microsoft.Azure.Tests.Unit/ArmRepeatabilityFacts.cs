@@ -49,6 +49,34 @@ public sealed class ArmRepeatabilityFacts
         Assert.Equal(3, handler.AppWrites);
     }
 
+    [Fact]
+    public async Task Updating_image_preserves_existing_custom_domain_and_certificate_binding()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+        var app = new ContainerAppSpec
+        {
+            Name = "test-api", ResourceGroup = "rg", Location = "polandcentral", Environment = "test-env", Identity = "test-id", Image = "acr.azurecr.io/api:1",
+        };
+        await arm.Ensure(AzureHttp.Subscription, app, TestContext.Current.CancellationToken);
+        handler.BindCustomDomain();
+
+        await arm.Ensure(AzureHttp.Subscription, app, TestContext.Current.CancellationToken);
+        Assert.Equal(1, handler.AppWrites);
+        await arm.Ensure(AzureHttp.Subscription, app with { Image = "acr.azurecr.io/api:2" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, handler.AppWrites);
+        var domains = handler.LastAppWrite?["properties"]?["configuration"]?["ingress"]?["customDomains"];
+        Assert.NotNull(domains);
+        Assert.Equal("api.test.intochat.io", domains[0]?["name"]?.GetValue<string>());
+        Assert.Equal("SniEnabled", domains[0]?["bindingType"]?.GetValue<string>());
+        Assert.Equal(AzureHttp.CertificateId, domains[0]?["certificateId"]?.GetValue<string>());
+
+        await arm.Ensure(AzureHttp.Subscription, app with { Image = "acr.azurecr.io/api:2" }, TestContext.Current.CancellationToken);
+        Assert.Equal(2, handler.AppWrites);
+    }
+
     private sealed class Credential : TokenCredential
     {
         public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) => new("offline-test-token", DateTimeOffset.UtcNow.AddHours(1));
@@ -60,10 +88,20 @@ public sealed class ArmRepeatabilityFacts
     {
         public const string Subscription = "00000000-0000-0000-0000-000000000001";
         private const string Group = "/subscriptions/" + Subscription + "/resourceGroups/rg";
+        public const string CertificateId = Group + "/providers/Microsoft.App/managedEnvironments/test-env/managedCertificates/test-cert";
         private JsonObject? _app;
         private string? _secret;
         public int SecretWrites { get; private set; }
         public int AppWrites { get; private set; }
+        public JsonObject? LastAppWrite => _app;
+
+        public void BindCustomDomain()
+        {
+            _app!["properties"]!["configuration"]!["ingress"]!["customDomains"] = new JsonArray
+            {
+                new JsonObject { ["name"] = "api.test.intochat.io", ["bindingType"] = "SniEnabled", ["certificateId"] = CertificateId },
+            };
+        }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {

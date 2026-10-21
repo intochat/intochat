@@ -362,12 +362,19 @@ public sealed class ArmAzure : IAzureArm
             template.Volumes.Add(volume);
         }
 
+        var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
         var configuration = new ContainerAppConfiguration
         {
             // The old revision is deactivated only once the new one is ready; lease ownership covers the overlap.
             ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
             Ingress = new ContainerAppIngressConfiguration { External = spec.Ingress.External, TargetPort = targetPort, Transport = ContainerAppIngressTransportMethod.Auto },
         };
+        // Domains and their certificate bindings are managed outside ResourceSpec. A template update
+        // must retain these ingress bindings rather than replacing them with an empty collection.
+        if (existing.HasValue && existing.Value!.Data.Configuration?.Ingress is { } currentIngress)
+        {
+            foreach (var domain in currentIngress.CustomDomains) { configuration.Ingress.CustomDomains.Add(domain); }
+        }
         foreach (var port in spec.InternalPorts)
         {
             configuration.Ingress.AdditionalPortMappings.Add(new IngressPortMapping(false, port) { ExposedPort = port });
@@ -425,7 +432,6 @@ public sealed class ArmAzure : IAzureArm
         data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
         Apply(spec, data.Tags);
         // ARM adds read-only/default fields. Requested arrays must match exactly, including removals.
-        var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
         using var desiredJson = JsonDocument.Parse(ModelReaderWriter.Write(data).ToString());
         using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
         if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
