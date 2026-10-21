@@ -11,7 +11,7 @@ public sealed record ConnectorDefinition(string Id, string DisplayName, string[]
     public Type[] Signals { get; init; } = [];
     public OAuthMethod[] OAuthMethods { get; init; } = [];
 
-    // Capability kinds every connection of this connector offers, such as IntoChat.OS.Storage.StorageCapability.Kind.
+    // Capability kinds every connection of this connector offers, such as IStorage.Capability.
     public string[] Capabilities { get; init; } = [];
 
     // A module declares its connectors as a static Connector or Connectors member.

@@ -4,7 +4,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Sdk;
-using IntoChat.OS.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -42,7 +41,7 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
     public static ConnectorDefinition Drive { get; } = new(DriveScopes.Connector, "Google Drive", ["google-oauth"], ["google-oauth"])
     {
         Neurons = [typeof(IStorage)],
-        Capabilities = [StorageCapability.Kind],
+        Capabilities = [IStorage.Capability],
         OAuthMethods = [new("google-oauth", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", [DriveScopes.Read], "google-oauth")
             { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
     };

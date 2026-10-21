@@ -146,8 +146,8 @@ public sealed class ConnectorBindingFacts
     [Fact]
     public void AStorageConnectorMustListAStorageNeuron()
     {
-        var storage = ExampleModule.Connector with { Capabilities = [IntoChat.OS.Storage.StorageCapability.Kind] };
+        var storage = ExampleModule.Connector with { Capabilities = [IStorage.Capability] };
         Assert.Throws<InvalidOperationException>(() => ConnectorDiscovery.Validate([storage], [ExampleModule.Integration]));
-        ConnectorDiscovery.Validate([storage with { Neurons = [typeof(IntoChat.OS.Storage.IStorage)] }], [ExampleModule.Integration]);
+        ConnectorDiscovery.Validate([storage with { Neurons = [typeof(IStorage)] }], [ExampleModule.Integration]);
     }
 }

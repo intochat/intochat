@@ -1,6 +1,5 @@
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Storage;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 
@@ -18,7 +17,7 @@ public sealed class StorageFacts(WindowsMachineHost shared)
         var connections = await host.Brain.Get<IConnectionRequests>(host.Owner.BrainId).ListConnections();
 
         var pc = Assert.Single(connections, item => item.Neuron == host.Key);
-        Assert.Contains(StorageCapability.Kind, pc.Capabilities);
+        Assert.Contains(IStorage.Capability, pc.Capabilities);
     }
 
     [Fact]

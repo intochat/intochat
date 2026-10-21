@@ -1,14 +1,16 @@
 using System.ComponentModel;
 
-namespace IntoChat.OS.Storage;
+namespace IntoChat.OS;
 
-// The storage capability: a connection that offers it declares StorageCapability.Kind in its
+// The storage capability: a connection that offers it declares IStorage.Capability in its
 // connector's Capabilities, and its connection neuron (keyed by the connection key) implements
 // IStorage. Locations are opaque to callers: a Windows path, a Drive file id. The empty location
 // is the storage itself, whose children are Roots. Each connector enforces its own confinement.
 [Alias("storage")]
 public interface IStorage : INeuron
 {
+    const string Capability = "storage";
+
     [Description("The top-level folders this storage offers.")]
     Task<StorageEntry[]> Roots(CancellationToken cancellationToken = default);
 
@@ -27,8 +29,3 @@ public sealed record StorageEntry(
     [property: Id(0)] string Location,
     [property: Id(1)] string Name,
     [property: Id(2)] bool IsFolder);
-
-public static class StorageCapability
-{
-    public const string Kind = "storage";
-}

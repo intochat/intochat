@@ -1,8 +1,8 @@
+using IntoChat.OS;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Storage;
 using IntoChat.OS.Flutter.Collection;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.TextField;
@@ -23,7 +23,7 @@ static class Store
 
     public static async Task<ConnectionSummary[]> Connections(IntoChatOSConnection brain) =>
         (await brain.Get<IConnectionRequests>(Scope(brain)).ListConnections())
-            .Where(item => item.Capabilities.Contains(StorageCapability.Kind)).OrderBy(item => item.Kind).ThenBy(item => item.Id).ToArray();
+            .Where(item => item.Capabilities.Contains(IStorage.Capability)).OrderBy(item => item.Kind).ThenBy(item => item.Id).ToArray();
 
     static IStorage Of(IntoChatOSConnection brain, string connection) => brain.Get<IStorage>(connection);
 

@@ -1,7 +1,6 @@
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Google.Gmail;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Storage;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
 
@@ -22,7 +21,7 @@ public sealed class DriveStorageFacts
         Assert.Equal("user@gmail.com", view.Account);
 
         var connection = Assert.Single(await brain.Get<IConnectionRequests>(brain.Owner.BrainId).ListConnections(), item => item.Neuron == key);
-        Assert.Contains(StorageCapability.Kind, connection.Capabilities);
+        Assert.Contains(IStorage.Capability, connection.Capabilities);
 
         var storage = brain.Get<IStorage>(key);
         var root = Assert.Single(await storage.Roots(ct));
