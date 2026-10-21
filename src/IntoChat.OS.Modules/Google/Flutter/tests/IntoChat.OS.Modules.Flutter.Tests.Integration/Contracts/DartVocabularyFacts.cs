@@ -82,7 +82,7 @@ public sealed partial class DartVocabularyFacts
     // pinned so the guard passes at head: a kind that gains a Dart entry must leave this list (checked below); a kind
     // emitted by a UiChildRef call site must never be added here.
     private static readonly string[] VocabularyKindsWithoutADartContract =
-        ["calendar", "clock", "color", "expander", "graph", "image", "infobar", "map", "progress", "rating", "sheet", "slider", "toggle", "tree", "video"];
+        ["calendar", "clock", "color", "graph", "map", "rating", "sheet", "slider", "tree", "video"];
 
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()
@@ -90,10 +90,8 @@ public sealed partial class DartVocabularyFacts
         // Emittable = renderer vocabulary + the literal kind of every UiChildRef("<kind>", ...) in production source.
         var emitters = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
         foreach (var kind in Vocabulary()) { emitters[kind] = ["UIVocabulary"]; }
-        foreach (var top in new[] { "features", "src" })
+        foreach (var directory in UiContractFiles.ProductionSourceDirectories())
         {
-            var directory = Path.Combine(UiContractFiles.Root, top);
-            if (!Directory.Exists(directory)) { continue; }
             foreach (var file in Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories))
             {
                 var relative = Path.GetRelativePath(UiContractFiles.Root, file).Replace('\\', '/');
