@@ -155,25 +155,51 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         return View();
     }
 
-    public async Task ShareInto(string brainId, string app)
+    // ShareInto's entry is the one ShareWith records for that app's principal when the app key is of that brain,
+    // so both name the same sharing; the alias keeps the exact pre-Phase F entry for any pairing.
+    public Task ShareInto(string brainId, string app) => Add(AppEntry(brainId, app));
+
+    public Task UnshareFrom(string brainId, string app) => Remove(AppEntry(brainId, app));
+
+    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(Snapshot.SharedInto.Contains(AppEntry(brainId, app), StringComparer.Ordinal));
+
+    public Task ShareWith(string principalId) => Add(SharingEntry(principalId));
+
+    public Task UnshareWith(string principalId) => Remove(SharingEntry(principalId));
+
+    public Task<bool> IsSharedWith(string principalId) => Task.FromResult(Snapshot.SharedInto.Contains(SharingEntry(principalId), StringComparer.Ordinal));
+
+    private async Task Add(string entry)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(app);
-        var entry = $"{brainId}/{app}";
         if (Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
         Snapshot.SharedInto = [.. Snapshot.SharedInto, entry];
         await SaveQuietly(Snapshot);
     }
 
-    public async Task UnshareFrom(string brainId, string app)
+    private async Task Remove(string entry)
     {
-        var entry = $"{brainId}/{app}";
         if (!Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
         Snapshot.SharedInto = [.. Snapshot.SharedInto.Where(shared => shared != entry)];
         await SaveQuietly(Snapshot);
     }
 
-    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(Snapshot.SharedInto.Contains($"{brainId}/{app}", StringComparer.Ordinal));
+    private static string AppEntry(string brainId, string app)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(app);
+        return $"{brainId}/{app}";
+    }
+
+    // The persisted SharedInto entries keep their pre-Phase F shape: an app principal is "{brain}/{appKey}", its
+    // brain being the one its key names; any other principal is "principal:{id}", a shape no earlier entry has.
+    // No stored entry changes meaning, so no migration is needed.
+    internal static string SharingEntry(string principalId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        return AppPrincipal.AppKeyOf(principalId) is { } appKey && appKey.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash
+            ? AppEntry(appKey[..slash], appKey)
+            : "principal:" + principalId;
+    }
 
     // Opens the credential for one call; refreshes first when the access token is about to expire.
     protected async Task<T> UseCredentialAsync<T>(Func<Credential, CancellationToken, Task<T>> call, CancellationToken ct)

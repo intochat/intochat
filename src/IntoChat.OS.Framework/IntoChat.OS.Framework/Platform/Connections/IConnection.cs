@@ -36,12 +36,20 @@ public interface IConnection : INeuron
 
     // R146: the owner's connection records an app of another brain it is shared into; that record is what the call
     // gate admits the app's use operations by (IConnectionBindings).
+    // Phase F: a connection is shared with principals. ShareInto(brain, app) is ShareWith(AppPrincipal.Id(app)) for
+    // an app of that brain, kept as an alias.
     [Internal] Task ShareInto(string brainId, string app);
 
     [Internal, AlwaysInterleave] Task<bool> IsSharedInto(string brainId, string app);
 
     // R155: the sharing is withdrawn (its sharer left the brain it was shared into).
     [Internal] Task UnshareFrom(string brainId, string app);
+
+    [Internal] Task ShareWith(string principalId);
+
+    [Internal, AlwaysInterleave] Task<bool> IsSharedWith(string principalId);
+
+    [Internal] Task UnshareWith(string principalId);
 }
 
 // Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
