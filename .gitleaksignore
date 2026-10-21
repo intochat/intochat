@@ -1,0 +1,2 @@
+# Test canary literal (a fake secret the redaction fact must never see leak), not a credential.
+6c3fe5bdfae0c9bf982f11646ffe8b06716e648e:src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/SecretsFacts.cs:generic-api-key:113
