@@ -4,6 +4,7 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -25,12 +26,24 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
     public const string HttpClientName = "IntoChat.OS.Gmail";
     public const string WatchPath = "/google/gmail/watch";
 
-    public static ConnectorDefinition Connector { get; } = new("gmail", "Gmail", ["google-oauth"], ["google-oauth"])
+    public static ConnectorDefinition[] Connectors => [Gmail, Drive];
+
+    public static ConnectorDefinition Gmail { get; } = new("gmail", "Gmail", ["google-oauth"], ["google-oauth"])
     {
         OptionalIntegrations = ["google-pubsub"],
         Neurons = [typeof(IGmail)],
         Signals = [typeof(MailReceived)],
         OAuthMethods = [new("google-oauth", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", [GmailScopes.Read], "google-oauth")
+            { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
+    };
+
+    // Google Drive as read-only storage, signed in through the same Google OAuth integration as Gmail.
+    // A separate connector keeps existing Gmail grants unchanged: adding a scope to them would force re-consent.
+    public static ConnectorDefinition Drive { get; } = new(DriveScopes.Connector, "Google Drive", ["google-oauth"], ["google-oauth"])
+    {
+        Neurons = [typeof(IStorage)],
+        Capabilities = [StorageCapability.Kind],
+        OAuthMethods = [new("google-oauth", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", [DriveScopes.Read], "google-oauth")
             { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
     };
 
@@ -55,7 +68,7 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
 
             foreach (var key in await grains.GetGrain<IConnectionIndex>(brainId).List())
             {
-                if (ConnectionKeys.Parse(key).ConnectorId == Connector.Id) { await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push); }
+                if (ConnectionKeys.Parse(key).ConnectorId == Gmail.Id) { await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push); }
             }
             return Results.Accepted();
         }).AllowAnonymous();
