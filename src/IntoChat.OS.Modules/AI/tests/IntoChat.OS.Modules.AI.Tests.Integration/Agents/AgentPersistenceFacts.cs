@@ -11,6 +11,38 @@ namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 
 public sealed class AgentPersistenceFacts
 {
+    [Fact, Trait("host", "own")]
+    public async Task PostingReservesMutationUntilItsWriteCommits()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = timeout.Token;
+        var writes = new HeldWrite("completion", false);
+        await using var brain = await AgentFacts.Builder(StubChatClient.Replying("reply"))
+            .ConfigureServices(services =>
+            {
+                var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
+                    && Equals(service.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
+                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (services, key) =>
+                    new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
+            }).StartAsync(ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("posting"));
+        var posting = agent.Post("greeting", "first");
+        try
+        {
+            await writes.Entered.Task.WaitAsync(ct);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Clear().WaitAsync(TimeSpan.FromSeconds(5), ct));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Configure(new(), 0));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Start(AgentTurn.Text("hello")));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Post("second", "second"));
+        }
+        finally { writes.Release.TrySetResult(); }
+        await posting;
+        Assert.Equal("post/first", Assert.Single((await agent.Read()).Runs).RunId);
+        await agent.Post("second", "second");
+        Assert.Equal(2, (await agent.Transcript()).Length);
+    }
+
     [Trait("host", "own")]
     [Theory]
     [InlineData("admission", false)]

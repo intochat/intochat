@@ -165,8 +165,13 @@ internal sealed class AgentNeuron(
         if (State.ActiveRun is not null || _mutating) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
         var now = DateTimeOffset.UtcNow;
         var run = new AgentRun(runId, AgentRunStatus.Completed, "", now, now, text) { Posted = true };
-        await Persist(State with { Transcript = [.. State.Transcript, new AiMessage("assistant", [new AiText(text)])], Runs = Keep(State.Runs, run) });
-        await Notify(new TurnCompleted(Key, runId, text));
+        _mutating = true;
+        try
+        {
+            await Persist(State with { Transcript = [.. State.Transcript, new AiMessage("assistant", [new AiText(text)])], Runs = Keep(State.Runs, run) });
+            await Notify(new TurnCompleted(Key, runId, text));
+        }
+        finally { _mutating = false; }
     }
 
     public async Task<string> Start(AgentTurn turn)
