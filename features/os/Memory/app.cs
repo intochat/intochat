@@ -191,5 +191,6 @@ static class App
             new("recall", Kind: "text", Label: "Recall a synapse"),
             new("remember", Kind: "text", Label: "Remember"),
             new("review", Label: "Review memories"),
-        ]);
+        ],
+        Requires: new(Connectors: ["postgres"]));
 }

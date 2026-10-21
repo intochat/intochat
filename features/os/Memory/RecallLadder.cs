@@ -117,7 +117,11 @@ internal static class Recall
     public static VectorEntry Entry(string scope, string id, string tier, string text, DateTimeOffset at, int importance, float[] vector, string? kind = null)
         => new(id, vector, new()
         {
-            ["tier"] = tier, ["kind"] = kind ?? tier, ["brain"] = scope, ["text"] = Clip(text), ["at"] = at.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+            ["tier"] = tier,
+            ["kind"] = kind ?? tier,
+            ["brain"] = scope,
+            ["text"] = Clip(text),
+            ["at"] = at.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
             ["importance"] = importance.ToString(CultureInfo.InvariantCulture),
         });
 
