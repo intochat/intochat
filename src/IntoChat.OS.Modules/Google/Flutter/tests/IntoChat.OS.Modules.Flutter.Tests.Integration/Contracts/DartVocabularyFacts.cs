@@ -87,9 +87,9 @@ public sealed partial class DartVocabularyFacts
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()
     {
-        // Emittable = renderer vocabulary + the literal kind of every UiChildRef("<kind>", ...) in production source + watch-only kinds.
+        // Emittable = renderer vocabulary + the literal kind of every UiChildRef("<kind>", ...) in production source.
         var emitters = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
-        foreach (var kind in Vocabulary().Concat(WatchOnlyKinds)) { emitters[kind] = ["UIVocabulary / WatchOnlyKinds"]; }
+        foreach (var kind in Vocabulary()) { emitters[kind] = ["UIVocabulary"]; }
         foreach (var top in new[] { "features", "src" })
         {
             var directory = Path.Combine(UiContractFiles.Root, top);
@@ -110,7 +110,7 @@ public sealed partial class DartVocabularyFacts
         var tableKinds = NodeContracts().Select(contract => contract.Kind).ToHashSet();
         var stale = VocabularyKindsWithoutADartContract.Where(tableKinds.Contains).ToArray();
         Assert.True(stale.Length == 0, "VocabularyKindsWithoutADartContract lists kinds that now have a Dart entry: " + string.Join(", ", stale));
-        var calls = emitters.Where(entry => entry.Value.Any(source => source != "UIVocabulary / WatchOnlyKinds")).Select(entry => entry.Key);
+        var calls = emitters.Where(entry => entry.Value.Any(source => source != "UIVocabulary")).Select(entry => entry.Key);
         Assert.Empty(calls.Intersect(VocabularyKindsWithoutADartContract));
         var missing = emitters.Where(entry => !tableKinds.Contains(entry.Key) && !VocabularyKindsWithoutADartContract.Contains(entry.Key)).Select(entry => $"{entry.Key} (emitted by {string.Join(", ", entry.Value)})").ToArray();
         Assert.True(missing.Length == 0, "Kinds the server can emit have no entry in node_contracts.dart:\n" + string.Join('\n', missing));
