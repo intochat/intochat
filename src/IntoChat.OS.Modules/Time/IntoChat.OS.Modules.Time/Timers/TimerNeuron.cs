@@ -21,7 +21,7 @@ internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimePr
 
         var schedule = new object();
         // A named timer replaces the previous schedule; it does not interleave and keeps the activation alive.
-        _timer = Context.Timers.Start(Schedule, dueTime, period, ct => TickAsync(schedule, period is null, ct));
+        _timer = Context.Timers.Start(Schedule, dueTime, period, ct => TickAsync(schedule, period is null, ct), keepAlive: true);
         _schedule = schedule;
         // Ticks extend the lifetime; a long initial delay also needs protection.
         Context.KeepAlive(Timeout.InfiniteTimeSpan);

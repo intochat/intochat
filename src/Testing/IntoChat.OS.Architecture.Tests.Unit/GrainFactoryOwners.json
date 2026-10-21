@@ -66,7 +66,7 @@
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Views/AliasViewHttpFacts.cs": 6,
   "IntoChat.OS.Modules.Flutter/Button/ButtonNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Chat/ChatNeuron.cs": 1,
-  "IntoChat.OS.Modules.Flutter/Chat/ComposerNeuron.cs": 5,
+  "IntoChat.OS.Modules.Flutter/Chat/ComposerNeuron.cs": 4,
   "IntoChat.OS.Modules.Flutter/FileInput/FileInputNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Select/SelectNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Shared/AppUiEndpoints.cs": 8,

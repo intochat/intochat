@@ -1,0 +1,8 @@
+[
+  {
+    "file": "IntoChat.OS.Modules.Microsoft.CSharp/Runtime/BrainRuntimeNeuron.cs",
+    "interface": "IBrainProgramChanges",
+    "method": "Apply",
+    "reason": "The caller (Assign) is [AlwaysInterleave], so it holds no turn: the awaited call to itself waits only for the turn in progress, never for its own."
+  }
+]

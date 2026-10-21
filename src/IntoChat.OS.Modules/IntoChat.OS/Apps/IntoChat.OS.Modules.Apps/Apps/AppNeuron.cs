@@ -703,7 +703,7 @@ internal sealed partial class AppNeuron(
 
     internal Task RestoreAfterActivation()
         => !Snapshot.MigrationPaused && Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram)
-            ? this.AsReference<IAppDeploy>().Restore()
+            ? Defer<IAppDeploy>(deploy => deploy.Restore())
             : Task.CompletedTask;
 
     public async Task Restore()

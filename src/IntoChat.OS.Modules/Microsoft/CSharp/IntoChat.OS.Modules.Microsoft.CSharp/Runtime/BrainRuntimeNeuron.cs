@@ -76,7 +76,7 @@ internal sealed class BrainRuntimeNeuron(
     private readonly List<RunFact> _facts = [];
     private static readonly ActivitySource Telemetry = new("IntoChat.OS.Microsoft.CSharp.Runtime");
     private ICostMeter? _meter;
-    private IGrainTimer? _watchRenewal;
+    private IWatchRenewal? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
     private Task _sandboxCalls = Task.CompletedTask;
     // The tail of this activation's pricing of acknowledged runs, priced one after another off the acks' turns.
@@ -624,7 +624,7 @@ internal sealed class BrainRuntimeNeuron(
     private async Task ReadAfterWatchAsync(string neuron)
     {
         await WatchOffTurn(neuron, again: false);
-        try { await this.AsReference<IBrainRuntimeArrivals>().Read(neuron); }
+        try { await Defer<IBrainRuntimeArrivals>(arrivals => arrivals.Read(neuron)); }
         catch (Exception error) { logger.LogDebug(error, "Brain {Brain} could not ask itself to read {Neuron}'s part log.", Brain, neuron); }
     }
 
@@ -728,7 +728,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             SyncWatched();
             // Off the activation turn: a source's log may be on a part this machine has yet to open.
-            _ = this.AsReference<IBrainRuntimeArrivals>().CatchUp();
+            _ = Defer<IBrainRuntimeArrivals>(arrivals => arrivals.CatchUp());
         }
         // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
         // their subscribe-then-read recovery runs against durable state, with fresh credentials.
@@ -1188,12 +1188,12 @@ internal sealed class BrainRuntimeNeuron(
         foreach (var gone in dropped) { _watched.Remove(gone); }
         foreach (var source in sources.Where(source => !_watched.ContainsKey(source)))
         { _watched[source] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(source)); }
-        if (_watched.Count == 0) { _watchRenewal?.Dispose(); _watchRenewal = null; }
-        else
+        if (_watched.Count == 0)
         {
-            _watchRenewal ??= this.RegisterGrainTimer(_ => RenewWatches(),
-                new GrainTimerCreationOptions { DueTime = ObserverRenewal, Period = ObserverRenewal, KeepAlive = true, Interleave = true });
+            if (_watchRenewal is { } stale) { _ = stale.DisposeAsync(); }
+            _watchRenewal = null;
         }
+        else { _watchRenewal ??= WatchRenewing(RenewWatches, keepAlive: true, interleave: true); }
         return dropped;
     }
 

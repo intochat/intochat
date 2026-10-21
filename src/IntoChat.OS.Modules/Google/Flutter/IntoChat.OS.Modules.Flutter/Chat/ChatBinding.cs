@@ -8,8 +8,7 @@ namespace IntoChat.OS.Flutter.Chat;
 internal sealed partial class ChatNeuron
 {
     private INeuron? _source;
-    private Guid _sourceActivation;
-    private IGrainTimer? _renewal;
+    private IWatchRenewal? _renewal;
     private bool _dirty;
     private bool _queued;
     private bool _watchReady;
@@ -103,19 +102,20 @@ internal sealed partial class ChatNeuron
         var next = Adapter.Source(selected.Agent);
         if (!_watchReady || _source?.GetGrainId() != next.GetGrainId())
         {
-            var old = _source;
+            // The old lease is withdrawn first: it is the same observer, so withdrawing it after the new watch would drop that too.
+            var old = _renewal;
+            _renewal = null;
+            if (old is not null) { await old.DisposeAsync(); }
             // Start the watermark before watching, so nothing published in between is lost.
             _source = next;
             _watchReady = false;
             _watermark = await SignalPull.Head(Journal, next.GetGrainId());
-            _sourceActivation = await next.Watch(this.AsReference<INeuronObserver>());
+            // A reactivated source may have missed what was published meanwhile; each renewal retries a failed snapshot.
+            _renewal = await WatchRenewing(next, null, keepAlive: false, onSourceReactivated: _ => { _dirty = true; return Task.CompletedTask; }, onRenewed: Reconcile);
             _watchReady = true;
             _watermark = (await SignalPull.After(Journal, next.GetGrainId(), _watermark, Logger)).Watermark;
-            if (old is not null && old.GetGrainId() != next.GetGrainId()) { await old.Unwatch(this.AsReference<INeuronObserver>()); }
         }
         _dirty = true;
-        _renewal ??= this.RegisterGrainTimer(_ => Renew(), new GrainTimerCreationOptions
-        { DueTime = ObserverRenewal, Period = ObserverRenewal, KeepAlive = false, Interleave = false });
         await Reconcile();
     }
 
@@ -137,7 +137,7 @@ internal sealed partial class ChatNeuron
     {
         if (!_dirty || _queued) { return Task.CompletedTask; }
         _queued = true;
-        return this.AsReference<IChatReconciliation>().Reconcile();
+        return Defer<IChatReconciliation>(binding => binding.Reconcile());
     }
 
     public async Task Reconcile()
@@ -164,35 +164,7 @@ internal sealed partial class ChatNeuron
     {
         if (Snapshot.Selection is null) { return Task.CompletedTask; }
         _dirty = true;
-        return this.AsReference<IChatReconciliation>().Reconcile();
-    }
-
-    private async Task Renew()
-    {
-        try
-        {
-            if (_source is null) { await Recover(); return; }
-            var activation = await _source.Watch(this.AsReference<INeuronObserver>());
-            if (activation != _sourceActivation) { _sourceActivation = activation; _dirty = true; }
-            await Reconcile();
-        }
-        catch (Exception error)
-        {
-            _dirty = true;
-            Logger.LogWarning(error, "Chat source reconciliation failed for {Chat}.", this.GetPrimaryKeyString());
-        }
-    }
-
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-    {
-        _renewal?.Dispose();
-        if (reason.ReasonCode != DeactivationReasonCode.ShuttingDown && _source is not null)
-        {
-            try { await _source.Unwatch(this.AsReference<INeuronObserver>()); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-            catch (SiloUnavailableException) { }
-        }
-        await base.OnDeactivateAsync(reason, cancellationToken);
+        return Defer<IChatReconciliation>(binding => binding.Reconcile());
     }
 }
 

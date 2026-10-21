@@ -22,7 +22,7 @@ internal sealed class ComposerNeuron(
     : Neuron, IComposer, INeuronObserver, IComposerReconciliation, IComposerMigration
 {
     private ComposerState State => store.State.State;
-    private IGrainTimer? _renewal;
+    private IWatchRenewal? _renewal;
     private long? _watermark;
 
     public async Task Follow(string chat)
@@ -39,17 +39,12 @@ internal sealed class ComposerNeuron(
     internal Task ActivateFollowing()
     {
         if (State.FollowedChat is not { } chat) { return Task.CompletedTask; }
-        EnsureRenewal(chat);
-        return this.AsReference<IComposerReconciliation>().Reconcile(chat);
+        return Defer<IComposerReconciliation>(composer => composer.Reconcile(chat));
     }
-
-    private void EnsureRenewal(string chat) => _renewal ??= this.RegisterGrainTimer(_ => Reconcile(chat),
-        new GrainTimerCreationOptions { DueTime = ObserverRenewal, Period = ObserverRenewal, KeepAlive = true });
 
     internal async Task RecoverFollowing()
     {
         if (State.FollowedChat is not { } chat) { return; }
-        EnsureRenewal(chat);
         await Reconcile(chat);
     }
 
@@ -65,7 +60,7 @@ internal sealed class ComposerNeuron(
             if (signal is not ChatSelectionChanged changed || changed.Name != State.FollowedChat
                 || signal.Publisher.Name != source.GetGrainId().ToString())
             { continue; }
-            await this.AsReference<IComposerReconciliation>().Reconcile(changed.Name);
+            await Defer<IComposerReconciliation>(composer => composer.Reconcile(changed.Name));
         }
     }
 
@@ -73,11 +68,12 @@ internal sealed class ComposerNeuron(
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ComposerNeuron>>();
 
     // The first watch starts the watermark before subscribing, so nothing published in between is lost.
-    private async Task WatchChat(IChat source)
+    private async Task WatchChat(IChat source, string chat)
     {
         var first = _watermark is null;
         if (first) { _watermark = await SignalPull.Head(Journal, source.GetGrainId()); }
-        await source.Watch(this.AsReference<INeuronObserver>(), [nameof(ChatSelectionChanged)]);
+        // The lease re-watches and reconciles each period; a composer that idles out is woken by its next call and watches again.
+        _renewal ??= await WatchRenewing(source, [nameof(ChatSelectionChanged)], keepAlive: false, onRenewed: () => Reconcile(chat));
         if (first) { _watermark = (await SignalPull.After(Journal, source.GetGrainId(), _watermark!.Value, Logger)).Watermark; }
     }
 
@@ -85,7 +81,7 @@ internal sealed class ComposerNeuron(
     {
         if (State.FollowedChat != chat) { return; }
         var source = GrainFactory.GetGrain<IChat>(chat);
-        await WatchChat(source);
+        await WatchChat(source, chat);
         var selection = (await source.Read()).Selection;
         if (State.FollowedChat == chat && selection is not null) { await ApplySelection(selection); }
     }
@@ -116,7 +112,7 @@ internal sealed class ComposerNeuron(
         if (!BrainKey.BelongsTo(chat, BrainKey.BrainOf(this.GetPrimaryKeyString())))
         { throw new UnauthorizedAccessException("The followed chat must belong to the composer's brain."); }
         var source = GrainFactory.GetGrain<IChat>(chat);
-        await WatchChat(source);
+        await WatchChat(source, chat);
         var selection = (await source.Read()).Selection ?? throw new InvalidOperationException("Select the migrated chat source first.");
         if (State.Context.Length != 0 && (State.Context != selection.Agent || State.Generation > selection.Revision))
         { throw new InvalidOperationException("Migration must preserve the composer's selected source and cannot regress its generation."); }
@@ -319,18 +315,6 @@ internal sealed class ComposerNeuron(
 
     public Task<ComposerAudio?> ReadAudio(Guid captureId) => Task.FromResult(State.Voice is { Status: "transcribing" } voice && voice.Id == captureId ? store.State.Audio : null);
     public Task<ComposerState> Read() => Task.FromResult(State);
-
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-    {
-        _renewal?.Dispose();
-        if (reason.ReasonCode != DeactivationReasonCode.ShuttingDown && State.FollowedChat is { } chat)
-        {
-            try { await GrainFactory.GetGrain<IChat>(chat).Unwatch(this.AsReference<INeuronObserver>()); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-            catch (SiloUnavailableException) { }
-        }
-        await base.OnDeactivateAsync(reason, cancellationToken);
-    }
 
     private void RequireContext(string context)
     {

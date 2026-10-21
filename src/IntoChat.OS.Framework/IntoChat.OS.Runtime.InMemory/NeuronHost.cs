@@ -241,7 +241,7 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
     // Timers fire on the runtime's TimeProvider and run as turns; reminders outlive deactivation and reactivate.
     private sealed class HostTimers(NeuronHost host) : INeuronTimers
     {
-        public IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false)
+        public IDisposable Start(string name, TimeSpan due, TimeSpan? period, Func<CancellationToken, Task> tick, bool interleave = false, bool keepAlive = false)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             ArgumentNullException.ThrowIfNull(tick);

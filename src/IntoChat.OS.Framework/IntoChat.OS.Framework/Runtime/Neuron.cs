@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
+using System.Reflection;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,10 +65,82 @@ public abstract class Neuron : Grain, INeuron
         }
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         _cause = CauseOf(reason);
-        return base.OnDeactivateAsync(reason, cancellationToken);
+        WatchRenewal[] live;
+        lock (_renewals) { live = [.. _renewals]; }
+        foreach (var renewal in live)
+        {
+            try { await renewal.Release(withdraw: reason.ReasonCode != DeactivationReasonCode.ShuttingDown); }
+            catch (Exception error) { RenewalLogger.LogWarning(error, "A watch renewal of {Neuron} could not be released.", Id.Name); }
+        }
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
+
+    private readonly HashSet<WatchRenewal> _renewals = [];
+
+    private ILogger RenewalLogger => Services.GetRequiredService<ILoggerFactory>().CreateLogger("Neuron.WatchRenewal");
+
+    // Holds a lease on `source` for this neuron: watches now, then re-watches every ObserverRenewal. A source that
+    // reactivated (its activation changed) is reported to onSourceReactivated; onRenewed runs after each successful tick.
+    // A failed tick logs a warning and the next tick retries. Disposing the renewal stops it and withdraws the watch.
+    protected async Task<IWatchRenewal> WatchRenewing(INeuron source, string[]? signals, bool keepAlive, bool interleave = false,
+        Func<Guid, Task>? onSourceReactivated = null, Func<Task>? onRenewed = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        var observer = Context.Self<INeuronObserver>();
+        Task<Guid> Watch() => signals is null ? source.Watch(observer) : source.Watch(observer, signals);
+        var activation = await Watch();
+        var logger = RenewalLogger;
+        WatchRenewal? renewal = null;
+        renewal = Track(new WatchRenewal(() => source.Unwatch(observer), Forget, logger));
+        renewal.Run(Context.Timers.Start("watch-renewal:" + Guid.NewGuid().ToString("N"), ObserverRenewal, ObserverRenewal, async _ =>
+        {
+            if (renewal.Released) { return; }
+            try
+            {
+                var current = await Watch();
+                if (current != activation)
+                {
+                    activation = current;
+                    if (onSourceReactivated is not null) { await onSourceReactivated(current); }
+                }
+                if (onRenewed is not null) { await onRenewed(); }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "A watch renewal of {Neuron} failed; the next tick retries.", Id.Name); }
+        }, interleave, keepAlive));
+        return renewal;
+    }
+
+    // For a neuron whose watches need their own dispatch (a caller per watch, a lane per source): the same lease
+    // timer, with `renew` re-establishing every watch. Disposing stops the timer; the neuron withdraws its own watches.
+    protected IWatchRenewal WatchRenewing(Func<Task> renew, bool keepAlive, bool interleave = false)
+    {
+        ArgumentNullException.ThrowIfNull(renew);
+        var logger = RenewalLogger;
+        WatchRenewal? renewal = null;
+        renewal = Track(new WatchRenewal(null, Forget, logger));
+        renewal.Run(Context.Timers.Start("watch-renewal:" + Guid.NewGuid().ToString("N"), ObserverRenewal, ObserverRenewal, async _ =>
+        {
+            if (renewal.Released) { return; }
+            try { await renew(); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "A watch renewal of {Neuron} failed; the next tick retries.", Id.Name); }
+        }, interleave, keepAlive));
+        return renewal;
+    }
+
+    private WatchRenewal Track(WatchRenewal renewal)
+    {
+        lock (_renewals) { _renewals.Add(renewal); }
+        return renewal;
+    }
+
+    private void Forget(WatchRenewal renewal)
+    {
+        lock (_renewals) { _renewals.Remove(renewal); }
     }
 
     internal static DeactivationCause CauseOf(DeactivationReason reason) => reason.ReasonCode switch
@@ -85,6 +160,20 @@ public abstract class Neuron : Grain, INeuron
             cancellationToken.ThrowIfCancellationRequested();
             await ((IActivationHandler)handler!).Activated(this, cancellationToken);
         }
+    }
+
+    private static readonly ConcurrentDictionary<MethodInfo, bool> OneWayTargets = new();
+
+    // Sends a one-way call to this neuron's own reference; it completes when sent, and the deferred work's failures surface in the target turn.
+    protected Task Defer<TSelf>(Expression<Func<TSelf, Task>> call) where TSelf : class
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        if (call.Body is not MethodCallExpression { Object: ParameterExpression } invocation)
+        { throw new ArgumentException("Defer takes a single call on the self reference, such as self => self.Method(args).", nameof(call)); }
+        var method = invocation.Method;
+        if (!OneWayTargets.GetOrAdd(method, static m => m.IsDefined(typeof(Orleans.Concurrency.OneWayAttribute), inherit: false) || m.IsDefined(typeof(OneWayCallAttribute), inherit: false)))
+        { throw new InvalidOperationException($"Defer target {method.DeclaringType?.Name}.{method.Name} must be [OneWay]"); }
+        return call.Compile()(Context.Self<TSelf>());
     }
 
     public virtual Task<Guid> Watch(INeuronObserver observer)
