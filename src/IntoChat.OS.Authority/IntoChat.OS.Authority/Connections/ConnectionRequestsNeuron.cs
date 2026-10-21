@@ -48,10 +48,11 @@ internal sealed class ConnectionRequestsNeuron(
         foreach (var key in await Platform.Connections(this.GetPrimaryKeyString()).List())
         {
             var identity = ConnectionKeys.Parse(key);
-            if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }
+            if (connectors.FirstOrDefault(connector => connector.Id == identity.ConnectorId) is not { } declared) { continue; }
             var connection = await GrainFactory.GetConnection(key).Read();
             result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
-                connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt));
+                connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt)
+            { Capabilities = [.. declared.Capabilities] });
         }
         return [.. result];
     }

@@ -4,7 +4,8 @@ using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
 namespace IntoChat.OS.Microsoft.Windows;
 
-// Files on one Windows PC, keyed {connectionKey}/files, confined to that machine's allowed roots.
+// Read and write files on one Windows PC, keyed {connectionKey}/files, confined to that machine's allowed roots.
+// Browsing goes through the storage capability (IntoChat.OS.Storage.IStorage) on the connection itself.
 [Alias("windows.files"), Orleans.Metadata.DefaultGrainType("windows.files")]
 public interface IFileSystem : INeuron
 {
