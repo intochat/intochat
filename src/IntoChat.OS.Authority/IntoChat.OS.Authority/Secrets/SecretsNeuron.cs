@@ -4,7 +4,7 @@ using IntoChat.OS.Framework.Platform.Secrets;
 namespace IntoChat.OS.Authority.Secrets;
 
 [GrainType("vault")]
-internal sealed class SecretsNeuron : Grain, ISecrets
+internal sealed class SecretsNeuron : Grain, ISecrets, ISecretVaultValues
 {
     private readonly IPersistentState<SecretsState> _state;
     private readonly SecretsStore _secrets;
@@ -59,5 +59,17 @@ internal sealed class SecretsNeuron : Grain, ISecrets
 
         _state.State.Owner = this.GetPrimaryKeyString();
         return Task.FromResult(_secrets.Resolve(_state.State, secret));
+    }
+
+    // Plaintext leaves only to the stamped owner of this vault or to the Authority's own platform stamp.
+    public Task<string[]> Values()
+    {
+        if (!CallerContextStamper.TryGet(out var caller)
+            || !(caller.PrincipalId == this.GetPrimaryKeyString() || (caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform)))
+        {
+            throw new UntrustedCallerException("Only the vault's owner can list its values.");
+        }
+
+        return Task.FromResult(_secrets.Values(_state.State));
     }
 }

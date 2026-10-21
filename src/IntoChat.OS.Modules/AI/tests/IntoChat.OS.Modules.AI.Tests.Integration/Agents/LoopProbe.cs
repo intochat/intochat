@@ -16,6 +16,7 @@ public interface ILoopProbe : INeuron
     Task<string> Echo(string word);
     Task<string> Wait(CancellationToken ct);
     Task<string> Fail();
+    Task<string> FailWith(string message);
     Task<string> Dump();
     Task<string> Conversation();
     Task<string> SeenByAgent(string agent);
@@ -37,6 +38,8 @@ public sealed class LoopProbe : Neuron, ILoopProbe
     }
 
     public async Task<string> Fail() { await Task.Yield(); throw new IOException("Tool failed after starting"); }
+
+    public async Task<string> FailWith(string message) { await Task.Yield(); throw new IOException(message); }
 
     public Task<string> Dump() => Task.FromResult(new string('r', DumpCharacters));
 

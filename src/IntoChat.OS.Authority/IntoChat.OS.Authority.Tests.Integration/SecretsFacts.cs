@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Secrets;
 using IntoChat.OS.Authority.Secrets;
+using IntoChat.OS.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Tests.Integration;
@@ -64,6 +66,71 @@ public sealed class SecretsFacts(AuthorityHost host)
 
         await Assert.ThrowsAsync<UntrustedCallerException>(() => secrets.Resolve(UserCaller(), reference, ct));
         Assert.Equal(Canary, await secrets.Resolve(PlatformCaller(), reference, ct));
+    }
+
+    [Fact]
+    public async Task TheRedactorsValueSourceReturnsOnlyTheStampedCallersVault()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        const string Other = "other-canary-5d1e8b";
+        var owner = brain.Owner;
+        var member = await owner.AddAccountMemberAsync(brain, "vault-member");
+        static CallerContext As(Person person) => new()
+        {
+            PrincipalId = person.PrincipalId,
+            AccountId = person.AccountId,
+            BrainId = person.BrainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        };
+        await brain.Platform.Secrets(owner.PrincipalId).Set(As(owner), "api.key", "API key", Canary, ct);
+        await brain.Platform.Secrets(member.PrincipalId).Set(As(member), "api.key", "API key", Other, ct);
+        var source = brain.Services.GetRequiredService<ISecretValueSource>();
+
+        using (owner.AsCaller())
+        {
+            var values = await source.CurrentValues(ct);
+            Assert.Contains(Canary, values);
+            Assert.DoesNotContain(Other, values);
+        }
+    }
+
+    [Fact]
+    public async Task AForeignCallerIsRefusedTheVaultValues()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var owner = brain.Owner;
+        var member = await owner.AddAccountMemberAsync(brain, "vault-intruder");
+        await brain.Platform.Secrets(owner.PrincipalId).Set(new CallerContext
+        {
+            PrincipalId = owner.PrincipalId,
+            AccountId = owner.AccountId,
+            BrainId = owner.BrainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        }, "gate.key", "Gate key", "gate-canary-91c4d7", ct);
+        var vault = brain.Platform.SecretValues(owner.PrincipalId);
+
+        using (member.AsCaller())
+        {
+            await Assert.ThrowsAsync<UntrustedCallerException>(vault.Values);
+        }
+        using (owner.AsCaller())
+        {
+            Assert.Contains("gate-canary-91c4d7", await vault.Values());
+        }
+    }
+
+    [Fact]
+    public void AVaultListsItsPlaintextValuesForMaskingOnly()
+    {
+        var state = new SecretsState { Owner = Owner };
+        var store = MasterKeyStore("first master key");
+        Assert.Empty(store.Values(state));
+        store.Set(state, "api.key", "API key", Canary);
+        Assert.Equal([Canary], store.Values(state));
     }
 
     private static CallerContext UserCaller() => new()

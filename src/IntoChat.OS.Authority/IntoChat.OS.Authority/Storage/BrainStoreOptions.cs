@@ -6,8 +6,8 @@ public sealed class BrainStoreOptions
     public string Directory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IntoChatOS", "runtime");
     public IntoChat.OS.Framework.Parts.MasterKeyCustodyKind Custody { get; set; }
     public bool ConfiguredCustodyAcknowledged { get; set; }
-    // Shipped OS config writes Legacy until the release after v0.1.0; flip by setting WriteFormat=Framed.
-    public BrainLogFormat WriteFormat { get; set; } = BrainLogFormat.Legacy;
+    // Framed everywhere (Kernel and AppHost settings agree); BrainLog.DetectFormat still reads Legacy logs.
+    public BrainLogFormat WriteFormat { get; set; } = BrainLogFormat.Framed;
     public BrainLogOwnershipOptions Ownership { get; set; } = new();
 }
 

@@ -5,6 +5,7 @@ using IntoChat.OS.AI.Agents.Signals;
 using IntoChat.OS.AI.Inference;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -68,6 +69,29 @@ internal sealed class AgentNeuron(
         _continuationHeld = false;
     }
 
+    // Everything announced or stored passes through the redactor: vault values are masked, never kept here.
+    private ISecretRedactor Redactor => ServiceProvider.GetRequiredService<ISecretRedactor>();
+    private async Task<string> Mask(string text) => (await Redactor.Redact(text, CancellationToken.None))!;
+
+    private async Task<AiMessage> Mask(AiMessage message) => new(message.Role, [.. await MaskAll(message.Content)]);
+
+    private async Task<AiContent[]> MaskAll(IReadOnlyList<AiContent> contents)
+    {
+        var masked = new List<AiContent>(contents.Count);
+        foreach (var content in contents)
+        {
+            masked.Add(content switch
+            {
+                AiText text => text with { Text = await Mask(text.Text) },
+                AiReasoning reasoning => reasoning with { Text = await Mask(reasoning.Text) },
+                AiToolCall call => call with { ArgumentsJson = await Mask(call.ArgumentsJson) },
+                AiToolResult result => result with { ResultJson = await Mask(result.ResultJson) },
+                _ => content,
+            });
+        }
+        return [.. masked];
+    }
+
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
 
@@ -84,7 +108,7 @@ internal sealed class AgentNeuron(
         }
     }
 
-    public Task Interrupted(string runId, string error) => Notify(new TurnFailed(Key, runId, error, Cancelled: false));
+    public async Task Interrupted(string runId, string error) => await Notify(new TurnFailed(Key, runId, await Mask(error), Cancelled: false));
 
     public async Task Configure(AgentDefinition definition, long expectedRevision)
     {
@@ -182,7 +206,7 @@ internal sealed class AgentNeuron(
         if (replay is not null)
         {
             await Notify(new TurnStarted(Key, runId, replay.UserText));
-            await Notify(new TurnCompleted(Key, runId, replay.Reply ?? ""));
+            await Notify(new TurnCompleted(Key, runId, await Mask(replay.Reply ?? "")));
             return runId;
         }
         await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) });
@@ -235,7 +259,7 @@ internal sealed class AgentNeuron(
             yield return new AgentTurnEvent.Started(runId);
             yield return new AgentTurnEvent.Text(replay.Reply ?? "");
             yield return new AgentTurnEvent.Completed([new AiMessage("assistant", [new AiText(replay.Reply ?? "")])], replay.Usage);
-            await Notify(new TurnCompleted(Key, runId, replay.Reply ?? ""));
+            await Notify(new TurnCompleted(Key, runId, await Mask(replay.Reply ?? "")));
             yield return new AgentTurnEvent.Finished();
             yield break;
         }
@@ -256,20 +280,32 @@ internal sealed class AgentNeuron(
         var text = new StringBuilder();
         // How much of the text is announced, and when the run was last stored with its text.
         var shown = 0;
+        // The text as masked and held back so far, and how much of the raw text it covers.
+        var visible = "";
+        var seen = 0;
         var stored = 0L;
         var sequence = 0;
         AgentTurnEvent.Failed? failure = null;
 
         // The run as streamed so far, including text not yet stored.
-        AgentRun Streamed() => text.Length > 0 ? run with { Reply = text.ToString() } : run;
+        AgentRun Streamed() => visible.Length > 0 ? run with { Reply = visible } : run;
+
+        // Masks the streamed text; until it is complete, a tail that could still grow into a secret is held back.
+        async Task Refresh(bool final)
+        {
+            var raw = text.ToString();
+            var tail = final ? 0 : Math.Min(raw.Length, await Redactor.TailLength(CancellationToken.None));
+            visible = await Mask(raw[..(raw.Length - tail)]);
+            seen = raw.Length;
+        }
 
         // Announces the text not yet announced; the caller stored it first, so the step carries that version.
         async Task Announce(bool persisted = true)
         {
-            if (shown < text.Length)
+            if (shown < visible.Length)
             {
-                var part = text.ToString(shown, text.Length - shown);
-                shown = text.Length;
+                var part = visible[shown..];
+                shown = visible.Length;
                 await Notify(new TurnProgressed(Key, runId, "text", part, null, null, ++sequence), persisted);
             }
             stored = Clock.GetTimestamp();
@@ -277,6 +313,7 @@ internal sealed class AgentNeuron(
 
         async Task Store()
         {
+            await Refresh(false);
             run = Streamed();
             await Persist(State with { ActiveRun = run });
             await Announce();
@@ -300,7 +337,7 @@ internal sealed class AgentNeuron(
                 while (true)
                 {
                     var step = loop.MoveNextAsync();
-                    if (!step.IsCompleted && shown < text.Length)
+                    if (!step.IsCompleted && seen < text.Length)
                     {
                         // Text held back by the interval is stored once the provider stalls, so what
                         // arrived is never hidden for longer than an interval.
@@ -331,34 +368,40 @@ internal sealed class AgentNeuron(
                             if (shown == 0 || Clock.GetElapsedTime(stored) >= ProgressInterval) { await Store(); }
                             break;
                         case AgentTurnEvent.ToolStarted tool:
-                            run = run with { ToolCalls = [.. run.ToolCalls, new AgentToolCall(tool.CallId, tool.Name, tool.Arguments)] };
+                            var arguments = await Mask(tool.Arguments);
+                            run = run with { ToolCalls = [.. run.ToolCalls, new AgentToolCall(tool.CallId, tool.Name, arguments)] };
                             await Store();
-                            await Notify(new TurnProgressed(Key, runId, "tool-call", null, tool.Name, tool.Arguments, ++sequence));
+                            await Notify(new TurnProgressed(Key, runId, "tool-call", null, tool.Name, arguments, ++sequence));
                             break;
                         case AgentTurnEvent.ToolCompleted tool:
-                            var refusal = ToolRefusal(tool.Result);
+                            var result = await Mask(tool.Result);
+                            var refusal = ToolRefusal(result);
                             run = run with
                             {
                                 ToolCalls = Settle(run.ToolCalls, tool.CallId,
-                                call => call with { Result = tool.Result, Code = refusal?.Code, Error = refusal?.Message })
+                                call => call with { Result = result, Code = refusal?.Code, Error = refusal?.Message })
                             };
                             await Store();
-                            await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, tool.Result, ++sequence));
-                            if (Card(tool.Result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
+                            await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, result, ++sequence));
+                            if (Card(result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
                             break;
                         case AgentTurnEvent.ToolFailed tool:
-                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Code = tool.Code, Error = tool.Message }) };
+                            var message = await Mask(tool.Message);
+                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Code = tool.Code, Error = message }) };
                             await Store();
-                            await Notify(new TurnProgressed(Key, runId, "tool-result", tool.Message, tool.Name,
-                                JsonSerializer.Serialize(new { isError = true, code = tool.Code, message = tool.Message }), ++sequence));
+                            await Notify(new TurnProgressed(Key, runId, "tool-result", message, tool.Name,
+                                JsonSerializer.Serialize(new { isError = true, code = tool.Code, message }), ++sequence));
                             break;
                         case AgentTurnEvent.Completed done:
-                            run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Reply = text.ToString(), Usage = done.Usage };
-                            var transcript = Bound([.. State.Transcript, input, .. done.Messages.Select(Compacted)], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
+                            await Refresh(true);
+                            run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Reply = visible, Usage = done.Usage };
+                            var produced = new List<AiMessage>(done.Messages.Count);
+                            foreach (var item in done.Messages) { produced.Add(Compacted(await Mask(item))); }
+                            var transcript = Bound([.. State.Transcript, input, .. produced], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
                             await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
                             completed = true;
                             await Announce();
-                            if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, JsonSerializer.Serialize(done.Usage), ++sequence)); }
+                            if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Mask(JsonSerializer.Serialize(done.Usage)), ++sequence)); }
                             break;
                         case AgentTurnEvent.Failed failed:
                             // The loop sees only a cancelled token; a run out of time failed, it was not cancelled.
@@ -377,7 +420,7 @@ internal sealed class AgentNeuron(
         {
             try
             {
-                if (completed) { await Notify(new TurnCompleted(Key, runId, text.ToString())); }
+                if (completed) { await Notify(new TurnCompleted(Key, runId, visible)); }
                 else
                 {
                     // Finally while yielding means the consumer stopped pulling: an abandoned stream is a cancelled run.
@@ -386,6 +429,9 @@ internal sealed class AgentNeuron(
                     var cancelled = !expired && (failure is not null ? failure.Cancelled : yielding || lifetime.IsCancellationRequested);
                     var error = expired ? timedOut
                         : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
+                    // The error and the text so far are masked; a redactor that fails leaves the held-back text and a generic error.
+                    try { await Refresh(true); error = await Mask(error); }
+                    catch (Exception mask) { Logger.LogWarning(mask, "Agent run {RunId} could not mask its outcome.", runId); error = "Execution failed before committing its result."; }
                     run = Close(Streamed(), cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;

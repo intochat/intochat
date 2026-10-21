@@ -1,1 +1,2 @@
+Unreleased - the standalone kernel now writes Framed brain logs (both formats stay readable); sensitive AI telemetry (EnableSensitiveData) is enabled only in Development settings; agent signals and stored agent state mask the caller's vault values.
 0.3.0 - DigitalBrain renamed to IntoChat.OS (clean break). Release notes: https://github.com/intochat/os.docs/blob/main/reference/releases/os-0.3.0.md
