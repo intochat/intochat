@@ -42,7 +42,6 @@ public sealed class HostedPlatformStorageFacts
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":AccountId", "account-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":BrainId", "brain-one")
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":RuntimeId", "runtime-one")
-            .WithConfiguration(HostedRuntimeOptions.SectionName + ":StateDirectory", Path.Combine(directory, "hosting"))
             .WithConfiguration(HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256", new string('A', 64))
             // After the server composed its storage: the hosted authority applies its journal storage at once.
             .ConfigureServices(services => services.AddHostedAuthority(new ConfigurationBuilder()

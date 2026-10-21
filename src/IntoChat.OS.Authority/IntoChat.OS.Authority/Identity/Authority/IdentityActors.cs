@@ -11,9 +11,11 @@ internal interface IPrincipal : IGrainWithStringKey
     Task<bool> IsRegistered();
     Task<Member?> DefaultMembership();
     Task<BrainEntry[]> Brains();
-    // One-way: a brain authority announces membership while the principal may be mid-registration.
+    // One-way: owner provisioning announces membership while the principal may be mid-registration.
     [Orleans.Concurrency.OneWay] Task Joined(string brainId, BrainKind kind);
-    [Orleans.Concurrency.OneWay] Task Left(string brainId);
+    // Awaited: member joins and removals must reach the principal in order, which one-way delivery does not promise.
+    Task Join(string brainId, BrainKind kind);
+    Task Left(string brainId);
 }
 
 [Alias("identity.account-grain")]

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>The hosted-cloud runtime: one allocation's scope, machine-authenticated management, workspace hand-off, journal-backed platform storage and recovery export.</Description>
+    <Description>The hosted-cloud runtime: container management for one allocation: machine-certificate authentication, ensure and observation, journal-backed platform storage and the recovery export. It carries no identity code.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
