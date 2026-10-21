@@ -84,6 +84,64 @@ cue is watched. When the signal arrives or the time passes, the first cue to fir
 Dispatched ("cue: <alias or time>"), and only while it is still Waiting. A cue that cannot be watched is
 written to `{app}/status` and the intent stays Waiting.
 
+## Scenario: Every completed turn becomes an episode
+
+When an Ino turn completes, Ino asks Memory to "capture" it with the conversation and run id. Memory's capture
+agent (prompt `capture.md`, `CaptureModel` setting) writes a third-person note of 2 to 10 bullets and an
+importance from 1 to 10 into `{app}/episodes` under `agent#run`; a failure, 30 seconds without a reply or a
+malformed reply stores the first 300 characters of each side instead, marked fallback. Either note is stored and
+embedded with every credential replaced by "[a credential was supplied]" or "[a possible credential was supplied]".
+A run already captured is skipped.
+
+## Scenario: Quiet time consolidates episodes into facts
+
+Every captured episode restarts the reminder `{app}/consolidation`; once no episode arrives for `QuietMinutes`
+(default 10), and once at startup, Memory claims up to 20 unconsolidated episodes for five minutes and its consolidate
+agent (prompt `consolidate.md`, `ConsolidateModel` setting, 60 seconds) returns a verdict. Durable items are asserted on
+the facts neuron `{brain}/memory/facts` (idempotent per content-hash dedup key: a hash of the item's normalised kind,
+subject, text and episode ids; a contradicted fact is invalidated as superseded), working items replace `{app}/working`, intent items are declared. Health, finances,
+third parties, location and routines, and items below `ReviewGate` (default 0.75), go to the review table and are
+listed by "review" on `{app}/review`; credentials are dropped. Over 512 current facts the least important is
+archived and forgotten. Episodes are marked consolidated last; a failed batch is retried once its claims expire, and
+an episode three batches failed on is parked (`claim` reads `parked:<reason>` and `{app}/status` says so) so the
+episodes behind it proceed. Every current fact, whoever asserted it, is in the life index as `fact:<id>` until it is
+forgotten or invalidated.
+
+## Scenario: A turn about a short preference is captured and consolidated into a profile fact
+
+After the user tells Ino "I like short answers", the turn's episode appears in `{app}/episodes` under `ino#<runId>`
+with a short third-person summary and importance 6, and is indexed into the life vector index. Once the quiet period
+passes the consolidation asserts the preference as a current Profile fact on the facts neuron, and the episode is
+marked consolidated.
+
+## Scenario: A health fact goes to review instead of the facts
+
+After the user says "I have a peanut allergy, keep that in mind", consolidation holds the item back although its
+confidence is 0.95: the review table gets one pending row whose reason starts with "sensitive: health" and names the
+episode, and the current facts hold nothing about peanuts. A key-shaped secret (a prefixed token, PEM block, JWT, Bearer value, password=value or
+high-entropy string) is discarded with the reason `secret` and never reaches the review table, while a named
+credential hint ("token: ...", "api key is ...", "secret is ...") goes to review with the reason "possible credential". Invoking "review" lists the pending row on `{app}/review` and the context entry `review-count` carries
+the number waiting; "review-accept" with the row id asserts it once as a fact (superseding the current fact it contradicts; an intent row
+is declared instead and a working row replaces `{app}/working`) and marks the row accepted, and
+"review-reject" marks it rejected without asserting anything.
+
+## Scenario: Recall-life answers Found with sources and Absent with coverage
+
+With the profile fact "The user prefers short answers" current, invoking "recall-life" with a question about it writes
+`{app}/recalls/{requestId}` (and `{app}/recall`) beginning with Found and the fact's text, each source shown as
+`source: profile <date> fact:<id>`. A question when no memory stands out from the rest answers that nothing in memory
+answers it and names the coverage, the first and last episode dates and the number of facts. A Partial answer adds the
+neighbouring episodes of its best episode and the transcript around its run.
+
+## Scenario: Forgetting a fact removes it from the profile, recall and the model's view
+
+After a profile fact is forgotten through `IFacts.Forget` (for example when the user says "forget that I like short
+answers" and Ino calls it), `Current` no longer lists the fact, the `profile` context entry no longer renders it, the
+next conversation's turn does not carry it and its `fact:<id>` entry leaves the life index, so recall-life never
+answers with the fact. `Read` still returns it, marked Hidden, with its text, and asserting its dedup key again returns
+the hidden fact rather than a new one. The episodes it was learned from remain and may still be recalled at the
+episode tier; forgetting episodes is not part of this slice.
+
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
@@ -94,7 +152,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.1.1";
+    public const string Version = "1.2.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
@@ -105,12 +163,22 @@ static class App
             new("recall", "Rank this brain's synapses and apps against the input by meaning and words, best first; the answer is the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
             new("intend", "Rephrase a message into a brief through Memory's agent and record it as an intent; input is JSON {\"message\",\"requestId\",\"conversation\"}, the answer is the text neuron {app}/intents/{requestId}: ok or failed: <reason>."),
+            new("capture", "Turn a finished turn into an episode: a short note and an importance in {app}/episodes; input is JSON {\"agent\",\"runId\"}. Done by Memory after each completed Ino turn."),
+            new("review", "List the consolidation's pending review items (sensitive or unsure items never published) as the text neuron {app}/review."),
+            new("review-accept", "Accept a review item: assert it as a fact (once) and mark the row accepted; input is the review row id."),
+            new("review-reject", "Reject a review item: mark the row rejected; input is the review row id."),
+            new("recall-life", "Recall from the user's life (facts and episodes) by meaning, recency, authority and importance; the answer is Found, Partial or Absent with sources, written as the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("remember", "Replace the working memory {app}/working with the input (at most 4,000 characters; longer input is refused on {app}/status)."),
         ],
         Settings:
         [
             new("Model", "Model catalog id for the rephrasing agent; empty uses the default.", ""),
+            new("CaptureModel", "Model catalog id for the agent that writes episode notes; empty uses the default.", ""),
             new("ConfirmGate", "Confidence at or above which a rephrased intent is confirmed.", "0.8"),
+            new("QuietMinutes", "Minutes without a new episode after which consolidation runs.", "10"),
+            new("ConsolidateModel", "Model catalog id for the agent that consolidates episodes into facts; empty uses the default.", ""),
+            new("HalfLifeDays", "Days after which a memory's recency weight halves in recall-life (never below 0.3).", "14"),
+            new("ReviewGate", "Confidence below which a consolidated item goes to review instead of being published.", "0.75"),
         ],
         Slots:
         [
@@ -122,6 +190,7 @@ static class App
             new("open", Label: "Memory"),
             new("recall", Kind: "text", Label: "Recall a synapse"),
             new("remember", Kind: "text", Label: "Remember"),
+            new("review", Label: "Review memories"),
         ],
         Requires: new(Connectors: ["postgres"]));
 }

@@ -162,6 +162,31 @@ public sealed class VectorIndexFacts(AIHost host)
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => elsewhere.Replace([Entry("a", 1, 0)]));
     }
 
+    [Fact]
+    public async Task ASearchNeverCrossesBrains()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var first = await host.PersonAsync(ct: ct);
+        var second = await host.PersonAsync(ct: ct);
+        Assert.NotEqual(first.BrainId, second.BrainId);
+        static VectorEntry[] Life(Person person, string id) =>
+            [new(id, [1, 0], new() { ["tier"] = "fact", ["brain"] = person.BrainId })];
+        using (first.AsCaller())
+        { await brain.Get<IVectorIndex>(IVectorIndex.Key(first.BrainId, "life")).Upsert(Life(first, "fact:first")); }
+        using (second.AsCaller())
+        { await brain.Get<IVectorIndex>(IVectorIndex.Key(second.BrainId, "life")).Upsert(Life(second, "fact:second")); }
+
+        using (first.AsCaller())
+        {
+            var own = brain.Get<IVectorIndex>(IVectorIndex.Key(first.BrainId, "life"));
+            Assert.Equal(["fact:first"], (await own.Nearest([1, 0], 10, new() { ["brain"] = first.BrainId })).Select(match => match.Id));
+            Assert.Empty(await own.Nearest([1, 0], 10, new() { ["brain"] = second.BrainId }));
+            var other = brain.Get<IVectorIndex>(IVectorIndex.Key(second.BrainId, "life"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => other.Nearest([1, 0], 10, new() { ["brain"] = second.BrainId }));
+        }
+    }
+
     private static string Notes(Person person) => IVectorIndex.Key(person.BrainId, "notes");
 
     private static VectorEntry Entry(string id, params float[] vector) => new(id, vector, []);

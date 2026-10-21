@@ -264,4 +264,63 @@ public sealed class OsMemoryIntendFacts
     [Fact]
     public void ParseAskRejectsAMissingConversation()
         => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{\"message\":\"m\",\"requestId\":\"r\"}"));
+
+    private static IntoChat.OS.AI.Agents.Facts.Fact Profile(string text, DateTimeOffset recorded,
+        IntoChat.OS.AI.Agents.Facts.FactKind kind = IntoChat.OS.AI.Agents.Facts.FactKind.Profile, DateTimeOffset? validTo = null, bool hidden = false)
+        => new(Guid.NewGuid(), kind, text, "user", 1, 3, recorded, validTo, null, recorded, "p", 0, "v",
+            IntoChat.OS.AI.Agents.Facts.FactScope.Private, [], hidden);
+
+    [Fact]
+    public void RenderProfileKeepsExactlyThreeThousandAndDropsAWholeLineBeyond()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var facts = Enumerable.Range(0, 11).Select(i => Profile(new string((char)('a' + i), 297), now.AddMinutes(i))).ToArray();
+        var full = global::Intents.RenderProfile(facts, 3_000);
+        Assert.Equal(3_000, full.Length);
+        Assert.Equal(10, full.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.StartsWith("- " + new string('k', 297), full);
+        var shy = global::Intents.RenderProfile(facts, 2_999);
+        Assert.Equal(2_700, shy.Length);
+    }
+
+    [Fact]
+    public void RenderProfileCollapsesNewlinesAndTabsToOneLine()
+        => Assert.Equal("- a b c\n", global::Intents.RenderProfile([Profile("a\r\nb\tc", DateTimeOffset.UtcNow)], 3_000));
+
+    [Fact]
+    public void RenderProfileCutsAtThreeThousand()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var facts = Enumerable.Range(0, 100).Select(i => Profile("fact number " + i + new string('x', 80), now.AddMinutes(i))).ToArray();
+        var text = global::Intents.RenderProfile(facts, 3_000);
+        Assert.True(text.Length <= 3_000);
+        Assert.StartsWith("- fact number 99", text);
+        Assert.EndsWith("\n", text);
+        Assert.All(text.TrimEnd('\n').Split('\n'), line => Assert.StartsWith("- fact number", line));
+    }
+
+    [Fact]
+    public void AForgottenFactIsNotRendered()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var kept = Profile("likes short answers", now);
+        var facts = new[]
+        {
+            kept,
+            Profile("old", now, validTo: now),
+            Profile("secret", now, hidden: true),
+            Profile("not profile", now, IntoChat.OS.AI.Agents.Facts.FactKind.Insight),
+        };
+        var live = global::Intents.ProfileOf(facts);
+        Assert.Equal([kept], live);
+        Assert.Equal("- likes short answers\n", global::Intents.RenderProfile(live, 3_000));
+    }
+
+    [Fact]
+    public void AnOversizedFactIsSkippedNotBlanking()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var text = global::Intents.RenderProfile([Profile(new string('x', 4_000), now), Profile("small", now.AddMinutes(-1))], 3_000);
+        Assert.Equal("- small\n", text);
+    }
 }
