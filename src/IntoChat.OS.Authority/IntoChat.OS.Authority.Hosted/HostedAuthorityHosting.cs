@@ -1,8 +1,7 @@
-using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Storage;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,8 +12,10 @@ using Orleans.Storage;
 
 namespace IntoChat.OS.Authority.Hosted;
 
-// The hosted-cloud composition over the platform. Everything it adds is inert until HostedRuntimeOptions is
-// configured, except the options validation: a partial scope refuses to start.
+// Container management of one hosted allocation: machine-certificate authentication, ensure, observation and the
+// allocation's journal storage. It owns no identity: who signs in, and which brains they reach, is the platform's own
+// rule (external sign-in and brain membership), exactly as on any other install. Everything it adds is inert until
+// HostedRuntimeOptions is configured, except the options validation: a partial scope refuses to start.
 public static class HostedAuthorityHosting
 {
     public static IHostApplicationBuilder AddHostedAuthority(this IHostApplicationBuilder builder)
@@ -37,8 +38,8 @@ public static class HostedAuthorityHosting
         services.AddOptions<HostedRuntimeOptions>().BindConfiguration(HostedRuntimeOptions.SectionName)
             .Validate(options => string.IsNullOrEmpty(options.RuntimeId) && string.IsNullOrEmpty(options.AccountId) &&
                 string.IsNullOrEmpty(options.BrainId) && string.IsNullOrEmpty(options.ControllerCertificateSha256) ||
-                options.IsConfigured && Path.IsPathFullyQualified(options.StateDirectory),
-                "Hosted runtime requires a complete scope, pinned controller certificate and durable state directory.")
+                options.IsConfigured,
+                "Hosted runtime requires a complete scope and a pinned controller certificate.")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<RuntimeMachineAuthentication>();
@@ -54,21 +55,16 @@ public static class HostedAuthorityHosting
                             hosting.Value.ControllerCertificateSha256, StringComparison.OrdinalIgnoreCase);
                 });
             });
-        // Registered last so it wins over the platform's local access whichever composes first.
-        services.AddSingleton<IBrainAccess>(provider =>
-        {
-            var hosting = provider.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
-            return hosting.IsConfigured
-                ? new HostedBrainAccess(BrainAccess.Directory(provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>()), hosting)
-                : BrainAccess.Local(provider);
-        });
         services.AddSingleton<IAuthorityHttpExtension, HostedHttp>();
         return services;
     }
 
     private sealed class HostedAuthorityRegistration;
 
-    // When Hosting:RuntimeId is configured, platform authority and reminders live in the allocation's journal.
+    // When Hosting:RuntimeId is configured, platform authority and reminders live in the allocation's journal. Kept as
+    // recovery storage: every existing allocation already holds its accounts, principals, integration secrets and
+    // reminders there, so moving them to the default store would need a state migration. The guard below refuses to
+    // start over a configured grain-state store rather than silently replace existing authority.
     private sealed class HostedStorage : IHostedStorageExtension
     {
         public void Configure(IServiceCollection services, IConfiguration configuration)
@@ -87,33 +83,11 @@ public static class HostedAuthorityHosting
         }
     }
 
+    // Management routes only. No request pipeline of its own: an ext- principal from external sign-in is admitted to the
+    // brains it is a member of, like on any install.
     private sealed class HostedHttp : IAuthorityHttpExtension
     {
-        public void UseAfterAuthentication(WebApplication app) => UseScope(app);
+        public void UseAfterAuthentication(WebApplication app) { }
         public void Map(IEndpointRouteBuilder endpoints) => HostedRuntimeEndpoints.Map(endpoints);
-
-        // A hosted allocation serves its one configured brain: other brains, brain creation and the built-in password
-        // routes are refused, and only anonymous endpoints answer an unauthenticated caller.
-        private static void UseScope(WebApplication app)
-        {
-            var scope = app.Services.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
-            if (!scope.IsConfigured) { return; }
-            app.Use(async (http, next) =>
-            {
-                var path = http.Request.Path;
-                var route = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText;
-                if (route is "/identity/register" or "/identity/login" or "/identity/session/brain" ||
-                    (route == "/identity/brains" && HttpMethods.IsPost(http.Request.Method)))
-                { http.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
-                if (http.Request.RouteValues.TryGetValue("brainId", out var brain) && brain?.ToString() != scope.BrainId)
-                { http.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
-                if (http.User.Identity?.IsAuthenticated != true &&
-                    http.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is null &&
-                    !path.StartsWithSegments("/health") && !path.StartsWithSegments("/alive") && !path.StartsWithSegments("/ready") &&
-                    !HttpMethods.IsOptions(http.Request.Method))
-                { http.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-                await next(http);
-            });
-        }
     }
 }

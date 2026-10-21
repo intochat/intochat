@@ -38,8 +38,6 @@ public sealed class RuntimeMachineAuthenticationFacts
         builder.Configuration[HostedRuntimeOptions.SectionName + ":AccountId"] = "hosted-account";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":BrainId"] = "hosted-brain";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RuntimeId"] = "allocation-one";
-        var stateDirectory = Path.Combine(Path.GetTempPath(), "intochat-hosted-test-" + Guid.NewGuid().ToString("N"));
-        builder.Configuration[HostedRuntimeOptions.SectionName + ":StateDirectory"] = stateDirectory;
         builder.Configuration[HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256"] = certificate.GetCertHashString(HashAlgorithmName.SHA256);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<BrainBirths>());
@@ -68,7 +66,6 @@ public sealed class RuntimeMachineAuthenticationFacts
         RuntimeManagementEndpoints.Map(app);
         HostedRuntimeEndpoints.Map(app);
         IdentityEndpoints.Map(app);
-        app.MapGet("/workspace-probe", () => "workspace");
         await app.StartAsync(ct);
         using var handler = new HttpClientHandler();
         handler.ClientCertificates.Add(certificate);
@@ -87,8 +84,6 @@ public sealed class RuntimeMachineAuthenticationFacts
         Assert.True(body.Registered);
         Assert.Equal(attachStorage, body.RuntimeHealthy);
         Assert.Equal(attachStorage, body.StorageAttached);
-        using var workspace = await client.GetAsync("/workspace-probe", ct);
-        Assert.Equal(HttpStatusCode.Unauthorized, workspace.StatusCode);
         using var anonymousHandler = new HttpClientHandler();
         anonymousHandler.ServerCertificateCustomValidationCallback = handler.ServerCertificateCustomValidationCallback;
         using var anonymous = new HttpClient(anonymousHandler) { BaseAddress = client.BaseAddress };
@@ -109,8 +104,6 @@ public sealed class RuntimeMachineAuthenticationFacts
         Assert.Equal(HttpStatusCode.Unauthorized, exchange.StatusCode);
         using var launch = await anonymous.GetAsync("/runtime/workspace/launch", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, launch.StatusCode);
-        using var createOther = await anonymous.PostAsync("/identity/brains/", null, ct);
-        Assert.Equal(HttpStatusCode.Forbidden, createOther.StatusCode);
         Assert.Contains(typeof(HostedRuntimeOptions).GetProperties(), property => property.Name == nameof(HostedRuntimeOptions.AccountId));
         Assert.DoesNotContain(typeof(HostedRuntimeOptions).GetProperties(), property => property.Name.EndsWith("Claim", StringComparison.Ordinal));
         var access = app.Services.GetRequiredService<IntoChat.OS.Framework.IBrainAccess>();
@@ -124,11 +117,11 @@ public sealed class RuntimeMachineAuthenticationFacts
             DisplayName = "Other",
             JoinedAt = DateTimeOffset.UtcNow
         });
-        Assert.False(await access.CanAccessAsync("hosted-account", "hosted-account", "other-brain", ct));
+        // No hosted pin: brain membership is the platform's one rule, so the allocation's owner reaches every brain it owns.
+        Assert.True(await access.CanAccessAsync("hosted-account", "hosted-account", "other-brain", ct));
         using var otherBrain = await anonymous.GetAsync("/brains/other-brain/management/v1/observation", ct);
-        Assert.Equal(HttpStatusCode.Forbidden, otherBrain.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, otherBrain.StatusCode);
         await app.StopAsync(ct);
-        if (Directory.Exists(stateDirectory)) { Directory.Delete(stateDirectory, true); }
     }
 
     [Theory]

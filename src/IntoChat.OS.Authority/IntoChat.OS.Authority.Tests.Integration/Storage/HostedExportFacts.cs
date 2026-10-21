@@ -87,7 +87,6 @@ public sealed class HostedExportFacts
         builder.Configuration[HostedRuntimeOptions.SectionName + ":AccountId"] = "export-account";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":BrainId"] = "export-brain";
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RuntimeId"] = "new-export-runtime";
-        builder.Configuration[HostedRuntimeOptions.SectionName + ":StateDirectory"] = Path.Combine(directory, "hosting");
         builder.Configuration[HostedRuntimeOptions.SectionName + ":ControllerCertificateSha256"] = certificate.GetCertHashString(HashAlgorithmName.SHA256);
         builder.Configuration[HostedRuntimeOptions.SectionName + ":RecoveryOnly"] = "true";
         builder.AddHostedAuthority();
