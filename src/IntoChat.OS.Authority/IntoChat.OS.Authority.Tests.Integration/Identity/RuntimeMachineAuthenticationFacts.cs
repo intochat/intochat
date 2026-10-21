@@ -20,7 +20,7 @@ public sealed class RuntimeMachineAuthenticationFacts
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MachineCertificateCanEnsureOnlyConfiguredScopeAndCannotEnterWorkspace(bool attachStorage)
+    public async Task MachineCertificateCanEnsureOnlyConfiguredScopeAndIssuesNoWorkspaceSession(bool attachStorage)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
@@ -94,18 +94,25 @@ public sealed class RuntimeMachineAuthenticationFacts
         using var anonymous = new HttpClient(anonymousHandler) { BaseAddress = client.BaseAddress };
         using var denied = await anonymous.PostAsync("/runtime/management/v1/ensure", null, ct);
         Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
-        using var issue = await client.PostAsJsonAsync("/runtime/management/v1/workspace", new { userId = "cloud-user", sessionId = "cloud-session" }, ct);
-        Assert.Equal(HttpStatusCode.OK, issue.StatusCode);
-        var issued = await issue.Content.ReadFromJsonAsync<HostedWorkspaceStore.Issued>(ct);
+        // A hosted allocation issues no nested cloud claims: the workspace exchange and its management routes are gone,
+        // and a signed-in caller carries only the platform's own claims (see ExternalSignInFacts).
+        using var workspaceIssue = await client.PostAsJsonAsync("/runtime/management/v1/workspace", new { userId = "cloud-user", sessionId = "cloud-session" }, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, workspaceIssue.StatusCode);
+        using var workspaceRevoke = await client.PostAsJsonAsync("/runtime/management/v1/workspace/revoke", new { sessionId = "cloud-session" }, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, workspaceRevoke.StatusCode);
+        var routes = app.Services.GetServices<global::Microsoft.AspNetCore.Routing.EndpointDataSource>().SelectMany(source => source.Endpoints)
+            .OfType<global::Microsoft.AspNetCore.Routing.RouteEndpoint>().Select(endpoint => endpoint.RoutePattern.RawText ?? "").ToArray();
+        Assert.Contains("/runtime/management/v1/ensure", routes);
+        Assert.DoesNotContain(routes, route => route.Contains("/runtime/workspace", StringComparison.Ordinal) || route.Contains("v1/workspace", StringComparison.Ordinal));
         anonymous.DefaultRequestHeaders.Add("Origin", client.BaseAddress!.GetLeftPart(UriPartial.Authority));
-        using var exchange = await anonymous.PostAsJsonAsync("/runtime/workspace/exchange", new { code = issued!.Code }, ct);
-        Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
-        using var replay = await anonymous.PostAsJsonAsync("/runtime/workspace/exchange", new { code = issued.Code }, ct);
-        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
-        using var allowedWorkspace = await anonymous.GetAsync("/workspace-probe", ct);
-        Assert.Equal(HttpStatusCode.OK, allowedWorkspace.StatusCode);
+        using var exchange = await anonymous.PostAsJsonAsync("/runtime/workspace/exchange", new { code = new string('a', 64) }, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, exchange.StatusCode);
+        using var launch = await anonymous.GetAsync("/runtime/workspace/launch", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, launch.StatusCode);
         using var createOther = await anonymous.PostAsync("/identity/brains/", null, ct);
         Assert.Equal(HttpStatusCode.Forbidden, createOther.StatusCode);
+        Assert.Contains(typeof(HostedRuntimeOptions).GetProperties(), property => property.Name == nameof(HostedRuntimeOptions.AccountId));
+        Assert.DoesNotContain(typeof(HostedRuntimeOptions).GetProperties(), property => property.Name.EndsWith("Claim", StringComparison.Ordinal));
         var access = app.Services.GetRequiredService<IntoChat.OS.Framework.IBrainAccess>();
         var identityClient = brain.Services.GetRequiredService<IIdentityClient>();
         await identityClient.EnsureBrain(new Member
@@ -120,12 +127,8 @@ public sealed class RuntimeMachineAuthenticationFacts
         Assert.False(await access.CanAccessAsync("hosted-account", "hosted-account", "other-brain", ct));
         using var otherBrain = await anonymous.GetAsync("/brains/other-brain/management/v1/observation", ct);
         Assert.Equal(HttpStatusCode.Forbidden, otherBrain.StatusCode);
-        using var revoke = await client.PostAsJsonAsync("/runtime/management/v1/workspace/revoke", new { sessionId = "cloud-session" }, ct);
-        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
-        using var revokedWorkspace = await anonymous.GetAsync("/workspace-probe", ct);
-        Assert.Equal(HttpStatusCode.Unauthorized, revokedWorkspace.StatusCode);
         await app.StopAsync(ct);
-        Directory.Delete(stateDirectory, true);
+        if (Directory.Exists(stateDirectory)) { Directory.Delete(stateDirectory, true); }
     }
 
     [Theory]

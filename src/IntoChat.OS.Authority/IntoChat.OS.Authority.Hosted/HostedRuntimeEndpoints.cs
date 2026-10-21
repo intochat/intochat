@@ -29,7 +29,6 @@ internal static class HostedRuntimeEndpoints
         });
         management.MapPost("/ensure", EnsureAsync);
         management.MapGet("/observation", ObserveAsync);
-        HostedWorkspaceEndpoints.Map(endpoints, management);
     }
 
     private static async Task<IResult> EnsureAsync([FromServices] IOptions<HostedRuntimeOptions> options,

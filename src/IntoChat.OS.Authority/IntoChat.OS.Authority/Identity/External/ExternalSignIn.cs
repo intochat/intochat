@@ -30,7 +30,7 @@ internal static class ExternalSignIn
 
     public static void Map(IEndpointRouteBuilder routes)
     {
-        if (!routes.ServiceProvider.GetRequiredService<TrustedIssuerKeys>().Any) { return; }
+        if (routes.ServiceProvider.GetService<TrustedIssuerKeys>() is not { Any: true }) { return; }
         routes.MapGet(Path, RedeemAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
     }
 
