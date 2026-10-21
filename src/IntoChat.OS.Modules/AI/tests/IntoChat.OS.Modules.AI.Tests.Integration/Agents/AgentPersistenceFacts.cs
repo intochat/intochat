@@ -31,6 +31,7 @@ public sealed class AgentPersistenceFacts
         try
         {
             await writes.Entered.Task.WaitAsync(ct);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Post("greeting", "first"));
             await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Clear().WaitAsync(TimeSpan.FromSeconds(5), ct));
             await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Configure(new(), 0));
             await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Start(AgentTurn.Text("hello")));

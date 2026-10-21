@@ -160,9 +160,11 @@ internal sealed class AgentNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var runId = "post/" + id;
+        // A pending post is not durable yet, so a duplicate must retry after its write commits.
+        if (_mutating) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
         // A replayed post (same id) never adds a second entry.
         if (State.Runs.Any(run => run.RunId == runId)) { return; }
-        if (State.ActiveRun is not null || _mutating) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
+        if (State.ActiveRun is not null) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
         var now = DateTimeOffset.UtcNow;
         var run = new AgentRun(runId, AgentRunStatus.Completed, "", now, now, text) { Posted = true };
         _mutating = true;
