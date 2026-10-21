@@ -180,7 +180,9 @@ public sealed class ArmAzure : IAzureArm
 
     private static async Task<ResourceRef> EnsureVault(SubscriptionResource sub, ResourceGroupResource rg, KeyVaultSpec spec, AzureLocation location, CancellationToken ct)
     {
-        var tenant = Guid.TryParse(spec.TenantId, out var given) ? given : sub.Data.TenantId ?? throw new InvalidOperationException("The subscription has no tenant id.");
+        var tenant = Guid.TryParse(spec.TenantId, out var given)
+            ? given
+            : (await sub.GetAsync(ct)).Value.Data.TenantId ?? throw new InvalidOperationException("The subscription has no tenant id.");
         var properties = new global::Azure.ResourceManager.KeyVault.Models.KeyVaultProperties(tenant, new KeyVaultSku(KeyVaultSkuFamily.A, KeyVaultSkuName.Standard)) { EnableRbacAuthorization = true };
         var content = new KeyVaultCreateOrUpdateContent(location, properties);
         Apply(spec, content.Tags);

@@ -10,6 +10,52 @@ namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 public sealed class ArmRepeatabilityFacts
 {
     [Fact]
+    public async Task Vault_without_explicit_tenant_loads_the_subscription_before_using_its_tenant()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+
+        var made = await arm.Ensure(AzureHttp.Subscription,
+            new KeyVaultSpec { Name = "test-kv", ResourceGroup = "rg", Location = "polandcentral" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.SubscriptionReads);
+        Assert.Equal(AzureHttp.SubscriptionTenant, handler.LastVaultWrite?["properties"]?["tenantId"]?.GetValue<string>());
+        Assert.True(handler.LastVaultWrite?["properties"]?["enableRbacAuthorization"]?.GetValue<bool>());
+        Assert.EndsWith("/providers/Microsoft.KeyVault/vaults/test-kv", made.Id, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Vault_with_explicit_tenant_does_not_need_to_read_the_subscription()
+    {
+        const string explicitTenant = "00000000-0000-0000-0000-000000000003";
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+
+        await arm.Ensure(AzureHttp.Subscription,
+            new KeyVaultSpec { Name = "test-kv", ResourceGroup = "rg", Location = "polandcentral", TenantId = explicitTenant }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, handler.SubscriptionReads);
+        Assert.Equal(explicitTenant, handler.LastVaultWrite?["properties"]?["tenantId"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Vault_without_either_tenant_fails_before_the_vault_write()
+    {
+        using var handler = new AzureHttp { Tenant = null };
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => arm.Ensure(AzureHttp.Subscription,
+            new KeyVaultSpec { Name = "test-kv", ResourceGroup = "rg", Location = "polandcentral" }, TestContext.Current.CancellationToken));
+
+        Assert.Contains("subscription has no tenant id", error.Message, StringComparison.Ordinal);
+        Assert.Equal(1, handler.SubscriptionReads);
+        Assert.Null(handler.LastVaultWrite);
+    }
+
+    [Fact]
     public async Task Identical_secret_does_not_write_another_version_but_a_changed_value_does()
     {
         using var handler = new AzureHttp();
@@ -87,6 +133,7 @@ public sealed class ArmRepeatabilityFacts
     private sealed class AzureHttp : HttpMessageHandler
     {
         public const string Subscription = "00000000-0000-0000-0000-000000000001";
+        public const string SubscriptionTenant = "00000000-0000-0000-0000-000000000002";
         private const string Group = "/subscriptions/" + Subscription + "/resourceGroups/rg";
         public const string CertificateId = Group + "/providers/Microsoft.App/managedEnvironments/test-env/managedCertificates/test-cert";
         private JsonObject? _app;
@@ -94,6 +141,9 @@ public sealed class ArmRepeatabilityFacts
         public int SecretWrites { get; private set; }
         public int AppWrites { get; private set; }
         public JsonObject? LastAppWrite => _app;
+        public int SubscriptionReads { get; private set; }
+        public string? Tenant { get; init; } = SubscriptionTenant;
+        public JsonObject? LastVaultWrite { get; private set; }
 
         public void BindCustomDomain()
         {
@@ -122,6 +172,23 @@ public sealed class ArmRepeatabilityFacts
                     _secret = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!["value"]!.GetValue<string>();
                 }
                 result = _secret is null ? null : new JsonObject { ["value"] = _secret, ["id"] = "https://test-kv.vault.azure.net/secrets/google-secret/version", ["attributes"] = new JsonObject { ["enabled"] = true } };
+            }
+            else if (path.Equals("/subscriptions/" + Subscription, StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Equal(HttpMethod.Get, request.Method);
+                SubscriptionReads++;
+                result = new JsonObject { ["id"] = "/subscriptions/" + Subscription, ["subscriptionId"] = Subscription, ["displayName"] = "Offline test", ["state"] = "Enabled" };
+                if (Tenant is not null) { result["tenantId"] = Tenant; }
+            }
+            else if (path.Equals(Group + "/providers/Microsoft.KeyVault/vaults/test-kv", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Equal(HttpMethod.Put, request.Method);
+                LastVaultWrite = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                result = LastVaultWrite.DeepClone().AsObject();
+                result["id"] = Group + "/providers/Microsoft.KeyVault/vaults/test-kv";
+                result["name"] = "test-kv";
+                result["properties"]!["provisioningState"] = "Succeeded";
+                result["properties"]!["vaultUri"] = "https://test-kv.vault.azure.net/";
             }
             else if (path.Equals(Group, StringComparison.OrdinalIgnoreCase))
             {
