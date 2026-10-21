@@ -39,9 +39,6 @@ public static partial class Ino
         typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
         typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!];
 
-    public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
-    public static string DataKey(IntoChatOSConnection brain) => brain.Setting("ChatDataApp") is { Length: > 0 } data ? data : Key(brain);
-    public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
 
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
@@ -106,7 +103,7 @@ public static partial class Ino
         => TimeSpan.FromSeconds(double.TryParse(snapshot.Settings.GetValueOrDefault("IntendGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
             && seconds > 0 ? seconds : 8);
 
-    private static bool _toldMemoryMissing;
+    private static int _toldMemoryMissing;
 
     // Hands the message to Memory to intend before the model answers: the pending record is what intended.cs
     // answers from, when Memory's Rephrased signal arrives or, failing that, after IntendGate. False when
@@ -117,7 +114,7 @@ public static partial class Ino
     {
         if (await MemoryKey(brain) is not { } memoryKey)
         {
-            if (!_toldMemoryMissing) { _toldMemoryMissing = true; await Status(brain, "Memory is not installed; answering directly"); }
+            if (Interlocked.Exchange(ref _toldMemoryMissing, 1) == 0) { await Status(brain, "Memory is not installed; answering directly"); }
             return false;
         }
         await PendingStore.Write(brain, synapse, requestId, new(input, hint, conversation, DateTimeOffset.UtcNow, false));
@@ -126,7 +123,7 @@ public static partial class Ino
         return true;
     }
 
-    // A confirmed intent moves to Dispatched as its turn starts; a conflicting write is read again and retried, and
+    // A confirmed intent moves to Dispatched as its turn starts (one already Dispatched is done: success); a conflicting write is read again and retried, and
     // a third conflict fails the answer (Failed) so the request is released and tried again.
     private static async Task Dispatch(IntoChatOSConnection brain, Guid intentId, string runId)
     {

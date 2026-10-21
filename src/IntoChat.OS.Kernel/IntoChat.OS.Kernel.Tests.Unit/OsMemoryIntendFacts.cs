@@ -94,6 +94,65 @@ public sealed class OsMemoryIntendFacts
     }
 
     [Fact]
+    public void ASignalCueMatchesCaseInsensitiveField()
+        => Assert.True(global::Intents.CueMatches(new("signal", "k", "intents.heard", "requestid", "r1", null), Heard));
+
+    [Fact]
+    public void ANonStringFieldValueNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "test.counted", "Count", "5", null), new CountedSignal(5)));
+
+    [Fact]
+    public void ANullEqualToNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.heard", "RequestId", null, null), Heard));
+
+    [Fact]
+    public void ANonObjectSignalNeverMatches()
+        => Assert.False(global::Intents.CueMatches(new("signal", "k", "test.plain", "RequestId", "r1", null), new PlainSignal()));
+
+    [NeuronAlias("test.counted")]
+    private sealed record CountedSignal(int Count) : Signal;
+
+    [NeuronAlias("test.plain"), System.Text.Json.Serialization.JsonConverter(typeof(PlainConverter))]
+    private sealed record PlainSignal : Signal;
+
+    private sealed class PlainConverter : System.Text.Json.Serialization.JsonConverter<PlainSignal>
+    {
+        public override PlainSignal Read(ref System.Text.Json.Utf8JsonReader reader, Type type, System.Text.Json.JsonSerializerOptions options) => new();
+
+        public override void Write(System.Text.Json.Utf8JsonWriter writer, PlainSignal value, System.Text.Json.JsonSerializerOptions options) => writer.WriteStringValue("plain");
+    }
+
+    [Fact]
+    public void ACueTypeCacheMissRefreshesOnce()
+    {
+        var loads = 0;
+        var known = new Dictionary<string, Type> { ["a"] = typeof(string) };
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(known); }, () => 0);
+        Assert.Equal(typeof(string), cache.Resolve("a"));
+        Assert.Equal(1, loads);
+        Assert.Equal(typeof(string), cache.Resolve("a"));
+        Assert.Equal(1, loads);
+        Assert.Null(cache.Resolve("missing"));
+        Assert.Equal(2, loads);
+        known["late"] = typeof(int);
+        Assert.Equal(typeof(int), cache.Resolve("late"));
+        Assert.Equal(3, loads);
+    }
+
+    [Fact]
+    public void APermanentlyUnknownAliasReloadsOnlyWhenAssembliesChange()
+    {
+        var loads = 0;
+        var assemblies = 10;
+        var cache = new global::Intents.CueTypes(() => { loads++; return new Dictionary<string, Type>(); }, () => assemblies);
+        for (var i = 0; i < 3; i++) { Assert.Null(cache.Resolve("typo")); }
+        Assert.Equal(2, loads);
+        assemblies++;
+        Assert.Null(cache.Resolve("typo"));
+        Assert.Equal(3, loads);
+    }
+
+    [Fact]
     public void ADifferentAliasNeverMatches()
         => Assert.False(global::Intents.CueMatches(new("signal", "k", "intents.rephrased", null, null, null), Heard));
 
@@ -133,4 +192,76 @@ public sealed class OsMemoryIntendFacts
         Assert.False(global::Intents.ShouldConfirm(Make(IntentState.Waiting), 0.9, 0.8));
         Assert.False(global::Intents.ShouldConfirm(null, 0.9, 0.8));
     }
+
+    private static Intent Mk(string goal, IntentState state = IntentState.Rephrased, string[]? acceptance = null)
+        => new(Guid.NewGuid(), "h", "c", "r", new(goal, [], [], acceptance ?? []), 0.5, state, [], [], []);
+
+    [Fact]
+    public void ANewlineInAcceptanceDoesNotBreakTheList()
+    {
+        var rendered = global::Intents.RenderActive([Mk("g", acceptance: ["line one\r\nline two\tend"])], 10_000);
+        Assert.Single(rendered.TrimEnd('\n').Split('\n'));
+        Assert.Contains("line one line two end", rendered);
+        Assert.Equal("a b c", global::Intents.Line("a\nb\tc"));
+    }
+
+    [Fact]
+    public void AnOversizedNewestIntentIsTruncatedNotDropped()
+    {
+        var rendered = global::Intents.RenderActive([Mk(new string('x', 500))], 100);
+        Assert.NotEmpty(rendered);
+        Assert.True(rendered.Length <= 100);
+        Assert.Contains("…", rendered);
+    }
+
+    [Fact]
+    public void RenderWorkingNeverSplitsASurrogatePair()
+    {
+        var text = new string('x', 3_999) + "😀";
+        Assert.Equal(4_001, text.Length);
+        var cut = global::Intents.RenderWorking(text);
+        Assert.True(cut.Length <= 4_000);
+        Assert.False(char.IsHighSurrogate(cut[^1]));
+    }
+
+    [Fact]
+    public void TruncationNeverSplitsASurrogatePair()
+    {
+        var rendered = global::Intents.RenderActive([Mk(new string('x', 45) + "😀" + new string('y', 50))], 100);
+        Assert.True(rendered.Length <= 100);
+        for (var i = 0; i < rendered.Length; i++)
+        {
+            if (char.IsHighSurrogate(rendered[i])) { Assert.True(i + 1 < rendered.Length && char.IsLowSurrogate(rendered[i + 1])); }
+            if (char.IsLowSurrogate(rendered[i])) { Assert.True(i > 0 && char.IsHighSurrogate(rendered[i - 1])); }
+        }
+    }
+
+    [Fact]
+    public void RenderActiveOrdersNewestFirst()
+    {
+        var rendered = global::Intents.RenderActive([Mk("older"), Mk("newer")], 10_000);
+        Assert.True(rendered.IndexOf("newer", StringComparison.Ordinal) < rendered.IndexOf("older", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RenderActiveSkipsDoneAndAbandoned()
+    {
+        var kept = global::Intents.ActiveOf([Mk("doneGoal", IntentState.Done), Mk("abandonedGoal", IntentState.Abandoned), Mk("waitingGoal", IntentState.Waiting), Mk("heardGoal", IntentState.Heard)]);
+        Assert.Equal(["waitingGoal"], kept.Select(intent => intent.Brief!.Goal));
+        var rendered = global::Intents.RenderActive(kept, 10_000);
+        Assert.DoesNotContain("doneGoal", rendered);
+        Assert.DoesNotContain("abandonedGoal", global::Intents.RenderActive([Mk("abandonedGoal", IntentState.Abandoned)], 10_000));
+    }
+
+    [Fact]
+    public void ParseReplyAcceptsAFencedJsonBlock()
+        => Assert.NotNull(global::Intents.ParseReply("```json\n{\"brief\":{\"goal\":\"g\"},\"confidence\":0.7}\n```"));
+
+    [Fact]
+    public void ParseReplyWithoutConfidenceIsNull()
+        => Assert.Null(global::Intents.ParseReply("{\"brief\":{\"goal\":\"g\"}}"));
+
+    [Fact]
+    public void ParseAskRejectsAMissingConversation()
+        => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{\"message\":\"m\",\"requestId\":\"r\"}"));
 }
