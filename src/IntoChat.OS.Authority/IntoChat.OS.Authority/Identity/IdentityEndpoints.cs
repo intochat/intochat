@@ -85,7 +85,7 @@ internal static class IdentityEndpoints
         if (string.IsNullOrWhiteSpace(input.AccountId) || !BrainScope.IsValidId(input.BrainId))
         { return Results.BadRequest(); }
         var member = await identity.Membership(BrainScope.Create(input.AccountId, input.BrainId).Id, principal).WaitAsync(ct);
-        return member is null ? Results.StatusCode(StatusCodes.Status403Forbidden) : await IssueSessionAsync(member, http);
+        return member is null ? Results.StatusCode(StatusCodes.Status403Forbidden) : await IssueSessionAsync(member, http, CarriedClaims(http));
     }
 
     private static async Task<IResult> LoginAsync(LoginRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords, CancellationToken ct)
@@ -111,10 +111,19 @@ internal static class IdentityEndpoints
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
     }
 
-    private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http)
+    private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
     {
-        var issued = await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey).IssueAsync(http, new SessionRequest(member), http.RequestAborted);
+        var issued = await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey).IssueAsync(http, new SessionRequest(member, carried), http.RequestAborted);
         return Results.Ok(issued.Member);
+    }
+
+    // A brain switch keeps what a module put on the caller's session (an Auth session id, for one) so that module can
+    // still end it. The claims the issuer reserves are never copied: they come from the selected membership alone.
+    private static Claim[] CarriedClaims(HttpContext http)
+    {
+        var host = AccountSession.IdentityOf(http);
+        string[] reserved = [ClaimTypes.NameIdentifier, ClaimTypes.Role, host.AccountClaim, host.BrainClaim];
+        return [.. http.User.Claims.Where(claim => !reserved.Contains(claim.Type, StringComparer.Ordinal)).Select(claim => new Claim(claim.Type, claim.Value, claim.ValueType))];
     }
 
     // Every resolved caller learns its brain, whichever posture resolved it: the shell's

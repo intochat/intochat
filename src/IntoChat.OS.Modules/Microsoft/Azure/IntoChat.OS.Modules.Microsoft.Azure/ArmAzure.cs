@@ -1,8 +1,11 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.ClientModel.Primitives;
 using global::Azure;
 using global::Azure.Core;
+using global::Azure.Core.Pipeline;
 using global::Azure.Identity;
 using global::Azure.Security.KeyVault.Secrets;
 using global::Azure.ResourceManager;
@@ -29,13 +32,21 @@ using global::Azure.ResourceManager.Storage.Models;
 namespace IntoChat.OS.Microsoft.Azure;
 
 // The real calls: one idempotent CreateOrUpdate (a PUT) per kind, under DefaultAzureCredential.
-// Nothing here is unit-tested against Azure; the first install run is the check.
+// HTTP transport facts cover secret and Container App repeatability without a live Azure subscription.
 public sealed class ArmAzure : IAzureArm
 {
-    private readonly DefaultAzureCredential _credential = new();
+    private readonly TokenCredential _credential;
+    private readonly HttpPipelineTransport? _transport;
     private readonly Lazy<ArmClient> _client;
 
-    public ArmAzure() => _client = new(() => new ArmClient(_credential));
+    public ArmAzure() : this(new DefaultAzureCredential(), null) { }
+
+    internal ArmAzure(TokenCredential credential, HttpPipelineTransport? transport)
+    {
+        _credential = credential;
+        _transport = transport;
+        _client = new(() => new ArmClient(_credential, null, transport is null ? null : new ArmClientOptions { Transport = transport }));
+    }
 
     public async Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
     {
@@ -179,32 +190,28 @@ public sealed class ArmAzure : IAzureArm
 
     // Secret values are a data-plane matter: the management plane never returns them. The installer principal needs
     // Key Vault Secrets Officer on the vault (InstallPlan grants it from installerPrincipalId).
-    private SecretClient Secrets(string vault) => new(new Uri($"https://{vault}.vault.azure.net/"), _credential);
+    private SecretClient Secrets(string vault) => new(new Uri($"https://{vault}.vault.azure.net/"), _credential,
+        _transport is null ? null : new SecretClientOptions { Transport = _transport });
 
     private async Task<ResourceRef> EnsureSecret(SecretSpec spec, CancellationToken ct)
     {
         var client = Secrets(spec.Vault);
-        if (!spec.Overwrite && await Exists(client, spec.Name, ct))
+        KeyVaultSecret? existing = null;
+        try { existing = (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value; }
+        catch (RequestFailedException ex) when (ex.Status == 404) { }
+        if (!spec.Overwrite && existing is not null)
         {
-            return SecretRef(spec, (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value);
+            return SecretRef(spec, existing);
         }
         var referenced = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var name in SecretSpec.ReferencesIn(spec.Value))
         {
             referenced[name] = (await client.GetSecretAsync(name, cancellationToken: ct)).Value.Value;
         }
-        var made = await client.SetSecretAsync(spec.Name, SecretSpec.Substitute(spec.Value, referenced), ct);
+        var value = SecretSpec.Substitute(spec.Value, referenced);
+        if (existing is not null && string.Equals(existing.Value, value, StringComparison.Ordinal)) { return SecretRef(spec, existing); }
+        var made = await client.SetSecretAsync(spec.Name, value, ct);
         return SecretRef(spec, made.Value);
-    }
-
-    private static async Task<bool> Exists(SecretClient client, string name, CancellationToken ct)
-    {
-        try
-        {
-            await client.GetSecretAsync(name, cancellationToken: ct);
-            return true;
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404) { return false; }
     }
 
     private static ResourceRef SecretRef(SecretSpec spec, KeyVaultSecret secret) =>
@@ -417,9 +424,32 @@ public sealed class ArmAzure : IAzureArm
         };
         data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
         Apply(spec, data.Tags);
+        // ARM adds read-only/default fields. Requested arrays must match exactly, including removals.
+        var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
+        using var desiredJson = JsonDocument.Parse(ModelReaderWriter.Write(data).ToString());
+        using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
+        if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
+        {
+            return Ref(existing.Value!.Id, spec, spec.Name);
+        }
         var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name);
     }
+
+    private static bool MatchesDesired(JsonElement desired, JsonElement current)
+    {
+        if (desired.ValueKind != current.ValueKind) { return false; }
+        return desired.ValueKind switch
+        {
+            JsonValueKind.Object => desired.EnumerateObject().All(property => current.TryGetProperty(property.Name, out var value) && MatchesDesired(property.Value, value))
+                && current.EnumerateObject().All(property => !IsManagedCollection(property.Name) || desired.TryGetProperty(property.Name, out _) || property.Value.ValueKind != JsonValueKind.Array || property.Value.GetArrayLength() == 0),
+            JsonValueKind.Array => desired.GetArrayLength() == current.GetArrayLength() && desired.EnumerateArray().Zip(current.EnumerateArray()).All(pair => MatchesDesired(pair.First, pair.Second)),
+            _ => JsonElement.DeepEquals(desired, current),
+        };
+    }
+
+    // The SDK omits empty collections when serializing a desired resource; old entries still need removing.
+    private static bool IsManagedCollection(string name) => name is "containers" or "env" or "probes" or "volumeMounts" or "volumes" or "secrets" or "registries" or "additionalPortMappings";
 
     private static string SecretVolume(SecretFileSpec file) => "secret-" + file.Name;
 

@@ -58,7 +58,9 @@ public sealed class ModuleDeploymentContext(
     string owner,
     ModuleSettings settings,
     Func<ResourceSpec, CancellationToken, Task<ResourceRef>> ensure,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IReadOnlyDictionary<string, string>? secretValues = null,
+    bool dryRun = false)
 {
     private readonly Dictionary<string, string> _variables = new(StringComparer.Ordinal);
     private readonly List<SecretRef> _secrets = [];
@@ -68,8 +70,18 @@ public sealed class ModuleDeploymentContext(
     public ModuleSettings Settings { get; } = settings;
     public string Owner { get; } = owner;
     public CancellationToken CancellationToken { get; } = cancellationToken;
+    public bool IsDryRun { get; } = dryRun;
     public IReadOnlyDictionary<string, string> RuntimeVariables => _variables;
     public IReadOnlyList<SecretRef> RuntimeSecrets => _secrets;
+
+    // Values only cross into SecretSpec.Value, never ordinary module settings or diagnostic output.
+    public string RequireSecret(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (secretValues?.TryGetValue(name, out var value) == true && !string.IsNullOrWhiteSpace(value)) { return value; }
+        if (IsDryRun) { return "dry-run"; }
+        throw new InvalidOperationException($"The secrets file needs '{name}'.");
+    }
 
     // <prefix>-<env>-<suffix>, the same naming the foundation uses.
     public string Name(string suffix) => ResourceNames.For(Target.Prefix, Target.Env, suffix);
