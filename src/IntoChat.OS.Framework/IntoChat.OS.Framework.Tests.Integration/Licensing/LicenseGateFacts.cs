@@ -92,7 +92,7 @@ public sealed class LicenseGateFacts
     public async Task ADisabledModuleIsReportedDisabledWithoutBeingChecked()
     {
         var check = FakeLicenseCheck.Licensed;
-        var builder = WebApplication.CreateBuilder();
+        var builder = NewBuilder();
         builder.Configuration[IntoChatOSConfiguration.ModuleSection("paid") + ":Enabled"] = "false";
         builder.AddIntoChatOSServer(server => server.UseLicenseCheck(check).AddModule<FreeModule>().AddModule<PaidModule>());
         await using var app = builder.Build();
@@ -102,9 +102,22 @@ public sealed class LicenseGateFacts
         Assert.Empty(check.Calls);
     }
 
+    // Neither Development (whose service-provider validation these minimal hosts do not satisfy) nor Production: a facts run
+    // must not depend on the ASPNETCORE_ENVIRONMENT of the machine it runs on.
+    private static WebApplicationBuilder NewBuilder() => WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+
+    [Fact]
+    public void ALicensedCheckIsNotSharedBetweenFacts()
+    {
+        var first = FakeLicenseCheck.Licensed;
+        first.Check(new ModuleId("paid"), new LicenseContext(new ConfigurationBuilder().Build(), "test-paid"));
+
+        Assert.Empty(FakeLicenseCheck.Licensed.Calls);
+    }
+
     private static WebApplication Build(ILicenseCheck? check, bool? requiredPaid)
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = NewBuilder();
         if (requiredPaid is { } required) { builder.Configuration[IntoChatOSConfiguration.ModuleSection("paid") + ":Required"] = required.ToString(); }
         builder.AddIntoChatOSServer(server =>
         {

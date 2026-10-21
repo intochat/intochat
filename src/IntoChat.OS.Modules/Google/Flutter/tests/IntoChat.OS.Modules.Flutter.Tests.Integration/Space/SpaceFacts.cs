@@ -404,6 +404,7 @@ public sealed class SpaceFacts
                 services.Remove(services.Single(service => service.ServiceType == typeof(IHostedService)
                     && service.ImplementationType == typeof(SpaceWatcher)));
                 services.AddSingleton<IOutgoingGrainCallFilter>(reads);
+                services.AddSingleton<IIncomingGrainCallFilter>(reads);
             }).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         var key = IApp.Key(brain.Owner.BrainId, "panel");
@@ -412,17 +413,15 @@ public sealed class SpaceFacts
         var space = brain.Get<ISpace>(brain.Owner.BrainId);
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         // Home queues a one-way recompose, and activation may still be composing. The app
-        // appearing in the scene is not the end of that work, so drain two revisions that
-        // were each requested after the previous one landed.
+        // appearing in the scene is not the end of that work, and a later revision may belong
+        // to an earlier request, so once the app is composed wait until every one-way request
+        // sent to the space has been received and has finished; only then count reads.
         await using var drained = await brain.Observe<SceneChanged>(scene, ct);
         var revision = (await scene.Read()).Revision;
         await space.Rebuild();
         do { await drained.NextAsync(ct: ct); }
         while ((await scene.Read()).Revision <= revision || !(await scene.Read()).Definition.Nodes.Any(node => node.Id == key));
-        revision = (await scene.Read()).Revision;
-        await space.Rebuild();
-        do { await drained.NextAsync(ct: ct); }
-        while ((await scene.Read()).Revision <= revision);
+        await TestWait.UntilAsync(_ => Task.FromResult(reads.PendingSpaceRequests), pending => pending == 0, TimeSpan.FromSeconds(10), ct);
         reads.Armed = true;
         await app.SaveManifest(new("Renamed", "description", [], [], []), Guid.NewGuid());
         await space.RefreshApp(key);
@@ -431,12 +430,29 @@ public sealed class SpaceFacts
         Assert.Equal(0, reads.Count);
     }
 
-    private sealed class WorkspaceReads : IOutgoingGrainCallFilter
+    private sealed class WorkspaceReads : IOutgoingGrainCallFilter, IIncomingGrainCallFilter
     {
         public bool Armed;
         public int Count;
+        private int _sent, _finished;
+
+        // One-way requests sent to the space and not yet finished by it. A request that finds the worker running returns
+        // at once and leaves its work to that worker, which finishes last, so zero means nothing is queued or running.
+        public int PendingSpaceRequests => Volatile.Read(ref _sent) - Volatile.Read(ref _finished);
+
+        private static bool IsRequest(System.Reflection.MethodInfo? method)
+            => method?.DeclaringType == typeof(ISpace) && method.Name is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp) or nameof(ISpace.Recompose);
+
+        public async Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (!IsRequest(context.InterfaceMethod)) { await context.Invoke(); return; }
+            try { await context.Invoke(); }
+            finally { Interlocked.Increment(ref _finished); }
+        }
+
         public Task Invoke(IOutgoingGrainCallContext context)
         {
+            if (IsRequest(context.InterfaceMethod)) { Interlocked.Increment(ref _sent); }
             if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IWorkspace) && context.InterfaceMethod.Name == nameof(IWorkspace.Read))
             { Interlocked.Increment(ref Count); }
             return context.Invoke();

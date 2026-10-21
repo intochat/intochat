@@ -12,19 +12,21 @@ namespace IntoChat.OS;
 // pending read, lets it settle, and only then releases every member.
 internal static class SourceSet
 {
+    // reselected is a test seam: raised after each re-selection (not the first select) once the members that joined
+    // have registered their subscriptions and the members that left are released. Nothing in the product passes it.
     public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        CancellationToken cancellationToken) where T : Signal
-        => new Stream<T>(brain, sources, subscribed, coalesce, cancellationToken);
+        CancellationToken cancellationToken, Action? reselected = null) where T : Signal
+        => new Stream<T>(brain, sources, subscribed, coalesce, reselected, cancellationToken);
 
     private sealed class Stream<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        CancellationToken streamCancellation) : IAsyncEnumerable<T> where T : Signal
+        Action? reselected, CancellationToken streamCancellation) : IAsyncEnumerable<T> where T : Signal
     {
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-            => new Enumerator<T>(brain, sources, subscribed, coalesce, streamCancellation, cancellationToken);
+            => new Enumerator<T>(brain, sources, subscribed, coalesce, reselected, streamCancellation, cancellationToken);
     }
 
     private sealed class Enumerator<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        CancellationToken streamCancellation, CancellationToken enumeratorCancellation) : IAsyncEnumerator<T> where T : Signal
+        Action? reselected, CancellationToken streamCancellation, CancellationToken enumeratorCancellation) : IAsyncEnumerator<T> where T : Signal
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(streamCancellation, enumeratorCancellation);
         private readonly Channel<T> _channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true });
@@ -122,6 +124,17 @@ internal static class SourceSet
                 await Task.WhenAll(ready.Select(r => r.Task)).WaitAsync(ct).ConfigureAwait(false);
                 _registered.TrySetResult();
             }
+            else if (reselected is not null) { _ = Announce(ready, ct); }
+        }
+
+        private async Task Announce(TaskCompletionSource[] joined, CancellationToken ct)
+        {
+            try
+            {
+                await Task.WhenAll(joined.Select(r => r.Task)).WaitAsync(ct).ConfigureAwait(false);
+                reselected!();
+            }
+            catch (OperationCanceledException) { }
         }
 
         private async Task Follow(CancellationToken ct)

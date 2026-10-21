@@ -175,38 +175,43 @@ public sealed class RuleJudgingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
-        var budget = TimeSpan.FromSeconds(3);
-        await using var brain = await Start(host, ct, ruleTimeout: budget);
+        await using var brain = await Start(host, ct, ruleTimeout: TimeSpan.FromSeconds(3));
         var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
+        // The rule hangs on a gate the fact holds until it has the second answer, so "while the first run is still
+        // blocked" is a fact of the test, not a measurement; the gate is released at the end so the thread ends.
+        var gate = "rule-gate-" + Guid.NewGuid().ToString("N");
+        using var released = new ManualResetEventSlim();
+        AppDomain.CurrentDomain.SetData(gate, released);
         var bundle = new Dictionary<string, string>
         {
             ["synapses/a.cs"] = Synapse,
-            ["rules/hung.cs"] = """
+            ["rules/hung.cs"] = $$"""
                 public sealed class Hung : ILogic<IntoChat.OS.Apps.Signals.AppRequested>
                 {
                     public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested signal)
-                    { while (true) { Thread.Sleep(50); } }
+                    { ((ManualResetEventSlim)AppDomain.CurrentDomain.GetData("{{gate}}")!).Wait(); return Verdict.Allow(); }
                 }
                 """,
         };
 
-        var asked = DateTimeOffset.UtcNow;
-        var first = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "a", Guid.NewGuid()), ct));
-        var firstTook = DateTimeOffset.UtcNow - asked;
-        var threads = host.ThreadsStarted;
-        var started = DateTimeOffset.UtcNow;
-        var second = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct));
+        try
+        {
+            var first = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "a", Guid.NewGuid()), ct));
+            var threads = host.ThreadsStarted;
+            var second = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct));
 
-        Assert.Equal(("Hung", false, "rule did not answer"), (first.Rule, first.Allowed, first.Reason));
-        Assert.Equal(("Hung", false, "rule did not answer (quarantined)"), (second.Rule, second.Allowed, second.Reason));
-        // "At once" means without waiting on the rule: the quarantined reason is only given before a run starts, and the
-        // thread count shows none did. The clock only proves the call did not sit out the host's answer deadline
-        // (0.8 of the budget); a fixed 500 ms also timed the session round trip and lost it to a stalled 2 vCPU runner.
-        var secondTook = DateTimeOffset.UtcNow - started;
-        Assert.True(secondTook < budget * 0.8);
-        // Load-relative: the first ask sat out the deadline, the second must not come close to it.
-        Assert.True(secondTook < firstTook / 2, $"second {secondTook} vs first {firstTook}");
-        Assert.Equal(threads, host.ThreadsStarted);
+            // "At once" means without waiting on the rule: the quarantined reason is only given before a run starts, the
+            // thread count shows none did, and the gate shows the hung run was still blocked when the answer came.
+            Assert.False(released.IsSet);
+            Assert.Equal(("Hung", false, "rule did not answer"), (first.Rule, first.Allowed, first.Reason));
+            Assert.Equal(("Hung", false, "rule did not answer (quarantined)"), (second.Rule, second.Allowed, second.Reason));
+            Assert.Equal(threads, host.ThreadsStarted);
+        }
+        finally
+        {
+            released.Set();
+            AppDomain.CurrentDomain.SetData(gate, null);
+        }
     }
 
     [Trait("host", "own")]
