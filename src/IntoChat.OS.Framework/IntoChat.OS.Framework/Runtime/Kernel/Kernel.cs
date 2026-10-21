@@ -33,7 +33,7 @@ public sealed class Kernel(IGrainFactory grains, Microsoft.Extensions.Options.IO
         var current = BrainScope.CurrentId();
         var caller = CallerContextStamper.Require();
         var members = await grains.GetGrain<Platform.Identity.IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey)
-            .BrainsOfAsync(caller.PrincipalId, cancellationToken).WaitAsync(cancellationToken);
+            .BrainsOfAsync(caller.PersonId, cancellationToken).WaitAsync(cancellationToken);
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }
 

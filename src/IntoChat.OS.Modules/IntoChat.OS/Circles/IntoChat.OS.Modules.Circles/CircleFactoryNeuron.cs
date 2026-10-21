@@ -42,7 +42,7 @@ internal sealed class CircleFactoryNeuron(
         if (!ICircle.IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
         var caller = Own();
         var operation = string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : $"circle|{requestId}";
-        var provision = await identity.CreateBrain(caller.AccountId, caller.PrincipalId, operation, name, BrainKind.Circle);
+        var provision = await identity.CreateBrain(caller.AccountId, caller.PersonId, operation, name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
         CallerContextStamper.Stamp(caller with { BrainId = circle });
         try
@@ -61,7 +61,7 @@ internal sealed class CircleFactoryNeuron(
     public async Task<CircleEntry[]> Circles()
     {
         var caller = Own();
-        return [.. (await identity.BrainsOf(caller.PrincipalId)).Where(entry => entry.Kind == BrainKind.Circle)
+        return [.. (await identity.BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Circle)
             .Select(entry => Snapshot.Created.FirstOrDefault(created => created.BrainId == entry.Id) ?? new CircleEntry(entry.Id, entry.Id))];
     }
 
@@ -85,7 +85,7 @@ internal sealed class CircleFactoryNeuron(
             .ThenBy(item => item.Reference.Publisher, StringComparer.Ordinal)
             .ThenBy(item => item.Reference.Name, StringComparer.Ordinal)
             .ThenBy(item => item.Reference.Version, StringComparer.Ordinal)
-            .ThenBy(item => item.Reference.Digest, StringComparer.Ordinal)], [.. unavailable.Order(StringComparer.Ordinal)], caller.PrincipalId);
+            .ThenBy(item => item.Reference.Digest, StringComparer.Ordinal)], [.. unavailable.Order(StringComparer.Ordinal)], caller.PersonId);
     }
 
     public async Task<AppSnapshot> Fork(AppPublicationRef publication, string targetName, Guid operationId)

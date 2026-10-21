@@ -70,6 +70,30 @@ public sealed class AppInstallerFacts
         Assert.Equal(installed.Version, (await Mine(brain, alice).Read()).Version);
     }
 
+    // Phase F: the installed copy is a principal of the brain, a member with the App role, until it is deleted.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnInstalledAppIsAnAppMemberOfItsBrainUntilItIsDeleted()
+    {
+        await using var brain = await Start();
+        await Published(brain);
+        var alice = await brain.PersonAsync("alice", Ct);
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var principal = IntoChat.OS.Framework.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
+
+        using var _ = alice.AsCaller();
+        await Installer(brain).Install("intochat", "echo", Ct);
+
+        var member = await identity.Membership(alice.BrainId, principal);
+        Assert.NotNull(member);
+        Assert.Equal(IntoChat.OS.Framework.Platform.Identity.MemberRole.App, member.Role);
+        Assert.Equal(alice.AccountId, member.AccountId);
+
+        await Mine(brain, alice).Delete();
+        Assert.Null(await identity.Membership(alice.BrainId, principal));
+        Assert.NotNull(await identity.Membership(alice.BrainId, alice.PrincipalId));
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task InstallingAnAppNotInTheMarketplaceIsNotFound()

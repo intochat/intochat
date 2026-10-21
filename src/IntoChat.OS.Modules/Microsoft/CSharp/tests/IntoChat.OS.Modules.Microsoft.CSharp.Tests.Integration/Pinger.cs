@@ -66,6 +66,6 @@ public sealed class Pinger : Neuron, IPinger
     public Task<string> Unwatched() => _unwatched.Task;
 
     private static string Describe() => CallerContextStamper.TryGet(out var caller)
-        ? $"{caller.PrincipalId} {caller.Kind} {caller.StampedBy} {caller.AppId}"
+        ? $"{caller.PrincipalId} {caller.Kind} {caller.StampedBy} {caller.AppId} for {caller.OnBehalfOf}"
         : "unstamped";
 }

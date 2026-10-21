@@ -13,7 +13,7 @@ internal static class BrainAuthorityDecisions
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
         var caller = request.Caller;
-        var circleMember = state.Kind == BrainKind.Circle && state.Members.GetValueOrDefault(caller.PrincipalId)?.AccountId == caller.AccountId;
+        var circleMember = state.Kind == BrainKind.Circle && state.Members.GetValueOrDefault(caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
         return GrantRules.Evaluate(request, state.Members.GetValueOrDefault(caller.PrincipalId), state.Grants);

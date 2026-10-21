@@ -75,11 +75,13 @@ public sealed class Person : IDisposable
     // With a conversation, the call is the app's model reading on that conversation's behalf.
     public IDisposable AsApp(string appId, string? conversationId = null) => AsAppIn(BrainId, appId, conversationId);
 
-    // An app installed in another brain the person is a member of, running for them.
+    // An app installed in another brain the person is a member of, running for them: the app proxy stamps the
+    // app's own principal, on behalf of this person.
     public IDisposable AsAppIn(string brainId, string appId, string? conversationId = null)
         => Enter(new CallerContext
         {
-            PrincipalId = PrincipalId,
+            PrincipalId = AppPrincipal.Id(appId),
+            OnBehalfOf = PrincipalId,
             AccountId = AccountId,
             BrainId = brainId,
             Kind = CallerKind.App,

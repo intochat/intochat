@@ -46,6 +46,7 @@ internal sealed partial class AppNeuron(
         await Reopen();
         Record(next);
         await Persist(next);
+        await EnsureAppPrincipal();
         return Describe(Snapshot);
     }
 
@@ -332,16 +333,16 @@ internal sealed partial class AppNeuron(
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
-        if (await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(caller.PrincipalId, Name()) is { } listed
+        if (await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(caller.PersonId, Name()) is { } listed
             && listed.Source.Scope() != BrainId())
-        { throw new InvalidOperationException($"{caller.PrincipalId}/{Name()} is already published from another brain."); }
+        { throw new InvalidOperationException($"{caller.PersonId}/{Name()} is already published from another brain."); }
         var next = Snapshot.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
         next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, new(next.Files, StringComparer.Ordinal));
-        next.Publisher = caller.PrincipalId;
+        next.Publisher = caller.PersonId;
         var releases = Releases();
-        var release = Release(next.Published, caller.PrincipalId, new AppSource.Brain(caller.AccountId, caller.BrainId));
+        var release = Release(next.Published, caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId));
         var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
         if (existing is not null && existing.Publication.Reference != release.Publication.Reference)
         { throw new InvalidOperationException("This version has already been published with different content. Create a new version."); }
@@ -353,7 +354,7 @@ internal sealed partial class AppNeuron(
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
         await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
-            caller.PrincipalId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
+            caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
             next.Version, manifest.Icon));
         return Describe(Snapshot);
     }
@@ -451,6 +452,7 @@ internal sealed partial class AppNeuron(
         AdvanceProgram(next);
         Record(next);
         await Persist(next);
+        await EnsureAppPrincipal();
         try { await Deploy(); }
         catch (Exception failure)
         {
@@ -526,6 +528,7 @@ internal sealed partial class AppNeuron(
         if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
         if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(Snapshot.BrainScopeId ?? "", key, CancellationToken.None); }
+        await RemoveAppPrincipal();
         // Clearing the record ends the app's existence: the kernel retires the instance.
         var gone = new AppState();
         await Clear(new AppChanged(Name(), gone.Version, gone.Status));

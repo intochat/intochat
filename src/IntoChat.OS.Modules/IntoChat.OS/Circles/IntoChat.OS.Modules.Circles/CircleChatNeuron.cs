@@ -61,11 +61,11 @@ internal sealed class CircleChatNeuron(
             || postKey.Length == prefix.Length
             || !postKey[prefix.Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
         { throw new UnauthorizedAccessException("Only the personal Friends app publishes its own post references."); }
-        var owner = await identity.Membership(brain, caller.PrincipalId);
+        var owner = await identity.Membership(brain, caller.PersonId);
         if (owner?.AccountId != caller.AccountId || owner.Role != MemberRole.Owner
             || await identity.KindOf(brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("The author must own the personal brain."); }
-        var membership = await identity.Membership(CircleBrain, caller.PrincipalId);
+        var membership = await identity.Membership(CircleBrain, caller.PersonId);
         var circle = await GrainFactory.GetGrain<ICircleStateReader>(ICircle.Key(CircleBrain)).State();
         if (membership?.AccountId != caller.AccountId || !circle.Members.Contains(caller.AccountId, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The author must currently belong to the circle."); }

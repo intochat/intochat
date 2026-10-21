@@ -11,10 +11,18 @@ internal sealed record SessionAuthorization([property: Id(0)] bool Active, [prop
 [GenerateSerializer, Alias("microsoft.csharp.behavior-identity")]
 internal sealed record BehaviorIdentity([property: Id(0)] CallerContext? Principal, [property: Id(1)] string Owner)
 {
-    // What a behavior's calls and its subscriptions' watches carry: the program's principal re-stamped as
-    // its app behind the app proxy. A program assigned without a caller (tests, the platform) stamps none.
+    // What a behavior's calls and its subscriptions' watches carry: the app's own principal behind the app proxy,
+    // acting on behalf of the person who assigned the program. A program assigned without a caller (tests, the
+    // platform) stamps none.
     public CallerContext? Caller => Principal is { } principal
-        ? principal with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = Owner }
+        ? principal with
+        {
+            PrincipalId = AppPrincipal.Id(Owner),
+            OnBehalfOf = principal.PersonId,
+            Kind = CallerKind.App,
+            StampedBy = TrustedEdge.AppProxy,
+            AppId = Owner,
+        }
         : null;
 }
 

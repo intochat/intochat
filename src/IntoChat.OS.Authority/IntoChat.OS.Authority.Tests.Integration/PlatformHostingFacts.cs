@@ -25,7 +25,9 @@ public sealed class PlatformHostingFacts(AuthorityHost host)
         using var app = reader.AsApp("reader-app");
         var caller = identity.CurrentPrincipal!;
         Assert.Equal((CallerKind.App, "reader-app", reader.BrainId), (caller.Kind, caller.AppId, caller.BrainId));
-        Assert.Equal(reader.PrincipalId, identity.RequirePrincipal());
+        // Phase F: an app call is the app's own principal, acting for the person.
+        Assert.Equal(AppPrincipal.Id("reader-app"), identity.RequirePrincipal());
+        Assert.Equal(reader.PrincipalId, caller.PersonId);
         var chat = caller with { ConversationId = "chat" };
         Assert.False(await identity.HasGrantAsync(chat, "person.email", ct));
         var store = brain.Platform.BrainAuthority(reader.BrainId);
