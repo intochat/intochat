@@ -10,6 +10,7 @@
   "IntoChat.OS.Aspire.Server/ServerHostingExtensions.cs",
   "IntoChat.OS.Framework.Tests.Integration/ModuleIdFacts.cs",
   "IntoChat.OS.Sdk/Configuration/IntoChatOSConfiguration.cs",
+  "IntoChat.OS.Sdk.Http/ForwardedHeadersSetup.cs",
   "IntoChat.OS.Framework/Runtime/Kernel/InstanceDirectoryOptions.cs",
   "IntoChat.OS.Framework/Configuration/ModuleSettingsValidation.cs",
   "IntoChat.OS.Framework/Platform/Identity/AuthOptions.cs",

@@ -1,8 +1,8 @@
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Storage;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +42,6 @@ public static class HostedAuthorityHosting
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<RuntimeMachineAuthentication>();
-        services.TryAddSingleton<HostedWorkspaceStore>();
         services.AddOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>()
             .Configure<IOptions<HostedRuntimeOptions>>((server, hosting) =>
             {
@@ -55,8 +54,6 @@ public static class HostedAuthorityHosting
                             hosting.Value.ControllerCertificateSha256, StringComparison.OrdinalIgnoreCase);
                 });
             });
-        services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
-            .Configure(cookie => cookie.Events.OnValidatePrincipal = HostedWorkspaceEndpoints.ValidateCookieAsync);
         // Registered last so it wins over the platform's local access whichever composes first.
         services.AddSingleton<IBrainAccess>(provider =>
         {
@@ -92,7 +89,31 @@ public static class HostedAuthorityHosting
 
     private sealed class HostedHttp : IAuthorityHttpExtension
     {
-        public void UseAfterAuthentication(WebApplication app) => HostedWorkspaceEndpoints.UseScope(app);
+        public void UseAfterAuthentication(WebApplication app) => UseScope(app);
         public void Map(IEndpointRouteBuilder endpoints) => HostedRuntimeEndpoints.Map(endpoints);
+
+        // A hosted allocation serves its one configured brain: other brains, brain creation and the built-in password
+        // routes are refused, and only anonymous endpoints answer an unauthenticated caller.
+        private static void UseScope(WebApplication app)
+        {
+            var scope = app.Services.GetRequiredService<IOptions<HostedRuntimeOptions>>().Value;
+            if (!scope.IsConfigured) { return; }
+            app.Use(async (http, next) =>
+            {
+                var path = http.Request.Path;
+                var route = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText;
+                if (route is "/identity/register" or "/identity/login" or "/identity/session/brain" ||
+                    (route == "/identity/brains" && HttpMethods.IsPost(http.Request.Method)))
+                { http.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
+                if (http.Request.RouteValues.TryGetValue("brainId", out var brain) && brain?.ToString() != scope.BrainId)
+                { http.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
+                if (http.User.Identity?.IsAuthenticated != true &&
+                    http.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is null &&
+                    !path.StartsWithSegments("/health") && !path.StartsWithSegments("/alive") && !path.StartsWithSegments("/ready") &&
+                    !HttpMethods.IsOptions(http.Request.Method))
+                { http.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+                await next(http);
+            });
+        }
     }
 }

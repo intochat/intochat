@@ -50,6 +50,11 @@
     "reason": "identity/secret: hard-denied name"
   },
   {
+    "type": "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState",
+    "state": "external-ticket-replay",
+    "reason": "short-lived external sign-in replay protection (Authority assembly), never exported"
+  },
+  {
     "type": "IntoChat.OS.Authority.Identity.PrincipalCredentialState",
     "state": "credential",
     "reason": "identity/secret: hard-denied name"

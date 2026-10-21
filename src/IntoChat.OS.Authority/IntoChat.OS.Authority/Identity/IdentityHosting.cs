@@ -23,6 +23,11 @@ public static class IdentityHosting
             .Validate(options => string.IsNullOrEmpty(options.Username) == string.IsNullOrEmpty(options.Password),
                 "A Basic bootstrap credential needs both IntoChatOS:Auth:Username and IntoChatOS:Auth:Password, or neither.")
             .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthOptions>, External.TrustedIssuersValidation>());
+        services.TryAddSingleton<External.TrustedIssuerKeys>();
+        // External sign-in's throttle: per network prefix, per silo.
+        services.TryAddSingleton<IntoChat.OS.Sdk.Http.IRequestThrottle>(provider =>
+            new IntoChat.OS.Sdk.Http.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
         services.AddOptions<IdentityHostOptions>().BindConfiguration(IdentityHostOptions.SectionName)
             .Validate(options => options.Validate(), "Identity host names must not be empty.")
             .ValidateOnStart();

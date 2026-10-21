@@ -2,6 +2,7 @@ using IntoChat.OS.Authority.Compute;
 using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
+using External = IntoChat.OS.Authority.Identity.External;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Marketplace;
 using IntoChat.OS.Framework.Platform.Connections;
@@ -23,6 +24,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extension
     public IAccount Account(string accountId) => Resolve<IAccount>(accountId);
     public IPrincipal Principal(string principalId) => Resolve<IPrincipal>(principalId);
     public IPrincipalCredential Credential(string principalId) => Resolve<IPrincipalCredential>(principalId);
+    public External.IExternalTicketReplay ExternalTicketReplay(string issuer, string jti) => Resolve<External.IExternalTicketReplay>(External.IExternalTicketReplay.Key(issuer, jti));
     public IIdentityDirectory Directory() => Resolve<IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey);
 
     public ILedgerGrain Ledger(string accountId) => Resolve<ILedgerGrain>(accountId);
