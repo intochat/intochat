@@ -483,12 +483,17 @@ internal sealed class BrainRuntimeNeuron(
         Flush();
         // A replayed ack prices nothing again. Metering observes the run: it is priced after this turn, so a slow
         // ledger never holds the runtime, and a meter that fails does not fail the ack.
-        PricedRun[] priced = [.. advanced.Where(run => !run.Report.Skipped && run.Report.CpuMicroseconds > 0).Select(run => new PricedRun(run.Report.Subscription,
-            run.Report.Watermark, run.Report.CpuMicroseconds, run.Before.Behavior, Find(run.Before.Behavior)?.Owner, run.After.Delivered, traces[run.Report.Subscription]?.Trace))];
+        PricedRun[] priced = [.. advanced.Where(run => !run.Report.Skipped && run.Report.CpuMicroseconds > 0).Select(run =>
+        {
+            var program = Find(run.Before.Behavior);
+            return new PricedRun(run.Report.Subscription, run.Report.Watermark, run.Report.CpuMicroseconds,
+                run.Before.Behavior, program?.Owner, run.After.Delivered, traces[run.Report.Subscription]?.Trace,
+                program is null ? null : new BehaviorIdentity(program.Principal, program.Owner).Caller);
+        })];
         if (priced.Length > 0 && Meter is { } meter) { _pricing = PriceAsync(_pricing, meter, priced); }
     }
 
-    private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace);
+    private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace, CallerContext? Caller);
 
     // A pushed batch's trace and the traceparent it carried: the run's span sits under the batch's own span.
     private sealed record BatchTrace(Trace Trace, string TraceParent);
@@ -499,11 +504,16 @@ internal sealed class BrainRuntimeNeuron(
         await previous;
         foreach (var run in runs)
         {
-            using var entered = run.Trace is { } batch ? TraceContext.Enter(batch) : null;
             try
             {
-                await meter.RecordAsync(CostKind.Script, "cpu-ms", run.CpuMicroseconds / 1000m, "ms", Funding.Local,
-                    $"{run.Subscription}:{run.Watermark}", CancellationToken.None, new CostSubject(Synapse: run.Behavior, App: run.App));
+                // An untraced batch still belongs to the program's saved principal. Scope each run
+                // separately: one acknowledgement can settle programs with different callers.
+                await AsProgram(run.Caller, async () =>
+                {
+                    using var entered = run.Trace is { } batch ? TraceContext.Enter(batch) : null;
+                    await meter.RecordAsync(CostKind.Script, "cpu-ms", run.CpuMicroseconds / 1000m, "ms", Funding.Local,
+                        $"{run.Subscription}:{run.Watermark}", CancellationToken.None, new CostSubject(Synapse: run.Behavior, App: run.App));
+                });
             }
             catch (Exception error)
             { logger.LogWarning(error, "Brain {Brain} could not price {Behavior}'s run through {Watermark}.", Brain, run.Behavior, run.Delivered); }

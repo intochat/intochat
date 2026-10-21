@@ -21,6 +21,36 @@ public sealed class CpuMeteringFacts
     private const string Owner = "acc-brain/apps/x";
     private const string Behavior = "acc-brain/apps/x/synapses/a.cs";
 
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnUntracedBatchUsesItsSavedProgramCallerForCpuAttribution()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var meter = new RecordingMeter { RequireAttribution = true };
+        await using var brain = await StartAsync(new FakeSessionHost(), meter, ct);
+        var owner = brain.Owner;
+        var app = owner.Key("apps/metered");
+        var runtime = RuntimeBrain.Edge(brain, owner.BrainId);
+        using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Assign(app, Synapse(), []); }
+        var session = (await RuntimeBrain.Runtime(brain, owner.BrainId).Inspect(ct)).SessionId!;
+        await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var source = brain.Get<IPinger>(owner.Key("untraced"));
+        var subscription = await runtime.Subscribed(session, app + "/synapses/a.cs", source.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, owner.BrainId), ct);
+        await source.Ping(1);
+        await changes.NextAsync(ct: ct);
+
+        await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_000)]);
+        Assert.True(await meter.AttributionAttempt.Task.WaitAsync(brain.Execution.AssertionTimeout, ct),
+            "Untraced script pricing must retain the trusted program caller.");
+        var recorded = Assert.Single(meter.Calls, call => call.Kind == CostKind.Script);
+        Assert.Equal(owner.BrainId, recorded.Caller?.BrainId);
+        Assert.Equal(owner.AccountId, recorded.Caller?.AccountId);
+        Assert.NotNull(recorded.TraceId);
+        Assert.Equal(owner.BrainId, recorded.TraceBrain);
+        Assert.Equal(owner.AccountId, recorded.TracePayer);
+    }
+
     // A synapse's batch and the CPU it cost: the ack prices the run against the batch's own trace.
     [Trait("host", "own")]
     [Fact]
@@ -126,11 +156,13 @@ public sealed class CpuMeteringFacts
 
     private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Acc);
 
-    private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId, string? TraceId, CostSubject? Subject);
+    private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId, string? TraceId, CostSubject? Subject, CallerContext? Caller, string? TraceBrain, string? TracePayer);
 
     private sealed class RecordingMeter : ICostMeter
     {
         public ConcurrentQueue<Recorded> Calls { get; } = new();
+        public bool RequireAttribution { get; init; }
+        public TaskCompletionSource<bool> AttributionAttempt { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Once armed, a script cost is recorded and then answered only when released, as a busy ledger answers.
         public TaskCompletionSource? Hold { get; set; }
@@ -140,7 +172,15 @@ public sealed class CpuMeteringFacts
         public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
             string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
-            Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId, subject));
+            var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+            if (kind == CostKind.Script && RequireAttribution)
+            {
+                var attributed = TraceContext.Current is not null || caller is not null;
+                AttributionAttempt.TrySetResult(attributed);
+                if (!attributed) { throw new UntrustedCallerException("Script usage has no trusted attribution."); }
+            }
+            Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId, subject, caller,
+                TraceContext.Current?.BrainId, TraceContext.Current?.PayerAccountId));
             if (kind == CostKind.Script) { ScriptPriced.TrySetResult(); }
             if (kind == CostKind.Script && Hold is { } hold) { await hold.Task; }
             return new Cost
