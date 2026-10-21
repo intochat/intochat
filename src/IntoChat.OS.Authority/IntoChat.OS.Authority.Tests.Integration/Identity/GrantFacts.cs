@@ -23,6 +23,31 @@ public sealed class GrantFacts(AuthorityHost host)
     }
 
     [Fact]
+    public void AGrantKeyedByAppIdPassesForThatAppsPrincipal()
+    {
+        var request = AppPrincipalRequest("ws-1/apps/mail", "ws-1/apps/mail", "person.birthDate");
+        Assert.True(GrantRules.Evaluate(request, null, [Grant(GrantMode.Always, "person.birthDate", "ws-1/apps/mail", "ws-1")])!.Allowed);
+        Assert.Equal(CallDenial.MissingGrant,
+            GrantRules.Evaluate(request, null, [Grant(GrantMode.Always, "person.birthDate", "ws-1/apps/other", "ws-1")])!.Denial);
+        Assert.Single(GrantRules.OnceToConsume(request, [Grant(GrantMode.Once, "person.birthDate", "ws-1/apps/mail", "ws-1")]));
+    }
+
+    [Fact]
+    public void AnAppPrincipalClaimingAnotherAppsIdIsUntrusted()
+    {
+        var request = AppPrincipalRequest("ws-1/apps/mail", "ws-1/apps/other", "person.birthDate");
+        var decision = GrantRules.Evaluate(request, null, [Grant(GrantMode.Always, "person.birthDate", "ws-1/apps/other", "ws-1")]);
+        Assert.Equal(CallDenial.UntrustedCaller, decision!.Denial);
+        Assert.Empty(GrantRules.OnceToConsume(request, [Grant(GrantMode.Once, "person.birthDate", "ws-1/apps/other", "ws-1")]));
+    }
+
+    private static CallRequest AppPrincipalRequest(string principalApp, string appId, params string[] semanticTypes)
+    {
+        var request = Request(CallerKind.App, appId, "ws-1", semanticTypes);
+        return request with { Caller = request.Caller with { PrincipalId = AppPrincipal.Id(principalApp), OnBehalfOf = "principal-1" } };
+    }
+
+    [Fact]
     public void ARevokedOrForeignGrantLooksMissing()
     {
         var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
