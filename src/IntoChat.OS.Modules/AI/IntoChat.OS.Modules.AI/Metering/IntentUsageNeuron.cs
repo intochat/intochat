@@ -21,7 +21,7 @@ internal sealed class IntentUsageNeuron(
         ArgumentNullException.ThrowIfNull(entry);
         store.State ??= new();
         store.State.Entries.Add(entry);
-        await store.WriteStateAsync();
+        await store.WriteStateAsync(cancellationToken);
     }
 
     public async Task RecordBatchAsync(TokenUsageEntry[] entries, CancellationToken cancellationToken = default)
@@ -30,7 +30,7 @@ internal sealed class IntentUsageNeuron(
         if (entries is null || entries.Length == 0) { return; }
         store.State ??= new();
         store.State.Entries.AddRange(entries);
-        await store.WriteStateAsync();
+        await store.WriteStateAsync(cancellationToken);
     }
 
     public Task<IntentTokenUsage> ReadAsync(CancellationToken cancellationToken = default)

@@ -9,7 +9,7 @@ internal sealed class BrainGrainStorage(BrainLogs logs, Serializer serializer, s
 {
     public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
-        var record = (await Log(grainId)).Read(grainId.ToString(), stateName);
+        var record = await (await Log(grainId)).Read(grainId.ToString(), stateName);
         if (record is not null) { grainState.State = serializer.Deserialize<T>(record.Record)!; }
         grainState.RecordExists = record is not null;
         grainState.ETag = record?.ETag.ToString(CultureInfo.InvariantCulture);

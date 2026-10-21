@@ -79,13 +79,13 @@ internal sealed class Creator(
     }
 
     // Flips the app to Building and returns; the Builder loop lands the files in the background.
-    public async Task<AppSnapshot> Implement(IIntoChatOS brain, string appKey, string? instruction)
+    public async Task<AppSnapshot> Implement(IIntoChatOS brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
         policy.RequireSandbox();
         var app = brain.Get<IApp>(appKey);
-        var snapshot = await app.BeginBuild(instruction);
-        var attempt = await app.CurrentBuildAttempt();
+        var snapshot = await app.BeginBuild(instruction).WaitAsync(cancellationToken);
+        var attempt = await app.CurrentBuildAttempt().WaitAsync(cancellationToken);
         queue.Enqueue($"implement {appKey}", (services, ct) => Build(appKey, attempt, snapshot, instruction, ct));
         return snapshot;
     }
@@ -113,7 +113,7 @@ internal sealed class Creator(
             if (files.Count == 0)
             {
                 await app.CompleteBuild(attempt, null, "the Builder produced no files");
-                await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files");
+                await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files", cancellationToken);
                 return;
             }
             // Manifest changes land with the files, inside the attempt check: a stale
@@ -126,21 +126,21 @@ internal sealed class Creator(
                         : snapshot.Manifest.Settings,
             };
             var completed = await app.CompleteBuild(attempt, files, null, manifest);
-            if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}"); }
-            else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete"); }
+            if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}", cancellationToken); }
+            else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete", cancellationToken); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
             // Reporting must not mask the build's own error.
-            try { await ReportIfCurrent(app, attempt, "attention", error.Message); } catch (Exception) { }
+            try { await ReportIfCurrent(app, attempt, "attention", error.Message, CancellationToken.None); } catch (Exception) { }
         }
     }
 
     // A stale worker's outcome was discarded by the neuron; it must not show as the app's activity either.
-    private static async Task ReportIfCurrent(IApp app, Guid attempt, string state, string detail)
+    private static async Task ReportIfCurrent(IApp app, Guid attempt, string state, string detail, CancellationToken cancellationToken)
     {
-        if (await app.CurrentBuildAttempt() == attempt) { await app.Progress(state, detail); }
+        if (await app.CurrentBuildAttempt().WaitAsync(cancellationToken) == attempt) { await app.Progress(state, detail).WaitAsync(cancellationToken); }
     }
 
     private async Task<AuthoredApp> Authored(string brainId, string prompt, CancellationToken cancellationToken)

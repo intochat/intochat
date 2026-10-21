@@ -22,7 +22,7 @@ internal sealed class ProviderExecutionGate : IDisposable
     internal Lease Enter(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!slots.Wait(0)) { throw new InvalidOperationException("Provider concurrency limit reached."); }
+        if (!slots.Wait(0, cancellationToken)) { throw new InvalidOperationException("Provider concurrency limit reached."); }
         return new Lease(slots, limits.MaxExecutionSeconds, cancellationToken);
     }
 

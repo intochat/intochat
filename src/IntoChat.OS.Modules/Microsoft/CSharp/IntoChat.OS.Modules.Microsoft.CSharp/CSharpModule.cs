@@ -3,6 +3,7 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using IntoChat.OS;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Caching;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
@@ -53,6 +54,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton<SessionTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
+        builder.Services.TryAddSingleton(new BoundedCache<string, CompiledBehavior>(CSharpScriptCheck.CacheCapacity, StringComparer.Ordinal));
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
         builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>
             provider.GetKeyedService<BlobServiceClient>(IntoChatOSNames.GrainState) is { } storage

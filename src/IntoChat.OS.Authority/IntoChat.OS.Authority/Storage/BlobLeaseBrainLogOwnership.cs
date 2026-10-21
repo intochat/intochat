@@ -171,7 +171,7 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
             owner.logger.LogError("Brain log lease for {BrainId} lost ({Reason}); writes are refused.", brainId, reason);
         }
 
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
             bool release;
             lock (gate)
@@ -186,7 +186,7 @@ internal sealed class BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeP
             {
                 try
                 {
-                    owner.client.ReleaseAsync(brainId, leaseId, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+                    await owner.client.ReleaseAsync(brainId, leaseId, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
                     Interlocked.Increment(ref owner.released);
                     owner.logger.LogInformation("Brain log lease released for {BrainId}.", brainId);
                 }

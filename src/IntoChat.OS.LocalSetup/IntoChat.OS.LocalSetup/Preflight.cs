@@ -48,18 +48,18 @@ public static class Preflight
         var command = LauncherCommand.Parse(args);
         if (command.Kind is not (LauncherKind.Preflight or LauncherKind.Default) || command.Remaining.Count > 0)
         {
-            await output.WriteLineAsync(command.Error ?? "usage: preflight [--json] [--no-fail] [--fake <file>] [--model <tag>]").ConfigureAwait(false);
+            await output.WriteLineAsync(command.Error ?? "usage: preflight [--json] [--no-fail] [--fake <file>] [--model <tag>]", cancellationToken).ConfigureAwait(false);
             return UsageExitCode;
         }
         var modelError = command.ModelOptions.Validate();
         if (modelError is not null)
         {
-            await output.WriteLineAsync(modelError).ConfigureAwait(false);
+            await output.WriteLineAsync(modelError, cancellationToken).ConfigureAwait(false);
             return UsageExitCode;
         }
         if (command.Fake is not null && !File.Exists(command.Fake))
         {
-            await output.WriteLineAsync("Fixture file does not exist.").ConfigureAwait(false);
+            await output.WriteLineAsync("Fixture file does not exist.", cancellationToken).ConfigureAwait(false);
             return UsageExitCode;
         }
 
@@ -81,7 +81,7 @@ public static class Preflight
         var modelError = command.ModelOptions.Validate();
         if (modelError is not null)
         {
-            await output.WriteLineAsync(modelError).ConfigureAwait(false);
+            await output.WriteLineAsync(modelError, cancellationToken).ConfigureAwait(false);
             return new LocalLaunch(UsageExitCode, []);
         }
         if (command.SkipPreflight) { return new LocalLaunch(0, command.LocalAppHostArguments(gpu: false, shellAvailable: true)); }
@@ -105,16 +105,16 @@ public static class Preflight
         if (!command.Pull) { return 0; }
         if (!report.OllamaReachable)
         {
-            await output.WriteLineAsync("Cannot pull the model: Ollama is not reachable.").ConfigureAwait(false);
+            await output.WriteLineAsync("Cannot pull the model: Ollama is not reachable.", cancellationToken).ConfigureAwait(false);
             return 1;
         }
         if (!report.ModelMissing)
         {
-            await output.WriteLineAsync("Model is already installed; nothing to pull.").ConfigureAwait(false);
+            await output.WriteLineAsync("Model is already installed; nothing to pull.", cancellationToken).ConfigureAwait(false);
             return 0;
         }
         var result = await ModelPuller.PullAsync(environment.Http, command.ModelOptions, new ConsolePullProgress(output), cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded) { await output.WriteLineAsync("Model pull failed: " + result.Error).ConfigureAwait(false); }
+        if (!result.Succeeded) { await output.WriteLineAsync("Model pull failed: " + result.Error, cancellationToken).ConfigureAwait(false); }
         return result.Succeeded ? 0 : 1;
     }
 }

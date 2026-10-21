@@ -20,7 +20,7 @@ internal sealed class AppStudioNeuron(Creator creator) : Neuron, IAppStudio
     {
         var authored = await Author(request, ct);
         var key = IApp.Key(Scope, authored.Name);
-        await creator.Implement(ServiceProvider.GetRequiredService<IIntoChatOS>(), key, null);
+        await creator.Implement(ServiceProvider.GetRequiredService<IIntoChatOS>(), key, null, ct);
         var app = GrainFactory.GetGrain<IApp>(key);
         var deadline = DateTimeOffset.UtcNow + BuildTimeout;
         while (DateTimeOffset.UtcNow < deadline)

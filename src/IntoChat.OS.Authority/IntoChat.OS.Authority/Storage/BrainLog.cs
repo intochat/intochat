@@ -7,7 +7,7 @@ using Orleans.Storage;
 namespace IntoChat.OS.Authority.Storage;
 
 // One writer, proven by its ownership lease. State and its signals share a flushed, authenticated journal entry.
-internal sealed class BrainLog : IDisposable
+internal sealed class BrainLog : IAsyncDisposable
 {
     private const int MaxEntryBytes = 16 * 1024 * 1024;
     private const int SegmentHeaderBytes = 5;
@@ -18,16 +18,18 @@ internal sealed class BrainLog : IDisposable
     private readonly Serializer serializer;
     private readonly IBrainLogLease ownership;
     private readonly IBrainLogFiles files;
-    private readonly Lock gate = new();
+    // Held across each durable write and read of the journal state; async so no thread blocks behind a writer.
+    private readonly SemaphoreSlim gate = new(1, 1);
     private readonly BrainLogFormat writeFormat;
     private Dictionary<string, Dictionary<string, BrainRecord>> records = new(StringComparer.Ordinal);
     private readonly List<BrainEntry> signals = [];
     private string generation = "initial";
     private long sequence;
     private long lastSignal;
-    private BrainLogFormat format;
-    private Exception? failure;
-    private bool disposed;
+    // Read without the gate by the sync getters; written only under it.
+    private volatile BrainLogFormat format;
+    private volatile Exception? failure;
+    private volatile bool disposed;
 
     public BrainLog(string directory, string brainId, byte[] key, Serializer serializer, BrainLogFormat writeFormat = BrainLogFormat.Legacy,
         IBrainLogFiles? files = null)
@@ -45,22 +47,23 @@ internal sealed class BrainLog : IDisposable
         this.key = key;
         this.serializer = serializer;
         try { Recover(); }
-        catch { ownership.Dispose(); throw; }
+        catch { ReleaseUnopened(ownership); throw; }
     }
 
     // The per-brain writer lock, the default ownership token.
     internal static IBrainLogLease Claim(string directory, string brainId) => FileLockBrainLogOwnership.Claim(directory, brainId);
 
-    public long LastSignal { get { lock (gate) { return lastSignal; } } }
+    public long LastSignal => Volatile.Read(ref lastSignal);
 
     // Format of the active segment: detected from its header, or the write format for an empty segment.
-    public BrainLogFormat Format { get { lock (gate) { return format; } } }
+    public BrainLogFormat Format => format;
 
-    internal BrainExport Export(Func<string, string, byte[], object?> decode) => Export(decode, StateExportPolicy.Default);
+    internal Task<BrainExport> Export(Func<string, string, byte[], object?> decode, CancellationToken ct = default) => Export(decode, StateExportPolicy.Default, ct);
 
-    internal BrainExport Export(Func<string, string, byte[], object?> decode, StateExportPolicy policy)
+    internal async Task<BrainExport> Export(Func<string, string, byte[], object?> decode, StateExportPolicy policy, CancellationToken ct = default)
     {
-        lock (gate)
+        await gate.WaitAsync(ct);
+        try
         {
             RequireOpen();
             var exported = new List<BrainExportRecord>();
@@ -77,11 +80,13 @@ internal sealed class BrainLog : IDisposable
             }
             return new(1, brainId, sequence, exported.ToArray(), omitted);
         }
+        finally { gate.Release(); }
     }
 
-    internal bool CheckStorage(CancellationToken ct)
+    internal async Task<bool> CheckStorage(CancellationToken ct)
     {
-        lock (gate)
+        await gate.WaitAsync(ct);
+        try
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
@@ -97,35 +102,41 @@ internal sealed class BrainLog : IDisposable
             }
             finally { File.Delete(path); }
         }
+        finally { gate.Release(); }
     }
 
     // Every stored (grain, state) pair, for tools that must read each record (the storage fixtures).
-    internal (string GrainId, string StateName)[] RecordKeys()
+    internal async Task<(string GrainId, string StateName)[]> RecordKeys()
     {
-        lock (gate)
+        await gate.WaitAsync();
+        try
         {
             RequireOpen();
             return [.. records.SelectMany(grain => grain.Value.Keys.Select(state => (grain.Key, state)))];
         }
+        finally { gate.Release(); }
     }
 
-    public BrainRecord? Read(string grainId, string stateName)
+    public async Task<BrainRecord?> Read(string grainId, string stateName)
     {
-        lock (gate)
+        await gate.WaitAsync();
+        try
         {
             RequireOpen();
             return records.TryGetValue(grainId, out var states) && states.TryGetValue(stateName, out var record)
                 ? new BrainRecord((byte[])record.Record.Clone(), record.ETag) : null;
         }
+        finally { gate.Release(); }
     }
 
     public async Task<long> Append(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
         => (await AppendEntry(grainId, stateName, expectedETag, change, record, emitted, ct)).Sequence;
 
     // The entry's sequence (a record's ETag) and the sequence of its last signal, which Read and nudges report.
-    public Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
+    public async Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change, byte[] record, Signal[] emitted, CancellationToken ct)
     {
-        lock (gate)
+        await gate.WaitAsync(ct);
+        try
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
@@ -163,36 +174,41 @@ internal sealed class BrainLog : IDisposable
                 Apply(serializer.Deserialize<BrainEntry>(plain)!);
             }
             catch (Exception error) { failure = error; throw; }
-            return Task.FromResult((sequence, lastSignal));
+            return (sequence, lastSignal);
         }
+        finally { gate.Release(); }
     }
 
-    public Task<JournaledSignal[]> ReadSignals(long since, int limit, string? publisher, CancellationToken ct)
+    public async Task<JournaledSignal[]> ReadSignals(long since, int limit, string? publisher, CancellationToken ct)
     {
-        lock (gate)
-        {
-            RequireOpen();
-            ct.ThrowIfCancellationRequested();
-            if (since < 0 || limit < 1) { throw new ArgumentOutOfRangeException(nameof(since)); }
-            JournaledSignal[] result = [.. signals.Where(entry => publisher is null || entry.GrainId == publisher)
-                .SelectMany(entry => entry.Signals.Select((signal, index) => new JournaledSignal(entry.FirstSignal + index, signal)))
-                .Where(signal => signal.Sequence > since).Take(limit)];
-            return Task.FromResult(result.Select(item => new JournaledSignal(item.Sequence, serializer.Deserialize<Signal>(serializer.SerializeToArray(item.Signal))!)).ToArray());
-        }
+        await gate.WaitAsync(ct);
+        try { return ReadSignalsLocked(since, limit, publisher, ct); }
+        finally { gate.Release(); }
     }
 
-    public Task<PartSignals> PublisherSignals(string publisher, long since, CancellationToken ct)
+    // The caller holds the gate.
+    private JournaledSignal[] ReadSignalsLocked(long since, int limit, string? publisher, CancellationToken ct)
     {
-        lock (gate)
-        {
-            var read = ReadSignals(since, int.MaxValue, publisher, ct).GetAwaiter().GetResult();
-            return Task.FromResult(new PartSignals(0, lastSignal, read));
-        }
+        RequireOpen();
+        ct.ThrowIfCancellationRequested();
+        if (since < 0 || limit < 1) { throw new ArgumentOutOfRangeException(nameof(since)); }
+        JournaledSignal[] result = [.. signals.Where(entry => publisher is null || entry.GrainId == publisher)
+            .SelectMany(entry => entry.Signals.Select((signal, index) => new JournaledSignal(entry.FirstSignal + index, signal)))
+            .Where(signal => signal.Sequence > since).Take(limit)];
+        return result.Select(item => new JournaledSignal(item.Sequence, serializer.Deserialize<Signal>(serializer.SerializeToArray(item.Signal))!)).ToArray();
     }
 
-    public Task Checkpoint(CancellationToken ct)
+    public async Task<PartSignals> PublisherSignals(string publisher, long since, CancellationToken ct)
     {
-        lock (gate)
+        await gate.WaitAsync(ct);
+        try { return new PartSignals(0, lastSignal, ReadSignalsLocked(since, int.MaxValue, publisher, ct)); }
+        finally { gate.Release(); }
+    }
+
+    public async Task Checkpoint(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
@@ -220,8 +236,8 @@ internal sealed class BrainLog : IDisposable
                 try { File.Delete(Path.Combine(directory, previous + suffix)); }
                 catch (IOException) { /* Unreachable generations may be removed on a later maintenance run. */ }
             }
-            return Task.CompletedTask;
         }
+        finally { gate.Release(); }
     }
 
     private string Journal => Path.Combine(directory, generation + ".log");
@@ -319,7 +335,7 @@ internal sealed class BrainLog : IDisposable
     }
 
     // False once the ownership is lost or a write failed; BrainLogs then evicts this log so the brain can be claimed again.
-    internal bool Usable { get { lock (gate) { return !disposed && failure is null && ownership.IsHeld; } } }
+    internal bool Usable => !disposed && failure is null && ownership.IsHeld;
 
     private void RequireOpen()
     {
@@ -328,9 +344,20 @@ internal sealed class BrainLog : IDisposable
         if (failure is not null) { throw new IOException("The brain store must be reopened after a failed append or checkpoint.", failure); }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        lock (gate) { if (disposed) { return; } disposed = true; ownership.Dispose(); }
+        await gate.WaitAsync();
+        try
+        {
+            if (disposed) { return; }
+            disposed = true;
+        }
+        finally { gate.Release(); }
+        await ownership.DisposeAsync();
     }
+
+    // A failed open cannot await in a constructor: the release starts at once and its outcome is observed, never blocked on.
+    private static void ReleaseUnopened(IBrainLogLease lease)
+        => _ = lease.DisposeAsync().AsTask().ContinueWith(static task => _ = task.Exception, TaskScheduler.Default);
 }
 

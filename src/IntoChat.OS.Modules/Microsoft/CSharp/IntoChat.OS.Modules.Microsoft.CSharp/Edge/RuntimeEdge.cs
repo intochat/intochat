@@ -56,9 +56,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         try { returned = method.Invoke(neuron, values); }
         catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
         if (returned is not Task task) { throw new NotSupportedException($"{contract.Name}.{method.Name} does not return a Task."); }
-        await task.ConfigureAwait(false);
+        var result = await TaskBoxing.ResultAsync(task, method.ReturnType).ConfigureAwait(false);
         if (!method.ReturnType.IsGenericType) { return null; }
-        var result = method.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task);
         return JsonSerializer.SerializeToElement(result, method.ReturnType.GetGenericArguments()[0], RuntimeProtocol.Json);
     }
 

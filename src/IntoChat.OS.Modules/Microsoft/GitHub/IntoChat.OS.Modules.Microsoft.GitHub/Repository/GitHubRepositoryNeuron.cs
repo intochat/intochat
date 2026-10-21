@@ -215,7 +215,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         Snapshot.PullRequests = observed.Values.OrderBy(item => item.Number).ToArray();
         Snapshot.ProcessedDeliveries = deliveries;
         Snapshot.LastWebhookAt = webhookAt ?? Snapshot.LastWebhookAt;
-        await _state.WriteStateAsync();
+        await _state.WriteStateAsync(cancellationToken);
         foreach (var fact in facts)
         {
             await PublishAsync(fact);

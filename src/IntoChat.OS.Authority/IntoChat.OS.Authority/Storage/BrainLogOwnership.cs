@@ -7,7 +7,7 @@ internal interface IBrainLogOwnership
 }
 
 // A held claim. Once it can no longer be trusted the log refuses to write and BrainLogs evicts it so the brain can be reclaimed.
-internal interface IBrainLogLease : IDisposable
+internal interface IBrainLogLease : IAsyncDisposable
 {
     // False once the claim is lost; never throws.
     bool IsHeld { get; }
@@ -42,7 +42,7 @@ internal sealed class FileLockBrainLogOwnership : IBrainLogOwnership
         public bool IsHeld => true;
         public long BeginWrite() => 0;
         public void EndWrite(long started) { }
-        public void Dispose() => stream.Dispose();
+        public ValueTask DisposeAsync() => stream.DisposeAsync();
     }
 }
 

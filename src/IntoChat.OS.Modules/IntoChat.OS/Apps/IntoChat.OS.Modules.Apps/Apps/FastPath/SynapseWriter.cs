@@ -108,7 +108,7 @@ internal sealed class SynapseWriter(
                     return;
                 }
                 // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
-                var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
+                var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200), cancellationToken);
                 outcome = await Run(job, deploys, snapshot, turn, span, cancellationToken);
                 await working;
             }
@@ -155,7 +155,7 @@ internal sealed class SynapseWriter(
             span?.SetStatus(ActivityStatusCode.Error, Clip(recorded.Errors[0], 500));
             log.LogError("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
                 job.AppKey, job.OperationId, "unsettled", recorded.Errors[0], elapsed, turn.DeployMs, outcome.Attempts);
-            await Report(app, "attention", "The synapse's deploy never answered; what runs is unknown: " + Clip(recorded.Errors[0], 300));
+            await Report(app, "attention", "The synapse's deploy never answered; what runs is unknown: " + Clip(recorded.Errors[0], 300), cancellationToken);
         }
         else if (recorded is { Status: SynapseStatus.Written })
         {
@@ -163,7 +163,7 @@ internal sealed class SynapseWriter(
             span?.SetTag("apps.fastpath.path", recorded.Path);
             log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {Path} {ElapsedMs} {DeployMs} {Attempts} {Base}",
                 job.AppKey, job.OperationId, "written", "", recorded.Path, elapsed, turn.DeployMs, outcome.Attempts, outcome.Base);
-            await Report(app, "completed", $"Wrote the synapse {recorded.Path}");
+            await Report(app, "completed", $"Wrote the synapse {recorded.Path}", cancellationToken);
         }
         else
         {
@@ -173,7 +173,7 @@ internal sealed class SynapseWriter(
             span?.SetStatus(ActivityStatusCode.Error, Clip(reason, 500));
             log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
                 job.AppKey, job.OperationId, "rejected", reason, elapsed, turn.DeployMs, outcome.Attempts);
-            await Report(app, "attention", "Could not write the synapse: " + Clip(errors.FirstOrDefault() ?? reason, 300));
+            await Report(app, "attention", "Could not write the synapse: " + Clip(errors.FirstOrDefault() ?? reason, 300), cancellationToken);
         }
     }
 
@@ -201,7 +201,7 @@ internal sealed class SynapseWriter(
             var request = attempts == 0 ? prompt : Repair(prompt, written, errors);
             attempts++;
             string reply;
-            try { reply = await Generate(brain, system, request, span); }
+            try { reply = await Generate(brain, system, request, span, cancellationToken); }
             catch (Exception error) when (error is not OperationCanceledException)
             { return new([$"The model {Model} did not answer: {error.Message}"], attempts, basis?.Name, null); }
             // A refusal is the model saying no installed contract carries the sentence: recorded, never compiled or deployed.
@@ -297,13 +297,13 @@ internal sealed class SynapseWriter(
 
     // One capped model call: the fast path's reasoning effort and output cap ride on the selection, so the
     // typed model neuron keeps its own model and only the thinking budget changes.
-    private async Task<string> Generate(string brain, string system, string prompt, Activity? span)
+    private async Task<string> Generate(string brain, string system, string prompt, Activity? span, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
         var result = await grains.GetGrain<ICreatorModel>(0).Generate(brain, Model, new InferenceRequest(
-            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection));
+            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection)).WaitAsync(cancellationToken);
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);
         var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
@@ -527,10 +527,10 @@ internal sealed class SynapseWriter(
     private static IEnumerable<KeyValuePair<string, string>> Shared(AppSnapshot app)
         => app.Files.Where(file => AppFiles.IsProgram(file.Key) && SynapseShape.IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal);
 
-    private async Task Report(IApp app, string state, string detail)
+    private async Task Report(IApp app, string state, string detail, CancellationToken cancellationToken)
     {
         // Activity is the person's view of the write; it must never decide the outcome.
-        try { await app.Progress(state, detail); }
+        try { await app.Progress(state, detail).WaitAsync(cancellationToken); }
         catch (Exception error) when (error is not OperationCanceledException)
         { log.LogDebug(error, "Fast-path activity could not be reported"); }
     }

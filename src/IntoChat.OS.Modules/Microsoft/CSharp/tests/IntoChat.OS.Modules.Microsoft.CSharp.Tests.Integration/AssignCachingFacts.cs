@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using IntoChat.OS.Framework.Caching;
 using IntoChat.OS.Microsoft.CSharp.Assemblies;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Microsoft.CSharp.Runtime;
@@ -64,9 +65,10 @@ public sealed class AssignCachingFacts
     public async Task ChecksWithDifferentReferenceFingerprintsDoNotShareACompiledSynapse()
     {
         var files = new Dictionary<string, string> { ["a.cs"] = "Console.WriteLine(1);// " + Guid.NewGuid() + "\n" };
-        var one = new CSharpScriptCheck("references-one");
-        var sameAsOne = new CSharpScriptCheck("references-one");
-        var other = new CSharpScriptCheck("references-two");
+        var cache = new BoundedCache<string, CompiledBehavior>(CSharpScriptCheck.CacheCapacity, StringComparer.Ordinal);
+        var one = new CSharpScriptCheck("references-one", cache);
+        var sameAsOne = new CSharpScriptCheck("references-one", cache);
+        var other = new CSharpScriptCheck("references-two", cache);
 
         one.Compile(files);
         sameAsOne.Compile(files);
