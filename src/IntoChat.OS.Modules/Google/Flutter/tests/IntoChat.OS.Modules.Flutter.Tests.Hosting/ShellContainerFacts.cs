@@ -2,6 +2,7 @@ using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Aspire.Testing;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Aspire.Hosting;
 
@@ -9,6 +10,24 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Hosting;
 
 public sealed class ShellContainerFacts
 {
+    [Fact]
+    public async Task TheContainerProxiesSameOriginRequestsToTheKernelFront()
+    {
+        var builder = AspireCompositionTest.CreateBuilder();
+        builder.Configuration[FlutterHostOptions.WebContainerKey] = "true";
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+            .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
+        builder.AddExecutable("OperatingSystem-a", "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain);
+        var front = builder.AddExecutable("OperatingSystem-front", "unused", ".").WithHttpEndpoint(name: "http");
+        brain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(front.Resource));
+
+        var shell = Assert.Single(builder.Resources.OfType<ContainerResource>(), resource => resource.Annotations.OfType<BrainBrowserAnnotation>().Any());
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, shell, TestContext.Current.CancellationToken);
+
+        var upstream = Assert.IsType<EndpointReference>(environment["INTOCHATOS_KERNEL_UPSTREAM"]);
+        Assert.Same(front.Resource, upstream.Resource);
+    }
+
     [Fact]
     public void WebContainerConfigurationServesTheBakedBundleInsteadOfTheDevServer()
     {
