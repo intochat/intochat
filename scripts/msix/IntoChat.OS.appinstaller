@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Template: build-msix.ps1 replaces the $tokens$. Host this file and the .msix at -BaseUri; Windows checks it for updates. -->
+<AppInstaller xmlns="http://schemas.microsoft.com/appx/appinstaller/2018" Version="$version$" Uri="$baseUri$/IntoChat.OS.appinstaller">
+  <MainPackage Name="$name$" Publisher="$publisher$" Version="$version$" ProcessorArchitecture="x64" Uri="$baseUri$/$package$" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="24" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>

@@ -18,19 +18,20 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="IntoCaht chat and product shell.">
+  <meta name="description" content="IntoChat chat and product shell.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="IntoCaht">
+  <meta name="apple-mobile-web-app-title" content="IntoChat">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>IntoCaht</title>
+  <title>IntoChat</title>
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0B1220">
 </head>
 <body>
   <!--
@@ -41,6 +42,12 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script>
+    // The shell's own worker (sw.js) makes it installable as a PWA; it never caches the OS.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

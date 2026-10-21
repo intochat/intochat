@@ -24,4 +24,6 @@ docker pull ghcr.io/intochat/os-sandbox
 
 `os` is the kernel, `os-ui` is the Flutter web shell served by nginx, and `os-sandbox` is the C# sandbox.
 
+Windows package (MSIX with App Installer file): `pwsh scripts/msix/build-msix.ps1`, output in `artifacts/msix`.
+
 Documentation: https://github.com/intochat/os.docs
