@@ -49,7 +49,11 @@ internal sealed class Creator(
             var authored = await Authored(brainId, prompt, cancellationToken);
             var manifest = new AppManifest(authored.Title, authored.Description,
                 authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? [],
-                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar);
+                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar,
+                // A revision keeps what the app declared it requires, plus any connector a new slot binds.
+                Requires: existing?.Manifest.Requires is { } requires
+                    ? requires with { Connectors = [.. (requires.Connectors ?? []).Concat((authored.Slots ?? []).Select(slot => slot.Connector)).Distinct(StringComparer.Ordinal)] }
+                    : null);
             var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
             if (name is null)
             {

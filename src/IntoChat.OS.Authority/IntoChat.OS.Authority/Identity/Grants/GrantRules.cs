@@ -26,9 +26,9 @@ public static class GrantRules
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(caller.AppId))
+        if (AppOf(caller) is null)
         {
-            return CallDecision.Deny(CallDenial.UntrustedCaller, "An app caller must identify its app.");
+            return CallDecision.Deny(CallDenial.UntrustedCaller, "An app caller must identify its app, and its principal must be that app's.");
         }
 
         foreach (var semanticTypeId in request.SemanticTypeIds)
@@ -51,14 +51,14 @@ public static class GrantRules
         if (grants is null || grants.Count == 0 || request.SemanticTypeIds.Length == 0) { return []; }
 
         var caller = request.Caller;
-        if (caller.Kind != CallerKind.App || string.IsNullOrWhiteSpace(caller.AppId)) { return []; }
+        if (caller.Kind != CallerKind.App || AppOf(caller) is not { } app) { return []; }
 
         return
         [
             .. grants.Where(grant => !grant.Revoked
                 && grant.Mode == GrantMode.Once
                 && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
-                && string.Equals(grant.AppId, caller.AppId, StringComparison.Ordinal)
+                && string.Equals(grant.AppId, app, StringComparison.Ordinal)
                 && request.SemanticTypeIds.Contains(grant.SemanticTypeId, StringComparer.Ordinal)
                 && !grants.Any(other => other.Mode != GrantMode.Once && !other.Revoked
                     && other.WorkspaceId == grant.WorkspaceId && other.AppId == grant.AppId
@@ -66,10 +66,21 @@ public static class GrantRules
         ];
     }
 
+    // The app a caller acts as. The app proxy stamps the app's own principal (AppPrincipal); its app key is the
+    // grant subject, which is the AppId grants were always keyed by, so stored grants need no migration. A principal
+    // naming another app than AppId is not this app. An app caller still carrying a person principal (stamped before
+    // apps had principals) is identified by AppId, as before.
+    public static string? AppOf(CallerContext caller)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        if (string.IsNullOrWhiteSpace(caller.AppId)) { return null; }
+        return AppPrincipal.AppKeyOf(caller.PrincipalId) is { } app && app != caller.AppId ? null : caller.AppId;
+    }
+
     internal static bool IsGranted(CallerContext caller, string semanticTypeId, IReadOnlyList<Grant> grants)
-        => grants.Any(grant => !grant.Revoked
+        => AppOf(caller) is { } app && grants.Any(grant => !grant.Revoked
             && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
-            && string.Equals(grant.AppId, caller.AppId, StringComparison.Ordinal)
+            && string.Equals(grant.AppId, app, StringComparison.Ordinal)
             && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
             && ModeSatisfied(grant, caller));
 

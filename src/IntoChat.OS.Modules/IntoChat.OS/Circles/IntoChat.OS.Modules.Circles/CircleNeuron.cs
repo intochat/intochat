@@ -98,11 +98,11 @@ internal sealed class CircleNeuron(
         { throw new InvalidOperationException($"{caller.AccountId} has no invitation to {record.Name}."); }
         await identity.EnsureMember(new Member
         {
-            PrincipalId = caller.PrincipalId,
+            PrincipalId = caller.PersonId,
             AccountId = caller.AccountId,
             BrainId = CircleBrain,
             Role = MemberRole.Member,
-            DisplayName = caller.PrincipalId,
+            DisplayName = caller.PersonId,
             JoinedAt = DateTimeOffset.UtcNow,
         });
         var next = record.Clone();
@@ -281,7 +281,7 @@ internal sealed class CircleNeuron(
     private async Task<string> SharerBrain(CallerContext caller, string appName)
     {
         List<string> holding = [];
-        foreach (var brain in (await identity.BrainsOf(caller.PrincipalId)).Where(entry => entry.Kind == BrainKind.Personal))
+        foreach (var brain in (await identity.BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Personal))
         {
             var installed = await AsSharer(caller, brain.Id, async () =>
                 (await GrainFactory.GetGrain<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(brain.Id, appName)).Read()).Manifest.Title.Length > 0);

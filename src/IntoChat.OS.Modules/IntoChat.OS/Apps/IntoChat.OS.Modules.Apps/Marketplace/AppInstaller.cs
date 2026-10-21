@@ -1,4 +1,6 @@
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Identity;
 
 namespace IntoChat.OS.Apps;
 
@@ -6,7 +8,7 @@ namespace IntoChat.OS.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. Install needs no authority beyond the caller's own brain.
 public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    IEnumerable<IFeatureMigration> migrations)
+    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null)
 {
     public async Task<AppSnapshot> InstallPublication(AppPublicationRef publication, string targetName, Guid operationId, CancellationToken ct)
     {
@@ -38,7 +40,32 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         if ((await target.Read().WaitAsync(ct)).Manifest.Title.Length > 0)
         { throw new InvalidOperationException($"You already have an app named {name}."); }
         var bundle = await Bundle(listing.Source, listing.Publisher, name, ct);
-        return await loader.Load(scope, name, bundle, new(listing.Publisher, listing.Source, name, bundle.Version), ct);
+        var installed = await loader.Load(scope, name, bundle, new(listing.Publisher, listing.Source, name, bundle.Version), ct);
+        await GrantRequirements(IApp.Key(scope, name), bundle.Manifest.Requires, ct);
+        return installed;
+    }
+
+    // Phase F: installing is the one consent the install view asks for. The person who installs grants the app every
+    // semantic type its manifest requires, always, as the brain's owner; a caller who may not grant (not the owner, or
+    // an app) installs without them, and the app asks again when it reads.
+    private async Task GrantRequirements(string appKey, AppRequirements? requires, CancellationToken ct)
+    {
+        if (identity is null || requires?.SemanticTypes is not { Length: > 0 } types
+            || !CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.User) { return; }
+        foreach (var type in types)
+        {
+            try
+            {
+                await identity.GrantAsOwner(caller, new Grant
+                {
+                    AppId = appKey,
+                    SemanticTypeId = type,
+                    Mode = GrantMode.Always,
+                    WorkspaceId = caller.BrainId,
+                }).WaitAsync(ct);
+            }
+            catch (UnauthorizedAccessException) { return; }
+        }
     }
 
     public async Task<AppSnapshot> Update(string name, CancellationToken ct)

@@ -93,7 +93,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.1.0";
+    public const string Version = "1.1.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
@@ -121,5 +121,6 @@ static class App
             new("open", Label: "Memory"),
             new("recall", Kind: "text", Label: "Recall a synapse"),
             new("remember", Kind: "text", Label: "Remember"),
-        ]);
+        ],
+        Requires: new(Connectors: ["postgres"]));
 }

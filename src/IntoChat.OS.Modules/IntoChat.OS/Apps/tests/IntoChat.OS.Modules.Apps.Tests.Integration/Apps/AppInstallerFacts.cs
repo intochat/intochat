@@ -70,6 +70,58 @@ public sealed class AppInstallerFacts
         Assert.Equal(installed.Version, (await Mine(brain, alice).Read()).Version);
     }
 
+    // Phase F: the installed copy is a principal of the brain, a member with the App role, until it is deleted.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnInstalledAppIsAnAppMemberOfItsBrainUntilItIsDeleted()
+    {
+        await using var brain = await Start();
+        await Published(brain);
+        var alice = await brain.PersonAsync("alice", Ct);
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var principal = IntoChat.OS.Framework.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
+
+        using var _ = alice.AsCaller();
+        await Installer(brain).Install("intochat", "echo", Ct);
+
+        var member = await identity.Membership(alice.BrainId, principal);
+        Assert.NotNull(member);
+        Assert.Equal(IntoChat.OS.Framework.Platform.Identity.MemberRole.App, member.Role);
+        Assert.Equal(alice.AccountId, member.AccountId);
+
+        await Mine(brain, alice).Delete();
+        Assert.Null(await identity.Membership(alice.BrainId, principal));
+        Assert.NotNull(await identity.Membership(alice.BrainId, alice.PrincipalId));
+    }
+
+    // Phase F: the listing carries what the app requires, and installing it is the one consent: the installer
+    // grants each required semantic type to the installed copy.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task InstallingGrantsWhatTheListingRequires()
+    {
+        await using var brain = await Start();
+        var publisher = await brain.PersonAsync("intochat", Ct);
+        var source = Mine(brain, publisher);
+        using (publisher.AsCaller())
+        {
+            await source.Create(Manifest() with { Requires = new(["person.email"], ["gmail"]) }, Spec);
+            await source.BeginBuild(null);
+            await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
+            await source.Publish();
+        }
+        var listing = await brain.Services.GetRequiredService<MarketplaceView>().Read("intochat", "echo", Ct);
+        Assert.Equal(["person.email"], listing!.Requires!.SemanticTypes!);
+        var alice = await brain.PersonAsync("alice", Ct);
+
+        using var _ = alice.AsCaller();
+        await Installer(brain).Install("intochat", "echo", Ct);
+
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var grant = Assert.Single(await identity.ListGrants(alice.BrainId), grant => grant.SemanticTypeId == "person.email");
+        Assert.Equal((IApp.Key(alice.BrainId, "echo"), IntoChat.OS.Authority.Identity.GrantMode.Always), (grant.AppId, grant.Mode));
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task InstallingAnAppNotInTheMarketplaceIsNotFound()

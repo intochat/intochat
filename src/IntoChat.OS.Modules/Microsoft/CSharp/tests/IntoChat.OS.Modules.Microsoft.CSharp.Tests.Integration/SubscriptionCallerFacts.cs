@@ -172,7 +172,7 @@ public sealed class SubscriptionCallerFacts
 
         using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Retire(app); }
 
-        Assert.Equal($"{owner.PrincipalId} App AppProxy {app}", await pinger.Unwatched());
+        Assert.Equal($"{IntoChat.OS.Framework.AppPrincipal.Id(app)} App AppProxy {app} for {owner.PrincipalId}", await pinger.Unwatched());
     }
 
     private static Task<ITestBrain> StartWithTablesAsync(CancellationToken ct)

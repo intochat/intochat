@@ -27,7 +27,7 @@ internal sealed class CircleBirth(IIdentityClient identity, IGrainFactory grains
         if (await identity.KindOf(brainId) != BrainKind.Circle) { return; }
         if (catalog is null || loader is null) { throw new InvalidOperationException($"Circle {brainId} needs the Apps module to load its room."); }
         if (!CallerContextStamper.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
-        var name = (await identity.Membership(brainId, creator.PrincipalId))?.DisplayName
+        var name = (await identity.Membership(brainId, creator.PersonId))?.DisplayName
             ?? throw new InvalidOperationException($"Circle {brainId} has no creator on record.");
         await grains.GetGrain<ICircle>(ICircle.Key(brainId)).Found(name);
         var room = await catalog.Find(RoomOwner, RoomName)

@@ -380,7 +380,8 @@ public sealed class RuntimeEdgeFacts
 
     [Trait("host", "own")]
     [Fact]
-    public async Task ABehaviorCallsNeuronsAsItsOwnerStampedAsAnApp()
+    // Phase F: the app proxy stamps the app's own principal, not the person's; the person stays as the one it acts for.
+    public async Task ABehaviorCallsNeuronsAsItsAppPrincipalOnBehalfOfItsOwner()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
@@ -389,7 +390,7 @@ public sealed class RuntimeEdgeFacts
         var session = await StartAs(brain, alice, Key("report"), ct);
 
         Assert.Equal(42, await Invoke<int>(brain, session, Key("report"), Call(nameof(IPinger.Double), 21), ct));
-        Assert.Equal(alice.PrincipalId + " App AppProxy " + Key("report"), await Invoke<string>(brain, session, Key("report"), Call(nameof(IPinger.Caller)), ct));
+        Assert.Equal($"{AppPrincipal.Id(Key("report"))} App AppProxy {Key("report")} for {alice.PrincipalId}", await Invoke<string>(brain, session, Key("report"), Call(nameof(IPinger.Caller)), ct));
     }
 
     [Trait("host", "own")]

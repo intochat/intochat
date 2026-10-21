@@ -88,4 +88,44 @@ public sealed class AppDeclarationFacts
     [Fact]
     public void AFileWithoutTheAppClassIsRefused()
         => Assert.Throws<InvalidDataException>(() => AppDeclaration.Read("static class Other { }"));
+
+    // Phase F: Requires names the semantic types, connector kinds and secrets the app needs, read from syntax and
+    // written back the same; Files and Memory declare theirs.
+    [Fact]
+    public void RequiresReadsBackAndTheShippedFilesAndMemoryDeclareTheirs()
+    {
+        var requiring = Player with { Requires = new(["person.email"], ["postgres"], ["openai-key"]) };
+        var read = AppDeclaration.Read(AppDeclaration.Write(new("player", "1.2.3", requiring, ""))).Manifest.Requires!;
+        Assert.Equal(["person.email"], read.SemanticTypes!);
+        Assert.Equal(["postgres"], read.Connectors!);
+        Assert.Equal(["openai-key"], read.Secrets!);
+
+        var features = Features();
+        var files = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Files", "app.cs"))).Manifest.Requires!;
+        Assert.Equal(["windows", "google-drive"], files.Connectors!);
+        var memory = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Memory", "app.cs"))).Manifest.Requires!;
+        Assert.Equal(["postgres"], memory.Connectors!);
+    }
+
+    [Fact]
+    public void RequiresIsValidated()
+    {
+        Assert.Throws<InvalidDataException>(() => (Player with { Requires = new(["person.email", "person.email"], ["postgres"]) }).Validated());
+        Assert.Throws<InvalidDataException>(() => (Player with { Requires = new(["not an id"], ["postgres"]) }).Validated());
+        Assert.Throws<InvalidDataException>(() => (Player with { Requires = new(Secrets: [""], Connectors: ["postgres"]) }).Validated());
+        // A slot binds a connector kind the block must list.
+        Assert.Throws<InvalidDataException>(() => (Player with { Requires = new(Connectors: ["gmail"]) }).Validated());
+        Assert.NotNull((Player with { Requires = new(Connectors: ["postgres"]) }).Validated());
+        Assert.Null(Player.Validated().Requires);
+    }
+
+    private static string Features()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var features = Path.Combine(dir.FullName, "features");
+            if (Directory.Exists(Path.Combine(features, "os", "Files"))) { return features; }
+        }
+        throw new DirectoryNotFoundException("features/os/Files not found above the test output.");
+    }
 }
