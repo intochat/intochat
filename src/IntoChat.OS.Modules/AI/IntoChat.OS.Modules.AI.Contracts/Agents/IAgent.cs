@@ -17,4 +17,7 @@ public interface IAgent : INeuron
     [ReadOnly, AlwaysInterleave] Task<AgentState> Read();
     [ReadOnly, AlwaysInterleave] Task<AiMessage[]> Transcript();
     [AlwaysInterleave] Task Clear();
+    // Records a completed assistant-only entry (no model call), e.g. a greeting; one entry per id
+    // (stored as run `post/{id}`). Throws InvalidOperationException while a run is active: retry later.
+    [AlwaysInterleave] Task Post(string text, string id);
 }

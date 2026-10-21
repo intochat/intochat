@@ -179,8 +179,14 @@ public static class Workspace
         await brain.Get<ISelect>(key + "/more").SetVisual(new(Icon: "more", Compact: true));
         var strip = await Layout(brain, "strip", "row", [new("select", key + "/launcher"), ino, .. pins, .. tabs],
             [44, 48, .. pins.Select(_ => 48d), .. tabs.Select(_ => 48d)], gap: 4);
-        var right = await Layout(brain, "right", "row", [usageButton, profileButton, new("select", key + "/more")], [96, 44, 44], gap: 4);
-        var dock = await Layout(brain, "dock", "row", [strip, right], [0, 192], surface: "floating", padding: 8);
+        // New desktop: the shell switches the desktop's layout back and connects again (a select cannot reach the shell).
+        // The same shape as Desktop.LayoutActivation (OsDesktopAppFacts checks they match); inlined: apps share no code.
+        var desktop = brain.Get<IButton>(key + "/new-desktop");
+        var reconnect = JsonSerializer.Serialize(new { kind = "reconnect", brainId = Scope(brain), application = "desktop", operation = "layout", input = "desktop" });
+        if ((await desktop.Read()).Activation != reconnect) { await desktop.SetActivation("New desktop", reconnect); }
+        if ((await desktop.Read()).Visual is not { Compact: true }) { await desktop.SetVisual(new(Compact: true)); }
+        var right = await Layout(brain, "right", "row", [usageButton, profileButton, new("button", key + "/new-desktop"), new("select", key + "/more")], [96, 44, 44, 44], gap: 4);
+        var dock = await Layout(brain, "dock", "row", [strip, right], [0, 240], surface: "floating", padding: 8);
         var content = focused is null ? new UiChildRef("text", key + "/empty")
             : !supported ? new UiChildRef("text", key + "/unsupported") : new UiChildRef("viewport", key + "/canvas");
         if (!string.IsNullOrEmpty((await brain.Get<IText>(key + "/navigation-error").Read()).Markdown))

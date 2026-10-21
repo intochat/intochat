@@ -466,6 +466,59 @@ public sealed class FastPathFacts : IDisposable
 
     [Trait("host", "own")]
     [Fact]
+    public async Task LayoutClassesAreReferenceExamplesOtherSharedFilesAreNot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        WriteFeature("os", "Orchard", "orchard", "OrchardLayout.cs", "public static class OrchardLayout { public static UiNode? Render(int lemons) => null; /* LAYOUT-LEMONS */ }");
+        File.WriteAllText(Path.Combine(_features, "os", "Orchard", "Helper.cs"), "public static class Helper { public static int Twice(int n) => n * 2; /* HELPER-LEMONS */ }");
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "lemons orchard layout", ct);
+
+        Assert.Contains(ranking.Layouts, example => example.Source.Contains("LAYOUT-LEMONS", StringComparison.Ordinal));
+        Assert.DoesNotContain(ranking.Layouts.Concat(ranking.Examples), example => example.Source.Contains("HELPER-LEMONS", StringComparison.Ordinal));
+        Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("LAYOUT-LEMONS", StringComparison.Ordinal));
+        Assert.Null(ranking.Base);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task TheShippedCalculatorAndDesktopLayoutsComeFirstAtMostTwoAndAreLabelled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var shipped = ShippedFeatures();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: shipped);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count the lemons", ct);
+
+        Assert.Equal(2, ranking.Layouts.Length);
+        Assert.All(ranking.Layouts, layout => Assert.Matches("(?i)^features/os/(calculator|desktop)$", layout.Origin));
+        Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("static UiNode Render", StringComparison.Ordinal));
+
+        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+        await app.WriteSynapse("count the lemons", [], Guid.NewGuid());
+        await written.NextAsync(ct: ct);
+        var prompt = Prompt(model);
+        Assert.Contains("reference only: shared layout class, not a synapse", prompt, StringComparison.Ordinal);
+        Assert.Contains("static UiNode Render", prompt, StringComparison.Ordinal);
+    }
+
+    private static string ShippedFeatures()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var features = Path.Combine(dir.FullName, "features");
+            if (Directory.Exists(Path.Combine(features, "os", "Calculator"))) { return features; }
+        }
+        throw new DirectoryNotFoundException("features/os/Calculator not found above the test output.");
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task AStrongMatchIsTheBaseTheModelForks()
     {
         var ct = TestContext.Current.CancellationToken;

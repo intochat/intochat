@@ -32,6 +32,19 @@ void main() {
     }
   });
 
+  test('v2 kinds have dedicated renderers', () {
+    for (final kind in const [
+      'toggle',
+      'progress',
+      'infobar',
+      'image',
+      'expander',
+    ]) {
+      expect(RendererRegistry.uiEntry(kind).isFallback, isFalse, reason: kind);
+    }
+    expect(RendererRegistry.uiFallbackKinds.length, 10);
+  });
+
   test('unknown kind renders the fallback, never a blank', () {
     final unknown = RendererRegistry.uiEntry('this-kind-does-not-exist');
     expect(unknown.kind, RendererRegistry.fallback);

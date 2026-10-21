@@ -14,7 +14,14 @@ public interface IConnectionRequests : INeuron
     [ReadOnly] Task<ConnectionSummary[]> ListConnections();
 
     Task<ConnectionRef> Request(string kind);
+
+    // The apps gallery's connections: every declared OAuth connector, whether this host offers it, and
+    // whether this brain holds a live connection of it.
+    [ReadOnly] Task<ConnectorOffer[]> ListOffers();
 }
+
+[GenerateSerializer, Alias("integrations.connector-offer")]
+public sealed record ConnectorOffer([property: Id(0)] string Id, [property: Id(1)] string DisplayName, [property: Id(2)] bool Available, [property: Id(3)] bool Connected);
 
 [GenerateSerializer, Alias("integrations.kind")]
 public sealed record ConnectorKind([property: Id(0)] string Id, [property: Id(1)] string DisplayName);

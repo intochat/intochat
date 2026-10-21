@@ -179,7 +179,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "3.1.0"; // Proposed migration release.
+    public const string Version = "3.1.1";
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
         Description: "Talk to your brain, use its capabilities, and create apps.",

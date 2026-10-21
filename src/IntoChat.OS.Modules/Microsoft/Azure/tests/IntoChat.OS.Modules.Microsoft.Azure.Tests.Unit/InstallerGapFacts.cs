@@ -181,7 +181,8 @@ public sealed class InstallerGapFacts
         var vaultIndex = Array.IndexOf(specs, specs.OfType<KeyVaultSpec>().Single());
         var grant = Assert.IsType<RoleGrantSpec>(specs[vaultIndex + 1]);
         Assert.Equal("11111111-1111-1111-1111-111111111111", grant.Principal);
-        Assert.Equal("b86a8fe4-44ce-4948-aee5-eccb2d0f6c2a", grant.RoleDefinitionId);
+        // Azure's built-in Key Vault Secrets Officer role (verified against the role catalog).
+        Assert.Equal("b86a8fe4-44ce-4948-aee5-eccb2c155cd7", grant.RoleDefinitionId);
         Assert.EndsWith("/Microsoft.KeyVault/vaults/intochat-test-kv", grant.Scope, StringComparison.Ordinal);
         Assert.DoesNotContain(InstallPlan.Build(Parse()).OfType<RoleGrantSpec>(), other => other.Name.EndsWith("installer-secrets", StringComparison.Ordinal));
     }

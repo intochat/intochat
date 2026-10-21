@@ -27,4 +27,8 @@ WORKDIR /workspace/shell
 RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
 
 FROM nginx:1.27-alpine
+ENV NGINX_ENVSUBST_FILTER="^INTOCHATOS_KERNEL_UPSTREAM$"
+COPY shell/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY shell/nginx/19-validate-kernel.sh /docker-entrypoint.d/19-validate-kernel.sh
+RUN chmod +x /docker-entrypoint.d/19-validate-kernel.sh
 COPY --from=build /workspace/shell/build/web /usr/share/nginx/html

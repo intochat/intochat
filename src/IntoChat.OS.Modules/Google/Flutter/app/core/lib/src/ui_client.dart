@@ -105,6 +105,35 @@ final class IntoChatOSUiClient {
     }
   }
 
+  /// A composed identity module may offer a browser sign-in page. Never follow
+  /// an absolute or cross-origin discovery value from this anonymous probe.
+  Future<Uri?> readSignInEntry() async {
+    try {
+      final response = await _http
+          .get(
+            baseUri.replace(path: '/auth/entry', query: null, fragment: null),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return null;
+      final body = jsonDecode(response.body);
+      final value = body is Map<String, dynamic> ? body['loginUrl'] : null;
+      if (value is! String ||
+          !value.startsWith('/') ||
+          value.startsWith('//')) {
+        return null;
+      }
+      final uri = baseUri.resolve(value);
+      if (uri.origin != baseUri.origin ||
+          uri.userInfo.isNotEmpty ||
+          uri.fragment.isNotEmpty) {
+        return null;
+      }
+      return uri;
+    } on Object {
+      return null;
+    }
+  }
+
   Future<void> signIn(
     String username,
     String password, {

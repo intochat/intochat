@@ -71,4 +71,13 @@ internal sealed class ConnectionRequestsNeuron(
         await Save(next, new ConnectionRequested(account.Kind, account.Id));
         return account;
     }
+
+    [ReadOnly]
+    public async Task<ConnectorOffer[]> ListOffers()
+    {
+        var offered = (await catalog.ListAsync(CancellationToken.None)).Select(entry => entry.Id).ToHashSet(StringComparer.Ordinal);
+        var connected = (await ListConnections()).Where(row => row.Status == "connected").Select(row => row.Kind).ToHashSet(StringComparer.Ordinal);
+        return [.. connectors.Where(connector => connector.OAuthMethods.Length > 0)
+            .Select(connector => new ConnectorOffer(connector.Id, connector.DisplayName, offered.Contains(connector.Id), connected.Contains(connector.Id)))];
+    }
 }

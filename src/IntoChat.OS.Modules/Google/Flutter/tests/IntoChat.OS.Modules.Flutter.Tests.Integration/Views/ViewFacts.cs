@@ -24,6 +24,27 @@ public sealed class ViewFacts(FlutterHost host)
         Assert.Equal(2, (await view.Read())!.Generation);
     }
 
+    // A watch opened after a publish (a reloaded page) still learns of it: the view retains its last
+    // ViewChanged, ordered by generation then version, and nothing for its actions.
+    [Fact]
+    public async Task TheLastChangeIsRetainedForAWatchOpenedLater()
+    {
+        var view = host.Brain.Get<IView>("retained");
+        var retains = view.AsReference<IRetainsSignals>();
+        Assert.Empty(await retains.Retained(nameof(ViewChanged), 0));
+        await view.Publish(new(1, 2, Ui.Text("title", "first")));
+        var first = Assert.Single(await retains.Retained(nameof(ViewChanged), 0));
+        Assert.Equal((1L, 2L), (((ViewChanged)first.Signal).Generation, ((ViewChanged)first.Signal).Version));
+        // Stamped like a published signal: a watch serializes its publisher.
+        Assert.EndsWith("retained", first.Signal.Publisher.Name, StringComparison.Ordinal);
+        await view.Publish(new(2, 1, Ui.Text("title", "second")));
+        var second = Assert.Single(await retains.Retained(nameof(ViewChanged), 0));
+        Assert.True(second.Sequence > first.Sequence);
+        Assert.Equal(2L, ((ViewChanged)second.Signal).Generation);
+        Assert.Empty(await retains.Retained(nameof(ViewChanged), second.Sequence));
+        Assert.Empty(await retains.Retained(nameof(ViewAction), 0));
+    }
+
     [Fact]
     public async Task MaximumDepthCanBePublishedIdempotently()
     {

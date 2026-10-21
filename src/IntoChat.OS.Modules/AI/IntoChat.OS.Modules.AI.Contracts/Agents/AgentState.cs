@@ -34,6 +34,8 @@ public sealed record AgentRun(
     [property: Id(8)] string? Error = null)
 {
     [Id(9)] public AgentToolCall[] ToolCalls { get; init; } = [];
+    // Recorded by IAgent.Post: an assistant-only entry with no user turn and no model call.
+    [Id(10)] public bool Posted { get; init; }
 }
 
 // Transcript is read through IAgent.Transcript; it is too large to ride along on every read.

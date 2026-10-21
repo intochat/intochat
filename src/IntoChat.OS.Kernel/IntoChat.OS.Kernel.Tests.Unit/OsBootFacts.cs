@@ -25,7 +25,7 @@ public sealed class OsBootFacts
         var person = await brain.PersonAsync("ada", ct);
 
         using var caller = person.AsCaller();
-        foreach (var name in new[] { "settings", "ino", "router", "calculator", "datavisualizer", "friends", "circle", "workspace" })
+        foreach (var name in new[] { "settings", "ino", "router", "calculator", "datavisualizer", "friends", "circle", "workspace", "desktop" })
         {
             var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);
@@ -39,7 +39,7 @@ public sealed class OsBootFacts
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
         var before = await calculator.Read();
         var root = await brain.Services.GetRequiredService<IntoChat.OS.Flutter.IUiRootProvider>().Connect(ct);
-        Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("layout", IApp.Key(person.BrainId, "workspace") + "/root"), root);
+        Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("view", IApp.Key(person.BrainId, "desktop") + "/view"), root);
         Assert.Equal(before.ProgramRevision, (await calculator.Read()).ProgramRevision);
         Assert.True((await calculator.Read()).Edited);
     }

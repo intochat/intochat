@@ -23,6 +23,12 @@ void main() {
       NodeContracts.of('collection').contract,
       'IntoChat.OS.Flutter.Collection.ICollectionView',
     );
+    expect(
+      NodeContracts.of('viewport').contract,
+      'IntoChat.OS.Flutter.Viewport.IViewport',
+    );
+    expect(NodeContracts.of('viewport').changed, 'ViewportChanged');
+    expect(NodeContracts.of('toggle').changed, 'ToggleChanged');
     expect(() => NodeContracts.of('nope'), throwsArgumentError);
   });
 }

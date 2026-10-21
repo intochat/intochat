@@ -306,10 +306,11 @@ public static class ShellHostingExtensions
                 var shellName = _pendingShell;
                 var chatName = _pendingChat;
                 _shellContainer
+                    .WithEnvironment(context => context.EnvironmentVariables["INTOCHATOS_KERNEL_UPSTREAM"] = Kernel)
                     .WithAnnotation(new WaitAnnotation(builder.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                     // Endpoints are allocated before any resource starts, so the kernel URL is real here.
                     .OnBeforeResourceStarted((_, _, ct) => File.WriteAllTextAsync(
-                        configPath, ShellServedConfig.Payload(Kernel.Url, shellName, chatName), ct));
+                        configPath, ShellServedConfig.Payload("", shellName, chatName), ct));
                 return;
             }
 

@@ -19,6 +19,11 @@ import '../chat/ui_chat_transcript.dart';
 import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
+import '../components/expander/ui_expander.dart';
+import '../components/image/ui_image.dart';
+import '../components/infobar/ui_info_bar.dart';
+import '../components/progress/ui_progress.dart';
+import '../components/toggle/ui_toggle.dart';
 import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
@@ -359,6 +364,24 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  static String _text(Object? value, [String empty = '']) =>
+      value is String ? value : empty;
+  static double _number(Object? value) => switch (value) {
+    num n => n.toDouble(),
+    String t => double.tryParse(t) ?? 0,
+    _ => 0,
+  };
+
+  // `_dispatch` shows the failure in a snackbar before rethrowing; the
+  // rethrow is only absorbed here so it is not reported as unhandled.
+  Future<void> _act(String kind, String action) async {
+    try {
+      await _dispatch({'kind': kind, 'name': widget.name, 'action': action});
+    } catch (_) {
+      /* Presented by _dispatch's status path. */
+    }
+  }
+
   Future<void> _file() async {
     try {
       final result = await FilePicker.platform.pickFiles(withData: true);
@@ -461,9 +484,12 @@ class _NeuronViewState extends State<NeuronView> {
     final definition = Map<String, dynamic>.from(
       data['definition'] as Map? ?? data,
     );
-    final rawChildren = (definition['children'] as List? ?? [])
-        .take(128)
-        .toList();
+    final rawChildren =
+        (definition['children'] is List
+                ? definition['children'] as List
+                : const [])
+            .take(128)
+            .toList();
     final children = [
       for (final child in rawChildren)
         if (child is Map && child['kind'] is String && child['name'] is String)
@@ -926,6 +952,41 @@ class _NeuronViewState extends State<NeuronView> {
           enabled: enabled,
           onAction: _dispatch,
           secretSaver: widget.secretSaver,
+        );
+      case 'toggle':
+        return UiToggle(
+          label: _text(definition['label']),
+          on: definition['on'] == true,
+          onChanged: enabled ? (_) => _act('toggle', 'flip') : null,
+        );
+      case 'progress':
+        return UiProgress(
+          determinate: definition['determinate'] == true,
+          value: _number(definition['value']),
+          label: _text(definition['label']),
+        );
+      case 'infobar':
+        if (definition['visible'] == false) return const SizedBox.shrink();
+        return UiInfoBar(
+          severity: _text(definition['severity'], 'info'),
+          title: _text(definition['title']),
+          body: _text(definition['body']),
+          onDismiss: enabled ? () => _act('infobar', 'dismiss') : null,
+        );
+      case 'image':
+        return UiImage.network(
+          url: _text(definition['url']),
+          caption: _text(definition['prompt']),
+        );
+      case 'expander':
+        return UiExpander(
+          part: UiExpanderPart(
+            name: widget.name,
+            header: _text(definition['header']),
+            expanded: definition['expanded'] == true,
+          ),
+          onToggle: enabled ? () => _act('expander', 'toggle') : null,
+          children: children,
         );
       default:
         return _FallbackRenderer(kind: widget.kind);

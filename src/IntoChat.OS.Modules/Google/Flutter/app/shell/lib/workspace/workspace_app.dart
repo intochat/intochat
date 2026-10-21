@@ -11,6 +11,7 @@ import '../connections/connectors_menu.dart';
 import '../space/neuron_space.dart';
 import '../space/space_controller.dart';
 import 'home/app_detail_screen.dart';
+import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
 import 'workspace_settings.dart';
@@ -145,8 +146,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     }
   }
 
-  Future<void> _selectBrain(String brain, {String? show}) async {
-    if (_brain == brain) return;
+  Future<void> _selectBrain(
+    String brain, {
+    String? show,
+    bool reconnect = false,
+  }) async {
+    if (_brain == brain && !reconnect) return;
     if (_root.isNotEmpty) {
       _space?.dispose();
       _space = null;
@@ -222,12 +227,65 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     );
   }
 
+  // The desktop root lays out one window on a narrow screen: tell it which side of 900 px the window is.
+  Widget _widthHinted(Widget root) {
+    final brain = _brain!;
+    if (_renderKind != 'view' || _rootName != '$brain/apps/desktop/view') {
+      return root;
+    }
+    return WidthHint(
+      key: ValueKey('width:$_rootName'),
+      onNarrow: (narrow) => unawaited(
+        widget.programmingClient!
+            .requestApp(brain, 'desktop', 'narrow', '$narrow')
+            .then<void>((_) {}, onError: (Object _) {}),
+      ),
+      child: root,
+    );
+  }
+
+  // The request is handled asynchronously, so connect again (a few times, briefly) until the root changes.
+  Future<void> _reconnect(Map<String, dynamic> action) async {
+    final brain = _brain!;
+    final app = action['application'] as String?;
+    final operation = action['operation'] as String?;
+    if (app != null && operation != null) {
+      await widget.programmingClient!.requestApp(
+        brain,
+        app,
+        operation,
+        action['input'] as String? ?? '',
+      );
+    }
+    // A fixed root (INTOCHATOS_ROOT) never changes on connect: say so at once.
+    if (_root.isEmpty) {
+      final before = _rootName;
+      for (var attempt = 0; attempt < 10 && mounted; attempt++) {
+        await _selectBrain(brain, reconnect: true);
+        if (_rootName != before || operation == null) return;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    }
+    if (!mounted) return;
+    _messenger.currentState?.showSnackBar(
+      const SnackBar(content: Text('Layout will change on next start')),
+    );
+  }
+
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
+        return;
+      }
+      // The layout switch: hand the app its request, then connect again and mount the new root.
+      // Only the desktop's layout switch may reconnect; any other reconnect is ignored.
+      if (action['kind'] == 'reconnect') {
+        if (action['application'] == 'desktop' && _brain != null) {
+          await _reconnect(action);
+        }
         return;
       }
       final brain = action['brainId'] as String? ?? _brain!;
@@ -276,6 +334,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               width: 560,
               height: 520,
               child: ConnectWindow(
+                // The desktop gallery's Connect preselects its connector (and names the connection after it).
+                initialConnectorId: action['connector'] as String?,
+                initialConnectionId: action['connector'] as String?,
                 request: (path, {body}) =>
                     client.workspaceConnectionsRequest(brain, path, body: body),
                 connectorRequest: (path, {body}) =>
@@ -451,8 +512,8 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     navigatorKey: _navigator,
     scaffoldMessengerKey: _messenger,
     debugShowCheckedModeBanner: false,
-    theme: UiTheme.workspace(Brightness.light),
-    darkTheme: UiTheme.workspaceDark(store.settings.theme),
+    theme: UiTheme.light(store.settings.theme),
+    darkTheme: UiTheme.dark(store.settings.theme),
     themeMode: UiTheme.modeFor(store.settings.theme),
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(
@@ -465,27 +526,29 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     home: Scaffold(
       body: _rootName != null && _brain != null
           ? SafeArea(
-              child: NeuronView(
-                key: ValueKey(_rootName),
-                kind: _renderKind,
-                name: _rootName!,
-                load: (kind, name) => widget.programmingClient!.appRequest(
-                  _brain!,
-                  'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-                ),
-                // Reads once per change signal instead of every 2 s.
-                watch: (kind, name) => widget.programmingClient!
-                    .watchNode(_brain!, kind, name)
-                    .map((_) {}),
-                onAction: (event) async {
-                  await widget.programmingClient!.appRequest(
+              child: _widthHinted(
+                NeuronView(
+                  key: ValueKey(_rootName),
+                  kind: _renderKind,
+                  name: _rootName!,
+                  load: (kind, name) => widget.programmingClient!.appRequest(
                     _brain!,
-                    'event',
-                    body: event,
-                  );
-                },
-                onActivate: (action) => unawaited(_activate(action)),
-                scenes: widget.programmingClient!.scenes(_brain!),
+                    'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                  ),
+                  // Reads once per change signal instead of every 2 s.
+                  watch: (kind, name) => widget.programmingClient!
+                      .watchNode(_brain!, kind, name)
+                      .map((_) {}),
+                  onAction: (event) async {
+                    await widget.programmingClient!.appRequest(
+                      _brain!,
+                      'event',
+                      body: event,
+                    );
+                  },
+                  onActivate: (action) => unawaited(_activate(action)),
+                  scenes: widget.programmingClient!.scenes(_brain!),
+                ),
               ),
             )
           : _space == null

@@ -189,9 +189,9 @@ internal sealed class SynapseWriter(
         var focus = FocusOf(job, brain, types, cancellationToken);
         var matches = MatchesOf(job.Sentence, types, query, cancellationToken);
         await Task.WhenAll(ranking, focus, matches);
-        var (ranked, basis) = await ranking;
+        var (ranked, basis, layouts) = await ranking;
         span?.SetTag("apps.fastpath.examples", string.Join(",", ranked.Select(example => example.Name)));
-        var prompt = Prompt(job, snapshot, ranked, basis, await focus, await matches);
+        var prompt = Prompt(job, snapshot, ranked, basis, layouts ?? [], await focus, await matches);
         var system = AgentPrompts.Synapse + (sandbox is null ? "" : "\n\n" + sandbox.AuthoringDescription);
         WrittenSynapse? written = null;
         string[] errors = [];
@@ -372,7 +372,7 @@ internal sealed class SynapseWriter(
     private async Task<string[]> MatchesOf(string sentence, Task<TypeEntry[]> types, Task<float[]?> query, CancellationToken cancellationToken)
         => await Matches(sentence, await types, await query, cancellationToken);
 
-    private string Prompt(Job job, AppSnapshot app, SynapseExample[] ranked, SynapseExample? basis,
+    private string Prompt(Job job, AppSnapshot app, SynapseExample[] ranked, SynapseExample? basis, SynapseExample[] layouts,
         (string[] Focused, string[] Contracts) focus, string[] matching)
     {
         var manifest = app.Manifest;
@@ -429,6 +429,11 @@ internal sealed class SynapseWriter(
         {
             text.AppendLine().AppendLine("Synapses this brain can see, as examples of the shape and the usings:");
             foreach (var example in shown) { AppendExample(text, example); }
+        }
+        if (layouts.Length > 0)
+        {
+            text.AppendLine().AppendLine("Layout examples (reference only: shared layout class, not a synapse; never edit or return one as the synapse):");
+            foreach (var example in layouts) { AppendExample(text, example); }
         }
         if (basis is not null)
         {

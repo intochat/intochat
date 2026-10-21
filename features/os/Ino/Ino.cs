@@ -79,7 +79,8 @@ public static partial class Ino
             var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
             if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
             var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
-            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: Contracts,
+            var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
+            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: contracts,
                     contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
                 with { Model = model, RunId = runId, Intent = intentId?.ToString() });
             return AnswerOutcome.Started;
@@ -169,6 +170,12 @@ public static partial class Ino
         var selected = await chat.SelectAgent(source, current.Revision, operationId);
         if ((await chat.Read()).Selection == selected) { await Status(brain, ""); }
     }
+
+    public const string Greeting = "Hi, I'm Ino. Find and open apps in the Apps gallery in the dock, or just tell me what you need.";
+
+    // "open" with input "greet" (the desktop's first run) posts one greeting; the fixed id keeps it to one.
+    public static async Task Greet(IntoChatOSConnection brain)
+        => await brain.Get<IAgent>((await EnsureSelection(brain)).Agent).Post(Greeting, "greeting");
 
     public static async Task ComposeAsync(IntoChatOSConnection brain)
     {

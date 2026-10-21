@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Space;
 using IntoChat.OS.Flutter.Workspace.Signals;
 using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Flutter.Workspace;
 
@@ -16,8 +18,8 @@ internal sealed class WorkspaceNeuron(
 
     public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId != Brain + "/apps/workspace")
-        { throw new UnauthorizedAccessException("Only the workspace app may apply navigation state."); }
+        if (!await ShippedCaller("workspace", "desktop"))
+        { throw new UnauthorizedAccessException("Only the shipped workspace and desktop apps may apply navigation state."); }
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters."); }
@@ -42,6 +44,15 @@ internal sealed class WorkspaceNeuron(
             Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
         }, state => new WorkspaceChanged(Brain, state.Revision));
         return await Read();
+    }
+
+    // The caller is one of the named apps of this brain, and that app is the one the OS ships, not one
+    // that merely bears its name.
+    private async Task<bool> ShippedCaller(params string[] names)
+    {
+        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
+        if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
+        return ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(app).Read(), named);
     }
 
     private void CheckViews(WorkspaceViewRef[] views)

@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../../lumen/lumen_palette.dart';
 import '../../models/ui_part.dart';
+import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
 /// Product chart control. Same widget for surface galleries and chat bubbles.
 ///
 /// `chartKind` picks bars (`bar`, the default), a line with points (`line`),
 /// or pie slices (`pie`). Colors follow the ambient Material theme (Lumen light
-/// or dark) instead of the legacy dark-only UiPalette.
+/// or dark) instead of the legacy dark-only palette.
 final class UiChart extends StatelessWidget {
   const UiChart({super.key, required this.part, this.height = 200});
 
@@ -27,13 +28,13 @@ final class UiChart extends StatelessWidget {
     Color(0xFFC47AC0),
   ];
 
-  static const _darkSlices = [
-    UiPalette.signal,
-    UiPalette.owner,
-    UiPalette.success,
-    Color(0xFFC47AC0),
-    Color(0xFF5EC4D4),
-    Color(0xFFE0C35C),
+  static List<Color> _darkSlices(UiColors colors) => [
+    colors.working,
+    colors.accent,
+    colors.done,
+    const Color(0xFFC47AC0),
+    const Color(0xFF5EC4D4),
+    const Color(0xFFE0C35C),
   ];
 
   static String axisLabel(String label) => label.length <= axisLabelLength
@@ -424,17 +425,18 @@ final class _ChartTone {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final light = theme.brightness == Brightness.light;
+    final colors = UiColors.of(context);
     return _ChartTone(
       card: light ? LumenPalette.surface : scheme.surfaceContainerLow,
       border: light ? LumenPalette.line : scheme.outlineVariant,
       grid: light ? LumenPalette.line : scheme.outlineVariant,
       ink: light ? LumenPalette.ink : scheme.onSurface,
       muted: light ? LumenPalette.muted : scheme.onSurfaceVariant,
-      accent: light ? LumenPalette.accent : UiPalette.signal,
+      accent: light ? LumenPalette.accent : colors.working,
       tooltip: light ? LumenPalette.surfaceMuted : scheme.surfaceContainerHigh,
       percentInk: light ? LumenPalette.surface : scheme.onSurface,
       percentShadow: light ? const Color(0x66000000) : const Color(0x88000000),
-      slices: light ? UiChart._lightSlices : UiChart._darkSlices,
+      slices: light ? UiChart._lightSlices : UiChart._darkSlices(colors),
     );
   }
 }

@@ -63,6 +63,27 @@ abstract final class NodeContracts {
       'IntoChat.OS.Flutter.WebBrowser.IWebBrowser',
       'BrowserObservationChanged',
     ),
+    'viewport': NodeContract(
+      'IntoChat.OS.Flutter.Viewport.IViewport',
+      'ViewportChanged',
+    ),
+    'toggle': NodeContract(
+      'IntoChat.OS.Flutter.Toggle.IToggle',
+      'ToggleChanged',
+    ),
+    'progress': NodeContract(
+      'IntoChat.OS.Flutter.Progress.IProgress',
+      'ProgressChanged',
+    ),
+    'infobar': NodeContract(
+      'IntoChat.OS.Flutter.InfoBar.IInfoBar',
+      'InfoBarChanged',
+    ),
+    'image': NodeContract('IntoChat.OS.Flutter.Image.IImage', 'ImageChanged'),
+    'expander': NodeContract(
+      'IntoChat.OS.Flutter.Expander.IExpander',
+      'ExpanderChanged',
+    ),
   };
 
   static NodeContract of(String kind) =>

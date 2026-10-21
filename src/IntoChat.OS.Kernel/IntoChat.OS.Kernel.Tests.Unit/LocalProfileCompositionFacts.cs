@@ -71,7 +71,7 @@ public sealed class LocalProfileCompositionFacts
         {
             var resource = Assert.Single(host.Resources.OfType<ProjectResource>(), project => project.Name == name);
             var environment = await LocalProfileOllamaFacts.EnvironmentOf(host, resource);
-            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "windows", "flutter", "salesforce", "gmail" })
+            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "windows", "salesforce", "gmail" })
             {
                 Assert.Equal("false", environment[IntoChatOSConfiguration.ModuleSection(id) + ":Enabled"]);
             }
@@ -80,5 +80,14 @@ public sealed class LocalProfileCompositionFacts
                 Assert.DoesNotContain(IntoChatOSConfiguration.ModuleSection(id) + ":Enabled", environment.Keys);
             }
         }
+    }
+
+    [Fact]
+    public async Task TheLocalProfileKeepsTheFlutterModuleWhileTheShellIsEnabled()
+    {
+        await using var host = await LocalAsync();
+        var resource = Assert.Single(host.Resources.OfType<ProjectResource>(), project => project.Name == "OperatingSystem-a");
+        var environment = await LocalProfileOllamaFacts.EnvironmentOf(host, resource);
+        Assert.DoesNotContain(IntoChatOSConfiguration.ModuleSection("flutter") + ":Enabled", environment.Keys);
     }
 }

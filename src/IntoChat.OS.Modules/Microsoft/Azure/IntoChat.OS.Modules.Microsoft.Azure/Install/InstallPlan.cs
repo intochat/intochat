@@ -20,7 +20,7 @@ public static class InstallPlan
     // load-balanced, while silos must reach each other's own addresses.
     public const int GatewayPort = 30000;
 
-    private const string KeyVaultSecretsOfficer = "b86a8fe4-44ce-4948-aee5-eccb2d0f6c2a";
+    private const string KeyVaultSecretsOfficer = "b86a8fe4-44ce-4948-aee5-eccb2c155cd7";
     private const string KeyVaultSecretsUser = "4633458b-17de-408a-b874-0445c86b69e6";
     private const string AcrPull = "7f951dda-4ed3-4680-a7ca-43fe172d538d";
     private const string StorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe";

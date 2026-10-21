@@ -8,6 +8,9 @@ import 'credential_store_io.dart'
     if (dart.library.html) 'credential_store_web.dart'
     as store;
 import 'login_screen.dart';
+import 'sign_in_entry_io.dart'
+    if (dart.library.html) 'sign_in_entry_web.dart'
+    as entry;
 import 'local_account.dart';
 import 'local_account_io.dart'
     if (dart.library.html) 'local_account_web.dart'
@@ -36,11 +39,13 @@ final class BrainSessionGate extends StatefulWidget {
     required this.builder,
     this.createClient = _fromEnvironment,
     this.readLocalAccount = local.readLocalAccount,
+    this.openSignIn = entry.openSignIn,
   });
 
   final ShellBuilder builder;
   final ClientFactory createClient;
   final Future<LocalAccount?> Function(Uri) readLocalAccount;
+  final Future<bool> Function(Uri) openSignIn;
 
   @override
   State<BrainSessionGate> createState() => _BrainSessionGateState();
@@ -109,11 +114,12 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
       return 'Unable to connect to your account.';
     }
     if (!accepted) {
+      final redirected = await _offerBrowserSignIn(client);
       client.close();
       if (credentials != null) {
         store.clearStoredCredentials();
       }
-      if (mounted) {
+      if (mounted && !redirected) {
         setState(() {
           _phase = _Phase.login;
           _loginError = fromStartup && credentials == null
@@ -126,6 +132,14 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
 
     try {
       await client.readSession();
+      if (client.principalId == null ||
+          client.accountId == null ||
+          client.defaultBrainId == null) {
+        final redirected = await _offerBrowserSignIn(client);
+        client.close();
+        if (mounted && !redirected) setState(() => _phase = _Phase.login);
+        return null;
+      }
     } on Object {
       client.close();
       if (mounted) {
@@ -141,6 +155,16 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     }
     _enterShell(client, null);
     return null;
+  }
+
+  Future<bool> _offerBrowserSignIn(IntoChatOSUiClient client) async {
+    final uri = await client.readSignInEntry();
+    if (uri == null || !mounted) return false;
+    try {
+      return await widget.openSignIn(uri);
+    } on Object {
+      return false;
+    }
   }
 
   void _enterShell(IntoChatOSUiClient? client, String? statusMessage) {
@@ -210,8 +234,10 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     try {
       await previous?.signOut();
       store.clearStoredCredentials();
+      final redirected =
+          previous != null && await _offerBrowserSignIn(previous);
       previous?.close();
-      if (mounted) {
+      if (mounted && !redirected) {
         setState(() {
           _phase = _Phase.login;
           _loginError = null;
@@ -242,7 +268,11 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     return MaterialApp(
       title: 'IntoChat',
       debugShowCheckedModeBanner: false,
-      theme: UiTheme.dark(),
+      // v2 is the default for everyone and the gate runs before user
+      // settings load, so it always uses the IntoChat theme.
+      theme: UiTheme.light('intochat'),
+      darkTheme: UiTheme.dark('intochat'),
+      themeMode: UiTheme.modeFor('intochat'),
       home: _phase == _Phase.localFailed || _phase == _Phase.connectionFailed
           ? Scaffold(
               body: Center(
@@ -293,9 +323,9 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
               initialUsername: _lastUsername,
               errorMessage: _loginError,
             )
-          : const ColoredBox(
-              color: UiPalette.surface,
-              child: Center(child: CircularProgressIndicator()),
+          : ColoredBox(
+              color: UiColors.of(context).page,
+              child: const Center(child: CircularProgressIndicator()),
             ),
     );
   }

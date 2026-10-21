@@ -87,7 +87,7 @@ public static class AzureInstaller
             var secrets = new List<SecretRef>();
             foreach (var (module, deployment) in deployments)
             {
-                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct);
+                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct, provided, dryRun);
                 current = $"deploy module {module}";
                 await deployment.Deploy(context);
                 foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }
@@ -114,7 +114,7 @@ public static class AzureInstaller
         {
             foreach (var (name, value) in JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(secretsFrom, ct)) ?? [])
             {
-                if (value.Length > 0) { values[name] = value; }
+                if (!string.IsNullOrWhiteSpace(value)) { values[name] = value; }
             }
         }
         if (!values.ContainsKey(InstallPlan.MasterKeySecret))

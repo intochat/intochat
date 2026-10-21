@@ -24,6 +24,7 @@ class ConnectWindow extends StatefulWidget {
     this.connectorRequest,
     this.windowsRequest,
     this.initialConnectorId,
+    this.initialConnectionId,
     this.onOpen,
   });
 
@@ -31,6 +32,8 @@ class ConnectWindow extends StatefulWidget {
   final ConnectionsRequest? connectorRequest;
   final ConnectionsRequest? windowsRequest;
   final String? initialConnectorId;
+  // The desktop gallery's Connect names the connection after its connector.
+  final String? initialConnectionId;
   final Future<void> Function(Uri url)? onOpen;
 
   @override
@@ -59,6 +62,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
   @override
   void initState() {
     super.initState();
+    _connectionId.text = widget.initialConnectionId ?? '';
     unawaited(load());
   }
 
@@ -350,6 +354,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
                 ),
               if (usesOAuth)
                 TextButton.icon(
+                  key: const Key('connect_oauth'),
                   onPressed: busy ? null : startOAuth,
                   icon: const Icon(Icons.open_in_new),
                   label: const Text('Sign in with the provider'),

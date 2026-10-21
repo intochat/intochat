@@ -27,7 +27,7 @@ final class _UiGalleryScreenState extends State<UiGalleryScreen> {
 
   @override
   Widget build(BuildContext context) => Theme(
-    data: UiTheme.light(),
+    data: UiTheme.baseLight(),
     child: UiThemeScope(
       child: Material(
         key: const Key('ui_gallery_screen'),

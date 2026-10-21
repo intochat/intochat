@@ -126,13 +126,21 @@ void paletteTests() {
   test('old theme values load as palette names and palettes round-trip', () {
     expect(WorkspacePreferences.fromJson({'theme': 'dark'}).theme, 'midnight');
     expect(WorkspacePreferences.fromJson({'theme': 'light'}).theme, 'paper');
-    expect(WorkspacePreferences.fromJson({}).theme, 'midnight');
+    expect(WorkspacePreferences.fromJson({}).theme, 'intochat');
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'system'}).theme,
+      'intochat',
+    );
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'midnight'}).theme,
+      'midnight',
+    );
     expect(WorkspacePreferences.fromJson({'theme': 'lumen'}).theme, 'lumen');
-    expect(WorkspacePreferences().toJson()['theme'], 'midnight');
+    expect(WorkspacePreferences().toJson()['theme'], 'intochat');
   });
 
   testWidgets(
-    'settings picker offers the three palettes and saves the choice',
+    'settings picker offers IntoChat first, selected by default, and saves',
     (tester) async {
       final store = WorkspaceStore();
       await tester.pumpWidget(
@@ -149,8 +157,23 @@ void paletteTests() {
         200,
         scrollable: find.byType(Scrollable).last,
       );
+      final picker = tester.widget<DropdownButton<String>>(
+        find.descendant(
+          of: find.byKey(const Key('theme_picker')),
+          matching: find.byType(DropdownButton<String>),
+        ),
+      );
+      expect(picker.value, 'intochat');
+      expect(picker.items!.first.value, 'intochat');
+      expect(picker.items!.map((i) => i.value), [
+        'intochat',
+        'midnight',
+        'paper',
+        'lumen',
+      ]);
       await tester.tap(find.byKey(const Key('theme_picker')));
       await tester.pumpAndSettle();
+      expect(find.text('IntoChat').hitTestable(), findsWidgets);
       expect(find.text('Midnight').hitTestable(), findsWidgets);
       expect(find.text('Paper').hitTestable(), findsWidgets);
       await tester.tap(find.text('Lumen').last);

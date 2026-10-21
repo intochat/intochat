@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:intochat_os_flutter_shell/auth/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -92,6 +93,13 @@ void main() {
         isNotNull,
       );
       expect(find.textContaining('secret backend'), findsNothing);
+      final errorText = tester.widget<Text>(
+        find.byKey(const Key('login-error')),
+      );
+      expect(
+        errorText.style?.color,
+        UiColors.of(tester.element(find.byKey(const Key('login-error')))).error,
+      );
     },
   );
 

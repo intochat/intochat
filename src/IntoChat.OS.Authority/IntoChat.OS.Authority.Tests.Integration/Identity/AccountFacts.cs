@@ -50,7 +50,11 @@ public sealed class AccountFacts(AuthorityHost host)
 
         Assert.Equal([alice.BrainId], await BrainsAs(brain, alice));
         Assert.Equal([bob.BrainId], await BrainsAs(brain, bob));
-        Assert.Equal([alice.BrainId], await directory.BrainsOfAsync(carolId, ct));
+        // Membership is authoritative immediately; the principal's index is announced with OneWay.
+        Assert.True(await directory.CanAccessAsync(carolId, alice.AccountId, alice.BrainId, ct));
+        var shared = await TestWait.UntilAsync(token => directory.BrainsOfAsync(carolId, token),
+            brains => brains.Contains(alice.BrainId), TimeSpan.FromSeconds(10), ct);
+        Assert.Equal([alice.BrainId], shared);
     }
 
     private static async Task<string[]> BrainsAs(ITestBrain brain, Person person)

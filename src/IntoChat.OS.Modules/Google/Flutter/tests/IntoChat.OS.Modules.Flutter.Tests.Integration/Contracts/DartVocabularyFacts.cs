@@ -11,8 +11,9 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 public sealed partial class DartVocabularyFacts
 {
     // Kinds the C# vocabulary declares that the renderer registry does not list: the shell draws chat and composer
-    // through the workspace, not NeuronView. Shrinking this list is fine; growing it is a design decision.
-    private static readonly string[] CSharpOnlyKinds = ["chat", "composer"];
+    // through the workspace, not NeuronView; a viewport is a window onto another app's view, so it has no standalone
+    // gallery sample. Shrinking this list is fine; growing it is a design decision.
+    private static readonly string[] CSharpOnlyKinds = ["chat", "composer", "viewport"];
 
     internal static string[] Vocabulary() => [.. typeof(UIVocabulary).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Type", StringComparison.Ordinal))
@@ -51,7 +52,7 @@ public sealed partial class DartVocabularyFacts
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(21, table.Length);
+        Assert.Equal(27, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in table)
@@ -63,6 +64,18 @@ public sealed partial class DartVocabularyFacts
             { offenders.Add($"{kind}: no signal {changed} beside {contract}"); }
         }
         Assert.True(offenders.Count == 0, "node_contracts.dart drifted from the C# contracts:\n" + string.Join('\n', offenders));
+    }
+
+    // Every kind a view or composition may reference (ViewValidation, CompositionValidation) and GET /apps/node serves:
+    // the shell watches each by contract, so a missing entry throws in the browser (the desktop's windows and the
+    // workspace canvas are viewports).
+    [Fact]
+    public void EveryReferencedKindHasANodeContract()
+    {
+        string[] referenced = ["viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas",
+            "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "expander",
+            "surface", "layout", "collection", "card", "tabs", "view"];
+        Assert.Empty(referenced.Except(NodeContracts().Select(entry => entry.Kind)));
     }
 
     [GeneratedRegex(@"static const List<String> uiKinds = \[(?<body>[^\]]*)\];")]

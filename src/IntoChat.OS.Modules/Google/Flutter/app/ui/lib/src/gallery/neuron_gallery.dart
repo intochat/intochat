@@ -214,6 +214,30 @@ Map<String, dynamic> neuronExample(String kind) => switch (kind) {
       {'eventId': '2', 'label': 'Tue', 'value': 42},
     ],
   },
+  'toggle' => {'label': 'Show finished books', 'on': true},
+  'progress' => {
+    'determinate': true,
+    'value': .62,
+    'label': 'Importing library',
+  },
+  'infobar' => {
+    'severity': 'warning',
+    'title': 'Sync paused',
+    'body': 'Reconnect to keep your shelves up to date.',
+    'visible': true,
+  },
+  'image' => {
+    'url': '',
+    'mediaType': 'image/png',
+    'prompt': 'Cover art appears here once generated.',
+  },
+  'expander' => {
+    'header': 'Reading preferences',
+    'expanded': true,
+    'children': [
+      {'kind': 'toggle', 'name': 'example-toggle'},
+    ],
+  },
   _ => {},
 };
 

@@ -4,123 +4,379 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
 import '../lumen/lumen_palette.dart';
+import 'ui_colors.dart';
 import 'ui_tokens.dart';
 
-/// Product color tokens. Shell and ui both consume these — do not re-declare
-/// palettes in the shell package.
-abstract final class UiPalette {
-  static const navigation = Color(0xFF101219);
-  static const surface = Color(0xFF141720);
-  static const surfaceRaised = Color(0xFF1B1F2A);
-  static const surfaceSunken = Color(0xFF11141B);
-  static const line = Color(0xFF292E3B);
-  static const lineStrong = Color(0xFF363C4C);
-  static const textPrimary = Color(0xFFE9EBF2);
-  static const textMuted = Color(0xFF969CAF);
-  static const textFaint = Color(0xFF5E6474);
-  static const signal = Color(0xFFE09261);
-  static const owner = Color(0xFF7B9BE3);
-  static const success = Color(0xFF65C5A0);
+/// Text styles for the ambient palette. Colours come from [UiColors.of];
+/// families are IntoChat's bundled fonts for the intochat palette and the v1
+/// system fonts for midnight, paper and lumen.
+@immutable
+final class UiTypeSet {
+  const UiTypeSet({
+    required this.title,
+    required this.heading,
+    required this.cardTitle,
+    required this.metric,
+    required this.body,
+    required this.bodyMuted,
+    required this.meta,
+    required this.metaStrong,
+    required this.empty,
+  });
+
+  final TextStyle title;
+  final TextStyle heading;
+  final TextStyle cardTitle;
+  final TextStyle metric;
+  final TextStyle body;
+  final TextStyle bodyMuted;
+  final TextStyle meta;
+  final TextStyle metaStrong;
+  final TextStyle empty;
 }
 
 abstract final class UiType {
+  static const fontPackage = 'intochat_os_ui';
+  static const sansFamily = 'Schibsted Grotesk';
+  static const intochatMonoFamily = 'JetBrains Mono';
+
+  /// Package-qualified family names usable from any package.
+  static const sans = 'packages/$fontPackage/$sansFamily';
+  static const mono = 'packages/$fontPackage/$intochatMonoFamily';
+
+  /// IntoChat heading treatment: w800, -0.015em tracking, 1.18 line height.
+  static TextStyle intochatHeading(TextStyle style) => style.copyWith(
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.015 * (style.fontSize ?? 16),
+    height: 1.18,
+  );
+
+  /// Pins the variable font's `wght` axis to [TextStyle.fontWeight] (default
+  /// 400) so bundled variable fonts render the requested weight.
+  static TextStyle withWeightAxis(TextStyle style) => style.copyWith(
+    fontVariations: [
+      FontVariation(
+        'wght',
+        (style.fontWeight ?? FontWeight.w400).value.toDouble(),
+      ),
+    ],
+  );
+
+  static UiTypeSet of(BuildContext context) {
+    final c = UiColors.of(context);
+    // Family comes from the theme's text, not from UiColors: colours are
+    // lerped during theme animation, the font family is not.
+    final intochat =
+        Theme.of(context).textTheme.bodyMedium?.fontFamily
+            ?.contains(sansFamily) ??
+        false;
+    TextStyle s(
+      TextStyle v1,
+      Color color, {
+      bool isMono = false,
+      bool head = false,
+    }) {
+      final style = v1.copyWith(
+        fontFamily: intochat ? (isMono ? mono : sans) : null,
+        color: color,
+      );
+      if (!intochat) return style;
+      return withWeightAxis(head ? intochatHeading(style) : style);
+    }
+
+    return UiTypeSet(
+      title: s(_title, c.strong),
+      heading: s(_heading, c.strong, head: true),
+      cardTitle: s(_cardTitle, c.strong),
+      metric: s(_metric, c.strong),
+      body: s(_body, c.body),
+      bodyMuted: s(_bodyMuted, c.muted),
+      meta: s(_meta, c.muted, isMono: true),
+      metaStrong: s(_metaStrong, c.strong, isMono: true),
+      empty: s(_empty, c.strong, head: true),
+    );
+  }
+
   static const monoFamily = 'Cascadia Mono';
   static const monoFallback = ['Consolas', 'Menlo', 'monospace'];
 
   static const bodyFamily = 'Segoe UI Variable Text';
   static const bodyFallback = ['Segoe UI', 'Inter', 'Roboto'];
-
-  static const title = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 15,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.2,
-    color: UiPalette.textPrimary,
-  );
-
-  static const heading = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 28,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.8,
-    color: UiPalette.textPrimary,
-  );
-
-  static const cardTitle = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 15,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.15,
-    color: UiPalette.textPrimary,
-  );
-
-  static const metric = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 17,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.2,
-    color: UiPalette.textPrimary,
-  );
-
-  static const body = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 15,
-    height: 1.55,
-    color: UiPalette.textPrimary,
-  );
-
-  static const bodyMuted = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 14,
-    height: 1.5,
-    color: UiPalette.textMuted,
-  );
-
-  static const meta = TextStyle(
-    fontFamily: monoFamily,
-    fontFamilyFallback: monoFallback,
-    fontSize: 11,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.45,
-    color: UiPalette.textMuted,
-  );
-
-  static const metaStrong = TextStyle(
-    fontFamily: monoFamily,
-    fontFamilyFallback: monoFallback,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.45,
-    color: UiPalette.textPrimary,
-  );
-
-  static const empty = TextStyle(
-    fontFamily: bodyFamily,
-    fontFamilyFallback: bodyFallback,
-    fontSize: 18,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.3,
-    color: UiPalette.textPrimary,
-  );
 }
 
+/// v1 (midnight) base styles; [UiType.of] recolours them per palette.
+final _title = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 15,
+  fontWeight: FontWeight.w600,
+  letterSpacing: -0.2,
+  color: UiColors.midnight.strong,
+);
+
+final _heading = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 28,
+  fontWeight: FontWeight.w600,
+  letterSpacing: -0.8,
+  color: UiColors.midnight.strong,
+);
+
+final _cardTitle = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 15,
+  fontWeight: FontWeight.w600,
+  letterSpacing: -0.15,
+  color: UiColors.midnight.strong,
+);
+
+final _metric = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 17,
+  fontWeight: FontWeight.w600,
+  letterSpacing: -0.2,
+  color: UiColors.midnight.strong,
+);
+
+final _body = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 15,
+  height: 1.55,
+  color: UiColors.midnight.body,
+);
+
+final _bodyMuted = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 14,
+  height: 1.5,
+  color: UiColors.midnight.muted,
+);
+
+final _meta = TextStyle(
+  fontFamily: UiType.monoFamily,
+  fontFamilyFallback: UiType.monoFallback,
+  fontSize: 11,
+  fontWeight: FontWeight.w500,
+  letterSpacing: 0.45,
+  color: UiColors.midnight.muted,
+);
+
+final _metaStrong = TextStyle(
+  fontFamily: UiType.monoFamily,
+  fontFamilyFallback: UiType.monoFallback,
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+  letterSpacing: 0.45,
+  color: UiColors.midnight.strong,
+);
+
+final _empty = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 18,
+  fontWeight: FontWeight.w600,
+  letterSpacing: -0.3,
+  color: UiColors.midnight.strong,
+);
+
+/// v1 navigation chrome colour; midnight-only, so not a [UiColors] field.
+const _midnightNavigation = Color(0xFF101219);
+
 abstract final class UiTheme {
-  static const palettes = ['midnight', 'paper', 'lumen'];
+  static const palettes = ['intochat', 'midnight', 'paper', 'lumen'];
 
   static String paletteName(String? stored) => switch (stored) {
+    'dark' || 'midnight' => 'midnight',
     'light' || 'paper' => 'paper',
     'lumen' => 'lumen',
-    _ => 'midnight',
+    _ => 'intochat',
   };
 
-  static ThemeMode modeFor(String? stored) =>
-      paletteName(stored) == 'paper' ? ThemeMode.light : ThemeMode.dark;
+  static ThemeMode modeFor(String? stored) => switch (paletteName(stored)) {
+    'intochat' => ThemeMode.system,
+    'paper' => ThemeMode.light,
+    _ => ThemeMode.dark,
+  };
+
+  /// Light theme for a stored palette. v1 palettes reuse their unchanged
+  /// code path and only gain their [UiColors].
+  static ThemeData light(String? stored) => switch (paletteName(stored)) {
+    'intochat' => intochat(Brightness.light),
+    _ => _withColors(workspace(Brightness.light), UiColors.paper),
+  };
+
+  /// Dark theme for a stored palette.
+  static ThemeData dark(String? stored) => switch (paletteName(stored)) {
+    'intochat' => intochat(Brightness.dark),
+    'lumen' => _withColors(workspaceDark(stored), UiColors.lumen),
+    _ => _withColors(workspaceDark(stored), UiColors.midnight),
+  };
+
+  static ThemeData _withColors(ThemeData base, UiColors colors) =>
+      base.copyWith(
+        extensions: [
+          ...base.extensions.values.where((e) => e is! UiColors),
+          colors,
+        ],
+      );
+
+  /// IntoChat (Figma) theme: Schibsted Grotesk on warm neutrals, blue accent.
+  static ThemeData intochat(Brightness brightness) {
+    final c = brightness == Brightness.dark
+        ? UiColors.intochatDark
+        : UiColors.intochatLight;
+    final scheme = ColorScheme(
+      brightness: brightness,
+      primary: c.accent,
+      onPrimary: c.onAccent,
+      primaryContainer: c.accentTint,
+      onPrimaryContainer: c.strong,
+      secondary: c.accent,
+      onSecondary: c.onAccent,
+      error: c.error,
+      onError: c.onAccent,
+      errorContainer: c.errorBg,
+      onErrorContainer: c.error,
+      surface: c.surface,
+      onSurface: c.body,
+      onSurfaceVariant: c.muted,
+      surfaceContainerLowest: c.surface,
+      surfaceContainerLow: c.surface,
+      surfaceContainer: c.recessed,
+      surfaceContainerHigh: c.recessed,
+      surfaceContainerHighest: c.recessed,
+      outline: c.inputBorder,
+      outlineVariant: c.hairline,
+    );
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      fontFamily: UiType.sans,
+    ).textTheme.apply(bodyColor: c.body, displayColor: c.strong);
+    TextStyle? head(TextStyle? t) =>
+        t == null ? null : UiType.intochatHeading(t);
+    TextStyle? w(TextStyle? t) => t == null ? null : UiType.withWeightAxis(t);
+    final textTheme = TextTheme(
+      displayLarge: w(head(base.displayLarge)),
+      displayMedium: w(head(base.displayMedium)),
+      displaySmall: w(head(base.displaySmall)),
+      headlineLarge: w(head(base.headlineLarge)),
+      headlineMedium: w(head(base.headlineMedium)),
+      headlineSmall: w(head(base.headlineSmall)),
+      titleLarge: w(base.titleLarge),
+      titleMedium: w(base.titleMedium),
+      titleSmall: w(base.titleSmall),
+      bodyLarge: w(base.bodyLarge?.copyWith(fontSize: 16, height: 1.5)),
+      bodyMedium: w(base.bodyMedium?.copyWith(height: 1.5)),
+      bodySmall: w(base.bodySmall),
+      labelLarge: w(base.labelLarge),
+      labelMedium: w(base.labelMedium),
+      labelSmall: w(base.labelSmall),
+    );
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: c.inputBorder),
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      extensions: [const UiTokens(), c],
+      colorScheme: scheme,
+      fontFamily: UiType.sans,
+      scaffoldBackgroundColor: c.page,
+      canvasColor: c.page,
+      dividerColor: c.hairline,
+      textTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: c.page,
+        foregroundColor: c.strong,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: Border(bottom: BorderSide(color: c.hairline)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: UiType.sans,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontVariations: [FontVariation('wght', 700)],
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          backgroundColor: c.surface,
+          foregroundColor: c.strong,
+          side: BorderSide(color: c.inputBorder),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: UiType.sans,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontVariations: [FontVariation('wght', 700)],
+          ),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: c.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: c.hairline),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border.copyWith(
+          borderSide: BorderSide(color: c.accent, width: 2),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: c.hairline),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: c.strong,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(
+          fontFamily: UiType.sans,
+          color: c.page,
+          fontSize: 12,
+          fontVariations: const [FontVariation('wght', 400)],
+        ),
+      ),
+    );
+  }
 
   static ThemeData workspaceDark(String? stored) {
     final base = workspace(Brightness.dark);
@@ -167,7 +423,7 @@ abstract final class UiTheme {
   /// chat tokens remain independent while workspace pages migrate.
   static ThemeData workspace(Brightness brightness) {
     final darkMode = brightness == Brightness.dark;
-    final base = darkMode ? dark() : light();
+    final base = darkMode ? baseDark() : baseLight();
     final scheme =
         ColorScheme.fromSeed(
           seedColor: LumenPalette.accent,
@@ -268,7 +524,8 @@ abstract final class UiTheme {
     );
   }
 
-  static ThemeData light() => ThemeData(
+  /// v1 light base (formerly `light()`).
+  static ThemeData baseLight() => ThemeData(
     useMaterial3: true,
     extensions: const [UiTokens()],
     brightness: Brightness.light,
@@ -304,52 +561,53 @@ abstract final class UiTheme {
     ),
   );
 
-  static ThemeData dark() {
+  /// v1 dark base (formerly `dark()`).
+  static ThemeData baseDark() {
     final scheme = ColorScheme.fromSeed(
-      seedColor: UiPalette.signal,
+      seedColor: UiColors.midnight.working,
       brightness: Brightness.dark,
-      surface: UiPalette.surface,
+      surface: UiColors.midnight.page,
     );
 
     return ThemeData(
       useMaterial3: true,
       extensions: const [UiTokens()],
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: UiPalette.surface,
+      scaffoldBackgroundColor: UiColors.midnight.page,
       colorScheme: scheme.copyWith(
-        primary: UiPalette.signal,
-        secondary: UiPalette.owner,
-        surface: UiPalette.surface,
+        primary: UiColors.midnight.working,
+        secondary: UiColors.midnight.accent,
+        surface: UiColors.midnight.page,
       ),
-      dividerColor: UiPalette.line,
+      dividerColor: UiColors.midnight.hairline,
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: UiPalette.navigation,
-        indicatorColor: UiPalette.signal.withValues(alpha: 0.14),
-        selectedIconTheme: const IconThemeData(
-          color: UiPalette.signal,
+        backgroundColor: _midnightNavigation,
+        indicatorColor: UiColors.midnight.working.withValues(alpha: 0.14),
+        selectedIconTheme: IconThemeData(
+          color: UiColors.midnight.working,
           size: 21,
         ),
-        unselectedIconTheme: const IconThemeData(
-          color: UiPalette.textMuted,
+        unselectedIconTheme: IconThemeData(
+          color: UiColors.midnight.muted,
           size: 20,
         ),
-        selectedLabelTextStyle: UiType.metaStrong.copyWith(
-          color: UiPalette.signal,
+        selectedLabelTextStyle: _metaStrong.copyWith(
+          color: UiColors.midnight.working,
         ),
-        unselectedLabelTextStyle: UiType.meta,
+        unselectedLabelTextStyle: _meta,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: UiPalette.navigation,
-        indicatorColor: UiPalette.signal.withValues(alpha: 0.14),
+        backgroundColor: _midnightNavigation,
+        indicatorColor: UiColors.midnight.working.withValues(alpha: 0.14),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? UiType.metaStrong.copyWith(color: UiPalette.signal)
-              : UiType.meta,
+              ? _metaStrong.copyWith(color: UiColors.midnight.working)
+              : _meta,
         ),
       ),
-      tooltipTheme: const TooltipThemeData(
-        decoration: BoxDecoration(color: UiPalette.surfaceRaised),
-        textStyle: UiType.meta,
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(color: UiColors.midnight.surface),
+        textStyle: _meta,
       ),
     );
   }
@@ -419,16 +677,16 @@ abstract final class UiChatTheme {
       ),
       typography: ChatTypography.standard(fontFamily: UiType.bodyFamily)
           .copyWith(
-            bodyMedium: (theme.textTheme.bodyMedium ?? UiType.body).copyWith(
+            bodyMedium: (theme.textTheme.bodyMedium ?? _body).copyWith(
               fontSize: 15,
               height: 1.65,
               color: c.onSurface,
             ),
-            bodySmall: (theme.textTheme.bodySmall ?? UiType.bodyMuted).copyWith(
+            bodySmall: (theme.textTheme.bodySmall ?? _bodyMuted).copyWith(
               fontSize: 12,
               color: c.onSurfaceVariant,
             ),
-            labelSmall: (theme.textTheme.labelSmall ?? UiType.meta).copyWith(
+            labelSmall: (theme.textTheme.labelSmall ?? _meta).copyWith(
               fontSize: 11,
               color: c.onSurfaceVariant,
             ),
@@ -448,9 +706,9 @@ abstract final class UiChatTheme {
       surfaceContainerHigh: LumenPalette.accentSoft,
     ),
     typography: ChatTypography.standard(fontFamily: UiType.bodyFamily).copyWith(
-      bodyMedium: UiType.body.copyWith(color: LumenPalette.ink),
-      bodySmall: UiType.bodyMuted.copyWith(color: LumenPalette.muted),
-      labelSmall: UiType.meta.copyWith(color: LumenPalette.muted),
+      bodyMedium: _body.copyWith(color: LumenPalette.ink),
+      bodySmall: _bodyMuted.copyWith(color: LumenPalette.muted),
+      labelSmall: _meta.copyWith(color: LumenPalette.muted),
     ),
     shape: BorderRadius.circular(16),
   );
@@ -458,19 +716,19 @@ abstract final class UiChatTheme {
   static ChatTheme dark() {
     final base = ChatTypography.standard(fontFamily: UiType.bodyFamily);
     return ChatTheme(
-      colors: const ChatColors(
-        primary: UiPalette.owner,
-        onPrimary: UiPalette.surface,
-        surface: UiPalette.surface,
-        onSurface: UiPalette.textPrimary,
-        surfaceContainer: UiPalette.surfaceRaised,
-        surfaceContainerLow: UiPalette.surfaceSunken,
-        surfaceContainerHigh: UiPalette.line,
+      colors: ChatColors(
+        primary: UiColors.midnight.accent,
+        onPrimary: UiColors.midnight.page,
+        surface: UiColors.midnight.page,
+        onSurface: UiColors.midnight.body,
+        surfaceContainer: UiColors.midnight.surface,
+        surfaceContainerLow: UiColors.midnight.recessed,
+        surfaceContainerHigh: UiColors.midnight.hairline,
       ),
       typography: base.copyWith(
-        bodyMedium: UiType.body,
-        bodySmall: UiType.bodyMuted,
-        labelSmall: UiType.meta,
+        bodyMedium: _body,
+        bodySmall: _bodyMuted,
+        labelSmall: _meta,
       ),
       shape: BorderRadius.circular(14),
     );

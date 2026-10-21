@@ -312,6 +312,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
                 border: OutlineInputBorder(),
               ),
               items: const [
+                DropdownMenuItem(value: 'intochat', child: Text('IntoChat')),
                 DropdownMenuItem(value: 'midnight', child: Text('Midnight')),
                 DropdownMenuItem(value: 'paper', child: Text('Paper')),
                 DropdownMenuItem(value: 'lumen', child: Text('Lumen')),

@@ -2,12 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 import 'graph_geometry.dart';
 import 'graph_models.dart';
 
 final class GraphPainter extends CustomPainter {
   const GraphPainter({
+    required this.colors,
+    required this.type,
     required this.nodes,
     required this.edges,
     required this.pulse,
@@ -15,6 +18,8 @@ final class GraphPainter extends CustomPainter {
     this.highlightEdgeId,
   });
 
+  final UiColors colors;
+  final UiTypeSet type;
   final List<ProjectedGraphNode> nodes;
   final List<ProjectedGraphEdge> edges;
   final GraphPulse? pulse;
@@ -34,7 +39,7 @@ final class GraphPainter extends CustomPainter {
     final hull = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = UiPalette.lineStrong.withValues(alpha: 0.55);
+      ..color = colors.inputBorder.withValues(alpha: 0.55);
     final radius = math.min(size.width, size.height) * 0.34;
     canvas.drawOval(
       Rect.fromCenter(
@@ -50,7 +55,7 @@ final class GraphPainter extends CustomPainter {
         width: radius * 1.35,
         height: radius * 2.05,
       ),
-      hull..color = UiPalette.line.withValues(alpha: 0.5),
+      hull..color = colors.hairline.withValues(alpha: 0.5),
     );
   }
 
@@ -59,7 +64,7 @@ final class GraphPainter extends CustomPainter {
       final control = graphEdgeControl(edge, center);
       final depthAlpha = (0.45 + (edge.depth + 1) * 0.2).clamp(0.3, 0.9);
       final recent = edge.edge.id == highlightEdgeId;
-      final color = recent ? UiPalette.signal : UiPalette.line;
+      final color = recent ? colors.working : colors.hairline;
 
       final path = Path()
         ..moveTo(edge.from.center.dx, edge.from.center.dy)
@@ -117,7 +122,7 @@ final class GraphPainter extends CustomPainter {
         canvas.drawCircle(
           bead,
           3.2,
-          Paint()..color = UiPalette.owner.withValues(alpha: depthAlpha),
+          Paint()..color = colors.accent.withValues(alpha: depthAlpha),
         );
         canvas.drawCircle(
           bead,
@@ -125,7 +130,7 @@ final class GraphPainter extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1
-            ..color = UiPalette.textPrimary.withValues(alpha: 0.4),
+            ..color = colors.body.withValues(alpha: 0.4),
         );
       }
     }
@@ -176,7 +181,7 @@ final class GraphPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.4
-          ..color = UiPalette.signal.withValues(alpha: 0.25 + wave * 0.7),
+          ..color = colors.working.withValues(alpha: 0.25 + wave * 0.7),
       );
     }
     canvas.drawCircle(
@@ -185,7 +190,7 @@ final class GraphPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = UiPalette.signal.withValues(alpha: 0.7 - wave * 0.3),
+        ..color = colors.working.withValues(alpha: 0.7 - wave * 0.3),
     );
   }
 
@@ -193,10 +198,10 @@ final class GraphPainter extends CustomPainter {
     for (final projected in nodes) {
       final node = projected.node;
       final color = switch (node.kind) {
-        GraphNodeKind.hub => UiPalette.signal,
-        GraphNodeKind.entity => UiPalette.success,
-        GraphNodeKind.module => UiPalette.signal,
-        GraphNodeKind.leaf => UiPalette.owner,
+        GraphNodeKind.hub => colors.working,
+        GraphNodeKind.entity => colors.done,
+        GraphNodeKind.module => colors.working,
+        GraphNodeKind.leaf => colors.accent,
       };
       final dimFactor = node.dimmed ? 0.45 : 1.0;
       final depthAlpha =
@@ -213,8 +218,8 @@ final class GraphPainter extends CustomPainter {
       final text = TextPainter(
         text: TextSpan(
           text: node.label,
-          style: UiType.meta.copyWith(
-            color: UiPalette.textPrimary.withValues(alpha: depthAlpha),
+          style: type.meta.copyWith(
+            color: colors.body.withValues(alpha: depthAlpha),
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -226,7 +231,7 @@ final class GraphPainter extends CustomPainter {
     }
   }
 
-  static void _paintNodeBody(
+  void _paintNodeBody(
     Canvas canvas,
     ProjectedGraphNode projected,
     Color color,
@@ -236,7 +241,7 @@ final class GraphPainter extends CustomPainter {
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = UiPalette.textPrimary.withValues(alpha: 0.3);
+      ..color = colors.body.withValues(alpha: 0.3);
     final r = projected.radius;
     final c = projected.center;
 

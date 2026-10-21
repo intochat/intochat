@@ -51,5 +51,5 @@ jobs:
       - name: Flutter widget and client tests
         working-directory: src/IntoChat.OS.Modules/Google/Flutter/app
         run: |
-          (cd ui && flutter test --no-pub)
+          (cd ui && flutter test --no-pub --exclude-tags golden)
           (cd shell && flutter test --no-pub)

@@ -19,7 +19,11 @@ internal sealed record SynapseExample(string Origin, string Path, string Spec, s
 }
 
 // The best few synapses for a sentence, best first, and the one to fork when one is close enough.
-internal sealed record SynapseRanking(SynapseExample[] Examples, SynapseExample? Base);
+// Layouts are at most two reference examples of how a view is composed (shipped Calculator and Desktop first); never forked.
+internal sealed record SynapseRanking(SynapseExample[] Examples, SynapseExample? Base, SynapseExample[]? LayoutExamples = null)
+{
+    public SynapseExample[] Layouts => LayoutExamples ?? [];
+}
 
 // Few-shot retrieval for the fast path. The corpus is what the caller can see: this brain's apps and the
 // features folder. Ranking is by meaning when an embedding model is composed (the same unkeyed generator
@@ -73,6 +77,9 @@ internal sealed class SynapseExamples(
         var behaviorsRead = Behaviors(brain, cancellationToken);
         var corpus = await Corpus(brain, cancellationToken);
         if (corpus.Length == 0) { return new([], null); }
+        var layouts = Layouts(corpus);
+        corpus = [.. corpus.Where(example => !SynapseShape.IsShared(example.Source))];
+        if (corpus.Length == 0) { return new([], null, layouts); }
         var (scores, forkThreshold) = await Scores(corpus, sentence, query ?? Embed(sentence, cancellationToken), cancellationToken);
         var behaviors = await behaviorsRead;
         BehaviorView? Behavior(SynapseExample example) => example.BehaviorId is { } id ? behaviors.GetValueOrDefault(id) : null;
@@ -82,8 +89,15 @@ internal sealed class SynapseExamples(
         // Fork-first: the base is the best scored synapse whose meaning alone is close enough to fork, so among
         // candidates about as close the proven one wins. A failing one is the base only when every candidate is failing.
         var basis = scored.Where(example => example.Similarity >= forkThreshold).OrderBy(example => Failing(Behavior(example))).FirstOrDefault();
-        return new([.. scored.Take(Take)], basis);
+        return new([.. scored.Take(Take)], basis, layouts);
     }
+
+    public const int LayoutTake = 2;
+    private static readonly HashSet<string> Shipped = new(["features/os/calculator", "features/os/desktop"], StringComparer.OrdinalIgnoreCase);
+
+    // The shipped Calculator and Desktop layouts first, then the rest by name.
+    private static SynapseExample[] Layouts(SynapseExample[] corpus) => [.. corpus.Where(example => SynapseShape.IsLayout(example.Source))
+        .OrderBy(example => Shipped.Contains(example.Origin) ? 0 : 1).ThenBy(example => example.Name, StringComparer.Ordinal).Take(LayoutTake)];
 
     // A synapse's run history from the runtime's counters for its current code:
     //   MaxHistory × (successes − failures) / (runs + HistoryRuns)
@@ -138,7 +152,7 @@ internal sealed class SynapseExamples(
         {
             foreach (var (path, source) in files.OrderBy(file => file.Key, StringComparer.Ordinal))
             {
-                if (!AppFiles.IsProgram(path) || SynapseShape.IsShared(source) || !seen.Add(source)) { continue; }
+                if (!AppFiles.IsProgram(path) || (SynapseShape.IsShared(source) && !SynapseShape.IsLayout(source)) || !seen.Add(source)) { continue; }
                 examples.Add(new(origin, path, Spec(manifest, path, source), source, behavior(path)));
             }
         }

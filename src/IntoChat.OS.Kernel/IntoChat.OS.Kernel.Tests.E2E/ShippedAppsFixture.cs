@@ -2,13 +2,17 @@ using System.Diagnostics;
 using System.Text.Json;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Circles;
+using IntoChat.OS.Flutter;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.Views;
 using IntoChat.OS.Flutter.Workspace;
 using Microsoft.Playwright;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
 // One account and browser context per class, on the collection's already running host.
-// Only the workspace shell survives between cases; subjects and support apps are removed.
+// Only the roots (desktop, workspace) survive between cases; subjects and support apps are removed.
+// Apps open as desktop windows; the service apps the desktop never windows use the classic Workspace.
 public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifetime
 {
     private ITestBrain? _brain;
@@ -17,6 +21,11 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     private Exception? _unusable;
     private string? _circle;
     private string? _ownedCircle;
+    // The layout the page last mounted per scope: switching stores the desktop's layout text and reloads.
+    private readonly Dictionary<string, string> _layouts = new(StringComparer.Ordinal);
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+    // Desktop.Hidden: background services the desktop shows in no window; v1 still shows them.
+    public static readonly HashSet<string> ClassicOnly = new(["router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
     public string Scope => _circle ?? Person.BrainId;
     public void EnsureUsable() => Assert.True(_unusable is null, $"The shared app fixture could not retire its previous case: {_unusable}");
     public void Poison(Exception error) => _unusable = error;
@@ -34,8 +43,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         _person = await Brain.PersonAsync("apps-" + Guid.NewGuid().ToString("N"), ct);
         _browser = await Brain.OpenBrowserAsync(new BrowserOptions { Headless = true, AssertionTimeout = TimeSpan.FromSeconds(15) }, ct);
         await BrainFact.SignInAsync(Page, Brain, Person, ct);
-        using var caller = Person.AsCaller();
-        await TestWait.UntilAsync(_ => App("workspace").Read(), snapshot => snapshot.Presentation is { Root: not null, Error: null }, TimeSpan.FromSeconds(60), ct);
+        // v2 for everyone: a new brain's first connect mounts the desktop.
+        await ReadyAsync("desktop", ct);
         await ClearAsync(ct);
     }
 
@@ -62,13 +71,69 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         return ready;
     }
 
+    // Opens the app the way a person does: a desktop window from the gallery's Open (or, for a
+    // service app the desktop never windows, the classic Workspace's navigation).
     public async Task ShowAsync(string name, CancellationToken ct)
     {
         using var caller = Person.AsCallerIn(Scope);
-        if (name == "workspace") { return; }
-        var state = await Brain.Get<IWorkspace>(Scope).Read().WaitAsync(ct);
-        await App("workspace").Request("navigate", JsonSerializer.Serialize(new { revision = state.Revision, action = "open", id = name })).WaitAsync(ct);
+        if (ClassicOnly.Contains(name))
+        {
+            await LayoutAsync("classic", ct);
+            var state = await Brain.Get<IWorkspace>(Scope).Read().WaitAsync(ct);
+            await App("workspace").Request("navigate", JsonSerializer.Serialize(new { revision = state.Revision, action = "open", id = name })).WaitAsync(ct);
+        }
+        else
+        {
+            await LayoutAsync("desktop", ct);
+            if (!(await DesktopNodesAsync(ct)).Any(node => node.Key == "gallery-close")) { await ActivateAsync(node => node.Key == "gallery", ct); }
+            await ActivateAsync(node => node.Action == "open:" + name, ct);
+            await ActivateAsync(node => node.Key == "gallery-close", ct);
+            await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + name).Read(),
+                viewport => viewport.Target is not null, Patience, ct);
+        }
         await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.FocusedViewId == name, TimeSpan.FromSeconds(15), ct);
+    }
+
+    // The layout the page shows for the current scope: the desktop's layout text, mounted by reloading.
+    public async Task LayoutAsync(string layout, CancellationToken ct)
+    {
+        if (_layouts.GetValueOrDefault(Scope) == layout) { return; }
+        await SetLayoutAsync(Scope, layout, ct);
+        await Page.ReloadAsync();
+        await ReadyAsync(layout, ct);
+    }
+
+    // Waits for the root's own control in the browser: the dock's Apps, or the classic Workspace's New desktop.
+    public async Task ReadyAsync(string layout, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var marker = layout == "desktop" ? "Apps" : "New desktop";
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = marker, Exact = true })).ToBeVisibleAsync(new() { Timeout = 60_000 });
+        _layouts[Scope] = layout;
+    }
+
+    // What a click on the desktop does: activate the published button (the shell posts the same event).
+    public async Task ActivateAsync(Func<UiNode, bool> match, CancellationToken ct)
+    {
+        using var caller = Person.AsCallerIn(Scope);
+        var view = Brain.Get<IView>(IApp.Key(Scope, "desktop") + "/view");
+        var published = await TestWait.UntilAsync(_ => view.Read(),
+            current => current is not null && Flatten(current.Root).Any(node => node.Kind == UiNodeKind.Button && match(node)), Patience, ct);
+        var button = Flatten(published!.Root).First(node => node.Kind == UiNodeKind.Button && match(node));
+        await view.Activate(published.Generation, button.Key, button.Action!, Guid.NewGuid()).WaitAsync(ct);
+    }
+
+    public async Task<UiNode[]> DesktopNodesAsync(CancellationToken ct)
+    {
+        using var caller = Person.AsCallerIn(Scope);
+        var view = await Brain.Get<IView>(IApp.Key(Scope, "desktop") + "/view").Read().WaitAsync(ct);
+        return view is null ? [] : [.. Flatten(view.Root)];
+    }
+
+    private static IEnumerable<UiNode> Flatten(UiNode root)
+    {
+        yield return root;
+        foreach (var child in root.Children.SelectMany(Flatten)) { yield return child; }
     }
 
     public async Task PrepareAsync(string name, CancellationToken ct)
@@ -78,13 +143,31 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         using var caller = Person.AsCaller();
         var circle = await Brain.Get<ICircleFactory>(ICircleFactory.Key(Person.BrainId)).Create("e2e-room").WaitAsync(ct);
         _ownedCircle = circle;
+        // The room is a service app: the circle's brain keeps the classic layout.
+        await SetLayoutAsync(circle, "classic", ct);
         await LoadAsync(Features.Single(feature => feature.Bundle.Name == "circle"), ct);
         await ShowAsync("circle", ct);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Circles", Exact = true }).ClickAsync();
         await Page.GetByRole(AriaRole.Button, new() { Name = "e2e-room", Exact = true }).ClickAsync();
         _circle = circle;
+        // The shell mounted the room's brain: its classic Workspace.
+        await ReadyAsync("classic", ct);
         using var member = Person.AsCallerIn(circle);
         await TestWait.UntilAsync(_ => App("workspace").Read(), snapshot => snapshot.Presentation is { Root: not null, Error: null }, TimeSpan.FromSeconds(30), ct);
+    }
+
+    // Stores the layout the scope's next connect mounts (the desktop app is installed first, as connect would).
+    private async Task SetLayoutAsync(string scope, string layout, CancellationToken ct)
+    {
+        using var caller = Person.AsCallerIn(scope);
+        var desktop = Brain.Get<IApp>(IApp.Key(scope, "desktop"));
+        if ((await desktop.Read().WaitAsync(ct)).Manifest.Title.Length == 0)
+        {
+            var feature = Features.Single(item => item.Owner == "os" && item.Bundle.Name == "desktop");
+            await desktop.Import(feature.Bundle, new AppOrigin(feature.Owner, new AppSource.Shipped(), feature.Bundle.Name, feature.Bundle.Version)).WaitAsync(ct);
+        }
+        await Brain.Get<IText>(IApp.Key(scope, "desktop") + "/layout").Set(layout).WaitAsync(ct);
+        _layouts.Remove(scope);
     }
 
     public async Task FinishAsync(CancellationToken ct)
@@ -93,8 +176,11 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         if (_ownedCircle is null) { return; }
         await AppTestCleanup.RetireAsync(Brain, Person, _ownedCircle, ct);
         using (Person.AsCallerIn(_ownedCircle)) { await Brain.Get<ICircle>(ICircle.Key(_ownedCircle)).Remove(Person.AccountId).WaitAsync(ct); }
+        _layouts.Remove(_ownedCircle);
         _ownedCircle = null;
         _circle = null;
+        // The reload below mounts whatever the person's own brain now shows: mount it again before relying on it.
+        _layouts.Remove(Person.BrainId);
         await Page.ReloadAsync();
         using var caller = Person.AsCaller();
         await TestWait.UntilAsync(_ => App("workspace").Read(), snapshot => snapshot.Presentation is { Root: not null, Error: null }, TimeSpan.FromSeconds(30), ct);
@@ -122,7 +208,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         var names = new List<string>();
         await foreach (var instance in Brain.Kernel.Instances<IApp>(ct))
         {
-            if (IApp.NameOf(Scope, instance.Key) is { } name && name != "workspace") { names.Add(name); }
+            if (IApp.NameOf(Scope, instance.Key) is { } name && name is not ("workspace" or "desktop")) { names.Add(name); }
         }
         foreach (var name in names) { await App(name).Delete().WaitAsync(ct); }
         Console.WriteLine($"[app-e2e] removed {names.Count} apps: {watch.Elapsed.TotalSeconds:F2}s");

@@ -16,11 +16,15 @@ internal sealed class ViewportNeuron(
         var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
         if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
         var prefix = name[..(marker + 6)];
+        var slash = name.IndexOf('/', prefix.Length);
+        var owner = slash < 0 ? name : name[..slash];
         if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
             || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
             || string.IsNullOrWhiteSpace(target.App) || !target.App.StartsWith(prefix, StringComparison.Ordinal)
             || target.App.Length > 512 || target.App[prefix.Length..].Contains('/')
-            || target.App[prefix.Length..] is "" or "." or ".."))
+            || target.App[prefix.Length..] is "" or "." or ".."
+            // Never its own app: that app's view may contain this viewport and recurse.
+            || target.App == owner))
         { throw new ArgumentException("This viewport supports local app views without an external context."); }
         if (Snapshot.Revision != expectedRevision)
         { throw new RevisionConflictException("Read the current viewport before changing its target.", Snapshot.Revision); }

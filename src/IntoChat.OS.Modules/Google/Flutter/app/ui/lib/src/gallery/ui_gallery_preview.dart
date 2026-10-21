@@ -24,6 +24,7 @@ import '../components/video/ui_video.dart';
 import '../lumen/lumen_controls.dart';
 import '../lumen/lumen_palette.dart';
 import '../models/ui_part.dart';
+import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 
 class _DataTablePreview extends StatefulWidget {
@@ -376,7 +377,9 @@ final class _GalleryPreviewState extends State<GalleryPreview> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: LumenPalette.line),
-          color: widget.entry.dark ? UiPalette.surface : LumenPalette.surface,
+          color: widget.entry.dark
+              ? UiTheme.dark('midnight').extension<UiColors>()!.page
+              : LumenPalette.surface,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -720,7 +723,7 @@ final class _GalleryPreviewState extends State<GalleryPreview> {
               ),
             ),
           ),
-          Text(_lastAction, style: UiType.bodyMuted),
+          Text(_lastAction, style: UiType.of(context).bodyMuted),
         ]);
       default:
         return const SizedBox.shrink();

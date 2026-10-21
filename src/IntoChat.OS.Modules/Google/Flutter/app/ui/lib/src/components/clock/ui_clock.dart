@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
+import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
 /// A clock face for chat turns, dashboards, and windows.
@@ -44,11 +45,17 @@ final class _UiClockState extends State<UiClock> {
   @override
   Widget build(BuildContext context) {
     final part = widget.part;
+    final colors = UiColors.of(context);
+    final type = UiType.of(context);
     if (part == null) {
       return CustomPaint(
         key: const Key('ui_clock_face'),
         size: const Size.square(150),
-        painter: _WallClockPainter(now: _now, showSeconds: widget.showSeconds),
+        painter: _WallClockPainter(
+          colors: colors,
+          now: _now,
+          showSeconds: widget.showSeconds,
+        ),
       );
     }
 
@@ -68,6 +75,7 @@ final class _UiClockState extends State<UiClock> {
             CustomPaint(
               size: const Size.square(120),
               painter: _CountdownRingPainter(
+                colors: colors,
                 sweep: _sweepFor(left),
                 done: left == Duration.zero,
               ),
@@ -75,12 +83,12 @@ final class _UiClockState extends State<UiClock> {
             Text(
               display,
               key: const Key('ui_clock_remaining'),
-              style: UiType.metaStrong.copyWith(fontSize: 20),
+              style: type.metaStrong.copyWith(fontSize: 20),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Text(part.label, style: UiType.bodyMuted),
+        Text(part.label, style: type.bodyMuted),
       ],
     );
   }
@@ -98,8 +106,13 @@ final class _UiClockState extends State<UiClock> {
 }
 
 final class _CountdownRingPainter extends CustomPainter {
-  const _CountdownRingPainter({required this.sweep, required this.done});
+  const _CountdownRingPainter({
+    required this.colors,
+    required this.sweep,
+    required this.done,
+  });
 
+  final UiColors colors;
   final double sweep;
   final bool done;
 
@@ -111,7 +124,7 @@ final class _CountdownRingPainter extends CustomPainter {
     final track = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
-      ..color = UiPalette.line;
+      ..color = colors.hairline;
     canvas.drawCircle(center, radius, track);
 
     if (sweep > 0) {
@@ -119,7 +132,7 @@ final class _CountdownRingPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6
         ..strokeCap = StrokeCap.round
-        ..color = UiPalette.signal;
+        ..color = colors.working;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
         -math.pi / 2,
@@ -130,19 +143,26 @@ final class _CountdownRingPainter extends CustomPainter {
     }
 
     if (done) {
-      final fill = Paint()..color = UiPalette.success.withValues(alpha: 0.2);
+      final fill = Paint()..color = colors.done.withValues(alpha: 0.2);
       canvas.drawCircle(center, radius, fill);
     }
   }
 
   @override
   bool shouldRepaint(_CountdownRingPainter oldDelegate) =>
-      oldDelegate.sweep != sweep || oldDelegate.done != done;
+      oldDelegate.colors != colors ||
+      oldDelegate.sweep != sweep ||
+      oldDelegate.done != done;
 }
 
 final class _WallClockPainter extends CustomPainter {
-  const _WallClockPainter({required this.now, required this.showSeconds});
+  const _WallClockPainter({
+    required this.colors,
+    required this.now,
+    required this.showSeconds,
+  });
 
+  final UiColors colors;
   final DateTime now;
   final bool showSeconds;
 
@@ -151,18 +171,18 @@ final class _WallClockPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final radius = size.shortestSide / 2 - 4;
 
-    final face = Paint()..color = UiPalette.surfaceRaised;
+    final face = Paint()..color = colors.surface;
     canvas.drawCircle(center, radius, face);
 
     final rim = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = UiPalette.lineStrong;
+      ..color = colors.inputBorder;
     canvas.drawCircle(center, radius, rim);
 
     final tick = Paint()
       ..strokeWidth = 2
-      ..color = UiPalette.textFaint;
+      ..color = colors.subtle;
     for (var hour = 0; hour < 12; hour++) {
       final angle = hour * math.pi / 6;
       final outer = center + Offset(math.sin(angle), -math.cos(angle)) * radius;
@@ -184,21 +204,18 @@ final class _WallClockPainter extends CustomPainter {
       );
     }
 
-    hand(
-      (now.hour % 12 + now.minute / 60) / 12,
-      radius * 0.5,
-      4,
-      UiPalette.textPrimary,
-    );
-    hand(now.minute / 60, radius * 0.72, 3, UiPalette.textPrimary);
+    hand((now.hour % 12 + now.minute / 60) / 12, radius * 0.5, 4, colors.body);
+    hand(now.minute / 60, radius * 0.72, 3, colors.body);
     if (showSeconds) {
-      hand(now.second / 60, radius * 0.8, 1.5, UiPalette.signal);
+      hand(now.second / 60, radius * 0.8, 1.5, colors.working);
     }
 
-    canvas.drawCircle(center, 3, Paint()..color = UiPalette.signal);
+    canvas.drawCircle(center, 3, Paint()..color = colors.working);
   }
 
   @override
   bool shouldRepaint(_WallClockPainter oldDelegate) =>
-      oldDelegate.now != now || oldDelegate.showSeconds != showSeconds;
+      oldDelegate.colors != colors ||
+      oldDelegate.now != now ||
+      oldDelegate.showSeconds != showSeconds;
 }
