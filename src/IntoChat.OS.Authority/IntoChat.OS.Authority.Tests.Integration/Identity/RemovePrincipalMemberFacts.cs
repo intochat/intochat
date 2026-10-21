@@ -29,7 +29,7 @@ public sealed class RemovePrincipalMemberFacts(AuthorityHost host)
         Assert.NotNull(await s.Identity.Membership(s.Scope, s.Other));
         await s.Identity.RemovePrincipalMember(s.Scope, s.Other);
         Assert.Null(await s.Identity.Membership(s.Scope, s.Other));
-        // Access revocation above is synchronous; the principal index receives a OneWay notification.
+        // Revocation and the principal index update are both awaited, in order with the earlier join.
         var brains = await TestWait.UntilAsync(_ => s.Identity.BrainsOf(s.Other),
             entries => entries.All(entry => entry.Id != s.Brain && entry.Id != s.Scope),
             TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);

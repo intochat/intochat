@@ -90,7 +90,7 @@ internal sealed class BrainAuthorityGrain(
             return;
         }
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
-        await Platform.Principal(member.PrincipalId).Joined(member.BrainId, State.Kind);
+        await Platform.Principal(member.PrincipalId).Join(member.BrainId, State.Kind);
     }
     public async Task RemovePrincipal(string principalId)
     {

@@ -69,7 +69,9 @@ internal sealed class PrincipalGrain(
 
     public Task<BrainEntry[]> Brains() => Task.FromResult(State.Brains);
 
-    public Task Joined(string brainId, BrainKind kind)
+    public Task Joined(string brainId, BrainKind kind) => Join(brainId, kind);
+
+    public Task Join(string brainId, BrainKind kind)
         => State.Brains.Any(known => known.Id == brainId) ? Task.CompletedTask : Persist(State with { Brains = [.. State.Brains, new BrainEntry(brainId, kind)] });
 
     public Task Left(string brainId)
