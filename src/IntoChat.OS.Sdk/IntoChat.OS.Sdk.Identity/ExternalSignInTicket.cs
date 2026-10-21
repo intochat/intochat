@@ -78,10 +78,10 @@ public static class ExternalSignInTicket
                 payload.Amr ?? "", payload.Jti ?? "", DateTimeOffset.FromUnixTimeSeconds(payload.Exp));
             return Valid(claims, clock.GetUtcNow()) ? claims : null;
         }
-        catch (Exception error) when (error is FormatException or JsonException or ArgumentException or CryptographicException)
-        {
-            return null;
-        }
+        catch (FormatException) { return null; }
+        catch (JsonException) { return null; }
+        catch (ArgumentException) { return null; }
+        catch (CryptographicException) { return null; }
     }
 
     // Trim and lowercase; null when empty, over 255 characters or without an @ between non-empty parts.

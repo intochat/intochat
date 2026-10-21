@@ -6,6 +6,8 @@ using IntoChat.OS.AI.Models.OpenAI;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Apps;
@@ -19,6 +21,7 @@ internal sealed class Creator(
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
     AppWorkQueue queue,
+    ILogger<Creator> logger,
     IScriptSandbox? csharp = null)
 {
     private const int MaxAuthorRetries = 2;
@@ -73,7 +76,7 @@ internal sealed class Creator(
         catch (Exception error) when (reporting is not null && error is not OperationCanceledException)
         {
             // Reporting must not mask the Author's own error.
-            try { await reporting.Progress("attention", error.Message); } catch (Exception) { }
+            await TryReport(reporting, null, "attention", error.Message, failureIsVisibleElsewhere: true, CancellationToken.None);
             throw;
         }
     }
@@ -133,7 +136,23 @@ internal sealed class Creator(
         {
             await app.CompleteBuild(attempt, null, error.Message);
             // Reporting must not mask the build's own error.
-            try { await ReportIfCurrent(app, attempt, "attention", error.Message, CancellationToken.None); } catch (Exception) { }
+            await TryReport(app, attempt, "attention", error.Message, failureIsVisibleElsewhere: false, CancellationToken.None);
+        }
+    }
+
+    // The attention report is best effort, but its failure is logged: Debug when the caller still sees the
+    // original error, Warning when the report was the only way the person would have learned of it.
+    private async Task TryReport(IApp app, Guid? attempt, string state, string detail, bool failureIsVisibleElsewhere, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (attempt is { } current) { await ReportIfCurrent(app, current, state, detail, cancellationToken); }
+            else { await app.Progress(state, detail); }
+        }
+        catch (Exception failure)
+        {
+            if (failureIsVisibleElsewhere) { logger.LogSwallowed(failure, "attention report failed"); }
+            else { logger.LogWarning(failure, "attention report failed for {App}", app.GetPrimaryKeyString()); }
         }
     }
 
