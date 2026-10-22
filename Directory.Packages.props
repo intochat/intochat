@@ -24,7 +24,7 @@
     <PackageVersion Include="Grpc.Net.Client.Web" Version="2.84.0" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="17.11.48" />
-    <PackageVersion Include="Microsoft.NET.StringTools" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.NET.StringTools" Version="18.11.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
