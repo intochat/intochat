@@ -602,7 +602,11 @@ public sealed class RuntimeEdgeFacts
         await StartAs(brain, alice, Key("stopped"), ct);
         var session = await StartAs(brain, alice, Key("other"), ct);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Send(brain, (session.Id, session.Token[..^2] + "AA"), Key("other"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
+        // Flip a signature character that carries six significant bits: rewriting the last characters can leave the decoded
+        // signature unchanged (the final base64url character holds unused bits), which would make the "forgery" the real token.
+        var at = session.Token.Length - 10;
+        var forged = session.Token[..at] + (session.Token[at] == 'A' ? 'B' : 'A') + session.Token[(at + 1)..];
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Send(brain, (session.Id, forged), Key("other"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), new("", typeof(ICSharpFile).FullName!, "pinger", "Double", [JsonSerializer.SerializeToElement(1)]), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), Call("Watch", 1), ct)).StatusCode);
         using (alice.AsCaller()) { await brain.Get<ICSharpFile>(Key("stopped")).Stop(ct); }
