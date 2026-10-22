@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Integrations;
+using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Google.Gmail;
@@ -31,14 +33,14 @@ internal sealed class DriveNeuron(
     {
         var folder = string.IsNullOrEmpty(location) ? Root : location;
         var query = Uri.EscapeDataString($"'{folder.Replace("\\", "\\\\").Replace("'", "\\'")}' in parents and trashed = false");
-        using var json = await GetJsonAsync($"files?q={query}&fields=files(id,name,mimeType)&orderBy=folder,name&pageSize=200", cancellationToken);
+        using var json = await GetJsonAsync($"files?q={query}&fields=files(id,name,mimeType)&orderBy=folder,name&pageSize=200", GoogleOperations.DriveList, cancellationToken);
         return [.. json.RootElement.GetProperty("files").EnumerateArray().Select(Entry)];
     }
 
     public async Task<string> Read(string location, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(location);
-        using var metadata = await GetJsonAsync($"files/{Uri.EscapeDataString(location)}?fields=id,name,mimeType", cancellationToken);
+        using var metadata = await GetJsonAsync($"files/{Uri.EscapeDataString(location)}?fields=id,name,mimeType", GoogleOperations.DriveMetadata, cancellationToken);
         var type = metadata.RootElement.GetProperty("mimeType").GetString();
         var path = type switch
         {
@@ -48,7 +50,8 @@ internal sealed class DriveNeuron(
                 => throw new InvalidOperationException("This Google file has no text form."),
             _ => $"files/{Uri.EscapeDataString(location)}?alt=media",
         };
-        return await SendAsync(path, cancellationToken, response => response.Content.ReadAsStringAsync(cancellationToken));
+        return await SendAsync(path, type == DocumentType ? GoogleOperations.DriveExport : GoogleOperations.DriveMedia,
+            cancellationToken, response => response.Content.ReadAsStringAsync(cancellationToken));
     }
 
     // Walks parents up to My Drive; a file shared with the user ends the chain at its topmost visible folder.
@@ -59,7 +62,7 @@ internal sealed class DriveNeuron(
         var current = location;
         for (var depth = 0; depth < MaxDepth && current != Root; depth++)
         {
-            using var json = await GetJsonAsync($"files/{Uri.EscapeDataString(current)}?fields=id,name,mimeType,parents", cancellationToken);
+            using var json = await GetJsonAsync($"files/{Uri.EscapeDataString(current)}?fields=id,name,mimeType,parents", GoogleOperations.DriveMetadata, cancellationToken);
             var file = json.RootElement;
             chain.Add(Entry(file));
             // My Drive (Google names it so) and the topmost folder shared with the user have no visible parent.
@@ -99,13 +102,15 @@ internal sealed class DriveNeuron(
     private static StorageEntry Entry(JsonElement file) =>
         new(file.GetProperty("id").GetString()!, file.GetProperty("name").GetString() ?? "", file.GetProperty("mimeType").GetString() == FolderType);
 
-    private async Task<JsonDocument> GetJsonAsync(string path, CancellationToken ct) =>
-        await SendAsync(path, ct, async response => await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct));
+    private async Task<JsonDocument> GetJsonAsync(string path, string operation, CancellationToken ct) =>
+        await SendAsync(path, operation, ct, async response => await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct));
 
-    private Task<T> SendAsync<T>(string path, CancellationToken ct, Func<HttpResponseMessage, Task<T>> read) =>
-        UseCredentialAsync(async (credential, token) =>
+    private async Task<T> SendAsync<T>(string path, string operation, CancellationToken ct, Func<HttpResponseMessage, Task<T>> read)
+    {
+        using var trace = EnterTrace();
+        return await UseCredentialAsync(async (credential, token) =>
         {
-            using var response = await RequestAsync(new Uri(Options.DriveEndpoint, path), credential.Value, token);
+            using var response = await RequestAsync(new Uri(Options.DriveEndpoint, path), operation, credential.Value, token);
             if (response.StatusCode == HttpStatusCode.NotFound) { throw new FileNotFoundException("This Drive item does not exist or is not shared with this account."); }
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
@@ -115,16 +120,30 @@ internal sealed class DriveNeuron(
             if (!response.IsSuccessStatusCode) { throw new GmailUnavailableException($"Google Drive answered HTTP {(int)response.StatusCode}."); }
             return await read(response);
         }, ct);
+    }
 
     private Task<HttpResponseMessage> AboutAsync(string accessToken, CancellationToken ct) =>
-        RequestAsync(new Uri(Options.DriveEndpoint, "about?fields=user(emailAddress)"), accessToken, ct);
+        RequestAsync(new Uri(Options.DriveEndpoint, "about?fields=user(emailAddress)"), GoogleOperations.DriveAbout, accessToken, ct);
 
-    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string accessToken, CancellationToken ct)
+    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct)
     {
+        using var trace = EnterTrace();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
         using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GmailModule.HttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        return await client.SendAsync(request, ct);
+        request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: this.GetPrimaryKeyString()), Guid.NewGuid().ToString("N")));
+        return await client.SendAsync(request, linked.Token);
+    }
+
+    private IDisposable? EnterTrace()
+    {
+        var caller = CallerContextStamper.Require();
+        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
+        { throw new UnauthorizedAccessException("The Drive connection belongs to another brain."); }
+        return TraceContext.Current is null
+            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(this.GetPrimaryKeyString()))) : null;
     }
 
     private GmailModuleOptions Options => ServiceProvider.GetRequiredService<GmailModuleOptions>();

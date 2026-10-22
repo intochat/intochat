@@ -1,3 +1,4 @@
+using IntoChat.OS.Google.Gmail.Testing;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Connections.Signals;
 using IntoChat.OS.Google.Gmail;
@@ -13,7 +14,7 @@ public sealed class GmailConnectedFacts
     public async Task AGrantConnectsTheMailboxAndTracksTheConnectionInItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         await using var connected = await brain.Observe<ConnectionConnected>(brain.Get<IGmail>(key), ct);
@@ -31,7 +32,7 @@ public sealed class GmailConnectedFacts
     public async Task AnExpiredAccessTokenIsRefreshedThroughThePlatformBeforeAPush()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using (brain.Owner.AsCaller())
@@ -40,10 +41,12 @@ public sealed class GmailConnectedFacts
         // A refreshed token living under the refresh lead makes the second push refresh again.
         stub.RefreshExpiresIn = 10;
         var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
-        await inbound.AcceptWatchPush(new("h1", "user@gmail.com"));
-        Assert.Equal("h1", (await mail.NextAsync(ct: ct)).HistoryId);
-        await inbound.AcceptWatchPush(new("h2", "user@gmail.com"));
-        Assert.Equal("h2", (await mail.NextAsync(ct: ct)).HistoryId);
+        stub.HistoryId = "101";
+        using (brain.Owner.AsCaller()) { await inbound.AcceptWatchPush(new("101", "user@gmail.com")); }
+        Assert.Equal("101", (await mail.NextAsync(ct: ct)).HistoryId);
+        stub.HistoryId = "102";
+        using (brain.Owner.AsCaller()) { await inbound.AcceptWatchPush(new("102", "user@gmail.com")); }
+        Assert.Equal("102", (await mail.NextAsync(ct: ct)).HistoryId);
         // The refresh answer carries no refresh token, as Google's does; the second refresh still had one.
         Assert.Equal(2, stub.Refreshes);
         Assert.Equal("refresh_token", stub.LastForm!["grant_type"]);
@@ -57,7 +60,7 @@ public sealed class GmailConnectedFacts
     public async Task APushRefreshesAConnectionAProbeFoundExpiredAndReconnectsIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using (brain.Owner.AsCaller())
@@ -67,8 +70,9 @@ public sealed class GmailConnectedFacts
             Assert.Equal(ConnectionStatus.Expired, (await brain.Get<IConnection>(key).Probe()).Status);
         }
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
-        await brain.Grains().GetGrain<IGmailInbound>(key).AcceptWatchPush(new("after-probe", "user@gmail.com"));
-        Assert.Equal("after-probe", (await mail.NextAsync(ct: ct)).HistoryId);
+        stub.HistoryId = "103";
+        using (brain.Owner.AsCaller()) { await brain.Grains().GetGrain<IGmailInbound>(key).AcceptWatchPush(new("103", "user@gmail.com")); }
+        Assert.Equal("103", (await mail.NextAsync(ct: ct)).HistoryId);
         Assert.Equal(1, stub.Refreshes);
         using (brain.Owner.AsCaller())
         { Assert.Equal(ConnectionStatus.Connected, (await brain.Get<IConnection>(key).Read()).Status); }
@@ -79,7 +83,7 @@ public sealed class GmailConnectedFacts
     public async Task AProbeAsksGoogleWithTheStoredTokenAndMapsItsAnswer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using var caller = brain.Owner.AsCaller();

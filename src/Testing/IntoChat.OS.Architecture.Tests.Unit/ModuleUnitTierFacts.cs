@@ -28,12 +28,13 @@ public sealed class ModuleUnitTierFacts
     private static bool HasUnitTier(string module)
         => Repository.Projects.ContainsKey($"IntoChat.OS.Modules.{module}.Tests.Unit");
 
-    // Module main projects: IntoChat.OS.Modules.<Name>, not its contracts, hosting, sandbox or tests.
+    // Module main projects: IntoChat.OS.Modules.<Name>, not contracts, hosting, sandbox, shared fixtures or tests.
     private static IEnumerable<string> Modules()
         => Repository.Projects.Keys
             .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
                 && !name.Contains(".Tests", StringComparison.Ordinal)
                 && !name.EndsWith(".Contracts", StringComparison.Ordinal)
+                && !name.EndsWith(".Testing", StringComparison.Ordinal)
                 && !name.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
                 && !name.EndsWith(".Sandbox", StringComparison.Ordinal))
             .Select(name => name["IntoChat.OS.Modules.".Length..]);

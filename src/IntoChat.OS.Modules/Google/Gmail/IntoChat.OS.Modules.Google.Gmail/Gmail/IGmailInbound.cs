@@ -1,10 +1,10 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
 
 namespace IntoChat.OS.Google.Gmail;
 
 [Alias("gmail.inbound"), Orleans.Metadata.DefaultGrainType("gmail")]
 internal interface IGmailInbound : IGrainWithStringKey
 {
-    Task AcceptWatchPush(GmailWatchPush push);
+    Task<GmailPushAcceptance> AcceptWatchPush(GmailWatchPush push);
 }
+
+internal enum GmailPushAcceptance { Accepted, Duplicate, Ignored, Invalid, Retryable }

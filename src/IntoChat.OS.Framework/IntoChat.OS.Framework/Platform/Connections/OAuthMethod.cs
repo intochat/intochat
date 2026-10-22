@@ -14,4 +14,7 @@ public sealed record OAuthMethod(
 {
     // Extra query parameters on the authorization URL (Google's access_type=offline).
     public Dictionary<string, string> AuthorizationParameters { get; init; } = new(StringComparer.Ordinal);
+    public OAuthExternalOperations? ExternalOperations { get; init; }
 }
+
+public sealed record OAuthExternalOperations(string CodeExchange, string Refresh);

@@ -10,6 +10,9 @@ using IntoChat.OS.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Microsoft.CSharp.Sessions;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Postgres;
+using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Framework.Platform.Connections;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +20,129 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 public sealed class RuntimeEdgeFacts
 {
+    [Trait("host", "own")]
+    [Fact]
+    public async Task GmailTypedDiscoveryPagingDraftRecoveryAndCancellationCrossTheRealEdge()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var google = await GoogleStub.StartAsync(ct);
+        google.AddMessage("m1", "First", "First body");
+        google.AddMessage("m2", "Second", "Second body");
+        google.MessageReplies["cancel-me"] = new(200, new { id = "cancel-me" }, Delay: TimeSpan.FromSeconds(30));
+        google.DraftReplies.Enqueue(new(200, new { id = "draft-success" }));
+        google.DraftReplies.Enqueue(new(200, Abort: true));
+        await using var brain = await GmailBrain.Compose(RuntimeBrain.Create(new FakeSessionHost()), google).StartAsync(ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "script-mail");
+        using (brain.Owner.AsCaller())
+        {
+            await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
+                GmailScopes.Read + " https://www.googleapis.com/auth/gmail.compose", null, "{}"));
+            var discovery = brain.Services.GetRequiredService<CSharpContractDiscovery>();
+            foreach (var method in new[] { nameof(IGmail.ReadInbox), nameof(IGmail.ReadMessage), nameof(IGmail.PreviewDraft), nameof(IGmail.CreateDraft), nameof(IGmail.GetDraftOperation) })
+            {
+                var detail = await discovery.ReadDetail("gmail", typeof(IGmail).FullName!, method, ct);
+                Assert.False(detail.Truncated);
+                var schema = Assert.Single(detail.Contracts);
+                Assert.Contains("GmailFieldIssue(", schema, StringComparison.Ordinal);
+                Assert.Contains(method + "(", schema, StringComparison.Ordinal);
+            }
+        }
+        const string source = """
+            using IntoChat.OS.Google.Gmail;
+            await using var brain = await IntoChatOSClient.ConnectAsync(args);
+            var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
+            var ct = brain.Stopping;
+            var invalid = await gmail.ReadInbox(new GmailInboxRequest(0), ct);
+            if (invalid.Failure?.Code != "invalid_input") throw new InvalidOperationException("Expected typed validation.");
+            var first = (await gmail.ReadInbox(new GmailInboxRequest(1), ct)).Value ?? throw new InvalidOperationException("No first page.");
+            var second = (await gmail.ReadInbox(new GmailInboxRequest(2, first.NextPageToken), ct)).Value ?? throw new InvalidOperationException("No continuation.");
+            var message = (await gmail.ReadMessage(new GmailMessageRequest(first.Messages[0].MessageId), ct)).Value!;
+            Console.WriteLine(first.Messages.Length + ":" + second.Messages.Length + ":" + message.TextBody);
+            var preview = (await gmail.PreviewDraft(new GmailDraftRequest(["friend@example.test"], [], [], "Review", "Draft only."), ct)).Value!;
+            var requestId = brain.Setting("DraftRequestId") ?? throw new InvalidOperationException("Retain a request ID.");
+            var request = new GmailCreateDraftRequest(preview.PreviewId, requestId);
+            var created = (await gmail.CreateDraft(request, ct)).Value!;
+            var replay = (await gmail.CreateDraft(request, ct)).Value!;
+            if (created.DraftId != replay.DraftId || replay.Status != GmailDraftOperationStatus.Completed) throw new InvalidOperationException("Replay changed the outcome.");
+            Console.WriteLine("created:" + created.DraftId + ":" + created.Accounting?.Status);
+            var uncertainPreview = (await gmail.PreviewDraft(new GmailDraftRequest(["friend@example.test"], [], [], "Review uncertain", "Do not retry automatically."), ct)).Value!;
+            var uncertainId = requestId + "-uncertain";
+            var uncertain = (await gmail.CreateDraft(new GmailCreateDraftRequest(uncertainPreview.PreviewId, uncertainId), ct)).Value!;
+            var recovered = (await gmail.GetDraftOperation(new GmailDraftOperationRequest(uncertainId), ct)).Value!;
+            if (uncertain.Status != GmailDraftOperationStatus.Unknown || recovered.Status != GmailDraftOperationStatus.Unknown) throw new InvalidOperationException("Expected retained uncertainty.");
+            Console.WriteLine("unknown:retained");
+            using var cancelled = new CancellationTokenSource();
+            cancelled.CancelAfter(TimeSpan.FromSeconds(1));
+            try { await gmail.ReadMessage(new GmailMessageRequest("cancel-me"), cancelled.Token); throw new InvalidOperationException("Cancellation was lost."); }
+            catch (OperationCanceledException) { Console.WriteLine("cancelled"); }
+            """;
+        var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string> { ["gmail.cs"] = source });
+        Assert.True(compilation.Success, string.Join("; ", compilation.Errors));
+        var compiled = compilation.Assemblies["gmail.cs"];
+        var behavior = Key(brain.Owner, "gmail-example");
+        var session = await StartAs(brain, brain.Owner, behavior, ct);
+        var blobs = new FakeBrainEdge();
+        blobs.Serve(compiled);
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/" + brain.Owner.BrainId),
+            session.Token, Fingerprint(brain), new ForwardRuntime(brain.HttpClient), ct);
+        await using var run = await BehaviorLoaderFacts.Loader(blobs).LoadAsync(connection,
+            blobs.Assignment(behavior, compiled, new() { ["GmailConnection"] = key, ["DraftRequestId"] = "script-retained-request" }), NullLogger.Instance, ct);
+        Assert.True(await run.Completion.WaitAsync(ct) == 0, run.Error + "\n" + run.Tail(30));
+        Assert.Contains("1:1:First body", run.Tail(30), StringComparison.Ordinal);
+        Assert.Contains("created:draft-success:", run.Tail(30), StringComparison.Ordinal);
+        Assert.Contains("unknown:retained", run.Tail(30), StringComparison.Ordinal);
+        Assert.Contains("cancelled", run.Tail(30), StringComparison.Ordinal);
+        Assert.Equal(2, google.Requests.Count(call => call.Method == "POST" && call.Path.EndsWith("/drafts", StringComparison.Ordinal)));
+        Assert.Single(google.Requests, call => call.Path.EndsWith("/messages/cancel-me", StringComparison.Ordinal));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task GmailReactiveScriptSubscribesThenReconcilesThroughTheRealEdge()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var google = await GoogleStub.StartAsync(ct);
+        google.AddMessage("m1", "Current mailbox", "Current body");
+        await using var brain = await GmailBrain.Compose(RuntimeBrain.Create(new FakeSessionHost()), google).StartAsync(ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "reactive-mail");
+        using (brain.Owner.AsCaller())
+        { await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}")); }
+        var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
+        {
+            ["gmail-reactive.cs"] = """
+                using IntoChat.OS.Google.Gmail;
+                await using var brain = await IntoChatOSClient.ConnectAsync(args);
+                var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
+                using var stop = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
+                async Task Reconcile()
+                {
+                    var inbox = await gmail.ReadInbox(new GmailInboxRequest(1), stop.Token);
+                    Console.WriteLine("reconciled:" + inbox.Value!.Messages[0].Subject);
+                    stop.Cancel();
+                }
+                try
+                {
+                    // The callback runs after subscription, closing the initial-read/subscription gap.
+                    await foreach (var wakeup in brain.On<MailReceived>(gmail, Reconcile, stop.Token))
+                        await Reconcile();
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                """,
+        });
+        Assert.True(compilation.Success, string.Join("; ", compilation.Errors));
+        var compiled = compilation.Assemblies["gmail-reactive.cs"];
+        var behavior = Key(brain.Owner, "gmail-example");
+        var session = await StartAs(brain, brain.Owner, behavior, ct);
+        var blobs = new FakeBrainEdge();
+        blobs.Serve(compiled);
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/" + brain.Owner.BrainId),
+            session.Token, Fingerprint(brain), new ForwardRuntime(brain.HttpClient), ct);
+        await using var run = await BehaviorLoaderFacts.Loader(blobs).LoadAsync(connection,
+            blobs.Assignment(behavior, compiled, new() { ["GmailConnection"] = key }), NullLogger.Instance, ct);
+        Assert.True(await run.Completion.WaitAsync(ct) == 0, run.Error + "\n" + run.Tail(20));
+        Assert.Contains("reconciled:Current mailbox", run.Tail(20), StringComparison.Ordinal);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task DiscoveredNestedRequestAndResultCompileAndCrossTheRealHttpEdge()

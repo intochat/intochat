@@ -42,6 +42,15 @@ public sealed class GmailPushAuthenticatorFacts
         Assert.ThrowsAny<SecurityTokenException>(() => Validate(Token(signingKey: other)));
     }
 
+    [Fact]
+    public void AnOversizedSignedTokenIsRejectedBeforeClaimProcessing()
+    {
+        var token = new JwtSecurityToken("https://accounts.google.com", Audience,
+            [new Claim("email", Email), new Claim("email_verified", "true"), new Claim("padding", new string('x', 17000))],
+            Now.AddMinutes(-1), Now.AddHours(1), new SigningCredentials(Key, SecurityAlgorithms.HmacSha256));
+        Assert.False(Validate(new JwtSecurityTokenHandler().WriteToken(token)));
+    }
+
     private static bool Validate(string token)
     {
         var metadata = new OpenIdConnectConfiguration();

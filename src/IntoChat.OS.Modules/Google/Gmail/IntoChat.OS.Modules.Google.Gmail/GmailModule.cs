@@ -1,12 +1,10 @@
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Sdk;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
+using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,20 +19,38 @@ namespace IntoChat.OS.Google.Gmail;
 [Secret("ClientSecret", Integration = "google-oauth")]
 [Setting("Audience", Integration = "google-pubsub")]
 [Setting("ServiceAccountEmail", Integration = "google-pubsub")]
+[Setting("TopicName", Integration = "google-pubsub")]
+[ModulePriceList(typeof(GooglePriceList))]
+[ExternalOperation(GoogleOperations.Profile, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.ListMessages, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.Metadata, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.Message, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.CreateDraft, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.History, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.Watch, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.Stop, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.DriveAbout, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.DriveList, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.DriveMetadata, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.DriveMedia, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.DriveExport, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.CodeExchange, "google-oauth", "request")]
+[ExternalOperation(GoogleOperations.Refresh, "google-oauth", "request")]
 public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModule
 {
     public const string HttpClientName = "IntoChat.OS.Gmail";
+    public const string ClockKey = "google-gmail";
     public const string WatchPath = "/google/gmail/watch";
 
     public static ConnectorDefinition[] Connectors => [Gmail, Drive];
 
-    public static ConnectorDefinition Gmail { get; } = new("gmail", "Gmail", ["google-oauth"], ["google-oauth"])
+    public static ConnectorDefinition Gmail { get; } = new("gmail", "Gmail", ["google-oauth", "google-oauth-compose"], ["google-oauth"])
     {
         OptionalIntegrations = ["google-pubsub"],
         Neurons = [typeof(IGmail)],
         Signals = [typeof(MailReceived)],
-        OAuthMethods = [new("google-oauth", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", [GmailScopes.Read], "google-oauth")
-            { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
+        OAuthMethods = [GoogleOAuth("google-oauth", [GmailScopes.Read]),
+            GoogleOAuth("google-oauth-compose", [GmailScopes.Read, "https://www.googleapis.com/auth/gmail.compose"])],
     };
 
     // Google Drive as read-only storage, signed in through the same Google OAuth integration as Gmail.
@@ -43,34 +59,29 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
     {
         Neurons = [typeof(IStorage)],
         Capabilities = [IStorage.Capability],
-        OAuthMethods = [new("google-oauth", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", [DriveScopes.Read], "google-oauth")
-            { AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" } }],
+        OAuthMethods = [GoogleOAuth("google-oauth", [DriveScopes.Read])],
+    };
+
+    private static OAuthMethod GoogleOAuth(string id, string[] scopes) => new(id,
+        "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", scopes, "google-oauth")
+    {
+        AuthorizationParameters = { ["access_type"] = "offline", ["prompt"] = "consent" },
+        ExternalOperations = new(GoogleOperations.CodeExchange, GoogleOperations.Refresh),
     };
 
     partial void OnConfigure(IModuleServices services)
     {
         var collection = services.Services;
         collection.TryAddSingleton(TimeProvider.System);
+        collection.TryAddKeyedSingleton(ClockKey, TimeProvider.System);
         collection.TryAddSingleton(services.Options<GmailModuleOptions>());
         collection.TryAddSingleton<IGmailPushAuthenticator, GmailPushAuthenticator>();
-        collection.AddHttpClient(HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30));
+        collection.TryAddSingleton<IGmailApi>(provider => new GmailApi(provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<GmailModuleOptions>(), provider.GetRequiredKeyedService<TimeProvider>(ClockKey),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GmailApi>>()));
+        collection.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<GmailNeuron>, GmailActivation>());
+        collection.AddMeteredHttpClient(HttpClientName).ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
     }
 
-    public void Configure(IEndpointRouteBuilder endpoints)
-    {
-        // The Pub/Sub push subscription URL names the brain; each Gmail connection of that brain
-        // decides by its own mailbox whether the delivery is its.
-        endpoints.MapPost(WatchPath + "/{brainId}", async (string brainId, GmailPubSubPush envelope, HttpRequest request, IGmailPushAuthenticator authenticator, IGrainFactory grains, CancellationToken ct) =>
-        {
-            if (!BrainScope.IsValidId(brainId)) { return Results.NotFound(); }
-            if (!await authenticator.AuthenticateAsync(request, ct)) { return Results.Unauthorized(); }
-            if (!GmailPubSub.TryUnwrap(envelope, out var push)) { return Results.BadRequest(); }
-
-            foreach (var key in await grains.GetGrain<IConnectionIndex>(brainId).List())
-            {
-                if (ConnectionKeys.Parse(key).ConnectorId == Gmail.Id) { await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push); }
-            }
-            return Results.Accepted();
-        }).AllowAnonymous();
-    }
+    public void Configure(IEndpointRouteBuilder endpoints) => GmailWebhook.Map(endpoints);
 }

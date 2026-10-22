@@ -33,7 +33,6 @@
   "IntoChat.OS.Modules.Flutter/WebBrowser/WebBrowserNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Workspace/BrainEventsEndpoints.cs": 2,
   "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs": 2,
-  "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailNeuron.cs": 1,
   "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailPushAuthenticator.cs": 1,
   "IntoChat.OS.Modules.Mcp/McpServerNeuron.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Aspire/Candidates/CandidateNeuron.cs": 4,
