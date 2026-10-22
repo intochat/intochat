@@ -77,6 +77,10 @@ public sealed record SecretSpec : ResourceSpec
     [Id(0)] public string Vault { get; init; } = "";
     [Id(1)] public string Value { get; init; } = "";
     [Id(2)] public bool Overwrite { get; init; }
+    // A generator name (SecretGenerators) makes the installer create the value when the secret is absent and never replace it; Value is ignored.
+    [Id(3)] public string Generator { get; init; } = "";
+    // An external secret is set by an operator (az keyvault secret set); the installer only checks that it exists and never writes it.
+    [Id(4)] public bool External { get; init; }
 
     // A value of the form "{vault-secret:name}" inside Value is replaced, when the secret is written, by the
     // current value of that secret in the same vault, so a connection string can carry a password only the vault knows.

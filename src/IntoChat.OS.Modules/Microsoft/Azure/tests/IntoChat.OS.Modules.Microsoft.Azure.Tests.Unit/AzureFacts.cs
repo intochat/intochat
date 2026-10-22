@@ -171,6 +171,8 @@ public sealed class AzureFacts
         public Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct) =>
             _inner.Ensured.Count >= succeed ? throw new InvalidOperationException("boom") : _inner.Ensure(subscription, spec, ct);
 
+        public Task<string?> ReadSecret(string vault, string name, CancellationToken ct) => _inner.ReadSecret(vault, name, ct);
+
         public Task<ResourceRef?> Read(string subscription, ResourceRef resource, CancellationToken ct) => _inner.Read(subscription, resource, ct);
 
         public Task Remove(string subscription, ResourceRef resource, CancellationToken ct) => _inner.Remove(subscription, resource, ct);
