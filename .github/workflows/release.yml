@@ -103,6 +103,7 @@ jobs:
           docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest .
+          bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"
           docker push --all-tags ghcr.io/intochat/os-sandbox
 
       # The release already exists: publishing it is what started this workflow.
