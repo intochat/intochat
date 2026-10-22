@@ -137,8 +137,9 @@ public static class InstallPlan
                     Volume = BrainLogVolume,
                     EnvironmentStorage = BrainLogShare,
                     MountPath = BrainLogDirectory(c),
-                    // nobrl is deliberately absent: lease ownership does not need it.
-                    MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,actimeo=30,nosharesock"),
+                    // nobrl is deliberately absent: lease ownership does not need it. actimeo is absent because Container Apps
+                    // refuses it (ContainerAppVolumeMountOptionsNotSupported); cache=strict keeps attribute reads coherent.
+                    MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,nosharesock"),
                 },
             ],
             Registries = c.GhcrUsername.Length > 0
