@@ -5,6 +5,11 @@
     "reason": "billing/usage, not customer data"
   },
   {
+    "type": "IntoChat.OS.Authority.Compute.BrainComputeState",
+    "state": "brain-compute",
+    "reason": "platform accounting authority: funding holds, completion capabilities and settlement checkpoints must not be cloned into portable brains"
+  },
+  {
     "type": "IntoChat.OS.Authority.Compute.CircleShareState",
     "state": "circle-share",
     "reason": "platform authority state (Authority assembly), never exported"
@@ -18,6 +23,11 @@
     "type": "IntoChat.OS.Authority.Compute.TraceBudgetState",
     "state": "trace-budget",
     "reason": "billing/usage, not customer data"
+  },
+  {
+    "type": "IntoChat.OS.Authority.Compute.TraceJournalState",
+    "state": "compute-trace-journal",
+    "reason": "platform billing detail and HMAC cursor secret, not customer data"
   },
   {
     "type": "IntoChat.OS.Authority.Compute.UsageState",

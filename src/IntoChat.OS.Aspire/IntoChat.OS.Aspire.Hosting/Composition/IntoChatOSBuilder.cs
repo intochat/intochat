@@ -38,7 +38,7 @@ public sealed class IntoChatOSBuilder
         var hosting = new THosting();
         var options = new TOptions();
         configure?.Invoke(options);
-        options.Validate();
+        ModuleOptionsSerialization.Validate(options, hosting.Module.ToString());
         return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
@@ -48,7 +48,7 @@ public sealed class IntoChatOSBuilder
     {
         ArgumentNullException.ThrowIfNull(options);
         var hosting = new THosting();
-        options.Validate();
+        ModuleOptionsSerialization.Validate(options, hosting.Module.ToString());
         return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
@@ -60,7 +60,7 @@ public sealed class IntoChatOSBuilder
         var module = new TModule();
         var options = new TOptions();
         configure(options);
-        options.Validate();
+        ModuleOptionsSerialization.Validate(options, module.Id.ToString());
         return WithModule(module, null, HostingModuleOptions.Flatten(options, module.Id.ToString()));
     }
 

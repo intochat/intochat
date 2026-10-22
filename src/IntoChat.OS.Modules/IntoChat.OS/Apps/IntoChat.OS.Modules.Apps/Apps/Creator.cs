@@ -222,7 +222,7 @@ internal sealed class Creator(
 
     private static string BuilderState(AiToolCall[] calls)
         => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
-         : calls.Any(call => call.Name == BuilderTools.ReadContracts) ? "reading"
+         : calls.Any(call => call.Name is BuilderTools.ReadContracts or BuilderTools.ReadContractDetail) ? "reading"
          : "working";
 
     private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
@@ -235,6 +235,7 @@ internal sealed class Creator(
                     await BuilderTools.Search(search, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query, cancellationToken), Json),
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
+                BuilderTools.ReadContractDetail => await Detail(Parse<BuilderTools.DetailArguments>(call.ArgumentsJson)),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(
                     await Checked(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
@@ -248,6 +249,9 @@ internal sealed class Creator(
 
         static T Require<T>(T? service) where T : class
             => service ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing);
+
+        async Task<string> Detail(BuilderTools.DetailArguments args) => JsonSerializer.Serialize(
+            await Require(csharp).ReadContractDetail(args.ModuleId, args.ContractName, args.MethodName, cancellationToken), Json);
     }
 
     // check_csharp answers what the app gates will: the compile errors plus every synapse that is not one reaction.

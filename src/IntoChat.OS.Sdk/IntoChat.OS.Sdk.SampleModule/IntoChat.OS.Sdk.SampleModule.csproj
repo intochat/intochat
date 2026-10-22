@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
   </ItemGroup>
 </Project>

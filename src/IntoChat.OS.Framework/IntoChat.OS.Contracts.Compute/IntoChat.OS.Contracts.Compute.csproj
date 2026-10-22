@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Neutral module pricing, metering and compute wire contracts.</Description>
+    <RootNamespace>IntoChat.OS.Contracts.Compute</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
+    <Using Include="Orleans" />
+  </ItemGroup>
+</Project>

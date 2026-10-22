@@ -35,11 +35,9 @@ internal sealed class SynapseWriter(
     private const int MaxErrors = 20;
     private const int MaxSpecLength = 3000;
     private const int MaxSharedLength = 12000;
-    // Every contract section beyond the focus neurons' own lines holds at most this many lines and characters.
+    // All callable declarations share one budget; a selected method and its DTO closure stay intact.
     private const int MaxContractLines = 60;
     private const int MaxContractLength = 12000;
-    // A focus neuron's own line is never dropped, only clipped past this.
-    private const int MaxContractLineLength = 4000;
     private const int ContractMatches = 5;
     internal const string NoContract = "Refused, no contract: ";
     // A deploy call that times out may still land: the runtime joins a repeat of the same program to the one in
@@ -407,6 +405,8 @@ internal sealed class SynapseWriter(
         }
 
         var (focused, focusContracts) = focus;
+        string[] matches = [.. matching.Except(focusContracts, StringComparer.Ordinal)];
+        EnsureContractBudget(focusContracts.Concat(matches));
         if (focused.Length > 0)
         {
             text.AppendLine().AppendLine("What the person is looking at (neuron keys in focus):");
@@ -417,7 +417,6 @@ internal sealed class SynapseWriter(
             text.AppendLine().AppendLine("Contracts of the neurons in focus:");
             foreach (var line in focusContracts) { text.AppendLine("- " + line); }
         }
-        string[] matches = [.. Bounded(matching.Except(focusContracts, StringComparer.Ordinal))];
         if (matches.Length > 0)
         {
             text.AppendLine().AppendLine("Contracts that match the sentence:");
@@ -446,9 +445,7 @@ internal sealed class SynapseWriter(
     private static void AppendExample(StringBuilder text, SynapseExample example)
         => text.AppendLine($"--- {example.Name} ---").AppendLine("// " + example.Spec.Replace("\n", "\n// ", StringComparison.Ordinal)).AppendLine(example.Source);
 
-    // Ino's tether: each focus key's neuron type (from the kernel's instances) and the contracts to write against.
-    // The focus neurons' own contracts lead and are never cut; their modules' signals, then the rest of their
-    // modules' contracts as the sandbox reads them, follow inside a bounded budget however large the modules are.
+    // Focus keys still come from the kernel; callable material comes only from complete discovery detail.
     private async Task<(string[] Focused, string[] Contracts)> Focus(Job job, string brain, TypeEntry[] types, CancellationToken cancellationToken)
     {
         if (job.Focus.Length == 0) { return ([], []); }
@@ -464,36 +461,34 @@ internal sealed class SynapseWriter(
         TypeEntry[] entries = [.. focused.Select(item => item.Entry).OfType<TypeEntry>().DistinctBy(entry => entry.Name)];
         string[] keys = [.. focused.Select(item => item.Entry is { } entry ? $"{item.Key} ({entry.Name})" : $"{item.Key} (no neuron with state under this key yet)")];
         if (entries.Length == 0) { return (keys, []); }
-        var rest = Signals(entries, types).Concat(await ModuleContracts(entries, cancellationToken))
-            // A focus neuron's line from the sandbox is the one already leading, whatever its text.
-            .Where(line => !entries.Any(entry => line.StartsWith(entry.Name + " [", StringComparison.Ordinal)));
-        return (keys, [.. Neurons(entries).Select(line => Clip(line, MaxContractLineLength)), .. Bounded(rest)]);
+        return (keys, await Details(entries, types, cancellationToken));
     }
 
-    // The focus modules' contracts as the sandbox reads them, cut short or not; a reading that fails leaves them out.
-    private async Task<IReadOnlyList<string>> ModuleContracts(TypeEntry[] entries, CancellationToken cancellationToken)
+    private async Task<string[]> Details(TypeEntry[] entries, TypeEntry[] types, CancellationToken cancellationToken)
     {
-        if (sandbox is null) { return []; }
-        try { return (await sandbox.ReadContracts([.. entries.Select(entry => entry.Provider).Distinct(StringComparer.OrdinalIgnoreCase)], cancellationToken)).Contracts; }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+        if (sandbox is null) { throw new InvalidOperationException(NoContract + AppAuthoringPolicy.SandboxMissing); }
+        var result = new List<string>();
+        var selected = entries.Concat(types.Where(type => type.Kind == TypeKind.Signal
+            && entries.Any(entry => string.Equals(entry.Provider, type.Provider, StringComparison.OrdinalIgnoreCase))));
+        foreach (var entry in selected.DistinctBy(entry => (entry.Provider, entry.Name)))
         {
-            log.LogDebug(error, "The fast path's contract reading failed; the prompt goes with the focus contracts alone");
-            return [];
+            var detail = await sandbox.ReadContractDetail(entry.Provider, entry.Name, null, cancellationToken);
+            if (detail.Truncated) { throw new InvalidOperationException(NoContract + $"complete detail is unavailable for {entry.Name}; narrow the request."); }
+            result.AddRange(detail.Contracts);
         }
+        return [.. result.Distinct(StringComparer.Ordinal)];
     }
 
-    // Contract lines in order while the line count and the text budget last; a line too long for what is left is skipped.
-    private static IEnumerable<string> Bounded(IEnumerable<string> lines)
+    private static void EnsureContractBudget(IEnumerable<string> declarations)
     {
-        var count = MaxContractLines;
-        var length = MaxContractLength;
-        foreach (var line in lines.Distinct(StringComparer.Ordinal))
+        var count = 0;
+        var length = 0;
+        foreach (var declaration in declarations.Distinct(StringComparer.Ordinal))
         {
-            if (count == 0) { yield break; }
-            if (line.Length > length) { continue; }
-            count--;
-            length -= line.Length;
-            yield return line;
+            count += declaration.Count(character => character == '\n') + 1;
+            length += declaration.Length + 3; // The prompt's bullet and newline are part of the shared context.
+            if (count > MaxContractLines || length > MaxContractLength)
+            { throw new InvalidOperationException(NoContract + "complete selected schemas exceed the 12000-character/60-line context limit; narrow the request."); }
         }
     }
 
@@ -512,17 +507,8 @@ internal sealed class SynapseWriter(
             return [];
         }
         TypeEntry[] entries = [.. hits.Select(hit => neurons.FirstOrDefault(entry => entry.Name == hit.Type.Contract)).OfType<TypeEntry>()];
-        return [.. Neurons(entries).Concat(Signals(entries, types)).Distinct(StringComparer.Ordinal)];
+        return await Details(entries, types, cancellationToken);
     }
-
-    // The same line format as the sandbox's contract reading: each neuron, then its module's signals.
-    private static IEnumerable<string> Neurons(TypeEntry[] neurons)
-        => neurons.Select(entry => $"{entry.Name} [neuron id: {entry.Alias}/<key>] — {entry.Description} {{ {string.Join("; ", entry.Shape)} }}");
-
-    private static IEnumerable<string> Signals(TypeEntry[] neurons, TypeEntry[] types)
-        => types.Where(type => type.Kind == TypeKind.Signal && neurons.Any(entry => string.Equals(entry.Provider, type.Provider, StringComparison.OrdinalIgnoreCase)))
-            .OrderBy(signal => signal.Name, StringComparer.Ordinal)
-            .Select(signal => signal.Name + " { " + string.Join("; ", signal.Shape) + " }");
 
     private static IEnumerable<KeyValuePair<string, string>> Shared(AppSnapshot app)
         => app.Files.Where(file => AppFiles.IsProgram(file.Key) && SynapseShape.IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal);

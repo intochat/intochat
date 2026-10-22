@@ -723,12 +723,13 @@ public sealed class FastPathFacts : IDisposable
 
     [Trait("host", "own")]
     [Fact]
-    public async Task FocusContractsLeadHoweverLargeTheirModulesAre()
+    public async Task FocusReadsCompleteDetailInsteadOfClippingALargeCatalog()
     {
         var ct = TestContext.Current.CancellationToken;
         // A reading far past any prompt budget, cut short as the sandbox cuts a large one, with the focus contract absent.
         string[] bulk = [.. Enumerable.Range(0, 400).Select(index => $"BULK-CONTRACT-{index:D3} " + new string('x', 400))];
-        var sandbox = new FastPathSandbox { Contracts = new([new("apps")], bulk, "", Truncated: true) };
+        var complete = "FULL-REQUEST " + new string('x', 4100) + " RequiredTailField { get; init; }";
+        var sandbox = new FastPathSandbox { Contracts = new([new("apps")], bulk, "", Truncated: true), Detail = new([], [complete], "") };
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await Start(model, new FakeAppRuntime(), sandbox, ct);
         model.Script(Writer, Reply("lemons.cs", Lemons));
@@ -740,12 +741,31 @@ public sealed class FastPathFacts : IDisposable
 
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
-        Assert.Contains($"{typeof(IApp).FullName} [neuron id:", prompt, StringComparison.Ordinal);
-        Assert.Contains(typeof(AppChanged).FullName!, prompt, StringComparison.Ordinal);
-        // The rest of the module follows inside a budget: its first contracts, never all of them.
-        Assert.Contains(bulk[0], prompt, StringComparison.Ordinal);
+        Assert.Contains(complete, prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain(bulk[0], prompt, StringComparison.Ordinal);
         Assert.DoesNotContain(bulk[^1], prompt, StringComparison.Ordinal);
         Assert.True(prompt.Length < bulk.Sum(line => line.Length) / 3, $"The prompt is {prompt.Length} characters.");
+    }
+
+    [Trait("host", "own")]
+    [Theory]
+    [InlineData(12001, false, false)]
+    [InlineData(200, true, false)]
+    [InlineData(61, false, true)]
+    public async Task IncompleteOrOversizedDetailFailsBeforeTheModelSeesAPartialContract(int length, bool truncated, bool multiline)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var schema = multiline ? string.Join('\n', Enumerable.Repeat("field", length)) : new string('x', length);
+        var sandbox = new FastPathSandbox { Detail = new([], [schema], "", truncated) };
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), sandbox, ct);
+        await Created(brain, "pantry");
+        var app = await Created(brain, "grocer");
+        await using var refused = await brain.Observe<SynapseRejected>(app, ct);
+        await app.WriteSynapse("when the pantry changes, answer lemons", [IApp.Key(Brain, "pantry")], Guid.NewGuid());
+        await refused.NextAsync(ct: ct);
+        Assert.Empty(model.Requests(Writer));
+        Assert.Empty(sandbox.Compiled);
     }
 
     [Trait("host", "own")]
@@ -1218,10 +1238,17 @@ public sealed class FastPathFacts : IDisposable
     {
         public Func<IReadOnlyDictionary<string, string>, ScriptCompilationCheck> Result { get; init; } = _ => new(true, []);
         public ScriptContractCatalog Contracts { get; init; } = new([], [], "");
+        public ScriptContractCatalog? Detail { get; init; }
         public ConcurrentQueue<IReadOnlyDictionary<string, string>> Compiled { get; } = new();
         public ConcurrentQueue<string[]> Read { get; } = new();
         public bool CanRun => true;
         public string AuthoringDescription => "csharp: one synapse per file.";
+
+        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
+        {
+            Read.Enqueue([moduleId]);
+            return Task.FromResult(Detail ?? Contracts);
+        }
 
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
         {

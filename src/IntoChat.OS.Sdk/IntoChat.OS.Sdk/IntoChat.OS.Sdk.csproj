@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
     <ProjectReference Include="../IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <!-- The generator ships under analyzers/dotnet/cs, never lib/. -->

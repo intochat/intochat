@@ -18,7 +18,7 @@ public sealed class CacheFacts
         public sealed partial class CachedModuleHosting;
         """;
 
-    private static readonly string[] Steps = ["ModuleModel", "HostingModel"];
+    private static readonly string[] Steps = ["ModuleModel", "ValidatedModuleModel", "HostingModel"];
 
     private static GeneratorDriver Run(GeneratorDriver driver, Compilation compilation)
         => driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
@@ -58,5 +58,27 @@ public sealed class CacheFacts
         var outputs = second.TrackedSteps["ModuleModel"].Single().Outputs;
         Assert.All(outputs, o => Assert.True(o.Reason is IncrementalStepRunReason.Modified or IncrementalStepRunReason.New, o.Reason.ToString()));
         Assert.Contains("\"changed\"", second.GeneratedSources.Single(s => s.HintName.Contains("CachedModule.g", StringComparison.Ordinal)).SourceText.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChangingAnotherModulesOperationKeepsUnchangedGeneratedSource()
+    {
+        const string priced = """
+            using IntoChat.OS.Framework.Modules;
+            using IntoChat.OS.Framework.Compute;
+            using IntoChat.OS.Sdk;
+            namespace Pricing;
+            public class Prices : IPriceList { public long? MicrosPerUnit(CostKind kind, string item) => 0; }
+            [Module("priced"), Integration("api", "API"), ModulePriceList(typeof(Prices)), ExternalOperation("sample.read", "api", "request")]
+            public sealed partial class PricedModule : Module;
+            """;
+        var compilation = GeneratorHarness.Compile(Module, priced);
+        var first = Run(GeneratorHarness.CreateDriver(), compilation);
+        var old = compilation.SyntaxTrees.Last();
+        var replacement = CSharpSyntaxTree.ParseText(priced.Replace("sample.read", "sample.list", StringComparison.Ordinal), cancellationToken: TestContext.Current.CancellationToken);
+        var second = Run(first, compilation.ReplaceSyntaxTree(old, replacement)).GetRunResult().Results.Single();
+        var before = first.GetRunResult().Results.Single().GeneratedSources.Single(source => source.HintName == "Fixture.CachedModule.g.cs");
+        var after = second.GeneratedSources.Single(source => source.HintName == "Fixture.CachedModule.g.cs");
+        Assert.Same(before.SourceText, after.SourceText);
     }
 }

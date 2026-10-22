@@ -52,6 +52,13 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
             catalog.Contracts, catalog.Example, catalog.Truncated);
     }
 
+    public async Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
+    {
+        var discovery = tools.Discovery ?? throw new InvalidOperationException("This host has no script contract discovery.");
+        var catalog = await discovery.ReadDetail(moduleId, contractName, methodName, cancellationToken);
+        return new([.. catalog.Modules.Select(module => new ScriptContractModule(module.Id))], catalog.Contracts, catalog.Example, catalog.Truncated);
+    }
+
     public async Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
         var checker = tools.Check ?? throw new InvalidOperationException("This host has no script compiler.");

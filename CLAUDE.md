@@ -1,6 +1,6 @@
 # Repository working instructions
 
-Public documentation lives in the sibling repository `E:/intochat/os.docs` (GitHub `intochat/os.docs`, deployed as the docs site). Product vision, requirements, plans and status live in the private handbook `E:/intochat/handbook` (GitHub `intochat/handbook`); start with its index.md and contributing.md. Do not create narrative documentation or plans in this product repository. Historical instructions and documents are archived in the documentation repository.
+OS and SDK documentation lives in the sibling public repository `E:/intochat/os.docs` (GitHub `intochat/os.docs`). Product vision, requirements, plans and status live in `E:/intochat/intochat.docs` (GitHub `intochat/intochat.docs`, formerly `intochat/handbook`); start with its index.md and contributing.md. The handbook source repository is private; its active content is publicly deployed to separate shared and test Azure sites as authorized on 2026-10-22. Do not create narrative documentation or plans in this product repository. Historical instructions and documents are archived in the documentation repository.
 
 ## Code work
 

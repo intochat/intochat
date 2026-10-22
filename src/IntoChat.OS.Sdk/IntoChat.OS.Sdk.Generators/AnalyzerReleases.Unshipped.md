@@ -9,3 +9,8 @@ IOS0001 | IntoChat.OS.Sdk | Error | Module type must be a top-level partial clas
 IOS0002 | IntoChat.OS.Sdk | Error | Invalid module or integration declaration
 IOS0003 | IntoChat.OS.Sdk | Error | Secret or setting does not name its integration
 IOS0004 | IntoChat.OS.Sdk | Error | Attribute target is not a module type
+IOS0005 | IntoChat.OS.Sdk | Error | Invalid module price-list type
+IOS0006 | IntoChat.OS.Sdk | Error | Duplicate module price-list declaration
+IOS0007 | IntoChat.OS.Sdk | Error | Invalid external operation declaration
+IOS0008 | IntoChat.OS.Sdk | Error | Duplicate external operation declaration
+IOS0009 | IntoChat.OS.Sdk | Error | Conflicting external operation ownership

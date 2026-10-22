@@ -160,6 +160,10 @@ public sealed class CpuMeteringFacts
 
     private sealed class RecordingMeter : ICostMeter
     {
+        public ValueTask<ExternalCallHandle> BeginExternalCallAsync(ExternalCallRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask MarkExternalCallDispatchStartedAsync(ExternalCallHandle handle, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask<ExternalCallCompletion> CompleteExternalCallAsync(ExternalCallHandle handle, ExternalCallOutcome outcome, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public ConcurrentQueue<Recorded> Calls { get; } = new();
         public bool RequireAttribution { get; init; }
         public TaskCompletionSource<bool> AttributionAttempt { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -32,9 +32,19 @@ public static class PlatformHosting
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<IntoChat.OS.Framework.Compute.ICostMeter, Compute.CostMeter>();
         services.TryAddSingleton<IntoChat.OS.Framework.Compute.IComputeReader, Compute.ComputeReader>();
+        services.TryAddSingleton<IntoChat.OS.Sdk.Http.Compute.IExternalCallContextAccessor, IntoChat.OS.Framework.Compute.ExternalCallContextAccessor>();
         silo.AddIncomingGrainCallFilter<Compute.CircleShareGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, IntoChat.OS.Framework.Compute.MeteredHttpHandlerFilter>());
-        services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
+        services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key)
+            .Validate(value => value.PlatformPercent >= 0, "Platform fee must be nonnegative.").ValidateOnStart();
+        services.TryAddSingleton<IntoChat.OS.Sdk.Compute.ModulePriceListRegistry>();
+        services.AddOptions<Compute.ComputeOptions>().BindConfiguration(Compute.ComputeOptions.Key)
+            .Validate(value => { value.Validate(); return true; })
+            .Validate<IntoChat.OS.Sdk.Compute.ModulePriceListRegistry>((value, registry) =>
+            {
+                foreach (var allowance in value.AllowedUnpricedOperations) { registry.GetOperation(allowance.Operation); }
+                return true;
+            }).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key);
         services.AddSiloDiagnostics();

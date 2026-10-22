@@ -41,6 +41,18 @@ internal static class ModuleEmitter
 
         text.Append("\n    public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)\n    {\n");
         text.Append("        global::System.ArgumentNullException.ThrowIfNull(silo);\n");
+        if (model.PriceListType is not null)
+        {
+            text.Append("        global::IntoChat.OS.Sdk.Compute.ModulePriceLists.AddModulePriceList<").Append(model.PriceListType)
+                .Append(">(silo.Services, ").Append(Literal(model.Id)).Append(", [\n");
+            foreach (var operation in model.ExternalOperations)
+            {
+                text.Append("            new global::IntoChat.OS.Framework.Compute.ExternalOperationDescriptor(")
+                    .Append(Literal(operation.Name)).Append(", ").Append(Literal(operation.Integration)).Append(", ")
+                    .Append(Literal(operation.Unit)).Append("),\n");
+            }
+            text.Append("        ]);\n");
+        }
         text.Append("        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));\n    }\n");
         text.Append("\n    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);\n");
         text.Append("}\n");

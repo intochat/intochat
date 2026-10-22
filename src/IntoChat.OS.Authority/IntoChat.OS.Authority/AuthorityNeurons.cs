@@ -29,7 +29,10 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extension
 
     public ILedgerGrain Ledger(string accountId) => Resolve<ILedgerGrain>(accountId);
     public IUsageGrain Usage(string brainId) => Resolve<IUsageGrain>(brainId);
+    public IBrainComputeGrain Compute(string brainId) => Resolve<IBrainComputeGrain>($"{brainId}/compute");
+    public ITraceJournalGrain TraceJournal(string brainId, string traceId) => Resolve<ITraceJournalGrain>($"{brainId}/compute-traces/{traceId}");
     public ITraceBudgetGrain TraceBudget(string traceId) => Resolve<ITraceBudgetGrain>(traceId);
+    public ITraceBudgetGrain TraceBudget(string brainId, string traceId) => Resolve<ITraceBudgetGrain>($"{brainId}/compute-budget/{traceId}");
     public ICircleShareGrain CircleShare(string circleKey) => Resolve<ICircleShareGrain>(circleKey);
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);

@@ -7,6 +7,7 @@ public enum CostKind
     Http = 2,
     Storage = 3,
     Operation = 4,
+    ExternalProvider = 5,
 }
 
 // Money is micro-credits: 1 credit = 1e-6 USD. Micros is what was charged, fee included; 0 when the
@@ -25,4 +26,14 @@ public sealed record Cost
     [Id(8)] public string? App { get; init; }
     [Id(9)] public string? Neuron { get; init; }
     [Id(10)] public DateTimeOffset At { get; init; }
+    [Id(11)] public long? ListPriceMicros { get; init; }
+    [Id(12)] public long? EstimatedListPriceMicros { get; init; }
+    [Id(13)] public PricingStatus? PricingStatus { get; init; }
+    [Id(14)] public string? TariffVersion { get; init; }
+    [Id(15)] public FundingKind? FundingKind { get; init; }
+    [Id(16)] public ExternalCallOutcomeKind? Outcome { get; init; }
+    [Id(17)] public string? InvocationId { get; init; }
+    [Id(18)] public ExternalCallState? AttemptState { get; init; }
+    [Id(19)] public string? ProviderRequestId { get; init; }
+    [Id(20)] public ExternalChargePolicy? ChargePolicy { get; init; }
 }

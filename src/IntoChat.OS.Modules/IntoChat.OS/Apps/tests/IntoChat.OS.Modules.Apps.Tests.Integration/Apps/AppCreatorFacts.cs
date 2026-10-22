@@ -32,6 +32,37 @@ public sealed class AppCreatorFacts
 
     [Trait("host", "own")]
     [Fact]
+    public async Task BuilderCanNarrowATruncatedCatalogBeforeWritingATypedCall()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new CreatorSandbox { Truncate = true };
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct, sandbox);
+        const string typedCall = """
+            await using var brain = await IntoChatOSClient.ConnectAsync(args);
+            await foreach (var request in brain.On(brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!), "ask", brain.Stopping))
+            { await brain.Get<Fixture.IReader>("reader").Read(new Fixture.Request(RequiredCursor: "next")); }
+            """;
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder,
+            FakeReply.Tool("read_contracts", """{"modules":["fixture"]}"""),
+            FakeReply.Tool("read_contract_detail", """{"moduleId":"fixture","contractName":"Fixture.IReader","methodName":"Read"}"""),
+            Built(typedCall, "data"));
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var client = brain.Services.GetRequiredService<IIntoChatOS>();
+        await creator.Author(client, Brain, null, "Read a typed request.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+        await creator.Implement(client, IApp.Key(Brain, "shouter"), null, ct);
+        Assert.Equal(AppStatus.Live, (await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct)).Status);
+        Assert.Contains("truncated", model.Requests(Builder)[1].ToString(), StringComparison.Ordinal);
+        Assert.Contains("RequiredCursor", model.Requests(Builder)[2].ToString(), StringComparison.Ordinal);
+        Assert.Equal(("fixture", "Fixture.IReader", "Read"), Assert.Single(sandbox.Details));
+        Assert.Equal(typedCall, (await app.Read()).Files["synapses/shout.cs"]);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task AuthorAndBuilderPreserveTheDeclaredTitle()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -473,6 +504,9 @@ public sealed class AppCreatorFacts
         public string AuthoringDescription => "csharp uses sandbox contracts.";
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
+        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
+            => ReadContracts([moduleId], cancellationToken);
+
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
@@ -498,6 +532,9 @@ public sealed class AppCreatorFacts
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
+        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
+            => ReadContracts([moduleId], cancellationToken);
+
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public async Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
@@ -510,12 +547,20 @@ public sealed class AppCreatorFacts
 
     private sealed class CreatorSandbox : IScriptSandbox
     {
+        public bool Truncate { get; init; }
+        public System.Collections.Concurrent.ConcurrentQueue<(string Module, string Contract, string? Method)> Details { get; } = new();
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
+        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
+        {
+            Details.Enqueue((moduleId, contractName, methodName));
+            return Task.FromResult(new ScriptContractCatalog([new("fixture")], ["Fixture.IReader { Task<Result> Read(Request request); } class Request { public Request(string RequiredCursor); } class Result { public string Value { get; init; } }"], ""));
+        }
+
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
-            => Task.FromResult(new ScriptContractCatalog([], [], ""));
+            => Task.FromResult(new ScriptContractCatalog([], [], "", Truncated: Truncate));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken) => Task.FromResult(new ScriptCompilationCheck(true, []));
     }
 }

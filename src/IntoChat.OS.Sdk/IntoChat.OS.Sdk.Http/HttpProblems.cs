@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IntoChat.OS.Sdk.Validation;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Sdk.Http;
@@ -19,9 +20,36 @@ public static class HttpProblems
     public static IResult RateLimited(DateTimeOffset? retryAt) =>
         Results.Json(new { code = RateLimitedCode, retryAt }, statusCode: StatusCodes.Status429TooManyRequests);
 
-    public static async Task<(T? Body, IResult? Failure)> ReadAsync<T>(HttpRequest request, int maxBodyBytes = MaxBodyBytes) where T : class
+    public static IResult Validation(ValidationIssue[] issues)
+    {
+        ArgumentNullException.ThrowIfNull(issues);
+        return Results.Json(new { code = RequestInvalid, issues }, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    public static Task<(T? Body, IResult? Failure)> ReadAsync<T>(HttpRequest request, int maxBodyBytes = MaxBodyBytes) where T : class
+        => ReadCoreAsync<T>(request, maxBodyBytes, CancellationToken.None);
+
+    public static async Task<(T? Body, IResult? Failure)> ReadValidatedAsync<T>(HttpRequest request,
+        IModuleValidator<T> validator, int maxBodyBytes = MaxBodyBytes, CancellationToken cancellationToken = default) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(validator);
+        var (body, failure) = await ReadCoreAsync<T>(request, maxBodyBytes, cancellationToken);
+        if (failure is not null) { return (null, failure); }
+        cancellationToken.ThrowIfCancellationRequested();
+        request.HttpContext.RequestAborted.ThrowIfCancellationRequested();
+        var issues = ModuleValidation.Validate(body!, validator);
+        return issues.Length == 0 ? (body, null) : (null, Validation(issues));
+    }
+
+    private static async Task<(T? Body, IResult? Failure)> ReadCoreAsync<T>(HttpRequest request,
+        int maxBodyBytes, CancellationToken cancellationToken) where T : class
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBodyBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(maxBodyBytes, Array.MaxLength);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, request.HttpContext.RequestAborted);
+        var token = linked.Token;
+        token.ThrowIfCancellationRequested();
         if (!request.HasJsonContentType())
         {
             return (null, Results.StatusCode(StatusCodes.Status415UnsupportedMediaType));
@@ -31,7 +59,7 @@ public static class HttpProblems
         var length = 0;
         while (length < buffer.Length)
         {
-            var read = await request.Body.ReadAsync(buffer.AsMemory(length), request.HttpContext.RequestAborted);
+            var read = await request.Body.ReadAsync(buffer.AsMemory(length), token);
             if (read == 0)
             {
                 break;
@@ -45,6 +73,7 @@ public static class HttpProblems
             return (null, Results.StatusCode(StatusCodes.Status413PayloadTooLarge));
         }
 
+        token.ThrowIfCancellationRequested();
         try
         {
             return JsonSerializer.Deserialize<T>(buffer.AsSpan(0, length), Json) is { } body ? (body, null) : (null, BadRequest(RequestInvalid));

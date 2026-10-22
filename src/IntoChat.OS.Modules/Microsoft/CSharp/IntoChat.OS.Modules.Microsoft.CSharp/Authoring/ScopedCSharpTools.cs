@@ -19,6 +19,10 @@ public sealed class ScopedCSharpTools(IIntoChatOS brain, IKernelView kernel, CSh
     [McpServerTool(Name = "csharp_contracts"), Description("Discover installed module IDs, neuron contracts with their signals and an example single-file C# app. Pass modules=[] first, then select exact returned IDs (for example time and flutter).")]
     public Task<CSharpContractCatalogSnapshot> Contracts(string[] modules, CancellationToken ct) => RequireModule().Read(modules, ct);
 
+    [McpServerTool(Name = "csharp_contract_detail"), Description("Read one installed contract and its complete request/result declarations. Use exact moduleId and contractName from discovery; pass methodName=null for the contract, or a method name to narrow a truncated result. Never author a call from an omitted schema.")]
+    public Task<CSharpContractCatalogSnapshot> ContractDetail(string moduleId, string contractName, string? methodName, CancellationToken ct)
+        => RequireModule().ReadDetail(moduleId, contractName, methodName, ct);
+
     [McpServerTool(Name = "csharp_write"), Description("Save the full source of a single-file C# app and its readable name and purpose. The app connects with `await using var brain = await IntoChatOSClient.ConnectAsync(args);` and operates neurons through brain.Get<T>(id) and brain.On<TSignal>(neuron). Name the contracts you use with plain usings. Saving does not restart a running app; use csharp_run start.")]
     public async Task<CSharpFileView> Write(string id, string source, string? name, string? purpose, CancellationToken ct)
     {

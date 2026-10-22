@@ -121,10 +121,9 @@ public sealed class CostMeterFacts
         AssertRow(await usage.Group(UsageGrouping.App, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("apps/x"), 1_250, 1);
     }
 
-    // A metered call never waits on the brain's usage: costs arriving while its write is out share the next one, so
-    // a burst costs at most two usage writes, and once they land the totals and the recent ring hold every cost.
+    // Accounting acknowledgement waits for the durable usage projection. A held write must not be reported as complete.
     [Fact(Timeout = 60_000)]
-    public async Task ABurstOfCostsCostsAtMostTwoUsageWrites()
+    public async Task ACostWaitsForItsDurableUsageAcknowledgement()
     {
         var ct = TestContext.Current.CancellationToken;
         var storage = new HeldUsageWrites();
@@ -136,18 +135,18 @@ public sealed class CostMeterFacts
         using var meter = await brain.PersonAsync("meter", ct);
         using var caller = meter.AsCaller();
         var usage = await ActiveUsage(brain, meter.BrainId);
-        const int burst = 50;
-
         storage.HoldNextUsageWrite();
-        for (var i = 0; i < burst; i++)
-        { await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, $"c-{i}", ct); }
-        Assert.Equal(burst, (await usage.Recent(burst)).Length);
-        storage.Release();
+        var recording = Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-0", ct).AsTask();
+        try
+        {
+            await storage.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Assert.False(recording.IsCompleted);
+        }
+        finally { storage.Release(); }
+        await recording;
         await brain.DeactivateAsync(usage, ct);
-
-        Assert.InRange(storage.UsageWrites, 1, 2);
-        AssertRow(await usage.Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", burst * 1_250L, burst);
-        Assert.Equal([.. Enumerable.Range(0, burst).Reverse().Select(i => $"c-{i}")], (await usage.Recent(burst)).Select(cost => cost.CostId));
+        AssertRow(await usage.Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", 1_250, 1);
+        Assert.Equal("c-0", Assert.Single(await usage.Recent(10)).CostId);
     }
 
     [Fact]
@@ -313,6 +312,7 @@ public sealed class CostMeterFacts
         private int _usageWrites = -1;
 
         public int UsageWrites => Volatile.Read(ref _usageWrites);
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public HeldUsageWrites Over(Serializer serializer)
         {
@@ -337,7 +337,7 @@ public sealed class CostMeterFacts
         public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
         {
             var bytes = _serializer!.SerializeToArray(grainState.State);
-            if (stateName == UsageState && Volatile.Read(ref _usageWrites) >= 0 && Interlocked.Increment(ref _usageWrites) == 1) { await _release.Task; }
+            if (stateName == UsageState && Volatile.Read(ref _usageWrites) >= 0 && Interlocked.Increment(ref _usageWrites) == 1) { Started.TrySetResult(); await _release.Task; }
             _records[(stateName, grainId)] = bytes;
             (grainState.ETag, grainState.RecordExists) = ("stored", true);
         }

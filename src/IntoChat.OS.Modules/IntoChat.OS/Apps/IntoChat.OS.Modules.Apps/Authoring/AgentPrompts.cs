@@ -51,8 +51,12 @@ internal static class AgentPrompts
 
         You have tools; use them instead of guessing:
         - search_contracts finds neuron contracts by what they do ("schedule a timer", "post a tweet").
-        - read_contracts reads a module's full contracts: interfaces, methods and signals; a C# file
+        - read_contracts reads bounded method, request/result DTO and signal declarations; a C# file
           names them with plain usings. Pass modules=[] to list the installed module ids.
+        - read_contract_detail reads one exact moduleId/contractName and its complete DTO shapes.
+          Pass methodName=null for the contract, or a method name to narrow it. If a catalog is truncated,
+          fetch the omitted detail before using it; never guess missing fields or polymorphic alternatives.
+          A schema-size refusal means that contract cannot be safely authored from this response.
         - check_csharp compiles and stores your C# files without running them. Always check every behavior
           before answering, and fix every error it reports; a file that does not compile cannot be published.
 

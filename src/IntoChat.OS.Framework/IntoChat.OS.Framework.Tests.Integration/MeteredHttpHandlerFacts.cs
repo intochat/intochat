@@ -34,7 +34,7 @@ public sealed class MeteredHttpHandlerFacts
     }
 
     [Fact(Timeout = 60_000)]
-    public async Task AnIntegrationFundedCallIsBilledToTheDeployment()
+    public async Task AHeaderCannotSelectDeploymentFunding()
     {
         var ct = TestContext.Current.CancellationToken;
         var meter = new RecordingMeter();
@@ -46,7 +46,8 @@ public sealed class MeteredHttpHandlerFacts
 
         using var response = await client.SendAsync(request, ct);
 
-        Assert.Equal(Funding.Integration, Assert.Single(meter.Calls).Funding);
+        Assert.Equal(Funding.OwnConnection, Assert.Single(meter.Calls).Funding);
+        Assert.False(request.Headers.Contains(MeteredHttpHandler.IntegrationFundingHeader));
     }
 
     private static ServiceProvider Provider(RecordingMeter meter)
@@ -68,6 +69,9 @@ public sealed class MeteredHttpHandlerFacts
 
     private sealed class RecordingMeter : ICostMeter
     {
+        public ValueTask<ExternalCallHandle> BeginExternalCallAsync(ExternalCallRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask MarkExternalCallDispatchStartedAsync(ExternalCallHandle handle, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask<ExternalCallCompletion> CompleteExternalCallAsync(ExternalCallHandle handle, ExternalCallOutcome outcome, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ConcurrentQueue<Recorded> Calls { get; } = new();
 
         public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,

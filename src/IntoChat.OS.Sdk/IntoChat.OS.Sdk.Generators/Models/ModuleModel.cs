@@ -14,6 +14,12 @@ internal sealed record IntegrationModel(
 internal sealed record DiagnosticModel(string Id, string Argument, string FilePath, int Start, int Length, int Line, int Character)
     : IEquatable<DiagnosticModel>;
 
+internal sealed record DeclarationModel(string FilePath, int Start, int Length, int Line, int Character)
+    : IEquatable<DeclarationModel>;
+
+internal sealed record ExternalOperationModel(string Name, string Integration, string Unit)
+    : IEquatable<ExternalOperationModel>;
+
 internal sealed record ModuleModel(
     string? Namespace,
     string ClassName,
@@ -21,6 +27,9 @@ internal sealed record ModuleModel(
     string? ContractsAnchor,
     string? LicenseProduct,
     EquatableArray<IntegrationModel> Integrations,
+    string? PriceListType,
+    EquatableArray<ExternalOperationModel> ExternalOperations,
+    DeclarationModel Declaration,
     EquatableArray<DiagnosticModel> Diagnostics) : IEquatable<ModuleModel>;
 
 internal sealed record HostingModel(

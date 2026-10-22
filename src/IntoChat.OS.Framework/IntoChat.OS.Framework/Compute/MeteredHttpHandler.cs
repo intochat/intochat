@@ -3,25 +3,25 @@ using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Sdk.Http.Compute;
 
 namespace IntoChat.OS.Framework.Compute;
 
 // Meters every call a factory client makes: the item is "{clientName}:{method}" so the ledger can
-// group a connector's traffic. A request that carries the integration-funding header bills through
-// the deployment integration; everything else rides the payer's own connection.
+// group a connector's traffic. Funding comes from explicit module metadata on enrolled clients;
+// this fallback records personal connection traffic without inferring authority from HTTP headers.
 public sealed class MeteredHttpHandler(ICostMeter meter, string clientName, ILogger<MeteredHttpHandler>? logger = null) : DelegatingHandler
 {
     public const string IntegrationFundingHeader = "x-intochatos-funding";
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        request.Headers.Remove(IntegrationFundingHeader);
         var response = await base.SendAsync(request, cancellationToken);
-        var integration = request.Headers.TryGetValues(IntegrationFundingHeader, out var values)
-            && values.Any(value => string.Equals(value, "integration", StringComparison.OrdinalIgnoreCase));
         try
         {
             await meter.RecordAsync(CostKind.Http, $"{clientName}:{request.Method.Method}", 1m, "call",
-                integration ? Funding.Integration : Funding.OwnConnection, Guid.NewGuid().ToString("N"), cancellationToken);
+                Funding.OwnConnection, Guid.NewGuid().ToString("N"), cancellationToken);
         }
         catch (Exception exception) when (exception is not BudgetExhaustedException)
         {
@@ -40,10 +40,11 @@ public sealed class MeteredHttpHandlerFilter(IServiceProvider services) : IHttpM
 {
     public Action<HttpMessageHandlerBuilder> Configure(Action<HttpMessageHandlerBuilder> next) => builder =>
     {
-        if (services.GetService<ICostMeter>() is { } meter)
+        next(builder);
+        if (!services.GetServices<MeteredHttpClientRegistration>().Any(registration => registration.Name == builder.Name)
+            && services.GetService<ICostMeter>() is { } meter)
         {
             builder.AdditionalHandlers.Add(new MeteredHttpHandler(meter, builder.Name ?? "", services.GetService<ILogger<MeteredHttpHandler>>()));
         }
-        next(builder);
     };
 }
