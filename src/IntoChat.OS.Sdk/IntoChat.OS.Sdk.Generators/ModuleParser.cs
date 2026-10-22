@@ -35,7 +35,7 @@ internal static class ModuleParser
 
         if (diagnostics.Count > 0)
         {
-            return Failed(ns, symbol.Name, id, diagnostics);
+            return Failed(ns, symbol.Name, id, declaration, diagnostics);
         }
 
         string? anchor = null;
@@ -124,9 +124,46 @@ internal static class ModuleParser
             (secret ? owner.Secrets : owner.Settings).Add(new FieldModel(name, optional));
         }
 
+        string? priceList = null;
+        var prices = symbol.GetAttributes().Where(attribute => attribute.AttributeClass?.ToDisplayString() == "IntoChat.OS.Sdk.ModulePriceListAttribute").ToArray();
+        if (prices.Length > 1)
+        {
+            diagnostics.Add(Diagnostic("IOS0006", "Declare one price list per module.", declaration));
+        }
+        else if (prices.Length == 1)
+        {
+            var contract = context.SemanticModel.Compilation.GetTypeByMetadataName("IntoChat.OS.Framework.Compute.IPriceList");
+            if (Arg(prices[0], 0) is not INamedTypeSymbol priceType || priceType.TypeKind != TypeKind.Class || priceType.IsAbstract
+                || priceType.IsUnboundGenericType || HasTypeParameters(priceType)
+                || !context.SemanticModel.Compilation.IsSymbolAccessibleWithin(priceType, symbol)
+                || contract is null || !priceType.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, contract)))
+            {
+                diagnostics.Add(Diagnostic("IOS0005", "The price list must be an accessible, concrete, closed class implementing IPriceList.", declaration));
+            }
+            else { priceList = priceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat); }
+        }
+
+        var operations = new List<ExternalOperationModel>();
+        foreach (var attribute in symbol.GetAttributes().Where(attribute => attribute.AttributeClass?.ToDisplayString() == "IntoChat.OS.Sdk.ExternalOperationAttribute"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var name = Arg(attribute, 0) as string ?? "";
+            var integration = Arg(attribute, 1) as string ?? "";
+            var unit = Arg(attribute, 2) as string ?? "";
+            if (prices.Length == 0 || !IsCanonicalToken(name) || !IsCanonicalToken(unit) || !integrations.Any(candidate => candidate.Id == integration))
+            {
+                diagnostics.Add(Diagnostic("IOS0007", "An external operation needs a module price list, canonical name and unit, and a declared integration.", declaration));
+            }
+            else if (operations.Any(operation => operation.Name == name))
+            {
+                diagnostics.Add(Diagnostic("IOS0008", "Declare an external operation once per module, with one canonical unit.", declaration));
+            }
+            else { operations.Add(new(name, integration, unit)); }
+        }
+
         if (diagnostics.Count > 0)
         {
-            return Failed(ns, symbol.Name, id, diagnostics);
+            return Failed(ns, symbol.Name, id, declaration, diagnostics);
         }
 
         return new ModuleModel(
@@ -137,6 +174,9 @@ internal static class ModuleParser
             license,
             new EquatableArray<IntegrationModel>([.. integrations.Select(i => new IntegrationModel(
                 i.Id, i.Display, new EquatableArray<FieldModel>([.. i.Secrets]), new EquatableArray<FieldModel>([.. i.Settings])))]),
+            priceList,
+            new EquatableArray<ExternalOperationModel>([.. operations.OrderBy(operation => operation.Name, StringComparer.Ordinal)]),
+            Declaration(declaration),
             new EquatableArray<DiagnosticModel>([]));
     }
 
@@ -166,8 +206,24 @@ internal static class ModuleParser
     private static object? Arg(AttributeData attribute, int index)
         => attribute.ConstructorArguments.Length > index ? attribute.ConstructorArguments[index].Value : null;
 
-    private static ModuleModel Failed(string? ns, string name, string id, List<DiagnosticModel> diagnostics)
-        => new(ns, name, id, null, null, new EquatableArray<IntegrationModel>([]), new EquatableArray<DiagnosticModel>([.. diagnostics]));
+    private static ModuleModel Failed(string? ns, string name, string id, ClassDeclarationSyntax declaration, List<DiagnosticModel> diagnostics)
+        => new(ns, name, id, null, null, new EquatableArray<IntegrationModel>([]), null,
+            new EquatableArray<ExternalOperationModel>([]), Declaration(declaration), new EquatableArray<DiagnosticModel>([.. diagnostics]));
+
+    private static DeclarationModel Declaration(ClassDeclarationSyntax declaration)
+    {
+        var location = declaration.Identifier.GetLocation();
+        var start = location.GetLineSpan().StartLinePosition;
+        return new(location.SourceTree?.FilePath ?? "", location.SourceSpan.Start, location.SourceSpan.Length, start.Line, start.Character);
+    }
+
+    private static bool HasTypeParameters(INamedTypeSymbol type)
+        => type.TypeArguments.Any(argument => argument.TypeKind == TypeKind.TypeParameter)
+            || type.ContainingType is { } parent && HasTypeParameters(parent);
+
+    private static bool IsCanonicalToken(string value)
+        => value.Length is > 0 and <= 128 && value.All(character => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z'
+            or >= '0' and <= '9' or '.' or '_' or '-' or '/');
 
     private static string? Namespace(INamedTypeSymbol symbol)
         => symbol.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : null;

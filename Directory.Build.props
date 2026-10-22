@@ -42,6 +42,7 @@
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Aspire'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Playwright'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Identity' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Http'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Contracts.Compute'
         Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</IntoChatOSSdkPackage>
     <PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>

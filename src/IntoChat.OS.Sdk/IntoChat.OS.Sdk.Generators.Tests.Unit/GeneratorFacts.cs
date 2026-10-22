@@ -15,34 +15,23 @@ public sealed class GeneratorFacts
     private static readonly string[] OrleansMarkers = ["GenerateSerializer", "Alias(", "IGrainWith", "[Id("];
 
     private static void Verify(string name, string body)
+        => VerifySources(name, [Source(body)]);
+
+    private static void VerifySources(string name, string[] sources)
     {
-        var compilation = GeneratorHarness.Compile(Source(body));
+        var compilation = GeneratorHarness.Compile(sources);
         var driver = GeneratorHarness.CreateDriver().RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics, TestContext.Current.CancellationToken);
         GeneratorHarness.AssertNoErrors(output, diagnostics);
         var text = GeneratorHarness.Render(driver);
 
         // A second, independent run over the same input must produce identical bytes.
-        var again = GeneratorHarness.Render(GeneratorHarness.CreateDriver().RunGenerators(GeneratorHarness.Compile(Source(body)), TestContext.Current.CancellationToken));
+        var again = GeneratorHarness.Render(GeneratorHarness.CreateDriver().RunGenerators(GeneratorHarness.Compile(sources), TestContext.Current.CancellationToken));
         Assert.Equal(text, again);
         GeneratorHarness.AssertGolden(Path.Combine(GeneratorHarness.GoldenDirectory(), name + ".g.cs"), text);
     }
 
     [Fact]
-    public void SampleModule() => Verify("SampleModule", """
-        [Module("sample")]
-        [Integration("sample", "Sample")]
-        [Secret("ApiKey")]
-        public sealed partial class SampleModule : Module<SampleOptions>
-        {
-            partial void OnConfigure(IModuleServices services) => services.Services.ToString();
-        }
-
-        public sealed class SampleOptions : IModuleOptions
-        {
-            [Setting] public string Region { get; init; } = "eu";
-            public void Validate() { }
-        }
-        """);
+    public void SampleModule() => VerifySources("SampleModule", GeneratorHarness.SampleSources());
 
     [Fact]
     public void Minimal() => Verify("Minimal", """

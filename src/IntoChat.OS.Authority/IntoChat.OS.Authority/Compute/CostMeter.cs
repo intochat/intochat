@@ -3,6 +3,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Sdk.Compute;
 
 namespace IntoChat.OS.Authority.Compute;
 
@@ -14,34 +16,72 @@ internal sealed class CostMeter(
     IEnumerable<IPriceList> priceLists,
     AuthorityNeurons neurons,
     IOptions<FeeOptions> fees,
-    ILogger<CostMeter> logger)
+    ILogger<CostMeter> logger,
+    ModulePriceListRegistry registry,
+    IServiceProvider services)
     : ICostMeter
 {
+    public async ValueTask<ExternalCallHandle> BeginExternalCallAsync(ExternalCallRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var trace = TraceContext.Current ?? throw new UntrustedCallerException("External calls require a current trusted trace.");
+        var caller = CallerContextStamper.Require();
+        if (!CallerContextStamper.IsTrusted(caller) || caller.BrainId != trace.BrainId || caller.AccountId != trace.PayerAccountId)
+        { throw new UntrustedCallerException("External trace attribution must match the stamped caller."); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.CostId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.InvocationId);
+        if (request.CostId.Length > 128 || request.InvocationId.Length > 128 || request.Quantity <= 0) { throw new ArgumentException("Invalid external call identity or quantity.", nameof(request)); }
+        var descriptor = registry.GetOperation(request.Operation);
+        if (descriptor.Unit != request.Unit) { throw new ArgumentException("External quantity unit does not match its declaration.", nameof(request)); }
+        var owner = registry.Resolve(request.Operation);
+        var list = (IPriceList)services.GetRequiredService(owner.PriceListType);
+        var quote = list.Quote(CostKind.ExternalProvider, request.Operation, descriptor.Unit);
+        if (quote.Unit != descriptor.Unit || quote.MicrosPerUnit < 0 || quote.ChargePolicy == ExternalChargePolicy.Unspecified || !Enum.IsDefined(quote.ChargePolicy))
+        { throw new InvalidOperationException("External operation has an invalid price quote."); }
+        var fee = fees.Value.PlatformPercent;
+        if (fee < 0) { throw new InvalidOperationException("Platform fee must be nonnegative."); }
+        ValidateFunding(request.Funding);
+        var maximumList = quote.MicrosPerUnit is { } rate ? checked((long)Math.Ceiling(rate * request.Quantity)) : (long?)null;
+        var maximum = quote.ChargePolicy == ExternalChargePolicy.Informational ? 0 : Charged(maximumList ?? 0, request.Funding, fee);
+        return await neurons.Compute(trace.BrainId).Begin(new(trace, request, quote, fee, maximumList, maximum));
+    }
+
+    public async ValueTask MarkExternalCallDispatchStartedAsync(ExternalCallHandle handle, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await HandleOwner(handle).MarkDispatchStarted(handle);
+    }
+
+    public async ValueTask<ExternalCallCompletion> CompleteExternalCallAsync(ExternalCallHandle handle, ExternalCallOutcome outcome, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await HandleOwner(handle).Observe(handle, outcome);
+    }
+
+    private IBrainComputeGrain HandleOwner(ExternalCallHandle handle)
+    {
+        var brain = BrainComputeGrain.HandleBrain(handle);
+        if (TraceContext.Current is { } current && current.BrainId != brain) { throw new UnauthorizedAccessException("External handle belongs to another brain."); }
+        return neurons.Compute(brain);
+    }
+
     public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
         string costId, CancellationToken cancellationToken, CostSubject? subject = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(item);
         ArgumentException.ThrowIfNullOrWhiteSpace(unit);
         ArgumentException.ThrowIfNullOrWhiteSpace(costId);
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(quantity);
+        ValidateFunding(funding);
         var current = TraceContext.Current;
         var origin = current?.Origin.ToString() ?? "untraced";
         var trace = current ?? BeginUntraced();
 
-        long micros;
-        if (Price(kind, item, quantity) is { } listMicros)
-        {
-            micros = funding.Kind switch
-            {
-                FundingKind.Local or FundingKind.OwnConnection => 0,
-                FundingKind.Integration or FundingKind.Circle => listMicros + FeeOn(listMicros),
-                _ => throw new ArgumentOutOfRangeException(nameof(funding)),
-            };
-        }
-        else
-        {
-            micros = 0;
-            logger.LogDebug("Unpriced {Kind} {Item}", kind, item);
-        }
+        var listMicros = Price(kind, item, quantity);
+        var micros = Charged(listMicros ?? 0, funding, fees.Value.PlatformPercent);
+        if (listMicros is null) { logger.LogDebug("Unpriced {Kind} {Item}", kind, item); }
 
         var cost = new Cost
         {
@@ -56,30 +96,12 @@ internal sealed class CostMeter(
             App = subject?.App,
             Neuron = subject?.Neuron,
             At = DateTimeOffset.UtcNow,
+            ListPriceMicros = listMicros,
+            PricingStatus = listMicros is null ? PricingStatus.Unpriced : PricingStatus.Known,
+            FundingKind = funding.Kind,
         };
 
-        // A redelivered cost is charged once (the ledger dedups on TraceId/CostId); only a fresh charge counts as usage.
-        // The budget and the charge hold the call; the usage record is one-way and never does.
-        var fresh = true;
-        if (micros > 0)
-        {
-            var payer = trace.PayerAccountId;
-            if (trace.BudgetMicros is { } budget
-                && !await neurons.TraceBudget(trace.TraceId).TrySpend(micros, budget))
-            { throw new BudgetExhaustedException(trace.TraceId); }
-            if (funding.Kind == FundingKind.Circle) { payer = await DrawFromCircle(funding.CircleKey!, trace.PayerAccountId, micros, trace.TraceId); }
-            fresh = await neurons.Ledger(payer).Charge(cost);
-        }
-        if (fresh) { await neurons.Usage(trace.BrainId).Add(cost, origin); }
-        return cost;
-    }
-
-    // A circle-funded call is paid by the circle's creator, within the circle share of the creator's budget; the
-    // spender is a member account (T26-2, T26-11).
-    private async Task<string> DrawFromCircle(string circleKey, string spenderAccount, long micros, string traceId)
-    {
-        return await neurons.CircleShare(circleKey).TryDraw(spenderAccount, micros)
-            ?? throw new BudgetExhaustedException(traceId);
+        return await neurons.Compute(trace.BrainId).Record(trace, cost, funding, origin);
     }
 
     private long? Price(CostKind kind, string item, decimal quantity)
@@ -87,12 +109,26 @@ internal sealed class CostMeter(
         foreach (var list in priceLists)
         {
             if (list.MicrosPerUnit(kind, item) is { } microsPerUnit)
-            { return (long)Math.Ceiling(microsPerUnit * quantity); }
+            {
+                if (microsPerUnit < 0) { throw new InvalidOperationException("Price must be nonnegative."); }
+                return checked((long)Math.Ceiling(microsPerUnit * quantity));
+            }
         }
         return null;
     }
 
-    private long FeeOn(long listMicros) => (long)Math.Ceiling(listMicros * (decimal)fees.Value.PlatformPercent / 100);
+    private static long Charged(long listMicros, Funding funding, int percent)
+    {
+        if (percent < 0) { throw new InvalidOperationException("Platform fee must be nonnegative."); }
+        return funding.Kind is FundingKind.Local or FundingKind.OwnConnection ? 0
+            : checked(listMicros + (long)Math.Ceiling(listMicros * (decimal)percent / 100));
+    }
+
+    private static void ValidateFunding(Funding funding)
+    {
+        if (!Enum.IsDefined(funding.Kind) || funding.Kind == FundingKind.Circle && string.IsNullOrWhiteSpace(funding.CircleKey))
+        { throw new ArgumentException("Invalid funding selection.", nameof(funding)); }
+    }
 
     private static Trace BeginUntraced()
     {

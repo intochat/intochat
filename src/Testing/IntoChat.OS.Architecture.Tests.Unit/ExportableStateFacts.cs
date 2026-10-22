@@ -13,7 +13,7 @@ public sealed class ExportableStateFacts
     private sealed record Decision(string Type, string State, string Reason);
     private sealed record Baseline(string Type, string State, bool ExportedToday);
 
-    private static readonly string[] BillingStates = ["LedgerState", "UsageState", "TraceBudgetState", "IntentUsageStorage"];
+    private static readonly string[] BillingStates = ["LedgerState", "UsageState", "TraceBudgetState", "IntentUsageStorage", "BrainComputeState", "TraceJournalState"];
 
     private static (Type State, string Name)[] Persisted() => ProductionArchitecture.Types
         .Where(type => !type.IsAbstract && !type.ContainsGenericParameters)

@@ -14,6 +14,11 @@ internal interface ICircleShareGrain : IGrainWithStringKey
     Task<string?> TryDraw(string member, long micros);
     // What ICircleShares.Configure does once the guard has accepted the caller; unreachable outside Platform.
     Task Apply(int percent, string[] members);
+    Task<string?> ReadOwner();
+    Task<string?> TryReserve(ReservationKey key, string member, long maximumMicros);
+    Task Settle(ReservationKey key, long actualMicros);
+    Task Release(ReservationKey key);
+    Task Acknowledge(ReservationKey key);
 }
 
 [GrainType("circle-share")]
@@ -23,6 +28,59 @@ internal sealed class CircleShareGrain(
     : Grain, ICircleShares, ICircleShareGrain
 {
     private AuthorityNeurons Platform => new(GrainFactory);
+    public Task<string?> ReadOwner() => Task.FromResult(store.State.OwnerAccountId);
+
+    public async Task<string?> TryReserve(ReservationKey key, string member, long maximumMicros)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumMicros);
+        if (store.State.Reservations.FirstOrDefault(value => value.Key == key) is { } previous)
+        {
+            if (previous.MaximumMicros != maximumMicros || previous.Member != member) { throw new InvalidOperationException("Conflicting circle reservation."); }
+            await store.WriteStateAsync();
+            return previous.Payer;
+        }
+        if (store.State.OwnerAccountId is not { } owner) { return null; }
+        if (!store.State.Members.Contains(member)) { throw new UnauthorizedAccessException("Account is not a circle member."); }
+        ResetDay();
+        var balance = await Platform.Ledger(owner).Balance();
+        var held = store.State.Reservations.Where(value => value.SettledMicros is null).Sum(value => value.MaximumMicros);
+        var cap = checked(Math.Max(0, balance) * store.State.Percent / 100 - store.State.DrawnMicros - held);
+        if (maximumMicros > cap) { return null; }
+        store.State.Reservations = [.. store.State.Reservations, new(key, maximumMicros, Payer: owner, Member: member)];
+        await store.WriteStateAsync();
+        return owner;
+    }
+
+    public async Task Settle(ReservationKey key, long actualMicros)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(actualMicros);
+        var index = Array.FindIndex(store.State.Reservations, value => value.Key == key);
+        if (index < 0) { throw new InvalidOperationException("Missing circle reservation."); }
+        var reservation = store.State.Reservations[index];
+        if (actualMicros > reservation.MaximumMicros || reservation.SettledMicros is { } settled && settled != actualMicros)
+        { throw new InvalidOperationException("Conflicting circle settlement."); }
+        if (reservation.SettledMicros is null)
+        {
+            ResetDay();
+            store.State.DrawnMicros = checked(store.State.DrawnMicros + actualMicros);
+            store.State.Reservations[index] = reservation with { SettledMicros = actualMicros };
+        }
+        await store.WriteStateAsync();
+    }
+
+    public Task Release(ReservationKey key) => Settle(key, 0);
+    public async Task Acknowledge(ReservationKey key)
+    {
+        if (store.State.Reservations.Any(value => value.Key == key && value.SettledMicros is null)) { throw new InvalidOperationException("Cannot forget an unsettled circle hold."); }
+        store.State.Reservations = [.. store.State.Reservations.Where(value => value.Key != key)];
+        await store.WriteStateAsync();
+    }
+
+    private void ResetDay()
+    {
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber;
+        if (store.State.Day != today) { store.State.Day = today; store.State.DrawnMicros = 0; }
+    }
 
     public Task Configure(int percent, string[] members) => Apply(percent, members);
 
@@ -47,7 +105,8 @@ internal sealed class CircleShareGrain(
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber;
         if (store.State.Day != today) { store.State.Day = today; store.State.DrawnMicros = 0; }
         var balance = await Platform.Ledger(owner).Balance();
-        var cap = Math.Max(0, balance) * store.State.Percent / 100 - store.State.DrawnMicros;
+        var cap = checked(Math.Max(0, balance) * store.State.Percent / 100 - store.State.DrawnMicros
+            - store.State.Reservations.Where(value => value.SettledMicros is null).Sum(value => value.MaximumMicros));
         if (micros > cap) { return null; }
         store.State.DrawnMicros += micros;
         await store.WriteStateAsync();
@@ -80,4 +139,5 @@ internal sealed class CircleShareState
     [Id(2)] public long DrawnMicros { get; set; }
     [Id(3)] public string[] Members { get; set; } = [];
     [Id(4)] public int Day { get; set; }
+    [Id(5)] public FundingReservation[] Reservations { get; set; } = [];
 }

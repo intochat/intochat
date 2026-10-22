@@ -9,7 +9,10 @@ namespace IntoChat.OS.Authority.Compute;
 internal interface ILedgerGrain : IGrainWithStringKey
 {
     Task<long> Balance();
+    Task<bool> ContainsLegacyCharge(string traceId, string costId);
     Task<bool> Charge(Cost cost);
+    Task<bool> Settle(ReservationKey key, Cost cost);
+    Task AcknowledgeSettlement(ReservationKey key);
     Task<bool> Credit(string entryId, long micros, string reason);
     Task<LedgerEntry[]> Entries(int take);
     Task<bool> Verify();

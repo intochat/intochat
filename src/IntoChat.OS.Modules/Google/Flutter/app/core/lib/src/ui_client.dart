@@ -753,6 +753,31 @@ final class IntoChatOSUiClient {
     ];
   }
 
+  Future<ComputeTracePage> readComputeTrace(
+    String brainId,
+    String traceId, {
+    int take = 100,
+    String? continuationToken,
+  }) async {
+    if (take < 1 || take > 500) {
+      throw ArgumentError.value(take, 'take', 'Must be between 1 and 500.');
+    }
+    final query = Uri(
+      queryParameters: {
+        'take': '$take',
+        'continuationToken': ?continuationToken,
+      },
+    ).query;
+    return ComputeTracePage.fromJson(
+      Map<String, dynamic>.from(
+        await _tableRequest(
+          'GET',
+          '/brains/${Uri.encodeComponent(brainId)}/compute/traces/${Uri.encodeComponent(traceId)}?$query',
+        ) as Map,
+      ),
+    );
+  }
+
   Future<void> postUi(String path, {Map<String, Object?>? body}) async {
     await _request(
       'POST',

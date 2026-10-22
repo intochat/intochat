@@ -14,4 +14,5 @@ internal sealed class LedgerState
     // entries, so Verify still proves the chain and the balance over a bounded payload.
     [Id(4)] public string AnchorHash { get; set; } = "";
     [Id(5)] public long AnchorBalance { get; set; }
+    [Id(6)] public LedgerSettlement[] UnacknowledgedSettlements { get; set; } = [];
 }

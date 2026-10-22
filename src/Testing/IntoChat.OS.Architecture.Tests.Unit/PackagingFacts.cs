@@ -11,7 +11,7 @@ public sealed partial class PackagingFacts
     [
         "IntoChat.OS", "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Aspire.Client",
         "IntoChat.OS.Testing", "IntoChat.OS.Testing.Aspire", "IntoChat.OS.Aspire.Testing", "IntoChat.OS.Testing.Playwright",
-        "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http",
+        "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Contracts.Compute",
     ];
 
     [GeneratedRegex(@"'\$\(MSBuildProjectName\)' == '([^']+)'", RegexOptions.CultureInvariant)]

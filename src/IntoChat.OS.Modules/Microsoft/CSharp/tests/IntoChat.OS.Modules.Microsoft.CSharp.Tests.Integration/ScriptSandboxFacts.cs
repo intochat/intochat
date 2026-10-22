@@ -17,6 +17,10 @@ public sealed class ScriptSandboxFacts(CSharpHost host)
         Assert.True(sandbox.CanRun);
         var contracts = await AsOwner(brain, () => sandbox.ReadContracts(["csharp"], ct));
         Assert.Contains(contracts.Contracts, line => line.Contains(typeof(ICSharpFile).FullName!, StringComparison.Ordinal));
+        var detail = await AsOwner(brain, () => sandbox.ReadContractDetail("csharp", typeof(ICSharpFile).FullName!, nameof(ICSharpFile.Inspect), ct));
+        Assert.False(detail.Truncated);
+        Assert.Contains("CSharpFileSnapshot(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+        Assert.DoesNotContain("Write(", detail.Contracts[0], StringComparison.Ordinal);
         var invalid = await sandbox.Compile(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(doesNotExist);" }, ct);
         Assert.False(invalid.Success);
         Assert.Contains(invalid.Errors, error => error.Id == "CS0103" && error.File == "app.cs");

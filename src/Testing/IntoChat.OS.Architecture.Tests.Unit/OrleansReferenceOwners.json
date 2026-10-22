@@ -40,6 +40,10 @@
   "IntoChat.OS.Client.Orleans.Tests.Integration": [
     "Microsoft.Orleans.Sdk"
   ],
+  "IntoChat.OS.Contracts.Compute": [
+    "Microsoft.Orleans.Core.Abstractions",
+    "Microsoft.Orleans.Sdk"
+  ],
   "IntoChat.OS.Framework": [
     "Microsoft.Orleans.Server"
   ],

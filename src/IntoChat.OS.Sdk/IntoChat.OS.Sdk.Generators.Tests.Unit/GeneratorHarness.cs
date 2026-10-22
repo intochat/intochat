@@ -15,6 +15,7 @@ internal static class GeneratorHarness
         var extra = new[]
         {
             typeof(IntoChat.OS.Sdk.ModuleAttribute).Assembly.Location,
+            typeof(IntoChat.OS.Sdk.Http.HttpProblems).Assembly.Location,
             typeof(IntoChat.OS.Framework.Modules.Module).Assembly.Location,
             typeof(Orleans.Hosting.ISiloBuilder).Assembly.Location,
             typeof(IntoChat.OS.Aspire.Hosting.IIntoChatOSModuleHosting).Assembly.Location,
@@ -41,6 +42,9 @@ internal static class GeneratorHarness
 
     // Goldens are copied beside the test assembly, so reads never depend on source paths (deterministic builds map them to /_/).
     public static string GoldenDirectory() => Path.Combine(AppContext.BaseDirectory, "Goldens");
+
+    public static string[] SampleSources() => Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "SampleSources"), "*.cs")
+        .Order(StringComparer.Ordinal).Select(File.ReadAllText).ToArray();
 
     // Regeneration writes back to the source tree, found by walking up to the solution file.
     private static string SourceGoldenDirectory()

@@ -11,7 +11,7 @@ public sealed class BoundaryFacts
     // IntoChat.OS.Contracts.Configuration is innermost: configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
+        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
         "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 

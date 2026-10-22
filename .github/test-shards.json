@@ -30,6 +30,7 @@
       "**/IntoChat.OS.Runtime.InMemory.Tests.Unit.dll",
       "**/IntoChat.OS.Sdk.Generators.Tests.Unit.dll",
       "**/IntoChat.OS.Sdk.Http.Tests.Unit.dll",
+      "**/IntoChat.OS.Sdk.Tests.Unit.dll",
       "**/*.Tests.Hosting.dll"
     ],
     "integration-a": [

@@ -1,6 +1,7 @@
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Validation;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Framework.Configuration;
@@ -16,8 +17,8 @@ public static class ModuleOptionsSerialization
         where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(options);
-        options.Validate();
         var module = new TModule();
+        Validate(options, module.Id.ToString());
         return new ModuleDefinition(module, FlattenOptions(options, module.Id.ToString()));
     }
 
@@ -30,9 +31,24 @@ public static class ModuleOptionsSerialization
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var options = configuration.GetSection(OptionsKey(moduleName)).Get<TOptions>() ?? new TOptions();
-        ValidateRequired(options, moduleName);
-        options.Validate();
+        Validate(options, moduleName);
         return options;
+    }
+
+    public static void Validate<TOptions>(TOptions options, string moduleName) where TOptions : class, IModuleOptions
+    {
+        ValidateRequired(options, moduleName);
+        try { options.Validate(); }
+        catch (ModuleValidationException failure)
+        {
+            var prefix = OptionsKey(moduleName);
+            throw new ModuleValidationException([.. failure.Issues.Select(issue => issue with
+            {
+                Path = issue.Path.Length == 0 ? prefix
+                    : issue.Path.Equals(prefix, StringComparison.Ordinal) || issue.Path.StartsWith(prefix + ":", StringComparison.Ordinal)
+                        ? issue.Path : prefix + ":" + issue.Path,
+            })]);
+        }
     }
 
     // Eager, at bind time: a [Setting(Required = true)] member that is null, default or blank fails
@@ -40,6 +56,7 @@ public static class ModuleOptionsSerialization
     public static void ValidateRequired<TOptions>(TOptions options, string moduleName) where TOptions : class
     {
         ArgumentNullException.ThrowIfNull(options);
+        List<ValidationIssue> issues = [];
         foreach (var property in typeof(TOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (property.GetCustomAttribute<SettingAttribute>() is not { Required: true }) { continue; }
@@ -49,10 +66,10 @@ public static class ModuleOptionsSerialization
                 || property.PropertyType.IsValueType && value.Equals(Activator.CreateInstance(property.PropertyType));
             if (missing)
             {
-                throw new InvalidOperationException(
-                    $"Required setting '{OptionsKey(moduleName)}:{property.Name}' is not configured.");
+                issues.Add(new($"{OptionsKey(moduleName)}:{property.Name}", "required", "A value is required."));
             }
         }
+        if (issues.Count != 0) { throw new ModuleValidationException([.. issues]); }
     }
 
     internal static bool IsOptionsKey(string key)

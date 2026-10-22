@@ -6,4 +6,10 @@ namespace IntoChat.OS.Authority.Compute;
 internal interface ITraceBudgetGrain : IGrainWithStringKey
 {
     Task<bool> TrySpend(long micros, long budget);
+    Task<long> ReadSpent();
+    Task<bool> TryReserve(ReservationKey key, long maximumMicros, long budget);
+    Task Settle(ReservationKey key, long actualMicros);
+    Task Release(ReservationKey key);
+    Task Acknowledge(ReservationKey key);
+    Task Expire();
 }

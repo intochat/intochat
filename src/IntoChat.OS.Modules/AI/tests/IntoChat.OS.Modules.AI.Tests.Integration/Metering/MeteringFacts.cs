@@ -142,6 +142,9 @@ public sealed class MeteringFacts(AIHost host)
 
     private sealed class RecordingMeter : ICostMeter
     {
+        public ValueTask<ExternalCallHandle> BeginExternalCallAsync(ExternalCallRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask MarkExternalCallDispatchStartedAsync(ExternalCallHandle handle, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask<ExternalCallCompletion> CompleteExternalCallAsync(ExternalCallHandle handle, ExternalCallOutcome outcome, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ConcurrentQueue<RecordedCost> Calls { get; } = new();
 
         public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
@@ -163,6 +166,9 @@ public sealed class MeteringFacts(AIHost host)
 
     private sealed class BarrierMeter(int rows) : ICostMeter
     {
+        public ValueTask<ExternalCallHandle> BeginExternalCallAsync(ExternalCallRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask MarkExternalCallDispatchStartedAsync(ExternalCallHandle handle, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask<ExternalCallCompletion> CompleteExternalCallAsync(ExternalCallHandle handle, ExternalCallOutcome outcome, CancellationToken cancellationToken) => throw new NotSupportedException();
         private readonly TaskCompletionSource _all = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _started;
 

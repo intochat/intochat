@@ -26,6 +26,13 @@ public sealed class AuthoringCompositionFacts
         Assert.True(off.Services.GetRequiredService<CSharpToolService>().CanRun);
         Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Apps.IScriptSandbox>());
         Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Edge.RuntimeEdge>());
+        Assert.Contains(CSharpToolService.Tools, tool => tool.Name == "csharp_contract_detail");
+        using (on.Owner.AsCaller())
+        {
+            var detail = await on.Services.GetRequiredService<CSharpToolService>().ForScope(on.Owner.BrainId).ContractDetail(
+                "csharp", typeof(IntoChat.OS.Microsoft.CSharp.Files.ICSharpFile).FullName!, "Inspect", ct);
+            Assert.Contains("CSharpFileSnapshot(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+        }
     }
 
     [Fact]

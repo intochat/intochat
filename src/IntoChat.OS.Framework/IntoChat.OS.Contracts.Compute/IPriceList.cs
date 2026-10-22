@@ -5,4 +5,11 @@ namespace IntoChat.OS.Framework.Compute;
 public interface IPriceList
 {
     long? MicrosPerUnit(CostKind kind, string item);
+
+    PriceQuote Quote(CostKind kind, string item, string unit) => new()
+    {
+        Unit = unit,
+        MicrosPerUnit = MicrosPerUnit(kind, item),
+        ChargePolicy = ExternalChargePolicy.Unspecified,
+    };
 }

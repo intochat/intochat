@@ -19,6 +19,8 @@ public sealed class SdkReferenceClosureFacts
         Assert.Equal("IntoChat.OS.Sdk", typeof(Module<>).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk", typeof(ModuleServices).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk", typeof(IModuleServices).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Sdk", typeof(IntoChat.OS.Sdk.Validation.ValidationIssue).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Contracts.Compute", typeof(IntoChat.OS.Framework.Compute.ICostMeter).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk.Identity", typeof(IntoChat.OS.Sdk.Identity.IPrivilegedServices).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk.Identity", typeof(IntoChat.OS.Framework.Platform.Identity.ISessionIssuer).Assembly.GetName().Name);
     }
@@ -26,7 +28,7 @@ public sealed class SdkReferenceClosureFacts
     [Fact]
     public void SdkClosureExcludesTheRuntimeAndThePlatform()
     {
-        var roots = new[] { "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.SampleModule" };
+        var roots = new[] { "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Sdk.SampleModule" };
         var loaded = roots.Select(Assembly.Load).ToArray();
         // Non-vacuous: the sample module is really in the walk, not silently skipped.
         Assert.Contains("IntoChat.OS.Sdk.SampleModule", loaded.Select(assembly => assembly.GetName().Name));
@@ -45,6 +47,8 @@ public sealed class SdkReferenceClosureFacts
             || name == "IntoChat.OS.Authority" || name.StartsWith("IntoChat.OS.Authority.", StringComparison.Ordinal)).Order().ToArray();
         Assert.True(leaks.Length == 0, "The Sdk closure reaches: " + string.Join(", ", leaks));
         Assert.Contains("IntoChat.OS.Contracts.Configuration", seen);
+        Assert.Contains("IntoChat.OS.Contracts.Compute", seen);
+        Assert.Contains("IntoChat.OS.Sdk.Http", seen);
     }
 
     [Fact]

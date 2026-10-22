@@ -99,7 +99,7 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = new RecordingBrain();
         var service = new CSharpToolService(brain, null!,
-            new CSharpContractDiscovery(null!));
+            new CSharpContractDiscovery(null!, new IntoChat.OS.Framework.Modules.ModuleInventory([])));
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.ForScope("scope").Write("timer", "Console.WriteLine(1);", new string('n', 121), null, ct));
 

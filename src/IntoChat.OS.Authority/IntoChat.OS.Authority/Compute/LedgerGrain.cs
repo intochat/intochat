@@ -28,6 +28,43 @@ internal sealed class LedgerGrain(
     private CoalescedWrites Writes => _writes ??= new(store.WriteStateAsync);
 
     public Task<long> Balance() => Task.FromResult(store.State.Balance);
+    public Task<bool> ContainsLegacyCharge(string traceId, string costId)
+        => Task.FromResult(store.State.RecentKeys.Contains($"{traceId}/{costId}", StringComparer.Ordinal));
+
+    public async Task<bool> Settle(ReservationKey key, Cost cost)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cost.Micros);
+        if (key.TraceId != cost.TraceId || key.CostId != cost.CostId) { throw new ArgumentException("Settlement identity does not match the cost."); }
+        if (store.State.UnacknowledgedSettlements.FirstOrDefault(value => value.Key == key) is { } previous)
+        {
+            if (previous.Cost with { At = default } != cost with { At = default }) { throw new InvalidOperationException("Conflicting ledger settlement."); }
+            // A preceding write may have failed after the in-memory change. Never acknowledge that change before a successful write.
+            await Writes.Save();
+            return false;
+        }
+        // An in-flight RecordAsync call may have charged through the preceding ledger API.
+        // Preserve its retained identity when that call retries through the durable coordinator.
+        var legacyId = $"{key.TraceId}/{key.CostId}";
+        if (cost.Kind != CostKind.ExternalProvider && store.State.RecentKeys.Contains(legacyId, StringComparer.Ordinal))
+        {
+            store.State.UnacknowledgedSettlements = [.. store.State.UnacknowledgedSettlements, new(key, cost)];
+            await Writes.Save();
+            return false;
+        }
+        var balance = checked(store.State.Balance - cost.Micros);
+        var entryId = key.BrainId is null ? $"{key.TraceId}/{key.CostId}" : $"{key.BrainId}/{key.TraceId}/{key.CostId}";
+        Append(entryId, -cost.Micros, $"{cost.Kind} {cost.Item}", cost.At);
+        store.State.Balance = balance;
+        store.State.UnacknowledgedSettlements = [.. store.State.UnacknowledgedSettlements, new(key, cost)];
+        await Writes.Save();
+        return true;
+    }
+
+    public async Task AcknowledgeSettlement(ReservationKey key)
+    {
+        store.State.UnacknowledgedSettlements = [.. store.State.UnacknowledgedSettlements.Where(value => value.Key != key)];
+        await Writes.Save();
+    }
 
     public async Task<bool> Charge(Cost cost)
     {

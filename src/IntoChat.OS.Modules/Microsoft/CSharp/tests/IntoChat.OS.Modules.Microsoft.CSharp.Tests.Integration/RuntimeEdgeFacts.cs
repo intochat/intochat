@@ -2,17 +2,89 @@ using System.Net;
 using System.Net.ServerSentEvents;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Microsoft.CSharp.Edge;
 using IntoChat.OS.Microsoft.CSharp.Files;
 using IntoChat.OS.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Postgres;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 public sealed class RuntimeEdgeFacts
 {
+    [Trait("host", "own")]
+    [Fact]
+    public async Task DiscoveredNestedRequestAndResultCompileAndCrossTheRealHttpEdge()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new NestedQueryProvider();
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost()).WithModule<PostgresModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
+            .ConfigureServices(services => services.AddSingleton<IPostgresProvider>(provider)).StartAsync(ct);
+        var discovery = brain.Services.GetRequiredService<CSharpContractDiscovery>();
+        using (brain.Owner.AsCaller())
+        {
+            var detail = await discovery.ReadDetail("postgres", typeof(IPostgresServer).FullName!, nameof(IPostgresServer.Query), ct);
+            var schema = Assert.Single(detail.Contracts);
+            Assert.Contains("PostgresParameter(", schema, StringComparison.Ordinal);
+            Assert.Contains("PostgresQueryResult(", schema, StringComparison.Ordinal);
+            Assert.Contains("PostgresColumn(", schema, StringComparison.Ordinal);
+            Assert.False(detail.Truncated);
+        }
+        var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
+        {
+            ["query.cs"] = """
+                using IntoChat.OS.Postgres;
+                await using var brain = await IntoChatOSClient.ConnectAsync(args);
+                var result = await brain.Get<IPostgresServer>("acc-brain/database").Query(
+                    new PostgresQuery("select $1", 7, [new PostgresParameter("message", "typed request")]));
+                Console.WriteLine(result.Columns[0].Name + ":" + result.Rows[0][0] + ":" + result.RowCount);
+                """,
+        });
+        Assert.True(compilation.Success, string.Join("; ", compilation.Errors));
+        var compiled = compilation.Assemblies["query.cs"];
+        var session = await Assigned(brain, ct);
+        // Only assembly downloads are faked. The compiled client invokes the host's real HTTP runtime edge.
+        var blobs = new FakeBrainEdge();
+        blobs.Serve(compiled);
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
+            session.Token, Fingerprint(brain), new ForwardRuntime(brain.HttpClient), ct);
+        await using var run = await BehaviorLoaderFacts.Loader(blobs).LoadAsync(connection,
+            blobs.Assignment("acc-brain/csharp/a", compiled), NullLogger.Instance, ct);
+        Assert.True(await run.Completion.WaitAsync(ct) == 0, run.Error + "\n" + run.Tail(20));
+        Assert.Contains("answer:42:1", run.Tail(10), StringComparison.Ordinal);
+        var call = Assert.Single(provider.Calls);
+        Assert.Equal(7, call.MaxRows);
+        Assert.Equal(new PostgresParameter("message", "typed request"), Assert.Single(call.Parameters));
+    }
+
+    private sealed class NestedQueryProvider : IPostgresProvider
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<(int MaxRows, PostgresParameter[] Parameters)> Calls { get; } = new();
+        public Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<PostgresParameter> parameters, CancellationToken cancellationToken)
+        {
+            Calls.Enqueue((maxRows, [.. parameters]));
+            return Task.FromResult(new PostgresQueryResult([new("answer", "int4", "number")], [["42"]], 1, false, 0));
+        }
+        public Task<PostgresSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<PostgresConnection> PingAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class ForwardRuntime(HttpClient brain) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var forwarded = new HttpRequestMessage(request.Method, request.RequestUri!.PathAndQuery) { Content = request.Content };
+            foreach (var header in request.Headers) { forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value); }
+            return brain.SendAsync(forwarded, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task AReportChecksTheSessionInItsMutationTurnWithoutAPreflightCall()

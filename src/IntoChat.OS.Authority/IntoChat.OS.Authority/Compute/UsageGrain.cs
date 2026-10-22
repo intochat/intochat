@@ -22,6 +22,41 @@ internal sealed class UsageGrain(
 
     private CoalescedWrites Writes => _writes ??= new(store.WriteStateAsync);
 
+    public async Task Apply(UsageProjection projection)
+    {
+        if (projection.Sequence <= store.State.AppliedSequence) { await Writes.Save(); return; }
+        if (projection.Sequence != store.State.AppliedSequence + 1) { throw new InvalidOperationException("Compute projection has a sequence gap."); }
+        var cost = projection.Cost;
+        var previous = projection.Previous;
+        store.State.Recent = Push([.. store.State.Recent.Where(value => value.TraceId != cost.TraceId || value.CostId != cost.CostId)], cost);
+        var day = cost.At.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        foreach (var by in Groupings)
+        {
+            var key = KeyFor(cost, by, projection.Origin);
+            var index = Array.FindIndex(store.State.Daily, value => value.Day == day && value.By == by && value.Key == key);
+            var bucket = index < 0 ? new UsageBucket(day, by, key, 0, 0) : store.State.Daily[index];
+            var next = bucket with
+            {
+                Micros = checked(bucket.Micros + cost.Micros - (previous?.Micros ?? 0)),
+                Count = checked(bucket.Count + (previous is null ? 1 : 0)),
+                KnownListPriceMicros = checked((bucket.KnownListPriceMicros ?? 0) + Known(cost) - Known(previous)),
+                UnpricedCount = (bucket.UnpricedCount ?? 0) + Unpriced(cost) - Unpriced(previous),
+                PendingCount = (bucket.PendingCount ?? 0) + Pending(cost) - Pending(previous),
+                UnknownCount = (bucket.UnknownCount ?? bucket.Count) + Unknown(cost) - Unknown(previous),
+            };
+            if (index < 0) { store.State.Daily = [.. store.State.Daily, next]; }
+            else { store.State.Daily[index] = next; }
+        }
+        store.State.AppliedSequence = projection.Sequence;
+        Prune();
+        await Writes.Save();
+    }
+
+    private static long Known(Cost? cost) => cost?.ChargePolicy == ExternalChargePolicy.Informational ? 0 : cost?.ListPriceMicros ?? 0;
+    private static long Unpriced(Cost? cost) => cost?.PricingStatus == PricingStatus.Unpriced ? 1 : 0;
+    private static long Pending(Cost? cost) => cost is not null && TraceJournalGrain.IsPending(cost) ? 1 : 0;
+    private static long Unknown(Cost? cost) => cost is not null && cost.PricingStatus is null or PricingStatus.Unknown ? 1 : 0;
+
     public Task Add(Cost cost, string origin)
     {
         ArgumentNullException.ThrowIfNull(cost);
@@ -41,15 +76,21 @@ internal sealed class UsageGrain(
     {
         if (take < 0) { throw new ArgumentException("take must not be negative.", nameof(take)); }
         var sinceDay = since.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var totals = new Dictionary<string, (long Micros, long Count)>();
+        var totals = new Dictionary<string, CostRow>();
         foreach (var bucket in store.State.Daily)
         {
             if (bucket.By != by || string.CompareOrdinal(bucket.Day, sinceDay) < 0) { continue; }
             totals.TryGetValue(bucket.Key, out var existing);
-            totals[bucket.Key] = (existing.Micros + bucket.Micros, existing.Count + bucket.Count);
+            totals[bucket.Key] = new(bucket.Key, checked((existing?.Micros ?? 0) + bucket.Micros), checked((existing?.Count ?? 0) + bucket.Count))
+            {
+                KnownListPriceMicros = (existing?.KnownListPriceMicros ?? 0) + (bucket.KnownListPriceMicros ?? 0),
+                UnpricedCount = (existing?.UnpricedCount ?? 0) + (bucket.UnpricedCount ?? 0),
+                PendingCount = (existing?.PendingCount ?? 0) + (bucket.PendingCount ?? 0),
+                UnknownCount = (existing?.UnknownCount ?? 0) + (bucket.UnknownCount ?? bucket.Count),
+            };
         }
         var rows = totals
-            .Select(pair => new CostRow(pair.Key, pair.Value.Micros, pair.Value.Count))
+            .Select(pair => pair.Value)
             .OrderByDescending(row => row.Micros)
             .ThenBy(row => row.Key, StringComparer.Ordinal)
             .Take(take)

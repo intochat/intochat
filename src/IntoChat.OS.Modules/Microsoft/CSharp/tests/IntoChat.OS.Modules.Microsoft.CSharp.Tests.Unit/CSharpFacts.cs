@@ -1,5 +1,6 @@
 using IntoChat.OS;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Microsoft.CSharp.Authoring;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Microsoft.CSharp.Files;
@@ -12,7 +13,10 @@ public sealed class CSharpFacts
 
     private static TypeEntry Signal(string provider, string name) => new(name, provider + "." + name, TypeKind.Signal, provider, "", ["int Count"], []);
 
-    private static CSharpContractDiscovery Discovery(params TypeEntry[] types) => new(new FakeKernel(types));
+    private static CSharpContractDiscovery Discovery(params TypeEntry[] types) => new(new FakeKernel(types),
+        new ModuleInventory(types.Select(type => type.Provider).Distinct().Select(id => new DiscoveryModule(id))));
+
+    private static TypeEntry Entry<T>(string provider = "fixture") => new(typeof(T).FullName!, "fixture", TypeKind.Neuron, provider, "Fixture", [], []);
 
     [Fact]
     public async Task WithNoModulesSelectedTheCatalogListsInstalledModuleIdsInOrderAndNoContracts()
@@ -26,15 +30,21 @@ public sealed class CSharpFacts
     }
 
     [Fact]
-    public async Task SelectingAModuleListsItsNeuronsThenItsSignalsByName()
+    public async Task SelectingAModuleIncludesConstructibleRequestAndResultDeclarations()
     {
-        var snapshot = await Discovery(Neuron("time", "Timer"), Neuron("time", "Alarm"), Signal("time", "Tick"), Neuron("ai", "Chat"))
-            .Read(["TIME"], TestContext.Current.CancellationToken);
-
-        Assert.Equal(3, snapshot.Contracts.Count);
-        Assert.StartsWith("Alarm [neuron id: time.Alarm/<key>]", snapshot.Contracts[0], StringComparison.Ordinal);
-        Assert.StartsWith("Timer [neuron id: time.Timer/<key>]", snapshot.Contracts[1], StringComparison.Ordinal);
-        Assert.Equal("Tick { int Count }", snapshot.Contracts[2]);
+        var snapshot = await Discovery(Entry<IDiscoveryFixture>(), Entry<IHiddenFixture>("hidden"))
+            .Read(["FIXTURE"], TestContext.Current.CancellationToken);
+        var declarations = string.Join("\n", snapshot.Contracts);
+        Assert.Contains("Read(", declarations, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryRequest(", declarations, StringComparison.Ordinal);
+        Assert.Contains("string? Cursor", declarations, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryAddress[] Recipients", declarations, StringComparison.Ordinal);
+        Assert.Contains("{ get; init; }", declarations, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryMode", declarations, StringComparison.Ordinal);
+        Assert.Contains("Preview", declarations, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<", declarations, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(IHiddenFixture), declarations, StringComparison.Ordinal);
+        Assert.False(snapshot.Truncated);
     }
 
     [Fact]
@@ -57,16 +67,136 @@ public sealed class CSharpFacts
     }
 
     [Fact]
-    public async Task AnOversizedCatalogDropsContractsFromTheEndAndSaysSo()
+    public async Task AnOversizedCatalogOmitsWholeMethodClosuresAndNamesTheDetailSelectors()
     {
-        var neurons = Enumerable.Range(0, 400).Select(index => Neuron("big", "Neuron" + index.ToString("D3", System.Globalization.CultureInfo.InvariantCulture))).ToArray();
-
-        var snapshot = await Discovery(neurons).Read(["big"], TestContext.Current.CancellationToken);
+        var entries = Enumerable.Range(0, 25).Select(index => Entry<IDiscoveryFixture>("fixture-" + index)).ToArray();
+        var discovery = Discovery(entries);
+        var snapshot = await discovery.Read(entries.Select(entry => entry.Provider).ToArray(), TestContext.Current.CancellationToken);
 
         Assert.True(snapshot.Truncated);
-        Assert.InRange(snapshot.Contracts.Count, 1, 399);
-        Assert.StartsWith("Neuron000", snapshot.Contracts[0], StringComparison.Ordinal);
+        Assert.Contains(snapshot.Contracts, contract => contract.Contains("omitted", StringComparison.OrdinalIgnoreCase)
+            && contract.Contains(nameof(IDiscoveryFixture), StringComparison.Ordinal));
+        foreach (var contract in snapshot.Contracts.Where(contract => contract.Contains("Read(", StringComparison.Ordinal)))
+        { Assert.Contains("DiscoveryRequest(", contract, StringComparison.Ordinal); }
         Assert.True(System.Text.Json.JsonSerializer.Serialize(snapshot).Length <= 24000);
+        var detail = await discovery.ReadDetail(entries[^1].Provider, typeof(IDiscoveryFixture).FullName!, "Read", TestContext.Current.CancellationToken);
+        Assert.False(detail.Truncated);
+        Assert.Contains("DiscoveryRequest(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DetailSelectsOneMethodIncludesInheritedMethodsAndTerminatesCyclicShapes()
+    {
+        var discovery = Discovery(Entry<IDiscoveryFixture>());
+        var detail = await discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Read", TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("Inherited(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+        Assert.Contains("DiscoveryNode? Next", detail.Contracts[0], StringComparison.Ordinal);
+        var inherited = await discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Inherited", TestContext.Current.CancellationToken);
+        Assert.Contains("Inherited(", Assert.Single(inherited.Contracts), StringComparison.Ordinal);
+        Assert.Equal(detail, detail with { Contracts = detail.Contracts });
+        Assert.Equal(detail.Contracts, (await discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Read", TestContext.Current.CancellationToken)).Contracts);
+    }
+
+    [Fact]
+    public async Task ExplicitPolymorphicAlternativesAndDiscriminatorsAreDiscoverable()
+    {
+        var detail = await Discovery(Entry<IDiscoveryFixture>()).ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Choose", TestContext.Current.CancellationToken);
+        var declaration = Assert.Single(detail.Contracts);
+        Assert.Contains("$kind", declaration, StringComparison.Ordinal);
+        Assert.Contains("email", declaration, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryEmail(", declaration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InheritedToolSourceAndCoreVocabularyKeepTheirCompletePublicShapes()
+    {
+        var discovery = Discovery(Entry<IDiscoveryFixture>());
+        var tools = await discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Tools", TestContext.Current.CancellationToken);
+        Assert.Contains("ToolSet(", Assert.Single(tools.Contracts), StringComparison.Ordinal);
+        Assert.Contains("ToolDescriptor(", tools.Contracts[0], StringComparison.Ordinal);
+        var check = await discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Check", TestContext.Current.CancellationToken);
+        Assert.Contains("IntoChat.OS.Verdict", Assert.Single(check.Contracts), StringComparison.Ordinal);
+        Assert.Contains("CancellationToken cancellationToken = default", check.Contracts[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NestedGenericTypesAndEnumDefaultsDescribeCallableCSharpTypes()
+    {
+        var detail = await Discovery(Entry<IDiscoveryFixture>()).ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Nested", TestContext.Current.CancellationToken);
+        var schema = Assert.Single(detail.Contracts);
+        Assert.Contains("DiscoveryOuter<string>.Nested<int?>", schema, StringComparison.Ordinal);
+        Assert.Contains("System.Uri source", schema, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryMode)0", schema, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("fr-FR")]
+    public async Task OptionalLiteralDefaultsCompileRegardlessOfTheDiscoveryCulture(string culture)
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo(culture);
+            var detail = await Discovery(Entry<IDiscoveryFixture>()).ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Defaults", TestContext.Current.CancellationToken);
+            var schema = Assert.Single(detail.Contracts);
+            var source = "public interface Defaults" + schema[schema.IndexOf(" {", StringComparison.Ordinal)..];
+            var compilation = global::Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Defaults",
+                [global::Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
+                [global::Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+                new(global::Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary));
+            Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == global::Microsoft.CodeAnalysis.DiagnosticSeverity.Error));
+            Assert.Contains("float fraction = 0.5f", schema, StringComparison.Ordinal);
+            Assert.Contains("decimal amount = 0.5m", schema, StringComparison.Ordinal);
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = previous; }
+    }
+
+    [Fact]
+    public async Task CoreContractsUseTheSameProviderIdentityAsTheKernel()
+    {
+        var entry = Entry<IBrain>(typeof(INeuron).Assembly.GetName().Name!);
+        var discovery = new CSharpContractDiscovery(new FakeKernel([entry]), new ModuleInventory([]));
+        var detail = await discovery.ReadDetail(entry.Provider, entry.Name, "Read", TestContext.Current.CancellationToken);
+        Assert.Contains("Read(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InheritedPlainCapabilitiesRemainCallableLikeTheKernelCatalog()
+    {
+        var detail = await Discovery(Entry<IDiscoveryFixture>()).ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Capability", TestContext.Current.CancellationToken);
+        Assert.Contains("Capability(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DetailRejectsUninstalledRootsUnknownMethodsAndUnresolvableNames()
+    {
+        var discovery = Discovery(Entry<IDiscoveryFixture>(), Neuron("fixture", "Missing"));
+        var ct = TestContext.Current.CancellationToken;
+        await Assert.ThrowsAsync<ArgumentException>(() => discovery.ReadDetail("hidden", typeof(IHiddenFixture).FullName!, null, ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => discovery.ReadDetail("fixture", typeof(IHiddenFixture).FullName!, null, ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Missing", ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => discovery.ReadDetail("fixture", "Missing", null, ct));
+    }
+
+    [Fact]
+    public async Task ASingleUnboundedSchemaFailsClearlyInsteadOfReturningAPartialDeclaration()
+    {
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Discovery(Entry<IExpandingFixture>())
+            .ReadDetail("fixture", typeof(IExpandingFixture).FullName!, "Read", TestContext.Current.CancellationToken));
+        Assert.Contains("schema exceeds", error.Message, StringComparison.Ordinal);
+        Assert.InRange(error.Message.Length, 1, 500);
+    }
+
+    [Fact]
+    public async Task MultipleExplicitAnchorsCannotSilentlyResolveTheSameContractName()
+    {
+        var other = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(new("DiscoveryCollision"), System.Reflection.Emit.AssemblyBuilderAccess.Run);
+        other.DefineDynamicModule("Contracts").DefineType(typeof(IDiscoveryFixture).FullName!, System.Reflection.TypeAttributes.Public).CreateType();
+        var discovery = new CSharpContractDiscovery(new FakeKernel([Entry<IDiscoveryFixture>()]),
+            new ModuleInventory([new DiscoveryModule("fixture"), new DiscoveryModule("fixture", other)]));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Read", TestContext.Current.CancellationToken));
+        Assert.Contains("2 public resolutions", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

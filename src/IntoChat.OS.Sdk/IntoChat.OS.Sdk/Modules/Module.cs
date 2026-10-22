@@ -22,7 +22,7 @@ public abstract class Module
 }
 
 // A module with options gets them bound for it: IOptions<TOptions> reads IntoChatOS:Modules:{id}:Options
-// and validates on first use. Configure may chain further validation on services.AddOptions<TOptions>().
+// and validates at host startup. Configure may chain further validation on services.AddOptions<TOptions>().
 public abstract class Module<TOptions> : Module where TOptions : class, IModuleOptions, new()
 {
     protected Module(ModuleId id) : base(id) { }
@@ -32,8 +32,7 @@ public abstract class Module<TOptions> : Module where TOptions : class, IModuleO
             .BindConfiguration(IntoChatOSConfiguration.ModuleOptionsSection(Id))
             .Validate(options =>
             {
-                ModuleOptionsSerialization.ValidateRequired(options, Id.ToString());
-                options.Validate();
+                ModuleOptionsSerialization.Validate(options, Id.ToString());
                 return true;
-            });
+            }).ValidateOnStart();
 }

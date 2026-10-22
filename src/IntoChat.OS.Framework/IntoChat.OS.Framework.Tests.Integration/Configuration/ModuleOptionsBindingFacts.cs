@@ -1,6 +1,7 @@
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Validation;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -22,8 +23,8 @@ public sealed class ModuleOptionsBindingFacts
     [Fact]
     public void AMissingRequiredSettingThrowsNamingTheKey()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => Config(("Label", "secret-looking-value")).GetModuleOptions<RequiredOptions>("req"));
-        Assert.Contains(IntoChatOSConfiguration.ModuleOptionsSection("req") + ":Endpoint", ex.Message);
+        var ex = Assert.Throws<ModuleValidationException>(() => Config(("Label", "secret-looking-value")).GetModuleOptions<RequiredOptions>("req"));
+        Assert.Equal(IntoChatOSConfiguration.ModuleOptionsSection("req") + ":Endpoint", Assert.Single(ex.Issues).Path);
         Assert.DoesNotContain("secret-looking-value", ex.Message);
     }
 
