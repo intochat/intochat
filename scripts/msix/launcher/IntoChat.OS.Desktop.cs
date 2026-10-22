@@ -1,15 +1,19 @@
+#!/usr/bin/env dotnet
 #:property OutputType=WinExe
 #:property PublishAot=true
 #:property InvariantGlobalization=true
 #:property AllowUnsafeBlocks=true
 #:property RuntimeIdentifier=win-x64
+#:include DesktopKeyBackup.cs
 // The MSIX entry point: the plain single-machine host. The Aspire AppHost is a developer composition root with a dashboard,
 // containers and generated parameters; an installed desktop has none of those. This launcher starts the same OS host
 // (IntoChat.OS.Kernel, which composes the Windows edge on Windows) the way the AppHost's local profile configures it, on
 // loopback, then opens the Flutter Windows shell against it. It owns what the AppHost owns in a developer run:
 //   - the master key, generated once and kept DPAPI-protected for the current user; never regenerated over existing data;
 //   - the brain store directory, under the user's local app data (the package's private copy when installed from MSIX);
-//   - the shell's kernel URL (INTOCHATOS_UI_BASE).
+//   - the shell's kernel URL (INTOCHATOS_UI_BASE);
+//   - a passphrase backup of the master key: uninstalling deletes LocalState and the DPAPI copy with it, so
+//     "intochat-os --export-key <file>" writes one and "intochat-os --import-key <file>" restores it before the next start.
 // A second launch reuses a kernel that is already healthy on the port. The kernel keeps running after the shell closes:
 // it is the OS, not a window, and a later launch attaches to it.
 using System.Diagnostics;
@@ -25,13 +29,17 @@ var kernelUrl = new Uri($"http://127.0.0.1:{port}/");
 var brainStore = Path.Combine(dataRoot, "brain-store");
 var logs = Path.Combine(dataRoot, "logs");
 Directory.CreateDirectory(logs);
+var masterKeyPath = Path.Combine(dataRoot, "master-key.dpapi");
+
+if (args.Length == 2 && args[0] is "--export-key" or "--import-key")
+{ return KeyBackupCommand.Run(args[0], Path.GetFullPath(args[1]), masterKeyPath); }
 
 try
 {
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
     if (!await Healthy(http, kernelUrl))
     {
-        var masterKey = DesktopMasterKey.LoadOrCreate(Path.Combine(dataRoot, "master-key.dpapi"), brainStore);
+        var masterKey = DesktopMasterKey.LoadOrCreate(masterKeyPath, brainStore);
         StartKernel(Path.Combine(packageRoot, "os"), kernelUrl, brainStore, masterKey, Path.Combine(logs, "kernel.log"));
         var deadline = DateTime.UtcNow.AddMinutes(2);
         while (!await Healthy(http, kernelUrl))
@@ -117,6 +125,58 @@ internal static class DesktopMasterKey
     }
 }
 
+// The launcher is a windowed app, so the backup commands borrow the calling terminal (or open one) for the passphrase.
+internal static class KeyBackupCommand
+{
+    public static int Run(string command, string file, string keyPath)
+    {
+        if (!NativeMethods.AttachConsole(-1)) { _ = NativeMethods.AllocConsole(); }
+        try
+        {
+            if (command == "--export-key")
+            {
+                if (!File.Exists(keyPath)) { throw new InvalidOperationException($"There is no master key at {keyPath} yet; start IntoChat OS once first."); }
+                if (File.Exists(file)) { throw new InvalidOperationException($"{file} already exists; choose a new file name."); }
+                var passphrase = ReadPassphrase($"Passphrase for the backup (at least {DesktopKeyBackup.MinimumPassphraseLength} characters): ");
+                if (ReadPassphrase("Repeat the passphrase: ") != passphrase) { throw new InvalidOperationException("The passphrases differ; nothing was written."); }
+                var key = System.Text.Encoding.UTF8.GetString(Dpapi.Unprotect(File.ReadAllBytes(keyPath)));
+                File.WriteAllText(file, DesktopKeyBackup.Export(key, passphrase));
+                Console.WriteLine($"Wrote the master key backup to {file}. Keep it and its passphrase somewhere other than this PC.");
+            }
+            else
+            {
+                DesktopKeyBackup.RequireNoKey(keyPath);
+                var key = DesktopKeyBackup.Import(File.ReadAllText(file), ReadPassphrase("Backup passphrase: "));
+                Directory.CreateDirectory(Path.GetDirectoryName(keyPath)!);
+                File.WriteAllBytes(keyPath, Dpapi.Protect(System.Text.Encoding.UTF8.GetBytes(key)));
+                Console.WriteLine($"Restored the master key to {keyPath}. Start IntoChat OS as usual.");
+            }
+            return 0;
+        }
+        catch (Exception failure) when (failure is InvalidOperationException or IOException or UnauthorizedAccessException or ArgumentException or CryptographicException)
+        {
+            Console.Error.WriteLine(failure.Message);
+            return 1;
+        }
+    }
+
+    private static string ReadPassphrase(string prompt)
+    {
+        Console.Write(prompt);
+        if (Console.IsInputRedirected) { var line = Console.ReadLine() ?? ""; Console.WriteLine(); return line; }
+        var typed = new System.Text.StringBuilder();
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter) { break; }
+            if (key.Key == ConsoleKey.Backspace) { if (typed.Length > 0) { typed.Length--; } continue; }
+            if (!char.IsControl(key.KeyChar)) { typed.Append(key.KeyChar); }
+        }
+        Console.WriteLine();
+        return typed.ToString();
+    }
+}
+
 internal static unsafe class Dpapi
 {
     private const int UiForbidden = 0x1;
@@ -160,6 +220,14 @@ internal static partial class NativeMethods
     [LibraryImport("crypt32.dll", EntryPoint = "CryptUnprotectData", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool CryptUnprotectData(ref DataBlob dataIn, IntPtr description, IntPtr entropy, IntPtr reserved, IntPtr prompt, int flags, out DataBlob dataOut);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AttachConsole(int processId);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AllocConsole();
 
     [LibraryImport("kernel32.dll")]
     internal static partial IntPtr LocalFree(IntPtr memory);

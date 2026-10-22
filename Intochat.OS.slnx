@@ -188,6 +188,11 @@
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />
   </Folder>
+  <Folder Name="/scripts/" />
+  <Folder Name="/scripts/msix/" />
+  <Folder Name="/scripts/msix/launcher/">
+    <Project Path="scripts/msix/launcher/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/Sdk/">
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators.Tests.Unit/IntoChat.OS.Sdk.Generators.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" />
