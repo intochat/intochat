@@ -15,8 +15,10 @@ that ran more. Memory leaves itself out of its index.
 "intend" is Memory's first policy: given a message, Memory's own agent rephrases it (it must not answer)
 into a brief with a confidence, which is declared on the brain's intents neuron `{brain}/memory/intents`
 and rephrased; at or above the `ConfirmGate` setting (default 0.8) the intent is also confirmed. The answer
-`{app}/intents/{requestId}` is `ok` or `failed: <reason>` (agent failure, malformed reply or 30 seconds
-without one), and a failure declares nothing.
+`{app}/intents/{requestId}` is `ok <intent id>` or `failed: <reason>`. Agent failure, malformed reply or
+30 seconds without a model reply declares nothing. After a valid reply, rephrase and confirmation each
+allow at most three mutation attempts, reading durable state after a transient edge response before
+retrying. A mutation failure can leave a declared intent; a new intent still in Heard is abandoned.
 
 Indexing is explicit: "reindex" rebuilds every row from scratch from what is installed now, as a new
 generation that recall switches to only once every row and vector of it is written, and "open" asks for
@@ -70,6 +72,15 @@ rephrase it, without answering it, into a brief with a confidence. The intent is
 `{brain}/memory/intents` and rephrased; at or above `ConfirmGate` (default 0.8) it is also confirmed. The answer
 `{app}/intents/{requestId}` reads `ok`. A malformed agent reply, an agent failure or 30 seconds without a reply
 answers `failed: <reason>` and declares nothing.
+
+## Scenario: Intend recovers from an ambiguous mutation response
+
+If rephrase or confirmation receives HTTP 408, 429 or 5xx, Memory reads the intent again. An already
+persisted matching brief and confidence, or an already confirmed intent, is accepted without repeating
+the mutation. Otherwise Memory retries with a fresh revision, waiting 250ms then 500ms, for at most
+three writes per mutation. The last failed response is also read back. Declaration is not repeated;
+terminal intents and concurrent changes to the brief, confidence or state are preserved. Definitive
+refusals are not retried. These mutation attempts are separate from the model's 30-second reply deadline.
 
 ## Scenario: Remember replaces the working memory
 
@@ -152,7 +163,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.2.0";
+    public const string Version = "1.2.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",

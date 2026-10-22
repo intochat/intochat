@@ -24,6 +24,49 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
     // The router host pins the default chat model to this one.
     private static string ModelId => LLMModel.FindByMarker(typeof(IGpt56Luna))!.Id;
 
+    [Theory(Timeout = 300_000)]
+    [InlineData("Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Flutter.Text.IText.Read (504): Gateway timeout", true)]
+    [InlineData("A newer warning", false)]
+    [InlineData("Memory was slow to intend; answering without a brief", false)]
+    public async Task RestartedScanRecoversOnlyItsOwnPersistedFailure(string notice, bool clears)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        var appKey = IApp.Key(WorkspaceId, "ino");
+        var app = Brain.Get<IApp>(appKey);
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        var snapshot = await app.Read();
+        var status = Brain.Get<IText>(appKey + "/status");
+        await status.Set(notice);
+        // A source revision restarts the shipped scan, as an installed feature update does.
+        await app.WriteBehavior("intended.cs", snapshot.Files["intended.cs"] + "\n", Guid.NewGuid());
+
+        if (clears)
+        {
+            await TestWait.UntilAsync(_ => status.Read(), text => text.Markdown.Length == 0, TimeSpan.FromSeconds(20), ct);
+        }
+        else
+        {
+            // Two observed sweeps put the assertion after the first healthy scan's recovery path.
+            await ObserveScan(appKey, ct);
+            await ObserveScan(appKey, ct);
+            Assert.Equal(notice, (await status.Read()).Markdown);
+        }
+    }
+
+    private async Task ObserveScan(string appKey, CancellationToken ct)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        var entry = Brain.Get<IText>(appKey + "/pending/" + id);
+        await entry.Set(JsonSerializer.Serialize(new
+        {
+            Message = "expired scan probe", Hint = "", Conversation = "", StartedAt = DateTimeOffset.UtcNow.AddHours(-2), Started = true,
+        }));
+        var index = Brain.Get<IText>(appKey + "/pending/index-send");
+        await index.Set((await index.Read()).Markdown + "\n" + id);
+        await TestWait.UntilAsync(_ => entry.Read(), text => text.Markdown.Length == 0, TimeSpan.FromSeconds(20), ct);
+    }
+
     [Fact(Timeout = 300_000)]
     public async Task AVagueAskBecomesABriefTheModelActsOn()
     {

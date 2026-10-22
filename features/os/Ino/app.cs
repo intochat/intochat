@@ -170,6 +170,13 @@ With Memory not installed, sending a message shows the status "Memory is not ins
 When Memory has not answered within `IntendGate` (default 8 seconds), the status shows "Memory was slow to
 intend; answering without a brief" and the turn answers the message without a brief.
 
+## Scenario: A pending-message check recovers after a transient failure
+
+When a pending-message read fails, the status says "Could not check pending messages; retrying" and the
+next scan retries. A healthy scan clears only that scan's failure, including its legacy wording left
+by an earlier activation. It clears the version it read, so a newer or unrelated status is preserved;
+the genuine "Memory was slow to intend; answering without a brief" status remains visible.
+
 ## Scenario: The profile is rendered in the next conversation
 
 When Memory has consolidated "The user prefers short answers" as a current Profile fact, a message sent in a new
@@ -197,7 +204,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "3.1.1";
+    public const string Version = "3.1.2";
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
         Description: "Talk to your brain, use its capabilities, and create apps.",

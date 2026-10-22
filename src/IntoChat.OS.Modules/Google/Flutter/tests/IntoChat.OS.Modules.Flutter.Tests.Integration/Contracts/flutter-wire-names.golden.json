@@ -136,7 +136,7 @@
   "IntoChat.OS.Flutter.Tabs.Signals.TabsChanged": "signal; short=TabsChanged; alias=ui.tabs-changed",
   "IntoChat.OS.Flutter.Tabs.TabItem": "type; alias=ui.tab-item; serialized=True",
   "IntoChat.OS.Flutter.Tabs.TabsState": "type; alias=ui.tabs-state; serialized=True",
-  "IntoChat.OS.Flutter.Text.IText": "contract; alias=text; grain=text; read=IntoChat.OS.Flutter.Text.TextState; methods=Read()=read,Set(String)=-",
+  "IntoChat.OS.Flutter.Text.IText": "contract; alias=text; grain=text; read=IntoChat.OS.Flutter.Text.TextState; methods=Read()=read,Set(String)=-,TrySet(String,Int32)=-",
   "IntoChat.OS.Flutter.Text.Signals.TextChanged": "signal; short=TextChanged; alias=ui.text-changed",
   "IntoChat.OS.Flutter.Text.TextState": "type; alias=ui.text-state; serialized=True",
   "IntoChat.OS.Flutter.TextField.ITextField": "contract; alias=textfield; grain=textfield; read=IntoChat.OS.Flutter.TextField.TextFieldState; methods=Configure(String,String,String)=-,Input(String)=-,Read()=read,SetValue(String)=-,TrySetValue(String,Int32)=-",

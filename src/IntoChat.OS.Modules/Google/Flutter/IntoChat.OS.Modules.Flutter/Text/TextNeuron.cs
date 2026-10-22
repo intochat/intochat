@@ -22,5 +22,13 @@ internal sealed class TextNeuron([PersistentState("state", IntoChatOSNames.Clust
         return Save(next, new TextChanged(this.GetPrimaryKeyString()));
     }
 
+    public async Task<bool> TrySet(string markdown, int expectedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        if (Snapshot.Version != expectedVersion) { return false; }
+        await Set(markdown);
+        return true;
+    }
+
     [ReadOnly] public Task<TextState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
 }

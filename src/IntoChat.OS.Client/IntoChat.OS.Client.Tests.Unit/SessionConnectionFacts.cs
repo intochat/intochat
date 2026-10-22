@@ -188,7 +188,7 @@ public sealed class SessionConnectionFacts
             gate.SetResult(HttpStatusCode.OK);
             await first;
             foreach (var failed in new[] { second, third, fourth })
-            { await Assert.ThrowsAsync<InvalidOperationException>(() => failed); }
+            { await Assert.ThrowsAsync<HttpRequestException>(() => failed); }
             Assert.Equal([oneId, twoId], parents.Skip(1));
         }
         finally { gate.TrySetResult(HttpStatusCode.OK); }
@@ -297,7 +297,7 @@ public sealed class SessionConnectionFacts
         var session = await brain.OpenAsync(ct);
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => session.AcknowledgeAsync("same", 1, ct));
+            await Assert.ThrowsAsync<HttpRequestException>(() => session.AcknowledgeAsync("same", 1, ct));
             await session.AcknowledgeAsync("same", 1, ct);
             Assert.Equal(2, count);
             while (received.Reader.TryRead(out _)) { }
@@ -506,6 +506,64 @@ public sealed class SessionConnectionFacts
         Assert.Equal(("The brain is at capacity.", "CapacityUnavailableException"), (error.Message, error.Code));
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task ATransientHttpRefusalRetainsItsStatusWithoutRetryingTheInvocation(HttpStatusCode status)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new FakeBrain { InvocationResponse = () => new(status) { Content = new StringContent("Temporary edge failure") } };
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => connection.Get<ISource>("source").Double(21));
+
+        Assert.Equal(status, error.StatusCode);
+        Assert.Contains("ISource.Double", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Temporary edge failure", error.Message, StringComparison.Ordinal);
+        Assert.Single(brain.Requests, request => request.Path.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task ADefinitiveHttpRefusalKeepsItsExistingException(HttpStatusCode status)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new FakeBrain { InvocationResponse = () => new(status) { Content = new StringContent("Refused input") } };
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => connection.Get<ISource>("source").Double(21));
+
+        Assert.Contains("Refused input", error.Message, StringComparison.Ordinal);
+        Assert.Single(brain.Requests, request => request.Path.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARevisionConflictKeepsItsSpecializedException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new FakeBrain { InvocationResponse = () =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Conflict)
+            { Content = new StringContent("{\"message\":\"Changed since read\",\"currentRevision\":7}") };
+            response.Headers.Add(RuntimeProtocol.RefusalHeader, RevisionConflictException.Code);
+            return response;
+        } };
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+
+        var error = await Assert.ThrowsAsync<RevisionConflictException>(() => connection.Get<ISource>("source").Double(21));
+
+        Assert.Equal(7, error.CurrentRevision);
+        Assert.Equal("Changed since read", error.Message);
+    }
+
     [Fact]
     public async Task ConnectAsyncOutsideASessionThrows()
     {
@@ -542,6 +600,7 @@ public sealed class SessionConnectionFacts
     private sealed class FakeBrain : HttpMessageHandler
     {
         public Func<HttpStatusCode>? ReportStatus { get; init; }
+        public Func<HttpResponseMessage>? InvocationResponse { get; init; }
         public List<string> Streams { get; } = [];
         public bool RefuseFingerprint { get; init; }
         public Func<JsonArray, CancellationToken, Task<HttpStatusCode>>? Acknowledge { get; init; }
@@ -572,6 +631,7 @@ public sealed class SessionConnectionFacts
             }
             if (path.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal))
             {
+                if (InvocationResponse is not null) { return InvocationResponse(); }
                 if (body!["method"]!.GetValue<string>() == nameof(ISource.Refuse))
                 {
                     var refused = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("The brain is at capacity.") };

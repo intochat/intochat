@@ -277,7 +277,13 @@ public sealed class SessionConnection : IAsyncDisposable
             throw new ScriptRefusalException(detail, code);
         }
         if (response.StatusCode == HttpStatusCode.Unauthorized) { throw new UnauthorizedAccessException(detail); }
-        throw new InvalidOperationException($"The brain refused {operation} ({(int)response.StatusCode}): {detail}");
+        var message = $"The brain refused {operation} ({(int)response.StatusCode}): {detail}";
+        // Preserve edge status for callers that can safely recover after reading durable state.
+        // Invocation itself is never retried here: a failed response can hide a committed mutation.
+        if (response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
+            || (int)response.StatusCode is >= 500 and <= 599)
+        { throw new HttpRequestException(message, null, response.StatusCode); }
+        throw new InvalidOperationException(message);
     }
 
     public async ValueTask DisposeAsync()

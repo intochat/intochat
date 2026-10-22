@@ -7,6 +7,8 @@ namespace IntoChat.OS.Flutter.Text;
 public interface IText : INeuron
 {
     Task Set(string markdown);
+    // Replaces only the version read by the caller, preserving a later writer's text.
+    Task<bool> TrySet(string markdown, int expectedVersion);
     [ReadOnly, Alias("read")] Task<TextState> Read();
 }
 
