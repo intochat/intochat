@@ -111,6 +111,15 @@ public sealed class AzureFacts
         Assert.Equal("/data/brain/v1", Assert.Single(app.VolumeMounts).MountPath);
     }
 
+    // Azure Container Apps refuses unsupported SMB mount options (ContainerAppVolumeMountOptionsNotSupported for actimeo).
+    [Fact]
+    public void The_brain_log_share_uses_only_mount_options_container_apps_accepts()
+    {
+        var options = Assert.Single(InstallPlan.Build(Sample).OfType<ContainerAppSpec>().Single().VolumeMounts).MountOptions!.Split(',');
+        Assert.DoesNotContain(options, option => option.StartsWith("actimeo", StringComparison.Ordinal));
+        Assert.Contains("cache=strict", options);
+    }
+
     [Fact]
     public async Task A_failing_install_stops_at_the_first_error_and_exits_non_zero()
     {
