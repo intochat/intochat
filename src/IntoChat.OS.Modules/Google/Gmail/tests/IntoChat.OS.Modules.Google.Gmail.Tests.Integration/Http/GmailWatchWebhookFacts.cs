@@ -1,5 +1,5 @@
+using IntoChat.OS.Google.Gmail.Testing;
 using System.Net;
-using System.Net.Http.Json;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Google.Gmail;
 
@@ -15,6 +15,7 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var person = await brain.PersonAsync("push", ct);
         await person.ConnectAsync("push", ct);
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(ConnectionKeys.For(person.BrainId, "gmail", "push")), ct);
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "123", history = Array.Empty<object>() }));
         using var response = await brain.PushAsync(person.BrainId, "user@gmail.com", "123", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var received = await mail.NextAsync(ct: ct);
@@ -33,10 +34,11 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var key = ConnectionKeys.For(member.BrainId, "gmail", "scoped-push");
         var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
         using (outsider.AsCaller())
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptWatchPush(new("denied", "user@gmail.com"))); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptWatchPush(new("101", "user@gmail.com"))); }
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
-        using (member.AsCaller()) { await inbound.AcceptWatchPush(new("allowed", "user@gmail.com")); }
-        Assert.Equal("allowed", (await mail.NextAsync(ct: ct)).HistoryId);
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "102", history = Array.Empty<object>() }));
+        using (member.AsCaller()) { await inbound.AcceptWatchPush(new("102", "user@gmail.com")); }
+        Assert.Equal("102", (await mail.NextAsync(ct: ct)).HistoryId);
     }
 
     [Fact]
@@ -55,10 +57,12 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         await using var firstMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(first), ct);
         await using var againMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(again), ct);
         await using var secondMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(second), ct);
-        using var response = await brain.PushAsync(firstPerson.BrainId, "user@gmail.com", "fanout", ct);
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "103", history = Array.Empty<object>() }));
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "103", history = Array.Empty<object>() }));
+        using var response = await brain.PushAsync(firstPerson.BrainId, "user@gmail.com", "103", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.Equal("fanout", (await firstMail.NextAsync(ct: ct)).HistoryId);
-        Assert.Equal("fanout", (await againMail.NextAsync(ct: ct)).HistoryId);
+        Assert.Equal("103", (await firstMail.NextAsync(ct: ct)).HistoryId);
+        Assert.Equal("103", (await againMail.NextAsync(ct: ct)).HistoryId);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => secondMail.NextAsync(ct: deadline.Token));
     }
@@ -83,19 +87,20 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var healthy = ConnectionKeys.For(person.BrainId, "gmail", "live");
         // The revoked connection is tracked first, so the loop meets its failure before the healthy one.
         using (person.AsCaller())
-        { await brain.Grains().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", TokenEndpointStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
+        { await brain.Grains().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", GoogleStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
         await person.ConnectAsync("live", ct);
         var tracked = await brain.Grains().GetGrain<IConnectionIndex>(person.BrainId).List();
         Assert.True(Array.IndexOf(tracked, revoked) < Array.IndexOf(tracked, healthy));
         await using var healthyMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(healthy), ct);
-        using var response = await brain.PushAsync(person.BrainId, "user@gmail.com", "after-revoke", ct);
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "104", history = Array.Empty<object>() }));
+        using var response = await brain.PushAsync(person.BrainId, "user@gmail.com", "104", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.Equal("after-revoke", (await healthyMail.NextAsync(ct: ct)).HistoryId);
+        Assert.Equal("104", (await healthyMail.NextAsync(ct: ct)).HistoryId);
         using (person.AsCaller())
         {
             var view = await brain.Get<IConnection>(revoked).Read();
             Assert.Equal(ConnectionStatus.Expired, view.Status);
-            Assert.DoesNotContain(TokenEndpointStub.RevokedRefreshToken, view.Detail ?? "", StringComparison.Ordinal);
+            Assert.DoesNotContain(GoogleStub.RevokedRefreshToken, view.Detail ?? "", StringComparison.Ordinal);
         }
     }
 
@@ -109,12 +114,13 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var key = ConnectionKeys.For(person.BrainId, "gmail", "restricted-push");
         var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
-        await inbound.AcceptWatchPush(new("wrong", "other@gmail.com"));
+        using (person.AsCaller()) { await inbound.AcceptWatchPush(new("105", "other@gmail.com")); }
         using (person.AsCaller()) { await brain.Get<IConnection>(key).Disconnect(); }
-        await inbound.AcceptWatchPush(new("disconnected", "user@gmail.com"));
+        using (person.AsCaller()) { await inbound.AcceptWatchPush(new("105", "user@gmail.com")); }
         // Reconnecting reopens delivery: the first signal the probe sees is the one after it.
         await person.ConnectAsync("restricted-push", ct);
-        await inbound.AcceptWatchPush(new("reconnected", "user@gmail.com"));
-        Assert.Equal("reconnected", (await mail.NextAsync(ct: ct)).HistoryId);
+        host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "105", history = Array.Empty<object>() }));
+        using (person.AsCaller()) { await inbound.AcceptWatchPush(new("105", "user@gmail.com")); }
+        Assert.Equal("105", (await mail.NextAsync(ct: ct)).HistoryId);
     }
 }

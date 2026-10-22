@@ -2,10 +2,16 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Authority.Connections.OAuth;
+using IntoChat.OS.Authority.Connections;
+using IntoChat.OS.Sdk.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;
 
@@ -14,6 +20,7 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
 {
     private TokenEndpointStub _stub = null!;
     private ITestBrain _brain = null!;
+    private readonly List<(string? CallerBrain, string? TraceBrain)> _tokenContexts = [];
 
     public async ValueTask InitializeAsync()
     {
@@ -23,12 +30,102 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
             .WithConfiguration("IntoChatOS:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
             .WithConfiguration("IntoChatOS:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
+            .ConfigureServices(services => services.AddHttpClient("IntoChat.OS.Connections.OAuth")
+                .AddHttpMessageHandler(() => new TokenContextCapture(_tokenContexts)))
             .StartAsync();
     }
 
     public async ValueTask DisposeAsync() { await _brain.DisposeAsync(); await _stub.DisposeAsync(); }
 
     private string Key => ConnectionKeys.For(_brain.Owner.BrainId, "example", "one");
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("42")]
+    [InlineData("[]")]
+    public async Task AnExplicitMalformedScopeCannotRestoreRequestedPermissions(string scope)
+    {
+        using var transport = new TokenTransport(new StringContent("{\"access_token\":\"access\",\"scope\":" + scope + "}"));
+        using (_brain.Owner.AsCaller())
+        {
+            var error = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() => Exchange(transport, TimeProvider.System)
+                .RefreshAsync(Key, "oauth", "refresh", TestContext.Current.CancellationToken));
+            Assert.Equal(OAuthTokenFailure.InvalidResponse, error.Failure);
+        }
+    }
+
+    [Fact]
+    public async Task ATokenResponseBodySharesTheWholeExchangeDeadline()
+    {
+        var clock = new FakeTimeProvider();
+        using var blocked = new BlockingTokenStream();
+        using var transport = new TokenTransport(new StreamContent(blocked));
+        using var cleanup = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using (_brain.Owner.AsCaller())
+        {
+            var task = Exchange(transport, clock).RefreshAsync(Key, "oauth", "refresh", cleanup.Token);
+            try
+            {
+                await blocked.Entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+                clock.Advance(TimeSpan.FromSeconds(30));
+                var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+                Assert.Same(task, completed);
+                var error = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() => task);
+                Assert.Equal(OAuthTokenFailure.Unavailable, error.Failure);
+            }
+            finally
+            {
+                await cleanup.CancelAsync();
+                try { await task; }
+                catch (OperationCanceledException) { Assert.True(cleanup.IsCancellationRequested); }
+                catch (OAuthTokenExchangeException error) { Assert.Equal(OAuthTokenFailure.Unavailable, error.Failure); }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CallerCancellationWhileReadingATokenResponseIsPreserved()
+    {
+        using var blocked = new BlockingTokenStream();
+        using var transport = new TokenTransport(new StreamContent(blocked));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using (_brain.Owner.AsCaller())
+        {
+            var task = Exchange(transport, TimeProvider.System).RefreshAsync(Key, "oauth", "refresh", cancellation.Token);
+            await blocked.Entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        }
+    }
+
+    private OAuthTokenExchange Exchange(IHttpClientFactory transport, TimeProvider clock)
+        => new([ExampleConnectionModule.Connector], _brain.Services.GetRequiredService<AuthorityNeurons>(),
+            _brain.Services.GetRequiredService<IOptions<ConnectionsOptions>>(), clock, transport,
+            _brain.Services.GetRequiredService<ModulePriceListRegistry>());
+
+    [Fact]
+    public async Task TokenExchangeHasTheStoredLoginOwnerAndTraceBeforeDispatch()
+    {
+        var url = await StartLogin();
+        var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
+        using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={state}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, callback.StatusCode);
+        var captured = Assert.Single(_tokenContexts);
+        Assert.Equal(_brain.Owner.BrainId, captured.CallerBrain);
+        Assert.Equal(_brain.Owner.BrainId, captured.TraceBrain);
+    }
+
+    [Fact]
+    public async Task RefreshSelectsTheConnectorFromTheFullConnectionKey()
+    {
+        using (_brain.Owner.AsCaller())
+        {
+            var grant = await _brain.Services.GetRequiredService<IOAuthTokenExchange>()
+                .RefreshAsync(Key, "oauth", "refresh-token", TestContext.Current.CancellationToken);
+            Assert.False(string.IsNullOrWhiteSpace(grant.AccessToken));
+        }
+        Assert.Equal("refresh_token", Assert.Single(_stub.Forms)["grant_type"]);
+    }
 
     private async Task<Uri> StartLogin()
     {
@@ -154,5 +251,39 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
         using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/three/connect", new { connectorId = "example", authMethodId = "oauth", value = "pasted-token" }, ct);
         Assert.Equal(HttpStatusCode.BadRequest, connect.StatusCode);
         Assert.DoesNotContain("pasted-token", await connect.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+    }
+
+    private sealed class TokenContextCapture(List<(string? CallerBrain, string? TraceBrain)> contexts) : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string? brain = null;
+            try
+            {
+                var caller = CallerContextStamper.Require();
+                brain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
+            }
+            catch (UntrustedCallerException) { }
+            contexts.Add((brain, TraceContext.Current?.BrainId));
+            return base.SendAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class TokenTransport(HttpContent content) : HttpMessageHandler, IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(this, disposeHandler: false);
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }
+
+    private sealed class BlockingTokenStream : MemoryStream
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
     }
 }

@@ -1,3 +1,4 @@
+using IntoChat.OS.Google.Gmail.Testing;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using IntoChat.OS.Google.Gmail;
@@ -20,11 +21,11 @@ public sealed class GmailPushAuthenticationFacts
     public async Task SecuredHostLetsOnlyVerifiedPushThroughTheModuleGate()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct, posture: "Secured");
         using var rejected = await brain.PushAsync("unregistered", "unconnected@gmail.com", "1", ct, bearer: "unverified");
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
         using var accepted = await brain.PushAsync("unregistered", "unconnected@gmail.com", "1", ct);
-        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, accepted.StatusCode);
     }
 }

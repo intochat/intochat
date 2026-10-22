@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Authority.Enforcement;
 using Microsoft.AspNetCore.Builder;
@@ -42,8 +43,9 @@ internal sealed class OAuthCallback : IHttpSurface
             {
                 var exchange = context.RequestServices.GetRequiredService<OAuthTokenExchange>();
                 var flow = context.RequestServices.GetRequiredService<OAuthLoginFlow>();
-                var grant = await exchange.ExchangeCodeAsync(connector, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                 using (CallerContextScope.Scoped(login.Owner))
+                using (TraceContext.Enter(TraceContext.Begin(login.Owner.AccountId,
+                    BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, new NeuronId(login.ConnectionKey))))
                 {
                     var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
                     // Another connector may have taken this id while the browser was at the provider;
@@ -53,6 +55,7 @@ internal sealed class OAuthCallback : IHttpSurface
                         await LoginPage.WriteAsync(context, $"{connector} connection needs attention", "Return to IntoChat.OS and connect again.", 400);
                         return;
                     }
+                    var grant = await exchange.ExchangeCodeAsync(login.ConnectionKey, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                     await neurons.ConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
                 await LoginPage.WriteAsync(context, $"{connector} connected", "You can close this tab. IntoChat.OS is continuing your request.", 200);

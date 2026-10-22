@@ -1,11 +1,16 @@
-using IntoChat.OS;
+using IntoChat.OS.Tools;
 
 namespace IntoChat.OS.Google.Gmail;
 
 [Alias("gmail")]
 [Orleans.Metadata.DefaultGrainType("gmail")]
-public interface IGmail : INeuron
+public interface IGmail : IToolSource
 {
+    Task<GmailInboxResult> ReadInbox(GmailInboxRequest request, CancellationToken ct = default);
+    Task<GmailMessageResult> ReadMessage(GmailMessageRequest request, CancellationToken ct = default);
+    Task<GmailDraftPreviewResult> PreviewDraft(GmailDraftRequest request, CancellationToken ct = default);
+    Task<GmailDraftCreationResult> CreateDraft(GmailCreateDraftRequest request, CancellationToken ct = default);
+    Task<GmailDraftOperationResult> GetDraftOperation(GmailDraftOperationRequest request, CancellationToken ct = default);
 }
 
 [GenerateSerializer, Alias("gmail.watch-push")]

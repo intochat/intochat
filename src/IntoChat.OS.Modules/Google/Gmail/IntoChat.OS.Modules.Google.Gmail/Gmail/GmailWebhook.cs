@@ -1,0 +1,54 @@
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk.Http;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
+
+namespace IntoChat.OS.Google.Gmail;
+
+internal static class GmailWebhook
+{
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost(GmailModule.WatchPath + "/{brainId}", async (string brainId, HttpRequest request,
+            IGmailPushAuthenticator authenticator, IBrainOwnerDispatch dispatch, IGrainFactory grains, ILogger<GmailModule> logger, CancellationToken ct) =>
+        {
+            if (!await authenticator.AuthenticateAsync(request, ct)) { return Results.Unauthorized(); }
+            if (!BrainScope.IsValidId(brainId)) { return Results.NotFound(); }
+            var (envelope, failure) = await HttpProblems.ReadValidatedAsync(request, new GmailPubSubValidator(), GmailPubSub.MaxEnvelopeBytes, ct);
+            if (failure is not null) { return failure; }
+            if (!GmailPubSub.TryUnwrap(envelope!, out var push)) { return Results.BadRequest(); }
+            var accepted = false;
+            var duplicate = false;
+            var retryable = false;
+            var found = await dispatch.RunAsync(brainId, new(brainId + "/gmail-push"), async () =>
+            {
+                foreach (var key in await grains.GetGrain<IConnectionIndex>(brainId).List())
+                {
+                    if (ConnectionKeys.Parse(key).ConnectorId != GmailModule.Gmail.Id) { continue; }
+                    try
+                    {
+                        await dispatch.RunAsync(brainId, new(key), async () =>
+                        {
+                            var result = await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push);
+                            accepted |= result == GmailPushAcceptance.Accepted;
+                            duplicate |= result == GmailPushAcceptance.Duplicate;
+                            retryable |= result == GmailPushAcceptance.Retryable;
+                        }, cancellationToken: ct);
+                    }
+                    catch (Exception error) when (error is not OperationCanceledException)
+                    {
+                        logger.LogWarning("Gmail push delivery could not be completed ({FailureType}).", error.GetType().Name);
+                        retryable = true;
+                    }
+                }
+            }, cancellationToken: ct);
+            if (!found) { return Results.NotFound(); }
+            return retryable ? Results.StatusCode(StatusCodes.Status503ServiceUnavailable)
+                : accepted ? Results.Accepted() : duplicate ? Results.Ok() : Results.NoContent();
+        }).AllowAnonymous();
+    }
+}

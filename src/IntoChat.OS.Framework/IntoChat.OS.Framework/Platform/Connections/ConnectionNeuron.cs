@@ -43,7 +43,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     protected virtual Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
         => credential.Refresh is null
             ? throw new InvalidOperationException("The connection has no refresh token.")
-            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(Key.Connector, Snapshot.AuthMethodId, credential.Refresh, ct);
+            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(this.GetPrimaryKeyString(), Snapshot.AuthMethodId, credential.Refresh, ct);
 
     protected virtual Task OnConnectedAsync() => Task.CompletedTask;
     protected virtual Task OnDisconnectedAsync() => Task.CompletedTask;
@@ -69,7 +69,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         return View();
     }
 
-    public async Task<ConnectionView> AcceptGrant(OAuthGrant grant)
+    public virtual async Task<ConnectionView> AcceptGrant(OAuthGrant grant)
     {
         ArgumentNullException.ThrowIfNull(grant);
         RequireMember();

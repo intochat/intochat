@@ -11,4 +11,17 @@ public sealed class ToolSourcesFacts
         Assert.Equal(ToolCapabilitySource.MaxDescription, entry.Description.Length);
         Assert.Contains("Run(\"render_preview\"", Assert.Single(entry.Methods), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void SearchDirectsTheCallerToCompleteSchemasInsteadOfClippingJson()
+    {
+        var schema = "{\"type\":\"object\",\"description\":\"" + new string('x', 900) + "\"}";
+        var entry = ToolCapabilitySource.Capability("b/gmail/mail", "Test.IGmail", "Mail", new("gmail_create_draft", "Create draft", "Create a draft.", schema, false));
+
+        var method = Assert.Single(entry.Methods);
+        Assert.Contains("Tools()", method, StringComparison.Ordinal);
+        Assert.Contains("full input schema", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("{\"type\"", method, StringComparison.Ordinal);
+        Assert.Contains("Run(\"gmail_create_draft\", arguments)", method, StringComparison.Ordinal);
+    }
 }

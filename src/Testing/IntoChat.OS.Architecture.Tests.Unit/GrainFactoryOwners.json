@@ -79,9 +79,7 @@
   "IntoChat.OS.Modules.Flutter/WebBrowser/WebBrowserNeuron.cs": 4,
   "IntoChat.OS.Modules.Flutter/Workspace/WorkspaceNeuron.cs": 1,
   "IntoChat.OS.Modules.Google.Gmail.Tests.Integration/Gmail/GmailConnectedFacts.cs": 3,
-  "IntoChat.OS.Modules.Google.Gmail.Tests.Integration/Http/GmailBrain.cs": 2,
   "IntoChat.OS.Modules.Google.Gmail.Tests.Integration/Http/GmailWatchWebhookFacts.cs": 3,
-  "IntoChat.OS.Modules.Google.Gmail/GmailModule.cs": 3,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/BrainRuntimeNeuronFacts.cs": 4,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/RunFactsFacts.cs": 2,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/RuntimeBrain.cs": 4,
@@ -110,5 +108,7 @@
   "IntoChat.OS.Modules.Tools/ToolCapabilitySource.cs": 2,
   "IntoChat.OS.Kernel/AgentChatSource.cs": 3,
   "IntoChat.OS.Testing/Targets/InProcessTarget.cs": 2,
-  "IntoChat.OS.Authority/AuthorityNeurons.cs": 2
+  "IntoChat.OS.Authority/AuthorityNeurons.cs": 2,
+  "IntoChat.OS.Modules.Google.Gmail.Testing/GmailBrain.cs": 2,
+  "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailWebhook.cs": 3
 }

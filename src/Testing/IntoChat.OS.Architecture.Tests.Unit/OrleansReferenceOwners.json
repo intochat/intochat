@@ -144,5 +144,8 @@
   ],
   "IntoChat.OS.Testing.Tests.Integration": [
     "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Modules.Google.Gmail": [
+    "Microsoft.Orleans.Reminders"
   ]
 }

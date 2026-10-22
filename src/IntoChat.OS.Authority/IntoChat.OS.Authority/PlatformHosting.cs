@@ -11,6 +11,7 @@ using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Authority.Workshop;
+using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,6 +57,7 @@ public static class PlatformHosting
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
         services.TryAddSingleton<IntoChat.OS.Framework.Platform.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
+        services.TryAddSingleton<IBrainOwnerDispatch, Identity.BrainOwnerDispatch>();
         services.TryAddSingleton<IntoChat.OS.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<BrainBirths>();
@@ -86,6 +88,8 @@ public static class PlatformHosting
         services.TryAddSingleton<Connections.OAuth.OAuthLoginFlow>();
         services.AddHttpClient(Connections.OAuth.OAuthTokenExchange.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddMeteredHttpClient(Connections.OAuth.OAuthTokenExchange.MeteredHttpClientName)
+            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<IHttpSurface, Connections.OAuth.OAuthCallback>();
         // "Request starting" lines carry the callback's query (code and state); never log them, whatever the host's level.
         services.AddLogging(logging => logging.AddFilter(Connections.OAuth.OAuthCallback.RequestLogCategory, LogLevel.Warning));

@@ -1,4 +1,9 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using IntoChat.OS.Google.Gmail.Testing;
 using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Google.Gmail;
 using IntoChat.OS.Integrations;
 
@@ -12,7 +17,7 @@ public sealed class DriveStorageFacts
     public async Task AConnectedDriveIsDiscoveredAsStorageAndBrowsedWithItsToken()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var drive = await DriveStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct, drive: drive.Endpoint);
         var key = ConnectionKeys.For(brain.Owner.BrainId, GmailModule.Drive.Id, "primary");
@@ -32,6 +37,20 @@ public sealed class DriveStorageFacts
         Assert.Equal("exported plan", await storage.Read(top[1].Location, ct));
         Assert.Equal(["My Drive", "Notes", "a.txt"], (await storage.Ancestors(file.Location, ct)).Select(entry => entry.Name));
         Assert.Equal("Bearer drive-token", drive.LastAuthorization);
+        var page = (await brain.Owner.Http.GetFromJsonAsync<ComputeTracePage>($"/brains/{brain.Owner.BrainId}/compute/traces/{TraceContext.Current!.TraceId}", new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } }, ct))!;
+        Assert.Contains(page.Rows, cost => cost.Item == "google.drive.files.get.media");
+        Assert.Contains(page.Rows, cost => cost.Item == "google.drive.files.export");
+        Assert.Contains(page.Rows, cost => cost.Item == "google.drive.about.get");
+        Assert.All(page.Rows, cost =>
+        {
+            Assert.Equal(CostKind.ExternalProvider, cost.Kind);
+            Assert.Equal(key, cost.Neuron);
+            Assert.Equal(FundingKind.OwnConnection, cost.FundingKind);
+            Assert.Equal("request", cost.Unit);
+            Assert.Equal(1, cost.Quantity);
+            Assert.Null(cost.ListPriceMicros);
+            Assert.Equal(0, cost.Micros);
+        });
     }
 
     [Trait("host", "own")]
@@ -39,7 +58,7 @@ public sealed class DriveStorageFacts
     public async Task AFolderIsNotReadAsText()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await TokenEndpointStub.StartAsync(ct);
+        await using var stub = await GoogleStub.StartAsync(ct);
         await using var drive = await DriveStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct, drive: drive.Endpoint);
         var key = ConnectionKeys.For(brain.Owner.BrainId, GmailModule.Drive.Id, "primary");
