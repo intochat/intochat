@@ -11,23 +11,12 @@
     <ProjectReference Include="../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../IntoChat.OS.Mcp/IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Aspire.Hosting/IntoChat.OS.Modules.Flutter.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Aspire.Hosting/IntoChat.OS.Modules.AI.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Qdrant/IntoChat.OS.Modules.Qdrant.Aspire.Hosting/IntoChat.OS.Modules.Qdrant.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Supabase/IntoChat.OS.Modules.Supabase.Aspire.Hosting/IntoChat.OS.Modules.Supabase.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Aspire.Hosting/IntoChat.OS.Modules.Salesforce.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <!-- Every module hosting adapter, by convention; ModuleHostingScan finds them from the references. -->
+    <ProjectReference Include="../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Aspire.Hosting.csproj" Exclude="../IntoChat.OS.Modules/**/tests/**" IsAspireProjectResource="false" />
   </ItemGroup>
 </Project>

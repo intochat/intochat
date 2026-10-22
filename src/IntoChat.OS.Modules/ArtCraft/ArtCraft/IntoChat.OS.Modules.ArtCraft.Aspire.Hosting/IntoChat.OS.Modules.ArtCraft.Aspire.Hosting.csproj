@@ -5,7 +5,6 @@
     <RootNamespace>IntoChat.OS.Modules.ArtCraft.Aspire.Hosting</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
   </ItemGroup>

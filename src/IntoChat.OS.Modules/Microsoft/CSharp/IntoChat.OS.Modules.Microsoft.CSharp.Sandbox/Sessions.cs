@@ -21,7 +21,8 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
     // The contracts this image carries, reported to every brain on connect.
     public static string Fingerprint { get; } = ResolveFromBaseDirectory() ?? ContractsFingerprint.Of(Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
         .Where(path => Path.GetFileNameWithoutExtension(path) is "IntoChat.OS" or "IntoChat.OS.Client"
-            || Path.GetFileNameWithoutExtension(path).EndsWith(".Contracts", StringComparison.Ordinal))
+            || Path.GetFileNameWithoutExtension(path).EndsWith(".Contracts", StringComparison.Ordinal)
+            || (Path.GetFileName(path).StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && ContractsHost.Declares(path)))
         .Select(path => AssemblyLoadContext.Default.Assemblies.FirstOrDefault(loaded => loaded.GetName().Name == Path.GetFileNameWithoutExtension(path))
             ?? AssemblyLoadContext.Default.LoadFromAssemblyPath(path)));
 

@@ -10,7 +10,8 @@ public sealed class OsCatalogFacts
     [Fact]
     public void InProcessModulesIsModulesMinusTheContainerBackedOnes()
     {
-        string[] containerBacked = ["postgres", "clickhouse", "supabase", "qdrant", "artcraft"];
+        string[] containerBacked = ["artcraft", "clickhouse", "postgres", "qdrant", "supabase"];
+        Assert.Equal(containerBacked, OsCatalog.Modules.Where(module => module.RequiresContainer).Select(module => module.Id.Value).Order(StringComparer.Ordinal));
         var expected = OsCatalog.Modules.Select(module => module.Id.Value).Except(containerBacked, StringComparer.OrdinalIgnoreCase);
         Assert.Equal(expected, OsCatalog.InProcessModules.Select(module => module.Id.Value));
         Assert.All(containerBacked, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id));
@@ -42,13 +43,19 @@ public sealed class OsCatalogFacts
             .Descendants("Project").Select(project => Path.GetFileNameWithoutExtension(project.Attribute("Path")!.Value))
             .ToHashSet(StringComparer.Ordinal);
         var mcp = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Mcp"), "IntoChat.OS.Mcp.csproj"));
-        foreach (var module in OsCatalog.Modules)
+        foreach (var module in OsCatalog.WithWindowsEdge())
         {
             var assembly = module.GetType().Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
+            // A module that hosts its own contracts has no Contracts project: the host must reference the module itself.
+            if (IntoChat.OS.Client.Runtime.ContractsHost.Declares(module.GetType().Assembly))
+            {
+                Assert.True(mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), assembly);
+                continue;
+            }
             if (!projects.Contains(contracts)) { continue; }
-            // Referencing the module project itself carries its contracts too (Tools).
-            Assert.True(mcp.Contains(contracts + ".csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
+            // The host references every module Contracts project by glob; referencing the module project itself carries its contracts too (Tools).
+            Assert.True(mcp.Contains("IntoChat.OS.Modules.*.Contracts.csproj", StringComparison.Ordinal) || mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), contracts);
         }
     }
 
@@ -61,5 +68,55 @@ public sealed class OsCatalogFacts
     {
         var ids = OsCatalog.Modules.Select(module => module.Id.ToString()).ToArray();
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    // Orleans is first (Order); the rest follow by ordinal id.
+    [Fact]
+    public void OrleansComesFirstAndTheRestAreOrdinal()
+    {
+        var ids = OsCatalog.Modules.Select(module => module.Id.Value).ToArray();
+        Assert.Equal("orleans", ids[0]);
+        Assert.Equal(ids.Skip(1).Order(StringComparer.Ordinal), ids.Skip(1));
+    }
+
+    // Discovery reads the module assemblies the OS ships; a Module type found there that is neither
+    // cataloged nor an explicit exclusion means the discovery scope or the exclusion list is wrong.
+    [Fact]
+    public void EveryModuleTypeIsCatalogedOrExcluded()
+    {
+        using var dependencies = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.OS.Kernel.deps.json")));
+        var cataloged = OsCatalog.Modules.Select(module => module.GetType()).ToHashSet();
+        var shipped = dependencies.RootElement.GetProperty("libraries").EnumerateObject()
+            .Select(library => library.Name.Split('/')[0])
+            .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal));
+        foreach (var name in shipped)
+        {
+            System.Reflection.Assembly assembly;
+            try { assembly = System.Reflection.Assembly.Load(name); }
+            catch (FileNotFoundException) { continue; }
+            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IntoChat.OS.Framework.Modules.Module).IsAssignableFrom(type)))
+            {
+                Assert.True(cataloged.Contains(type) || OsCatalog.IsExcluded(type), type.FullName);
+            }
+        }
+    }
+
+    // The AppHost references hosting projects by glob; a hosting project in the solution whose assembly
+    // the host process cannot load would leave its module unhosted, so it fails here instead of silently.
+    [Fact]
+    public void EveryAspireHostingProjectIsReachableFromTheAppHost()
+    {
+        var onDisk = System.Xml.Linq.XDocument.Load(Path.Combine(SolutionProjects.Root, "Intochat.OS.slnx"))
+            .Descendants("Project").Select(project => project.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Where(path => path.Contains("/IntoChat.OS.Modules/", StringComparison.Ordinal) && !path.Contains("/tests/", StringComparison.Ordinal)
+                && path.EndsWith(".Aspire.Hosting.csproj", StringComparison.Ordinal))
+            .Select(path => Path.GetFileNameWithoutExtension(path)).ToArray();
+        Assert.NotEmpty(onDisk);
+        foreach (var name in onDisk)
+        {
+            var exception = Record.Exception(() => System.Reflection.Assembly.Load(name));
+            Assert.True(exception is null, name + " is not reachable from the AppHost references");
+        }
     }
 }

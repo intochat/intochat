@@ -34,15 +34,14 @@
     <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Aspire.Hosting/IntoChat.OS.Modules.AI.Aspire.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Integration/IntoChat.OS.Modules.AI.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Hosting/IntoChat.OS.Modules.AI.Tests.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Integration/IntoChat.OS.Modules.AI.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Unit/IntoChat.OS.Modules.AI.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/ArtCraft/" />
   <Folder Name="/Modules/ArtCraft/ArtCraft/">
-    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Integration/IntoChat.OS.Modules.ArtCraft.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/">
@@ -87,7 +86,6 @@
   </Folder>
   <Folder Name="/Modules/Google/Gmail/">
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Integration/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Unit/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.csproj" />
@@ -130,8 +128,8 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Orleans/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans/IntoChat.OS.Modules.Microsoft.Orleans.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration.csproj" />
@@ -145,7 +143,6 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Playwright/tests/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Windows/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows.Contracts/IntoChat.OS.Modules.Microsoft.Windows.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj" />
@@ -185,19 +182,18 @@
     <Project Path="src/IntoChat.OS.Modules/Supabase/tests/IntoChat.OS.Modules.Supabase.Tests.Unit/IntoChat.OS.Modules.Supabase.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Time/">
-    <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Sdk/">
-    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
-    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" />
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators.Tests.Unit/IntoChat.OS.Sdk.Generators.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" />
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http.Tests.Unit/IntoChat.OS.Sdk.Http.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Identity/IntoChat.OS.Sdk.Identity.csproj" />
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.SampleModule/IntoChat.OS.Sdk.SampleModule.csproj" />
+    <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
   </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
@@ -221,8 +217,7 @@
     <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/IntoChat.OS.Authority.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
   </Folder>
-  <Folder Name="/Trust/">
-  </Folder>
+  <Folder Name="/Trust/" />
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path="Directory.Packages.props" />

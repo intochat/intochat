@@ -59,9 +59,6 @@
   "IntoChat.OS.Modules.Apps.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.ArtCraft.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Circles.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
@@ -75,9 +72,6 @@
     "Microsoft.Orleans.Serialization.SystemTextJson"
   ],
   "IntoChat.OS.Modules.Flutter.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
-  "IntoChat.OS.Modules.Google.Gmail.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
   "IntoChat.OS.Modules.Mcp.Contracts": [
@@ -119,9 +113,6 @@
   "IntoChat.OS.Modules.Microsoft.Roslyn.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.Microsoft.Windows.Contracts": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Modules.Postgres.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
@@ -130,9 +121,6 @@
   ],
   "IntoChat.OS.Modules.Time": [
     "Microsoft.Orleans.Reminders"
-  ],
-  "IntoChat.OS.Modules.Time.Contracts": [
-    "Microsoft.Orleans.Sdk"
   ],
   "IntoChat.OS.Modules.Tools.Contracts": [
     "Microsoft.Orleans.Sdk"

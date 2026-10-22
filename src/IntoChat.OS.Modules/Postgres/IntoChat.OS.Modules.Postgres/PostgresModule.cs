@@ -10,6 +10,8 @@ namespace IntoChat.OS.Postgres;
 
 public sealed class PostgresModule() : Module<PostgresModuleOptions>(new ModuleId("postgres"))
 {
+    public override bool RequiresContainer => true;
+
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Postgres.IPostgresServer).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("postgres", "Postgres").RequiresSecret("ConnectionString").OffersSecret("AdminConnection");

@@ -6,7 +6,7 @@
     <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
-    <ProjectReference Include="../../../../Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
+    <ProjectReference Include="../../../../Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../../../../Postgres/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>

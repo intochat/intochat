@@ -79,18 +79,42 @@ public sealed class BoundaryFacts
     [Fact]
     public void ScriptVisibleContractsOnlyDependOnOtherContractsAndTheNeuronAbstractions()
     {
-        var contracts = ProductionArchitecture.Assemblies
-            .Where(assembly => assembly.GetName().Name!.EndsWith(".Contracts", StringComparison.Ordinal)).ToArray();
+        var contracts = ProductionArchitecture.Assemblies.Where(ContractRing.IsContractAssembly).ToArray();
         var runtime = ProductionArchitecture.Assemblies.Except(contracts)
             .Where(assembly => assembly.GetName().Name != "IntoChat.OS").ToArray();
         Assert.NotEmpty(contracts);
-        foreach (var contract in contracts)
+        foreach (var contract in contracts.Where(ContractRing.IsContractsProject))
         {
             foreach (var implementation in runtime)
             {
                 ArchRuleDefinition.Types().That().ResideInAssembly(contract).Should()
                     .NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(implementation))
                     .Check(ProductionArchitecture.Graph.Value);
+            }
+        }
+        // A hosting module assembly mixes its contracts with its implementation: only the contract types are judged,
+        // against the other runtime assemblies and against the module's own implementation types.
+        foreach (var host in contracts.Where(assembly => !ContractRing.IsContractsProject(assembly)))
+        {
+            var contractTypes = ContractRing.ContractTypes(host).Select(type => type.FullName!).ToHashSet(StringComparer.Ordinal);
+            Assert.NotEmpty(contractTypes);
+            var own = host.GetTypes().Where(type => !contractTypes.Contains(type.FullName ?? "")
+                && type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true && !type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
+                .Select(type => type.FullName!).ToArray();
+            foreach (var name in contractTypes)
+            {
+                foreach (var implementation in runtime)
+                {
+                    ArchRuleDefinition.Types().That().HaveFullName(name).Should()
+                        .NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(implementation))
+                        .Check(ProductionArchitecture.Graph.Value);
+                }
+                if (own.Length > 0)
+                {
+                    ArchRuleDefinition.Types().That().HaveFullName(name).Should()
+                        .NotDependOnAny(ArchRuleDefinition.Types().That().HaveFullNameMatching("^(" + string.Join('|', own.Select(System.Text.RegularExpressions.Regex.Escape)) + ")$"))
+                        .Check(ProductionArchitecture.Graph.Value);
+                }
             }
         }
     }

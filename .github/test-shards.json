@@ -1,70 +1,20 @@
 {
-  "shards": {
+  "tiers": {
     "unit": [
-      "**/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Apps.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Flutter.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.AI.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Mcp.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Circles.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Flame.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Postgres.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Supabase.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Salesforce.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.ClickHouse.Tests.Unit.dll",
-      "**/IntoChat.OS.Architecture.Tests.Unit.dll",
-      "**/IntoChat.OS.Aspire.Hosting.Tests.Unit.dll",
-      "**/IntoChat.OS.Client.Tests.Unit.dll",
-      "**/IntoChat.OS.LocalSetup.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Qdrant.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Time.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Tools.Tests.Unit.dll",
-      "**/IntoChat.OS.Runtime.InMemory.Tests.Unit.dll",
-      "**/IntoChat.OS.Sdk.Generators.Tests.Unit.dll",
-      "**/IntoChat.OS.Sdk.Http.Tests.Unit.dll",
+      "**/*.Tests.Unit.dll",
       "**/*.Tests.Hosting.dll"
     ],
-    "integration-a": [
-      "**/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Salesforce.Tests.Integration.dll",
-      "**/IntoChat.OS.Framework.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Mcp.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.ClickHouse.Tests.Integration.dll"
-    ],
-    "integration-b": [
-      "**/IntoChat.OS.Authority.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Apps.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Aspire.Tests.Integration.dll",
-      "**/IntoChat.OS.Client.Orleans.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Time.Tests.Integration.dll",
-      "**/IntoChat.OS.Kernel.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.dll"
-    ],
-    "integration-c": [
-      "**/IntoChat.OS.Modules.AI.Tests.Integration.dll",
-      "**/IntoChat.OS.Kernel.Tests.Unit.dll",
-      "**/IntoChat.OS.Modules.Postgres.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Flame.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.dll",
-      "**/IntoChat.OS.Mcp.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.ArtCraft.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Supabase.Tests.Integration.dll"
-    ],
-    "integration-d": [
-      "**/IntoChat.OS.Modules.Flutter.Tests.Integration.dll",
-      "**/IntoChat.OS.Testing.Tests.Integration.dll",
-      "**/IntoChat.OS.Modules.Circles.Tests.Integration.dll"
+    "integration": [
+      "**/*.Tests.Integration.dll"
     ]
+  },
+  "buckets": {
+    "unit": 1,
+    "integration": 4
+  },
+  "pins": {
+    "IntoChat.OS.Authority.Tests.Integration": 0,
+    "IntoChat.OS.Modules.Flutter.Tests.Integration": 1,
+    "IntoChat.OS.Framework.Tests.Integration": 2
   }
 }

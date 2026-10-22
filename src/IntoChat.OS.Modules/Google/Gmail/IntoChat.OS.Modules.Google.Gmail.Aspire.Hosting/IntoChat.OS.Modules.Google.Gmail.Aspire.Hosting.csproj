@@ -6,7 +6,6 @@
     <RootNamespace>IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
   </ItemGroup>

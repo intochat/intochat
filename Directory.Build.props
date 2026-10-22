@@ -41,7 +41,7 @@
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client.Orleans' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Client'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Aspire'
         Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Playwright'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Identity' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Http'
+        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Templates' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Identity' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Http'
         Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</IntoChatOSSdkPackage>
     <PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>
@@ -56,6 +56,16 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <!-- A module whose contracts no other module references keeps them in its own assembly (IntoChatOSContractsHost).
+       The assembly declares it, so the sandbox image, the script compiler and the architecture facts find it by
+       that declaration, not by a .Contracts name. Such a package is a runtime package: it is not MIT-stamped. -->
+  <ItemGroup Condition="'$(IntoChatOSContractsHost)' == 'true'">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>IntoChat.OS.ContractsHost</_Parameter1>
+      <_Parameter2>true</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
