@@ -219,7 +219,6 @@
   </Folder>
   <Folder Name="/Authority/">
     <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
-    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Hosted/IntoChat.OS.Authority.Hosted.csproj" />
     <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/IntoChat.OS.Authority.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
   </Folder>

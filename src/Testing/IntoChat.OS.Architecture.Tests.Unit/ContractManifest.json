@@ -542,7 +542,6 @@
     "IntoChat.OS.Authority.Compute.UsageState": "platform.usage-state; Recent=0, Daily=1, AppliedSequence=2",
     "IntoChat.OS.Authority.Connections.ConnectionIndexState": "connection.index-state; Keys=0",
     "IntoChat.OS.Authority.Connections.ConnectionRequestsState": "integrations.script-accounts; Pending=0, Revision=1",
-    "IntoChat.OS.Authority.Hosted.HostedReminder": "hosted.reminder.v1; GrainId=0, Name=1, StartAt=2, Period=3, Tag=4",
     "IntoChat.OS.Authority.Identity.Authority.AccountState": "identity.account-state.v2; Account=0, BrainOperations=1",
     "IntoChat.OS.Authority.Identity.Authority.BrainAuthorityState": "identity.brain-access-state.v2; AccountId=0, BrainId=1, Members=2, Grants=3, Invitations=4, OwnerProvisioned=6, Kind=7",
     "IntoChat.OS.Authority.Identity.Authority.IAccount": "identity.account-grain (not generated); ",
