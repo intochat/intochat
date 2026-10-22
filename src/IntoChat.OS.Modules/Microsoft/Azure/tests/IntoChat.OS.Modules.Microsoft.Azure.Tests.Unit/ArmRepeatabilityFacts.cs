@@ -10,6 +10,27 @@ namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 public sealed class ArmRepeatabilityFacts
 {
     [Fact]
+    public async Task Session_pool_ensure_preserves_the_management_endpoint_reported_by_azure()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+
+        var made = await arm.Ensure(AzureHttp.Subscription, new SessionPoolSpec
+        {
+            Name = "test-sandbox",
+            ResourceGroup = "rg",
+            Location = "polandcentral",
+            Environment = "test-env",
+            Identity = "test-id",
+            Image = "acr.azurecr.io/sandbox:1",
+            RegistryServer = "acr.azurecr.io",
+        }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://test-sandbox.env-123.polandcentral.azurecontainerapps.io/", made.Endpoint);
+    }
+
+    [Fact]
     public async Task Vault_without_explicit_tenant_loads_the_subscription_before_using_its_tenant()
     {
         using var handler = new AzureHttp();
@@ -287,6 +308,15 @@ public sealed class ArmRepeatabilityFacts
                     _app["properties"]!["provisioningState"] = "Succeeded";
                 }
                 result = _app;
+            }
+            else if (path.Equals(Group + "/providers/Microsoft.App/sessionPools/test-sandbox", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Equal(HttpMethod.Put, request.Method);
+                result = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                result["id"] = path;
+                result["name"] = "test-sandbox";
+                result["properties"]!["provisioningState"] = "Succeeded";
+                result["properties"]!["poolManagementEndpoint"] = "https://test-sandbox.env-123.polandcentral.azurecontainerapps.io/";
             }
             else { throw new InvalidOperationException($"Unexpected Azure test request: {request.Method} {uri.GetLeftPart(UriPartial.Path)}"); }
 

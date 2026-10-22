@@ -28,7 +28,10 @@ internal sealed class RecordingAzure : IAzureArm
             VaultReads.AddRange(names);
             Vault[secret.Name] = SecretSpec.Substitute(secret.Value, names.ToDictionary(name => name, name => Vault[name]));
         }
-        return Task.FromResult(new ResourceRef($"/subscriptions/{subscription}/resourceGroups/{spec.ResourceGroup}/{spec.Kind}/{spec.Name}", spec.Kind, spec.Name, spec.ResourceGroup));
+        return Task.FromResult(new ResourceRef($"/subscriptions/{subscription}/resourceGroups/{spec.ResourceGroup}/{spec.Kind}/{spec.Name}", spec.Kind, spec.Name, spec.ResourceGroup)
+        {
+            Endpoint = spec is SessionPoolSpec ? $"https://{spec.Name}.env-123.{spec.Location}.azurecontainerapps.io/" : "",
+        });
     }
 
     public Task<string?> ReadSecret(string vault, string name, CancellationToken ct) => Task.FromResult(Vault.GetValueOrDefault(name));

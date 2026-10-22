@@ -574,7 +574,7 @@ public sealed class ArmAzure : IAzureArm
         data.CustomContainerTemplate = template;
         Apply(spec, data.Tags);
         var made = await rg.GetSessionPools().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
-        return Ref(made.Value.Id, spec, spec.Name);
+        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.PoolManagementEndpoint?.AbsoluteUri ?? "" };
     }
 
     private async Task<ResourceRef> EnsureGrant(ResourceGroupResource rg, RoleGrantSpec spec, CancellationToken ct)
