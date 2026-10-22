@@ -37,6 +37,7 @@ public sealed class IntegrationSeederFacts
         Assert.Equal(IntegrationStatus.Ready, (await brain.Platform.Integration("openai").Read()).Status);
         Assert.Equal(2, logger.Lines.Count(line => line.Level == LogLevel.Warning));
         Assert.DoesNotContain(logger.Lines, line => line.Level == LogLevel.Error);
+        Assert.Single(logger.Lines, line => line.Level == LogLevel.Information && line.Text == "Integration seeding completed with 0 failures.");
         AssertSafeLogs(logger);
     }
 
@@ -55,6 +56,7 @@ public sealed class IntegrationSeederFacts
         Assert.Equal(IntegrationStatus.Unconfigured, consumer.Observed?.Status);
         Assert.Equal(IntegrationStatus.Ready, (await brain.Platform.Integration("anthropic").Read()).Status);
         Assert.Single(logger.Lines, line => line.Level == LogLevel.Error);
+        Assert.Single(logger.Lines, line => line.Level == LogLevel.Information && line.Text == "Integration seeding completed with 1 failures.");
         AssertSafeLogs(logger);
     }
 
@@ -76,6 +78,7 @@ public sealed class IntegrationSeederFacts
         Assert.Equal(0, consumer.Calls);
         Assert.Equal(IntegrationStatus.Unconfigured, (await brain.Platform.Integration("anthropic").Read()).Status);
         Assert.DoesNotContain(logger.Lines, line => line.Level == LogLevel.Error);
+        Assert.DoesNotContain(logger.Lines, line => line.Text.StartsWith("Integration seeding completed", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 60_000)]

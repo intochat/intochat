@@ -22,6 +22,7 @@ internal sealed class IntegrationSeeder(
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
+        var failureCount = 0;
         foreach (var definition in definitions)
         {
             for (var attempt = 1; attempt <= MaxSeedAttempts; attempt++)
@@ -36,6 +37,7 @@ internal sealed class IntegrationSeeder(
                 {
                     if (attempt == MaxSeedAttempts)
                     {
+                        failureCount++;
                         logger.LogError("Seeding integration {IntegrationId} failed after {Attempts} attempts ({ErrorType}).",
                             definition.Id, attempt, error.GetType().Name);
                         break;
@@ -47,6 +49,8 @@ internal sealed class IntegrationSeeder(
                 }
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Integration seeding completed with {FailureCount} failures.", failureCount);
         foreach (var consumer in consumers ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
