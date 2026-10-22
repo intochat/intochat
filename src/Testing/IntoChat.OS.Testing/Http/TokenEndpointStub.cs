@@ -53,7 +53,7 @@ public sealed class TokenEndpointStub : IAsyncDisposable
         {
             stub!.LastProfileAuthorization = request.Headers.Authorization.ToString();
             return stub.ProfileStatus == StatusCodes.Status200OK
-                ? Results.Json(new { emailAddress = "user@gmail.com" })
+                ? Results.Json(new { emailAddress = "user@gmail.com", historyId = "100" })
                 : Results.StatusCode(stub.ProfileStatus);
         });
         app.MapPost("/token", async (HttpRequest request) => stub!.Answer((await request.ReadFormAsync()).ToDictionary(pair => pair.Key, pair => pair.Value.ToString(), StringComparer.Ordinal)));
