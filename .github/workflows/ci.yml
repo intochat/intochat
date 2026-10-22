@@ -21,7 +21,7 @@ env:
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 # Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
-# modules. Shard membership lives in .github/test-shards.json; TestShardFacts holds every PR-gate
+# modules. Shard membership is by convention from .github/test-shards.json (tier globs, md5 buckets, pins); TestShardFacts holds every PR-gate
 # project to exactly one shard. The nightly tiers (E2E, Browser) run in e2e.yml.
 jobs:
   format:
@@ -82,6 +82,9 @@ jobs:
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
+      - name: Module READMEs are current
+        run: dotnet run scripts/module-readmes.cs -- --check
+
       # Local-profile preflight dry run: fixtures stand in for the machine, so no secrets and no probes of the runner.
       - name: Preflight dry run (all green exits 0)
         run: dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
@@ -113,20 +116,41 @@ jobs:
         run: |
           shards=.github/test-shards.json
           mkdir -p artifacts/shards
-          for shard in $(jq -r '.shards | keys[]' "$shards"); do
-            dirs=()
+          bucket() { echo $(( 16#$(printf '%s' "$1" | md5sum | cut -c1-8) % $2 )); }
+          # Golden bucket table: TestShardFacts asserts the same six names and values.
+          golden="IntoChat.OS.Kernel.Tests.Integration=1 IntoChat.OS.Modules.Time.Tests.Integration=2 IntoChat.OS.Modules.Postgres.Tests.Integration=3 IntoChat.OS.Modules.ArtCraft.Tests.Integration=0 IntoChat.OS.Modules.Apps.Tests.Integration=1 IntoChat.OS.Client.Orleans.Tests.Integration=3"
+          for entry in $golden; do
+            [ "$(bucket "${entry%=*}" 4)" = "${entry#*=}" ] || { echo "::error::bucket drift for $entry"; exit 1; }
+          done
+          rm -f artifacts/shards/*.txt
+          for tier in $(jq -r '.tiers | keys[]' "$shards"); do
+            n=$(jq -r --arg t "$tier" '.buckets[$t]' "$shards")
+            matched=0
             while read -r glob; do
               found=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}")
-              if [ -z "$found" ]; then echo "::error::$shard: $glob matches no test module"; exit 1; fi
-              while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done <<< "$found"
-            done < <(jq -r --arg s "$shard" '.shards[$s][]' "$shards")
+              if [ -z "$found" ]; then echo "::error::$tier: $glob matches no test module"; exit 1; fi
+              while read -r dll; do
+                project=$(basename "$dll" .dll)
+                pin=$(jq -r --arg p "$project" '.pins[$p] // empty' "$shards")
+                b=${pin:-$(bucket "$project" "$n")}
+                if [ "$n" -eq 1 ]; then shard=$tier; else letters=(a b c d e f g h); shard="$tier-${letters[$b]}"; fi
+                echo "$dll" >> "artifacts/shards/$shard.txt"
+                matched=$((matched + 1))
+              done <<< "$found"
+            done < <(jq -r --arg t "$tier" '.tiers[$t][]' "$shards")
+            echo "$tier: $matched modules"
+          done
+          for list in artifacts/shards/*.txt; do
+            shard=$(basename "$list" .txt)
+            dirs=()
+            while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done < "$list"
             for dir in "${dirs[@]}"; do
               if [ -d "$dir/release/runtimes" ]; then
                 find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
               fi
             done
             archive="artifacts/shards/$shard.tar.zst"
-            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "${dirs[@]}"
+            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "$list" "${dirs[@]}"
             echo "$shard: ${#dirs[@]} modules, $(du -h "$archive" | cut -f1)"
           done
           df -h /
@@ -164,7 +188,9 @@ jobs:
           retention-days: 1
 
       - name: Validate NuGet packages
-        run: dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
+        run: |
+          dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
+          dotnet pack templates/IntoChat.OS.Templates/IntoChat.OS.Templates.csproj -c Release -v quiet -o artifacts/packages -p:CodeGraphRefresh=false
 
       - uses: actions/upload-artifact@v7
         with:
@@ -201,12 +227,11 @@ jobs:
         id: globs
         run: |
           globs=()
-          while read -r glob; do
-            count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}" | wc -l)
-            echo "$glob -> $count"
-            if [ "$count" -eq 0 ]; then echo "::error::$glob matches no test module"; exit 1; fi
-            globs+=("artifacts/bin/$glob")
-          done < <(jq -r --arg s "${{ matrix.shard }}" '.shards[$s][]' .github/test-shards.json)
+          while read -r dll; do
+            [ -f "$dll" ] || { echo "::error::$dll missing from the shard archive"; exit 1; }
+            globs+=("$dll")
+          done < artifacts/shards/${{ matrix.shard }}.txt
+          echo "${#globs[@]} modules"
           echo "value=$(IFS=';'; echo "${globs[*]}")" >> "$GITHUB_OUTPUT"
 
       - name: Test
@@ -219,12 +244,35 @@ jobs:
           path: artifacts/trx
           retention-days: 7
 
+  # dotnet new intochat-module outside the repository, restored from this PR's own packed packages.
+  template:
+    name: template
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts/packages
+
+      - name: Template smoke
+        run: bash scripts/ci/template-smoke.sh "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/packages"
+
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
   # shard reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
   report:
     name: report
-    needs: [format, build, test]
+    needs: [format, build, test, template]
     if: always()
     continue-on-error: true
     runs-on: ubuntu-24.04
@@ -259,7 +307,7 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
-          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
+          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }} template=${{ needs.template.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
@@ -298,8 +346,37 @@ jobs:
       - name: Pack prerelease packages
         run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
 
+      - name: Pack prerelease template
+        run: dotnet pack templates/IntoChat.OS.Templates/IntoChat.OS.Templates.csproj -c Release -o artifacts -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
+
       # Separate from pack so --skip-duplicate cannot mask a pack failure.
       - name: Push packages to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate
+
+  # The external-author path: instantiate the template from the feed with the just-published prerelease.
+  template-feed:
+    name: template-feed
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      NUGET_GITHUB_USERNAME: ${{ github.actor }}
+      NUGET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack template with the published prerelease version
+        run: dotnet pack templates/IntoChat.OS.Templates/IntoChat.OS.Templates.csproj -c Release -o artifacts/template -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
+
+      - name: Template smoke (feed)
+        run: bash scripts/ci/template-smoke.sh "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/template" feed

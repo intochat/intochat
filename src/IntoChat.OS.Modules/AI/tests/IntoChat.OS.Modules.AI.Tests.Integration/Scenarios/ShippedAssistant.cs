@@ -14,8 +14,9 @@ internal static class ShippedAssistant
         while (!File.Exists(Path.Combine(directory!.FullName, "Intochat.OS.slnx"))) { directory = directory.Parent; }
         var lib = File.ReadAllText(Path.Combine(directory.FullName, "features", "os", "Ino", "Ino.cs"));
         var list = Regex.Match(lib, @"string\[\] Contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
-        // The contract assemblies built beside this test stand in for the deployed host's compiled layer.
-        var deployed = new IntoChat.OS.Framework.CompiledTypes(Directory.GetFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.Contracts.dll")
+        // The contract assemblies (Contracts projects and modules that host their own) built beside this test stand in for the deployed host's compiled layer.
+        var deployed = new IntoChat.OS.Framework.CompiledTypes(Directory.GetFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll")
+                .Where(path => path.EndsWith(".Contracts.dll", StringComparison.Ordinal) || IntoChat.OS.Client.Runtime.ContractsHost.Declares(path))
                 .Select(path => System.Reflection.Assembly.Load(System.Reflection.AssemblyName.GetAssemblyName(path)))
                 .Append(typeof(IntoChat.OS.INeuron).Assembly).Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly))
             .Entries.Where(type => type.Kind == IntoChat.OS.TypeKind.Neuron).Select(type => type.Name).ToArray();

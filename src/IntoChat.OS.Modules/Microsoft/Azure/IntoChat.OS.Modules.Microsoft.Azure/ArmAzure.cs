@@ -195,12 +195,36 @@ public sealed class ArmAzure : IAzureArm
     private SecretClient Secrets(string vault) => new(new Uri($"https://{vault}.vault.azure.net/"), _credential,
         _transport is null ? null : new SecretClientOptions { Transport = _transport });
 
+    public async Task<string?> ReadSecret(string vault, string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(vault);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return (await FindSecret(Secrets(vault), name, ct))?.Value;
+    }
+
+    private static async Task<KeyVaultSecret?> FindSecret(SecretClient client, string name, CancellationToken ct)
+    {
+        try { return (await client.GetSecretAsync(name, cancellationToken: ct)).Value; }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return null; }
+    }
+
     private async Task<ResourceRef> EnsureSecret(SecretSpec spec, CancellationToken ct)
     {
         var client = Secrets(spec.Vault);
-        KeyVaultSecret? existing = null;
-        try { existing = (await client.GetSecretAsync(spec.Name, cancellationToken: ct)).Value; }
-        catch (RequestFailedException ex) when (ex.Status == 404) { existing = null; }
+        var existing = await FindSecret(client, spec.Name, ct);
+        if (spec.External)
+        {
+            return existing is { Value.Length: > 0 }
+                ? SecretRef(spec, existing)
+                : throw new InvalidOperationException(
+                    $"The external secret '{spec.Name}' is not set in vault '{spec.Vault}'. Set it once with: az keyvault secret set --vault-name {spec.Vault} --name {spec.Name} --value <value>");
+        }
+        if (spec.Generator.Length > 0)
+        {
+            if (existing is not null) { return SecretRef(spec, existing); }
+            var generated = await client.SetSecretAsync(spec.Name, SecretGenerators.Generate(spec.Generator), ct);
+            return SecretRef(spec, generated.Value);
+        }
         if (!spec.Overwrite && existing is not null)
         {
             return SecretRef(spec, existing);

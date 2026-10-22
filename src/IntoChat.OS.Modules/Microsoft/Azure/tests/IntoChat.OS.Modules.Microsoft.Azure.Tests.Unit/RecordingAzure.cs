@@ -14,7 +14,15 @@ internal sealed class RecordingAzure : IAzureArm
     public Task<ResourceRef> Ensure(string subscription, ResourceSpec spec, CancellationToken ct)
     {
         Ensured.Add(spec);
-        if (spec is SecretSpec secret && (secret.Overwrite || !Vault.ContainsKey(secret.Name)))
+        if (spec is SecretSpec { External: true } external && !Vault.ContainsKey(external.Name))
+        {
+            throw new InvalidOperationException($"external secret '{external.Name}' is not set.");
+        }
+        if (spec is SecretSpec { Generator.Length: > 0 } generated)
+        {
+            if (!Vault.ContainsKey(generated.Name)) { Vault[generated.Name] = SecretGenerators.Generate(generated.Generator); }
+        }
+        else if (spec is SecretSpec secret && (secret.Overwrite || !Vault.ContainsKey(secret.Name)))
         {
             var names = SecretSpec.ReferencesIn(secret.Value);
             VaultReads.AddRange(names);
@@ -22,6 +30,8 @@ internal sealed class RecordingAzure : IAzureArm
         }
         return Task.FromResult(new ResourceRef($"/subscriptions/{subscription}/resourceGroups/{spec.ResourceGroup}/{spec.Kind}/{spec.Name}", spec.Kind, spec.Name, spec.ResourceGroup));
     }
+
+    public Task<string?> ReadSecret(string vault, string name, CancellationToken ct) => Task.FromResult(Vault.GetValueOrDefault(name));
 
     public Task<ResourceRef?> Read(string subscription, ResourceRef resource, CancellationToken ct) => Task.FromResult<ResourceRef?>(resource);
 

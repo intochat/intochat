@@ -12,11 +12,31 @@ internal static class CaptureWriter
 {
     private static readonly JsonSerializerOptions Format = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
-    internal static string Path(string file)
-        => System.IO.Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, file);
+    private static readonly AsyncLocal<string?> Redirected = new();
+
+    // Where captures write: a redirect set by PinFreshnessFacts, else INTOCHAT_CAPTURE_OUT (capture-all -Out),
+    // else the committed baseline directory. Baselines are always read from the committed directory.
+    internal static string Target
+        => Redirected.Value
+            ?? (Environment.GetEnvironmentVariable("INTOCHAT_CAPTURE_OUT") is { Length: > 0 } env ? env : Committed);
+
+    internal static string Committed => Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory;
+
+    internal static string Path(string file) => System.IO.Path.Combine(Committed, file);
+
+    internal static IDisposable RedirectTo(string directory)
+    {
+        Redirected.Value = directory;
+        return new Reset();
+    }
+
+    private sealed class Reset : IDisposable
+    {
+        public void Dispose() => Redirected.Value = null;
+    }
 
     internal static void Write<T>(string file, T value)
-        => File.WriteAllText(Path(file), JsonSerializer.Serialize(value, Format).ReplaceLineEndings("\n") + "\n");
+        => File.WriteAllText(System.IO.Path.Combine(Target, file), JsonSerializer.Serialize(value, Format).ReplaceLineEndings("\n") + "\n");
 
     // The pinned files are not globally sorted (entries were appended by hand over time). Entries that are
     // already pinned keep their position so an unchanged tree reproduces the file byte for byte; new entries

@@ -69,7 +69,7 @@ public sealed class CredentialBoundaryFacts
     public void OptionsAndContractsConfigurationCannotCarrySecrets()
     {
         var options = ProductionArchitecture.Types.Where(t => typeof(IModuleOptions).IsAssignableFrom(t) && !t.IsInterface);
-        var configuration = ProductionArchitecture.Types.Where(t => t.Assembly.GetName().Name!.EndsWith(".Contracts", StringComparison.Ordinal)
+        var configuration = ProductionArchitecture.Types.Where(t => ContractRing.ContractTypes(t.Assembly).Contains(t)
             && (t.Name.EndsWith("Options", StringComparison.Ordinal) || t.Name.EndsWith("Settings", StringComparison.Ordinal)));
         var offenders = options.Concat(configuration).Distinct().SelectMany(t => t.GetProperties()
             .Where(p => p.PropertyType == typeof(string) && SecretName(p.Name)).Select(p => t.FullName + "." + p.Name)).ToArray();

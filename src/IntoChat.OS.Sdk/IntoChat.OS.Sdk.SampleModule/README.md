@@ -20,7 +20,7 @@ Creating a request sends no traffic. `SampleHttpClient.ReadAsync` sends it throu
 
 `SampleHttp.cs` demonstrates the inbound boundary: `/sample/preview` reads at most 1,024 encoded bytes and validates the decoded payload before returning an acceptance result. Its text limits count Unicode scalar values and UTF-8 bytes separately. It creates no provider resource and stores no state.
 
-The runtime counterpart is the [Gmail module](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/GmailModule.cs), its [neuron](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/Gmail/GmailNeuron.cs) and [public contract](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Contracts/Gmail/IGmail.cs). The planned typed Gmail showcase and live-mailbox verification are separate work; this sample does not claim they are implemented.
+The runtime counterpart is the [Gmail module](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/GmailModule.cs), its [neuron](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/Gmail/GmailNeuron.cs) and [public contract](../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/Contracts/Gmail/IGmail.cs). The planned typed Gmail showcase and live-mailbox verification are separate work; this sample does not claim they are implemented.
 
 Run from the repository root:
 

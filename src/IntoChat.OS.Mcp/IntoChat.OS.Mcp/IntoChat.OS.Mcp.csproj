@@ -5,28 +5,15 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure.Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time.Contracts/IntoChat.OS.Modules.Time.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Circles/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Flame/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Flutter/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/AI/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows.Contracts/IntoChat.OS.Modules.Microsoft.Windows.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Contracts/IntoChat.OS.Modules.Postgres.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts.csproj" />
+    <!-- Every module Contracts project, by convention: the host reads a neuron contract from its own loaded assemblies. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj" Exclude="../../IntoChat.OS.Modules/**/tests/**" />
+    <!-- A module that hosts its own contracts (IntoChatOSContractsHost) has no Contracts project for the glob above: reference it itself. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ModelContextProtocol/Mcp/IntoChat.OS.Modules.Mcp.Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Contracts/IntoChat.OS.Modules.ArtCraft.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Contracts/IntoChat.OS.Modules.ClickHouse.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/GitHub/IntoChat.OS.Modules.Microsoft.GitHub.Contracts/IntoChat.OS.Modules.Microsoft.GitHub.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Contracts/IntoChat.OS.Modules.Salesforce.Contracts.csproj" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>

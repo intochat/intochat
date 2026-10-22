@@ -10,6 +10,8 @@ namespace IntoChat.OS.Qdrant;
 
 public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
 {
+    public override bool RequiresContainer => true;
+
     public const string ConnectionName = "qdrant";
 
     public static bool IsConnected(IConfiguration configuration)

@@ -951,7 +951,7 @@
     "IntoChat.OS.Microsoft.Azure.RoleGrantSpec": "azure.spec.role-grant; Principal=0, RoleDefinitionId=1, Scope=2",
     "IntoChat.OS.Microsoft.Azure.SecretFileSpec": "azure.spec.secret-file; Name=0, Vault=1, VaultSecret=2, Path=3",
     "IntoChat.OS.Microsoft.Azure.SecretRef": "azure.spec.secret-ref; Name=0, Vault=1, VaultSecret=2, Variable=3",
-    "IntoChat.OS.Microsoft.Azure.SecretSpec": "azure.spec.secret; Vault=0, Value=1, Overwrite=2",
+    "IntoChat.OS.Microsoft.Azure.SecretSpec": "azure.spec.secret; Vault=0, Value=1, Overwrite=2, Generator=3, External=4",
     "IntoChat.OS.Microsoft.Azure.SecurityRuleSpec": "azure.spec.security-rule; Name=0, Priority=1, Direction=2, Access=3, Protocol=4, DestinationAddressPrefix=5, DestinationPortRange=6",
     "IntoChat.OS.Microsoft.Azure.SessionPoolSpec": "azure.spec.session-pool; Environment=0, Image=1, Cpu=2, Memory=3, TargetPort=4, Identity=5, RegistryServer=6, MaxSessions=7, ReadySessions=8, MaxAliveSeconds=9, Egress=10",
     "IntoChat.OS.Microsoft.Azure.StorageAccountSpec": "azure.spec.storage-account; Sku=0",

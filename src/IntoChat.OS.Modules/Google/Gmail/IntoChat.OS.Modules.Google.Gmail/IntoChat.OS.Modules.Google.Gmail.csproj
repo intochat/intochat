@@ -2,6 +2,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <IntoChatOSModule>true</IntoChatOSModule>
+    <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
     <Description>Google module: hosted Gmail MCP tools, browser sign-in, draft previews and Google Drive as read-only storage.</Description>
     <RootNamespace>IntoChat.OS.Modules.Google.Gmail</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
@@ -15,7 +16,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules.Google.Gmail.Contracts/IntoChat.OS.Modules.Google.Gmail.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   </ItemGroup>
 </Project>

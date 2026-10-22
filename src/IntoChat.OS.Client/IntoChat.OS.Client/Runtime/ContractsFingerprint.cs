@@ -27,7 +27,7 @@ public static class ContractsFingerprint
     {
         const BindingFlags Declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
         var surface = new StringBuilder();
-        foreach (var type in assembly.GetExportedTypes().OrderBy(type => type.FullName, StringComparer.Ordinal))
+        foreach (var type in (ContractsHost.Declares(assembly) ? ContractsHost.ContractTypes(assembly) : assembly.GetExportedTypes()).OrderBy(type => type.FullName, StringComparer.Ordinal))
         {
             surface.Append(type.FullName).Append(':').Append(type.BaseType?.FullName)
                 .Append(':').AppendJoin(',', type.GetInterfaces().Select(contract => contract.FullName).Order(StringComparer.Ordinal)).Append('\n');
