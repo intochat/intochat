@@ -13,6 +13,9 @@
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </Folder>
+  <Folder Name="/Desktop/">
+    <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/Framework/">
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
