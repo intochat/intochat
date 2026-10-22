@@ -13,6 +13,9 @@
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </Folder>
+  <Folder Name="/Desktop/">
+    <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/Framework/">
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
@@ -187,11 +190,6 @@
     <Project Path="src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/scripts/" />
-  <Folder Name="/scripts/msix/" />
-  <Folder Name="/scripts/msix/launcher/">
-    <Project Path="scripts/msix/launcher/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Sdk/">
     <Project Path="src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators.Tests.Unit/IntoChat.OS.Sdk.Generators.Tests.Unit.csproj" />
