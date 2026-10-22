@@ -5,6 +5,8 @@ on:
     branches: [master]
   pull_request:
     branches: [master, 'refactor/**']
+  # A dropped push event leaves a master commit without ci, which release.yml requires; rerun it by hand.
+  workflow_dispatch:
 
 permissions:
   contents: read
