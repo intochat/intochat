@@ -154,6 +154,26 @@ public sealed class InstallerGapFacts
     }
 
     [Fact]
+    public async Task An_install_without_a_master_key_has_the_vault_generate_and_keep_one()
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var file = Path.Combine(directory.FullName, "test.json");
+            await File.WriteAllTextAsync(file, "{" + Base + "}", TestContext.Current.CancellationToken);
+            var azure = new RecordingAzure();
+
+            Assert.Equal(0, await AzureInstaller.Run(["install", "--env", "test", "--config", file], azure, [], new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken));
+            var first = azure.Vault[InstallPlan.MasterKeySecret];
+            Assert.Equal(0, await AzureInstaller.Run(["install", "--env", "test", "--config", file], azure, [], new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken));
+
+            Assert.Equal(32, Convert.FromBase64String(first).Length);
+            Assert.Equal(first, azure.Vault[InstallPlan.MasterKeySecret]);
+        }
+        finally { directory.Delete(true); }
+    }
+
+    [Fact]
     public async Task The_postgres_block_reads_the_admin_password_from_the_vault_and_writes_db_connection_with_it()
     {
         var directory = Directory.CreateTempSubdirectory();

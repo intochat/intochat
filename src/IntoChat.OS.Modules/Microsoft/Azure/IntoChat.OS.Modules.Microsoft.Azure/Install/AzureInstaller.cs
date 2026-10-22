@@ -106,7 +106,7 @@ public static class AzureInstaller
         return 0;
     }
 
-    // The master key must come from the file or the environment; the Postgres admin password is generated once
+    // The master key comes from the file or the environment when given; otherwise the vault generates it once and keeps it. The Postgres admin password is generated once
     // when neither has it (the spec is Overwrite=false, so a later install keeps the stored one); the GHCR token is optional.
     private static async Task<Dictionary<string, string>> SecretValues(string? secretsFrom, CancellationToken ct)
     {
@@ -121,9 +121,7 @@ public static class AzureInstaller
         if (!values.ContainsKey(InstallPlan.MasterKeySecret))
         {
             var fromEnvironment = Environment.GetEnvironmentVariable(MasterKeyVariable);
-            values[InstallPlan.MasterKeySecret] = string.IsNullOrEmpty(fromEnvironment)
-                ? throw new InvalidOperationException($"The master key is needed: set {MasterKeyVariable} or pass --secrets-from with a '{InstallPlan.MasterKeySecret}' entry.")
-                : fromEnvironment;
+            if (!string.IsNullOrEmpty(fromEnvironment)) { values[InstallPlan.MasterKeySecret] = fromEnvironment; }
         }
         if (!values.ContainsKey(InstallPlan.PostgresPasswordSecret))
         {
@@ -137,6 +135,8 @@ public static class AzureInstaller
         SecretSpec { Name: InstallPlan.GhcrTokenSecret } secret => provided.TryGetValue(secret.Name, out var token)
             ? secret with { Value = token }
             : secret with { Overwrite = false },
+        SecretSpec { Name: InstallPlan.MasterKeySecret, Value.Length: 0 } secret when !provided.ContainsKey(secret.Name) =>
+            secret with { Generator = SecretGenerators.Base64(32) },
         SecretSpec { Value.Length: 0 } secret when provided.TryGetValue(secret.Name, out var value) => secret with { Value = value },
         _ => spec,
     };
