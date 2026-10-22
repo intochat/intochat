@@ -109,11 +109,32 @@ public sealed class ModuleDeploymentFacts
         await new CSharpDeployment().Deploy(context);
 
         Assert.Equal(
-            $"https://westeurope.dynamicsessions.io/subscriptions/{Subscription}/resourceGroups/intochat-test-rg/sessionPools/intochat-test-sandbox",
+            "https://intochat-test-sandbox.env-123.westeurope.azurecontainerapps.io/",
             Assert.Single(context.RuntimeVariables).Value);
         var secret = Assert.Single(context.RuntimeSecrets);
         Assert.Equal("intochat-test-kv", secret.Vault);
         Assert.EndsWith("RunTokenKey", secret.Variable, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task A_live_csharp_deployment_rejects_a_pool_without_a_management_endpoint()
+    {
+        var context = Context([], poolEndpoint: "");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => new CSharpDeployment().Deploy(context));
+
+        Assert.Contains("management endpoint", error.Message, StringComparison.Ordinal);
+        Assert.Empty(context.RuntimeVariables);
+    }
+
+    [Fact]
+    public async Task A_dry_run_does_not_invent_the_pool_management_endpoint()
+    {
+        var context = Context([], poolEndpoint: "", dryRun: true);
+
+        await new CSharpDeployment().Deploy(context);
+
+        Assert.Empty(context.RuntimeVariables);
     }
 
     [Fact]
@@ -205,12 +226,16 @@ public sealed class ModuleDeploymentFacts
          "modules":{"csharp":{"sandboxImage":"intochat.azurecr.io/sandbox:1","sessionExecutorRoleId":"0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0"}}}
         """;
 
-    private static ModuleDeploymentContext Context(List<ResourceSpec> specs, ModuleSettings? settings = null)
+    private static ModuleDeploymentContext Context(List<ResourceSpec> specs, ModuleSettings? settings = null,
+        string poolEndpoint = "https://intochat-test-sandbox.env-123.westeurope.azurecontainerapps.io/", bool dryRun = false)
     {
         Task<ResourceRef> Ensure(ResourceSpec spec, CancellationToken token)
         {
             specs.Add(spec);
-            return Task.FromResult(new ResourceRef(ResourceIds.For(Subscription, spec), spec.Kind, spec.Name, spec.ResourceGroup));
+            return Task.FromResult(new ResourceRef(ResourceIds.For(Subscription, spec), spec.Kind, spec.Name, spec.ResourceGroup)
+            {
+                Endpoint = spec is SessionPoolSpec ? poolEndpoint : "",
+            });
         }
 
         return new ModuleDeploymentContext(
@@ -219,7 +244,8 @@ public sealed class ModuleDeploymentFacts
             "csharp",
             settings ?? Config.SettingsFor("csharp"),
             Ensure,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken,
+            dryRun: dryRun);
     }
 
     public sealed class OrphanModule() : Module(new ModuleId("orphan"))

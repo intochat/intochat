@@ -77,9 +77,12 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
             VaultSecret = RunTokenKeySecret,
             Variable = ConfigurationKeyGrammar.EnvironmentName(ConfigurationKeyGrammar.IntegrationKey(CSharpModule.Integration.Id, "RunTokenKey")),
         });
-        context.SetRuntimeVariable(
-            IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SessionPoolEndpoint)),
-            PoolEndpoint(context.Target, pool));
+        if (!context.IsDryRun)
+        {
+            context.SetRuntimeVariable(
+                IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SessionPoolEndpoint)),
+                PoolEndpoint(context.Target, pool));
+        }
         if (context.Settings.Get("edgeUrl") is { } edge)
         {
             context.SetRuntimeVariable(
@@ -87,12 +90,13 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
         }
     }
 
-    // https://<region>.dynamicsessions.io/subscriptions/<id>/resourceGroups/<group>/sessionPools/<pool>
+    // Azure chooses the endpoint's environment hostname; it cannot be derived from the resource id.
     public static string PoolEndpoint(DeploymentTarget target, ResourceRef pool)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(pool);
-        var region = target.Location.Replace(" ", "", StringComparison.Ordinal).ToLowerInvariant();
-        return $"https://{region}.dynamicsessions.io/subscriptions/{target.Subscription}/resourceGroups/{pool.ResourceGroup}/sessionPools/{pool.Name}";
+        return !string.IsNullOrWhiteSpace(pool.Endpoint)
+            ? pool.Endpoint
+            : throw new InvalidOperationException($"Session pool '{pool.Name}' has no management endpoint.");
     }
 }
