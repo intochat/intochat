@@ -38,7 +38,6 @@ public sealed partial class PackagingFacts
             Assert.DoesNotContain("PackageLicenseExpression", csproj, StringComparison.Ordinal);
             Assert.DoesNotContain("PackageLicenseFile", csproj, StringComparison.Ordinal);
         });
-        Assert.Contains(packable, project => project.Name == "IntoChat.OS.Authority.Hosted");
     }
 
     // A module that hosts its own contracts (IntoChatOSContractsHost) ships them inside its runtime package, so

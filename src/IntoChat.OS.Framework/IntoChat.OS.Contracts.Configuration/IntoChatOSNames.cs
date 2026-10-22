@@ -25,11 +25,9 @@ public static class IntoChatOSNames
     // BrainLogOwnershipKind's member names, as configuration spells them.
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
-    // HostedRuntimeOptions' section; a runtime deployed beside its own Orleans grain state must never carry it.
-    public const string HostingConfigurationKey = "IntoChatOS:Hosting";
-    // Run-mode marker the AppHost projects to the processes it starts (value "run"); a child of the Hosting section that is
-    // not hosting configuration, so the Hosting section must keep it when a later phase removes the rest.
-    public const string HostingModeConfigurationKey = HostingConfigurationKey + ":Mode";
+    // Run-mode marker the AppHost projects to the processes it starts (value "run"). The literal is pinned by RunModeMarkerFacts;
+    // the loopback guard for the Open posture reads it, so it must not be renamed or derived.
+    public const string HostingModeConfigurationKey = "IntoChatOS:Hosting:Mode";
     public const string HostingModeRun = "run";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
     // Where the deployment tells the runtime its vault lives.

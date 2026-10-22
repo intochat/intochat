@@ -1,5 +1,4 @@
 using System.Reflection;
-using IntoChat.OS.Authority.Hosted;
 using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Configuration;
@@ -26,7 +25,7 @@ public sealed class NeutralDefaultsFacts
     [Fact]
     public void NoDefaultStringCarriesABrand()
     {
-        var defaults = new object[] { new IdentityHostOptions(), new HostedRuntimeOptions() };
+        var defaults = new object[] { new IdentityHostOptions() };
         var values = defaults.SelectMany(options => options.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.PropertyType == typeof(string))
                 .Select(property => (Name: options.GetType().Name + "." + property.Name, Value: (string?)property.GetValue(options) ?? "")))
