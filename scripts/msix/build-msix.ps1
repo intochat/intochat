@@ -3,12 +3,20 @@
 # (which carries the Windows connector through the Kernel's Windows edge) and the desktop launcher, plus an
 # App Installer file for updates. Version comes from VERSION at the repository root.
 #
-#   pwsh scripts/msix/build-msix.ps1 [-Build 0] [-Publisher "CN=..."] [-BaseUri https://.../windows]
-#                                    [-CertificatePath cert.pfx -CertificatePassword (Read-Host -AsSecureString)]
-#                                    [-SkipOs] [-SkipShell]
+#   pwsh scripts/msix/build-msix.ps1 [-Build 0] [-Publisher "CN=..."] [-BaseUri https://.../windows] [-SkipOs] [-SkipShell]
+#                                    [-Signing None|Certificate|TrustedSigning|Store] <signing parameters>
+#
+# Signing (no secret lives in the repository; -Publisher must equal the signer's subject exactly):
+#   None            unsigned; for inspection only, Windows installs signed packages only.
+#   Certificate     an OV/EV code-signing certificate: -CertificatePath cert.pfx [-CertificatePassword (Read-Host -AsSecureString)]
+#                   or, for a hardware token or the certificate store, -CertificateThumbprint <sha1>.
+#   TrustedSigning  Azure Trusted Signing: -TrustedSigningEndpoint https://<region>.codesigning.azure.net
+#                   -TrustedSigningAccount <account> -TrustedSigningProfile <certificate profile> -TrustedSigningDlib <path to
+#                   Azure.CodeSigning.Dlib.dll>. Signs as the signed-in Azure identity (az login, or OIDC in CI).
+#   Store           left unsigned for upload to Partner Center, which signs it; -Publisher is the Partner Center publisher.
+# Passing -CertificatePath alone still means Certificate.
 #
 # Output: artifacts/msix/IntoChat.OS_<version>_x64.msix and artifacts/msix/IntoChat.OS.appinstaller.
-# Without -CertificatePath the package is left unsigned (Windows installs only signed packages).
 [CmdletBinding()]
 param(
     [int] $Build = 0,
@@ -16,13 +24,34 @@ param(
     [string] $Publisher = 'CN=IntoChat Dev',
     [string] $PublisherDisplayName = 'IntoChat',
     [string] $BaseUri = 'https://github.com/intochat/os/releases/latest/download',
+    [ValidateSet('None', 'Certificate', 'TrustedSigning', 'Store')]
+    [string] $Signing,
     [string] $CertificatePath,
     [SecureString] $CertificatePassword,
+    [string] $CertificateThumbprint,
+    [string] $TimestampUrl = 'http://timestamp.digicert.com',
+    [string] $TrustedSigningEndpoint,
+    [string] $TrustedSigningAccount,
+    [string] $TrustedSigningProfile,
+    [string] $TrustedSigningDlib,
     [switch] $SkipOs,
     [switch] $SkipShell
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if (-not $Signing) { $Signing = if ($CertificatePath -or $CertificateThumbprint) { 'Certificate' } else { 'None' } }
+switch ($Signing) {
+    'Certificate' {
+        if (-not $CertificatePath -eq -not $CertificateThumbprint) { throw '-Signing Certificate needs exactly one of -CertificatePath or -CertificateThumbprint.' }
+    }
+    'TrustedSigning' {
+        foreach ($required in 'TrustedSigningEndpoint', 'TrustedSigningAccount', 'TrustedSigningProfile', 'TrustedSigningDlib') {
+            if (-not (Get-Variable $required -ValueOnly)) { throw "-Signing TrustedSigning needs -$required." }
+        }
+        if (-not (Test-Path $TrustedSigningDlib)) { throw "Azure.CodeSigning.Dlib.dll not found at $TrustedSigningDlib (NuGet package Microsoft.Trusted.Signing.Client)." }
+    }
+}
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $out = Join-Path $root 'artifacts' 'msix'
@@ -93,12 +122,28 @@ Expand-Template 'AppxManifest.xml' (Join-Path $layout 'AppxManifest.xml')
 $msix = Join-Path $out $packageFile
 Invoke-Checked (Find-SdkTool 'makeappx.exe') @('pack', '/d', $layout, '/p', $msix, '/o')
 
-if ($CertificatePath) {
-    $signArguments = @('sign', '/fd', 'SHA256', '/f', $CertificatePath)
-    if ($CertificatePassword) { $signArguments += @('/p', (ConvertFrom-SecureString $CertificatePassword -AsPlainText)) }
-    Invoke-Checked (Find-SdkTool 'signtool.exe') ($signArguments + $msix)
-} else {
-    Write-Warning 'No -CertificatePath: the package is unsigned. Sign it with a certificate whose subject equals -Publisher before installing.'
+switch ($Signing) {
+    'Certificate' {
+        $signArguments = @('sign', '/fd', 'SHA256', '/tr', $TimestampUrl, '/td', 'SHA256')
+        if ($CertificateThumbprint) { $signArguments += @('/sha1', $CertificateThumbprint) }
+        else {
+            $signArguments += @('/f', $CertificatePath)
+            if ($CertificatePassword) { $signArguments += @('/p', (ConvertFrom-SecureString $CertificatePassword -AsPlainText)) }
+        }
+        Invoke-Checked (Find-SdkTool 'signtool.exe') ($signArguments + $msix)
+    }
+    'TrustedSigning' {
+        # The metadata names the account, not a credential; the dlib signs as the current Azure identity.
+        $metadata = Join-Path $out 'trusted-signing.json'
+        @{ Endpoint = $TrustedSigningEndpoint; CodeSigningAccountName = $TrustedSigningAccount; CertificateProfileName = $TrustedSigningProfile } |
+            ConvertTo-Json | Set-Content -Path $metadata -Encoding utf8
+        try {
+            Invoke-Checked (Find-SdkTool 'signtool.exe') @('sign', '/v', '/fd', 'SHA256', '/tr', 'http://timestamp.acs.microsoft.com', '/td', 'SHA256',
+                '/dlib', $TrustedSigningDlib, '/dmdf', $metadata, $msix)
+        } finally { Remove-Item $metadata -ErrorAction SilentlyContinue }
+    }
+    'Store' { Write-Host 'Unsigned for the Microsoft Store: upload it in Partner Center, which signs it. -Publisher must be the Partner Center publisher.' }
+    default { Write-Warning 'Unsigned (-Signing None): Windows installs signed packages only. See the header for the signing options.' }
 }
 
 Expand-Template 'IntoChat.OS.appinstaller' (Join-Path $out 'IntoChat.OS.appinstaller')
