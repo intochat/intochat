@@ -16,27 +16,46 @@ internal sealed class IntegrationSeeder(
     ConnectorCatalog? connectors = null,
     IEnumerable<IIntegrationStartup>? consumers = null) : IStartupTask
 {
+    private const int MaxSeedAttempts = 3;
+
     public Task Execute(CancellationToken cancellationToken) => SeedAsync(cancellationToken);
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
         foreach (var definition in definitions)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
+            for (var attempt = 1; attempt <= MaxSeedAttempts; attempt++)
             {
-                await SeedOneAsync(definition);
-            }
-            catch (Exception error) when (!cancellationToken.IsCancellationRequested)
-            {
-                logger.LogError(error, "Seeding integration {IntegrationId} failed.", definition.Id);
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await SeedOneAsync(definition, cancellationToken);
+                    break;
+                }
+                catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+                {
+                    if (attempt == MaxSeedAttempts)
+                    {
+                        logger.LogError("Seeding integration {IntegrationId} failed after {Attempts} attempts ({ErrorType}).",
+                            definition.Id, attempt, error.GetType().Name);
+                        break;
+                    }
+                    var delay = TimeSpan.FromSeconds(1 << (attempt - 1));
+                    logger.LogWarning("Seeding integration {IntegrationId} failed on attempt {Attempt} ({ErrorType}); retrying in {Delay}.",
+                        definition.Id, attempt, error.GetType().Name, delay);
+                    await Task.Delay(delay, cancellationToken);
+                }
             }
         }
-        foreach (var consumer in consumers ?? []) { await consumer.InitializeAsync(cancellationToken); }
+        foreach (var consumer in consumers ?? [])
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await consumer.InitializeAsync(cancellationToken);
+        }
         if (connectors is not null) { await connectors.ListAsync(cancellationToken); }
     }
 
-    private async Task SeedOneAsync(IntegrationSchema definition)
+    private async Task SeedOneAsync(IntegrationSchema definition, CancellationToken cancellationToken)
     {
         var values = definition.AllFields
             .Select(field => (Field: field, Value: configuration[definition.Key(field)]))
@@ -48,7 +67,7 @@ internal sealed class IntegrationSeeder(
         }
 
         var registration = neurons.Integration(definition.Id);
-        var after = await registration.Seed(new ConfigureIntegration { Values = values });
+        var after = await registration.Seed(new ConfigureIntegration { Values = values }).WaitAsync(cancellationToken);
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);
     }
 }
