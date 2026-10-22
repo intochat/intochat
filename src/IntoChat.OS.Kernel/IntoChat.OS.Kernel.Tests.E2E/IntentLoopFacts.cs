@@ -60,7 +60,11 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
         var entry = Brain.Get<IText>(appKey + "/pending/" + id);
         await entry.Set(JsonSerializer.Serialize(new
         {
-            Message = "expired scan probe", Hint = "", Conversation = "", StartedAt = DateTimeOffset.UtcNow.AddHours(-2), Started = true,
+            Message = "expired scan probe",
+            Hint = "",
+            Conversation = "",
+            StartedAt = DateTimeOffset.UtcNow.AddHours(-2),
+            Started = true,
         }));
         var index = Brain.Get<IText>(appKey + "/pending/index-send");
         await index.Set((await index.Read()).Markdown + "\n" + id);

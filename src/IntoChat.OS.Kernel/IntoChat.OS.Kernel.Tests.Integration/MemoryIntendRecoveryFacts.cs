@@ -139,8 +139,13 @@ public sealed class MemoryIntendRecoveryFacts
     public async Task RecoveryPreservesAConcurrentChangeToTheBriefOrConfidence(bool confidenceOnly)
     {
         var ct = TestContext.Current.CancellationToken;
-        using var edge = new IntendEdge { FaultMethod = nameof(IIntents.Rephrase), CommitBeforeFailure = true,
-            ConcurrentBrief = !confidenceOnly, ConcurrentConfidence = confidenceOnly };
+        using var edge = new IntendEdge
+        {
+            FaultMethod = nameof(IIntents.Rephrase),
+            CommitBeforeFailure = true,
+            ConcurrentBrief = !confidenceOnly,
+            ConcurrentConfidence = confidenceOnly
+        };
         await using var running = await Running.Start(edge, ct);
 
         Assert.StartsWith("failed:", await edge.Answer.Task.WaitAsync(Within, ct), StringComparison.Ordinal);
@@ -282,7 +287,8 @@ public sealed class MemoryIntendRecoveryFacts
                         var next = rephrase ? current with
                         {
                             Brief = call.Arguments[1].Deserialize<IntentBrief>(RuntimeProtocol.Json),
-                            Confidence = call.Arguments[2].GetDouble(), State = IntentState.Rephrased
+                            Confidence = call.Arguments[2].GetDouble(),
+                            State = IntentState.Rephrased
                         } : current with { State = call.Arguments[1].Deserialize<IntentState>(RuntimeProtocol.Json) };
                         if (fail && ConcurrentTerminal) { next = next with { State = IntentState.Done }; }
                         if (fail && ConcurrentBrief) { next = next with { Brief = next.Brief! with { Goal = "A newer goal" } }; }

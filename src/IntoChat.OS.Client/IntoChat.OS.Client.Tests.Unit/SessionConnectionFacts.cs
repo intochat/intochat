@@ -548,13 +548,16 @@ public sealed class SessionConnectionFacts
     public async Task ARevisionConflictKeepsItsSpecializedException()
     {
         var ct = TestContext.Current.CancellationToken;
-        var brain = new FakeBrain { InvocationResponse = () =>
+        var brain = new FakeBrain
+        {
+            InvocationResponse = () =>
         {
             var response = new HttpResponseMessage(HttpStatusCode.Conflict)
             { Content = new StringContent("{\"message\":\"Changed since read\",\"currentRevision\":7}") };
             response.Headers.Add(RuntimeProtocol.RefusalHeader, RevisionConflictException.Code);
             return response;
-        } };
+        }
+        };
         await using var session = await brain.OpenAsync(ct);
         await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
 
