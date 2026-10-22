@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using IntoChat.OS.Google.Gmail.Testing;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +24,5 @@ public sealed class GmailAuthoringFacts
         }
     }
 
-    private static string Readme([CallerFilePath] string source = "") => File.ReadAllText(Path.Combine(Path.GetDirectoryName(source)!,
-        "../../../../Google/Gmail/IntoChat.OS.Modules.Google.Gmail/README.md"));
+    private static string Readme() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "GmailReadme.md"));
 }
