@@ -32,6 +32,7 @@ dependencies:
   fl_chart: ^1.2.0
   flame: ^1.38.2
   flame_behavior_tree: ^0.1.5+5
+  lucide_icons_flutter: 4.0.1
 
 dev_dependencies:
   flame_test: ^2.3.1
