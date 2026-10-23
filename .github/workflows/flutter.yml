@@ -14,6 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  nginx-proxy:
+    name: Nginx proxy runtime tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify runtime proxy headers and responses
+        run: python3 src/IntoChat.OS.Modules/Google/Flutter/app/shell/test/nginx_proxy_test.py -v
+
   flutter:
     name: Flutter analyze and web build
     runs-on: ubuntu-24.04
