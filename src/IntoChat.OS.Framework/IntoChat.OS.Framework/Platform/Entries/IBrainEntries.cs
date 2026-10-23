@@ -55,6 +55,9 @@ public static partial class BrainEntries
 {
     // API keys are secrets named provider:{integrationId}; no other entry may take the prefix.
     public const string ProviderPrefix = "provider:";
+
+    // The key-based AI providers whose keys a brain may hold; IBrainProviderKeys releases no other entry.
+    public static IReadOnlyList<string> KeyedProviderIds { get; } = ["openai", "anthropic", "google", "xai", "openrouter"];
     public const int MaxVariableBytes = 4 * 1024;
     public const int MaxSecretBytes = 8 * 1024;
 

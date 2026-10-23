@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Platform.Entries;
 using IntoChat.OS.Framework.Platform.Integrations;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -91,6 +92,25 @@ public sealed class CredentialBoundaryFacts
                 || (c.IsGenericMethod && c.GetGenericArguments().Contains(typeof(IIntegration)))
                 || (c.DeclaringType == typeof(IntegrationSchema) && c.Name == nameof(IntegrationSchema.Key))))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
+        Assert.Empty(offenders);
+    }
+
+    // IBrainProviderKeys releases a brain's plaintext provider key to whoever injects it, so only the
+    // AI module (its one consumer) and Authority (its implementation) may reference it.
+    [Fact]
+    public void OnlyTheAiModuleAndAuthorityReferenceBrainProviderKeys()
+    {
+        var keys = typeof(IBrainProviderKeys);
+        string[] allowed = ["IntoChat.OS.Framework", "IntoChat.OS.Authority", "IntoChat.OS.Modules.AI"];
+        var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
+            .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Cast<MethodBase>().Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
+            .Where(m => m.GetParameters().Any(p => p.ParameterType == keys)
+                || (m as MethodInfo)?.ReturnType == keys
+                || m.DeclaringType!.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).Any(f => f.FieldType == keys)
+                || Calls(m).Any(c => c.DeclaringType == keys || (c.IsGenericMethod && c.GetGenericArguments().Contains(keys))))
+            .Select(m => m.DeclaringType!.FullName + "." + m.Name).Distinct().Order().ToArray();
         Assert.Empty(offenders);
     }
 

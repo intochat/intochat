@@ -205,6 +205,31 @@ public sealed class BrainEntriesFacts : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task Provider_keys_release_only_the_provider_entry()
+    {
+        using var owner = await _brain.PersonAsync(AuthorityHost.Unique("owner"), Ct);
+        var scope = BrainScope.Create(owner.AccountId, owner.BrainId).Id;
+        var keys = _brain.Services.GetRequiredService<IBrainProviderKeys>();
+        using var provider = await Put(owner, owner.BrainId, "provider:openai", "secret", Canary);
+        using var other = await Put(owner, owner.BrainId, "OTHER", "secret", "other-secret-value");
+
+        Assert.Equal(Canary, await keys.Release(scope, "openai", Ct));
+        Assert.Null(await keys.Release(scope, "anthropic", Ct));
+    }
+
+    [Theory]
+    [InlineData("a/b", "openai")]
+    [InlineData("", "openai")]
+    [InlineData("personal", "OTHER")]
+    [InlineData("personal", "nobody")]
+    [InlineData("personal", "")]
+    public async Task Provider_keys_reject_invalid_ids(string brain, string provider)
+    {
+        var keys = _brain.Services.GetRequiredService<IBrainProviderKeys>();
+        await Assert.ThrowsAsync<ArgumentException>(() => keys.Release(brain, provider, Ct));
+    }
+
     private static readonly CallerContext IntegrationPlatformCaller = IntoChat.OS.Authority.Integrations.IntegrationNeuron.PlatformCaller;
 
     private static Task<HttpResponseMessage> Put(Person person, string brainId, string name, string kind, string value)
