@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -488,24 +489,67 @@ public sealed class FastPathFacts : IDisposable
     public async Task TheShippedCalculatorAndDesktopLayoutsComeFirstAtMostTwoAndAreLabelled()
     {
         var ct = TestContext.Current.CancellationToken;
+        var started = Stopwatch.GetTimestamp();
+        var stages = new ConcurrentQueue<(string Name, double ElapsedMs)>();
+        void Mark(string name) => stages.Enqueue((name, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var runtime = new FakeAppRuntime();
+        var sandbox = new FastPathSandbox();
         var shipped = ShippedFeatures();
         await using var model = await FakeModelServer.StartAsync(ct);
-        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: shipped);
+        model.Intercept = request =>
+        {
+            if (request.GetProperty("model").GetString() == Writer) { Mark("fake-http-arrived"); }
+            return null;
+        };
+        await using var brain = await Start(model, runtime, sandbox, ct, features: shipped);
+        Mark("host-ready");
         model.Script(Writer, Reply("lemons.cs", Lemons));
         var app = await Created(brain, "grocer");
 
         var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count the lemons", ct);
+        Mark("ranking-complete");
 
         Assert.Equal(2, ranking.Layouts.Length);
         Assert.All(ranking.Layouts, layout => Assert.Matches("(?i)^features/os/(calculator|desktop)$", layout.Origin));
         Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("static UiNode Render", StringComparison.Ordinal));
 
+        await using var inference = await brain.Observe<Signal>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
         await using var written = await brain.Observe<SynapseWritten>(app, ct);
-        await app.WriteSynapse("count the lemons", [], Guid.NewGuid());
-        await written.NextAsync(ct: ct);
-        var prompt = Prompt(model);
-        Assert.Contains("reference only: shared layout class, not a synapse", prompt, StringComparison.Ordinal);
-        Assert.Contains("static UiNode Render", prompt, StringComparison.Ordinal);
+        var operation = Guid.NewGuid();
+        var compiledBeforeWrite = sandbox.Compiled.Count;
+        var deployedBeforeWrite = runtime.Deployed.Count;
+        try
+        {
+            Mark("write-requested");
+            await app.WriteSynapse("count the lemons", [], operation);
+            Mark("write-accepted");
+            await written.NextAsync(ct: ct);
+            Mark("written-observed");
+            var prompt = Prompt(model);
+            Assert.Contains("reference only: shared layout class, not a synapse", prompt, StringComparison.Ordinal);
+            Assert.Contains("static UiNode Render", prompt, StringComparison.Ordinal);
+        }
+        finally
+        {
+            // Snapshot before any subscription, brain or fake-model disposal; never include prompt or signal payloads.
+            var signals = inference.Snapshot;
+            TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
+            {
+                diagnostic = "fastpath-shipped-layouts",
+                operation,
+                elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                stages = stages.Select(stage => new { name = stage.Name, elapsedMs = stage.ElapsedMs }),
+                inferenceStarted = signals.OfType<InferenceStarted>().Count(),
+                inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
+                inferenceFailed = signals.OfType<InferenceFailed>().Count(),
+                modelRequests = model.Requests(Writer).Count,
+                compiledBeforeWrite,
+                compiled = sandbox.Compiled.Count,
+                deployedBeforeWrite,
+                deployed = runtime.Deployed.Count,
+                written = written.Snapshot.Count,
+            }));
+        }
     }
 
     private static string ShippedFeatures()
