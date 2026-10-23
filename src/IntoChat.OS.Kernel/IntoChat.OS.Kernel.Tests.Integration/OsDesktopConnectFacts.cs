@@ -88,7 +88,7 @@ public sealed class OsDesktopConnectFacts
     }
 
     [Fact]
-    public async Task ABrainWithDesktop010UpgradesTo011OnConnect()
+    public async Task ABrainWithDesktop011UpgradesTo012OnConnect()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Boot(ct);
@@ -98,11 +98,11 @@ public sealed class OsDesktopConnectFacts
         await provider.Connect(ct);
         var desktop = brain.Get<IApp>(IApp.Key(person.BrainId, "desktop"));
         var installed = (await desktop.Read()).Origin!;
-        Assert.Equal("0.1.1", installed.Version);
-        await desktop.RecordOrigin(installed with { Version = "0.1.0" });
+        Assert.Equal("0.1.3", installed.Version);
+        await desktop.RecordOrigin(installed with { Version = "0.1.1" });
 
         Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("view", IApp.Key(person.BrainId, "desktop") + "/view"), await provider.Connect(ct));
-        Assert.Equal("0.1.1", (await desktop.Read()).Origin!.Version);
+        Assert.Equal("0.1.3", (await desktop.Read()).Origin!.Version);
     }
 
     private static Task<ITestBrain> Boot(CancellationToken ct) => TestBrain.Create()

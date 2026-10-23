@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'connect_window.dart';
 
@@ -141,94 +142,105 @@ class _WindowsStorageSetupState extends State<WindowsStorageSetup> {
     }
   }
 
+  void _allow() {
+    final path = _path.text.trim();
+    if (path.isEmpty) {
+      setState(() => _error = 'Enter a full folder path on $_machineName.');
+      return;
+    }
+    unawaited(_change('allow', path));
+  }
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Windows storage',
-              style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    final tokens = UiTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Windows storage', style: type.cardTitle)),
+            IconButton(
+              tooltip: 'Refresh Windows storage',
+              color: c.muted,
+              onPressed: _busy ? null : _load,
+              icon: Icon(uiIcon('rotate'), size: uiIconSize),
             ),
-          ),
-          IconButton(
-            tooltip: 'Refresh Windows storage',
-            onPressed: _busy ? null : _load,
-            icon: const Icon(Icons.refresh),
+          ],
+        ),
+        if (_busy) LinearProgressIndicator(minHeight: 2, color: c.accent),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: c.errorBg,
+              borderRadius: BorderRadius.circular(tokens.radiusSmall),
+            ),
+            child: Text(_error!, style: type.toast.copyWith(color: c.strong)),
           ),
         ],
-      ),
-      if (_busy) const LinearProgressIndicator(),
-      if (_error != null)
-        Text(
-          _error!,
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
-      if (_machineName != null) ...[
-        Text('Computer: $_machineName'),
-        const Text(
-          'Folder paths refer to this workspace host, which may be a different computer from yours.',
-        ),
-        const SizedBox(height: 8),
-        if (!_connected)
-          FilledButton.icon(
-            onPressed: _busy ? null : () => _change('connect'),
-            icon: const Icon(Icons.computer),
-            label: Text('Connect $_machineName'),
-          )
-        else ...[
+        if (_machineName != null) ...[
+          const SizedBox(height: 8),
+          Text('Computer: $_machineName', style: type.rowTitle),
+          const SizedBox(height: 4),
           Text(
-            'Allowed folders on $_machineName',
-            style: Theme.of(context).textTheme.titleSmall,
+            'Folder paths refer to this workspace host, which may be a different computer from yours.',
+            style: type.bodyMuted,
           ),
-          const Text(
-            'Only folders you allow are available to Files and console commands.',
-          ),
-          if (_roots.isEmpty) const Text('No folders allowed yet.'),
-          for (final root in _roots)
-            Row(
-              children: [
-                Expanded(child: Text(root)),
-                IconButton(
-                  tooltip: 'Revoke $root',
-                  onPressed: _busy ? null : () => _change('revoke', root),
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-              ],
+          const SizedBox(height: 16),
+          if (!_connected)
+            UiKitButton(
+              label: 'Connect $_machineName',
+              icon: 'local-machine',
+              fullWidth: true,
+              onPressed: _busy ? null : () => _change('connect'),
+            )
+          else ...[
+            Text('Allowed folders on $_machineName', style: type.rowTitle),
+            const SizedBox(height: 4),
+            Text(
+              'Only folders you allow are available to Files and console commands.',
+              style: type.bodyMuted,
             ),
-          const SizedBox(height: 8),
-          TextField(
-            key: const Key('windows_folder_path'),
-            controller: _path,
-            enabled: !_busy,
-            decoration: InputDecoration(
-              labelText: 'Full folder path on $_machineName',
-              hintText: r'C:\Folder',
-              border: const OutlineInputBorder(),
+            const SizedBox(height: 8),
+            if (_roots.isEmpty)
+              Text('No folders allowed yet.', style: type.bodyMuted),
+            for (final root in _roots)
+              Row(
+                children: [
+                  Icon(uiIcon('file'), size: uiIconSize, color: c.muted),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(root, style: type.body)),
+                  IconButton(
+                    tooltip: 'Revoke $root',
+                    color: c.muted,
+                    onPressed: _busy ? null : () => _change('revoke', root),
+                    icon: Icon(uiIcon('x'), size: uiIconSize),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+            UiKitField(
+              fieldKey: const Key('windows_folder_path'),
+              label: 'Full folder path on $_machineName',
+              placeholder: r'C:\Folder',
+              controller: _path,
+              enabled: !_busy,
+              onSubmitted: (_) => _busy ? null : _allow(),
             ),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: _busy
-                ? null
-                : () {
-                    final path = _path.text.trim();
-                    if (path.isEmpty) {
-                      setState(
-                        () => _error =
-                            'Enter a full folder path on $_machineName.',
-                      );
-                      return;
-                    }
-                    unawaited(_change('allow', path));
-                  },
-            icon: const Icon(Icons.create_new_folder_outlined),
-            label: const Text('Allow folder'),
-          ),
+            const SizedBox(height: 16),
+            UiKitButton(
+              label: 'Allow folder',
+              icon: 'plus',
+              fullWidth: true,
+              onPressed: _busy ? null : _allow,
+            ),
+          ],
         ],
       ],
-    ],
-  );
+    );
+  }
 }

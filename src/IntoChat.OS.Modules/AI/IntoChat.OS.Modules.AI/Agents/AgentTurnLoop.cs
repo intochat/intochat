@@ -63,7 +63,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             { Reasoning = plan.Options.Reasoning ?? selection?.Reasoning, MaxOutputTokens = plan.Options.MaxOutputTokens ?? selection?.MaxOutputTokens };
         }
         var settings = plan.Options is null ? null : plan.Options with { Reasoning = null };
-        var resolved = await catalog.Resolve(selection, tools.Count > 0, ct);
+        var resolved = await catalog.Resolve(plan.ScopeId, selection, tools.Count > 0, ct);
         ChatOptions options;
         switch (resolved.Provider)
         {
@@ -83,7 +83,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
                 yield return new AgentTurnEvent.ModelSelected(resolved, descriptor);
                 break;
         }
-        using var client = await catalog.CreateClient(resolved, ct);
+        using var client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
         options.Instructions = plan.Instructions;
         options.Tools = [.. tools];
         var messages = new List<ChatMessage>();

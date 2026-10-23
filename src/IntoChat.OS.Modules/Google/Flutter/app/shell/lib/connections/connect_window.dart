@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'windows_storage_setup.dart';
 
@@ -218,197 +219,253 @@ class _ConnectWindowState extends State<ConnectWindow> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Connections',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              ),
+  void _pickSource(String value) => setState(() {
+    source = value;
+    authMethod = authMethods.firstOrNull;
+  });
+
+  /// Figma `.connection-row`: icon, strong title, muted status.
+  Widget _row(BuildContext context, Map connection) {
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    final status = connectionStatus(connection['status']);
+    final id = '${connection['connectionId']}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      child: Row(
+        children: [
+          Icon(
+            uiIcon(status == 'Connected' ? 'plug' : 'alert'),
+            size: uiIconSize,
+            color: status == 'Connected' ? c.done : c.error,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${connection['connectorId']} · $id',
+                  style: type.rowTitle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(status, style: type.caption.copyWith(color: c.muted)),
+              ],
             ),
-            IconButton(
-              tooltip: 'Refresh connections',
-              onPressed: load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: 'Probe connection',
+            color: c.muted,
+            onPressed: busy ? null : () => probe(id),
+            icon: Icon(uiIcon('rotate'), size: uiIconSize),
+          ),
+          IconButton(
+            tooltip: 'Disconnect',
+            color: c.muted,
+            onPressed: busy ? null : () => disconnect(id),
+            icon: Icon(uiIcon('x'), size: uiIconSize),
+          ),
+        ],
       ),
-      if (error != null)
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    final tokens = UiTokens.of(context);
+    // One scroll view: kit fields are taller than the old dense fields, and
+    // the window may be short.
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        // Figma ConnectionModal header: 52 accent-tint plug tile, title and
+        // muted lead.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(tokens.panelRadius),
+                ),
+                child: Icon(uiIcon('plug'), size: uiIconSize, color: c.accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Connections', style: type.cardTitle),
+                    const SizedBox(height: 4),
+                    Text(
+                      'IntoChat only gets the access you approve.',
+                      style: type.bodyMuted,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh connections',
+                color: c.muted,
+                onPressed: load,
+                icon: Icon(uiIcon('rotate'), size: uiIconSize),
+              ),
+            ],
           ),
         ),
-      if (notice != null)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(notice!),
-        ),
-      if (busy) const LinearProgressIndicator(minHeight: 2),
-      const Divider(height: 1),
-      Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<String>(
-              key: ValueKey('connect_source_$source'),
-              initialValue: source,
-              decoration: const InputDecoration(
-                labelText: 'Source',
-                border: OutlineInputBorder(),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: c.errorBg,
+                borderRadius: BorderRadius.circular(tokens.radiusSmall),
               ),
-              items: [
-                for (final connector in connectors)
-                  DropdownMenuItem(
-                    value: '${connector['id']}',
-                    child: Text('${connector['displayName']}'),
-                  ),
-              ],
-              onChanged: busy
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          source = value;
-                          authMethod = authMethods.firstOrNull;
-                        });
-                      }
-                    },
+              child: Text(error!, style: type.toast.copyWith(color: c.strong)),
             ),
-            const SizedBox(height: 12),
-            if (source == 'windows' && widget.windowsRequest != null)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 320),
-                child: SingleChildScrollView(
-                  child: WindowsStorageSetup(
-                    key: ValueKey(
-                      connections
-                          .where((row) => row['connectorId'] == 'windows')
-                          .map(
-                            (row) => '${row['connectionId']}:${row['status']}',
-                          )
-                          .join(','),
-                    ),
-                    request: widget.request,
-                    windowsRequest: widget.windowsRequest!,
-                    onChanged: load,
-                  ),
-                ),
-              ),
-            if (source != 'windows' || widget.windowsRequest == null) ...[
-              TextField(
-                key: const Key('connect_name'),
-                controller: _connectionId,
-                decoration: const InputDecoration(
-                  labelText: 'Connection name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (!usesOAuth)
-                TextField(
-                  key: const Key('connect_value'),
-                  controller: _value,
-                  obscureText: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Connection string or token',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              if (connectors.isEmpty && loaded)
-                const Text('No connectors are available for this deployment.'),
-              if (authMethods.length > 1)
-                DropdownButtonFormField<String>(
-                  key: ValueKey('auth_method_$source'),
-                  initialValue: authMethod,
-                  decoration: const InputDecoration(
-                    labelText: 'Authentication method',
-                  ),
-                  items: [
-                    for (final method in authMethods)
-                      DropdownMenuItem(value: method, child: Text(method)),
-                  ],
-                  onChanged: busy
-                      ? null
-                      : (value) => setState(() => authMethod = value),
-                ),
-              if (!usesOAuth)
-                FilledButton.icon(
-                  key: const Key('connect_submit'),
-                  onPressed: busy || source == null ? null : connect,
-                  icon: const Icon(Icons.link),
-                  label: const Text('Connect'),
-                ),
-              if (usesOAuth)
-                TextButton.icon(
-                  key: const Key('connect_oauth'),
-                  onPressed: busy ? null : startOAuth,
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Sign in with the provider'),
-                ),
-            ],
-          ],
-        ),
-      ),
-      const Divider(height: 1),
-      Expanded(
-        child: !loaded
-            ? (error != null
-                  ? const SizedBox.shrink()
-                  : const Center(child: CircularProgressIndicator()))
-            : connections.isEmpty
-            ? const Center(child: Text('No connections yet.'))
-            : ListView(
-                children: [
-                  for (final connection in connections)
-                    ListTile(
-                      leading: Icon(
-                        connectionStatus(connection['status']) == 'Connected'
-                            ? Icons.key_outlined
-                            : Icons.error_outline,
-                      ),
-                      title: Text(
-                        '${connection['connectorId']} · ${connection['connectionId']}',
-                      ),
-                      subtitle: Text(connectionStatus(connection['status'])),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: 'Probe connection',
-                            onPressed: busy
-                                ? null
-                                : () => probe('${connection['connectionId']}'),
-                            icon: const Icon(Icons.network_check),
-                          ),
-                          IconButton(
-                            tooltip: 'Disconnect',
-                            onPressed: busy
-                                ? null
-                                : () => disconnect(
-                                    '${connection['connectionId']}',
-                                  ),
-                            icon: const Icon(Icons.link_off),
-                          ),
-                        ],
-                      ),
+          ),
+        if (notice != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Text(notice!, style: type.bodyMuted),
+          ),
+        const SizedBox(height: 12),
+        if (busy)
+          LinearProgressIndicator(minHeight: 2, color: c.accent)
+        else
+          Divider(height: 2, thickness: 1, color: c.hairline),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              UiKitSelect<String>(
+                key: ValueKey('connect_source_$source'),
+                label: 'Source',
+                value: source,
+                items: [
+                  for (final connector in connectors)
+                    UiKitSelectItem(
+                      '${connector['id']}',
+                      '${connector['displayName']}',
                     ),
                 ],
+                onChanged: busy ? null : _pickSource,
               ),
-      ),
-    ],
-  );
+              const SizedBox(height: 16),
+              if (source == 'windows' && widget.windowsRequest != null)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: SingleChildScrollView(
+                    child: WindowsStorageSetup(
+                      key: ValueKey(
+                        connections
+                            .where((row) => row['connectorId'] == 'windows')
+                            .map(
+                              (row) =>
+                                  '${row['connectionId']}:${row['status']}',
+                            )
+                            .join(','),
+                      ),
+                      request: widget.request,
+                      windowsRequest: widget.windowsRequest!,
+                      onChanged: load,
+                    ),
+                  ),
+                ),
+              if (source != 'windows' || widget.windowsRequest == null) ...[
+                UiKitField(
+                  fieldKey: const Key('connect_name'),
+                  label: 'Connection name',
+                  controller: _connectionId,
+                ),
+                const SizedBox(height: 16),
+                if (!usesOAuth) ...[
+                  UiKitField(
+                    fieldKey: const Key('connect_value'),
+                    label: 'Connection string or token',
+                    controller: _value,
+                    secret: true,
+                    autocorrect: false,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (connectors.isEmpty && loaded) ...[
+                  Text(
+                    'No connectors are available for this deployment.',
+                    style: type.bodyMuted,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (authMethods.length > 1) ...[
+                  UiKitSelect<String>(
+                    key: ValueKey('auth_method_$source'),
+                    label: 'Authentication method',
+                    value: authMethod,
+                    items: [
+                      for (final method in authMethods)
+                        UiKitSelectItem(method, method),
+                    ],
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(() => authMethod = value),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (!usesOAuth)
+                  UiKitButton(
+                    key: const Key('connect_submit'),
+                    label: 'Connect',
+                    icon: 'link',
+                    fullWidth: true,
+                    onPressed: busy || source == null ? null : connect,
+                  ),
+                if (usesOAuth)
+                  UiKitButton(
+                    key: const Key('connect_oauth'),
+                    label: 'Sign in with the provider',
+                    icon: 'external-link',
+                    fullWidth: true,
+                    onPressed: busy ? null : startOAuth,
+                  ),
+              ],
+            ],
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: c.hairline),
+        if (!loaded)
+          error != null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: CircularProgressIndicator(color: c.accent),
+                  ),
+                )
+        else if (connections.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text('No connections yet.', style: type.empty),
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.all(11),
+            child: Column(
+              children: [
+                for (final connection in connections) _row(context, connection),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }

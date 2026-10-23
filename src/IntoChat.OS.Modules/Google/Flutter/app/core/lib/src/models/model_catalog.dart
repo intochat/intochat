@@ -6,8 +6,12 @@ class ChatModelOption {
     this.model,
     this.available = true,
     this.capabilities = const [],
+    this.reason,
   });
   final String? id, provider, model;
+
+  /// Why an unavailable model cannot be chosen, from the server; null when available.
+  final String? reason;
   final String label;
   final bool available;
   final List<String> capabilities;
@@ -21,6 +25,7 @@ class ChatModelOption {
         capabilities: (json['capabilities'] as List? ?? [])
             .whereType<String>()
             .toList(),
+        reason: json['reason'] as String?,
       );
 }
 

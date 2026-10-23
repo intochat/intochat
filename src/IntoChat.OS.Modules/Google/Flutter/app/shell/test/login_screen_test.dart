@@ -78,7 +78,7 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<FilledButton>(find.byKey(const Key('login-submit')))
+            .widget<UiKitButton>(find.byKey(const Key('login-submit')))
             .onPressed,
         isNull,
       );
@@ -88,7 +88,7 @@ void main() {
       expect(find.text('Unable to connect. Please try again.'), findsOneWidget);
       expect(
         tester
-            .widget<FilledButton>(find.byKey(const Key('login-submit')))
+            .widget<UiKitButton>(find.byKey(const Key('login-submit')))
             .onPressed,
         isNotNull,
       );
@@ -98,7 +98,8 @@ void main() {
       );
       expect(
         errorText.style?.color,
-        UiColors.of(tester.element(find.byKey(const Key('login-error')))).error,
+        UiColors.of(tester.element(find.byKey(const Key('login-error'))))
+            .strong,
       );
     },
   );

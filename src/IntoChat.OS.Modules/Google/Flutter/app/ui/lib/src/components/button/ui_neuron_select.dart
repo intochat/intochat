@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_theme.dart';
-import '../../theme/ui_tokens.dart';
+import '../kit/ui_kit_select.dart';
 import 'ui_neuron_button.dart';
 
 /// A generic choice menu. The owner supplies its options and their order.
-class UiNeuronSelect extends StatefulWidget {
+/// Without a [visual] it renders as a full-width [UiKitSelect]; options that
+/// carry a `visual` keep their button rows.
+class UiNeuronSelect extends StatelessWidget {
   const UiNeuronSelect({
     super.key,
     required this.label,
@@ -22,173 +22,52 @@ class UiNeuronSelect extends StatefulWidget {
   final ValueChanged<String>? onSelected;
 
   @override
-  State<UiNeuronSelect> createState() => _UiNeuronSelectState();
-}
-
-class _UiNeuronSelectState extends State<UiNeuronSelect> {
-  final _menu = MenuController();
-  final _search = TextEditingController();
-  final _searchFocus = FocusNode();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _search.dispose();
-    _searchFocus.dispose();
-    super.dispose();
-  }
-
-  void _choose(Map option) {
-    if (option['enabled'] == false) return;
-    _menu.close();
-    widget.onSelected?.call('${option['id']}');
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final matches = widget.options
-        .where((option) => '${option['label']}'.toLowerCase().contains(_query))
-        .toList();
-    final searchable = widget.options.length > 8;
-    return MenuAnchor(
-      controller: _menu,
-      onOpen: () {
-        _search.clear();
-        setState(() => _query = '');
-        if (searchable) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _menu.isOpen) _searchFocus.requestFocus();
-          });
+    final byId = {for (final o in options) '${o['id']}': o};
+    return UiKitSelect<String>(
+      value: selected,
+      hint: label,
+      onChanged: onSelected,
+      items: [
+        for (final o in options)
+          UiKitSelectItem(
+            '${o['id']}',
+            '${o['label']}',
+            enabled: o['enabled'] != false,
+          ),
+      ],
+      itemBuilder: (context, item, width) {
+        final option = byId[item.value];
+        if (option?['visual'] is! Map) {
+          return Text(item.label);
         }
+        return SizedBox(
+          width: width,
+          child: UiNeuronButton(
+            label: item.label,
+            visual: {...option!['visual'] as Map, 'compact': false},
+            menuChild: true,
+          ),
+        );
       },
-      menuChildren: [
-        SizedBox(
-          width: 280,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (searchable)
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: TextField(
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    decoration: const InputDecoration(
-                      labelText: 'Search options',
-                      prefixIcon: Icon(Icons.search),
-                      isDense: true,
-                    ),
-                    onChanged: (value) =>
-                        setState(() => _query = value.trim().toLowerCase()),
-                    onSubmitted: (_) {
-                      final first = matches
-                          .where((item) => item['enabled'] != false)
-                          .firstOrNull;
-                      if (first != null) _choose(first);
-                    },
-                  ),
-                ),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * .55,
-                ),
-                child: SingleChildScrollView(
-                  primary: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (matches.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Semantics(
-                            liveRegion: true,
-                            child: const Text('No matching options'),
-                          ),
-                        ),
-                      for (final option in matches)
-                        MenuItemButton(
-                          onPressed: option['enabled'] == false
-                              ? null
-                              : () => _choose(option),
-                          leadingIcon: widget.selected == null
-                              ? null
-                              : SizedBox(
-                                  width: 20,
-                                  child: option['id'] == widget.selected
-                                      ? const Icon(Icons.check, size: 18)
-                                      : null,
-                                ),
-                          child: option['visual'] is Map
-                              ? SizedBox(
-                                  width: widget.selected == null ? 248 : 216,
-                                  child: UiNeuronButton(
-                                    label: '${option['label']}',
-                                    visual: {
-                                      ...option['visual'] as Map,
-                                      'compact': false,
-                                    },
-                                    menuChild: true,
-                                  ),
-                                )
-                              : Text('${option['label']}'),
-                        ),
-                    ],
-                  ),
+      triggerBuilder: visual == null
+          ? null
+          : (context, controller) => Tooltip(
+              message: label,
+              child: TextButton(
+                onPressed: onSelected == null
+                    ? null
+                    : () => controller.isOpen
+                          ? controller.close()
+                          : controller.open(),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                child: UiNeuronButton(
+                  label: label,
+                  visual: visual!,
+                  menuChild: true,
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
-      builder: (context, controller, child) => Tooltip(
-        message: widget.label,
-        child: TextButton(
-          onPressed: widget.onSelected == null
-              ? null
-              : () =>
-                    controller.isOpen ? controller.close() : controller.open(),
-          style: widget.visual != null
-              ? TextButton.styleFrom(padding: EdgeInsets.zero)
-              : _fieldStyle(context),
-          child: widget.visual != null
-              ? UiNeuronButton(
-                  label: widget.label,
-                  visual: widget.visual!,
-                  menuChild: true,
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '${widget.options.where((option) => option['id'] == widget.selected).firstOrNull?['label'] ?? widget.label}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.keyboard_arrow_down, size: 18),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  /// Figma select trigger: a 48-high field box with radius 12.
-  ButtonStyle _fieldStyle(BuildContext context) {
-    final c = UiColors.of(context);
-    return TextButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      backgroundColor: c.surface,
-      foregroundColor: c.strong,
-      overlayColor: c.muted,
-      textStyle: UiType.of(context).body,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(UiTokens.of(context).fieldRadius),
-        side: BorderSide(color: c.inputBorder),
-      ),
+            ),
     );
   }
 }

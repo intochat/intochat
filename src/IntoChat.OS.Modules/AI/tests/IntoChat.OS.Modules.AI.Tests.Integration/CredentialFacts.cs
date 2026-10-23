@@ -203,6 +203,23 @@ public sealed class CredentialFacts
         Assert.DoesNotContain(Canary, logs.Text);
     }
 
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ABrainKeyIsReleasedOnlyForItsOwnBrainAndNeverForUnkeyedProviders()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithProvider("OpenAI", apiKey: "deployment-only").WithModule<AIModule>().StartAsync(ct);
+        var credentials = brain.Services.GetRequiredService<IAiCredentials>();
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IntoChat.OS.Framework.Platform.Entries.IBrainEntries>("credential-brain")
+            .Put("provider:openai", IntoChat.OS.Framework.Platform.Entries.EntryKind.Secret, Canary);
+
+        Assert.Equal(Canary, await credentials.BrainKey("credential-brain", AiProvider.OpenAI, ct));
+        Assert.Null(await credentials.BrainKey("credential-other", AiProvider.OpenAI, ct));
+        Assert.Null(await credentials.BrainKey("credential-brain", AiProvider.Anthropic, ct));
+        Assert.Null(await credentials.BrainKey("credential-brain", AiProvider.Ollama, ct));
+        Assert.Null(await new FixedAiCredentials().Ready("openai", "fixed").BrainKey("credential-brain", AiProvider.OpenAI, ct));
+    }
+
     private sealed class SteppingTimeProvider : TimeProvider
     {
         private DateTimeOffset _now = DateTimeOffset.UtcNow;

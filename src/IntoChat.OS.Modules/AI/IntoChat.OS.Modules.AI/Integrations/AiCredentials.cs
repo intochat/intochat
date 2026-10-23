@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using IntoChat.OS;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Entries;
 using IntoChat.OS.Framework.Platform.Integrations;
 
 namespace IntoChat.OS.AI;
@@ -12,10 +13,21 @@ internal interface IAiCredentials
     Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default);
     Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default);
     Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default);
+
+    // The brain's own key for a key-based provider (its provider:{id} secret entry), or null. The
+    // value is for the provider call being built; callers must not log, cache or return it.
+    Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default);
 }
 
-internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> integrations, TimeProvider time) : IAiCredentials
+internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> integrations, TimeProvider time, IBrainProviderKeys? brainKeys = null) : IAiCredentials
 {
+    public async Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default)
+    {
+        if (brainKeys is null || !BrainScope.IsValidId(brainId) || !AiIntegrations.KeyedProviders.Contains(provider)) { return null; }
+        try { return await brainKeys.Release(brainId, AiIntegrations.IdOf(provider), cancellationToken).ConfigureAwait(false); }
+        catch (ArgumentException) { return null; }
+    }
+
     private static readonly TimeSpan StatusLifetime = TimeSpan.FromSeconds(5);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentDictionary<string, (IntegrationSnapshot Snapshot, DateTimeOffset ReadAt, long Generation)> _statuses = new(StringComparer.Ordinal);
@@ -76,6 +88,8 @@ internal sealed class FixedAiCredentials : IAiCredentials
     }
 
     public Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default) => Task.FromResult(0L);
+
+    public Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 
     public Task<IntegrationSnapshot> StatusOf(string integrationId, CancellationToken cancellationToken = default)
         => Task.FromResult(_ready.TryGetValue(integrationId, out var entry)

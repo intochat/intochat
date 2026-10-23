@@ -14,6 +14,7 @@ import 'home/app_detail_screen.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
+import 'settings/settings_api.dart';
 import 'workspace_settings.dart';
 import 'compute_usage_panel.dart';
 import 'csharp/csharp_manager.dart';
@@ -61,7 +62,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   final _navigator = GlobalKey<NavigatorState>();
-  final _messenger = GlobalKey<ScaffoldMessengerState>();
   SpaceController? _space;
   String? _rootName;
   String? _activationApp;
@@ -139,7 +139,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
       if (_rootName == null &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
-        await _space!.show('$brain/apps/settings');
+        _openSettings('general');
       }
     } catch (error) {
       if (mounted) setState(() => _startupError = error);
@@ -267,9 +267,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       }
     }
     if (!mounted) return;
-    _messenger.currentState?.showSnackBar(
-      const SnackBar(content: Text('Layout will change on next start')),
-    );
+    _toast('Layout will change on next start');
+  }
+
+  void _toast(String message, {UiTone tone = UiTone.neutral}) {
+    final overlay = _navigator.currentState?.overlay?.context;
+    if (overlay != null) showKitToast(overlay, message, tone: tone);
   }
 
   Future<void> _activate(Map<String, dynamic> action) async {
@@ -278,6 +281,20 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
+        return;
+      }
+      // Settings is the shell's native screen, never the Settings feature app.
+      if (action['kind'] == 'settings') {
+        if (action['brainId'] case final String brain when brain != _brain) {
+          final brains = await client.listBrains();
+          if (!brains.any((entry) => entry.id == brain)) {
+            throw StateError('This account is not a member of that brain.');
+          }
+          if (!mounted) return;
+          await _selectBrain(brain);
+        }
+        if (!mounted) return;
+        _openSettings(action['tab'] as String? ?? 'general');
         return;
       }
       // The layout switch: hand the app its request, then connect again and mount the new root.
@@ -374,11 +391,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
           );
         }
       }
-    } catch (error) {
+    } on StateError catch (error) {
+      // Shell-authored copy (e.g. membership), never a transport exception.
+      if (mounted) _toast(error.message, tone: UiTone.error);
+    } catch (_) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not navigate: $error')),
-        );
+        _toast('Could not navigate there. Try again.', tone: UiTone.error);
       }
     }
   }
@@ -396,18 +414,18 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         operation,
         input,
       );
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not run action: $error')),
-        );
+        _toast('Could not run that action. Try again.', tone: UiTone.error);
       }
     }
   }
 
   Widget _settings(String section) => WorkspaceSettings(
+    brainId: _brain!,
     store: store,
-    initialSection: section,
+    initialTab: section,
+    api: ClientSettingsApi(widget.programmingClient!, _brain!),
     onClose: () => _navigator.currentState?.pop(),
     kernelBaseUri: widget.kernelBaseUri,
     onOpen: widget.onOpenUrl,
@@ -418,7 +436,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     windowsRequest: (path, {body}) => widget.programmingClient!
         .workspaceWindowsRequest(_brain!, path, body: body),
     loadModels: widget.programmingClient!.readModelCatalog,
-    sectionBuilder: _settings,
+  );
+  void _openSettings(String section) => _navigator.currentState?.push(
+    MaterialPageRoute<void>(
+      settings: RouteSettings(name: '/settings/$section'),
+      builder: (_) => _settings(section),
+    ),
   );
   Future<void> _tool(String name) async {
     final client = widget.programmingClient!;
@@ -426,12 +449,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     try {
       switch (name) {
         case 'preferences':
-          navigator.push(
-            MaterialPageRoute<void>(
-              settings: const RouteSettings(name: '/settings/general'),
-              builder: (_) => _settings('general'),
-            ),
-          );
+          _openSettings('general');
         case 'connections':
           await _activate({'kind': 'connections'});
         case 'compute':
@@ -471,11 +489,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         case 'switch':
           await widget.onSwitchAccount?.call();
       }
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not open tool: $error')),
-        );
+        _toast('Could not open that tool. Try again.', tone: UiTone.error);
       }
     }
   }
@@ -510,7 +526,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   @override
   Widget build(BuildContext context) => MaterialApp(
     navigatorKey: _navigator,
-    scaffoldMessengerKey: _messenger,
     debugShowCheckedModeBanner: false,
     theme: UiTheme.light(store.settings.theme),
     darkTheme: UiTheme.dark(store.settings.theme),
@@ -580,9 +595,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               onRequest: _request,
               loadIcon: _icon,
               menu: _menu(),
-              onSettings: () => unawaited(
-                _space!.show('$_brain/apps/settings').catchError((Object _) {}),
-              ),
+              onSettings: () => _openSettings('general'),
             ),
     ),
   );

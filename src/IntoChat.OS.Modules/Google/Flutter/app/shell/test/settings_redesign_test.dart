@@ -21,39 +21,46 @@ const catalog = ChatModelCatalog(
 
 void main() {
   paletteTests();
-  testWidgets('narrow settings switches Models and UI Kit without overflow', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 780);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final store = WorkspaceStore();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: WorkspaceSettings(
-          store: store,
-          onClose: () {},
-          loadModels: () async => catalog,
+  testWidgets(
+    'narrow settings switches AI models and opens UI Kit without overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = WorkspaceStore();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspaceSettings(
+            brainId: 'brain-1',
+            store: store,
+            onClose: () {},
+            loadModels: () async => catalog,
+          ),
         ),
-      ),
-    );
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Models').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Fast'));
-    await tester.pumpAndSettle();
-    expect(store.settings.defaultModelProfile, 'profile:fast');
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('UI Kit').last);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('ui_gallery_screen')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    store.dispose();
-  });
+      );
+      await tester.tap(find.text('AI models'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Fast'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Fast'));
+      await tester.pumpAndSettle();
+      expect(store.settings.defaultModelProfile, 'profile:fast');
+      await tester.tap(find.text('General'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-open-ui-kit')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.byKey(const Key('settings-open-ui-kit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ui_gallery_screen')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      store.dispose();
+    },
+  );
 
   testWidgets('model load retries and preserves unavailable saved choice', (
     tester,
@@ -82,7 +89,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('no longer available'), findsOneWidget);
     expect(selected, 'profile:removed');
-    await tester.tap(find.text('Automatic (workspace default)'));
+    await tester.tap(find.text('Auto, cheapest model with tools'));
     expect(selected, isNull);
   });
 
@@ -109,7 +116,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Model'));
+    await tester.tap(find.text('Model'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Fast'));
     await tester.pumpAndSettle();
@@ -146,6 +153,7 @@ void paletteTests() {
       await tester.pumpWidget(
         MaterialApp(
           home: WorkspaceSettings(
+            brainId: 'brain-1',
             store: store,
             onClose: () {},
             loadModels: () async => catalog,
@@ -157,15 +165,12 @@ void paletteTests() {
         200,
         scrollable: find.byType(Scrollable).last,
       );
-      final picker = tester.widget<DropdownButton<String>>(
-        find.descendant(
-          of: find.byKey(const Key('theme_picker')),
-          matching: find.byType(DropdownButton<String>),
-        ),
+      final picker = tester.widget<UiKitSelect<String>>(
+        find.byKey(const Key('theme_picker')),
       );
       expect(picker.value, 'intochat');
-      expect(picker.items!.first.value, 'intochat');
-      expect(picker.items!.map((i) => i.value), [
+      expect(picker.items.first.value, 'intochat');
+      expect(picker.items.map((i) => i.value), [
         'intochat',
         'midnight',
         'paper',

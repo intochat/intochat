@@ -4,6 +4,8 @@
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <Using Include="IntoChat.OS.Kernel.Testing" />
+    <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
+    <Compile Include="../../../features/os/Engineer/EngineerKeys.cs" Link="Features/EngineerKeys.cs" />
     <!-- Storage fixtures from earlier builds; facts read copies beside the test binary. -->
     <None Include="Storage/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

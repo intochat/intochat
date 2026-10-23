@@ -110,5 +110,11 @@
   "IntoChat.OS.Testing/Targets/InProcessTarget.cs": 2,
   "IntoChat.OS.Authority/AuthorityNeurons.cs": 2,
   "IntoChat.OS.Modules.Google.Gmail.Testing/GmailBrain.cs": 2,
-  "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailWebhook.cs": 3
+  "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailWebhook.cs": 3,
+  "IntoChat.OS.Kernel.Tests.Integration/AppModelChoiceFacts.cs": 2,
+  "IntoChat.OS.Modules.AI.Tests.Integration/CredentialFacts.cs": 2,
+  "IntoChat.OS.Modules.AI.Tests.Integration/Models/AutomaticChoiceFacts.cs": 2,
+  "IntoChat.OS.Modules.AI.Tests.Integration/Models/BrainKeyFacts.cs": 2,
+  "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2,
+  "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2
 }

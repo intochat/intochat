@@ -20,7 +20,7 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
             && request.GetMethodName() is nameof(ILLM.Generate) or nameof(ILLM.Describe);
 
     public Task<ModelDescriptor> Describe(ModelSelection? selection = null)
-        => inference.Describe(Selection(selection), marker);
+        => inference.Describe(Selection(selection), marker, brainId: Brain);
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -29,7 +29,7 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
         await Publish(new InferenceStarted(key, id));
         try
         {
-            var result = await inference.Generate(request with { Model = Selection(request.Model) }, marker, cancellationToken);
+            var result = await inference.Generate(request with { Model = Selection(request.Model) }, marker, cancellationToken, Brain);
             await Publish(new InferenceCompleted(key, id));
             return result;
         }
@@ -50,7 +50,7 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            await foreach (var update in inference.GenerateStreaming(request with { Model = Selection(request.Model) }, marker, lifetime.Token))
+            await foreach (var update in inference.GenerateStreaming(request with { Model = Selection(request.Model) }, marker, lifetime.Token, Brain))
             { yield return update; }
             completed = true;
         }
@@ -80,6 +80,9 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
         try { await PublishAsync(signal); }
         finally { _publishing.Release(); }
     }
+
+    // The brain this model neuron serves, from its key; its provider keys apply to these calls.
+    private string? Brain => BrainKey.ScopeOf(this.GetPrimaryKeyString());
 
     private ModelSelection? Selection(ModelSelection? selection)
     {

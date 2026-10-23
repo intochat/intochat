@@ -47,7 +47,8 @@ public static class DesktopLayout
         [
             Ui.Text("usage", m.Usage ?? "Usage"),
             Ui.Button("avatar", m.Person ?? "You", "open:circle"),
-            Ui.Row("more", [Ui.Button("more-settings", "Settings", "settings"), m.LayoutButton is { } classic
+            Ui.Row("more", [m.SettingsButton is { } settings
+                ? Ui.Reference("more-settings", new(UIVocabulary.ButtonType, settings)) : Ui.Button("more-settings", "Settings", "settings", enabled: false), m.LayoutButton is { } classic
                 ? Ui.Reference("more-classic", new(UIVocabulary.ButtonType, classic)) : Ui.Button("more-classic", "Classic layout", "layout", enabled: false)], gap: 4),
         ], gap: 4, extents: [72, 72, 0]),
     ], extents: [0, 360]);

@@ -13,6 +13,7 @@ internal static class ProviderIntegrations
         {
             "OpenAI" => AIModule.OpenAIIntegration,
             "OpenRouter" => AIModule.OpenRouterIntegration,
+            "Anthropic" => AIModule.Integrations.Single(integration => integration.Id == "anthropic"),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Only key-based providers have an integration."),
         };
         brain = brain.WithIntegration(schema, "ApiKey", apiKey);

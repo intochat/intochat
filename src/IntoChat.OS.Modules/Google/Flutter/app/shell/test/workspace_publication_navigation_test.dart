@@ -1,3 +1,4 @@
+import 'package:intochat_os_ui/intochat_os_ui.dart' show kitToastLifetime;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'application_fixture.dart';
@@ -21,6 +22,7 @@ void main() {
       expect(f.space.workspace!.path, original);
       expect(f.space.view.value.focused, '${f.brainId}/apps/ino');
       expect(find.textContaining('Could not navigate'), findsOneWidget);
+      await tester.pump(kitToastLifetime);
       f.server.failOpen = false;
       await source.home();
       await tester.pumpAndSettle();
@@ -63,6 +65,7 @@ void main() {
             isFalse,
           );
           expect(find.textContaining('not a member'), findsOneWidget);
+          await tester.pump(kitToastLifetime);
         }
         await f.dispose();
       },

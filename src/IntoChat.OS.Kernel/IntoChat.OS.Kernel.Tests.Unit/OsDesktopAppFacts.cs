@@ -125,7 +125,7 @@ public sealed class OsDesktopAppFacts
     public void TheDockShowsInoFirstThenTheGalleryAndUsageAvatarAndMoreOnTheRight()
     {
         var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false), new("calc", "Calc", null, false, true)],
-            false, false, null, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic");
+            false, false, null, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
         var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
         var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
         Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
@@ -135,7 +135,8 @@ public sealed class OsDesktopAppFacts
         Assert.Contains(Flatten(right), node => node.Text == "$1.25");
         Assert.Contains(Flatten(right), node => node.Text == "Vlad");
         var more = Flatten(Assert.Single(right.Children, node => node.Key == "more")).ToArray();
-        Assert.Equal(["settings"], more.Where(node => node.Kind == UiNodeKind.Button).Select(node => node.Action));
+        Assert.DoesNotContain(more, node => node.Kind == UiNodeKind.Button);
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/settings"), Assert.Single(more, node => node.Key == "more-settings").Reference);
         Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/classic"), Assert.Single(more, node => node.Key == "more-classic").Reference);
     }
 
@@ -159,13 +160,33 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("new { kind = \"reconnect\", brainId = Scope(brain), application = \"desktop\", operation = \"layout\", input = \"desktop\" }", workspace, StringComparison.Ordinal);
     }
 
+    // Ruling 1: More's Settings hands the shell {kind: settings}, so the shell opens its native screen.
+    [Fact]
+    public void MoreSettingsProducesTheSettingsActivation()
+    {
+        var activation = System.Text.Json.JsonDocument.Parse(Desktop.SettingsActivation("brain-1")).RootElement;
+        Assert.Equal(["kind", "brainId"], activation.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(("settings", "brain-1"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString()));
+        var tabbed = System.Text.Json.JsonDocument.Parse(Desktop.SettingsActivation("brain-1", "keys")).RootElement;
+        Assert.Equal("keys", tabbed.GetProperty("tab").GetString());
+        var desktop = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["Desktop.cs"];
+        Assert.Contains("SettingsActivation(Scope(brain))", desktop, StringComparison.Ordinal);
+        var dock = Flatten(DesktopLayout.Render(new DesktopModel([], null, [], false, false, null, SettingsButton: "brain/apps/desktop/settings"))).ToArray();
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/settings"), Assert.Single(dock, node => node.Key == "more-settings").Reference);
+    }
+
     [Fact]
     public void LayoutAndSettingsHaveSmallHandlers()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
         Assert.Contains("\"layout\"", bundle.Files["layout-switch.cs"], StringComparison.Ordinal);
         Assert.Contains("\"settings\"", bundle.Files["settings.cs"], StringComparison.Ordinal);
-        Assert.Contains("Desktop.Open", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        Assert.Contains("Desktop.SetSettingsButton", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Desktop.Open", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        // An old-render `settings` click re-arms the button and re-renders, so the next click carries the activation.
+        var settings = bundle.Files["settings.cs"];
+        var rearm = settings.IndexOf("await Desktop.SetSettingsButton(brain);", StringComparison.Ordinal);
+        Assert.True(rearm >= 0 && settings.IndexOf("await Desktop.Show(brain);", rearm, StringComparison.Ordinal) > rearm);
         Assert.All((string[])["layout-switch.cs", "settings.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
     }
 

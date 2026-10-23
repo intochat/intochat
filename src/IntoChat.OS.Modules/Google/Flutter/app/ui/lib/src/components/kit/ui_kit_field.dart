@@ -27,6 +27,10 @@ final class UiKitField extends StatefulWidget {
     this.helper,
     this.textInputAction,
     this.fieldKey,
+    this.autofillHints,
+    this.autofocus = false,
+    this.autocorrect = true,
+    this.suffix,
   });
 
   final String label;
@@ -44,6 +48,15 @@ final class UiKitField extends StatefulWidget {
 
   /// Key for the inner [TextField], for callers that address it directly.
   final Key? fieldKey;
+
+  final Iterable<String>? autofillHints;
+  final bool autofocus;
+
+  /// When false, also turns off suggestions (usernames, passwords).
+  final bool autocorrect;
+
+  /// Trailing widget inside the box, e.g. a reveal-password icon button.
+  final Widget? suffix;
 
   @override
   State<UiKitField> createState() => _UiKitFieldState();
@@ -107,6 +120,10 @@ class _UiKitFieldState extends State<UiKitField> {
       minLines: widget.multiline ? 2 : 1,
       maxLines: widget.multiline ? 5 : 1,
       textInputAction: widget.textInputAction,
+      autofillHints: widget.autofillHints,
+      autofocus: widget.autofocus,
+      autocorrect: widget.autocorrect,
+      enableSuggestions: widget.autocorrect,
       style: type.body.copyWith(color: c.strong),
       cursorColor: c.accent,
       // The box above draws the border; clear every theme border and fill
@@ -138,9 +155,12 @@ class _UiKitFieldState extends State<UiKitField> {
         boxShadow: UiShadows.xs(uiKitShadowBase(context)),
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: widget.multiline ? 6 : 0,
+        // Figma's icon button sits 8px from the edge (34px button, 6px pad).
+        padding: EdgeInsets.fromLTRB(
+          14,
+          widget.multiline ? 6 : 0,
+          widget.suffix == null ? 14 : 6,
+          widget.multiline ? 6 : 0,
         ),
         child: widget.multiline
             ? ConstrainedBox(
@@ -149,7 +169,14 @@ class _UiKitFieldState extends State<UiKitField> {
               )
             : SizedBox(
                 height: 48,
-                child: Align(alignment: Alignment.centerLeft, child: input),
+                child: widget.suffix == null
+                    ? Align(alignment: Alignment.centerLeft, child: input)
+                    : Row(
+                        children: [
+                          Expanded(child: input),
+                          widget.suffix!,
+                        ],
+                      ),
               ),
       ),
     );

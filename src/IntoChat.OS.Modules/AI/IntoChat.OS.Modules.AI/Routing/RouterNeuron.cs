@@ -365,8 +365,8 @@ internal sealed class RouterNeuron(
     private async Task<(string Key, string Arguments)> Fill(string state, RouteResult route, CancellationToken ct)
     {
         var catalog = ServiceProvider.GetRequiredService<ModelCatalog>();
-        var resolved = await catalog.Resolve(null, false, ct);
-        using var client = await catalog.CreateClient(resolved, ct);
+        var resolved = await catalog.Resolve(Scope, null, false, ct);
+        using var client = await catalog.CreateClient(Scope, resolved, ct);
         var entry = route.Key is null ? null : await FindEntry(route, ct);
         var signature = entry?.Methods.FirstOrDefault() ?? await Signature(route, ct);
         var instructions = entry is null

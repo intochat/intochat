@@ -102,4 +102,31 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('dock-voice')));
     expect(posted, [('voice', '')]);
   });
+
+  testWidgets('dock text field is named by its placeholder and fits the bar', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 64,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  DockTextField(hint: 'Search notes', onSubmit: (_) {}),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.bySemanticsLabel('Search notes'), findsWidgets);
+    expect(tester.getSize(find.byType(DockTextField)).height, lessThan(64));
+    handle.dispose();
+  });
 }

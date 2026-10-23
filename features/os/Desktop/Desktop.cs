@@ -16,7 +16,7 @@ using IntoChat.OS.Flutter.Workspace;
 public sealed record WindowModel(string Id, string App, string Title, string ViewportKey);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null, string? LayoutButton = null);
+    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null, string? LayoutButton = null, string? SettingsButton = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -44,6 +44,8 @@ public static class Desktop
     public static IText Layout(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/layout");
     // More's Classic layout: a button neuron whose activation asks the shell to switch and connect again.
     public static string LayoutButton(IntoChatOSConnection brain) => Key(brain) + "/classic";
+    // More's Settings: a button neuron whose activation asks the shell for its native Settings screen.
+    public static string SettingsButton(IntoChatOSConnection brain) => Key(brain) + "/settings";
     public static string? ChosenLayout(string input) => input is "classic" or "desktop" ? input : null;
     public static string LayoutActivation(string brainId, string layout) => System.Text.Json.JsonSerializer.Serialize(
         new { kind = "reconnect", brainId, application = "desktop", operation = "layout", input = layout });
@@ -78,7 +80,7 @@ public static class Desktop
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
         // The gallery is read from the store only while it shows.
         var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain), LayoutButton(brain));
+        return new(windows, state.FocusedViewId, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain), LayoutButton(brain), SettingsButton(brain));
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
@@ -114,6 +116,20 @@ public static class Desktop
     // What a Connect button hands the shell: open its connection window for this connector in this brain.
     public static string ConnectActivation(string brainId, string connectorId)
         => System.Text.Json.JsonSerializer.Serialize(new { kind = "connections", brainId, connector = connectorId });
+
+    // What More's Settings hands the shell: open its native Settings screen for this brain, at a tab if given.
+    public static string SettingsActivation(string brainId, string? tab = null) => tab is null
+        ? System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId })
+        : System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId, tab });
+
+    // Arms More's Settings button with the settings activation (render and settings.cs both call it).
+    public static async Task SetSettingsButton(IntoChatOSConnection brain)
+    {
+        var button = brain.Get<IButton>(SettingsButton(brain));
+        var activation = SettingsActivation(Scope(brain));
+        var current = await button.Read();
+        if (current.Activation != activation || current.Label != "Settings") { await button.SetActivation("Settings", activation); }
+    }
 
     // Each connectable connector's button carries its activation before the gallery references it.
     private static async Task SetConnectButtons(IntoChatOSConnection brain, IReadOnlyList<GalleryEntry> entries)
@@ -194,6 +210,7 @@ public static class Desktop
             if (current.Target is not null) { await stale.Set(null, current.Revision); }
         }
         if (model.Entries is { } shownEntries) { await SetConnectButtons(brain, shownEntries); }
+        await SetSettingsButton(brain);
         var classic = brain.Get<IButton>(LayoutButton(brain));
         var switching = LayoutActivation(Scope(brain), "classic");
         if ((await classic.Read()).Activation != switching) { await classic.SetActivation("Classic layout", switching); }

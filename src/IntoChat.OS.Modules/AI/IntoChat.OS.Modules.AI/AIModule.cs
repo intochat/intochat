@@ -39,6 +39,8 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
+        services.TryAddSingleton<BrainKeyAvailability>();
+        services.TryAddSingleton<ProviderPublicEndpoints>();
         services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
@@ -55,10 +57,17 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         VoiceToTextHosting.Add(services, options);
     }
 
-    // The deployment's model list for the shell's model picker; never endpoints or secrets.
+    // The calling brain's model list for the shell's model picker; never endpoints or secrets. The
+    // brain is the edge's stamped caller; without one the list is the deployment's.
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>("default").List()));
+        endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>(
+            CatalogKey(CallerContextStamper.TryGet(out var caller) ? caller : null)).List()));
     }
+
+    // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.
+    internal static string CatalogKey(CallerContext? caller)
+        => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
+            ? IModelCatalog.Key(caller.BrainId) : "default";
 }

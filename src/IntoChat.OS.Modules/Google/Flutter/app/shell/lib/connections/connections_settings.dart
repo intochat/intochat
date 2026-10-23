@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'connect_window.dart';
 import 'windows_storage_setup.dart';
@@ -169,11 +170,8 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
     children: [
       Row(
         children: [
-          const Expanded(
-            child: Text(
-              'Connections',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-            ),
+          Expanded(
+            child: Text('Connections', style: UiType.of(context).heading),
           ),
           IconButton(
             tooltip: 'Refresh connections',

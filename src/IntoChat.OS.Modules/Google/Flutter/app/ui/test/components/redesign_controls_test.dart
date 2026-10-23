@@ -199,12 +199,10 @@ void main() {
         onSelected: (_) {},
       ),
     );
-    final button = find.byType(TextButton);
-    expect(tester.getSize(button).height, 48);
-    final shape =
-        tester.widget<TextButton>(button).style!.shape!.resolve({})
-            as RoundedRectangleBorder;
-    expect(shape.borderRadius, BorderRadius.circular(12));
+    final box = find.byKey(const ValueKey('ui_kit_select_box'));
+    expect(tester.getSize(box).height, 48);
+    final d = tester.widget<DecoratedBox>(box).decoration as BoxDecoration;
+    expect(d.borderRadius, BorderRadius.circular(12));
   });
 
   testWidgets('field is named for screen readers above and folded', (

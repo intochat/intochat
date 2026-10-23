@@ -8,15 +8,14 @@ import '../application_fixture.dart';
 
 void main() {
   testWidgets(
-    'settings shows the app sphere and profile keeps preferences reachable',
+    'settings opens the native screen and profile keeps preferences reachable',
     (tester) async {
       final fixture = await ApplicationFixture.start(tester);
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
-      expect(
-        fixture.space.view.value.focused,
-        '${fixture.brainId}/apps/settings',
-      );
+      expect(find.byType(WorkspaceSettings), findsOneWidget);
+      await tester.tap(find.byTooltip('Back to workspace'));
+      await tester.pumpAndSettle();
       await fixture.menu('Workspace configuration');
       expect(find.byType(WorkspaceSettings), findsOneWidget);
       await fixture.dispose();
