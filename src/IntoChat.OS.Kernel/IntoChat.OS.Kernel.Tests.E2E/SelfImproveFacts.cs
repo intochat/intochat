@@ -21,10 +21,13 @@ public sealed class SelfImproveFacts
         }
         var ct = TestContext.Current.CancellationToken;
         await using var fixture = new SelfImproveHostFixture();
-        var brain = await fixture.LeaseAsync(ct);
-        var scope = "workspace-" + Guid.NewGuid().ToString("N");
+        await using var brain = await fixture.LeaseAsync(ct);
+        using var user = await brain.PersonAsync("candidate-" + Guid.NewGuid().ToString("N"), ct);
+        using var caller = user.AsCaller();
+        var scope = user.BrainId;
         var appKey = scope + "/apps/selfimprove";
         Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(appKey).Read()).Status);
+        await AppRuntimeReadiness.WaitAsync(brain, user, ct);
         var list = brain.Get<IText>(appKey + "/revisions");
         await using var changes = await brain.Observe<TextChanged>(list, ct);
         var change = new
@@ -39,7 +42,7 @@ public sealed class SelfImproveFacts
                 budget = "00:10:00",
             },
         };
-        using var requested = await brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/selfimprove/request",
+        using var requested = await user.Http.PostAsJsonAsync($"/brains/{scope}/apps/selfimprove/request",
             new { operation = "request", input = System.Text.Json.JsonSerializer.Serialize(change) }, ct);
         Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
         while (!(await list.Read()).Markdown.Contains("Promoted", StringComparison.Ordinal)) { await changes.NextAsync(ct: ct); }
