@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
-// ignore: implementation_imports
-import 'package:intochat_os_ui/src/composition/value_nodes/view_badge.dart';
 
 import 'settings_api.dart';
 import 'settings_tab_heading.dart';

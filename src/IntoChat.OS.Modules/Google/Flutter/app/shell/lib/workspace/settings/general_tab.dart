@@ -31,7 +31,10 @@ class _GeneralTabState extends State<GeneralTab> {
       _saving = true;
       _notice = null;
     });
-    widget.store.settings.displayName = _name.text.trim();
+    final name = _name.text.trim();
+    widget.store.settings.displayName = name.runes.length > 120
+        ? String.fromCharCodes(name.runes.take(120))
+        : name;
     await widget.store.save();
     if (mounted) {
       setState(() {
@@ -62,6 +65,41 @@ class _GeneralTabState extends State<GeneralTab> {
     );
   }
 
+  Widget _toggle(
+    String title,
+    String detail,
+    bool value,
+    ValueChanged<bool> set,
+  ) {
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: type.body.copyWith(color: c.strong)),
+                Text(detail, style: type.bodyMuted),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          UiKitSwitch(
+            value: value,
+            semanticLabel: title,
+            onChanged: (v) {
+              set(v);
+              widget.store.save();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -73,15 +111,12 @@ class _GeneralTabState extends State<GeneralTab> {
           title: 'General',
           description: 'Personal preferences for all projects on this device.',
         ),
-        TextField(
+        UiKitField(
+          label: 'Display name',
           controller: _name,
-          maxLength: 120,
-          decoration: const InputDecoration(
-            labelText: 'Display name',
-            helperText:
-                'A display preference; your signed-in account stays the same.',
-            border: OutlineInputBorder(),
-          ),
+          fieldKey: const Key('settings-display-name'),
+          helper:
+              'A display preference; your signed-in account stays the same.',
           onSubmitted: (_) => _saveName(),
         ),
         const SizedBox(height: 12),
@@ -95,46 +130,33 @@ class _GeneralTabState extends State<GeneralTab> {
             child: Text(_notice!),
           ),
         _section('Appearance'),
-        DropdownButtonFormField<String>(
+        UiKitSelect<String>(
           key: const Key('theme_picker'),
-          initialValue: UiTheme.paletteName(prefs.theme),
-          decoration: const InputDecoration(
-            labelText: 'Theme',
-            border: OutlineInputBorder(),
-          ),
+          label: 'Theme',
+          value: UiTheme.paletteName(prefs.theme),
           items: const [
-            DropdownMenuItem(value: 'intochat', child: Text('IntoChat')),
-            DropdownMenuItem(value: 'midnight', child: Text('Midnight')),
-            DropdownMenuItem(value: 'paper', child: Text('Paper')),
-            DropdownMenuItem(value: 'lumen', child: Text('Lumen')),
+            UiKitSelectItem('intochat', 'IntoChat'),
+            UiKitSelectItem('midnight', 'Midnight'),
+            UiKitSelectItem('paper', 'Paper'),
+            UiKitSelectItem('lumen', 'Lumen'),
           ],
           onChanged: (v) {
-            if (v != null) {
-              prefs.theme = v;
-              store.save();
-            }
+            prefs.theme = v;
+            store.save();
           },
         ),
         const SizedBox(height: 16),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Compact spacing'),
-          subtitle: const Text('Use a denser layout for workspace controls.'),
-          value: prefs.compactDensity,
-          onChanged: (v) {
-            prefs.compactDensity = v;
-            store.save();
-          },
+        _toggle(
+          'Compact spacing',
+          'Use a denser layout for workspace controls.',
+          prefs.compactDensity,
+          (v) => prefs.compactDensity = v,
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Reduce motion'),
-          subtitle: const Text('Minimize transitions and animated movement.'),
-          value: prefs.reducedMotion,
-          onChanged: (v) {
-            prefs.reducedMotion = v;
-            store.save();
-          },
+        _toggle(
+          'Reduce motion',
+          'Minimize transitions and animated movement.',
+          prefs.reducedMotion,
+          (v) => prefs.reducedMotion = v,
         ),
         _section('Advanced'),
         const ListTile(

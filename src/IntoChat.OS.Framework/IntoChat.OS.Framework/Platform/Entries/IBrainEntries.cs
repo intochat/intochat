@@ -14,7 +14,8 @@ public enum EntryKind
 
 internal sealed class EntryKindJson() : JsonStringEnumConverter<EntryKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false);
 
-// Value is set for variables only; a secret shows only its last four characters.
+// Value is set for variables only. A secret never shows its value; Tail is its last four characters,
+// set only for secrets of eight or more characters.
 [GenerateSerializer, Alias("brain.entry-summary")]
 public sealed record EntrySummary(
     [property: Id(0)] string Name,

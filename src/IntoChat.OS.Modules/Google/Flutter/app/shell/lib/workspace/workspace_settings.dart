@@ -1,3 +1,4 @@
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -87,10 +88,24 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
     _refreshModels();
   }
 
-  // A new loader makes ModelSettings fetch again, e.g. after a key changes.
   void _refreshModels() {
     final api = widget.api;
     _loadModels = api == null ? widget.loadModels : () => api.models();
+  }
+
+  // After a key changes, fetch the catalog now and hand that fetch to the
+  // next model list; a new loader also makes a mounted ModelSettings reload.
+  void _keysChanged() {
+    final api = widget.api;
+    if (api == null) return;
+    Future<ChatModelCatalog>? pending = api.models()..ignore();
+    setState(
+      () => _loadModels = () {
+        final fetched = pending;
+        pending = null;
+        return fetched ?? api.models();
+      },
+    );
   }
 
   void _select(String id) =>
@@ -115,7 +130,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
       'keys' =>
         api == null
             ? _notConnected('API keys')
-            : KeysTab(api: api, onKeysChanged: () => setState(_refreshModels)),
+            : KeysTab(api: api, onKeysChanged: _keysChanged),
       'connections' => ConnectionsTab(
         request: widget.connectionsRequest,
         connectorRequest: widget.connectorRequest,

@@ -48,4 +48,15 @@ void main() {
     expect(tabs.disabled, {8});
     expect(find.byKey(const Key('theme_picker')), findsOneWidget);
   });
+
+  testWidgets('unavailable_model_tap_leaves_default_unchanged', (tester) async {
+    final store = await pumpSettings(tester, FakeSettingsApi(), tab: 'models');
+    store.settings.defaultModelProfile = 'preset:IGpt54Nano';
+    final row = find.text('claude-haiku-4-5').last;
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
+    await tester.tap(row, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(store.settings.defaultModelProfile, 'preset:IGpt54Nano');
+  });
 }

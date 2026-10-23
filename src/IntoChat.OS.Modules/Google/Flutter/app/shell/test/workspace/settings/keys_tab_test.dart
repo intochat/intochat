@@ -79,6 +79,7 @@ void main() {
       secrets: {'provider:openai': 'sk-long-key-WXYZ'},
     );
     await pumpSettings(tester, api, tab: 'keys');
+    final loads = api.modelLoads;
     await tester.tap(find.byKey(const Key('settings-key-remove-openai')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings-key-remove-cancel')));
@@ -91,6 +92,7 @@ void main() {
     await tester.tap(find.byKey(const Key('settings-key-remove-confirm')));
     await tester.pumpAndSettle();
     expect(api.removed, ['provider:openai']);
+    expect(api.modelLoads, greaterThan(loads));
     expect(find.text('Not set'), findsNWidgets(5));
   });
 

@@ -165,15 +165,12 @@ void paletteTests() {
         200,
         scrollable: find.byType(Scrollable).last,
       );
-      final picker = tester.widget<DropdownButton<String>>(
-        find.descendant(
-          of: find.byKey(const Key('theme_picker')),
-          matching: find.byType(DropdownButton<String>),
-        ),
+      final picker = tester.widget<UiKitSelect<String>>(
+        find.byKey(const Key('theme_picker')),
       );
       expect(picker.value, 'intochat');
-      expect(picker.items!.first.value, 'intochat');
-      expect(picker.items!.map((i) => i.value), [
+      expect(picker.items.first.value, 'intochat');
+      expect(picker.items.map((i) => i.value), [
         'intochat',
         'midnight',
         'paper',

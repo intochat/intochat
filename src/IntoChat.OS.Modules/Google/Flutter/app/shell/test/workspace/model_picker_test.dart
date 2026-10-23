@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/workspace/model_settings.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 const catalog = ChatModelCatalog(
   automatic: ChatModelOption(label: 'Automatic (workspace default)'),
@@ -130,13 +131,87 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.text('Auto, cheapest model with tools'),
-      warnIfMissed: false,
-    );
+    await tester.tap(find.text('Auto, cheapest model with tools'));
     await tester.pumpAndSettle();
-    expect(picked, isEmpty);
+    // Auto stays selectable (Ruling 8) and still points to API keys.
+    expect(picked, [null]);
     await tester.tap(find.byKey(const Key('model-add-api-key')));
     expect(keys, 1);
+  });
+
+  testWidgets('auto_selectable_in_rows_and_select_alike', (tester) async {
+    final picked = <String?>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ModelSettings(
+              load: () async => const ChatModelCatalog(
+                automatic: ChatModelOption(
+                  label: 'Automatic',
+                  available: false,
+                ),
+                models: [
+                  ChatModelOption(
+                    id: 'preset:IHaiku45',
+                    label: 'claude-haiku-4-5',
+                    available: false,
+                  ),
+                ],
+              ),
+              selectedId: 'preset:IHaiku45',
+              select: true,
+              onSelected: picked.add,
+              onAddKey: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final select = tester.widget<UiKitSelect<String?>>(
+      find.byType(UiKitSelect<String?>),
+    );
+    final auto = select.items.firstWhere((i) => i.value == null);
+    final haiku = select.items.firstWhere((i) => i.value != null);
+    expect(auto.enabled, isTrue);
+    expect(auto.detail, 'Add an API key');
+    expect(haiku.enabled, isFalse);
+    final row = tester.widget<ListTile>(
+      find.ancestor(
+        of: find.text('Auto, cheapest model with tools').last,
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(row.enabled, isTrue);
+    expect(find.byKey(const Key('model-add-api-key')), findsOneWidget);
+    await tester.tap(find.text('Auto, cheapest model with tools').last);
+    expect(picked, [null]);
+  });
+
+  testWidgets('model_option_text_uses_ui_colors', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ModelSettings(
+              load: () async => catalog,
+              selectedId: 'preset:IGpt54Nano',
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    const c = UiColors.intochatLight;
+    final title = tester.widget<Text>(find.text('gpt-5.4-nano').first);
+    expect(title.style?.color, c.strong);
+    final icon = tester.widget<Icon>(find.byIcon(Icons.radio_button_checked));
+    expect(icon.color, c.accent);
+    final off = tester.widget<Icon>(find.byIcon(Icons.radio_button_off).first);
+    expect(off.color, c.muted);
   });
 }

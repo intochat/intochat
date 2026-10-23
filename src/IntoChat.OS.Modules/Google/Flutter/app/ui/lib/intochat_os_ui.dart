@@ -11,6 +11,7 @@ export 'src/components/kit/ui_kit_select.dart';
 export 'src/components/kit/ui_kit_surface.dart';
 export 'src/components/kit/ui_kit_switch.dart';
 export 'src/components/kit/ui_kit_tabs.dart';
+export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
 export 'src/components/chart/ui_chart.dart';
 export 'src/components/clock/ui_clock.dart';
 export 'src/components/expander/ui_expander.dart';

@@ -83,9 +83,11 @@ class _ModelSettingsState extends State<ModelSettings> {
   // with the reason and cannot be chosen.
   Widget _option(ChatModelOption option) {
     final automatic = option.id == null;
-    final selectable = option.available;
+    // Ruling 8: Auto is always selectable; the server resolves it.
+    final selectable = option.available || automatic;
     final active = widget.selectedId == option.id;
     final c = UiColors.of(context);
+    final type = UiType.of(context);
     final reason = option.reason ?? unavailableModelReason;
     // Figma `.model-option`: auto / 1fr / auto, gap 10, hairline, radius 10,
     // padding 11; the active row is an accent border on accentTint.
@@ -107,13 +109,21 @@ class _ModelSettingsState extends State<ModelSettings> {
           enabled: selectable,
           leading: Icon(
             active ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: active ? c.accent : c.muted,
           ),
-          title: Text(automatic ? autoModelLabel : option.label),
+          title: Text(
+            automatic ? autoModelLabel : option.label,
+            style: type.body.copyWith(
+              color: c.strong,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
           subtitle: Text(
+            style: type.meta.copyWith(color: c.muted),
             [
               if (option.provider != null) option.provider!,
               if (option.model != null) option.model!,
-              if (!selectable)
+              if (!option.available)
                 automatic
                     ? noModelReason
                     : option.reason ?? unavailableModelReason,
@@ -128,7 +138,7 @@ class _ModelSettingsState extends State<ModelSettings> {
       ),
     );
     final shown = selectable ? tile : Opacity(opacity: 0.5, child: tile);
-    if (selectable || widget.onAddKey == null) return shown;
+    if (option.available || widget.onAddKey == null) return shown;
     // Only a missing key is fixed in API keys; other server reasons are not.
     if (!automatic && option.reason != null) return shown;
     return Column(
