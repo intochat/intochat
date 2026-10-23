@@ -109,10 +109,20 @@ class _UiKitFieldState extends State<UiKitField> {
       textInputAction: widget.textInputAction,
       style: type.body.copyWith(color: c.strong),
       cursorColor: c.accent,
-      decoration: InputDecoration.collapsed(
-        hintText: widget.placeholder,
-        hintStyle: type.body.copyWith(color: c.subtle),
-      ),
+      // The box above draws the border; clear every theme border and fill
+      // so the app's InputDecorationTheme does not draw a second one inside.
+      decoration:
+          InputDecoration.collapsed(
+            hintText: widget.placeholder,
+            hintStyle: type.body.copyWith(color: c.subtle),
+          ).copyWith(
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
+            filled: false,
+          ),
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
     );

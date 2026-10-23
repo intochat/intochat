@@ -102,7 +102,11 @@ class _ViewModalState extends State<ViewModal> {
             Positioned.fill(
               child: GestureDetector(
                 onTap: _cancel,
-                child: ColoredBox(color: c.strong.withValues(alpha: .55)),
+                // Figma backdrop is a dark scrim in both themes (rgba 23,20,15,.55);
+                // `strong` would turn it light in dark mode.
+                child: ColoredBox(
+                  color: uiKitShadowBase(context).withValues(alpha: .55),
+                ),
               ),
             ),
             Center(
