@@ -48,7 +48,13 @@ class _ImmutableView extends StatelessWidget {
         }
       : null;
 
-  Widget _node(BuildContext context, Map node, int depth) {
+  /// [slotted]: the node fills an explicit Row/Column extent.
+  Widget _node(
+    BuildContext context,
+    Map node,
+    int depth, {
+    bool slotted = false,
+  }) {
     if (depth > 32) return const Text('This component cannot be displayed.');
     final key = ValueKey('view:$name:${node['key']}');
     final children = (node['children'] as List? ?? const [])
@@ -56,8 +62,20 @@ class _ImmutableView extends StatelessWidget {
         .take(512)
         .toList();
     // Built on demand so a List builds only its visible rows.
+    final extents = node['kind'] == 2 || node['kind'] == 3
+        ? node['extents'] as List? ?? const []
+        : const [];
     late final widgets = [
-      for (final child in children) _node(context, child, depth + 1),
+      for (var i = 0; i < children.length; i++)
+        _node(
+          context,
+          children[i],
+          depth + 1,
+          slotted: switch (extents.elementAtOrNull(i)) {
+            final num extent => extent > 0,
+            _ => false,
+          },
+        ),
     ];
     final text = node['text'] as String? ?? '';
     Widget content;
@@ -73,6 +91,15 @@ class _ImmutableView extends StatelessWidget {
             compact: constraints.maxHeight < 48,
           ),
         );
+        // Only an explicit extent stretches a button; elsewhere it keeps
+        // its content width, capped by the space it is given.
+        if (!slotted) {
+          content = Align(
+            alignment: AlignmentDirectional.centerStart,
+            heightFactor: 1,
+            child: content,
+          );
+        }
       case 2:
       case 3:
         content = layout(
@@ -126,7 +153,11 @@ class _ImmutableView extends StatelessWidget {
           action: _dispatchButton,
         );
       case 8:
-        content = ViewToast(node: node, action: _dispatchButton);
+        content = ViewToast(
+          node: node,
+          generation: generation,
+          action: _dispatchButton,
+        );
       case 9:
         content = ViewList(
           count: children.length,

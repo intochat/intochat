@@ -14,10 +14,10 @@ public sealed class UiViewKindFacts
     }
 
     [Fact]
-    public void ExistingButtonCallsKeepPrimaryNeutralWithoutIcon()
+    public void ExistingButtonCallsDefaultToSecondaryNeutralWithoutIcon()
     {
         var button = Ui.Button("go", "Go", "navigate", false);
-        Assert.Equal((UiNodeKind.Button, UiStyle.Primary, UiTone.Neutral, null, false), (button.Kind, button.Style, button.Tone, button.Icon, button.Enabled));
+        Assert.Equal((UiNodeKind.Button, UiStyle.Secondary, UiTone.Neutral, null, false), (button.Kind, button.Style, button.Tone, button.Icon, button.Enabled));
     }
 
     [Fact]

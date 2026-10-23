@@ -10,8 +10,14 @@ import '../../theme/ui_theme.dart';
 /// Toast value node: bottom-centre overlay that hides itself after 4 s,
 /// taking its single action button with it.
 final class ViewToast extends StatefulWidget {
-  const ViewToast({super.key, required this.node, required this.action});
+  const ViewToast({
+    super.key,
+    required this.node,
+    required this.generation,
+    required this.action,
+  });
   final Map node;
+  final int generation;
   final VoidCallback? Function(Map node) action;
 
   static const lifetime = Duration(seconds: 4);
@@ -48,11 +54,13 @@ class _ViewToastState extends State<ViewToast> {
       .map((m) => m['action'])
       .firstOrNull;
 
-  // A republished toast (same key, new text or action) shows again.
+  // A republished toast (same key; new generation, text or action) shows
+  // again.
   @override
   void didUpdateWidget(ViewToast old) {
     super.didUpdateWidget(old);
-    if (old.node['text'] != widget.node['text'] ||
+    if (old.generation != widget.generation ||
+        old.node['text'] != widget.node['text'] ||
         _action(old.node) != _action(widget.node)) {
       _show();
     }

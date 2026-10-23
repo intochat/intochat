@@ -28,8 +28,9 @@ Future<List<Map<String, dynamic>>> _pump(
 Future<List<Map<String, dynamic>>> _pumpLive(
   WidgetTester tester,
   Map<String, dynamic> Function() root,
-  Stream<void> changes,
-) async {
+  Stream<void> changes, {
+  int Function()? generation,
+}) async {
   var version = 0;
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
@@ -42,7 +43,7 @@ Future<List<Map<String, dynamic>>> _pumpLive(
             kind: 'view',
             name: 'nodes',
             load: (kind, name) async => {
-              'generation': 1,
+              'generation': generation?.call() ?? 1,
               'version': ++version,
               'root': root(),
             },
@@ -331,6 +332,31 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pump();
     expect(find.text('Chat restored'), findsNothing);
+    await changes.close();
+  });
+
+  testWidgets('the same toast text in a new generation shows again', (
+    tester,
+  ) async {
+    final changes = StreamController<void>.broadcast();
+    var generation = 1;
+    await _pumpLive(
+      tester,
+      () => {'kind': 8, 'key': 'toast', 'text': 'Chat archived'},
+      changes.stream,
+      generation: () => generation,
+    );
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump();
+    expect(find.text('Chat archived'), findsNothing);
+    generation++;
+    changes.add(null);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Chat archived'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump();
+    expect(find.text('Chat archived'), findsNothing);
     await changes.close();
   });
 

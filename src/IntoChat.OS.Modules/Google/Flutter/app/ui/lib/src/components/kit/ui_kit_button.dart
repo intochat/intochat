@@ -95,7 +95,7 @@ class _UiKitButtonState extends State<UiKitButton> {
             widget.label,
             style: UiType.of(context).control
                 .copyWith(color: ink, fontSize: widget.compact ? 13 : 14),
-            maxLines: 2,
+            maxLines: widget.compact ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
           ),
@@ -103,29 +103,36 @@ class _UiKitButtonState extends State<UiKitButton> {
       ],
     );
     if (widget.style != UiKitButtonStyle.link) {
-      body = ConstrainedBox(
-        constraints: widget.compact
-            ? const BoxConstraints.tightFor(height: 36)
-            : const BoxConstraints(minHeight: 48),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(
-              widget.compact ? tokens.radiusSmall : tokens.controlRadius,
-            ),
-            border: _focused ? Border.all(color: c.accent, width: 2) : border,
-            boxShadow: widget.style == UiKitButtonStyle.secondary
-                ? UiShadows.xs(uiKitShadowBase(context))
-                : null,
+      final decorated = DecoratedBox(
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(
+            widget.compact ? tokens.radiusSmall : tokens.controlRadius,
           ),
-          child: Padding(
-            padding: widget.compact
-                ? const EdgeInsets.symmetric(vertical: 7, horizontal: 11)
-                : const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-            child: Center(widthFactor: 1, heightFactor: 1, child: body),
-          ),
+          border: _focused ? Border.all(color: c.accent, width: 2) : border,
+          boxShadow: widget.style == UiKitButtonStyle.secondary
+              ? UiShadows.xs(uiKitShadowBase(context))
+              : null,
+        ),
+        child: Padding(
+          padding: widget.compact
+              ? const EdgeInsets.symmetric(vertical: 7, horizontal: 11)
+              : const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+          child: Center(widthFactor: 1, heightFactor: 1, child: body),
         ),
       );
+      body = widget.compact
+          // Compact is 36 high, or the whole slot when that is shorter.
+          ? LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                height: constraints.maxHeight < 36 ? constraints.maxHeight : 36,
+                child: decorated,
+              ),
+            )
+          : ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: decorated,
+            );
     }
     if (widget.fullWidth) body = SizedBox(width: double.infinity, child: body);
     return Opacity(

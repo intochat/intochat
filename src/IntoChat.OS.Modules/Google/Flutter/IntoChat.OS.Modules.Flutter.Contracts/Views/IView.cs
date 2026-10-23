@@ -39,7 +39,7 @@ public sealed record UiNode([property: Id(0)] UiNodeKind Kind, [property: Id(1)]
 public static class Ui
 {
     public static UiNode Text(string key, string text) => new(UiNodeKind.Text, key) { Text = text };
-    public static UiNode Button(string key, string text, string action, bool enabled = true, UiStyle style = UiStyle.Primary, string? icon = null) => new(UiNodeKind.Button, key) { Text = text, Action = action, Enabled = enabled, Style = style, Icon = icon };
+    public static UiNode Button(string key, string text, string action, bool enabled = true, UiStyle style = UiStyle.Secondary, string? icon = null) => new(UiNodeKind.Button, key) { Text = text, Action = action, Enabled = enabled, Style = style, Icon = icon };
     // Text is the accessible label; the shell shows only the icon.
     public static UiNode IconButton(string key, string icon, string label, string action) => new(UiNodeKind.Button, key) { Text = label, Action = action, Style = UiStyle.Ghost, Icon = icon };
     public static UiNode Column(string key, UiNode[] children, double gap = 12, double[]? extents = null, bool followEnd = false) => new(UiNodeKind.Column, key) { Children = children, Gap = gap, Extents = extents, FollowEnd = followEnd };
