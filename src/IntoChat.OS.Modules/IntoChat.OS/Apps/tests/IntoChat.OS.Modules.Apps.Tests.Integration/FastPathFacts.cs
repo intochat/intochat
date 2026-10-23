@@ -500,6 +500,9 @@ public sealed class FastPathFacts : IDisposable
         var grainReads = new ConcurrentQueue<(long Id, string Method, string Phase, string Stage, double ElapsedMs)>();
         void RecordGrainRead(long id, string method, string phase, string stage)
             => grainReads.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var syntaxBoundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, string Phase, double DurationMs, long AllocatedBytes, double ElapsedMs)>();
+        void RecordSyntaxBoundary(long invocation, string stage, string state, string phase, double durationMs, long allocatedBytes)
+            => syntaxBoundaries.Enqueue((invocation, stage, state, phase, durationMs, allocatedBytes, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
         var runtime = new FakeAppRuntime();
         var sandbox = new FastPathSandbox();
         var shipped = ShippedFeatures();
@@ -514,6 +517,9 @@ public sealed class FastPathFacts : IDisposable
             services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
                 () => Volatile.Read(ref kernelPhase), RecordKernel));
             services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
+            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(),
+                () => Volatile.Read(ref kernelPhase), RecordSyntaxBoundary));
         });
         Mark("host-ready");
         model.Script(Writer, Reply("lemons.cs", Lemons));
@@ -560,6 +566,16 @@ public sealed class FastPathFacts : IDisposable
                 stages = stages.Select(stage => new { name = stage.Name, elapsedMs = stage.ElapsedMs }),
                 kernel = kernelCalls.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
                 grainReads = grainReads.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
+                syntax = syntaxBoundaries.Select(boundary => new
+                {
+                    invocation = boundary.Invocation,
+                    stage = boundary.Stage,
+                    state = boundary.State,
+                    phase = boundary.Phase,
+                    durationMs = boundary.DurationMs,
+                    allocatedBytes = boundary.AllocatedBytes,
+                    elapsedMs = boundary.ElapsedMs,
+                }),
                 inferenceStarted = signals.OfType<InferenceStarted>().Count(),
                 inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
                 inferenceFailed = signals.OfType<InferenceFailed>().Count(),
@@ -1117,6 +1133,34 @@ public sealed class FastPathFacts : IDisposable
                 configure?.Invoke(services);
             })
             .StartAsync(ct);
+
+    private sealed class SyntaxBoundaryLog(ILogger<SynapseExamples> inner, Func<string?> phase,
+        Action<long, string, string, string, double, long> record) : ILogger<SynapseExamples>
+    {
+        private readonly ConcurrentDictionary<long, string> _phases = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Debug || inner.IsEnabled(logLevel);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "SynapseSyntaxBoundary"
+                && state is IReadOnlyList<KeyValuePair<string, object?>> fields)
+            {
+                object? Field(string name) => fields.FirstOrDefault(field => field.Key == name).Value;
+                if (Field("Invocation") is long invocation && Field("Stage") is string stage && Field("State") is string boundaryState
+                    && Field("ElapsedMs") is double durationMs && Field("AllocatedBytes") is long allocatedBytes
+                    && stage is "catalog-call" or "shipped-add" or "layouts" or "shared-filter"
+                    && boundaryState is "entered" or "completed" or "stopped")
+                {
+                    var capturedPhase = _phases.GetOrAdd(invocation, _ => phase() ?? "outside");
+                    record(invocation, stage, boundaryState, capturedPhase, durationMs, allocatedBytes);
+                }
+            }
+            inner.Log(logLevel, eventId, state, exception, formatter);
+        }
+    }
 
     // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
     private sealed class TimedKernel(Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
