@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.AI.Agents;
 using IntoChat.OS.AI.Agents.Context;
 using IntoChat.OS.AI.Agents.Facts;
 using IntoChat.OS.AI.Models;
@@ -35,9 +36,18 @@ public sealed class MemoryLoopFacts(RouterHostFixture host) : BrainFact(host)
     private string MemoryKey => IApp.Key(WorkspaceId, "memory");
 
     [Fact(Timeout = 300_000)]
-    public async Task ATurnBecomesAnEpisodeAndThenAProfileFact()
+    public Task ATurnBecomesAnEpisodeAndThenAProfileFact() => AssertTurnBecomesAProfileFact(TestContext.Current.CancellationToken);
+
+    [Fact(Timeout = 300_000)]
+    public Task ATurnBecomesAProfileFactAfterTheModelWasScriptedAndCleared()
     {
-        var ct = TestContext.Current.CancellationToken;
+        Host.Model.Script(ModelId, FakeReply.Text("A prior scripted reply."));
+        Host.Model.Clear(ModelId);
+        return AssertTurnBecomesAProfileFact(TestContext.Current.CancellationToken);
+    }
+
+    private async Task AssertTurnBecomesAProfileFact(CancellationToken ct)
+    {
         using var caller = User.AsCaller();
         using var model = Answering();
         await QuietNow(ct);
@@ -55,6 +65,10 @@ public sealed class MemoryLoopFacts(RouterHostFixture host) : BrainFact(host)
             row => row is { ConsolidatedAt: not null }, TimeSpan.FromSeconds(60), ct));
         Assert.Contains("#", episode!.Id, StringComparison.Ordinal);
         Assert.Equal(6, episode.Importance);
+        var source = episode.Id.Split('#', 2);
+        var run = Assert.Single((await Brain.Get<IAgent>(source[0]).Read()).Runs, run => run.RunId == source[1]);
+        Assert.Equal(AgentRunStatus.Completed, run.Status);
+        Assert.Equal(ShortAsk, run.UserText);
     }
 
     [Fact(Timeout = 300_000)]
@@ -289,7 +303,8 @@ public sealed class MemoryLoopFacts(RouterHostFixture host) : BrainFact(host)
         {
             var text = RouterHostFixture.Text(request);
             if (text.Contains(IntendPrompt, StringComparison.Ordinal)) { return Intend(); }
-            return (text.Contains(InoPrompt, StringComparison.Ordinal) ? ino?.Invoke(request) : null) ?? fallback?.Invoke(request);
+            if (text.Contains(InoPrompt, StringComparison.Ordinal)) { return ino?.Invoke(request) ?? FakeReply.Text("Understood."); }
+            return fallback?.Invoke(request);
         };
         Host.Model.Intercept = request =>
         {
