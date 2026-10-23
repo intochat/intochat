@@ -129,27 +129,39 @@ class _ViewModalState extends State<ViewModal> {
                     namesRoute: true,
                     explicitChildNodes: true,
                     label: title,
+                    // The content scrolls in a short viewport; the buttons
+                    // stay pinned below it so cancel is always reachable.
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (title.isNotEmpty)
-                          Text(
-                            title,
-                            style: type.heading,
-                            textAlign: TextAlign.center,
+                        Flexible(
+                          child: SingleChildScrollView(
+                            primary: false,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (title.isNotEmpty)
+                                  Text(
+                                    title,
+                                    style: type.heading,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                if (detail.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    detail,
+                                    style: type.bodyMuted,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                                for (final w in body) ...[
+                                  const SizedBox(height: 16),
+                                  w,
+                                ],
+                              ],
+                            ),
                           ),
-                        if (detail.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            detail,
-                            style: type.bodyMuted,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                        for (final w in body) ...[
-                          const SizedBox(height: 16),
-                          w,
-                        ],
+                        ),
                         if (buttons.isNotEmpty) ...[
                           const SizedBox(height: 24),
                           Wrap(

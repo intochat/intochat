@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
+import 'package:intochat_os_ui/src/components/button/ui_neuron_select.dart';
 
 /// A fixed sheet of kit components for golden comparison across palettes,
 /// mirroring the Figma `ComponentsPage` sections. Kit widgets are used
@@ -120,13 +121,14 @@ class KitSheet extends StatelessWidget {
           ),
         ]),
         section('SELECT', [
-          DropdownButtonFormField<String>(
-            initialValue: 'English',
-            items: const [
-              DropdownMenuItem(value: 'English', child: Text('English')),
-              DropdownMenuItem(value: 'Deutsch', child: Text('Deutsch')),
+          UiNeuronSelect(
+            label: 'Language',
+            options: const [
+              {'id': 'en', 'label': 'English'},
+              {'id': 'de', 'label': 'Deutsch'},
             ],
-            onChanged: (_) {},
+            selected: 'en',
+            onSelected: (_) {},
           ),
         ]),
       ],
@@ -226,7 +228,7 @@ class KitSheet extends StatelessWidget {
         ]),
         section('MODAL', [
           SizedBox(
-            height: 400,
+            height: 330,
             child: _ValueTree({
               'kind': 7,
               'key': 'confirm',

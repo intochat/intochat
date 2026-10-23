@@ -69,10 +69,11 @@ class _UiKitButtonState extends State<UiKitButton> {
         c.body,
         null,
       ),
+      // Figma `.destructive-button`: outlined, errorBg on hover.
       UiKitButtonStyle.danger => (
-        hover ? Color.lerp(c.error, c.strong, .12)! : c.error,
-        c.onAccent,
-        null,
+        hover ? c.errorBg : Colors.transparent,
+        c.strong,
+        Border.all(color: c.error),
       ),
       UiKitButtonStyle.link => (
         null,

@@ -243,6 +243,27 @@ void main() {
     expect(sent.single, containsPair('action', 'cancel'));
   });
 
+  testWidgets('a modal in a short viewport scrolls and keeps cancel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 280);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final sent = await _pump(tester, {
+      ...modal([
+        _button('delete', 'Delete', style: 3),
+        _button('cancel', 'Cancel', style: 1),
+      ]),
+      'detail': List.filled(20, 'This cannot be undone.').join(' '),
+    });
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    expect(sent.single, containsPair('action', 'cancel'));
+  });
+
   testWidgets('modal without a cancel button dispatches nothing', (
     tester,
   ) async {

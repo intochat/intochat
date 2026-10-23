@@ -57,6 +57,23 @@ void main() {
     expect(tester.widget<Text>(find.text('More')).style?.fontSize, 13);
   });
 
+  testWidgets('danger button is outlined: error border, strong text', (
+    tester,
+  ) async {
+    await host(
+      tester,
+      UiKitButton(
+        label: 'Delete',
+        onPressed: () {},
+        style: UiKitButtonStyle.danger,
+      ),
+    );
+    final d = decorationIn(tester, find.byType(UiKitButton));
+    expect(d.color, Colors.transparent);
+    expect((d.border as Border).top.color, c.error);
+    expect(tester.widget<Text>(find.text('Delete')).style?.color, c.strong);
+  });
+
   testWidgets('disabled button has opacity 0.45', (tester) async {
     await host(tester, const UiKitButton(label: 'Off'));
     final opacity = tester.widget<Opacity>(
