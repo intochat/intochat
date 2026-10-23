@@ -41,6 +41,15 @@ Startup and "open" compose and publish the main layout with the candidates list 
 Presentation: startup publishes one sphere and its main content using stable neuron identities.
 Workspace navigation owns focus; composition never changes it.
 
+## Scenario: Deployment is unavailable on this host
+
+Startup, open and list rebuilds discover this brain's ready connector kinds before reading deployment
+state. Without aspire, the list says "Self-improve is unavailable on this host because deployment is not
+configured." and keeps waiting for changes. A request is refused with the same explanation and clears
+the last sha; later requests are still handled. Healthy and verified callbacks cannot verify or promote
+without the capability. Each action checks again, so removing deployment configuration takes effect
+after an earlier successful render. Discovery and host failures remain errors.
+
 */
 
 using IntoChat.OS.Apps;
@@ -48,7 +57,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.8";
+    public const string Version = "2.0.9";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",

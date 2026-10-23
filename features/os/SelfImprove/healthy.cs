@@ -17,6 +17,11 @@ await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 
 async Task<bool> Step(ICandidate candidate)
 {
+    if (!await SelfImprove.IsAvailableAsync(brain))
+    {
+        await SelfImprove.RenderListAsync(brain);
+        return true;
+    }
     var snapshot = await candidate.Read();
     if (snapshot.Stage == CandidateStage.Healthy && snapshot.Plan is not null)
     {
