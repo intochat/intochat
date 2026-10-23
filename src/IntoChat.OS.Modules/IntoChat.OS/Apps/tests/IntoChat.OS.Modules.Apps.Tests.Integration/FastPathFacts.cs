@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Models;
@@ -492,6 +493,10 @@ public sealed class FastPathFacts : IDisposable
         var started = Stopwatch.GetTimestamp();
         var stages = new ConcurrentQueue<(string Name, double ElapsedMs)>();
         void Mark(string name) => stages.Enqueue((name, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var kernelCalls = new ConcurrentQueue<(long Id, string Method, string Phase, string Stage, double ElapsedMs)>();
+        string? kernelPhase = null;
+        void RecordKernel(long id, string method, string phase, string stage)
+            => kernelCalls.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
         var runtime = new FakeAppRuntime();
         var sandbox = new FastPathSandbox();
         var shipped = ShippedFeatures();
@@ -501,12 +506,18 @@ public sealed class FastPathFacts : IDisposable
             if (request.GetProperty("model").GetString() == Writer) { Mark("fake-http-arrived"); }
             return null;
         };
-        await using var brain = await Start(model, runtime, sandbox, ct, features: shipped);
+        await using var brain = await Start(model, runtime, sandbox, ct, features: shipped, configure: services =>
+            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
+                () => Volatile.Read(ref kernelPhase), RecordKernel)));
         Mark("host-ready");
         model.Script(Writer, Reply("lemons.cs", Lemons));
         var app = await Created(brain, "grocer");
+        Mark("app-created");
 
+        Volatile.Write(ref kernelPhase, "setup-ranking");
+        Mark("ranking-started");
         var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count the lemons", ct);
+        Volatile.Write(ref kernelPhase, null);
         Mark("ranking-complete");
 
         Assert.Equal(2, ranking.Layouts.Length);
@@ -520,6 +531,7 @@ public sealed class FastPathFacts : IDisposable
         var deployedBeforeWrite = runtime.Deployed.Count;
         try
         {
+            Volatile.Write(ref kernelPhase, "writer");
             Mark("write-requested");
             await app.WriteSynapse("count the lemons", [], operation);
             Mark("write-accepted");
@@ -531,6 +543,7 @@ public sealed class FastPathFacts : IDisposable
         }
         finally
         {
+            Volatile.Write(ref kernelPhase, null);
             // Snapshot before any subscription, brain or fake-model disposal; never include prompt or signal payloads.
             var signals = inference.Snapshot;
             TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
@@ -539,6 +552,7 @@ public sealed class FastPathFacts : IDisposable
                 operation,
                 elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 stages = stages.Select(stage => new { name = stage.Name, elapsedMs = stage.ElapsedMs }),
+                kernel = kernelCalls.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
                 inferenceStarted = signals.OfType<InferenceStarted>().Count(),
                 inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
                 inferenceFailed = signals.OfType<InferenceFailed>().Count(),
@@ -1079,7 +1093,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.Contains(entry.Errors, error => error.Contains("NotSupportedException: the compiler fell over", StringComparison.Ordinal));
     }
 
-    private static Task<ITestBrain> Start(FakeModelServer model, FakeAppRuntime runtime, FastPathSandbox sandbox, CancellationToken ct, string? features = null)
+    private static Task<ITestBrain> Start(FakeModelServer model, FakeAppRuntime runtime, FastPathSandbox sandbox, CancellationToken ct,
+        string? features = null, Action<IServiceCollection>? configure = null)
         => TestBrain.Create()
             .WithModule<AIModule>()
             .WithModule<AppsModule, AppsOptions>(apps =>
@@ -1089,8 +1104,75 @@ public sealed class FastPathFacts : IDisposable
             })
             .WithFakeModel(model)
             .WithFakeAppRuntime(runtime)
-            .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(sandbox))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<IScriptSandbox>(sandbox);
+                configure?.Invoke(services);
+            })
             .StartAsync(ct);
+
+    // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
+    private sealed class TimedKernel(Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
+    {
+        private long _next;
+
+        public IAsyncEnumerable<Instance> InstancesIn(string brain, string? type, CancellationToken cancellationToken = default)
+        {
+            var capturedPhase = phase();
+            var values = inner.InstancesIn(brain, type, cancellationToken);
+            return capturedPhase is null ? values : ObserveInstances(values, capturedPhase, cancellationToken);
+        }
+
+        private async IAsyncEnumerable<Instance> ObserveInstances(IAsyncEnumerable<Instance> values, string capturedPhase,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var id = Interlocked.Increment(ref _next);
+            record(id, "InstancesIn", capturedPhase, "entered");
+            var completed = false;
+            try
+            {
+                await foreach (var value in values.WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return value; }
+                completed = true;
+            }
+            finally { record(id, "InstancesIn", capturedPhase, completed ? "completed" : "stopped"); }
+        }
+
+        public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
+        {
+            var capturedPhase = phase();
+            if (capturedPhase is null) { return inner.Types(cancellationToken); }
+            var id = Interlocked.Increment(ref _next);
+            record(id, "Types", capturedPhase, "entered");
+            Task<TypeEntry[]> pending;
+            try { pending = inner.Types(cancellationToken); }
+            catch { record(id, "Types", capturedPhase, "stopped"); throw; }
+            return ObserveTypes(pending, id, capturedPhase);
+        }
+
+        private async Task<TypeEntry[]> ObserveTypes(Task<TypeEntry[]> pending, long id, string capturedPhase)
+        {
+            var completed = false;
+            try
+            {
+                var values = await pending.ConfigureAwait(false);
+                completed = true;
+                return values;
+            }
+            finally { record(id, "Types", capturedPhase, completed ? "completed" : "stopped"); }
+        }
+
+        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+            => inner.Instances<T>(cancellationToken);
+        public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
+        public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);
+        public Task<Instance[]> Running(CancellationToken cancellationToken = default) => inner.Running(cancellationToken);
+        public string TypeOf(Type contract) => inner.TypeOf(contract);
+        public Task Retire(string type, string key, CancellationToken cancellationToken = default) => inner.Retire(type, key, cancellationToken);
+        public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default) => inner.Features(brain, cancellationToken);
+        public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
+            => inner.LoadFeature(brain, feature, types, cancellationToken);
+        public Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default) => inner.UnloadFeature(brain, name, cancellationToken);
+    }
 
     private const int SynapseWriterCalls = 4;
     private static readonly TimeSpan CallTimeout = TimeSpan.FromMilliseconds(250);
