@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Entries;
 
-// A secret keeps only its brain-sealed form and its last four characters; plaintext is never state.
+// A secret keeps only its brain-sealed form and, when long enough, its last four characters; plaintext is never state.
 [GenerateSerializer, Alias("brain.entry")]
 internal sealed record StoredEntry(
     [property: Id(0)] string Name,
@@ -64,7 +64,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         var brain = this.GetPrimaryKeyString();
         var now = _clock.GetUtcNow();
         var entry = kind == EntryKind.Secret
-            ? new StoredEntry(name, kind, null, await _sealer.Seal(brain, name, value), value.Length > 4 ? value[^4..] : null, now)
+            ? new StoredEntry(name, kind, null, await _sealer.Seal(brain, name, value), Tail(value), now)
             : new StoredEntry(name, kind, value, null, null, now);
         _store.State.Entries = [.. _store.State.Entries.Where(existing => existing.Name != name), entry];
         _store.State.Version++;
@@ -96,6 +96,14 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
     }
 
     public Task<long> Version() => Task.FromResult(_store.State.Version);
+
+    // The last four whole characters, and only for secrets of eight or more, so a tail never shows
+    // most of a short secret or half a surrogate pair.
+    private static string? Tail(string value)
+    {
+        var runes = value.EnumerateRunes().ToArray();
+        return runes.Length < 8 ? null : string.Concat(runes[^4..].Select(rune => rune.ToString()));
+    }
 
     // Messages name the entry, never the value.
     private void Validate(string name, EntryKind kind, string value)

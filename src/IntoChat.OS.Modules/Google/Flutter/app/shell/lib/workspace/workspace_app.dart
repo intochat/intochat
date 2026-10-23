@@ -14,6 +14,7 @@ import 'home/app_detail_screen.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
+import 'settings/settings_api.dart';
 import 'workspace_settings.dart';
 import 'compute_usage_panel.dart';
 import 'csharp/csharp_manager.dart';
@@ -420,8 +421,10 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   }
 
   Widget _settings(String section) => WorkspaceSettings(
+    brainId: _brain!,
     store: store,
-    initialSection: section,
+    initialTab: section,
+    api: ClientSettingsApi(widget.programmingClient!, _brain!),
     onClose: () => _navigator.currentState?.pop(),
     kernelBaseUri: widget.kernelBaseUri,
     onOpen: widget.onOpenUrl,
@@ -432,7 +435,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     windowsRequest: (path, {body}) => widget.programmingClient!
         .workspaceWindowsRequest(_brain!, path, body: body),
     loadModels: widget.programmingClient!.readModelCatalog,
-    sectionBuilder: _settings,
   );
   void _openSettings(String section) => _navigator.currentState?.push(
     MaterialPageRoute<void>(

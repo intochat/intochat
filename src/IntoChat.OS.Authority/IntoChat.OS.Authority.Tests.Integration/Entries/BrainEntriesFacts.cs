@@ -62,6 +62,23 @@ public sealed class BrainEntriesFacts : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, row.GetProperty("value").ValueKind);
     }
 
+    [Theory]
+    [InlineData("short-k", null)]
+    [InlineData("1234567", null)]
+    [InlineData("12345678", "5678")]
+    [InlineData("abcd🔑🔑🔑🔑", "🔑🔑🔑🔑")]
+    [InlineData("abc🔑🔑🔑🔑", null)]
+    public async Task Short_secret_shows_no_tail(string secret, string? tail)
+    {
+        using var owner = await _brain.PersonAsync(AuthorityHost.Unique("owner"), Ct);
+
+        using var put = await Put(owner, owner.BrainId, "provider:openai", "secret", secret);
+        var row = Assert.Single(await List(owner));
+
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+        Assert.Equal(tail, row.GetProperty("tail").GetString());
+    }
+
     [Fact]
     public async Task Secret_is_sealed_with_brain_key()
     {

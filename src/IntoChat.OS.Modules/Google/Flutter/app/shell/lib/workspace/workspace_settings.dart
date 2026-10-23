@@ -2,107 +2,144 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../connections/connect_window.dart';
-import '../connections/connections_settings.dart';
 import '../connections/connectors_menu.dart';
 import 'model_settings.dart';
+import 'settings/connections_tab.dart';
+import 'settings/general_tab.dart';
+import 'settings/keys_tab.dart';
+import 'settings/models_tab.dart';
+import 'settings/settings_api.dart';
+import 'settings/settings_tab_heading.dart';
 import 'workspace_store.dart';
 
-/// One settings surface for both connected and local workspaces.
+/// The Settings tabs, in order: (id, label). Billing is a disabled "Later"
+/// entry after them.
+const settingsTabs = <(String, String)>[
+  ('general', 'General'),
+  ('models', 'AI models'),
+  ('keys', 'API keys'),
+  ('connections', 'Connections'),
+  ('variables', 'Variables and secrets'),
+  ('notifications', 'Notifications'),
+  ('archived', 'Archived chats'),
+  ('danger', 'Danger zone'),
+];
+
+/// The tab id for [section], accepting the names older links used.
+String settingsTabId(String section) {
+  final id = switch (section) {
+    'profile' || 'appearance' => 'general',
+    'agents' => 'models',
+    'developer' || 'gallery' || 'ui-kit' || 'advanced' => 'general',
+    _ => section,
+  };
+  return settingsTabs.any((t) => t.$1 == id) ? id : 'general';
+}
+
+/// One brain's Settings: a tab host over the per-brain [api].
 class WorkspaceSettings extends StatefulWidget {
   const WorkspaceSettings({
     super.key,
+    required this.brainId,
     required this.store,
-    this.initialSection = 'general',
+    this.initialTab = 'general',
     required this.onClose,
+    this.api,
     this.kernelBaseUri,
     this.onOpen,
     this.connectionsRequest,
     this.connectorRequest,
     this.windowsRequest,
     this.loadModels,
-    this.sectionBuilder,
   });
+  final String brainId;
   final WorkspaceStore store;
-  final String initialSection;
+  final String initialTab;
   final VoidCallback onClose;
+
+  /// Entries, models and preferences for [brainId]; null when not connected.
+  final SettingsApi? api;
   final Uri? kernelBaseUri;
   final OpenUrl? onOpen;
   final ConnectionsRequest? connectionsRequest,
       connectorRequest,
       windowsRequest;
+
+  /// Used for the model list when there is no [api].
   final ModelCatalogLoader? loadModels;
-  final Widget Function(String section)? sectionBuilder;
+
+  /// The section this screen was opened on, as given.
+  String get initialSection => initialTab;
+
   @override
   State<WorkspaceSettings> createState() => _WorkspaceSettingsState();
 }
 
 class _WorkspaceSettingsState extends State<WorkspaceSettings> {
-  static const _sections = <(String, String, IconData)>[
-    ('general', 'General', Icons.tune),
-    ('connections', 'Connections', Icons.link),
-    ('models', 'Models', Icons.auto_awesome_outlined),
-    ('ui-kit', 'UI Kit', Icons.widgets_outlined),
-    ('advanced', 'Advanced', Icons.settings_outlined),
-  ];
-  late String _section;
-  late final TextEditingController _name;
-  bool _saving = false;
-  String? _notice;
+  late int _index = settingsTabs.indexWhere(
+    (t) => t.$1 == settingsTabId(widget.initialTab),
+  );
+  ModelCatalogLoader? _loadModels;
+
   @override
   void initState() {
     super.initState();
-    _section = switch (widget.initialSection) {
-      'profile' || 'appearance' => 'general',
-      'agents' => 'models',
-      'developer' => 'advanced',
-      'gallery' => 'ui-kit',
-      _ => widget.initialSection,
-    };
-    if (!_sections.any((s) => s.$1 == _section)) _section = 'general';
-    _name = TextEditingController(text: widget.store.settings.displayName);
+    _refreshModels();
   }
 
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
+  // A new loader makes ModelSettings fetch again, e.g. after a key changes.
+  void _refreshModels() {
+    final api = widget.api;
+    _loadModels = api == null ? widget.loadModels : () => api.models();
   }
 
-  Future<void> _saveName() async {
-    setState(() {
-      _saving = true;
-      _notice = null;
-    });
-    widget.store.settings.displayName = _name.text.trim();
-    await widget.store.save();
-    if (mounted) {
-      setState(() {
-        _saving = false;
-        _notice = widget.store.persistenceError ?? 'Name saved.';
-      });
-    }
-  }
+  void _select(String id) =>
+      setState(() => _index = settingsTabs.indexWhere((t) => t.$1 == id));
 
-  void _selectSection(String section) {
-    if (section == _section) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        settings: RouteSettings(name: '/settings/$section'),
-        builder: (_) =>
-            widget.sectionBuilder?.call(section) ??
-            WorkspaceSettings(
-              store: widget.store,
-              initialSection: section,
-              onClose: widget.onClose,
-              kernelBaseUri: widget.kernelBaseUri,
-              onOpen: widget.onOpen,
-              connectionsRequest: widget.connectionsRequest,
-              connectorRequest: widget.connectorRequest,
-              windowsRequest: widget.windowsRequest,
-              loadModels: widget.loadModels,
-            ),
+  Widget _placeholder(String title, String description) =>
+      SettingsTabHeading(title: title, description: description);
+
+  Widget _notConnected(String title) => _placeholder(
+    title,
+    'Connect to your workspace to manage this brain\'s settings.',
+  );
+
+  Widget _content() {
+    final api = widget.api;
+    return switch (settingsTabs[_index].$1) {
+      'models' => ModelsTab(
+        store: widget.store,
+        load: _loadModels,
+        onAddKey: () => _select('keys'),
       ),
-    );
+      'keys' =>
+        api == null
+            ? _notConnected('API keys')
+            : KeysTab(api: api, onKeysChanged: () => setState(_refreshModels)),
+      'connections' => ConnectionsTab(
+        request: widget.connectionsRequest,
+        connectorRequest: widget.connectorRequest,
+        windowsRequest: widget.windowsRequest,
+        onOpen: widget.onOpen,
+      ),
+      'variables' => _placeholder(
+        'Variables and secrets',
+        'Values your brain\'s apps and agents can use.',
+      ),
+      'notifications' => _placeholder(
+        'Notifications',
+        'Choose what this brain tells you about.',
+      ),
+      'archived' => _placeholder(
+        'Archived chats',
+        'Archived conversations appear here.',
+      ),
+      'danger' => _placeholder(
+        'Danger zone',
+        'Actions that change access to this brain.',
+      ),
+      _ => GeneralTab(store: widget.store),
+    };
   }
 
   @override
@@ -119,240 +156,47 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final content = _section == 'ui-kit'
-              ? const UiGalleryScreen()
-              : SingleChildScrollView(
-                  padding: EdgeInsets.all(constraints.maxWidth < 700 ? 20 : 36),
+          final pad = constraints.maxWidth < 700 ? 20.0 : 36.0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: pad),
+                child: UiKitTabs(
+                  key: const Key('settings-tabs'),
+                  labels: [
+                    for (final t in settingsTabs) t.$2,
+                    'Billing (Later)',
+                  ],
+                  index: _index,
+                  disabled: {settingsTabs.length},
+                  onChanged: (i) {
+                    if (i < settingsTabs.length) {
+                      _select(settingsTabs[i].$1);
+                    }
+                  },
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  key: PageStorageKey(settingsTabs[_index].$1),
+                  padding: EdgeInsets.all(pad),
                   child: Align(
                     alignment: Alignment.topLeft,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 780),
-                      child: _content(context),
-                    ),
-                  ),
-                );
-          if (constraints.maxWidth < 700) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                  child: DropdownButtonFormField<String>(
-                    key: ValueKey(_section),
-                    initialValue: _section,
-                    decoration: const InputDecoration(
-                      labelText: 'Settings section',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final s in _sections)
-                        DropdownMenuItem(value: s.$1, child: Text(s.$2)),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) _selectSection(value);
-                    },
-                  ),
-                ),
-                Expanded(child: content),
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 220,
-                child: ListView(
-                  padding: const EdgeInsets.all(12),
-                  children: [
-                    for (final s in _sections)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: ListTile(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          selected: _section == s.$1,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .secondaryContainer,
-                          leading: Icon(s.$3),
-                          title: Text(s.$2),
-                          onTap: () => _selectSection(s.$1),
-                        ),
+                      child: KeyedSubtree(
+                        key: ValueKey(settingsTabs[_index].$1),
+                        child: _content(),
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
-              const VerticalDivider(width: 1),
-              Expanded(child: content),
             ],
           );
         },
       ),
     ),
   );
-  Widget _heading(BuildContext context, String title, String description) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text(description),
-          const SizedBox(height: 28),
-        ],
-      );
-  Widget _content(BuildContext context) {
-    final prefs = widget.store.settings;
-    switch (_section) {
-      case 'connections':
-        return ConnectionsSettings(
-          request: widget.connectionsRequest,
-          connectorRequest: widget.connectorRequest,
-          windowsRequest: widget.windowsRequest,
-          onOpen: widget.onOpen,
-        );
-      case 'models':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _heading(
-              context,
-              'Models',
-              'Choose from the AI models configured for this workspace.',
-            ),
-            ModelSettings(
-              load: widget.loadModels,
-              selectedId: prefs.defaultModelProfile,
-              onSelected: (id) {
-                prefs.defaultModelProfile = id;
-                widget.store.save();
-              },
-            ),
-            if (widget.store.persistenceError != null)
-              Text(widget.store.persistenceError!),
-          ],
-        );
-      case 'advanced':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _heading(context, 'Advanced', 'Storage and workspace diagnostics.'),
-            const ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.storage_outlined),
-              title: Text('Local workspace storage'),
-              subtitle: Text(
-                'Appearance and personal preferences are saved on this device. Workspace navigation and app content are held by your brain.',
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.store.persistenceError ??
-                  'Local changes are saved automatically.',
-            ),
-            if (widget.store.persistenceError != null)
-              TextButton.icon(
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        setState(() => _saving = true);
-                        await widget.store.save();
-                        if (mounted) setState(() => _saving = false);
-                      },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry saving'),
-              ),
-            const Divider(height: 40),
-            const Text(
-              'Looking for app building blocks? Open UI Kit to explore Flutter neurons and interactive examples.',
-            ),
-            TextButton(
-              onPressed: () => _selectSection('ui-kit'),
-              child: const Text('Explore UI Kit'),
-            ),
-          ],
-        );
-      default:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _heading(
-              context,
-              'General',
-              'Personal preferences for all projects on this device.',
-            ),
-            TextField(
-              controller: _name,
-              maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'Display name',
-                helperText: 'A display preference; your signed-in account stays the same.',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => _saveName(),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _saving ? null : _saveName,
-              child: Text(_saving ? 'Saving…' : 'Save name'),
-            ),
-            if (_notice != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_notice!),
-              ),
-            const Divider(height: 48),
-            Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              key: const Key('theme_picker'),
-              initialValue: UiTheme.paletteName(prefs.theme),
-              decoration: const InputDecoration(
-                labelText: 'Theme',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'intochat', child: Text('IntoChat')),
-                DropdownMenuItem(value: 'midnight', child: Text('Midnight')),
-                DropdownMenuItem(value: 'paper', child: Text('Paper')),
-                DropdownMenuItem(value: 'lumen', child: Text('Lumen')),
-              ],
-              onChanged: (v) {
-                if (v != null) {
-                  prefs.theme = v;
-                  widget.store.save();
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Compact spacing'),
-              subtitle: const Text(
-                'Use a denser layout for workspace controls.',
-              ),
-              value: prefs.compactDensity,
-              onChanged: (v) {
-                prefs.compactDensity = v;
-                widget.store.save();
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Reduce motion'),
-              subtitle: const Text(
-                'Minimize transitions and animated movement.',
-              ),
-              value: prefs.reducedMotion,
-              onChanged: (v) {
-                prefs.reducedMotion = v;
-                widget.store.save();
-              },
-            ),
-            if (widget.store.persistenceError != null)
-              Text(widget.store.persistenceError!),
-          ],
-        );
-    }
-  }
 }

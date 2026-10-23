@@ -1,5 +1,6 @@
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 typedef ModelCatalogLoader = Future<ChatModelCatalog> Function();
 
@@ -16,8 +17,12 @@ class ModelSettings extends StatefulWidget {
     required this.onSelected,
     this.conversation = false,
     this.onAddKey,
+    this.select = false,
   });
   final ModelCatalogLoader? load;
+
+  /// Also offers the choice as a select above the rows (Settings, AI models).
+  final bool select;
   final String? selectedId;
   final ValueChanged<String?> onSelected;
   final bool conversation;
@@ -79,47 +84,91 @@ class _ModelSettingsState extends State<ModelSettings> {
   Widget _option(ChatModelOption option) {
     final automatic = option.id == null;
     final selectable = option.available;
-    final tile = Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        selected: widget.selectedId == option.id,
-        enabled: selectable,
-        leading: Icon(
-          widget.selectedId == option.id
-              ? Icons.radio_button_checked
-              : Icons.radio_button_off,
+    final active = widget.selectedId == option.id;
+    final c = UiColors.of(context);
+    final reason = option.reason ?? unavailableModelReason;
+    // Figma `.model-option`: auto / 1fr / auto, gap 10, hairline, radius 10,
+    // padding 11; the active row is an accent border on accentTint.
+    final tile = Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: active ? c.accentTint : c.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            UiTokens.of(context).controlRadius,
+          ),
+          side: BorderSide(color: active ? c.accent : c.hairline),
         ),
-        title: Text(automatic ? autoModelLabel : option.label),
-        subtitle: Text(
-          [
-            if (option.provider != null) option.provider!,
-            if (option.model != null) option.model!,
-            if (!selectable)
-              automatic
-                  ? noModelReason
-                  : option.reason ?? unavailableModelReason,
-            if (option.capabilities.isNotEmpty) option.capabilities.join(' · '),
-          ].join(' · '),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(11),
+          horizontalTitleGap: 10,
+          selected: active,
+          enabled: selectable,
+          leading: Icon(
+            active ? Icons.radio_button_checked : Icons.radio_button_off,
+          ),
+          title: Text(automatic ? autoModelLabel : option.label),
+          subtitle: Text(
+            [
+              if (option.provider != null) option.provider!,
+              if (option.model != null) option.model!,
+              if (!selectable)
+                automatic
+                    ? noModelReason
+                    : option.reason ?? unavailableModelReason,
+              if (option.capabilities.isNotEmpty)
+                option.capabilities.join(' · '),
+            ].join(' · '),
+          ),
+          onTap: selectable && !_loading
+              ? () => widget.onSelected(option.id)
+              : null,
         ),
-        onTap: selectable && !_loading
-            ? () => widget.onSelected(option.id)
-            : null,
       ),
     );
     final shown = selectable ? tile : Opacity(opacity: 0.5, child: tile);
-    if (!automatic || selectable || widget.onAddKey == null) return shown;
+    if (selectable || widget.onAddKey == null) return shown;
+    // Only a missing key is fixed in API keys; other server reasons are not.
+    if (!automatic && option.reason != null) return shown;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         shown,
         TextButton(
-          key: const Key('model-add-api-key'),
+          key: automatic
+              ? const Key('model-add-api-key')
+              : Key('model-add-key-${option.id}'),
           onPressed: widget.onAddKey,
-          child: const Text(noModelReason),
+          child: Text(automatic ? noModelReason : reason),
         ),
       ],
     );
   }
+
+  // The default model as a select; unavailable models are listed, disabled.
+  Widget _select(List<ChatModelOption> options) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: UiKitSelect<String?>(
+      key: const Key('default-model-select'),
+      label: 'Default model',
+      value: widget.selectedId,
+      items: [
+        for (final option in options)
+          UiKitSelectItem<String?>(
+            option.id,
+            option.id == null ? autoModelLabel : option.label,
+            enabled: option.available || option.id == null,
+            detail: option.available
+                ? option.provider
+                : option.id == null
+                ? noModelReason
+                : option.reason ?? unavailableModelReason,
+          ),
+      ],
+      onChanged: _loading ? null : widget.onSelected,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +208,7 @@ class _ModelSettingsState extends State<ModelSettings> {
               'Your saved model is no longer available. Choose another model or Automatic.',
             ),
           ),
+        if (widget.select && options.isNotEmpty) _select(options),
         for (final option in options) _option(option),
         if (_catalog != null && _catalog!.models.isEmpty)
           const Text(

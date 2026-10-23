@@ -87,4 +87,30 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(SingleChildScrollView), findsOneWidget);
   });
+
+  testWidgets('active tab scrolls into view at 390', (tester) async {
+    const labels = [
+      'General',
+      'AI models',
+      'API keys',
+      'Connections',
+      'Variables and secrets',
+      'Notifications',
+      'Archived chats',
+      'Danger zone',
+    ];
+    Widget tabs(int index) =>
+        UiKitTabs(labels: labels, index: index, onChanged: (_) {});
+    bool visible(int i) {
+      final tab = tester.getRect(find.byKey(ValueKey('ui_kit_tab_$i')));
+      return tab.left >= 0 && tab.right <= 390;
+    }
+
+    await host(tester, tabs(7), w: 390);
+    await tester.pumpAndSettle();
+    expect(visible(7), isTrue);
+    await host(tester, tabs(0), w: 390);
+    await tester.pumpAndSettle();
+    expect(visible(0), isTrue);
+  });
 }
