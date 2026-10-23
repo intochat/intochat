@@ -29,7 +29,7 @@ public sealed class SelfImproveFacts
         Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(appKey).Read()).Status);
         await AppRuntimeReadiness.WaitAsync(brain, user, ct);
         var list = brain.Get<IText>(appKey + "/revisions");
-        await using var changes = await brain.Observe<TextChanged>(list, ct);
+        await using var changes = await brain.SubscribeAsync<TextChanged>(list, ct);
         var change = new
         {
             branch = "os-runtime",
@@ -45,7 +45,19 @@ public sealed class SelfImproveFacts
         using var requested = await user.Http.PostAsJsonAsync($"/brains/{scope}/apps/selfimprove/request",
             new { operation = "request", input = System.Text.Json.JsonSerializer.Serialize(change) }, ct);
         Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
-        while (!(await list.Read()).Markdown.Contains("Promoted", StringComparison.Ordinal)) { await changes.NextAsync(ct: ct); }
+        await foreach (var _ in changes.ReadAllAsync(ct))
+        {
+            var refusal = (await brain.Get<IText>(appKey + "/report").Read()).Markdown;
+            Assert.False(refusal.StartsWith("Request refused:", StringComparison.Ordinal), refusal);
+            var proposed = (await brain.Get<IText>(appKey + "/last").Read()).Markdown;
+            if (proposed.Length > 0)
+            {
+                var current = await brain.Get<ICandidate>(ICandidate.Key(scope, proposed)).Read();
+                Assert.False(current.Stage is CandidateStage.Failed or CandidateStage.Discarded,
+                    $"{current.Sha}: {current.Stage}: {current.Failure}");
+            }
+            if ((await list.Read()).Markdown.Contains("Promoted", StringComparison.Ordinal)) { break; }
+        }
         var sha = (await brain.Get<IText>(appKey + "/last").Read()).Markdown;
         var candidate = await brain.Get<ICandidate>(ICandidate.Key(scope, sha)).Read();
         Assert.Equal(CandidateStage.Promoted, candidate.Stage);
