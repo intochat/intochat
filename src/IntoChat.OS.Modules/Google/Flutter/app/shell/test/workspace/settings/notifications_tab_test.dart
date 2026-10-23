@@ -37,5 +37,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(_on(tester, 'settings-notification-product-updates'), isFalse);
     expect(find.text('Could not save that change.'), findsOneWidget);
+    await tester.pump(kitToastLifetime);
   });
 }

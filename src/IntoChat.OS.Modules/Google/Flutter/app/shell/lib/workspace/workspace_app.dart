@@ -62,7 +62,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   final _navigator = GlobalKey<NavigatorState>();
-  final _messenger = GlobalKey<ScaffoldMessengerState>();
   SpaceController? _space;
   String? _rootName;
   String? _activationApp;
@@ -268,9 +267,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       }
     }
     if (!mounted) return;
-    _messenger.currentState?.showSnackBar(
-      const SnackBar(content: Text('Layout will change on next start')),
-    );
+    _toast('Layout will change on next start');
+  }
+
+  void _toast(String message, {UiTone tone = UiTone.neutral}) {
+    final overlay = _navigator.currentState?.overlay?.context;
+    if (overlay != null) showKitToast(overlay, message, tone: tone);
   }
 
   Future<void> _activate(Map<String, dynamic> action) async {
@@ -391,9 +393,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       }
     } catch (error) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not navigate: $error')),
-        );
+        _toast('Could not navigate: $error', tone: UiTone.error);
       }
     }
   }
@@ -413,9 +413,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
     } catch (error) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not run action: $error')),
-        );
+        _toast('Could not run action: $error', tone: UiTone.error);
       }
     }
   }
@@ -490,9 +488,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       }
     } catch (error) {
       if (mounted) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(content: Text('Could not open tool: $error')),
-        );
+        _toast('Could not open tool: $error', tone: UiTone.error);
       }
     }
   }
@@ -527,7 +523,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   @override
   Widget build(BuildContext context) => MaterialApp(
     navigatorKey: _navigator,
-    scaffoldMessengerKey: _messenger,
     debugShowCheckedModeBanner: false,
     theme: UiTheme.light(store.settings.theme),
     darkTheme: UiTheme.dark(store.settings.theme),

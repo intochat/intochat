@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
-import 'package:intochat_os_ui/src/theme/ui_icon.dart';
 
 Map<String, dynamic> _button(
   String key,

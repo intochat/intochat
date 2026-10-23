@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import '../home/app_icon.dart';
 
@@ -90,7 +91,7 @@ class _DockEntryState extends State<_DockEntry> {
         size: 22,
       );
     }
-    return Text(label);
+    return Text(label, style: UiType.of(context).control);
   }
 
   static String _text(double value) => value == value.roundToDouble()
@@ -100,28 +101,43 @@ class _DockEntryState extends State<_DockEntry> {
   @override
   Widget build(BuildContext context) {
     final min = entry.min ?? 0, max = entry.max ?? 1;
+    final c = UiColors.of(context);
     return switch (entry.kind) {
       AppToolbarKind.button => IconButton(
         key: ValueKey('dock-${entry.operation}'),
         tooltip: label,
+        color: c.body,
+        style: IconButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              UiTokens.of(context).radiusSmall,
+            ),
+          ),
+        ),
         onPressed: () => _post(''),
         icon: _icon(),
       ),
       AppToolbarKind.toggle => Tooltip(
         message: label,
-        child: Switch(
-          key: ValueKey('dock-${entry.operation}'),
-          value: _on,
-          onChanged: (value) {
-            setState(() => _on = value);
-            _post(value ? 'on' : 'off');
-          },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: UiKitSwitch(
+            key: ValueKey('dock-${entry.operation}'),
+            value: _on,
+            semanticLabel: label,
+            onChanged: (value) {
+              setState(() => _on = value);
+              _post(value ? 'on' : 'off');
+            },
+          ),
         ),
       ),
       AppToolbarKind.slider => SizedBox(
         width: 140,
         child: Slider(
           key: ValueKey('dock-${entry.operation}'),
+          activeColor: c.accent,
+          inactiveColor: c.inputBorder,
           min: min,
           max: max,
           value: (_value ?? min).clamp(min, max),
@@ -169,13 +185,10 @@ class _DockTextFieldState extends State<DockTextField> {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 360,
-    child: TextField(
+    child: UiKitField(
+      label: '',
+      placeholder: widget.hint,
       controller: _controller,
-      decoration: InputDecoration(
-        hintText: widget.hint,
-        isDense: true,
-        border: const OutlineInputBorder(),
-      ),
       textInputAction: TextInputAction.send,
       onSubmitted: _submit,
     ),

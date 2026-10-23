@@ -1,3 +1,4 @@
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/connections/connect_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,7 +47,7 @@ void main() {
     );
     expect(
       tester
-          .widget<FilledButton>(find.byKey(const Key('connect_submit')))
+          .widget<UiKitButton>(find.byKey(const Key('connect_submit')))
           .onPressed,
       isNull,
     );

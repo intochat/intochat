@@ -1,3 +1,5 @@
+import 'package:intochat_os_ui/intochat_os_ui.dart' show kitToastLifetime;
+
 import 'dart:convert' show jsonEncode, jsonDecode;
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
@@ -159,6 +161,7 @@ void main() {
     await tester.pump();
     expect(server.connects, 11);
     expect(find.text('Layout will change on next start'), findsOneWidget);
+    await tester.pump(kitToastLifetime);
     await fixture.dispose();
   });
 }

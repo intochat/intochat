@@ -5,6 +5,8 @@ export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/components/button/ui_button.dart';
 export 'src/components/card/ui_card.dart';
+export 'src/components/kit/kit_toast.dart';
+export 'src/theme/ui_icon.dart' show uiIcon, uiIconSize;
 export 'src/components/kit/ui_kit_button.dart';
 export 'src/components/kit/ui_kit_field.dart';
 export 'src/components/kit/ui_kit_select.dart';

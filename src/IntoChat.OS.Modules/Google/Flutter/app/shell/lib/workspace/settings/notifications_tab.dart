@@ -66,9 +66,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
         _values[id] = before;
         _state[id] = _Save.idle;
       });
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Could not save that change.')),
-      );
+      showKitToast(context, 'Could not save that change.', tone: UiTone.error);
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import '../apps/app_screen.dart';
 import '../apps/apps_request.dart';
@@ -178,16 +179,31 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         ? '${_appPath(_installedName!)}/icon'
         : null;
     final requires = listing?.requires;
-    final textTheme = Theme.of(context).textTheme;
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    Widget note(String text, Key key, {Color? color}) => Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Text(
+        text,
+        key: key,
+        style: type.bodyMuted.copyWith(color: color),
+      ),
+    );
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: c.page,
+      appBar: AppBar(
+        backgroundColor: c.page,
+        foregroundColor: c.strong,
+        surfaceTintColor: c.page,
+        title: Text(title, style: type.title),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 820),
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              if (_busy) const LinearProgressIndicator(),
+              if (_busy) LinearProgressIndicator(minHeight: 2, color: c.accent),
               Row(
                 children: [
                   AppIcon(
@@ -204,14 +220,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         Text(
                           title,
                           key: const ValueKey('detail-title'),
-                          style: textTheme.headlineSmall,
+                          style: type.heading,
                         ),
                         Text(
                           publisher == null
                               ? 'Yours · v$version'
                               : 'by $publisher · v$version',
                           key: const ValueKey('detail-publisher'),
-                          style: textTheme.bodyMedium,
+                          style: type.meta,
                         ),
                       ],
                     ),
@@ -220,7 +236,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               ),
               const SizedBox(height: 16),
               if (description.isNotEmpty)
-                Text(description, key: const ValueKey('detail-description')),
+                Text(
+                  description,
+                  key: const ValueKey('detail-description'),
+                  style: type.body,
+                ),
               const SizedBox(height: 16),
               if (listing != null &&
                   !installed &&
@@ -232,61 +252,53 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 runSpacing: 8,
                 children: [
                   if (listing != null && !installed)
-                    FilledButton(
+                    UiKitButton(
                       key: const ValueKey('install-app'),
+                      label: 'Install',
                       onPressed: _busy ? null : _install,
-                      child: const Text('Install'),
                     ),
                   if (installed && _openable)
-                    FilledButton(
+                    UiKitButton(
                       key: const ValueKey('open-app'),
+                      label: 'Open',
+                      icon: 'arrow-up-right',
                       onPressed: _busy ? null : _open,
-                      child: const Text('Open'),
                     ),
                   if (installed && (_entry?.updateAvailable ?? false))
-                    FilledButton.tonal(
+                    UiKitButton(
                       key: const ValueKey('update-app'),
+                      label: 'Update to v${_entry!.listing.version}',
+                      style: UiKitButtonStyle.secondary,
+                      icon: 'download',
                       onPressed: _busy ? null : _update,
-                      child: Text('Update to v${_entry!.listing.version}'),
                     ),
                   if (installed)
-                    OutlinedButton(
+                    UiKitButton(
                       key: const ValueKey('edit-app'),
+                      label: 'Edit',
+                      style: UiKitButtonStyle.secondary,
+                      icon: 'code',
                       onPressed: _busy ? null : _edit,
-                      child: const Text('Edit'),
                     ),
                   if (installed)
-                    TextButton(
+                    UiKitButton(
                       key: const ValueKey('delete-app'),
+                      label: 'Remove',
+                      style: UiKitButtonStyle.ghost,
+                      icon: 'trash',
                       onPressed: _busy ? null : _delete,
-                      child: const Text('Remove'),
                     ),
                 ],
               ),
               if (edited)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    'You changed this copy, so it no longer receives updates from $publisher.',
-                    key: const ValueKey('edited-note'),
-                  ),
+                note(
+                  'You changed this copy, so it no longer receives updates from $publisher.',
+                  const ValueKey('edited-note'),
                 ),
               if (_notice != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(_notice!, key: const ValueKey('detail-notice')),
-                ),
+                note(_notice!, const ValueKey('detail-notice')),
               if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    _error!,
-                    key: const ValueKey('detail-error'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
+                note(_error!, const ValueKey('detail-error'), color: c.error),
             ],
           ),
         ),
@@ -302,12 +314,12 @@ class _Requirements extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final type = UiType.of(context);
     Widget group(String label, List<String> ids) => ids.isEmpty
         ? const SizedBox.shrink()
         : Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text('$label: ${ids.join(', ')}'),
+            child: Text('$label: ${ids.join(', ')}', style: type.body),
           );
     return Padding(
       key: const ValueKey('detail-requires'),
@@ -315,10 +327,7 @@ class _Requirements extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Installing allows this app to use',
-            style: textTheme.titleSmall,
-          ),
+          Text('Installing allows this app to use', style: type.rowTitle),
           group('Your data', requires.semanticTypes),
           group('Connections', requires.connectors),
           group('Secrets', requires.secrets),
