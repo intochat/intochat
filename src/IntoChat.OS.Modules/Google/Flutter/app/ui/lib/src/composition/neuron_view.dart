@@ -1,7 +1,6 @@
 import '../components/button/ui_neuron_select.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
-import '../components/kit/ui_kit_button.dart';
 import '../components/kit/ui_kit_field.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../theme/ui_tokens.dart';
@@ -31,6 +30,13 @@ import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
+import 'value_nodes/view_avatar.dart';
+import 'value_nodes/view_badge.dart';
+import 'value_nodes/view_divider.dart';
+import 'value_nodes/view_list.dart';
+import 'value_nodes/view_menu.dart';
+import 'value_nodes/view_modal.dart';
+import 'value_nodes/view_toast.dart';
 
 part 'immutable_view.dart';
 

@@ -30,6 +30,24 @@ class _ImmutableView extends StatelessWidget {
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
+  /// The one button dispatch for every kind; null when it cannot act.
+  VoidCallback? _dispatchButton(Map node) =>
+      enabled && node['enabled'] != false && node['action'] is String
+      ? () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          unawaited(
+            dispatch({
+              'kind': 'view',
+              'name': name,
+              'revision': generation,
+              'field': node['key'],
+              'action': node['action'],
+              'operationId': _operationId(),
+            }).catchError((Object _) {}),
+          );
+        }
+      : null;
+
   Widget _node(BuildContext context, Map node, int depth) {
     if (depth > 32) return const Text('This component cannot be displayed.');
     final key = ValueKey('view:$name:${node['key']}');
@@ -37,7 +55,8 @@ class _ImmutableView extends StatelessWidget {
         .whereType<Map>()
         .take(512)
         .toList();
-    final widgets = [
+    // Built on demand so a List builds only its visible rows.
+    late final widgets = [
       for (final child in children) _node(context, child, depth + 1),
     ];
     final text = node['text'] as String? ?? '';
@@ -48,25 +67,10 @@ class _ImmutableView extends StatelessWidget {
       case 1:
         // Server slots shorter than the 48px button get the 36px compact one.
         content = LayoutBuilder(
-          builder: (context, constraints) => UiKitButton(
-            label: text,
+          builder: (context, constraints) => viewButton(
+            node,
+            _dispatchButton(node),
             compact: constraints.maxHeight < 48,
-            onPressed:
-                enabled && node['enabled'] != false && node['action'] is String
-                ? () {
-                    FocusScope.of(context).unfocus();
-                    unawaited(
-                      dispatch({
-                        'kind': 'view',
-                        'name': name,
-                        'revision': generation,
-                        'field': node['key'],
-                        'action': node['action'],
-                        'operationId': _operationId(),
-                      }).catchError((Object _) {}),
-                    );
-                  }
-                : null,
           ),
         );
       case 2:
@@ -111,6 +115,29 @@ class _ImmutableView extends StatelessWidget {
           return reference(target, key);
         }
         content = const Text('This component cannot be displayed.');
+      case 6:
+        content = ViewMenu(node: node, action: _dispatchButton);
+      case 7:
+        content = ViewModal(
+          node: node,
+          children: [
+            for (var i = 0; i < children.length; i++) (children[i], widgets[i]),
+          ],
+          action: _dispatchButton,
+        );
+      case 8:
+        content = ViewToast(node: node, action: _dispatchButton);
+      case 9:
+        content = ViewList(
+          count: children.length,
+          row: (i) => _node(context, children[i], depth + 1),
+        );
+      case 10:
+        content = ViewBadge(text: text, tone: node['tone']);
+      case 11:
+        content = ViewAvatar(initials: text);
+      case 12:
+        content = ViewDivider(label: text);
       default:
         content = const Text('This component cannot be displayed.');
     }
