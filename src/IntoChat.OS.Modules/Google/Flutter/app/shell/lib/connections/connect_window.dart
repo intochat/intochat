@@ -294,7 +294,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
                   color: c.accentTint,
                   borderRadius: BorderRadius.circular(tokens.panelRadius),
                 ),
-                child: Icon(uiIcon('plug'), size: 24, color: c.accent),
+                child: Icon(uiIcon('plug'), size: uiIconSize, color: c.accent),
               ),
               const SizedBox(width: 14),
               Expanded(

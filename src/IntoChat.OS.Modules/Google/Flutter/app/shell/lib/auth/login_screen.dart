@@ -256,7 +256,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Icon(
                                 uiIcon('alert'),
-                                size: 16,
+                                size: uiIconSize,
                                 color: colors.error,
                               ),
                               const SizedBox(width: 8),

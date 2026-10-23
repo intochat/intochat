@@ -73,4 +73,36 @@ void main() {
     expect(find.text('Second'), findsNothing);
     await tester.pump(kitToastLifetime);
   });
+
+  test('UiTone indices equal the C# wire ints', () {
+    expect(UiTone.values.map((t) => t.index), [0, 1, 2, 3]);
+    expect(UiTone.values.map((t) => t.name), [
+      'neutral',
+      'done',
+      'working',
+      'error',
+    ]);
+    for (var i = 0; i < 4; i++) {
+      expect(UiTone.fromWire(i), UiTone.values[i]);
+    }
+    expect(UiTone.fromWire(9), UiTone.neutral);
+    expect(UiTone.fromWire(null), UiTone.neutral);
+  });
+
+  testWidgets('tearing down the host with a toast up clears it cleanly', (
+    tester,
+  ) async {
+    final context = await host(tester);
+    showKitToast(context, 'Leaving', tone: UiTone.working);
+    await tester.pump();
+    expect(find.text('Leaving'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    // No pending timer is left, and a later toast in a new host works.
+    final next = await host(tester);
+    showKitToast(next, 'Again');
+    await tester.pump();
+    expect(find.text('Again'), findsOneWidget);
+    await tester.pump(kitToastLifetime);
+    expect(find.text('Again'), findsNothing);
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../components/kit/kit_toast.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
@@ -14,11 +15,11 @@ final class ViewBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
-    final (fill, ink) = switch (tone) {
-      1 => (c.doneBg, c.strong),
-      2 => (c.workingBg, c.strong),
-      3 => (c.errorBg, c.strong),
-      _ => (c.recessed, c.muted),
+    final (fill, ink) = switch (UiTone.fromWire(tone)) {
+      UiTone.done => (c.doneBg, c.strong),
+      UiTone.working => (c.workingBg, c.strong),
+      UiTone.error => (c.errorBg, c.strong),
+      UiTone.neutral => (c.recessed, c.muted),
     };
     return Align(
       alignment: AlignmentDirectional.centerStart,

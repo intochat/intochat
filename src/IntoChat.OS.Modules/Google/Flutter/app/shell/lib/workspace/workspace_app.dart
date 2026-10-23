@@ -391,9 +391,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
           );
         }
       }
-    } catch (error) {
+    } on StateError catch (error) {
+      // Shell-authored copy (e.g. membership), never a transport exception.
+      if (mounted) _toast(error.message, tone: UiTone.error);
+    } catch (_) {
       if (mounted) {
-        _toast('Could not navigate: $error', tone: UiTone.error);
+        _toast('Could not navigate there. Try again.', tone: UiTone.error);
       }
     }
   }
@@ -411,9 +414,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         operation,
         input,
       );
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
-        _toast('Could not run action: $error', tone: UiTone.error);
+        _toast('Could not run that action. Try again.', tone: UiTone.error);
       }
     }
   }
@@ -486,9 +489,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         case 'switch':
           await widget.onSwitchAccount?.call();
       }
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
-        _toast('Could not open tool: $error', tone: UiTone.error);
+        _toast('Could not open that tool. Try again.', tone: UiTone.error);
       }
     }
   }
