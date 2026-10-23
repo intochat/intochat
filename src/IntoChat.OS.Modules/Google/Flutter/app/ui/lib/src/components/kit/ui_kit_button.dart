@@ -22,6 +22,7 @@ final class UiKitButton extends StatefulWidget {
     this.icon,
     this.compact = false,
     this.fullWidth = false,
+    this.focusNode,
   });
 
   final String label;
@@ -30,6 +31,9 @@ final class UiKitButton extends StatefulWidget {
   final String? icon;
   final bool compact;
   final bool fullWidth;
+
+  /// Optional node for the button's own focus, e.g. a menu trigger.
+  final FocusNode? focusNode;
 
   @override
   State<UiKitButton> createState() => _UiKitButtonState();
@@ -129,6 +133,7 @@ class _UiKitButtonState extends State<UiKitButton> {
         button: true,
         enabled: _enabled,
         child: FocusableActionDetector(
+          focusNode: widget.focusNode,
           enabled: _enabled,
           mouseCursor: _enabled
               ? SystemMouseCursors.click

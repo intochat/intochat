@@ -210,14 +210,11 @@ class _ViewMenuState extends State<ViewMenu> {
                 onPressed: toggle,
                 focusNode: _trigger,
               )
-            : Focus(
+            : UiKitButton(
+                label: text,
+                style: UiKitButtonStyle.ghost,
+                onPressed: toggle,
                 focusNode: _trigger,
-                skipTraversal: true,
-                child: UiKitButton(
-                  label: text,
-                  style: UiKitButtonStyle.ghost,
-                  onPressed: toggle,
-                ),
               );
       },
     );

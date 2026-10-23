@@ -312,4 +312,22 @@ void main() {
     expect(find.text('Chat restored'), findsNothing);
     await changes.close();
   });
+
+  testWidgets('a text-label menu returns focus to its button', (tester) async {
+    await _pump(tester, {..._menu(), 'icon': null});
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rename'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Rename'), findsNothing);
+    final detector = tester.widget<FocusableActionDetector>(
+      find.descendant(
+        of: find.byType(UiKitButton),
+        matching: find.byType(FocusableActionDetector),
+      ),
+    );
+    expect(detector.focusNode, isNotNull);
+    expect(detector.focusNode!.hasPrimaryFocus, isTrue);
+  });
 }
