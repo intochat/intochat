@@ -69,18 +69,23 @@ public sealed class BrainKeyFacts
     public async Task Brain_key_never_reaches_operator_or_profile_endpoint()
     {
         var ct = TestContext.Current.CancellationToken;
+        var logs = new CapturingLogs();
         using var servers = new Servers();
-        await using var brain = await Host(servers, new CapturingLogs(), ct);
+        await using var brain = await Host(servers, logs, ct);
         await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
 
-        // A profile's pinned endpoint, the declared AIOptions endpoint and the registration endpoint
-        // are the operator's: with the brain's key the call goes to the public endpoint instead.
-        Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "pinned", ct));
+        // The declared AIOptions endpoint and the registration endpoint are the operator's: with the
+        // brain's key the call goes to the public endpoint instead.
         Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "work", ct));
-        await NoRequest(servers.Profile, ct);
         await NoRequest(servers.Declared, ct);
         await NoRequest(servers.Registered, ct);
-        // The deployment's own key still honours the pinned endpoint.
+        // A profile with its own endpoint is an operator deployment: it keeps the deployment's key and
+        // endpoint even when the brain holds a key, and the brain key goes nowhere.
+        var pinned = await Call(brain, servers.Profile, BrainA, "pinned", ct);
+        Assert.Equal("Bearer " + DeploymentKey, pinned);
+        Assert.DoesNotContain(Canary, pinned!, StringComparison.Ordinal);
+        await NoRequest(servers.Public, ct);
+        Assert.DoesNotContain(Canary, logs.Text, StringComparison.Ordinal);
         Assert.Equal("Bearer " + DeploymentKey, await Call(brain, servers.Profile, BrainB, "pinned", ct));
     }
 
@@ -163,8 +168,12 @@ public sealed class BrainKeyFacts
                 .AddSingleton<ProviderPublicEndpoints>(new LoopbackPublic(servers.Public.Url)))
             .StartAsync(ct);
 
-    private static async Task<string?> Call(ITestBrain brain, LoopbackServer expected, string? brainId, string profile, CancellationToken ct)
+    private static async Task<string?> Call(ITestBrain brain, LoopbackServer expected, string? brainId, string profile, CancellationToken outer)
     {
+        // A call that goes to the wrong server never gets a reply: bound it so the fact fails, not hangs.
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        bounded.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = bounded.Token;
         var catalog = Catalog(brain);
         var resolved = await catalog.Resolve(brainId, new(profile), true, ct);
         using var client = await catalog.CreateClient(brainId, resolved, ct);

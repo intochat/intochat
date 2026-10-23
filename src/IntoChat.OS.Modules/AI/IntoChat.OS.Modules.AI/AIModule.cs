@@ -63,6 +63,11 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>(
-            CallerContextStamper.TryGet(out _) ? IModelCatalog.Key(BrainScope.CurrentId()) : "default").List()));
+            CatalogKey(CallerContextStamper.TryGet(out var caller) ? caller : null)).List()));
     }
+
+    // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.
+    internal static string CatalogKey(CallerContext? caller)
+        => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
+            ? IModelCatalog.Key(caller.BrainId) : "default";
 }

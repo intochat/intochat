@@ -22,16 +22,22 @@ internal static class NotificationPreferenceEndpoints
     {
         var group = BrainRoutes.Group(endpoints, "/preferences/notifications");
         group.MapGet("", async (IIntoChatOS brain, CancellationToken ct) => Results.Ok(await Read(brain, ct)));
-        group.MapPut("", async (Dictionary<string, bool>? input, IIntoChatOS brain, CancellationToken ct) =>
+        group.MapPut("", Write);
+    }
+
+    // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences,
+    // as brain entries refuse them. The fields are text-field neurons, so this guards the HTTP path.
+    internal static async Task<IResult> Write(Dictionary<string, bool>? input, IIntoChatOS brain, CancellationToken ct)
+    {
+        if (CallerContextStamper.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy))
+        { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        if (input is null || input.Keys.Any(key => !Keys.Any(known => known.Key == key)))
+        { return Results.BadRequest(new { error = "Unknown notification preference." }); }
+        foreach (var (key, value) in input)
         {
-            if (input is null || input.Keys.Any(key => !Keys.Any(known => known.Key == key)))
-            { return Results.BadRequest(new { error = "Unknown notification preference." }); }
-            foreach (var (key, value) in input)
-            {
-                await brain.Get<ITextField>(Name(key)).SetValue(value ? "on" : "off").WaitAsync(ct);
-            }
-            return Results.Ok(await Read(brain, ct));
-        });
+            await brain.Get<ITextField>(Name(key)).SetValue(value ? "on" : "off").WaitAsync(ct);
+        }
+        return Results.Ok(await Read(brain, ct));
     }
 
     private static string Name(string key) => BrainScope.CurrentId() + "/settings/notifications/" + key;

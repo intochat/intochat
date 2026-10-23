@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Flutter.TextField;
 using IntoChat.OS.Framework;
+using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 
@@ -58,6 +59,23 @@ public sealed class NotificationPreferenceFacts(FlutterHost host)
         var after = await person.Http.GetFromJsonAsync<Dictionary<string, bool>>($"/brains/{person.BrainId}/preferences/notifications", Ct);
 
         Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+        Assert.True(after!["agent-finished"]);
+    }
+
+    // An installed app (stamped by the app proxy) cannot change a person's notification preferences.
+    [Fact]
+    public async Task Installed_app_callers_cannot_write()
+    {
+        using var person = await host.PersonAsync(ct: Ct);
+        IResult result;
+        using (person.AsApp(person.Key("apps/notes")))
+        {
+            result = await IntoChat.OS.Flutter.Settings.NotificationPreferenceEndpoints.Write(
+                new Dictionary<string, bool> { ["agent-finished"] = false }, host.Brain, Ct);
+        }
+        var after = await person.Http.GetFromJsonAsync<Dictionary<string, bool>>($"/brains/{person.BrainId}/preferences/notifications", Ct);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.True(after!["agent-finished"]);
     }
 }

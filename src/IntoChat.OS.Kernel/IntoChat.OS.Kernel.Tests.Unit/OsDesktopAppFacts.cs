@@ -183,6 +183,10 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("\"settings\"", bundle.Files["settings.cs"], StringComparison.Ordinal);
         Assert.Contains("Desktop.SetSettingsButton", bundle.Files["settings.cs"], StringComparison.Ordinal);
         Assert.DoesNotContain("Desktop.Open", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        // An old-render `settings` click re-arms the button and re-renders, so the next click carries the activation.
+        var settings = bundle.Files["settings.cs"];
+        var rearm = settings.IndexOf("await Desktop.SetSettingsButton(brain);", StringComparison.Ordinal);
+        Assert.True(rearm >= 0 && settings.IndexOf("await Desktop.Show(brain);", rearm, StringComparison.Ordinal) > rearm);
         Assert.All((string[])["layout-switch.cs", "settings.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
     }
 

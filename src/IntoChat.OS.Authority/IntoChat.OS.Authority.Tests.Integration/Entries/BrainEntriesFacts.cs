@@ -113,6 +113,39 @@ public sealed class BrainEntriesFacts : IAsyncLifetime
         Assert.Equal("eu-west", Assert.Single(await List(owner)).GetProperty("value").GetString());
     }
 
+    // A non-member (never shared the brain) and a user of another account (whose own brain the owner
+    // belongs to, so a relationship exists but not on this brain) are both refused, and nothing changes.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Outsider_gets_403_on_get_put_and_delete(bool otherAccountSharesWithOwner)
+    {
+        using var owner = await _brain.PersonAsync(AuthorityHost.Unique("owner"), Ct);
+        using var outsider = await _brain.PersonAsync(AuthorityHost.Unique("outsider"), Ct);
+        if (otherAccountSharesWithOwner)
+        { await _brain.Platform.Directory().ShareBrainAsync(outsider.AccountId, outsider.BrainId, owner.PrincipalId, "Owner", MemberRole.Member, Ct); }
+        using var seeded = await Put(owner, owner.BrainId, "REGION", "variable", "eu-west");
+        using var seededKey = await Put(owner, owner.BrainId, "provider:openai", "secret", Canary);
+        var before = await Entries(owner).Version();
+
+        using var list = await outsider.Http.GetAsync($"/brains/{owner.BrainId}/entries", Ct);
+        using var put = await Put(outsider, owner.BrainId, "REGION", "variable", "us-east");
+        using var putKey = await Put(outsider, owner.BrainId, "provider:openai", "secret", "sk-outsider");
+        using var delete = await outsider.Http.DeleteAsync($"/brains/{owner.BrainId}/entries/REGION", Ct);
+        var listBody = await list.Content.ReadAsStringAsync(Ct);
+
+        Assert.Equal(HttpStatusCode.NoContent, seeded.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, putKey.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
+        Assert.DoesNotContain("eu-west", listBody, StringComparison.Ordinal);
+        Assert.Equal(before, await Entries(owner).Version());
+        var rows = await List(owner);
+        Assert.Equal("eu-west", Assert.Single(rows, row => row.GetProperty("name").GetString() == "REGION").GetProperty("value").GetString());
+        Assert.Contains(rows, row => row.GetProperty("name").GetString() == "provider:openai" && row.GetProperty("isSet").GetBoolean());
+    }
+
     [Fact]
     public async Task Unknown_provider_name_is_400()
     {

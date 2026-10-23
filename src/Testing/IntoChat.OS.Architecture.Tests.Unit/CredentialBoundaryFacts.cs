@@ -96,7 +96,11 @@ public sealed class CredentialBoundaryFacts
     }
 
     // IBrainProviderKeys releases a brain's plaintext provider key to whoever injects it, so only the
-    // AI module (its one consumer) and Authority (its implementation) may reference it.
+    // AI module (its one consumer) and Authority (its implementation) may reference it. It is internal to
+    // Framework so no other module compiles against it, and typeof/ldtoken lookups count as references.
+    [Fact]
+    public void BrainProviderKeysIsNotPublic() => Assert.False(typeof(IBrainProviderKeys).IsVisible);
+
     [Fact]
     public void OnlyTheAiModuleAndAuthorityReferenceBrainProviderKeys()
     {
@@ -109,7 +113,8 @@ public sealed class CredentialBoundaryFacts
             .Where(m => m.GetParameters().Any(p => p.ParameterType == keys)
                 || (m as MethodInfo)?.ReturnType == keys
                 || m.DeclaringType!.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).Any(f => f.FieldType == keys)
-                || Calls(m).Any(c => c.DeclaringType == keys || (c.IsGenericMethod && c.GetGenericArguments().Contains(keys))))
+                || Calls(m).Any(c => c.DeclaringType == keys || (c.IsGenericMethod && c.GetGenericArguments().Contains(keys)))
+                || Tokens(m).Contains(keys))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Distinct().Order().ToArray();
         Assert.Empty(offenders);
     }
@@ -123,6 +128,17 @@ public sealed class CredentialBoundaryFacts
     private static IEnumerable<MethodBase> Calls(MethodBase method)
         => Instructions(method).Where(i => i.Code.OperandType == OperandType.InlineMethod)
             .Select(i => Resolve(method, i.Operand)).OfType<MethodBase>();
+
+    // Types named by ldtoken (typeof) in a method body, e.g. GetService(typeof(IBrainProviderKeys)).
+    private static IEnumerable<Type> Tokens(MethodBase method)
+        => Instructions(method).Where(i => i.Code.OperandType is OperandType.InlineTok or OperandType.InlineType)
+            .Select(i => ResolveType(method, i.Operand)).OfType<Type>();
+
+    private static Type? ResolveType(MethodBase method, int token)
+    {
+        try { return method.Module.ResolveType(token, method.DeclaringType?.GetGenericArguments(), method.IsGenericMethod ? method.GetGenericArguments() : null); }
+        catch (ArgumentException) { return null; }
+    }
 
     private static MethodBase? Resolve(MethodBase method, int token)
         => method.Module.ResolveMethod(token, method.DeclaringType?.GetGenericArguments(), method.IsGenericMethod ? method.GetGenericArguments() : null);
@@ -140,7 +156,7 @@ public sealed class CredentialBoundaryFacts
             yield return (code, code.OperandType switch
             {
                 OperandType.ShortInlineI => unchecked((sbyte)bytes[position]),
-                OperandType.InlineI or OperandType.InlineMethod => BitConverter.ToInt32(bytes, position),
+                OperandType.InlineI or OperandType.InlineMethod or OperandType.InlineTok or OperandType.InlineType => BitConverter.ToInt32(bytes, position),
                 _ => 0,
             });
             position += code.OperandType switch

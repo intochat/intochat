@@ -151,12 +151,14 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     }
 
     // One release per build decides whose key this client carries. A brain key goes only to the
-    // provider's public endpoint: operator-declared, profile and registration endpoints are the
-    // deployment's and never see it. Otherwise the deployment's key and endpoints apply as before.
+    // provider's public endpoint: operator-declared and registration endpoints are the deployment's and
+    // never see it. An operator profile with its own endpoint is a deployment model: it always uses the
+    // deployment's key and that endpoint, and the brain key is not even released for it.
     private async Task<IChatClient> Build(string? brainId, ResolvedModel resolved, AIOptions configuration, CancellationToken ct)
     {
         var factory = AIClients.Factory(resolved.Provider);
         if (brainId is not null && BrainScope.IsValidId(brainId) && AiIntegrations.KeyedProviders.Contains(resolved.Provider)
+            && !HasProfileEndpoint(resolved)
             && await Deployment.BrainKey(brainId, resolved.Provider, ct) is { Length: > 0 } key)
         {
             var publicEndpoint = services.GetRequiredService<ProviderPublicEndpoints>().Of(resolved.Provider);
@@ -164,6 +166,10 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         }
         return await factory.CreateChatClient(resolved.Model, configuration, Deployment, resolved.Endpoint, ct);
     }
+
+    private bool HasProfileEndpoint(ResolvedModel resolved)
+        => resolved.Profile is not null
+            && Clean(options.CurrentValue.ModelProfiles.GetValueOrDefault(resolved.Profile)?.Endpoint) is not null;
 
     public ModelDescriptor Describe(ResolvedModel model)
     {
