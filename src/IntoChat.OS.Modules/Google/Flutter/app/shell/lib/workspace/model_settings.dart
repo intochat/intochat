@@ -123,18 +123,13 @@ class _ModelSettingsState extends State<ModelSettings> {
           ),
           title: Text(
             automatic ? autoModelLabel : option.label,
-            style: type.body.copyWith(
-              color: c.strong,
-              fontSize: 13,
+            style: type.rowTitle.copyWith(
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
           subtitle: detail.isEmpty
               ? null
-              : Text(
-                  style: type.meta.copyWith(fontSize: 11, color: c.muted),
-                  detail,
-                ),
+              : Text(style: type.meta.copyWith(color: c.muted), detail),
           onTap: selectable && !_loading
               ? () => widget.onSelected(option.id)
               : null,
@@ -265,7 +260,7 @@ class ConversationModelPicker extends StatelessWidget {
           selectedId == null ? 'Auto' : selectedId!.split(':').last,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12),
+          style: UiType.of(context).caption,
         ),
       ),
       onPressed: !enabled

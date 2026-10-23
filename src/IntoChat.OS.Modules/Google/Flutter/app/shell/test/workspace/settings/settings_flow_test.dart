@@ -54,6 +54,14 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
+    // Before a key exists the OpenAI model is unavailable and not choosable.
+    await tester.tap(find.text('AI models'));
+    await tester.pumpAndSettle();
+    expect(_dimmed(tester, 'gpt-5.4-nano'), isTrue);
+    await tester.tap(find.text('gpt-5.4-nano').last, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(fixture.store.settings.defaultModelProfile, isNull);
+
     await tester.tap(find.text('API keys'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings-key-add-openai')));
@@ -79,6 +87,11 @@ void main() {
     await fixture.dispose();
   });
 }
+
+bool _dimmed(WidgetTester tester, String label) => find
+    .ancestor(of: find.text(label).last, matching: find.byType(Opacity))
+    .evaluate()
+    .any((e) => (e.widget as Opacity).opacity < 1);
 
 /// Whether any Text or EditableText shows [secret] (the entry field is
 /// cleared after save, so none should).

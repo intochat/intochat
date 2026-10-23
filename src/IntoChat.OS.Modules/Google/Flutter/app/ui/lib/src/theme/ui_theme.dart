@@ -27,6 +27,8 @@ final class UiTypeSet {
     required this.menuItem,
     required this.menuLabel,
     required this.toast,
+    required this.rowTitle,
+    required this.caption,
   });
 
   final TextStyle title;
@@ -43,6 +45,12 @@ final class UiTypeSet {
   final TextStyle menuItem;
   final TextStyle menuLabel;
   final TextStyle toast;
+
+  /// Figma `.model-option strong`: a 13 px row title.
+  final TextStyle rowTitle;
+
+  /// A 12 px compact label (toolbar pickers).
+  final TextStyle caption;
 }
 
 abstract final class UiType {
@@ -109,6 +117,8 @@ abstract final class UiType {
       menuItem: s(_menuItem, c.body),
       menuLabel: s(_menuLabel, c.muted, isMono: true),
       toast: s(_toast, c.body),
+      rowTitle: s(_rowTitle, c.strong),
+      caption: s(_caption, c.body),
     );
   }
 
@@ -230,6 +240,22 @@ final _menuLabel = TextStyle(
   fontWeight: FontWeight.w500,
   letterSpacing: 0.88,
   color: UiColors.midnight.strong,
+);
+
+final _rowTitle = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 13,
+  fontWeight: FontWeight.w500,
+  color: UiColors.midnight.strong,
+);
+
+final _caption = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 12,
+  fontWeight: FontWeight.w500,
+  color: UiColors.midnight.body,
 );
 
 final _toast = TextStyle(
