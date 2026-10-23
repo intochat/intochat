@@ -224,6 +224,29 @@ void main() {
     'children': buttons,
   };
 
+  testWidgets('modal action buttons are as wide as the modal content', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      modal([
+        _button('delete', 'Delete', style: 3),
+        _button('cancel', 'Cancel', style: 2),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    final content = tester
+        .getSize(find.byType(SingleChildScrollView).last)
+        .width;
+    for (final label in ['Delete', 'Cancel']) {
+      final button = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(UiKitButton),
+      );
+      expect(tester.getSize(button).width, content);
+    }
+  });
+
   testWidgets('modal backdrop dispatches only the cancel action, once', (
     tester,
   ) async {

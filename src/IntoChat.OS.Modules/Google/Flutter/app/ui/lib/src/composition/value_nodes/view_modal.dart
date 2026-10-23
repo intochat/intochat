@@ -113,6 +113,7 @@ class _ViewModalState extends State<ViewModal> {
               child: Material(
                 type: MaterialType.transparency,
                 child: Container(
+                  width: double.infinity,
                   constraints: const BoxConstraints(maxWidth: 440),
                   margin: const EdgeInsets.all(24),
                   padding: const EdgeInsets.all(32),
@@ -133,12 +134,14 @@ class _ViewModalState extends State<ViewModal> {
                     // stay pinned below it so cancel is always reachable.
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Flexible(
                           child: SingleChildScrollView(
                             primary: false,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (title.isNotEmpty)
                                   Text(
@@ -164,11 +167,15 @@ class _ViewModalState extends State<ViewModal> {
                         ),
                         if (buttons.isNotEmpty) ...[
                           const SizedBox(height: 24),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: buttons,
+                          // Figma: action buttons are full width.
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (var i = 0; i < buttons.length; i++) ...[
+                                if (i > 0) const SizedBox(height: 10),
+                                buttons[i],
+                              ],
+                            ],
                           ),
                         ],
                       ],

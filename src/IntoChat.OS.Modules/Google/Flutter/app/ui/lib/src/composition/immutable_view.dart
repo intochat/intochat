@@ -148,7 +148,14 @@ class _ImmutableView extends StatelessWidget {
         content = ViewModal(
           node: node,
           children: [
-            for (var i = 0; i < children.length; i++) (children[i], widgets[i]),
+            // Slotted buttons are not aligned, so they fill the modal width.
+            for (final child in children)
+              (
+                child,
+                child['kind'] == 1
+                    ? _node(context, child, depth + 1, slotted: true)
+                    : widgets[children.indexOf(child)],
+              ),
           ],
           action: _dispatchButton,
         );
