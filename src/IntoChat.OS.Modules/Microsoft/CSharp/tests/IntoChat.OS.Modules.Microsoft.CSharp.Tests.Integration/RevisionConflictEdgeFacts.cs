@@ -35,17 +35,29 @@ public sealed class RevisionConflictEdgeFacts
         Assert.Equal(detail, denied.Message);
     }
 
-    [Theory]
-    [InlineData(HttpStatusCode.UnprocessableEntity)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    public async Task UnclassifiedNonAuthorizationFailuresKeepTheirExistingType(HttpStatusCode status)
+    [Fact]
+    public async Task AnUnclassifiedPermanentFailureKeepsItsExistingType()
     {
+        const HttpStatusCode status = HttpStatusCode.UnprocessableEntity;
         var ct = TestContext.Current.CancellationToken;
         await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
             "token", "fingerprint", new Refusing("unrelated failure", status, null), ct);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => connection.InvokeAsync(
             new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
         Assert.Contains($"({(int)status}): unrelated failure", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnclassifiedTransientFailurePreservesItsHttpStatus()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
+            "token", "fingerprint", new Refusing("unrelated failure", HttpStatusCode.ServiceUnavailable, null), ct);
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => connection.InvokeAsync(
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failure.StatusCode);
+        Assert.Contains("(503): unrelated failure", failure.Message, StringComparison.Ordinal);
     }
 
     [Trait("host", "own")]
