@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Platform.Integrations;
@@ -9,6 +10,7 @@ namespace IntoChat.OS.Microsoft.Aspire.Tests;
 
 public sealed class DockerCandidateHostFacts : IDisposable
 {
+    private static readonly string RepositoryRoot = FindRepository();
     private readonly string workdir = Path.Combine(Path.GetTempPath(), "candidate-host-" + Guid.NewGuid().ToString("N"), ".intochat-os");
     private readonly RecordingProcessRunner processes = new();
 
@@ -19,8 +21,8 @@ public sealed class DockerCandidateHostFacts : IDisposable
     [Fact]
     public async Task PublishingUsesEachComponentsInferredImageAndKeepsPortableOutput()
     {
-        processes.Answer("dotnet msbuild src/IntoChat.OS.Kernel/", new(0, "mcr.microsoft.com/dotnet/aspnet:11.0-test-os\r\n", ""));
-        processes.Answer("dotnet msbuild src/IntoChat.OS.Mcp/", new(0, "mcr.microsoft.com/dotnet/aspnet:11.0-test-mcp\n", ""));
+        processes.Answer($"dotnet msbuild {ProjectPath("IntoChat.OS.Kernel")}", new(0, "mcr.microsoft.com/dotnet/aspnet:11.0-test-os\r\n", ""));
+        processes.Answer($"dotnet msbuild {ProjectPath("IntoChat.OS.Mcp")}", new(0, "mcr.microsoft.com/dotnet/aspnet:11.0-test-mcp\n", ""));
 
         var build = await Host().Publish("abc1234", TestContext.Current.CancellationToken);
 
@@ -30,7 +32,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
             var dockerfile = Path.Combine(workdir, $"Candidate.{folder}.Dockerfile");
             Assert.Equal($"FROM mcr.microsoft.com/dotnet/aspnet:11.0-test-{folder}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"IntoChat.OS.{assembly}.dll\"]\n",
                 await File.ReadAllTextAsync(dockerfile, TestContext.Current.CancellationToken));
-            Assert.Contains($"dotnet publish src/IntoChat.OS.{assembly}/IntoChat.OS.{assembly}/IntoChat.OS.{assembly}.csproj -c Release -o {Path.Combine(build, folder)}", processes.Commands);
+            Assert.Contains($"dotnet publish {ProjectPath($"IntoChat.OS.{assembly}")} -c Release -o {Path.Combine(build, folder)}", processes.Commands);
             Assert.Contains($"docker build -t {image}:abc1234 -f {dockerfile} {Path.Combine(build, folder)}", processes.Commands);
         }
         Assert.All(processes.DotnetDirectories, directory => Assert.Equal(Path.Combine(workdir, "worktrees", "abc1234"), directory));
@@ -81,20 +83,18 @@ public sealed class DockerCandidateHostFacts : IDisposable
         var sha = Guid.NewGuid().ToString("N");
         var worktree = Path.Combine(workdir, "worktrees", sha);
         Directory.CreateDirectory(worktree);
-        var repository = new DirectoryInfo(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "global.json"))) { repository = repository.Parent; }
-        Assert.NotNull(repository);
-        File.Copy(Path.Combine(repository.FullName, "global.json"), Path.Combine(worktree, "global.json"));
+        File.Copy(Path.Combine(RepositoryRoot, "global.json"), Path.Combine(worktree, "global.json"));
         var components = new[] { (Folder: "os", Assembly: "IntoChat.OS.Kernel", Image: $"intochat-os-candidate:{sha}"),
             (Folder: "mcp", Assembly: "IntoChat.OS.Mcp", Image: $"intochat-os-candidate-mcp:{sha}") };
         var runner = new SystemProcessRunner();
         foreach (var component in components)
         {
-            var project = Path.Combine(worktree, "src", component.Assembly, component.Assembly);
-            Directory.CreateDirectory(project);
-            await File.WriteAllTextAsync(Path.Combine(project, component.Assembly + ".csproj"),
+            var project = Path.Combine(worktree, ProjectPath(component.Assembly));
+            var directory = Path.GetDirectoryName(project)!;
+            Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(project,
                 $"<Project Sdk=\"Microsoft.NET.Sdk.Web\"><PropertyGroup><TargetFramework>net{System.Environment.Version.Major}.{System.Environment.Version.Minor}</TargetFramework><EnableSdkContainerSupport>false</EnableSdkContainerSupport></PropertyGroup></Project>", ct);
-            await File.WriteAllTextAsync(Path.Combine(project, "Program.cs"), $"System.Console.WriteLine(\"candidate-{component.Folder}-started\");", ct);
+            await File.WriteAllTextAsync(Path.Combine(directory, "Program.cs"), $"System.Console.WriteLine(\"candidate-{component.Folder}-started\");", ct);
             var existing = await runner.RunAsync("docker", ["image", "inspect", component.Image], worktree, null, ct);
             Assert.NotEqual(0, existing.ExitCode);
         }
@@ -254,6 +254,19 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.Equal("gate", error.Stage);
         Assert.Contains("error CS1002", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("line 1\n", error.Message, StringComparison.Ordinal);
+    }
+
+    private static string ProjectPath(string name)
+        => XDocument.Load(Path.Combine(RepositoryRoot, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(path => Path.GetFileNameWithoutExtension(path) == name);
+
+    private static string FindRepository()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Intochat.OS.slnx")))
+        { directory = directory.Parent; }
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Intochat.OS.slnx was not found.");
     }
 
     private DockerCandidateHost Host(Dictionary<string, string?>? live = null, CandidateSecrets? secrets = null)
