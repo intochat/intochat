@@ -82,7 +82,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('no longer available'), findsOneWidget);
     expect(selected, 'profile:removed');
-    await tester.tap(find.text('Automatic (workspace default)'));
+    await tester.tap(find.text('Auto, cheapest model with tools'));
     expect(selected, isNull);
   });
 

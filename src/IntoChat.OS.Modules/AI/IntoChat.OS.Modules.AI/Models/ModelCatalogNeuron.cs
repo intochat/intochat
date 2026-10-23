@@ -7,6 +7,9 @@ namespace IntoChat.OS.AI.Models;
 [GrainType("ai.models"), StatelessWorker]
 internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : Neuron, IModelCatalog
 {
-    public Task<ModelChoices> List(string? defaultModel = null) => catalog.List(defaultModel, CancellationToken.None);
-    public Task<ModelSelection?> Select(string? id, string? defaultModel = null) => catalog.Select(id, defaultModel, CancellationToken.None);
+    // The brain is the key's scope ("{brain}/default"); a bare key is the deployment's view.
+    private string? Brain => BrainKey.ScopeOf(this.GetPrimaryKeyString());
+
+    public Task<ModelChoices> List(string? defaultModel = null) => catalog.List(Brain, defaultModel, CancellationToken.None);
+    public Task<ModelSelection?> Select(string? id, string? defaultModel = null) => catalog.Select(Brain, id, defaultModel, CancellationToken.None);
 }

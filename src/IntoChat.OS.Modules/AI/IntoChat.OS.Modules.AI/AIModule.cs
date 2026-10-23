@@ -39,6 +39,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
+        services.TryAddSingleton<BrainKeyAvailability>();
         services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
@@ -55,10 +56,12 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         VoiceToTextHosting.Add(services, options);
     }
 
-    // The deployment's model list for the shell's model picker; never endpoints or secrets.
+    // The calling brain's model list for the shell's model picker; never endpoints or secrets. The
+    // brain is the edge's stamped caller; without one the list is the deployment's.
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>("default").List()));
+        endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>(
+            CallerContextStamper.TryGet(out _) ? new NeuronId("default").Within(BrainScope.CurrentId()).Name : "default").List()));
     }
 }

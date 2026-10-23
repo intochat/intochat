@@ -36,6 +36,11 @@ public interface IBrainEntries : IGrainWithStringKey
     // The value itself, for trusted platform code only: the caller must carry the Platform stamp,
     // as IIntegration.Release requires. Never mapped to HTTP.
     Task<string?> Release(CallerContext caller, string name);
+
+    // A counter that moves on every Put and Remove: a cheap change marker for caches of what Release
+    // would return. Carries no name or value.
+    [Orleans.Concurrency.ReadOnly]
+    Task<long> Version();
 }
 
 public static partial class BrainEntries

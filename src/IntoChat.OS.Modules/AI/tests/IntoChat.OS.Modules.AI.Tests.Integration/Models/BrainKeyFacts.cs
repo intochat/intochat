@@ -1,0 +1,138 @@
+using System.Net;
+using IntoChat.OS.AI;
+using IntoChat.OS.AI.Models;
+using IntoChat.OS.Framework.Platform.Entries;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace IntoChat.OS.Modules.AI.Tests.Integration.Models;
+
+// A brain's own provider key (the provider:{id} secret entry) makes models available to that brain
+// alone, wins over the deployment registration for that brain, and falls back when removed.
+public sealed class BrainKeyFacts
+{
+    private const string BrainA = "brain-key-a";
+    private const string BrainB = "brain-key-b";
+    private const string Canary = "canary-brain-key-5d81e0";
+    private const string DeploymentKey = "deployment-key-0a77c2";
+
+    private static ModelCatalog Catalog(ITestBrain brain) => brain.Services.GetRequiredService<ModelCatalog>();
+
+    private static IBrainEntries Entries(ITestBrain brain, string brainId)
+        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>(brainId);
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Brain_key_flips_availability_only_for_that_brain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
+
+        var before = await Catalog(brain).List(BrainA, null, ct);
+        Assert.False(before.Automatic.Available);
+        Assert.False(Assert.Single(before.Models, choice => choice.Id == "preset:IGpt54Nano").Available);
+
+        await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
+
+        var a = await Catalog(brain).List(BrainA, null, ct);
+        var b = await Catalog(brain).List(BrainB, null, ct);
+        Assert.True(a.Automatic.Available);
+        Assert.True(Assert.Single(a.Models, choice => choice.Id == "preset:IGpt54Nano").Available);
+        Assert.False(b.Automatic.Available);
+        Assert.False(Assert.Single(b.Models, choice => choice.Id == "preset:IGpt54Nano").Available);
+        Assert.DoesNotContain(Canary, System.Text.Json.JsonSerializer.Serialize(a));
+        await Catalog(brain).Select(BrainA, "preset:IGpt54Nano", null, ct);
+        await Assert.ThrowsAsync<ProviderUnavailableException>(() => Catalog(brain).Select(BrainB, "preset:IGpt54Nano", null, ct));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Brain_key_wins_over_deployment_registration()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var logs = new CapturingLogs();
+        using var provider = new LoopbackServer();
+        await using var brain = await Host(provider, logs, ct);
+        await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
+
+        Assert.Equal("Bearer " + Canary, await Call(brain, provider, BrainA, ct));
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, BrainB, ct));
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, null, ct));
+        Assert.NotEmpty(logs.Text);
+        Assert.DoesNotContain(Canary, logs.Text);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Removing_brain_key_falls_back_to_deployment()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var provider = new LoopbackServer();
+        await using var brain = await Host(provider, new CapturingLogs(), ct);
+        await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
+        Assert.Equal("Bearer " + Canary, await Call(brain, provider, BrainA, ct));
+
+        await Entries(brain, BrainA).Remove(BrainEntries.ProviderEntry("openai"));
+
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, BrainA, ct));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Removing_brain_key_makes_brain_only_models_unavailable_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
+        await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("anthropic"), EntryKind.Secret, Canary);
+        Assert.True((await Catalog(brain).List(BrainA, null, ct)).Automatic.Available);
+
+        await Entries(brain, BrainA).Remove(BrainEntries.ProviderEntry("anthropic"));
+
+        Assert.False((await Catalog(brain).List(BrainA, null, ct)).Automatic.Available);
+    }
+
+    private static Task<ITestBrain> Host(LoopbackServer provider, CapturingLogs logs, CancellationToken ct)
+        => TestBrain.Create()
+            .WithProvider("OpenAI", provider.Url, DeploymentKey)
+            .WithModule<AIModule>()
+            .WithOptions<AIModule, AIOptions>(options =>
+                options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "test-model", Endpoint = provider.Url, Capabilities = LlmCapabilities.Tools })
+            .ConfigureServices(services => services.AddLogging(logging => logging.AddProvider(logs).SetMinimumLevel(LogLevel.Trace)))
+            .StartAsync(ct);
+
+    private static async Task<string?> Call(ITestBrain brain, LoopbackServer provider, string? brainId, CancellationToken ct)
+    {
+        var catalog = Catalog(brain);
+        var resolved = await catalog.Resolve(brainId, new("work"), true, ct);
+        using var client = await catalog.CreateClient(brainId, resolved, ct);
+        var seen = provider.ReplyOnce("application/json", ChatCompletionJson, ct, HttpStatusCode.OK);
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: ct);
+        return (await seen).Authorization;
+    }
+
+    private const string ChatCompletionJson = """
+        {"id":"r","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+        """;
+
+    private sealed class CapturingLogs : ILoggerProvider
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _lines = new();
+
+        public string Text => string.Join(Environment.NewLine, _lines);
+
+        public ILogger CreateLogger(string categoryName) => new Sink(_lines);
+
+        public void Dispose() { }
+
+        private sealed class Sink(System.Collections.Concurrent.ConcurrentQueue<string> lines) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => lines.Enqueue(formatter(state, exception) + exception);
+        }
+    }
+}

@@ -21,6 +21,7 @@ internal sealed record StoredEntry(
 internal sealed class BrainEntriesState
 {
     [Id(0)] public StoredEntry[] Entries { get; set; } = [];
+    [Id(1)] public long Version { get; set; }
 }
 
 [GrainType("brain.entries")]
@@ -66,6 +67,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
             ? new StoredEntry(name, kind, null, await _sealer.Seal(brain, name, value), value.Length > 4 ? value[^4..] : null, now)
             : new StoredEntry(name, kind, value, null, null, now);
         _store.State.Entries = [.. _store.State.Entries.Where(existing => existing.Name != name), entry];
+        _store.State.Version++;
         await _store.WriteStateAsync();
         Audit("put", name, kind);
     }
@@ -76,6 +78,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         if (!_store.State.Entries.Any(entry => entry.Name == name)) { return; }
         var kind = _store.State.Entries.First(entry => entry.Name == name).Kind;
         _store.State.Entries = [.. _store.State.Entries.Where(entry => entry.Name != name)];
+        _store.State.Version++;
         await _store.WriteStateAsync();
         Audit("remove", name, kind);
     }
@@ -91,6 +94,8 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         Audit("release", name, entry.Kind);
         return entry.Kind == EntryKind.Variable ? entry.Value : await _sealer.Open(this.GetPrimaryKeyString(), entry.Sealed!);
     }
+
+    public Task<long> Version() => Task.FromResult(_store.State.Version);
 
     // Messages name the entry, never the value.
     private void Validate(string name, EntryKind kind, string value)

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 
 typedef ModelCatalogLoader = Future<ChatModelCatalog> Function();
 
+const autoModelLabel = 'Auto, cheapest model with tools';
+const unavailableModelReason = 'Add a key in API keys';
+
 /// The same configured catalog is used for a default and a conversation override.
 class ModelSettings extends StatefulWidget {
   const ModelSettings({
@@ -65,6 +68,39 @@ class _ModelSettingsState extends State<ModelSettings> {
     }
   }
 
+  // Auto always leads and is always selectable: the server picks the cheapest
+  // available model with tools. Other models without a key are shown dimmed
+  // with the reason and cannot be chosen.
+  Widget _option(ChatModelOption option) {
+    final automatic = option.id == null;
+    final selectable = automatic || option.available;
+    final tile = Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        selected: widget.selectedId == option.id,
+        enabled: selectable,
+        leading: Icon(
+          widget.selectedId == option.id
+              ? Icons.radio_button_checked
+              : Icons.radio_button_off,
+        ),
+        title: Text(automatic ? autoModelLabel : option.label),
+        subtitle: Text(
+          [
+            if (option.provider != null) option.provider!,
+            if (option.model != null) option.model!,
+            if (!selectable) unavailableModelReason,
+            if (option.capabilities.isNotEmpty) option.capabilities.join(' · '),
+          ].join(' · '),
+        ),
+        onTap: selectable && !_loading
+            ? () => widget.onSelected(option.id)
+            : null,
+      ),
+    );
+    return selectable ? tile : Opacity(opacity: 0.5, child: tile);
+  }
+
   @override
   Widget build(BuildContext context) {
     final options = _catalog == null
@@ -103,31 +139,7 @@ class _ModelSettingsState extends State<ModelSettings> {
               'Your saved model is no longer available. Choose another model or Automatic.',
             ),
           ),
-        for (final option in options)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              selected: widget.selectedId == option.id,
-              leading: Icon(
-                widget.selectedId == option.id
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-              ),
-              title: Text(option.label),
-              subtitle: Text(
-                [
-                  if (option.provider != null) option.provider!,
-                  if (option.model != null) option.model!,
-                  if (!option.available) 'Not configured',
-                  if (option.capabilities.isNotEmpty)
-                    option.capabilities.join(' · '),
-                ].join(' · '),
-              ),
-              onTap: (option.available || option.id == null) && !_loading
-                  ? () => widget.onSelected(option.id)
-                  : null,
-            ),
-          ),
+        for (final option in options) _option(option),
         if (_catalog != null && _catalog!.models.isEmpty)
           const Text(
             'No selectable models are configured. Providers are managed by your workspace administrator.',
