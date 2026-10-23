@@ -64,6 +64,30 @@ class _VariablesTabState extends State<VariablesTab> {
   }
 
   Future<void> _remove(EntrySummary entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => SettingsDialog(
+        title: 'Remove ${entry.name}?',
+        body: 'Apps and agents that use it will no longer find it.',
+        actions: [
+          UiKitButton(
+            key: const Key('settings-variable-remove-confirm'),
+            label: 'Remove',
+            style: UiKitButtonStyle.danger,
+            fullWidth: true,
+            onPressed: () => Navigator.pop(dialog, true),
+          ),
+          UiKitButton(
+            key: const Key('settings-variable-remove-cancel'),
+            label: 'Cancel',
+            style: UiKitButtonStyle.secondary,
+            fullWidth: true,
+            onPressed: () => Navigator.pop(dialog, false),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     try {
       await widget.api.removeEntry(entry.name);
       await _load();
@@ -204,8 +228,9 @@ class _EntryDialogState extends State<_EntryDialog> {
     });
     try {
       await widget.save(name, _kind, _value.text);
+      if (!mounted) return;
       _value.clear();
-      if (mounted) Navigator.pop(context, true);
+      Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -217,53 +242,56 @@ class _EntryDialogState extends State<_EntryDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => SettingsDialog(
-    title: 'Add a variable or secret',
-    body: 'A variable can be read back. A secret is sealed and cannot.',
-    field: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        UiKitField(
-          label: 'Name',
-          controller: _name,
-          enabled: !_saving,
-          error: _nameError,
-          fieldKey: const Key('settings-variable-name'),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_saving,
+    child: SettingsDialog(
+      title: 'Add a variable or secret',
+      body: 'A variable can be read back. A secret is sealed and cannot.',
+      field: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          UiKitField(
+            label: 'Name',
+            controller: _name,
+            enabled: !_saving,
+            error: _nameError,
+            fieldKey: const Key('settings-variable-name'),
+          ),
+          const SizedBox(height: 12),
+          UiKitSelect<EntryKind>(
+            label: 'Kind',
+            value: _kind,
+            items: const [
+              UiKitSelectItem(EntryKind.variable, 'Variable'),
+              UiKitSelectItem(EntryKind.secret, 'Secret'),
+            ],
+            onChanged: _saving ? null : (k) => setState(() => _kind = k),
+          ),
+          const SizedBox(height: 12),
+          UiKitField(
+            label: 'Value',
+            controller: _value,
+            secret: _kind == EntryKind.secret,
+            enabled: !_saving,
+            error: _error,
+            fieldKey: const Key('settings-variable-value'),
+          ),
+        ],
+      ),
+      actions: [
+        UiKitButton(
+          key: const Key('settings-variable-save'),
+          label: _saving ? 'Saving…' : 'Save',
+          fullWidth: true,
+          onPressed: _saving ? null : _save,
         ),
-        const SizedBox(height: 12),
-        UiKitSelect<EntryKind>(
-          label: 'Kind',
-          value: _kind,
-          items: const [
-            UiKitSelectItem(EntryKind.variable, 'Variable'),
-            UiKitSelectItem(EntryKind.secret, 'Secret'),
-          ],
-          onChanged: _saving ? null : (k) => setState(() => _kind = k),
-        ),
-        const SizedBox(height: 12),
-        UiKitField(
-          label: 'Value',
-          controller: _value,
-          secret: _kind == EntryKind.secret,
-          enabled: !_saving,
-          error: _error,
-          fieldKey: const Key('settings-variable-value'),
+        UiKitButton(
+          label: 'Cancel',
+          style: UiKitButtonStyle.secondary,
+          fullWidth: true,
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
         ),
       ],
     ),
-    actions: [
-      UiKitButton(
-        key: const Key('settings-variable-save'),
-        label: _saving ? 'Saving…' : 'Save',
-        fullWidth: true,
-        onPressed: _saving ? null : _save,
-      ),
-      UiKitButton(
-        label: 'Cancel',
-        style: UiKitButtonStyle.secondary,
-        fullWidth: true,
-        onPressed: _saving ? null : () => Navigator.pop(context, false),
-      ),
-    ],
   );
 }

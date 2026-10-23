@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/workspace/settings/settings_api.dart';
@@ -81,5 +83,62 @@ void main() {
     expect(api.puts.single.$2, EntryKind.secret);
     expect(find.text('••••6789'), findsOneWidget);
     expect(find.textContaining('tok-0123'), findsNothing);
+    expect(tester.widgetList<EditableText>(find.byType(EditableText)), isEmpty);
   });
+
+  testWidgets('remove_only_after_confirming', (tester) async {
+    final api = FakeSettingsApi(variables: {'REGION': 'x'});
+    await pumpSettings(tester, api, tab: 'variables');
+    await tester.tap(find.byKey(const Key('settings-variable-remove-REGION')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-variable-remove-cancel')));
+    await tester.pumpAndSettle();
+    expect(api.removed, isEmpty);
+    expect(find.text('REGION'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('settings-variable-remove-REGION')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-variable-remove-confirm')));
+    await tester.pumpAndSettle();
+    expect(api.removed, ['REGION']);
+    expect(find.text('REGION'), findsNothing);
+  });
+
+  testWidgets('barrier_tap_mid_save_keeps_dialog_and_reloads_list', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final api = _SlowApi(gate.future);
+    await pumpSettings(tester, api, tab: 'variables');
+    await tester.tap(find.byKey(const Key('settings-variable-add')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('settings-variable-name')),
+      'A',
+    );
+    await tester.enterText(
+      find.byKey(const Key('settings-variable-value')),
+      'v',
+    );
+    await tester.tap(find.byKey(const Key('settings-variable-save')));
+    await tester.pump();
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('settings-variable-save')), findsOneWidget);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('settings-variable-save')), findsNothing);
+    expect(find.text('A'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+final class _SlowApi extends FakeSettingsApi {
+  _SlowApi(this.gate);
+  final Future<void> gate;
+  @override
+  Future<void> putEntry(String name, EntryKind kind, String value) async {
+    await gate;
+    await super.putEntry(name, kind, value);
+  }
 }
