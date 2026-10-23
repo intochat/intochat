@@ -30,15 +30,52 @@ class _ImmutableView extends StatelessWidget {
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
-  Widget _node(BuildContext context, Map node, int depth) {
+  /// The one button dispatch for every kind; null when it cannot act.
+  VoidCallback? _dispatchButton(Map node) =>
+      enabled && node['enabled'] != false && node['action'] is String
+      ? () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          unawaited(
+            dispatch({
+              'kind': 'view',
+              'name': name,
+              'revision': generation,
+              'field': node['key'],
+              'action': node['action'],
+              'operationId': _operationId(),
+            }).catchError((Object _) {}),
+          );
+        }
+      : null;
+
+  /// [slotted]: the node fills an explicit Row/Column extent.
+  Widget _node(
+    BuildContext context,
+    Map node,
+    int depth, {
+    bool slotted = false,
+  }) {
     if (depth > 32) return const Text('This component cannot be displayed.');
     final key = ValueKey('view:$name:${node['key']}');
     final children = (node['children'] as List? ?? const [])
         .whereType<Map>()
         .take(512)
         .toList();
-    final widgets = [
-      for (final child in children) _node(context, child, depth + 1),
+    // Built on demand so a List builds only its visible rows.
+    final extents = node['kind'] == 2 || node['kind'] == 3
+        ? node['extents'] as List? ?? const []
+        : const [];
+    late final widgets = [
+      for (var i = 0; i < children.length; i++)
+        _node(
+          context,
+          children[i],
+          depth + 1,
+          slotted: switch (extents.elementAtOrNull(i)) {
+            final num extent => extent > 0,
+            _ => false,
+          },
+        ),
     ];
     final text = node['text'] as String? ?? '';
     Widget content;
@@ -46,25 +83,23 @@ class _ImmutableView extends StatelessWidget {
       case 0:
         content = markdown(text);
       case 1:
-        content = TextButton(
-          onPressed:
-              enabled && node['enabled'] != false && node['action'] is String
-              ? () {
-                  FocusScope.of(context).unfocus();
-                  unawaited(
-                    dispatch({
-                      'kind': 'view',
-                      'name': name,
-                      'revision': generation,
-                      'field': node['key'],
-                      'action': node['action'],
-                      'operationId': _operationId(),
-                    }).catchError((Object _) {}),
-                  );
-                }
-              : null,
-          child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
+        // Server slots shorter than the 48px button get the 36px compact one.
+        content = LayoutBuilder(
+          builder: (context, constraints) => viewButton(
+            node,
+            _dispatchButton(node),
+            compact: constraints.maxHeight < 48,
+          ),
         );
+        // Only an explicit extent stretches a button; elsewhere it keeps
+        // its content width, capped by the space it is given.
+        if (!slotted) {
+          content = Align(
+            alignment: AlignmentDirectional.centerStart,
+            heightFactor: 1,
+            child: content,
+          );
+        }
       case 2:
       case 3:
         content = layout(
@@ -82,29 +117,21 @@ class _ImmutableView extends StatelessWidget {
           children,
         );
       case 4:
-        content = Container(
+        content = SizedBox(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(
-              UiTokens.of(context).surfaceRadius,
+          child: UiKitSurface(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (text.isNotEmpty)
+                  Text(text, style: Theme.of(context).textTheme.titleLarge),
+                if (node['detail'] case final String detail
+                    when detail.isNotEmpty)
+                  markdown(detail),
+                ...widgets,
+              ],
             ),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (text.isNotEmpty)
-                Text(text, style: Theme.of(context).textTheme.titleLarge),
-              if (node['detail'] case final String detail
-                  when detail.isNotEmpty)
-                markdown(detail),
-              ...widgets,
-            ],
           ),
         );
       case 5:
@@ -115,6 +142,33 @@ class _ImmutableView extends StatelessWidget {
           return reference(target, key);
         }
         content = const Text('This component cannot be displayed.');
+      case 6:
+        content = ViewMenu(node: node, action: _dispatchButton);
+      case 7:
+        content = ViewModal(
+          node: node,
+          children: [
+            for (var i = 0; i < children.length; i++) (children[i], widgets[i]),
+          ],
+          action: _dispatchButton,
+        );
+      case 8:
+        content = ViewToast(
+          node: node,
+          generation: generation,
+          action: _dispatchButton,
+        );
+      case 9:
+        content = ViewList(
+          count: children.length,
+          row: (i) => _node(context, children[i], depth + 1),
+        );
+      case 10:
+        content = ViewBadge(text: text, tone: node['tone']);
+      case 11:
+        content = ViewAvatar(initials: text);
+      case 12:
+        content = ViewDivider(label: text);
       default:
         content = const Text('This component cannot be displayed.');
     }

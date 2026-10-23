@@ -48,8 +48,8 @@ void main() {
       'n': {'label': 'Dark mode', 'on': true},
     });
     expect(find.text('Dark mode'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-    await tester.tap(find.byType(Switch));
+    expect(tester.widget<UiToggle>(find.byType(UiToggle)).on, isTrue);
+    await tester.tap(find.byType(UiToggle));
     await tester.pumpAndSettle();
     expect(events, [
       {'kind': 'toggle', 'name': 'n', 'action': 'flip'},
@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('toggle with missing label renders sanely', (tester) async {
     await pump(tester, 'toggle', {'n': {}});
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(tester.widget<UiToggle>(find.byType(UiToggle)).on, isFalse);
   });
 
   testWidgets('progress clamps value and supports indeterminate', (

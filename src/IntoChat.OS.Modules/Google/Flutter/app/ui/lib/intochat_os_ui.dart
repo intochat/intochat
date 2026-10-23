@@ -5,6 +5,9 @@ export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/components/button/ui_button.dart';
 export 'src/components/card/ui_card.dart';
+export 'src/components/kit/ui_kit_button.dart';
+export 'src/components/kit/ui_kit_field.dart';
+export 'src/components/kit/ui_kit_surface.dart';
 export 'src/components/chart/ui_chart.dart';
 export 'src/components/clock/ui_clock.dart';
 export 'src/components/expander/ui_expander.dart';
@@ -48,6 +51,7 @@ export 'src/composition/ui_collection_view.dart';
 export 'src/composition/application_surface.dart';
 
 export 'src/voice_input/ui_voice_input.dart';
+export 'src/theme/ui_shadows.dart';
 export 'src/theme/ui_tokens.dart';
 export 'src/components/workspace/ui_workspace_components.dart';
 export 'src/shell_icon.dart';

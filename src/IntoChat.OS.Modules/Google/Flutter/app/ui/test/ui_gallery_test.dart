@@ -61,7 +61,7 @@ void main() {
     await tester.tap(find.byKey(const Key('gallery_entry_neuron:textfield')));
     await tester.pumpAndSettle();
     expect(find.text('Composable neuron · dedicated renderer'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Book title'), findsOneWidget);
+    expect(find.widgetWithText(UiKitField, 'Book title'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byKey(const Key('gallery_back')));
     await tester.pumpAndSettle();

@@ -1,6 +1,8 @@
 import '../components/button/ui_neuron_select.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
+import '../components/kit/ui_kit_field.dart';
+import '../components/kit/ui_kit_surface.dart';
 import '../theme/ui_tokens.dart';
 
 import 'dart:async';
@@ -28,6 +30,13 @@ import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
+import 'value_nodes/view_avatar.dart';
+import 'value_nodes/view_badge.dart';
+import 'value_nodes/view_divider.dart';
+import 'value_nodes/view_list.dart';
+import 'value_nodes/view_menu.dart';
+import 'value_nodes/view_modal.dart';
+import 'value_nodes/view_toast.dart';
 
 part 'immutable_view.dart';
 
@@ -1137,38 +1146,45 @@ class _NeuronTextFieldState extends State<_NeuronTextField> {
     final kind = '${widget.definition['kind'] ?? ''}'.toLowerCase();
     final multiline = kind == 'multiline';
     final target = widget.definition['submitButton'] as String?;
-    final field = TextField(
-      key: ValueKey('textfield:${widget.name}'),
-      controller: _controller,
-      focusNode: _focus,
-      enabled: widget.enabled,
-      obscureText: kind == 'secret' || kind == 'password',
-      minLines: multiline ? 2 : 1,
-      maxLines: multiline ? 5 : 1,
-      textInputAction: target == null
-          ? (multiline ? TextInputAction.newline : TextInputAction.done)
-          : TextInputAction.send,
-      decoration: InputDecoration(
-        labelText: widget.definition['label'] as String? ?? '',
-        helperText: _secretIsSet && _controller.text.isEmpty
-            ? 'A value is set'
-            : null,
-        isDense: true,
-      ),
-      onChanged: _change,
-      onSubmitted: target == null ? null : (_) => _submit(target),
-    );
-    return Padding(
-      padding: const EdgeInsets.all(4),
-      child: target == null
-          ? field
-          : CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.enter): () =>
-                    _submit(target),
-              },
-              child: field,
-            ),
+    final label = widget.definition['label'] as String? ?? '';
+    final helper = _secretIsSet && _controller.text.isEmpty
+        ? 'A value is set'
+        : null;
+    // Server layouts may give the field a fixed extent that cannot hold the
+    // label above the box; then the label moves into the placeholder.
+    final needed = 8 + 27 + (multiline ? 60 : 48) + (helper == null ? 0 : 24);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tight = constraints.maxHeight < needed;
+        final field = UiKitField(
+          fieldKey: ValueKey('textfield:${widget.name}'),
+          label: tight ? '' : label,
+          placeholder: tight && label.isNotEmpty ? label : null,
+          controller: _controller,
+          focusNode: _focus,
+          enabled: widget.enabled,
+          secret: kind == 'secret' || kind == 'password',
+          multiline: multiline,
+          textInputAction: target == null
+              ? (multiline ? TextInputAction.newline : TextInputAction.done)
+              : TextInputAction.send,
+          helper: helper,
+          onChanged: _change,
+          onSubmitted: target == null ? null : (_) => _submit(target),
+        );
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: target == null
+              ? field
+              : CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.enter): () =>
+                        _submit(target),
+                  },
+                  child: field,
+                ),
+        );
+      },
     );
   }
 

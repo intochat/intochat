@@ -787,7 +787,7 @@
     "IntoChat.OS.Flutter.Viewport.ViewportState": "ui.viewport-state; Name=0, Revision=1, Target=2",
     "IntoChat.OS.Flutter.Viewport.ViewportStorage": "ui.viewport-storage; Revision=0, Target=1",
     "IntoChat.OS.Flutter.Views.IView": "view (not generated); ",
-    "IntoChat.OS.Flutter.Views.UiNode": "ui.node; Kind=0, Key=1, Text=2, Detail=3, Action=4, Enabled=5, Children=6, Extents=7, Reference=8, Gap=9, FollowEnd=10",
+    "IntoChat.OS.Flutter.Views.UiNode": "ui.node; Kind=0, Key=1, Text=2, Detail=3, Action=4, Enabled=5, Children=6, Extents=7, Reference=8, Gap=9, FollowEnd=10, Icon=11, Style=12, Tone=13",
     "IntoChat.OS.Flutter.Views.UiView": "ui.view; Generation=0, Version=1, Root=2",
     "IntoChat.OS.Flutter.Views.ViewAction": "ui.view-action; Name=0, Key=1, Action=2, RequestId=3, Generation=4",
     "IntoChat.OS.Flutter.Views.ViewChanged": "ui.view-changed; Name=0, Generation=1, Version=2",

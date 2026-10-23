@@ -49,7 +49,7 @@ public sealed class SelfImproveAvailabilityFacts
         await using var running = await Running.Start(edge, "request.cs");
         await running.Wait(() => edge.Initialized > 0);
         var id = edge.Request("request", Change);
-        await running.Wait(() => edge.Text("handled") == id.ToString("N"));
+        await running.Wait(() => edge.Text("handled") == id.ToString("N") && edge.Text("revisions") == Unavailable);
         Assert.Equal("", edge.Text("last"));
         Assert.Equal("Request refused: " + Unavailable, edge.Text("report"));
         Assert.Equal(Unavailable, edge.Text("revisions"));

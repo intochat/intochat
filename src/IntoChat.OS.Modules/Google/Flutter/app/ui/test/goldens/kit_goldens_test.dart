@@ -31,18 +31,30 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: entry.value(),
-          home: const Material(child: KitSheet()),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await expectLater(
-        find.byType(KitSheet),
-        matchesGoldenFile('kit_${entry.key}.png'),
-      );
+      // flutter_test draws shadows unblurred by default; goldens need the
+      // real Figma elevation.
+      // The framework checks the flag before tear-downs, so reset it here.
+      debugDisableShadows = false;
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: entry.value(),
+            home: const Material(child: KitSheet()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.bySemanticsLabel(KitSheet.menuTrigger));
+        await tester.pumpAndSettle();
+        await expectLater(
+          find.byType(KitSheet),
+          matchesGoldenFile('kit_${entry.key}.png'),
+        );
+        // Let the toast's 4 s timer finish before the test ends.
+        await tester.pump(const Duration(seconds: 5));
+      } finally {
+        debugDisableShadows = true;
+      }
     });
   }
 }

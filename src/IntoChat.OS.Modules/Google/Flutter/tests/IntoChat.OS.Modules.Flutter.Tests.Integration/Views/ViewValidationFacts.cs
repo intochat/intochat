@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Views;
 using Xunit;
@@ -50,6 +51,53 @@ public sealed class ViewValidationFacts
         { Assert.Equal(kind, ViewValidation.Clone(new(1, 1, Ui.Reference(kind, new(kind, "brain/apps/test/" + kind))), "brain/apps/test/view").Root.Reference!.Kind); }
         foreach (var kind in new[] { "view", "layout", "surface", "card", "collection", "tabs", "expander", "unknown" })
         { Invalid(Ui.Reference(kind, new(kind, "brain/apps/test/child"))); }
+    }
+
+    [Fact]
+    public void EveryKitBuilderRoundTrips()
+    {
+        var root = Ui.Column("root",
+        [
+            Ui.Button("save", "Save", "save", style: UiStyle.Secondary, icon: "save"),
+            Ui.IconButton("close", "x", "Close", "close"),
+            Ui.Menu("menu", "More", [Ui.Text("label", "Actions"), Ui.Button("rename", "Rename", "rename"), Ui.Divider("split"), Ui.Button("delete", "Delete", "delete", style: UiStyle.Danger)], icon: "ellipsis"),
+            Ui.Modal("modal", "Delete app?", "This cannot be undone.", [Ui.Button("cancel", "Cancel", "cancel", style: UiStyle.Ghost), Ui.Button("confirm", "Delete", "confirm", style: UiStyle.Danger)]),
+            Ui.Toast("toast", "Saved", UiTone.Done, Ui.Button("undo", "Undo", "undo", style: UiStyle.Link)),
+            Ui.Toast("plain", "Working", UiTone.Working),
+            Ui.List("list", [Ui.Row("row", [Ui.Avatar("avatar", "VH"), Ui.Text("name", "Vlad"), Ui.Badge("badge", "Error", UiTone.Error)])]),
+            Ui.Divider("labelled", "Today"),
+        ]);
+        var copy = ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view").Root;
+        Assert.Equal(JsonSerializer.Serialize(root, ViewValidation.Json), JsonSerializer.Serialize(copy, ViewValidation.Json));
+        Assert.Equal((UiStyle.Ghost, "x", "Close"), (copy.Children[1].Style, copy.Children[1].Icon, copy.Children[1].Text));
+        Assert.Equal(UiTone.Done, copy.Children[4].Tone);
+    }
+
+    [Fact]
+    public void KitContainersEnforceTheirShape()
+    {
+        Invalid(Ui.Menu("menu", "More", [Ui.Text("label", "Only a label"), Ui.Divider("split")]));
+        Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go"), Ui.Column("nested", [])]));
+        Invalid(Ui.Modal("modal", " ", null, [Ui.Button("ok", "OK", "ok")]));
+        Invalid(Ui.Modal("modal", "Title", null, [Ui.Text("body", "No button")]));
+        Invalid(new(UiNodeKind.Toast, "toast") { Text = "Two", Children = [Ui.Button("a", "A", "a"), Ui.Button("b", "B", "b")] });
+        Invalid(Ui.Badge("badge", " ", UiTone.Done));
+        Invalid(Ui.Avatar("avatar", ""));
+        Invalid(Ui.Divider("divider") with { Children = [Ui.Text("text", "x")] });
+        Invalid(Ui.Badge("badge", "x", UiTone.Done) with { Children = [Ui.Text("text", "x")] });
+        Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go")]) with { Action = "open" });
+    }
+
+    [Fact]
+    public void IconsStyleAndToneAreBounded()
+    {
+        Invalid(Ui.Button("go", "Go", "go", icon: "../x"));
+        Invalid(Ui.Button("go", "Go", "go", icon: "Upper"));
+        Invalid(Ui.Button("go", "Go", "go", icon: ""));
+        Invalid(Ui.Button("go", "Go", "go", icon: new string('a', 65)));
+        Assert.Equal(64, ViewValidation.Clone(new(1, 1, Ui.Button("go", "Go", "go", icon: new string('a', 64))), "brain/apps/test/view").Root.Icon!.Length);
+        Invalid(Ui.Button("go", "Go", "go", style: (UiStyle)9));
+        Invalid(Ui.Badge("badge", "x", (UiTone)9));
     }
 
     private static void Invalid(UiNode root) => Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view"));
