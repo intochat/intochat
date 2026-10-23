@@ -75,4 +75,27 @@ public sealed class ViewFacts(FlutterHost host)
         var action = await actions.NextAsync(ct: ct);
         Assert.Equal(("go", "navigate", request, 3L), (action.Key, action.Action, action.RequestId, action.Generation));
     }
+
+    [Fact]
+    public async Task ButtonsNestedInKitContainersActivate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var view = brain.Get<IView>("kit-actions");
+        await using var actions = await brain.Observe<ViewAction>(view, ct);
+        await view.Publish(new(1, 1, Ui.Column("root",
+        [
+            Ui.Menu("menu", "More", [Ui.Button("rename", "Rename", "rename")]),
+            Ui.Modal("modal", "Sure?", null, [Ui.Button("confirm", "Yes", "confirm")]),
+            Ui.Toast("toast", "Saved", UiTone.Done, Ui.Button("undo", "Undo", "undo")),
+        ])));
+        foreach (var (key, action) in new[] { ("rename", "rename"), ("confirm", "confirm"), ("undo", "undo") })
+        {
+            var request = Guid.NewGuid();
+            await view.Activate(1, key, action, request);
+            var published = await actions.NextAsync(ct: ct);
+            Assert.Equal((key, action, request), (published.Key, published.Action, published.RequestId));
+        }
+        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(1, "menu", "rename", Guid.NewGuid()));
+    }
 }

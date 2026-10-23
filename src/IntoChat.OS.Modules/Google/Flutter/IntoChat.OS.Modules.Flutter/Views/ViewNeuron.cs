@@ -95,7 +95,15 @@ internal static class ViewValidation
             if (!Enum.IsDefined(node.Kind) || string.IsNullOrWhiteSpace(node.Key) || node.Key.Length > 256 || !keys.Add(node.Key)) { throw new ArgumentException("View nodes require unique nonempty keys and known kinds."); }
             if (node.Children is null || !double.IsFinite(node.Gap) || node.Gap < 0) { throw new ArgumentException("Invalid view layout."); }
             if (node.Extents is { } extents && (extents.Length != node.Children.Length || extents.Any(value => !double.IsFinite(value) || value < 0))) { throw new ArgumentException("Extents must match children and be finite nonnegative values."); }
-            if (node.Kind is UiNodeKind.Text or UiNodeKind.Button or UiNodeKind.Reference && node.Children.Length != 0) { throw new ArgumentException("Leaf nodes cannot have children."); }
+            if (node.Kind is UiNodeKind.Text or UiNodeKind.Button or UiNodeKind.Reference or UiNodeKind.Badge or UiNodeKind.Avatar or UiNodeKind.Divider && node.Children.Length != 0) { throw new ArgumentException("Leaf nodes cannot have children."); }
+            if (!Enum.IsDefined(node.Style) || !Enum.IsDefined(node.Tone)) { throw new ArgumentException("View nodes require a known style and tone."); }
+            if (node.Icon is { } icon && (icon.Length is 0 or > 64 || !icon.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-'))) { throw new ArgumentException("Icons are at most 64 characters of [a-z0-9-]."); }
+            if (node.Kind is UiNodeKind.Badge or UiNodeKind.Avatar && string.IsNullOrWhiteSpace(node.Text)) { throw new ArgumentException("Badges and avatars require text."); }
+            if (node.Kind == UiNodeKind.Menu && (node.Children.Any(child => child?.Kind is not (UiNodeKind.Button or UiNodeKind.Divider or UiNodeKind.Text)) || !node.Children.Any(child => child.Kind == UiNodeKind.Button)))
+            { throw new ArgumentException("Menus hold buttons, dividers and text labels, with at least one button."); }
+            if (node.Kind == UiNodeKind.Modal && (string.IsNullOrWhiteSpace(node.Text) || !node.Children.Any(child => child?.Kind == UiNodeKind.Button)))
+            { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
+            if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }
             if (node.Kind == UiNodeKind.Button && (string.IsNullOrWhiteSpace(node.Text) || string.IsNullOrWhiteSpace(node.Action))) { throw new ArgumentException("Buttons require text and a canonical action."); }
             if (node.Kind != UiNodeKind.Button && node.Action is not null) { throw new ArgumentException("Only buttons have actions."); }
             if (node.Kind == UiNodeKind.Reference)
