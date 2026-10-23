@@ -91,6 +91,13 @@ class _ModelSettingsState extends State<ModelSettings> {
     final reason = option.reason ?? unavailableModelReason;
     // Figma `.model-option`: auto / 1fr / auto, gap 10, hairline, radius 10,
     // padding 11; the active row is an accent border on accentTint.
+    final detail = [
+      if (option.provider != null) option.provider!,
+      if (option.model != null) option.model!,
+      if (!option.available)
+        automatic ? noModelReason : option.reason ?? unavailableModelReason,
+      if (option.capabilities.isNotEmpty) option.capabilities.join(' · '),
+    ].join(' · ');
     final tile = Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -105,6 +112,9 @@ class _ModelSettingsState extends State<ModelSettings> {
         child: ListTile(
           contentPadding: const EdgeInsets.all(11),
           horizontalTitleGap: 10,
+          minVerticalPadding: 0,
+          dense: true,
+          minTileHeight: 0,
           selected: active,
           enabled: selectable,
           leading: Icon(
@@ -115,22 +125,16 @@ class _ModelSettingsState extends State<ModelSettings> {
             automatic ? autoModelLabel : option.label,
             style: type.body.copyWith(
               color: c.strong,
+              fontSize: 13,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
-          subtitle: Text(
-            style: type.meta.copyWith(color: c.muted),
-            [
-              if (option.provider != null) option.provider!,
-              if (option.model != null) option.model!,
-              if (!option.available)
-                automatic
-                    ? noModelReason
-                    : option.reason ?? unavailableModelReason,
-              if (option.capabilities.isNotEmpty)
-                option.capabilities.join(' · '),
-            ].join(' · '),
-          ),
+          subtitle: detail.isEmpty
+              ? null
+              : Text(
+                  style: type.meta.copyWith(fontSize: 11, color: c.muted),
+                  detail,
+                ),
           onTap: selectable && !_loading
               ? () => widget.onSelected(option.id)
               : null,
