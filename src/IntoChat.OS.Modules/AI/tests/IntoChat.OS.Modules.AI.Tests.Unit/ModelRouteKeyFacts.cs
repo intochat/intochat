@@ -9,8 +9,11 @@ public sealed class ModelRouteKeyFacts
 {
     private static CallerContext Caller(string brainId) => new()
     {
-        PrincipalId = "person-1", AccountId = "account-1", BrainId = brainId,
-        Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+        PrincipalId = "person-1",
+        AccountId = "account-1",
+        BrainId = brainId,
+        Kind = CallerKind.User,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
     };
 
     [Fact]
