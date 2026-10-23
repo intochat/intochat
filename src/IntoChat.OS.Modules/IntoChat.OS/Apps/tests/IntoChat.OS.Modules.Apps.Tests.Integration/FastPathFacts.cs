@@ -497,6 +497,9 @@ public sealed class FastPathFacts : IDisposable
         string? kernelPhase = null;
         void RecordKernel(long id, string method, string phase, string stage)
             => kernelCalls.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var grainReads = new ConcurrentQueue<(long Id, string Method, string Phase, string Stage, double ElapsedMs)>();
+        void RecordGrainRead(long id, string method, string phase, string stage)
+            => grainReads.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
         var runtime = new FakeAppRuntime();
         var sandbox = new FastPathSandbox();
         var shipped = ShippedFeatures();
@@ -507,8 +510,11 @@ public sealed class FastPathFacts : IDisposable
             return null;
         };
         await using var brain = await Start(model, runtime, sandbox, ct, features: shipped, configure: services =>
+        {
             services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
-                () => Volatile.Read(ref kernelPhase), RecordKernel)));
+                () => Volatile.Read(ref kernelPhase), RecordKernel));
+            services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
+        });
         Mark("host-ready");
         model.Script(Writer, Reply("lemons.cs", Lemons));
         var app = await Created(brain, "grocer");
@@ -553,6 +559,7 @@ public sealed class FastPathFacts : IDisposable
                 elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 stages = stages.Select(stage => new { name = stage.Name, elapsedMs = stage.ElapsedMs }),
                 kernel = kernelCalls.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
+                grainReads = grainReads.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
                 inferenceStarted = signals.OfType<InferenceStarted>().Count(),
                 inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
                 inferenceFailed = signals.OfType<InferenceFailed>().Count(),
@@ -1172,6 +1179,38 @@ public sealed class FastPathFacts : IDisposable
         public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
             => inner.LoadFeature(brain, feature, types, cancellationToken);
         public Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default) => inner.UnloadFeature(brain, name, cancellationToken);
+    }
+
+    private sealed class TimedGrainReads(Func<string?> phase, Action<long, string, string, string> record) : IOutgoingGrainCallFilter
+    {
+        private long _next;
+
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            var capturedPhase = phase();
+            if (capturedPhase is null) { return context.Invoke(); }
+            var method = context.InterfaceMethod;
+            var label = method?.DeclaringType == typeof(IApp) && method.Name == nameof(IApp.Read) ? "App.Read"
+                : method?.DeclaringType == typeof(IBrainRuntime) && method.Name == nameof(IBrainRuntime.Inspect) ? "Runtime.Inspect" : null;
+            if (label is null) { return context.Invoke(); }
+            var id = Interlocked.Increment(ref _next);
+            record(id, label, capturedPhase, "entered");
+            Task pending;
+            try { pending = context.Invoke(); }
+            catch { record(id, label, capturedPhase, "stopped"); throw; }
+            return Observe(pending, id, label, capturedPhase);
+        }
+
+        private async Task Observe(Task pending, long id, string label, string capturedPhase)
+        {
+            var completed = false;
+            try
+            {
+                await pending.ConfigureAwait(false);
+                completed = true;
+            }
+            finally { record(id, label, capturedPhase, completed ? "completed" : "stopped"); }
+        }
     }
 
     private const int SynapseWriterCalls = 4;
