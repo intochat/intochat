@@ -27,6 +27,15 @@ class UiColors extends ThemeExtension<UiColors> {
     required this.workingBg,
     required this.error,
     required this.errorBg,
+    required this.accentCopy,
+    required this.accentCopyHover,
+    required this.focus,
+    required this.userBubble,
+    required this.userText,
+    required this.assistant,
+    required this.assistantText,
+    required this.assistantBorder,
+    required this.menuHover,
   });
 
   final Color page;
@@ -48,6 +57,15 @@ class UiColors extends ThemeExtension<UiColors> {
   final Color workingBg;
   final Color error;
   final Color errorBg;
+  final Color accentCopy;
+  final Color accentCopyHover;
+  final Color focus;
+  final Color userBubble;
+  final Color userText;
+  final Color assistant;
+  final Color assistantText;
+  final Color assistantBorder;
+  final Color menuHover;
 
   /// IntoChat (Figma) light palette.
   static const intochatLight = UiColors(
@@ -70,6 +88,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg: Color(0xFFFCF1DA),
     error: Color(0xFFE0402F),
     errorBg: Color(0xFFFCE7E3),
+    accentCopy: Color(0xFF1F5EFF),
+    accentCopyHover: Color(0xFF1541C7),
+    focus: Color(0x591F5EFF),
+    userBubble: Color(0xFF17140F),
+    userText: Color(0xFFFBFAF7),
+    assistant: Color(0xFFFFFFFF),
+    assistantText: Color(0xFF2A251E),
+    assistantBorder: Color(0xFFE4DFD5),
+    menuHover: Color(0xFFF2EFE9),
   );
 
   /// IntoChat (Figma) dark palette; status backgrounds are 16% alpha.
@@ -93,6 +120,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg: Color(0x29F6D28A),
     error: Color(0xFFF3A99F),
     errorBg: Color(0x29F3A99F),
+    accentCopy: Color(0xFFFBFAF7),
+    accentCopyHover: Color(0xFFF0ECE4),
+    focus: Color(0x734B7DFF),
+    userBubble: Color(0xFFFBFAF7),
+    userText: Color(0xFF17140F),
+    assistant: Color(0xFF2A251E),
+    assistantText: Color(0xFFF0ECE4),
+    assistantBorder: Color(0xFF423B31),
+    menuHover: Color(0x99423B31),
   );
 
   /// Mapped from the v1 midnight palette (v1 product palette). Error is the dark theme's Material
@@ -119,6 +155,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg: Color(0x29E09261),
     error: Color(0xFFFFB4AB),
     errorBg: Color(0x29FFB4AB),
+    accentCopy: Color(0xFF7B9BE3),
+    accentCopyHover: Color(0xFF7B9BE3),
+    focus: Color(0x597B9BE3),
+    userBubble: Color(0xFFE9EBF2),
+    userText: Color(0xFF141720),
+    assistant: Color(0xFF1B1F2A),
+    assistantText: Color(0xFFE9EBF2),
+    assistantBorder: Color(0xFF292E3B),
+    menuHover: Color(0xFF11141B),
   );
 
   /// Mapped from the v1 light theme ([LumenPalette] values). done=accent,
@@ -143,6 +188,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg: Color(0x29986A37),
     error: LumenPalette.error,
     errorBg: Color(0x29AD4F3F),
+    accentCopy: LumenPalette.accent,
+    accentCopyHover: LumenPalette.accent,
+    focus: Color(0x59397B63),
+    userBubble: LumenPalette.ink,
+    userText: LumenPalette.background,
+    assistant: LumenPalette.surface,
+    assistantText: LumenPalette.ink,
+    assistantBorder: LumenPalette.line,
+    menuHover: LumenPalette.surfaceMuted,
   );
 
   /// Lumen: green on near-black, from `UiTheme.workspaceDark('lumen')`.
@@ -168,6 +222,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg: Color(0x29D9A867),
     error: Color(0xFFFFB4AB),
     errorBg: Color(0x29FFB4AB),
+    accentCopy: Color(0xFF7CE0A8),
+    accentCopyHover: Color(0xFF7CE0A8),
+    focus: Color(0x597CE0A8),
+    userBubble: Color(0xFFE3EFE8),
+    userText: Color(0xFF060A08),
+    assistant: Color(0xFF0B120F),
+    assistantText: Color(0xFFE3EFE8),
+    assistantBorder: Color(0xFF1D2D24),
+    menuHover: Color(0xFF0F1813),
   );
 
   /// Resolves the colours from [Theme], falling back to [intochatLight] when
@@ -196,7 +259,16 @@ class UiColors extends ThemeExtension<UiColors> {
       other.working == working &&
       other.workingBg == workingBg &&
       other.error == error &&
-      other.errorBg == errorBg;
+      other.errorBg == errorBg &&
+      other.accentCopy == accentCopy &&
+      other.accentCopyHover == accentCopyHover &&
+      other.focus == focus &&
+      other.userBubble == userBubble &&
+      other.userText == userText &&
+      other.assistant == assistant &&
+      other.assistantText == assistantText &&
+      other.assistantBorder == assistantBorder &&
+      other.menuHover == menuHover;
 
   @override
   int get hashCode => Object.hashAll([
@@ -219,6 +291,15 @@ class UiColors extends ThemeExtension<UiColors> {
     workingBg,
     error,
     errorBg,
+    accentCopy,
+    accentCopyHover,
+    focus,
+    userBubble,
+    userText,
+    assistant,
+    assistantText,
+    assistantBorder,
+    menuHover,
   ]);
 
   @override
@@ -242,6 +323,15 @@ class UiColors extends ThemeExtension<UiColors> {
     Color? workingBg,
     Color? error,
     Color? errorBg,
+    Color? accentCopy,
+    Color? accentCopyHover,
+    Color? focus,
+    Color? userBubble,
+    Color? userText,
+    Color? assistant,
+    Color? assistantText,
+    Color? assistantBorder,
+    Color? menuHover,
   }) {
     return UiColors(
       page: page ?? this.page,
@@ -263,6 +353,15 @@ class UiColors extends ThemeExtension<UiColors> {
       workingBg: workingBg ?? this.workingBg,
       error: error ?? this.error,
       errorBg: errorBg ?? this.errorBg,
+      accentCopy: accentCopy ?? this.accentCopy,
+      accentCopyHover: accentCopyHover ?? this.accentCopyHover,
+      focus: focus ?? this.focus,
+      userBubble: userBubble ?? this.userBubble,
+      userText: userText ?? this.userText,
+      assistant: assistant ?? this.assistant,
+      assistantText: assistantText ?? this.assistantText,
+      assistantBorder: assistantBorder ?? this.assistantBorder,
+      menuHover: menuHover ?? this.menuHover,
     );
   }
 
@@ -289,6 +388,15 @@ class UiColors extends ThemeExtension<UiColors> {
       workingBg: Color.lerp(workingBg, other.workingBg, t)!,
       error: Color.lerp(error, other.error, t)!,
       errorBg: Color.lerp(errorBg, other.errorBg, t)!,
+      accentCopy: Color.lerp(accentCopy, other.accentCopy, t)!,
+      accentCopyHover: Color.lerp(accentCopyHover, other.accentCopyHover, t)!,
+      focus: Color.lerp(focus, other.focus, t)!,
+      userBubble: Color.lerp(userBubble, other.userBubble, t)!,
+      userText: Color.lerp(userText, other.userText, t)!,
+      assistant: Color.lerp(assistant, other.assistant, t)!,
+      assistantText: Color.lerp(assistantText, other.assistantText, t)!,
+      assistantBorder: Color.lerp(assistantBorder, other.assistantBorder, t)!,
+      menuHover: Color.lerp(menuHover, other.menuHover, t)!,
     );
   }
 }

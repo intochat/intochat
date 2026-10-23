@@ -22,6 +22,11 @@ final class UiTypeSet {
     required this.meta,
     required this.metaStrong,
     required this.empty,
+    required this.control,
+    required this.fieldLabel,
+    required this.menuItem,
+    required this.menuLabel,
+    required this.toast,
   });
 
   final TextStyle title;
@@ -33,6 +38,11 @@ final class UiTypeSet {
   final TextStyle meta;
   final TextStyle metaStrong;
   final TextStyle empty;
+  final TextStyle control;
+  final TextStyle fieldLabel;
+  final TextStyle menuItem;
+  final TextStyle menuLabel;
+  final TextStyle toast;
 }
 
 abstract final class UiType {
@@ -94,6 +104,11 @@ abstract final class UiType {
       meta: s(_meta, c.muted, isMono: true),
       metaStrong: s(_metaStrong, c.strong, isMono: true),
       empty: s(_empty, c.strong, head: true),
+      control: s(_control, c.strong),
+      fieldLabel: s(_fieldLabel, c.strong),
+      menuItem: s(_menuItem, c.body),
+      menuLabel: s(_menuLabel, c.muted, isMono: true),
+      toast: s(_toast, c.body),
     );
   }
 
@@ -181,6 +196,47 @@ final _empty = TextStyle(
   fontSize: 18,
   fontWeight: FontWeight.w600,
   letterSpacing: -0.3,
+  color: UiColors.midnight.strong,
+);
+
+final _control = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 14,
+  fontWeight: FontWeight.w700,
+  color: UiColors.midnight.strong,
+);
+
+final _fieldLabel = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 14,
+  fontWeight: FontWeight.w600,
+  color: UiColors.midnight.strong,
+);
+
+final _menuItem = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+  color: UiColors.midnight.strong,
+);
+
+final _menuLabel = TextStyle(
+  fontFamily: UiType.monoFamily,
+  fontFamilyFallback: UiType.monoFallback,
+  fontSize: 11,
+  fontWeight: FontWeight.w500,
+  letterSpacing: 0.88,
+  color: UiColors.midnight.strong,
+);
+
+final _toast = TextStyle(
+  fontFamily: UiType.bodyFamily,
+  fontFamilyFallback: UiType.bodyFallback,
+  fontSize: 13,
+  fontWeight: FontWeight.w500,
   color: UiColors.midnight.strong,
 );
 
