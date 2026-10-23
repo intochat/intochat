@@ -80,7 +80,7 @@ public sealed class SelfImproveAvailabilityFacts
         var candidateReads = edge.Calls.Count(call => call.Contract == typeof(ICandidate).FullName);
         edge.Available = false;
         if (script == "open.cs") { edge.Request("open", ""); }
-        else { edge.Changed(); }
+        else { edge.Changed(Edge.CandidateKey); }
         await running.Wait(() => edge.Text("revisions") == Unavailable);
         Assert.Equal(deployments, edge.Calls.Count(call => call.Contract == typeof(IDeployment).FullName));
         Assert.Equal(candidateReads, edge.Calls.Count(call => call.Contract == typeof(ICandidate).FullName));
@@ -115,7 +115,7 @@ public sealed class SelfImproveAvailabilityFacts
         await using var running = await Running.Start(edge, script);
         await running.Wait(() => edge.Initialized > 0);
         edge.Changed();
-        await running.Wait(() => edge.Acknowledged > 0);
+        await running.Wait(() => available ? edge.Acknowledged > 0 : edge.Text("revisions") == Unavailable);
         var actions = edge.Calls.Where(call => call.Method is nameof(ICandidate.Verify) or nameof(ICandidate.Promote)).ToArray();
         if (available) { Assert.Equal(stage == CandidateStage.Healthy ? nameof(ICandidate.Verify) : nameof(ICandidate.Promote), Assert.Single(actions).Method); }
         else
@@ -126,6 +126,91 @@ public sealed class SelfImproveAvailabilityFacts
         }
         Assert.True(edge.Subscriptions.Count > 0);
         Assert.False(running.Execution.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData(CandidateStage.Starting, CandidateStage.Healthy)]
+    [InlineData(CandidateStage.Verifying, CandidateStage.Verified)]
+    public async Task AnInterruptedCandidateResumesWithoutAnotherSignalAndReleasesTheNextProposal(CandidateStage before, CandidateStage interrupted)
+    {
+        using var edge = new Edge { Available = true, HasCandidate = true, Stage = before, QueueProposals = true };
+        await using var running = await Running.Start(edge, "healthy.cs", "verified.cs", "request.cs");
+        await running.Wait(() => edge.Initialized == 3);
+        edge.Changed();
+        await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Behavior.EndsWith("/verified.cs", StringComparison.Ordinal)
+            && subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+        if (interrupted == CandidateStage.Healthy)
+        {
+            await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Behavior.EndsWith("/healthy.cs", StringComparison.Ordinal)
+                && subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+        }
+        edge.Available = false;
+        edge.Stage = interrupted;
+        edge.Changed(Edge.CandidateKey);
+        await running.Wait(() => edge.Text("revisions") == Unavailable && edge.UnavailableCallbacks.Count == (interrupted == CandidateStage.Healthy ? 2 : 1));
+        AssertNoDeploymentActions(edge);
+
+        // Restoration emits no signal. The next request queues behind the still-live first candidate;
+        // only resuming and promoting that candidate can start the queued proposal.
+        edge.PauseCallbackDiscovery = true;
+        edge.Available = true;
+        edge.Request("request", Change);
+        await running.Wait(() => edge.NextStage == CandidateStage.Queued);
+        Assert.Equal(interrupted, edge.Stage);
+        edge.ResumeCallbacks.TrySetResult();
+        await running.Wait(() => edge.NextStage == CandidateStage.Starting);
+        Assert.Equal(CandidateStage.Promoted, edge.Stage);
+        var firstActions = edge.Calls.Where(call => call.Key == Edge.CandidateKey && call.Method is nameof(ICandidate.Verify) or nameof(ICandidate.Promote)).ToArray();
+        Assert.Equal(interrupted == CandidateStage.Healthy ? [nameof(ICandidate.Verify), nameof(ICandidate.Promote)] : [nameof(ICandidate.Promote)],
+            firstActions.Select(call => call.Method));
+
+        var nextKey = "fixture-brain/aspire/candidate/new-sha";
+        await running.Wait(() => edge.Subscriptions.Values.Count(subscription => subscription.Key == nextKey && subscription.Signal == nameof(CandidateChanged)) == 2);
+        edge.NextStage = CandidateStage.Healthy;
+        edge.Changed(nextKey, "new-sha");
+        await running.Wait(() => edge.NextStage == CandidateStage.Promoted);
+        Assert.Equal([nameof(ICandidate.Verify), nameof(ICandidate.Promote)], edge.Calls
+            .Where(call => call.Key == nextKey && call.Method is nameof(ICandidate.Verify) or nameof(ICandidate.Promote)).Select(call => call.Method));
+        Assert.False(running.Execution.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData("healthy.cs", CandidateStage.Starting, CandidateStage.Healthy, CandidateStage.Verified)]
+    [InlineData("verified.cs", CandidateStage.Verifying, CandidateStage.Verified, CandidateStage.Promoted)]
+    public async Task RestorationReadsTheCurrentStageBeforeRepeatingAnAction(string script, CandidateStage before, CandidateStage interrupted, CandidateStage progressed)
+    {
+        using var edge = new Edge { Available = true, HasCandidate = true, Stage = before };
+        await using var running = await Running.Start(edge, script);
+        await running.Wait(() => edge.Initialized > 0);
+        edge.Changed();
+        await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+        edge.Available = false;
+        edge.Stage = interrupted;
+        edge.Changed(Edge.CandidateKey);
+        await running.Wait(() => edge.Text("revisions") == Unavailable);
+        AssertNoDeploymentActions(edge);
+        var reads = edge.Calls.Count(call => call.Key == Edge.CandidateKey && call.Method == nameof(ICandidate.Read));
+        edge.Stage = progressed;
+        edge.Available = true;
+        await running.Wait(() => edge.Calls.Count(call => call.Key == Edge.CandidateKey && call.Method == nameof(ICandidate.Read)) > reads);
+        AssertNoDeploymentActions(edge);
+        Assert.False(running.Execution.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData("healthy.cs", CandidateStage.Healthy)]
+    [InlineData("verified.cs", CandidateStage.Verified)]
+    public async Task DiscoveryFailureWhileACandidateWaitsRemainsAnError(string script, CandidateStage stage)
+    {
+        using var edge = new Edge { Stage = stage };
+        await using var running = await Running.Start(edge, script);
+        await running.Wait(() => edge.Initialized > 0);
+        edge.Changed();
+        await running.Wait(() => edge.Text("revisions") == Unavailable);
+        edge.FailDiscovery = true;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(running.Complete);
+        Assert.Contains("Discovery fixture failed", error.Message, StringComparison.Ordinal);
+        AssertNoDeploymentActions(edge);
     }
 
     [Theory]
@@ -164,21 +249,25 @@ public sealed class SelfImproveAvailabilityFacts
         private bool _failureObserved;
         public Task Execution => execution;
 
-        public static async Task<Running> Start(Edge edge, string script)
+        public static async Task<Running> Start(Edge edge, params string[] scripts)
         {
             var ct = TestContext.Current.CancellationToken;
             var session = await SessionConnection.OpenAsync(new("http://brain.test/brains/fixture-brain/"), "fixture-token", "fixture-fingerprint", edge, ct);
             var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            using var ambient = AmbientSession.Enter(session, Edge.App + "/" + script, new Dictionary<string, string>
-            { ["App"] = Edge.App, ["Brain"] = "fixture-brain", ["ProgramRevision"] = "1" }, stop.Token, "fixture-hash", "fixture-revision");
-            var entry = Assembly.Load(Scripts.Value[script].Assembly).EntryPoint!;
-            var execution = Task.Run(async () =>
+            var executions = new List<Task>();
+            foreach (var script in scripts)
             {
-                try { if (entry.Invoke(null, [Array.Empty<string>()]) is Task task) { await task; } }
-                catch (TargetInvocationException error) when (error.InnerException is OperationCanceledException && stop.IsCancellationRequested) { }
-                catch (TargetInvocationException error) when (error.InnerException is InvalidOperationException failure) { throw failure; }
-            }, CancellationToken.None);
-            return new(session, stop, execution);
+                using var ambient = AmbientSession.Enter(session, Edge.App + "/" + script, new Dictionary<string, string>
+                { ["App"] = Edge.App, ["Brain"] = "fixture-brain", ["ProgramRevision"] = "1" }, stop.Token, "fixture-hash", "fixture-revision");
+                var entry = Assembly.Load(Scripts.Value[script].Assembly).EntryPoint!;
+                executions.Add(Task.Run(async () =>
+                {
+                    try { if (entry.Invoke(null, [Array.Empty<string>()]) is Task task) { await task; } }
+                    catch (TargetInvocationException error) when (error.InnerException is OperationCanceledException && stop.IsCancellationRequested) { }
+                    catch (TargetInvocationException error) when (error.InnerException is InvalidOperationException failure) { throw failure; }
+                }, CancellationToken.None));
+            }
+            return new(session, stop, Task.WhenAll(executions));
         }
 
         public async Task Wait(Func<bool> predicate)
@@ -209,15 +298,21 @@ public sealed class SelfImproveAvailabilityFacts
     private sealed class Edge : HttpMessageHandler
     {
         public const string App = "fixture-brain/apps/selfimprove";
+        public const string CandidateKey = "fixture-brain/aspire/candidate/candidate-sha";
         private readonly Channel<byte[]> _events = Channel.CreateUnbounded<byte[]>();
         private readonly ConcurrentDictionary<string, string> _texts = new(StringComparer.Ordinal);
         private long _watermark;
         private int _initialized, _acknowledged;
         public volatile bool Available;
         public bool HasCandidate { get; init; }
-        public bool FailDiscovery { get; init; }
+        public volatile bool FailDiscovery;
         public bool FailDeployment { get; init; }
+        public bool QueueProposals { get; init; }
+        public volatile bool PauseCallbackDiscovery;
         public CandidateStage Stage { get; set; } = CandidateStage.Healthy;
+        public CandidateStage? NextStage { get; set; }
+        public ConcurrentDictionary<string, byte> UnavailableCallbacks { get; } = new(StringComparer.Ordinal);
+        public TaskCompletionSource ResumeCallbacks { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ConcurrentQueue<RuntimeInvocation> Calls { get; } = new();
         public ConcurrentDictionary<string, SubscribeReport> Subscriptions { get; } = new(StringComparer.Ordinal);
         public int Initialized => Volatile.Read(ref _initialized);
@@ -228,15 +323,16 @@ public sealed class SelfImproveAvailabilityFacts
         public Guid Request(string operation, string input, Guid? id = null)
         {
             var requestId = id ?? Guid.NewGuid();
-            Publish(nameof(AppRequested), new AppRequested(operation, input, requestId));
+            Publish(App, nameof(AppRequested), new AppRequested(operation, input, requestId));
             return requestId;
         }
 
-        public void Changed() => Publish(nameof(CandidateChanged), new CandidateChanged("candidate-sha", Stage));
+        public void Changed(string source = "fixture-brain/aspire/candidates", string sha = "candidate-sha")
+            => Publish(source, nameof(CandidateChanged), new CandidateChanged(sha, sha == "candidate-sha" ? Stage : NextStage!.Value));
 
-        private void Publish<T>(string signal, T value)
+        private void Publish<T>(string source, string signal, T value)
         {
-            foreach (var (id, subscription) in Subscriptions.Where(item => item.Value.Signal == signal))
+            foreach (var (id, subscription) in Subscriptions.Where(item => item.Value.Key == source && item.Value.Signal == signal))
             {
                 var batch = new SignalBatchEvent(id, [JsonSerializer.Serialize(value, RuntimeProtocol.Json)], Interlocked.Increment(ref _watermark));
                 _events.Writer.TryWrite(Encoding.UTF8.GetBytes($"event: {SignalBatchEvent.Kind}\ndata: {JsonSerializer.Serialize(batch, RuntimeProtocol.Json)}\n\n"));
@@ -254,7 +350,7 @@ public sealed class SelfImproveAvailabilityFacts
                 if (report.Status?.Status == "Initialized") { Interlocked.Increment(ref _initialized); }
                 if (report.Acknowledge is not null || report.Acknowledgements is { Length: > 0 }) { Interlocked.Increment(ref _acknowledged); }
                 if (report.Subscribe is not { } subscribed) { return new(HttpStatusCode.OK); }
-                var id = subscribed.Key + "/" + subscribed.Signal;
+                var id = subscribed.Behavior + "/" + subscribed.Key + "/" + subscribed.Signal;
                 Subscriptions[id] = subscribed;
                 return Json(new { subscription = id });
             }
@@ -263,6 +359,9 @@ public sealed class SelfImproveAvailabilityFacts
             if (call.Contract == typeof(IConnectionRequests).FullName && call.Method == nameof(IConnectionRequests.ListKinds))
             {
                 Assert.Equal("fixture-brain", call.Key);
+                var callback = call.Behavior.EndsWith("/healthy.cs", StringComparison.Ordinal) || call.Behavior.EndsWith("/verified.cs", StringComparison.Ordinal);
+                if (callback && !Available) { UnavailableCallbacks.TryAdd(call.Behavior, 0); }
+                if (callback && PauseCallbackDiscovery) { await ResumeCallbacks.Task.WaitAsync(cancellationToken); }
                 return FailDiscovery ? Failure("Discovery fixture failed") : Json<ConnectorKind[]>(Available ? [new("aspire", "Deployment")] : [new("other", "Other")]);
             }
             if (call.Contract == RuntimeProtocol.KernelContract && call.Method == RuntimeProtocol.KernelInstances)
@@ -274,13 +373,38 @@ public sealed class SelfImproveAvailabilityFacts
             }
             if (call.Contract == typeof(IDeployment).FullName)
             { return FailDeployment ? Failure("Host fixture failed") : Json(new DeploymentSnapshot("current-sha", DeploymentStage.Steady, null, [], null)); }
-            if (call.Contract == typeof(ICandidates).FullName && call.Method == nameof(ICandidates.Propose)) { return Json("new-sha"); }
+            if (call.Contract == typeof(ICandidates).FullName && call.Method == nameof(ICandidates.Propose))
+            {
+                if (QueueProposals)
+                {
+                    Assert.NotEqual(CandidateStage.Promoted, Stage);
+                    NextStage = CandidateStage.Queued;
+                    Changed(sha: "new-sha");
+                }
+                return Json("new-sha");
+            }
             if (call.Contract == typeof(ICandidate).FullName)
             {
-                if (call.Method == nameof(ICandidate.Verify)) { Stage = CandidateStage.Verified; }
-                else if (call.Method == nameof(ICandidate.Promote)) { Stage = CandidateStage.Promoted; }
+                var next = call.Key.EndsWith("/new-sha", StringComparison.Ordinal);
+                var stage = next ? NextStage!.Value : Stage;
+                if (call.Method == nameof(ICandidate.Verify)) { Assert.True(Available); stage = CandidateStage.Verified; }
+                else if (call.Method == nameof(ICandidate.Promote)) { Assert.True(Available); stage = CandidateStage.Promoted; }
                 else { Assert.Equal(nameof(ICandidate.Read), call.Method); }
-                return Json(new CandidateSnapshot("candidate-sha", "fixture", "Existing change", Stage, null, new([], [], TimeSpan.FromMinutes(1)), null, null, [CandidateStage.Starting, Stage]));
+                if (call.Method != nameof(ICandidate.Read))
+                {
+                    if (next) { NextStage = stage; }
+                    else { Stage = stage; }
+                    if (QueueProposals)
+                    {
+                        Changed(call.Key, next ? "new-sha" : "candidate-sha");
+                        if (!next && stage == CandidateStage.Promoted && NextStage == CandidateStage.Queued)
+                        {
+                            NextStage = CandidateStage.Starting;
+                            Changed();
+                        }
+                    }
+                }
+                return Json(new CandidateSnapshot(next ? "new-sha" : "candidate-sha", "fixture", "Existing change", stage, null, new([], [], TimeSpan.FromMinutes(1)), null, null, [CandidateStage.Starting, stage]));
             }
             if (call.Contract == typeof(ILayout).FullName)
             { return call.Method == nameof(ILayout.Read) ? Json(new LayoutState()) : new(HttpStatusCode.NoContent); }

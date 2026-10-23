@@ -50,6 +50,13 @@ the last sha; later requests are still handled. Healthy and verified callbacks c
 without the capability. Each action checks again, so removing deployment configuration takes effect
 after an earlier successful render. Discovery and host failures remain errors.
 
+## Scenario: A pending candidate survives temporary deployment unavailability
+
+A candidate already followed at Healthy or Verified stays pending while deployment is unavailable.
+Restoration is discovered without another candidate signal; the current stage is read again before
+verifying or promoting, so an externally completed step is not repeated and the next queued candidate
+can proceed. Waiting for restoration remains cancellable.
+
 */
 
 using IntoChat.OS.Apps;
