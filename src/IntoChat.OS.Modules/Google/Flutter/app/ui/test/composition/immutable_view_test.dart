@@ -57,7 +57,7 @@ void main() {
       expect(loads, ['view:calculator']);
       expect(watches, ['view:calculator']);
       final oldAction = tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Add'))
+          .widget<UiKitButton>(find.widgetWithText(UiKitButton, 'Add'))
           .onPressed!;
       generation = 8;
       version = 2;
@@ -88,7 +88,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Add'))
+            .widget<UiKitButton>(find.widgetWithText(UiKitButton, 'Add'))
             .onPressed,
         isNull,
       );

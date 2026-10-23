@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:forui/forui.dart';
 
 import '../../models/ui_part.dart';
-import '../../theme/ui_theme.dart';
+import '../kit/ui_kit_button.dart';
 
 /// Product button control. Used on surfaces and inside chat CustomMessage rows.
 final class UiButton extends StatelessWidget {
@@ -21,15 +20,11 @@ final class UiButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: UiThemeScope(
-        brightness: Theme.of(context).brightness,
-        child: FButton(
-          key: Key('ui_button_${part.buttonId}'),
-          size: dense ? FButtonSizeVariant.sm : FButtonSizeVariant.md,
-          mainAxisSize: MainAxisSize.min,
-          onPress: onPressed == null ? null : () => onPressed!(part),
-          child: Text(part.label),
-        ),
+      child: UiKitButton(
+        key: Key('ui_button_${part.buttonId}'),
+        label: part.label,
+        compact: dense,
+        onPressed: onPressed == null ? null : () => onPressed!(part),
       ),
     );
   }

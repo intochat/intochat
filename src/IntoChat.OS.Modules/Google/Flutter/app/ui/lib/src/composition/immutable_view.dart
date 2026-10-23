@@ -46,7 +46,8 @@ class _ImmutableView extends StatelessWidget {
       case 0:
         content = markdown(text);
       case 1:
-        content = TextButton(
+        content = UiKitButton(
+          label: text,
           onPressed:
               enabled && node['enabled'] != false && node['action'] is String
               ? () {
@@ -63,7 +64,6 @@ class _ImmutableView extends StatelessWidget {
                   );
                 }
               : null,
-          child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
         );
       case 2:
       case 3:
@@ -82,29 +82,21 @@ class _ImmutableView extends StatelessWidget {
           children,
         );
       case 4:
-        content = Container(
+        content = SizedBox(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(
-              UiTokens.of(context).surfaceRadius,
+          child: UiKitSurface(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (text.isNotEmpty)
+                  Text(text, style: Theme.of(context).textTheme.titleLarge),
+                if (node['detail'] case final String detail
+                    when detail.isNotEmpty)
+                  markdown(detail),
+                ...widgets,
+              ],
             ),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (text.isNotEmpty)
-                Text(text, style: Theme.of(context).textTheme.titleLarge),
-              if (node['detail'] case final String detail
-                  when detail.isNotEmpty)
-                markdown(detail),
-              ...widgets,
-            ],
           ),
         );
       case 5:

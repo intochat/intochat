@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
+import '../../theme/ui_tokens.dart';
 import 'ui_neuron_button.dart';
 
 /// A generic choice menu. The owner supplies its options and their order.
@@ -145,17 +148,46 @@ class _UiNeuronSelectState extends State<UiNeuronSelect> {
               ? null
               : () =>
                     controller.isOpen ? controller.close() : controller.open(),
-          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          style: widget.visual != null
+              ? TextButton.styleFrom(padding: EdgeInsets.zero)
+              : _fieldStyle(context),
           child: widget.visual != null
               ? UiNeuronButton(
                   label: widget.label,
                   visual: widget.visual!,
                   menuChild: true,
                 )
-              : Text(
-                  '${widget.options.where((option) => option['id'] == widget.selected).firstOrNull?['label'] ?? widget.label}',
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${widget.options.where((option) => option['id'] == widget.selected).firstOrNull?['label'] ?? widget.label}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.keyboard_arrow_down, size: 18),
+                  ],
                 ),
         ),
+      ),
+    );
+  }
+
+  /// Figma select trigger: a 48-high field box with radius 12.
+  ButtonStyle _fieldStyle(BuildContext context) {
+    final c = UiColors.of(context);
+    return TextButton.styleFrom(
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      backgroundColor: c.surface,
+      foregroundColor: c.strong,
+      overlayColor: c.muted,
+      textStyle: UiType.of(context).body,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(UiTokens.of(context).fieldRadius),
+        side: BorderSide(color: c.inputBorder),
       ),
     );
   }
