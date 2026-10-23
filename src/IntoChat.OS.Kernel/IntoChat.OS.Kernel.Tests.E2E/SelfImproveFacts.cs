@@ -28,16 +28,35 @@ public sealed class SelfImproveFacts
         var appKey = scope + "/apps/selfimprove";
         Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(appKey).Read()).Status);
         await AppRuntimeReadiness.WaitAsync(brain, user, ct);
+        var calculator = Assert.Single(new FeatureDirectory(SolutionProjects.Features).Load(),
+            feature => feature.Owner == "os" && feature.Bundle.Name == "calculator");
+        var declarationPath = Path.Combine(SolutionProjects.Features, calculator.Folder, AppFiles.DeclarationPath);
+        var original = AppDeclaration.Read(await File.ReadAllTextAsync(declarationPath, ct));
+        var marker = "candidate-catalog-" + Guid.NewGuid().ToString("N");
+        var catalog = await brain.Get<IAppStore>(IAppStore.Key(scope)).List();
+        var card = Assert.Single(catalog, entry => entry.Group == "builtin" && entry.Publisher == "os" && entry.Name == original.Name);
+        Assert.Equal(original.Manifest.Title, card.Title);
+        Assert.Equal(original.Manifest.Description, card.Description);
+        Assert.DoesNotContain(catalog, entry => entry.Description.Contains(marker, StringComparison.Ordinal));
+        var version = Version.Parse(original.Version);
+        var revised = original with
+        {
+            Version = new Version(version.Major, version.Minor, checked(version.Build + 1)).ToString(),
+            Manifest = original.Manifest with { Description = original.Manifest.Description + " " + marker },
+        };
         var list = brain.Get<IText>(appKey + "/revisions");
         await using var changes = await brain.SubscribeAsync<TextChanged>(list, ct);
         var change = new
         {
             branch = "os-runtime",
-            summary = "Calculator: add percent",
-            files = new Dictionary<string, string> { ["features/os/Calculator/app.cs"] = "// Calculator\n" },
+            summary = "Calculator: publish a candidate catalog revision",
+            files = new Dictionary<string, string>
+            {
+                [Path.GetRelativePath(SolutionProjects.Root, declarationPath).Replace('\\', '/')] = AppDeclaration.Write(revised),
+            },
             plan = new
             {
-                calls = new[] { new { contract = "IntoChat.OS.Apps.IApp", key = appKey, method = "Read", arguments = "[]", expected = "\"Name\":\"selfimprove\"" } },
+                calls = new[] { new { contract = typeof(IAppStore).FullName!, key = IAppStore.Key(scope), method = nameof(IAppStore.List), arguments = "[]", expected = marker } },
                 spans = Array.Empty<string>(),
                 budget = "00:10:00",
             },
