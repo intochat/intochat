@@ -101,6 +101,7 @@ public static class PlatformHosting
         endpoints.MapSecrets();
         endpoints.MapIntegrations();
         endpoints.MapConnectionNeurons();
+        Entries.BrainEntriesEndpoints.MapBrainEntries(endpoints);
         Compute.ComputeEndpoints.MapCompute(endpoints);
         Signals.SignalsEndpoints.MapSignals(endpoints);
         endpoints.MapCapabilities();

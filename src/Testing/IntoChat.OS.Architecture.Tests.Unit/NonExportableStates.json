@@ -45,6 +45,11 @@
     "reason": "platform authority state (Authority assembly), never exported"
   },
   {
+    "type": "IntoChat.OS.Authority.Entries.BrainEntriesState",
+    "state": "entries",
+    "reason": "brain variables and brain-sealed secrets (API keys); secret material is never exported"
+  },
+  {
     "type": "IntoChat.OS.Authority.Identity.Authority.AccountState",
     "state": "account",
     "reason": "identity/secret: hard-denied name"
