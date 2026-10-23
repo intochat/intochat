@@ -16,7 +16,6 @@ namespace IntoChat.OS.Microsoft.Aspire.Candidates;
 internal sealed partial class DockerCandidateHost : ICandidateHost
 {
     public const int FirstPort = 5190;
-    public const string Image = "mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1";
     private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
     private const string PostgresImage = "postgres:18.3";
     private const string ClickHouseImage = "clickhouse/clickhouse-server:25.8";
@@ -137,8 +136,12 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         {
             var output = Path.Combine(build, folder);
             var dockerfile = Path.Combine(root, $"Candidate.{folder}.Dockerfile");
-            await File.WriteAllTextAsync(dockerfile, $"FROM {Image}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"{dll}\"]\n", ct);
             await Dotnet("publish", worktree, ct, "publish", project, "-c", "Release", "-o", output);
+            // Infer a Linux image with this candidate's SDK, leaving the published deployment files portable.
+            var baseImage = (await Dotnet("publish", worktree, ct, "msbuild", project, "-t:ComputeContainerBaseImage",
+                "-p:Configuration=Release", "-p:EnableSdkContainerSupport=true", "-p:RuntimeIdentifier=linux-x64", "-getProperty:ContainerBaseImage")).Trim();
+            if (!ImageReference().IsMatch(baseImage)) { throw new CandidateHostException("publish", $"{project} returned an invalid ContainerBaseImage"); }
+            await File.WriteAllTextAsync(dockerfile, $"FROM {baseImage}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"{dll}\"]\n", ct);
             await Docker("publish", ct, "build", "-t", image, "-f", dockerfile, output);
         }
         return build;
@@ -462,10 +465,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         return null;
     }
 
-    private async Task Dotnet(string stage, string worktree, CancellationToken ct, params string[] args)
+    private async Task<string> Dotnet(string stage, string worktree, CancellationToken ct, params string[] args)
     {
         var result = await processes.RunAsync("dotnet", args, worktree, null, ct);
         if (result.ExitCode != 0) { throw new CandidateHostException(stage, $"dotnet {string.Join(' ', args)}:\n{Tail(result)}"); }
+        return result.Output;
     }
 
     private Task Docker(string stage, CancellationToken ct, params string[] args) => Container(stage, ct, null, args);
@@ -538,6 +542,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})$", RegexOptions.CultureInvariant)]
     private static partial Regex CandidateNetwork();
+
+    [GeneratedRegex("\\A[a-zA-Z0-9][a-zA-Z0-9._:/@-]*\\z", RegexOptions.CultureInvariant)]
+    private static partial Regex ImageReference();
 
     [GeneratedRegex("^[0-9a-f]{7,40}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha();
