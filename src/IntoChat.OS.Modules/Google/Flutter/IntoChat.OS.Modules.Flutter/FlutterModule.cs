@@ -33,5 +33,6 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
         LiveSignalEndpoints.Map(endpoints);
         BrainEventsEndpoints.Map(endpoints);
         AppUiEndpoints.Map(endpoints);
+        Settings.NotificationPreferenceEndpoints.Map(endpoints);
     }
 }
