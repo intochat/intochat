@@ -39,7 +39,7 @@ public sealed class TypeParityFacts
         Assert.Contains(secretKind, accepted);
 
         var renderer = File.ReadAllText(Path.Combine(FlutterApp, "ui/lib/src/composition/neuron_view.dart".Replace('/', Path.DirectorySeparatorChar)));
-        Assert.Contains($"obscureText: kind == '{secretKind}' || kind == 'password'", renderer);
+        Assert.Contains($"secret: kind == '{secretKind}' || kind == 'password'", renderer);
     }
 
     // The Flutter workspace sits beside the module project (app/); the project is found through
