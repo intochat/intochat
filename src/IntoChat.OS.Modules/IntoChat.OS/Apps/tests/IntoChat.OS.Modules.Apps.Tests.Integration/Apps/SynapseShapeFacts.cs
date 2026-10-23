@@ -103,6 +103,24 @@ public sealed class SynapseShapeFacts
         Assert.False(SynapseShape.IsLayout(OneReaction));
     }
 
+    [Theory]
+    [InlineData("", true, false)]
+    [InlineData("// Only a comment", true, false)]
+    [InlineData("public static class L { public static UiNode? Render() => null; }", true, true)]
+    [InlineData("public static class L { public static Flutter.Views.UiNode Render() => null; }", true, true)]
+    [InlineData("public static class L { class Nested { public static Flutter.Views.UiNode? Render() => null; } }", true, true)]
+    [InlineData("public class L { public UiNode Render() => null; }", true, false)]
+    [InlineData("public static class L { public static string Render() => null; }", true, false)]
+    [InlineData("void Helper() { }", false, false)]
+    [InlineData("{ await brain.React(source); }", false, false)]
+    [InlineData("Console.WriteLine(1); public static class L { public static UiNode Render() => null; }", false, false)]
+    public void SharedAndLayoutRolesRespectTopLevelStatementsAndRenderReturnTypes(string source, bool shared, bool layout)
+        => Assert.Equal((shared, layout), (SynapseShape.IsShared(source), SynapseShape.IsLayout(source)));
+
+    [Fact]
+    public void NullLiteralClassificationKeepsEmptySourceSemantics()
+        => Assert.Equal((true, false), (SynapseShape.IsShared(null!), SynapseShape.IsLayout(null!)));
+
     [Trait("host", "own")]
     [Fact]
     public async Task AWriteThatIsNotOneReactionIsNeverDeployed()

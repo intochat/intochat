@@ -15,6 +15,8 @@ using IntoChat.OS.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -465,6 +467,149 @@ public sealed class FastPathFacts : IDisposable
         Assert.Contains("OWN-LEMONS", prompt, StringComparison.Ordinal);
         Assert.Contains("FEATURE-LEMONS", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("HIDDEN-LEMONS", prompt, StringComparison.Ordinal);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task SelectingAFixedCorpusDoesNotAllocateInProportionToSourceLength()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = Synapse("Counts the lemons", "LARGE").Replace("await foreach",
+            string.Concat(Enumerable.Repeat("Console.WriteLine(\"setup\");\n", 4096)) + "await foreach", StringComparison.Ordinal).ReplaceLineEndings("\n");
+        Assert.DoesNotContain(CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: ct).GetDiagnostics(ct),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.Empty(SynapseShape.Check("count.cs", source));
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        var boundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, double DurationMs, long AllocatedBytes)>();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features, configure: services =>
+            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(), () => "resource-ranking",
+                (invocation, stage, state, _, durationMs, allocatedBytes) => boundaries.Enqueue((invocation, stage, state, durationMs, allocatedBytes)))));
+        var examples = Examples(brain, embeddings: null);
+        await examples.Rank(Brain, "count lemons", ct);
+        boundaries.Clear();
+
+        var ranking = await examples.Rank(Brain, "count lemons", ct);
+
+        var example = Assert.Single(ranking.Examples);
+        Assert.Equal(("features/os/orchard", "count.cs", "Orchard: count\nCounts the lemons", source),
+            (example.Origin, example.Path, example.Spec, example.Source));
+        Assert.Equal(example, ranking.Base);
+        Assert.Empty(ranking.Layouts);
+        Assert.Single(boundaries.Select(boundary => boundary.Invocation).Distinct());
+        Assert.All(boundaries, boundary =>
+        {
+            Assert.True(boundary.DurationMs >= 0);
+            Assert.True(boundary.AllocatedBytes >= 0);
+        });
+        var selection = new[] { "layouts", "shared-filter" }.Select(stage =>
+        {
+            Assert.Equal(2, boundaries.Count(boundary => boundary.Stage == stage));
+            var entered = Assert.Single(boundaries, boundary => boundary.Stage == stage && boundary.State == "entered");
+            var completed = Assert.Single(boundaries, boundary => boundary.Stage == stage && boundary.State == "completed");
+            Assert.Equal(entered.Invocation, completed.Invocation);
+            return completed;
+        }).ToArray();
+        TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
+        {
+            diagnostic = "fastpath-fixed-corpus-resource",
+            scopes = boundaries.Select(boundary => new { stage = boundary.Stage, state = boundary.State, durationMs = boundary.DurationMs, allocatedBytes = boundary.AllocatedBytes }),
+        }));
+        Assert.InRange(selection.Sum(boundary => boundary.AllocatedBytes), 0, 64 * 1024);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task RepeatedRankingsUseTheCurrentSourceSpecAndRoleAtTheSamePath()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+        var pantry = await Created(brain, "pantry");
+        var examples = Examples(brain, new ScriptedSimilarity("tally citrus", ("Counts the lemons", 0.85), ("Weighs the lemons", 0.65)));
+        var first = Synapse("Counts the lemons", "FIRST").ReplaceLineEndings("\n");
+        await pantry.WriteBehavior("count.cs", first, Guid.NewGuid());
+        var ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal((first, "pantry: count\nCounts the lemons", 0.85),
+            (Assert.Single(ranked.Examples).Source, ranked.Examples[0].Spec, Math.Round(ranked.Examples[0].Similarity, 2)));
+
+        var changed = Synapse("Weighs the lemons", "CHANGED").ReplaceLineEndings("\n");
+        await pantry.WriteBehavior("count.cs", changed, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal((changed, "pantry: count\nWeighs the lemons", 0.65),
+            (Assert.Single(ranked.Examples).Source, ranked.Examples[0].Spec, Math.Round(ranked.Examples[0].Similarity, 2)));
+
+        const string layout = "public static class Layout { public static Flutter.Views.UiNode? Render() => null; }";
+        await pantry.WriteBehavior("count.cs", layout, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Empty(ranked.Examples);
+        Assert.Null(ranked.Base);
+        Assert.Equal(layout, Assert.Single(ranked.Layouts).Source);
+
+        await pantry.WriteBehavior("count.cs", "public static class Helper { }", Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Empty(ranked.Examples);
+        Assert.Empty(ranked.Layouts);
+        Assert.Null(ranked.Base);
+
+        await pantry.WriteBehavior("count.cs", first, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal(first, Assert.Single(ranked.Examples).Source);
+        Assert.NotNull(ranked.Base);
+        Assert.Empty(ranked.Layouts);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task IdenticalSourcesKeepTheOwnedOrdinalFirstExampleAndItsHistory()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = Synapse("Counts the lemons", "DUPLICATED").ReplaceLineEndings("\n");
+        const string layout = "public static class Layout { public static UiNode Render() => null; }";
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        File.WriteAllText(Path.Combine(_features, "os", "Orchard", "Layout.cs"), layout);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+        var pantry = await Created(brain, "pantry");
+        await pantry.WriteBehavior("z.cs", source, Guid.NewGuid());
+        await pantry.WriteBehavior("a.cs", source, Guid.NewGuid());
+        await pantry.WriteBehavior("Layout.cs", layout, Guid.NewGuid());
+        await Script(brain, Ran("a.cs", runs: 40, failures: 0));
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count lemons", ct);
+
+        var example = Assert.Single(ranking.Examples);
+        Assert.Equal((IApp.Key(Brain, "pantry"), "a.cs", BehaviorIds.For(IApp.Key(Brain, "pantry"), "a.cs")),
+            (example.Origin, example.Path, example.BehaviorId));
+        Assert.True(example.History > 0);
+        Assert.Equal(example, ranking.Base);
+        Assert.Equal((IApp.Key(Brain, "pantry"), "Layout.cs", layout),
+            (Assert.Single(ranking.Layouts).Origin, ranking.Layouts[0].Path, ranking.Layouts[0].Source));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task SpecsKeepFileSetupAndReactionCommentsInOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string source = """
+            // File note
+            using System;
+            /* Setup note */
+            Console.WriteLine("setup");
+            // Reaction note
+            await foreach (var request in brain.On(app, "ask", brain.Stopping)) { }
+            // Nested note
+            void Helper() { Console.WriteLine("helper"); }
+            """;
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "reaction", ct);
+
+        Assert.Equal("Orchard: count\nFile note\nSetup note\nReaction note", Assert.Single(ranking.Examples).Spec);
     }
 
     [Trait("host", "own")]
