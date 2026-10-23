@@ -44,6 +44,13 @@ public interface IBrainEntries : IGrainWithStringKey
     Task<long> Version();
 }
 
+// The AI module's door to a brain's provider key: Authority holds the Platform stamp Release needs,
+// so a module never constructs one. Only provider:{id} entries are reachable; null when none is set.
+public interface IBrainProviderKeys
+{
+    Task<string?> Release(string brainId, string providerId, CancellationToken cancellationToken = default);
+}
+
 public static partial class BrainEntries
 {
     // API keys are secrets named provider:{integrationId}; no other entry may take the prefix.

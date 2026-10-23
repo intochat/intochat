@@ -12,18 +12,6 @@ namespace IntoChat.OS.AI;
 // boolean is cached; the key itself is released per client build and never kept.
 internal sealed class BrainKeyAvailability(IGrainFactory grains, IAiCredentials credentials)
 {
-    // The AI module's own Platform stamp for releasing a brain's provider key. ":" cannot occur in a
-    // principal id, so no account can ever be this caller (as IntegrationNeuron.PlatformCaller).
-    internal static readonly CallerContext PlatformCaller = new()
-    {
-        PrincipalId = "ai.credentials",
-        AccountId = ":ai",
-        BrainId = ":ai",
-        Kind = CallerKind.Platform,
-        StampedBy = TrustedEdge.Platform,
-        AppId = "ai.credentials",
-    };
-
     private readonly ConcurrentDictionary<(string Brain, string Integration), (bool HasKey, long Version)> _known = new();
 
     public async Task<(bool HasKey, long Version)> Read(string brainId, AiProvider provider, CancellationToken ct)

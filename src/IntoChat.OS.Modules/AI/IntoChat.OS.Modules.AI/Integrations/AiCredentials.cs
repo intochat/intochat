@@ -19,14 +19,12 @@ internal interface IAiCredentials
     Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default);
 }
 
-internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> integrations, TimeProvider time, IGrainFactory? grains = null) : IAiCredentials
+internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> integrations, TimeProvider time, IBrainProviderKeys? brainKeys = null) : IAiCredentials
 {
     public async Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default)
     {
-        if (grains is null || !BrainScope.IsValidId(brainId) || !AiIntegrations.KeyedProviders.Contains(provider)) { return null; }
-        return await grains.GetGrain<IBrainEntries>(brainId)
-            .Release(BrainKeyAvailability.PlatformCaller, BrainEntries.ProviderEntry(AiIntegrations.IdOf(provider)))
-            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (brainKeys is null || !BrainScope.IsValidId(brainId) || !AiIntegrations.KeyedProviders.Contains(provider)) { return null; }
+        return await brainKeys.Release(brainId, AiIntegrations.IdOf(provider), cancellationToken).ConfigureAwait(false);
     }
 
     private static readonly TimeSpan StatusLifetime = TimeSpan.FromSeconds(5);

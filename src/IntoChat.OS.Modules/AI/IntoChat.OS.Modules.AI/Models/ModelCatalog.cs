@@ -251,7 +251,9 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     {
         try { return (await Resolve(brainId, selection, requiresTools: true, ct), null); }
         catch (ProviderUnavailableException) { return (null, NoKeyReason); }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException) { return (null, error.Message); }
+        catch (ArgumentException error) { return (null, error.Message); }
+        catch (InvalidOperationException error) { return (null, error.Message); }
+        catch (NotSupportedException error) { return (null, error.Message); }
     }
 
     private async Task<ResolvedModel?> TryResolve(string? brainId, ModelSelection? selection, CancellationToken ct)

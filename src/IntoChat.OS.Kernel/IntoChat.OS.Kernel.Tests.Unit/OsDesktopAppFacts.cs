@@ -181,7 +181,7 @@ public sealed class OsDesktopAppFacts
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
         Assert.Contains("\"layout\"", bundle.Files["layout-switch.cs"], StringComparison.Ordinal);
         Assert.Contains("\"settings\"", bundle.Files["settings.cs"], StringComparison.Ordinal);
-        Assert.Contains("Desktop.SettingsActivation", bundle.Files["settings.cs"], StringComparison.Ordinal);
+        Assert.Contains("Desktop.SetSettingsButton", bundle.Files["settings.cs"], StringComparison.Ordinal);
         Assert.DoesNotContain("Desktop.Open", bundle.Files["settings.cs"], StringComparison.Ordinal);
         Assert.All((string[])["layout-switch.cs", "settings.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
     }

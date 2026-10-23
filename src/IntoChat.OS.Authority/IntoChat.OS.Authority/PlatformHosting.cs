@@ -69,6 +69,7 @@ public static class PlatformHosting
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
             ConnectorDiscovery.Collect(provider.GetRequiredService<ModuleInventory>(), provider.GetRequiredService<IReadOnlyList<IntegrationSchema>>()));
         services.TryAddSingleton(typeof(IModuleIntegrations<>), typeof(ModuleIntegrations<>));
+        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Entries.IBrainProviderKeys, Entries.BrainProviderKeys>();
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         services.AddGrpc();
