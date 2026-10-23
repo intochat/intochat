@@ -46,24 +46,28 @@ class _ImmutableView extends StatelessWidget {
       case 0:
         content = markdown(text);
       case 1:
-        content = UiKitButton(
-          label: text,
-          onPressed:
-              enabled && node['enabled'] != false && node['action'] is String
-              ? () {
-                  FocusScope.of(context).unfocus();
-                  unawaited(
-                    dispatch({
-                      'kind': 'view',
-                      'name': name,
-                      'revision': generation,
-                      'field': node['key'],
-                      'action': node['action'],
-                      'operationId': _operationId(),
-                    }).catchError((Object _) {}),
-                  );
-                }
-              : null,
+        // Server slots shorter than the 48px button get the 36px compact one.
+        content = LayoutBuilder(
+          builder: (context, constraints) => UiKitButton(
+            label: text,
+            compact: constraints.maxHeight < 48,
+            onPressed:
+                enabled && node['enabled'] != false && node['action'] is String
+                ? () {
+                    FocusScope.of(context).unfocus();
+                    unawaited(
+                      dispatch({
+                        'kind': 'view',
+                        'name': name,
+                        'revision': generation,
+                        'field': node['key'],
+                        'action': node['action'],
+                        'operationId': _operationId(),
+                      }).catchError((Object _) {}),
+                    );
+                  }
+                : null,
+          ),
         );
       case 2:
       case 3:

@@ -189,4 +189,55 @@ void main() {
             as RoundedRectangleBorder;
     expect(shape.borderRadius, BorderRadius.circular(12));
   });
+
+  testWidgets('field is named for screen readers above and folded', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await host(
+      tester,
+      const SizedBox(width: 300, child: UiKitField(label: 'Email')),
+    );
+    expect(find.bySemanticsLabel(RegExp('Email')), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(TextField)).label,
+      contains('Email'),
+    );
+    await host(
+      tester,
+      const SizedBox(
+        width: 300,
+        child: UiKitField(label: '', placeholder: 'Message'),
+      ),
+    );
+    expect(
+      tester.getSemantics(find.byType(TextField)).label,
+      contains('Message'),
+    );
+    handle.dispose();
+  });
+
+  testWidgets('view Button in a slot under 48 renders compact', (tester) async {
+    await view(tester, {
+      'kind': 2,
+      'key': 'main',
+      'extents': [40, 0],
+      'children': [
+        {
+          'kind': 3,
+          'key': 'header',
+          'extents': [0, 160],
+          'children': [
+            {'kind': 0, 'key': 'status', 'text': 'Ready'},
+            {'kind': 1, 'key': 'new', 'text': 'New', 'action': 'new'},
+          ],
+        },
+        {'kind': 0, 'key': 'rest', 'text': 'Body'},
+      ],
+    });
+    expect(tester.takeException(), isNull);
+    final button = tester.widget<UiKitButton>(find.byType(UiKitButton));
+    expect(button.compact, isTrue);
+    expect(tester.getSize(find.byType(UiKitButton)).height, 36);
+  });
 }

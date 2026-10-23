@@ -97,7 +97,8 @@ class _UiKitFieldState extends State<UiKitField> {
         : _hover && widget.enabled
         ? c.muted
         : c.inputBorder;
-    final input = TextField(
+    final name = widget.label.isNotEmpty ? widget.label : widget.placeholder;
+    final textField = TextField(
       key: widget.fieldKey,
       controller: widget.controller,
       focusNode: _focus,
@@ -115,6 +116,9 @@ class _UiKitFieldState extends State<UiKitField> {
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
     );
+    // The visible label sits outside the TextField, so name the field for
+    // assistive technology explicitly.
+    final input = Semantics(label: name, textField: true, child: textField);
     final box = DecoratedBox(
       key: const ValueKey('ui_kit_field_box'),
       decoration: BoxDecoration(
@@ -145,7 +149,7 @@ class _UiKitFieldState extends State<UiKitField> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.label.isNotEmpty) ...[
-          Text(widget.label, style: type.fieldLabel),
+          ExcludeSemantics(child: Text(widget.label, style: type.fieldLabel)),
           const SizedBox(height: 7),
         ],
         MouseRegion(
