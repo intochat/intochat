@@ -1,6 +1,8 @@
 map $http_upgrade $connection_upgrade {
     default upgrade;
-    '' close;
+    # Omit Connection for ordinary requests: ACA can truncate chunked responses
+    # when it receives close (https://github.com/microsoft/azure-container-apps/issues/734).
+    '' '';
 }
 
 # Preserve the canonical scheme when the platform ingress terminates TLS.
