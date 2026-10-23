@@ -14,8 +14,10 @@ await foreach (var request in brain.On(app, "request", brain.Stopping))
 {
     var id = request.RequestId.ToString("N");
     if (request.RequestId != Guid.Empty && (await handled.Read()).Markdown == id) { continue; }
+    var available = await SelfImprove.IsAvailableAsync(brain);
     try
     {
+        if (!available) { throw new InvalidOperationException(SelfImprove.Unavailable); }
         var sha = await brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain))).Propose(SelfImprove.Parse(request.Input));
         // A proposal starts a cluster, so it is marked handled before anything else can fail.
         await handled.Set(id);

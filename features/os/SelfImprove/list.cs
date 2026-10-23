@@ -7,6 +7,7 @@ using IntoChat.OS.Microsoft.Aspire;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var candidates = Sources.Named<ICandidates, CandidateChanged>(brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain))), async (_, ct) =>
 {
+    if (!await SelfImprove.IsAvailableAsync(brain)) { return []; }
     var members = new List<INeuron>();
     await foreach (var instance in brain.Kernel.Instances<ICandidate>(ct)) { members.Add(brain.Get<ICandidate>(instance.Key)); }
     return [.. members];

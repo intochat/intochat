@@ -17,6 +17,12 @@ await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 
 async Task<bool> Step(ICandidate candidate)
 {
+    // Configuration restoration has no candidate signal: retain this step and reconcile until it returns.
+    while (!await SelfImprove.IsAvailableAsync(brain))
+    {
+        await SelfImprove.RenderListAsync(brain);
+        await Task.Delay(TimeSpan.FromSeconds(2), brain.Stopping);
+    }
     var snapshot = await candidate.Read();
     if (snapshot.Stage == CandidateStage.Verified)
     {

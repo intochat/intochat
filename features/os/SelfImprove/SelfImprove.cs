@@ -4,13 +4,19 @@ using IntoChat.OS.Client;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Layout;
 using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Aspire;
 
 // Shared by every synapse: the app's key, its brain, the change-set shape and the list rendering.
 public static class SelfImprove
 {
+    public const string Unavailable = "Self-improve is unavailable on this host because deployment is not configured.";
+
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
+
+    public static async Task<bool> IsAvailableAsync(IntoChatOSConnection brain)
+        => (await brain.Get<IConnectionRequests>(Scope(brain)).ListKinds()).Any(kind => kind.Id == "aspire");
 
     public static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 
@@ -59,6 +65,11 @@ public static class SelfImprove
     // Newest first, so the candidate just proposed heads the list.
     public static async Task RenderListAsync(IntoChatOSConnection brain)
     {
+        if (!await IsAvailableAsync(brain))
+        {
+            await brain.Get<IText>(Key(brain) + "/revisions").Set(Unavailable);
+            return;
+        }
         var instances = new List<(DateTimeOffset Created, string Key)>();
         await foreach (var instance in brain.Kernel.Instances<ICandidate>(brain.Stopping)) { instances.Add((instance.Created, instance.Key)); }
         var lines = new List<string>();
