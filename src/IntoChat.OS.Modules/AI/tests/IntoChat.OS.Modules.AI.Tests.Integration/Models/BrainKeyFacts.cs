@@ -52,15 +52,36 @@ public sealed class BrainKeyFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var logs = new CapturingLogs();
-        using var provider = new LoopbackServer();
-        await using var brain = await Host(provider, logs, ct);
+        using var servers = new Servers();
+        await using var brain = await Host(servers, logs, ct);
         await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
 
-        Assert.Equal("Bearer " + Canary, await Call(brain, provider, BrainA, ct));
-        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, BrainB, ct));
-        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, null, ct));
+        // The brain's key goes to the provider's public endpoint; other brains keep the operator's.
+        Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "work", ct));
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, servers.Declared, BrainB, "work", ct));
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, servers.Declared, null, "work", ct));
         Assert.NotEmpty(logs.Text);
         Assert.DoesNotContain(Canary, logs.Text);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Brain_key_never_reaches_operator_or_profile_endpoint()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var servers = new Servers();
+        await using var brain = await Host(servers, new CapturingLogs(), ct);
+        await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
+
+        // A profile's pinned endpoint, the declared AIOptions endpoint and the registration endpoint
+        // are the operator's: with the brain's key the call goes to the public endpoint instead.
+        Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "pinned", ct));
+        Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "work", ct));
+        await NoRequest(servers.Profile, ct);
+        await NoRequest(servers.Declared, ct);
+        await NoRequest(servers.Registered, ct);
+        // The deployment's own key still honours the pinned endpoint.
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, servers.Profile, BrainB, "pinned", ct));
     }
 
     [Trait("host", "own")]
@@ -68,14 +89,14 @@ public sealed class BrainKeyFacts
     public async Task Removing_brain_key_falls_back_to_deployment()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var provider = new LoopbackServer();
-        await using var brain = await Host(provider, new CapturingLogs(), ct);
+        using var servers = new Servers();
+        await using var brain = await Host(servers, new CapturingLogs(), ct);
         await Entries(brain, BrainA).Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, Canary);
-        Assert.Equal("Bearer " + Canary, await Call(brain, provider, BrainA, ct));
+        Assert.Equal("Bearer " + Canary, await Call(brain, servers.Public, BrainA, "work", ct));
 
         await Entries(brain, BrainA).Remove(BrainEntries.ProviderEntry("openai"));
 
-        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, provider, BrainA, ct));
+        Assert.Equal("Bearer " + DeploymentKey, await Call(brain, servers.Declared, BrainA, "work", ct));
     }
 
     [Trait("host", "own")]
@@ -92,23 +113,71 @@ public sealed class BrainKeyFacts
         Assert.False((await Catalog(brain).List(BrainA, null, ct)).Automatic.Available);
     }
 
-    private static Task<ITestBrain> Host(LoopbackServer provider, CapturingLogs logs, CancellationToken ct)
+    [Trait("host", "own")]
+    [Fact]
+    public async Task Unavailable_reason_asks_for_a_key_only_when_the_provider_has_none()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
+        var choices = await Catalog(brain).List(BrainA, null, ct);
+        var nano = Assert.Single(choices.Models, choice => choice.Id == "preset:IGpt54Nano");
+        Assert.Equal("Add a key in API keys", nano.Reason);
+        Assert.All(choices.Models.Where(choice => choice.Available), choice => Assert.Null(choice.Reason));
+    }
+
+    // The provider's public endpoint, the registration's, the declared AIOptions endpoint and a
+    // profile's pinned endpoint, each a separate loopback server.
+    private sealed class Servers : IDisposable
+    {
+        public LoopbackServer Public { get; } = new();
+        public LoopbackServer Registered { get; } = new();
+        public LoopbackServer Declared { get; } = new();
+        public LoopbackServer Profile { get; } = new();
+
+        public void Dispose()
+        {
+            Public.Dispose();
+            Registered.Dispose();
+            Declared.Dispose();
+            Profile.Dispose();
+        }
+    }
+
+    private sealed class LoopbackPublic(string url) : ProviderPublicEndpoints
+    {
+        public override string Of(AiProvider provider) => url;
+    }
+
+    private static Task<ITestBrain> Host(Servers servers, CapturingLogs logs, CancellationToken ct)
         => TestBrain.Create()
-            .WithProvider("OpenAI", provider.Url, DeploymentKey)
+            .WithProvider("OpenAI", servers.Registered.Url, DeploymentKey)
             .WithModule<AIModule>()
             .WithOptions<AIModule, AIOptions>(options =>
-                options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "test-model", Endpoint = provider.Url, Capabilities = LlmCapabilities.Tools })
-            .ConfigureServices(services => services.AddLogging(logging => logging.AddProvider(logs).SetMinimumLevel(LogLevel.Trace)))
+            {
+                options.Provider(AiProvider.OpenAI).Endpoint = servers.Declared.Url;
+                options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "test-model", Capabilities = LlmCapabilities.Tools };
+                options.ModelProfiles["pinned"] = new() { Provider = "OpenAI", Model = "test-model", Endpoint = servers.Profile.Url, Capabilities = LlmCapabilities.Tools };
+            })
+            .ConfigureServices(services => services
+                .AddLogging(logging => logging.AddProvider(logs).SetMinimumLevel(LogLevel.Trace))
+                .AddSingleton<ProviderPublicEndpoints>(new LoopbackPublic(servers.Public.Url)))
             .StartAsync(ct);
 
-    private static async Task<string?> Call(ITestBrain brain, LoopbackServer provider, string? brainId, CancellationToken ct)
+    private static async Task<string?> Call(ITestBrain brain, LoopbackServer expected, string? brainId, string profile, CancellationToken ct)
     {
         var catalog = Catalog(brain);
-        var resolved = await catalog.Resolve(brainId, new("work"), true, ct);
+        var resolved = await catalog.Resolve(brainId, new(profile), true, ct);
         using var client = await catalog.CreateClient(brainId, resolved, ct);
-        var seen = provider.ReplyOnce("application/json", ChatCompletionJson, ct, HttpStatusCode.OK);
+        var seen = expected.ReplyOnce("application/json", ChatCompletionJson, ct, HttpStatusCode.OK);
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: ct);
         return (await seen).Authorization;
+    }
+
+    private static async Task NoRequest(LoopbackServer server, CancellationToken ct)
+    {
+        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        quiet.CancelAfter(TimeSpan.FromMilliseconds(300));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => server.ReplyOnce("application/json", ChatCompletionJson, quiet.Token));
     }
 
     private const string ChatCompletionJson = """

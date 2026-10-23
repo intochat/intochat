@@ -12,7 +12,7 @@ using IntoChat.OS.Flutter.Text;
 
 // Shared by every synapse: the app's keys, the request record and its neurons, the input rules, the
 // classifier call and the list rendering.
-public static class Engineer
+public static partial class Engineer
 {
     public const string Scratch = "scratch";
     public const string DefaultModel = "preset:IDeepSeekV41Flash";
@@ -201,7 +201,7 @@ public static class Engineer
     {
         var choice = snapshot.Settings.GetValueOrDefault("Model", "");
         var id = choice.Trim().Length > 0 ? choice.Trim() : DefaultModel;
-        var model = await brain.Get<IModelCatalog>("default").Select(id)
+        var model = await brain.Get<IModelCatalog>(ModelCatalogKey(Scope(brain))).Select(id)
             ?? throw new InvalidOperationException($"The Model setting names a model this brain cannot use: {id}.");
         // The brain's own model neuron: its inference signals journal into this brain.
         var llm = brain.Get<ILLM>(ModelAddress.Key(Scope(brain)));

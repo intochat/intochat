@@ -109,7 +109,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Model'));
+    await tester.tap(find.text('Model'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Fast'));
     await tester.pumpAndSettle();

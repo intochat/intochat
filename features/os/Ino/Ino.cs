@@ -74,7 +74,7 @@ public static partial class Ino
                 return AnswerOutcome.KeptInDraft;
             }
             var choice = snapshot.Settings.GetValueOrDefault("Model", "");
-            var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
+            var model = choice.Length > 0 ? await Models(brain).Select(choice) : null;
             if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
             var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
             var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));

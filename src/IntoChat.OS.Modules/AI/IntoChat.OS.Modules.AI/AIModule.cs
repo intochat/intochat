@@ -40,6 +40,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
         services.TryAddSingleton<BrainKeyAvailability>();
+        services.TryAddSingleton<ProviderPublicEndpoints>();
         services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
@@ -62,6 +63,6 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>(
-            CallerContextStamper.TryGet(out _) ? new NeuronId("default").Within(BrainScope.CurrentId()).Name : "default").List()));
+            CallerContextStamper.TryGet(out _) ? IModelCatalog.Key(BrainScope.CurrentId()) : "default").List()));
     }
 }

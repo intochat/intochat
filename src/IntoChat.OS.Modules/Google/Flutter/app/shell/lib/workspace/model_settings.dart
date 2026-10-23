@@ -5,6 +5,7 @@ typedef ModelCatalogLoader = Future<ChatModelCatalog> Function();
 
 const autoModelLabel = 'Auto, cheapest model with tools';
 const unavailableModelReason = 'Add a key in API keys';
+const noModelReason = 'Add an API key';
 
 /// The same configured catalog is used for a default and a conversation override.
 class ModelSettings extends StatefulWidget {
@@ -14,11 +15,15 @@ class ModelSettings extends StatefulWidget {
     this.selectedId,
     required this.onSelected,
     this.conversation = false,
+    this.onAddKey,
   });
   final ModelCatalogLoader? load;
   final String? selectedId;
   final ValueChanged<String?> onSelected;
   final bool conversation;
+
+  /// Opens Settings on the API keys tab; offered when no model is available.
+  final VoidCallback? onAddKey;
   @override
   State<ModelSettings> createState() => _ModelSettingsState();
 }
@@ -73,7 +78,7 @@ class _ModelSettingsState extends State<ModelSettings> {
   // with the reason and cannot be chosen.
   Widget _option(ChatModelOption option) {
     final automatic = option.id == null;
-    final selectable = automatic || option.available;
+    final selectable = option.available;
     final tile = Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -89,7 +94,10 @@ class _ModelSettingsState extends State<ModelSettings> {
           [
             if (option.provider != null) option.provider!,
             if (option.model != null) option.model!,
-            if (!selectable) unavailableModelReason,
+            if (!selectable)
+              automatic
+                  ? noModelReason
+                  : option.reason ?? unavailableModelReason,
             if (option.capabilities.isNotEmpty) option.capabilities.join(' · '),
           ].join(' · '),
         ),
@@ -98,7 +106,19 @@ class _ModelSettingsState extends State<ModelSettings> {
             : null,
       ),
     );
-    return selectable ? tile : Opacity(opacity: 0.5, child: tile);
+    final shown = selectable ? tile : Opacity(opacity: 0.5, child: tile);
+    if (!automatic || selectable || widget.onAddKey == null) return shown;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        shown,
+        TextButton(
+          key: const Key('model-add-api-key'),
+          onPressed: widget.onAddKey,
+          child: const Text(noModelReason),
+        ),
+      ],
+    );
   }
 
   @override
@@ -162,11 +182,13 @@ class ConversationModelPicker extends StatelessWidget {
     this.selectedId,
     required this.onSelected,
     this.enabled = true,
+    this.onAddKey,
   });
   final ModelCatalogLoader load;
   final String? selectedId;
   final ValueChanged<String?> onSelected;
   final bool enabled;
+  final VoidCallback? onAddKey;
   @override
   Widget build(BuildContext context) => Tooltip(
     message: 'Choose model',
@@ -209,6 +231,12 @@ class ConversationModelPicker extends StatelessWidget {
                           load: load,
                           selectedId: selectedId,
                           conversation: true,
+                          onAddKey: onAddKey == null
+                              ? null
+                              : () {
+                                  Navigator.pop(dialogContext);
+                                  onAddKey!();
+                                },
                           onSelected: (id) {
                             onSelected(id);
                             Navigator.pop(dialogContext);

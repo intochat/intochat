@@ -136,7 +136,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var configuration = new AIOptions();
         configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
         var inner = new RebuildingChatClient(
-            token => AIClients.Factory(resolved.Provider).CreateChatClient(resolved.Model, configuration, credentials, resolved.Endpoint, token),
+            token => Build(brainId, resolved, configuration, token),
             token => AiIntegrations.KeyedProviders.Contains(resolved.Provider) ? credentials.GenerationOf(AiIntegrations.IdOf(resolved.Provider), token) : Task.FromResult(0L));
         var pinned = new ChatClientBuilder(inner).ConfigureOptions(request =>
         {
@@ -148,6 +148,21 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         return AIClients.BuildChatPipeline(services, !invokesTools || resolved.Capabilities.HasFlag(LlmCapabilities.Tools),
             resolved.Provider.ToString(), pinned, resolved.Provider.ToString(), resolved.Model,
             rejectUnsupportedTools: invokesTools, useFunctionInvocation: invokesTools);
+    }
+
+    // One release per build decides whose key this client carries. A brain key goes only to the
+    // provider's public endpoint: operator-declared, profile and registration endpoints are the
+    // deployment's and never see it. Otherwise the deployment's key and endpoints apply as before.
+    private async Task<IChatClient> Build(string? brainId, ResolvedModel resolved, AIOptions configuration, CancellationToken ct)
+    {
+        var factory = AIClients.Factory(resolved.Provider);
+        if (brainId is not null && BrainScope.IsValidId(brainId) && AiIntegrations.KeyedProviders.Contains(resolved.Provider)
+            && await Deployment.BrainKey(brainId, resolved.Provider, ct) is { Length: > 0 } key)
+        {
+            var publicEndpoint = services.GetRequiredService<ProviderPublicEndpoints>().Of(resolved.Provider);
+            return await factory.CreateChatClient(resolved.Model, new AIOptions(), new BrainKeyCredentials(AiIntegrations.IdOf(resolved.Provider), key), publicEndpoint, ct);
+        }
+        return await factory.CreateChatClient(resolved.Model, configuration, Deployment, resolved.Endpoint, ct);
     }
 
     public ModelDescriptor Describe(ResolvedModel model)
@@ -178,9 +193,10 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var choices = new List<ModelChoice>();
         foreach (var choice in Choices())
         {
-            if (await TryResolve(brainId, choice.Selection, ct) is { } resolved) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
-            else if (choice.Preset is { } preset && AiIntegrations.KeyedProviders.Contains(preset.Provider) && preset.SupportsTools)
-            { choices.Add(new(choice.Id, choice.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)])); }
+            var (resolved, reason) = await Attempt(brainId, choice.Selection, ct);
+            if (resolved is not null) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
+            else if (choice.Preset is { } preset && preset.SupportsTools && reason is not null)
+            { choices.Add(new(choice.Id, choice.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)]) { Reason = reason }); }
         }
         return new(Describe(null, "Automatic (workspace default)", automatic is { Provider: not AiProvider.Host } ? automatic : null), [.. choices]);
     }
@@ -225,6 +241,17 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             if (preset.Provider == AiProvider.Ollama && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Marker.Name)) { continue; }
             yield return new("preset:" + preset.Marker.Name, preset.Id, new(preset.Marker.Name), preset);
         }
+    }
+
+    internal const string NoKeyReason = "Add a key in API keys";
+
+    // A catalogued model that does not resolve says why: a key-based provider without a key asks for
+    // one; any other refusal carries its own message (catalog messages name no endpoint or secret).
+    private async Task<(ResolvedModel? Resolved, string? Reason)> Attempt(string? brainId, ModelSelection selection, CancellationToken ct)
+    {
+        try { return (await Resolve(brainId, selection, requiresTools: true, ct), null); }
+        catch (ProviderUnavailableException) { return (null, NoKeyReason); }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException) { return (null, error.Message); }
     }
 
     private async Task<ResolvedModel?> TryResolve(string? brainId, ModelSelection? selection, CancellationToken ct)

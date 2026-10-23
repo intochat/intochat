@@ -41,7 +41,7 @@ async Task Reconcile()
                 }
                 var snapshot = await app.Read();
                 var choice = snapshot.Settings.GetValueOrDefault("Model", "");
-                var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
+                var model = choice.Length > 0 ? await Ino.Models(brain).Select(choice) : null;
                 var contracts = InoTools.Select(Ino.Contracts, await brain.Kernel.Types(brain.Stopping));
                 await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: contracts)
                     with { RunId = runId, Model = model });

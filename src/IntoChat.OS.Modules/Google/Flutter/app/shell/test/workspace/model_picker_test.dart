@@ -82,4 +82,61 @@ void main() {
     await tester.pumpAndSettle();
     expect(picked, [null]);
   });
+
+  testWidgets('unavailable_model_shows_its_server_reason', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ModelSettings(
+            load: () async => const ChatModelCatalog(
+              automatic: ChatModelOption(label: 'Automatic'),
+              models: [
+                ChatModelOption(
+                  id: 'preset:IGemma4',
+                  label: 'gemma4',
+                  available: false,
+                  reason: 'Provider Ollama is not configured.',
+                ),
+              ],
+            ),
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Provider Ollama is not configured.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Add a key in API keys'), findsNothing);
+  });
+
+  testWidgets('auto_unavailable_links_to_api_keys', (tester) async {
+    final picked = <String?>[];
+    var keys = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ModelSettings(
+            load: () async => const ChatModelCatalog(
+              automatic: ChatModelOption(label: 'Automatic', available: false),
+              models: [],
+            ),
+            onSelected: picked.add,
+            onAddKey: () => keys++,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.text('Auto, cheapest model with tools'),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+    expect(picked, isEmpty);
+    await tester.tap(find.byKey(const Key('model-add-api-key')));
+    expect(keys, 1);
+  });
 }
