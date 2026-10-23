@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Models;
@@ -14,6 +15,8 @@ using IntoChat.OS.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -468,6 +471,149 @@ public sealed class FastPathFacts : IDisposable
 
     [Trait("host", "own")]
     [Fact]
+    public async Task SelectingAFixedCorpusDoesNotAllocateInProportionToSourceLength()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = Synapse("Counts the lemons", "LARGE").Replace("await foreach",
+            string.Concat(Enumerable.Repeat("Console.WriteLine(\"setup\");\n", 4096)) + "await foreach", StringComparison.Ordinal).ReplaceLineEndings("\n");
+        Assert.DoesNotContain(CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: ct).GetDiagnostics(ct),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.Empty(SynapseShape.Check("count.cs", source));
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        var boundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, double DurationMs, long AllocatedBytes)>();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features, configure: services =>
+            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(), () => "resource-ranking",
+                (invocation, stage, state, _, durationMs, allocatedBytes) => boundaries.Enqueue((invocation, stage, state, durationMs, allocatedBytes)))));
+        var examples = Examples(brain, embeddings: null);
+        await examples.Rank(Brain, "count lemons", ct);
+        boundaries.Clear();
+
+        var ranking = await examples.Rank(Brain, "count lemons", ct);
+
+        var example = Assert.Single(ranking.Examples);
+        Assert.Equal(("features/os/orchard", "count.cs", "Orchard: count\nCounts the lemons", source),
+            (example.Origin, example.Path, example.Spec, example.Source));
+        Assert.Equal(example, ranking.Base);
+        Assert.Empty(ranking.Layouts);
+        Assert.Single(boundaries.Select(boundary => boundary.Invocation).Distinct());
+        Assert.All(boundaries, boundary =>
+        {
+            Assert.True(boundary.DurationMs >= 0);
+            Assert.True(boundary.AllocatedBytes >= 0);
+        });
+        var selection = new[] { "layouts", "shared-filter" }.Select(stage =>
+        {
+            Assert.Equal(2, boundaries.Count(boundary => boundary.Stage == stage));
+            var entered = Assert.Single(boundaries, boundary => boundary.Stage == stage && boundary.State == "entered");
+            var completed = Assert.Single(boundaries, boundary => boundary.Stage == stage && boundary.State == "completed");
+            Assert.Equal(entered.Invocation, completed.Invocation);
+            return completed;
+        }).ToArray();
+        TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
+        {
+            diagnostic = "fastpath-fixed-corpus-resource",
+            scopes = boundaries.Select(boundary => new { stage = boundary.Stage, state = boundary.State, durationMs = boundary.DurationMs, allocatedBytes = boundary.AllocatedBytes }),
+        }));
+        Assert.InRange(selection.Sum(boundary => boundary.AllocatedBytes), 0, 64 * 1024);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task RepeatedRankingsUseTheCurrentSourceSpecAndRoleAtTheSamePath()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+        var pantry = await Created(brain, "pantry");
+        var examples = Examples(brain, new ScriptedSimilarity("tally citrus", ("Counts the lemons", 0.85), ("Weighs the lemons", 0.65)));
+        var first = Synapse("Counts the lemons", "FIRST").ReplaceLineEndings("\n");
+        await pantry.WriteBehavior("count.cs", first, Guid.NewGuid());
+        var ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal((first, "pantry: count\nCounts the lemons", 0.85),
+            (Assert.Single(ranked.Examples).Source, ranked.Examples[0].Spec, Math.Round(ranked.Examples[0].Similarity, 2)));
+
+        var changed = Synapse("Weighs the lemons", "CHANGED").ReplaceLineEndings("\n");
+        await pantry.WriteBehavior("count.cs", changed, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal((changed, "pantry: count\nWeighs the lemons", 0.65),
+            (Assert.Single(ranked.Examples).Source, ranked.Examples[0].Spec, Math.Round(ranked.Examples[0].Similarity, 2)));
+
+        const string layout = "public static class Layout { public static Flutter.Views.UiNode? Render() => null; }";
+        await pantry.WriteBehavior("count.cs", layout, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Empty(ranked.Examples);
+        Assert.Null(ranked.Base);
+        Assert.Equal(layout, Assert.Single(ranked.Layouts).Source);
+
+        await pantry.WriteBehavior("count.cs", "public static class Helper { }", Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Empty(ranked.Examples);
+        Assert.Empty(ranked.Layouts);
+        Assert.Null(ranked.Base);
+
+        await pantry.WriteBehavior("count.cs", first, Guid.NewGuid());
+        ranked = await examples.Rank(Brain, "tally citrus", ct);
+        Assert.Equal(first, Assert.Single(ranked.Examples).Source);
+        Assert.NotNull(ranked.Base);
+        Assert.Empty(ranked.Layouts);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task IdenticalSourcesKeepTheOwnedOrdinalFirstExampleAndItsHistory()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = Synapse("Counts the lemons", "DUPLICATED").ReplaceLineEndings("\n");
+        const string layout = "public static class Layout { public static UiNode Render() => null; }";
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        File.WriteAllText(Path.Combine(_features, "os", "Orchard", "Layout.cs"), layout);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+        var pantry = await Created(brain, "pantry");
+        await pantry.WriteBehavior("z.cs", source, Guid.NewGuid());
+        await pantry.WriteBehavior("a.cs", source, Guid.NewGuid());
+        await pantry.WriteBehavior("Layout.cs", layout, Guid.NewGuid());
+        await Script(brain, Ran("a.cs", runs: 40, failures: 0));
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count lemons", ct);
+
+        var example = Assert.Single(ranking.Examples);
+        Assert.Equal((IApp.Key(Brain, "pantry"), "a.cs", BehaviorIds.For(IApp.Key(Brain, "pantry"), "a.cs")),
+            (example.Origin, example.Path, example.BehaviorId));
+        Assert.True(example.History > 0);
+        Assert.Equal(example, ranking.Base);
+        Assert.Equal((IApp.Key(Brain, "pantry"), "Layout.cs", layout),
+            (Assert.Single(ranking.Layouts).Origin, ranking.Layouts[0].Path, ranking.Layouts[0].Source));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task SpecsKeepFileSetupAndReactionCommentsInOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string source = """
+            // File note
+            using System;
+            /* Setup note */
+            Console.WriteLine("setup");
+            // Reaction note
+            await foreach (var request in brain.On(app, "ask", brain.Stopping)) { }
+            // Nested note
+            void Helper() { Console.WriteLine("helper"); }
+            """;
+        WriteFeature("os", "Orchard", "orchard", "count.cs", source);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features);
+
+        var ranking = await Examples(brain, embeddings: null).Rank(Brain, "reaction", ct);
+
+        Assert.Equal("Orchard: count\nFile note\nSetup note\nReaction note", Assert.Single(ranking.Examples).Spec);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task LayoutClassesAreReferenceExamplesOtherSharedFilesAreNot()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -492,6 +638,16 @@ public sealed class FastPathFacts : IDisposable
         var started = Stopwatch.GetTimestamp();
         var stages = new ConcurrentQueue<(string Name, double ElapsedMs)>();
         void Mark(string name) => stages.Enqueue((name, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var kernelCalls = new ConcurrentQueue<(long Id, string Method, string Phase, string Stage, double ElapsedMs)>();
+        string? kernelPhase = null;
+        void RecordKernel(long id, string method, string phase, string stage)
+            => kernelCalls.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var grainReads = new ConcurrentQueue<(long Id, string Method, string Phase, string Stage, double ElapsedMs)>();
+        void RecordGrainRead(long id, string method, string phase, string stage)
+            => grainReads.Enqueue((id, method, phase, stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var syntaxBoundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, string Phase, double DurationMs, long AllocatedBytes, double ElapsedMs)>();
+        void RecordSyntaxBoundary(long invocation, string stage, string state, string phase, double durationMs, long allocatedBytes)
+            => syntaxBoundaries.Enqueue((invocation, stage, state, phase, durationMs, allocatedBytes, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
         var runtime = new FakeAppRuntime();
         var sandbox = new FastPathSandbox();
         var shipped = ShippedFeatures();
@@ -501,12 +657,24 @@ public sealed class FastPathFacts : IDisposable
             if (request.GetProperty("model").GetString() == Writer) { Mark("fake-http-arrived"); }
             return null;
         };
-        await using var brain = await Start(model, runtime, sandbox, ct, features: shipped);
+        await using var brain = await Start(model, runtime, sandbox, ct, features: shipped, configure: services =>
+        {
+            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
+                () => Volatile.Read(ref kernelPhase), RecordKernel));
+            services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
+            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(),
+                () => Volatile.Read(ref kernelPhase), RecordSyntaxBoundary));
+        });
         Mark("host-ready");
         model.Script(Writer, Reply("lemons.cs", Lemons));
         var app = await Created(brain, "grocer");
+        Mark("app-created");
 
+        Volatile.Write(ref kernelPhase, "setup-ranking");
+        Mark("ranking-started");
         var ranking = await Examples(brain, embeddings: null).Rank(Brain, "count the lemons", ct);
+        Volatile.Write(ref kernelPhase, null);
         Mark("ranking-complete");
 
         Assert.Equal(2, ranking.Layouts.Length);
@@ -520,6 +688,7 @@ public sealed class FastPathFacts : IDisposable
         var deployedBeforeWrite = runtime.Deployed.Count;
         try
         {
+            Volatile.Write(ref kernelPhase, "writer");
             Mark("write-requested");
             await app.WriteSynapse("count the lemons", [], operation);
             Mark("write-accepted");
@@ -531,6 +700,7 @@ public sealed class FastPathFacts : IDisposable
         }
         finally
         {
+            Volatile.Write(ref kernelPhase, null);
             // Snapshot before any subscription, brain or fake-model disposal; never include prompt or signal payloads.
             var signals = inference.Snapshot;
             TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
@@ -539,6 +709,18 @@ public sealed class FastPathFacts : IDisposable
                 operation,
                 elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 stages = stages.Select(stage => new { name = stage.Name, elapsedMs = stage.ElapsedMs }),
+                kernel = kernelCalls.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
+                grainReads = grainReads.Select(call => new { id = call.Id, method = call.Method, phase = call.Phase, stage = call.Stage, elapsedMs = call.ElapsedMs }),
+                syntax = syntaxBoundaries.Select(boundary => new
+                {
+                    invocation = boundary.Invocation,
+                    stage = boundary.Stage,
+                    state = boundary.State,
+                    phase = boundary.Phase,
+                    durationMs = boundary.DurationMs,
+                    allocatedBytes = boundary.AllocatedBytes,
+                    elapsedMs = boundary.ElapsedMs,
+                }),
                 inferenceStarted = signals.OfType<InferenceStarted>().Count(),
                 inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
                 inferenceFailed = signals.OfType<InferenceFailed>().Count(),
@@ -1079,7 +1261,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.Contains(entry.Errors, error => error.Contains("NotSupportedException: the compiler fell over", StringComparison.Ordinal));
     }
 
-    private static Task<ITestBrain> Start(FakeModelServer model, FakeAppRuntime runtime, FastPathSandbox sandbox, CancellationToken ct, string? features = null)
+    private static Task<ITestBrain> Start(FakeModelServer model, FakeAppRuntime runtime, FastPathSandbox sandbox, CancellationToken ct,
+        string? features = null, Action<IServiceCollection>? configure = null)
         => TestBrain.Create()
             .WithModule<AIModule>()
             .WithModule<AppsModule, AppsOptions>(apps =>
@@ -1089,8 +1272,135 @@ public sealed class FastPathFacts : IDisposable
             })
             .WithFakeModel(model)
             .WithFakeAppRuntime(runtime)
-            .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(sandbox))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<IScriptSandbox>(sandbox);
+                configure?.Invoke(services);
+            })
             .StartAsync(ct);
+
+    private sealed class SyntaxBoundaryLog(ILogger<SynapseExamples> inner, Func<string?> phase,
+        Action<long, string, string, string, double, long> record) : ILogger<SynapseExamples>
+    {
+        private readonly ConcurrentDictionary<long, string> _phases = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Debug || inner.IsEnabled(logLevel);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "SynapseSyntaxBoundary"
+                && state is IReadOnlyList<KeyValuePair<string, object?>> fields)
+            {
+                object? Field(string name) => fields.FirstOrDefault(field => field.Key == name).Value;
+                if (Field("Invocation") is long invocation && Field("Stage") is string stage && Field("State") is string boundaryState
+                    && Field("ElapsedMs") is double durationMs && Field("AllocatedBytes") is long allocatedBytes
+                    && stage is "catalog-call" or "shipped-add" or "layouts" or "shared-filter"
+                    && boundaryState is "entered" or "completed" or "stopped")
+                {
+                    var capturedPhase = _phases.GetOrAdd(invocation, _ => phase() ?? "outside");
+                    record(invocation, stage, boundaryState, capturedPhase, durationMs, allocatedBytes);
+                }
+            }
+            inner.Log(logLevel, eventId, state, exception, formatter);
+        }
+    }
+
+    // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
+    private sealed class TimedKernel(Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
+    {
+        private long _next;
+
+        public IAsyncEnumerable<Instance> InstancesIn(string brain, string? type, CancellationToken cancellationToken = default)
+        {
+            var capturedPhase = phase();
+            var values = inner.InstancesIn(brain, type, cancellationToken);
+            return capturedPhase is null ? values : ObserveInstances(values, capturedPhase, cancellationToken);
+        }
+
+        private async IAsyncEnumerable<Instance> ObserveInstances(IAsyncEnumerable<Instance> values, string capturedPhase,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var id = Interlocked.Increment(ref _next);
+            record(id, "InstancesIn", capturedPhase, "entered");
+            var completed = false;
+            try
+            {
+                await foreach (var value in values.WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return value; }
+                completed = true;
+            }
+            finally { record(id, "InstancesIn", capturedPhase, completed ? "completed" : "stopped"); }
+        }
+
+        public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
+        {
+            var capturedPhase = phase();
+            if (capturedPhase is null) { return inner.Types(cancellationToken); }
+            var id = Interlocked.Increment(ref _next);
+            record(id, "Types", capturedPhase, "entered");
+            Task<TypeEntry[]> pending;
+            try { pending = inner.Types(cancellationToken); }
+            catch { record(id, "Types", capturedPhase, "stopped"); throw; }
+            return ObserveTypes(pending, id, capturedPhase);
+        }
+
+        private async Task<TypeEntry[]> ObserveTypes(Task<TypeEntry[]> pending, long id, string capturedPhase)
+        {
+            var completed = false;
+            try
+            {
+                var values = await pending.ConfigureAwait(false);
+                completed = true;
+                return values;
+            }
+            finally { record(id, "Types", capturedPhase, completed ? "completed" : "stopped"); }
+        }
+
+        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+            => inner.Instances<T>(cancellationToken);
+        public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
+        public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);
+        public Task<Instance[]> Running(CancellationToken cancellationToken = default) => inner.Running(cancellationToken);
+        public string TypeOf(Type contract) => inner.TypeOf(contract);
+        public Task Retire(string type, string key, CancellationToken cancellationToken = default) => inner.Retire(type, key, cancellationToken);
+        public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default) => inner.Features(brain, cancellationToken);
+        public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
+            => inner.LoadFeature(brain, feature, types, cancellationToken);
+        public Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default) => inner.UnloadFeature(brain, name, cancellationToken);
+    }
+
+    private sealed class TimedGrainReads(Func<string?> phase, Action<long, string, string, string> record) : IOutgoingGrainCallFilter
+    {
+        private long _next;
+
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            var capturedPhase = phase();
+            if (capturedPhase is null) { return context.Invoke(); }
+            var method = context.InterfaceMethod;
+            var label = method?.DeclaringType == typeof(IApp) && method.Name == nameof(IApp.Read) ? "App.Read"
+                : method?.DeclaringType == typeof(IBrainRuntime) && method.Name == nameof(IBrainRuntime.Inspect) ? "Runtime.Inspect" : null;
+            if (label is null) { return context.Invoke(); }
+            var id = Interlocked.Increment(ref _next);
+            record(id, label, capturedPhase, "entered");
+            Task pending;
+            try { pending = context.Invoke(); }
+            catch { record(id, label, capturedPhase, "stopped"); throw; }
+            return Observe(pending, id, label, capturedPhase);
+        }
+
+        private async Task Observe(Task pending, long id, string label, string capturedPhase)
+        {
+            var completed = false;
+            try
+            {
+                await pending.ConfigureAwait(false);
+                completed = true;
+            }
+            finally { record(id, label, capturedPhase, completed ? "completed" : "stopped"); }
+        }
+    }
 
     private const int SynapseWriterCalls = 4;
     private static readonly TimeSpan CallTimeout = TimeSpan.FromMilliseconds(250);

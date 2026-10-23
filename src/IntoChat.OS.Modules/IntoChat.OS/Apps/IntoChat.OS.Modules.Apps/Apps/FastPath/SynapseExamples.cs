@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Microsoft.CSharp.Runtime;
 using Microsoft.CodeAnalysis;
@@ -50,6 +51,8 @@ internal sealed class SynapseExamples(
     internal const int DefaultVectorCapacity = 4096;
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
+    private static readonly EventId SyntaxBoundary = new(0, "SynapseSyntaxBoundary");
+    private static long _nextInvocation;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
@@ -74,11 +77,22 @@ internal sealed class SynapseExamples(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
+        var invocation = log.IsEnabled(LogLevel.Debug) ? Interlocked.Increment(ref _nextInvocation) : 0;
         var behaviorsRead = Behaviors(brain, cancellationToken);
-        var corpus = await Corpus(brain, cancellationToken);
-        if (corpus.Length == 0) { return new([], null); }
-        var layouts = Layouts(corpus);
-        corpus = [.. corpus.Where(example => !SynapseShape.IsShared(example.Source))];
+        var entries = await Corpus(brain, cancellationToken, invocation);
+        if (entries.Length == 0) { return new([], null); }
+        SynapseExample[] layouts;
+        using (var observation = Observe(invocation, "layouts"))
+        {
+            layouts = Layouts(entries);
+            observation?.Complete();
+        }
+        SynapseExample[] corpus;
+        using (var observation = Observe(invocation, "shared-filter"))
+        {
+            corpus = [.. entries.Where(entry => !entry.Shared).Select(entry => entry.Example)];
+            observation?.Complete();
+        }
         if (corpus.Length == 0) { return new([], null, layouts); }
         var (scores, forkThreshold) = await Scores(corpus, sentence, query ?? Embed(sentence, cancellationToken), cancellationToken);
         var behaviors = await behaviorsRead;
@@ -96,7 +110,7 @@ internal sealed class SynapseExamples(
     private static readonly HashSet<string> Shipped = new(["features/os/calculator", "features/os/desktop"], StringComparer.OrdinalIgnoreCase);
 
     // The shipped Calculator and Desktop layouts first, then the rest by name.
-    private static SynapseExample[] Layouts(SynapseExample[] corpus) => [.. corpus.Where(example => SynapseShape.IsLayout(example.Source))
+    private static SynapseExample[] Layouts(CorpusEntry[] corpus) => [.. corpus.Where(entry => entry.Layout).Select(entry => entry.Example)
         .OrderBy(example => Shipped.Contains(example.Origin) ? 0 : 1).ThenBy(example => example.Name, StringComparer.Ordinal).Take(LayoutTake)];
 
     // A synapse's run history from the runtime's counters for its current code:
@@ -126,13 +140,20 @@ internal sealed class SynapseExamples(
         return runs - 2 * Math.Clamp(behavior.Failures, 0, runs);
     }
 
-    private async Task<SynapseExample[]> Corpus(string brain, CancellationToken cancellationToken)
+    private sealed record CorpusEntry(SynapseExample Example, bool Shared, bool Layout);
+
+    private async Task<CorpusEntry[]> Corpus(string brain, CancellationToken cancellationToken, long invocation)
     {
-        List<SynapseExample> examples = [];
+        List<CorpusEntry> examples = [];
         HashSet<string> seen = new(StringComparer.Ordinal);
         // The brain's own copies come first: they carry run history, and a feature's identical copy adds nothing.
         // The apps are read together; their order stays the kernel's.
-        var bundles = catalog.Bundles();
+        Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> bundles;
+        using (var observation = Observe(invocation, "catalog-call"))
+        {
+            bundles = catalog.Bundles();
+            observation?.Complete();
+        }
         List<string> keys = [];
         await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp)), cancellationToken))
         {
@@ -144,25 +165,77 @@ internal sealed class SynapseExamples(
             var key = keys[i];
             Add(key, apps[i].Manifest, apps[i].Files, path => BehaviorIds.For(key, path));
         }
-        foreach (var ((owner, name), bundle) in await bundles)
-        { Add($"features/{owner}/{name}", bundle.Manifest, bundle.Files, _ => null); }
+        var shipped = await bundles;
+        using (var observation = Observe(invocation, "shipped-add"))
+        {
+            foreach (var ((owner, name), bundle) in shipped)
+            { Add($"features/{owner}/{name}", bundle.Manifest, bundle.Files, _ => null); }
+            observation?.Complete();
+        }
         return [.. examples];
 
         void Add(string origin, AppManifest manifest, IReadOnlyDictionary<string, string> files, Func<string, string?> behavior)
         {
             foreach (var (path, source) in files.OrderBy(file => file.Key, StringComparer.Ordinal))
             {
-                if (!AppFiles.IsProgram(path) || (SynapseShape.IsShared(source) && !SynapseShape.IsLayout(source)) || !seen.Add(source)) { continue; }
-                examples.Add(new(origin, path, Spec(manifest, path, source), source, behavior(path)));
+                if (!AppFiles.IsProgram(path) || source is null) { continue; }
+                var root = CSharpSyntaxTree.ParseText(source, Parse).GetCompilationUnitRoot();
+                var shared = SynapseShape.Shared(root);
+                var layout = SynapseShape.Layout(root);
+                if ((shared && !layout) || !seen.Add(source)) { continue; }
+                examples.Add(new(new(origin, path, Spec(manifest, path, root), source, behavior(path)), shared, layout));
             }
         }
     }
 
+    private SyntaxObservation? Observe(long invocation, string stage)
+        => invocation == 0 ? null : new(log, invocation, stage);
+
+    // These scopes contain no await: allocation deltas belong to the same executing thread.
+    private sealed class SyntaxObservation : IDisposable
+    {
+        private readonly ILogger<SynapseExamples> _log;
+        private readonly long _invocation;
+        private readonly string _stage;
+        private readonly long _started;
+        private readonly long _allocated;
+        private bool _finished;
+
+        public SyntaxObservation(ILogger<SynapseExamples> log, long invocation, string stage)
+        {
+            _log = log;
+            _invocation = invocation;
+            _stage = stage;
+            Write("entered", 0, 0);
+            _started = Stopwatch.GetTimestamp();
+            _allocated = GC.GetAllocatedBytesForCurrentThread();
+        }
+
+        public void Complete() => Finish("completed");
+
+        public void Dispose()
+        {
+            if (!_finished) { Finish("stopped"); }
+        }
+
+        private void Finish(string state)
+        {
+            var elapsed = Stopwatch.GetElapsedTime(_started).TotalMilliseconds;
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - _allocated;
+            _finished = true;
+            Write(state, elapsed, allocated);
+        }
+
+        private void Write(string state, double elapsed, long allocated)
+            => _log.LogDebug(SyntaxBoundary,
+                "Synapse syntax boundary {Invocation} {Stage} {State} {ElapsedMs} {AllocatedBytes}",
+                _invocation, _stage, state, elapsed, allocated);
+    }
+
     // What the synapse says it does: the app it belongs to, its file name, and the comments above its code
     // and its reaction.
-    private static string Spec(AppManifest manifest, string path, string source)
+    private static string Spec(AppManifest manifest, string path, CompilationUnitSyntax root)
     {
-        var root = CSharpSyntaxTree.ParseText(source, Parse).GetCompilationUnitRoot();
         var statements = root.Members.OfType<GlobalStatementSyntax>().ToArray();
         var reaction = statements.FirstOrDefault(statement => statement.Statement is CommonForEachStatementSyntax or ExpressionStatementSyntax { Expression: AwaitExpressionSyntax });
         var comments = new[] { root.GetFirstToken(includeZeroWidth: true), statements.FirstOrDefault()?.GetFirstToken() ?? default, reaction?.GetFirstToken() ?? default }
