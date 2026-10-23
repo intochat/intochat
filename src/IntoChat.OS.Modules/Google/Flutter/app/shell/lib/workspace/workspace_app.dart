@@ -139,7 +139,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
       if (_rootName == null &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
-        await _space!.show('$brain/apps/settings');
+        _openSettings('general');
       }
     } catch (error) {
       if (mounted) setState(() => _startupError = error);
@@ -278,6 +278,20 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
+        return;
+      }
+      // Settings is the shell's native screen, never the Settings feature app.
+      if (action['kind'] == 'settings') {
+        if (action['brainId'] case final String brain when brain != _brain) {
+          final brains = await client.listBrains();
+          if (!brains.any((entry) => entry.id == brain)) {
+            throw StateError('This account is not a member of that brain.');
+          }
+          if (!mounted) return;
+          await _selectBrain(brain);
+        }
+        if (!mounted) return;
+        _openSettings(action['tab'] as String? ?? 'general');
         return;
       }
       // The layout switch: hand the app its request, then connect again and mount the new root.
@@ -420,18 +434,19 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     loadModels: widget.programmingClient!.readModelCatalog,
     sectionBuilder: _settings,
   );
+  void _openSettings(String section) => _navigator.currentState?.push(
+    MaterialPageRoute<void>(
+      settings: RouteSettings(name: '/settings/$section'),
+      builder: (_) => _settings(section),
+    ),
+  );
   Future<void> _tool(String name) async {
     final client = widget.programmingClient!;
     final navigator = _navigator.currentState!;
     try {
       switch (name) {
         case 'preferences':
-          navigator.push(
-            MaterialPageRoute<void>(
-              settings: const RouteSettings(name: '/settings/general'),
-              builder: (_) => _settings('general'),
-            ),
-          );
+          _openSettings('general');
         case 'connections':
           await _activate({'kind': 'connections'});
         case 'compute':
@@ -580,9 +595,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               onRequest: _request,
               loadIcon: _icon,
               menu: _menu(),
-              onSettings: () => unawaited(
-                _space!.show('$_brain/apps/settings').catchError((Object _) {}),
-              ),
+              onSettings: () => _openSettings('general'),
             ),
     ),
   );
