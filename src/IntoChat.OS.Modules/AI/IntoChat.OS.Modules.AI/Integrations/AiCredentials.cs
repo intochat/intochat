@@ -24,7 +24,8 @@ internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> inte
     public async Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default)
     {
         if (brainKeys is null || !BrainScope.IsValidId(brainId) || !AiIntegrations.KeyedProviders.Contains(provider)) { return null; }
-        return await brainKeys.Release(brainId, AiIntegrations.IdOf(provider), cancellationToken).ConfigureAwait(false);
+        try { return await brainKeys.Release(brainId, AiIntegrations.IdOf(provider), cancellationToken).ConfigureAwait(false); }
+        catch (ArgumentException) { return null; }
     }
 
     private static readonly TimeSpan StatusLifetime = TimeSpan.FromSeconds(5);

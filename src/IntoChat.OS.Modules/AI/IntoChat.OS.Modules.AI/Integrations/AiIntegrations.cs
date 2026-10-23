@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Platform.Entries;
 using IntoChat.OS.AI.Models;
 using IntoChat.OS.Framework.Platform.Integrations;
 
@@ -48,7 +49,17 @@ internal static class AiIntegrations
         _ => throw new NotSupportedException($"{provider} has no hosted endpoint."),
     };
 
-    internal static AiProvider[] KeyedProviders { get; } = [AiProvider.OpenAI, AiProvider.Anthropic, AiProvider.Google, AiProvider.XAI, AiProvider.OpenRouter];
+    // Derived from the one list Authority's key release honours, so the two cannot drift: an id with no
+    // provider here fails the type's initialisation (and every test), never a Release at runtime.
+    internal static AiProvider[] KeyedProviders { get; } = [.. BrainEntries.KeyedProviderIds.Select(id => id switch
+    {
+        "openai" => AiProvider.OpenAI,
+        "anthropic" => AiProvider.Anthropic,
+        "google" => AiProvider.Google,
+        "xai" => AiProvider.XAI,
+        "openrouter" => AiProvider.OpenRouter,
+        _ => throw new NotSupportedException($"'{id}' has no AI provider."),
+    })];
 
     private static IntegrationSchema Provider(string id, string displayName)
         => IntegrationSchema.For(id, displayName).RequiresSecret(ApiKeyField).OffersSetting(EndpointField);
