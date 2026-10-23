@@ -22,6 +22,10 @@ var watches = new ConcurrentDictionary<Guid, CancellationTokenSource>();
 var lastNotice = DateTimeOffset.MinValue;
 var nextNoticeCheck = DateTimeOffset.MinValue;
 var noticeFailed = false;
+const string ScanFailure = "Could not check pending messages; retrying: ";
+const string LegacyScanFailure = "Could not answer a message Memory was slow to intend: ";
+// Check once on startup too: a previous activation may have left its failure in durable status.
+var recoverScanNotice = true;
 var scanning = Scan();
 
 // IntentRephrased is only a hint that Memory has the request: its answer text is what is acted on. A continued
@@ -169,11 +173,24 @@ async Task Scan()
                 }
             }
             await NoticeReviews(now);
+            if (recoverScanNotice)
+            {
+                var status = brain.Get<IText>(Ino.DataKey(brain) + "/status");
+                var current = await status.Read();
+                if (current.Markdown.StartsWith(ScanFailure, StringComparison.Ordinal)
+                    || current.Markdown.StartsWith(LegacyScanFailure, StringComparison.Ordinal))
+                {
+                    // Another synapse may write after the read; only this observed version can be cleared.
+                    await status.TrySet("", current.Version);
+                }
+                recoverScanNotice = false;
+            }
         }
         catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { return; }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
-            try { await Ino.Status(brain, "Could not answer a message Memory was slow to intend: " + Ino.Clip(error.Message)); }
+            recoverScanNotice = true;
+            try { await Ino.Status(brain, ScanFailure + Ino.Clip(error.Message)); }
             catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
         }
     }

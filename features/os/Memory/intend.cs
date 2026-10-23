@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.AI.Agents.Intents;
@@ -10,9 +12,10 @@ using IntoChat.OS.Flutter.Text;
 // rephrase, never to answer, given the message, the active intents and the working memory; its reply is
 // declared on the intents neuron, rephrased, and confirmed when its confidence reaches the ConfirmGate
 // setting. The answer under the request id is "ok <intent id>" or "failed: <reason>"; the intent id matters
-// because a continued intent keeps the request id it was first heard under. Each write reads the revision afresh
-// and is retried on a revision conflict (Intents.ShouldRetry); a failure declares nothing, and
-// a request whose answer is already written is skipped, so a redelivery never declares twice.
+// because a continued intent keeps the request id it was first heard under. The model has a 30-second
+// reply deadline; after it replies, rephrase and confirmation each allow at most three mutation attempts.
+// Revision conflicts reread; transient edge failures read back before retrying, since a lost reply may
+// hide a committed mutation. Declare is never retried here. A request already answered is skipped.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -107,13 +110,13 @@ async Task<Guid> Intend(Intents.Ask ask)
     var id = await intents.Declare(new(ask.RequestId, ask.Message, ask.Conversation, reply.Continues));
     try
     {
-        await Retrying(async () => await intents.Rephrase(id, reply.Brief, reply.Confidence, (await intents.Read()).Revision));
-        await Retrying(async () =>
+        await Retrying(id, intent => MatchesReply(intent, reply),
+            current => intents.Rephrase(id, reply.Brief, reply.Confidence, current.Revision));
+        await Retrying(id, intent =>
         {
-            var current = await intents.Read();
-            if (Intents.ShouldConfirm(current.Intents.FirstOrDefault(intent => intent.Id == id), reply.Confidence, gate))
-            { await intents.Transition(id, IntentState.Confirmed, "confident", current.Revision); }
-        });
+            if (!MatchesReply(intent, reply)) { throw new InvalidOperationException("the intent changed before confirmation"); }
+            return !Intents.ShouldConfirm(intent, reply.Confidence, gate);
+        }, current => intents.Transition(id, IntentState.Confirmed, "confident", current.Revision));
         return id;
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
@@ -132,12 +135,50 @@ async Task<Guid> Intend(Intents.Ask ask)
     }
 }
 
-// A write that meets a revision conflict is read again and retried, up to Intents.FireAttempts in all.
-async Task Retrying(Func<Task> write)
+// Keep this recovery local to intend. Other Memory operations have different idempotency rules.
+// Three writes at most, with 250/500ms backoff for transient HTTP responses. Every retry uses a fresh
+// revision; even the final failed response gets read back without issuing a fourth mutation.
+async Task Retrying(Guid id, Func<Intent, bool> complete, Func<IntentsSnapshot, Task> write)
 {
+    Intent? before = null;
+    bool Completed(IntentsSnapshot current)
+    {
+        var intent = current.Intents.FirstOrDefault(item => item.Id == id)
+            ?? throw new InvalidOperationException("the intent no longer exists");
+        if (intent.State is IntentState.Done or IntentState.Abandoned)
+        { throw new InvalidOperationException("the intent became terminal while intending"); }
+        if (complete(intent)) { return true; }
+        if (before is not null && (before.State != intent.State || before.Confidence != intent.Confidence
+            || !SameBrief(before.Brief, intent.Brief)))
+        { throw new InvalidOperationException("the intent changed while intending"); }
+        before = intent;
+        return false;
+    }
+
     for (var attempt = 1; ; attempt++)
     {
-        try { await write(); return; }
+        var current = await intents.Read();
+        if (Completed(current)) { return; }
+        try { await write(current); return; }
+        catch (HttpRequestException error) when (IsTransient(error) && !brain.Stopping.IsCancellationRequested)
+        {
+            if (Completed(await intents.Read())) { return; }
+            if (attempt >= Intents.FireAttempts) { throw; }
+            await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt), brain.Stopping);
+        }
         catch (Exception error) when (Intents.ShouldRetry(error, attempt) && !brain.Stopping.IsCancellationRequested) { }
     }
 }
+
+static bool IsTransient(HttpRequestException error)
+    => error.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
+        || (int?)error.StatusCode is >= 500 and <= 599;
+
+static bool MatchesReply(Intent intent, Intents.Reply reply)
+    => intent.State is IntentState.Rephrased or IntentState.Confirmed or IntentState.Dispatched or IntentState.Waiting
+        && intent.Confidence == reply.Confidence && SameBrief(intent.Brief, reply.Brief);
+
+static bool SameBrief(IntentBrief? left, IntentBrief? right)
+    => left is null ? right is null : right is not null && left.Goal == right.Goal
+        && left.Inputs.SequenceEqual(right.Inputs) && left.Constraints.SequenceEqual(right.Constraints)
+        && left.Acceptance.SequenceEqual(right.Acceptance);
