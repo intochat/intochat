@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
+import 'package:intochat_os_ui/src/theme/ui_icon.dart';
 
 Map<String, dynamic> _button(
   String key,
@@ -20,7 +23,14 @@ Map<String, dynamic> _button(
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
   Map<String, dynamic> root,
+) => _pumpLive(tester, () => root, const Stream.empty());
+
+Future<List<Map<String, dynamic>>> _pumpLive(
+  WidgetTester tester,
+  Map<String, dynamic> Function() root,
+  Stream<void> changes,
 ) async {
+  var version = 0;
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
@@ -33,10 +43,10 @@ Future<List<Map<String, dynamic>>> _pump(
             name: 'nodes',
             load: (kind, name) async => {
               'generation': 1,
-              'version': 1,
-              'root': root,
+              'version': ++version,
+              'root': root(),
             },
-            watch: (kind, name) => const Stream.empty(),
+            watch: (kind, name) => changes,
             onAction: (event) async => sent.add(event),
           ),
         ),
@@ -106,18 +116,21 @@ void main() {
   });
 
   testWidgets('a toast is gone after four seconds', (tester) async {
-    await _pump(tester, {
+    final sent = await _pump(tester, {
       'kind': 8,
       'key': 'toast',
       'text': 'Chat archived',
       'children': [_button('undo', 'Undo')],
     });
     expect(find.text('Chat archived'), findsOneWidget);
-    expect(find.text('Undo'), findsOneWidget);
+    final undo = tester.getCenter(find.text('Undo'));
     await tester.pump(const Duration(seconds: 4));
     await tester.pump();
     expect(find.text('Chat archived'), findsNothing);
     expect(find.text('Undo'), findsNothing);
+    await tester.tapAt(undo);
+    await tester.pump();
+    expect(sent, isEmpty);
   });
 
   testWidgets('a 500-row list builds lazily', (tester) async {
@@ -177,5 +190,126 @@ void main() {
     expect(find.text('Done'), findsOneWidget);
     expect(find.text('VH'), findsOneWidget);
     expect(find.text('or'), findsOneWidget);
+  });
+
+  testWidgets('closing a menu returns focus to its trigger', (tester) async {
+    await _pump(tester, _menu());
+    await tester.tap(find.bySemanticsLabel('More'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    final trigger = Focus.of(
+      tester.element(find.byIcon(uiIcon('more-horizontal')!)),
+    );
+    expect(trigger.hasPrimaryFocus, isTrue);
+  });
+
+  testWidgets('tapping outside an open menu dispatches nothing', (
+    tester,
+  ) async {
+    final sent = await _pump(tester, _menu());
+    await tester.tap(find.bySemanticsLabel('More'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(700, 500));
+    await tester.pumpAndSettle();
+    expect(find.text('Rename'), findsNothing);
+    expect(sent, isEmpty);
+  });
+
+  Map<String, dynamic> modal(List<Map<String, dynamic>> buttons) => {
+    'kind': 7,
+    'key': 'confirm',
+    'text': 'Delete chat?',
+    'children': buttons,
+  };
+
+  testWidgets('modal backdrop dispatches only the cancel action, once', (
+    tester,
+  ) async {
+    final sent = await _pump(
+      tester,
+      modal([
+        _button('delete', 'Delete', style: 3),
+        _button('cancel', 'Cancel', style: 2),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pump();
+    await tester.tapAt(const Offset(5, 5));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(sent, hasLength(1));
+    expect(sent.single, containsPair('action', 'cancel'));
+  });
+
+  testWidgets('modal without a cancel button dispatches nothing', (
+    tester,
+  ) async {
+    final sent = await _pump(
+      tester,
+      modal([_button('ok', 'OK'), _button('delete', 'Delete', style: 3)]),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pump();
+    expect(sent, isEmpty);
+    expect(find.text('Delete chat?'), findsOneWidget);
+  });
+
+  testWidgets('a closed modal restores the previous focus', (tester) async {
+    final changes = StreamController<void>.broadcast();
+    var open = false;
+    await _pumpLive(
+      tester,
+      () => {
+        'kind': 2,
+        'key': 'root',
+        'children': [
+          _button('open', 'Open'),
+          if (open) modal([_button('cancel', 'Cancel', style: 1)]),
+        ],
+      },
+      changes.stream,
+    );
+    final opener = Focus.of(tester.element(find.text('Open')));
+    opener.requestFocus();
+    await tester.pump();
+    open = true;
+    changes.add(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete chat?'), findsOneWidget);
+    expect(opener.hasPrimaryFocus, isFalse);
+    open = false;
+    changes.add(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete chat?'), findsNothing);
+    expect(opener.hasPrimaryFocus, isTrue);
+    await changes.close();
+  });
+
+  testWidgets('a republished toast with the same key shows again', (
+    tester,
+  ) async {
+    final changes = StreamController<void>.broadcast();
+    var text = 'Chat archived';
+    await _pumpLive(
+      tester,
+      () => {'kind': 8, 'key': 'toast', 'text': text},
+      changes.stream,
+    );
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump();
+    expect(find.text('Chat archived'), findsNothing);
+    text = 'Chat restored';
+    changes.add(null);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Chat restored'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump();
+    expect(find.text('Chat restored'), findsNothing);
+    await changes.close();
   });
 }

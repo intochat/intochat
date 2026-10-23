@@ -29,17 +29,44 @@ final class ViewModal extends StatefulWidget {
 
 class _ViewModalState extends State<ViewModal> {
   final _portal = OverlayPortalController();
+  // Focus held before the modal opened; restored when it leaves the tree.
+  FocusNode? _previous;
+  bool _cancelled = false;
+  final _scope = FocusScopeNode(debugLabel: 'view modal');
 
   @override
   void initState() {
     super.initState();
+    _previous = FocusManager.instance.primaryFocus;
     _portal.show();
+    // Autofocus yields to existing focus, so take it explicitly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scope.requestFocus();
+    });
   }
 
+  @override
+  void dispose() {
+    final previous = _previous;
+    if (previous != null && previous.context != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (previous.context != null) previous.requestFocus();
+      });
+    }
+    _scope.dispose();
+    super.dispose();
+  }
+
+  /// One-shot per mounted modal: repeated Escape or backdrop taps do not
+  /// dispatch the cancel action twice.
   void _cancel() {
+    if (_cancelled) return;
     for (final (child, _) in widget.children) {
       if (child['kind'] == 1 && (child['style'] == 1 || child['style'] == 2)) {
-        widget.action(child)?.call();
+        final cancel = widget.action(child);
+        if (cancel == null) return;
+        _cancelled = true;
+        cancel();
         return;
       }
     }
@@ -68,6 +95,7 @@ class _ViewModalState extends State<ViewModal> {
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _cancel},
       child: FocusScope(
+        node: _scope,
         autofocus: true,
         child: Stack(
           children: [

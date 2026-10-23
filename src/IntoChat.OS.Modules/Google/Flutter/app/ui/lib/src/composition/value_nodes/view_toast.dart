@@ -23,14 +23,39 @@ final class ViewToast extends StatefulWidget {
 class _ViewToastState extends State<ViewToast> {
   final _portal = OverlayPortalController();
   Timer? _timer;
+  // The portal stays shown; visibility only swaps its content, because
+  // OverlayPortalController.show may not run during build (didUpdateWidget).
+  bool _visible = false;
 
   @override
   void initState() {
     super.initState();
     _portal.show();
+    _show();
+  }
+
+  void _show() {
+    _visible = true;
+    _timer?.cancel();
     _timer = Timer(ViewToast.lifetime, () {
-      if (mounted) setState(_portal.hide);
+      if (mounted) setState(() => _visible = false);
     });
+  }
+
+  static Object? _action(Map node) => (node['children'] as List? ?? const [])
+      .whereType<Map>()
+      .where((m) => m['kind'] == 1)
+      .map((m) => m['action'])
+      .firstOrNull;
+
+  // A republished toast (same key, new text or action) shows again.
+  @override
+  void didUpdateWidget(ViewToast old) {
+    super.didUpdateWidget(old);
+    if (old.node['text'] != widget.node['text'] ||
+        _action(old.node) != _action(widget.node)) {
+      _show();
+    }
   }
 
   @override
@@ -47,6 +72,7 @@ class _ViewToastState extends State<ViewToast> {
   );
 
   Widget _overlay(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
     final c = UiColors.of(context);
     final style = UiType.of(context).toast.copyWith(color: c.page);
     final button = (widget.node['children'] as List? ?? const [])

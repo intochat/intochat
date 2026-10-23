@@ -22,10 +22,12 @@ final class ViewIconButton extends StatefulWidget {
     required this.icon,
     required this.label,
     this.onPressed,
+    this.focusNode,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final FocusNode? focusNode;
 
   @override
   State<ViewIconButton> createState() => _ViewIconButtonState();
@@ -48,6 +50,7 @@ class _ViewIconButtonState extends State<ViewIconButton> {
           enabled: enabled,
           label: widget.label,
           child: FocusableActionDetector(
+            focusNode: widget.focusNode,
             enabled: enabled,
             mouseCursor: enabled
                 ? SystemMouseCursors.click
@@ -118,10 +121,18 @@ final class ViewMenu extends StatefulWidget {
 class _ViewMenuState extends State<ViewMenu> {
   // The open panel takes focus so Escape closes it however it was opened.
   final _panel = FocusNode(debugLabel: 'view menu');
+  // Closing the menu returns focus to its trigger.
+  final _trigger = FocusNode(debugLabel: 'view menu trigger');
+
+  void _after(FocusNode node) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && node.context != null) node.requestFocus();
+      });
 
   @override
   void dispose() {
     _panel.dispose();
+    _trigger.dispose();
     super.dispose();
   }
 
@@ -157,9 +168,9 @@ class _ViewMenuState extends State<ViewMenu> {
     ];
     return MenuAnchor(
       clipBehavior: Clip.none,
-      onOpen: () => WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _panel.requestFocus();
-      }),
+      childFocusNode: _trigger,
+      onOpen: () => _after(_panel),
+      onClose: () => _after(_trigger),
       style: const MenuStyle(
         backgroundColor: WidgetStatePropertyAll(Colors.transparent),
         surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
@@ -193,11 +204,20 @@ class _ViewMenuState extends State<ViewMenu> {
         void toggle() =>
             controller.isOpen ? controller.close() : controller.open();
         return glyph != null
-            ? ViewIconButton(icon: glyph, label: text, onPressed: toggle)
-            : UiKitButton(
+            ? ViewIconButton(
+                icon: glyph,
                 label: text,
-                style: UiKitButtonStyle.ghost,
                 onPressed: toggle,
+                focusNode: _trigger,
+              )
+            : Focus(
+                focusNode: _trigger,
+                skipTraversal: true,
+                child: UiKitButton(
+                  label: text,
+                  style: UiKitButtonStyle.ghost,
+                  onPressed: toggle,
+                ),
               );
       },
     );
