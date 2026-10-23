@@ -5,12 +5,16 @@ import 'package:flutter/material.dart';
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
 import 'model_settings.dart';
+import 'settings/archived_tab.dart';
 import 'settings/connections_tab.dart';
+import 'settings/danger_tab.dart';
 import 'settings/general_tab.dart';
 import 'settings/keys_tab.dart';
 import 'settings/models_tab.dart';
+import 'settings/notifications_tab.dart';
 import 'settings/settings_api.dart';
 import 'settings/settings_tab_heading.dart';
+import 'settings/variables_tab.dart';
 import 'workspace_store.dart';
 
 /// The Settings tabs, in order: (id, label). Billing is a disabled "Later"
@@ -137,21 +141,18 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
         windowsRequest: widget.windowsRequest,
         onOpen: widget.onOpen,
       ),
-      'variables' => _placeholder(
-        'Variables and secrets',
-        'Values your brain\'s apps and agents can use.',
-      ),
-      'notifications' => _placeholder(
-        'Notifications',
-        'Choose what this brain tells you about.',
-      ),
-      'archived' => _placeholder(
-        'Archived chats',
-        'Archived conversations appear here.',
-      ),
-      'danger' => _placeholder(
-        'Danger zone',
-        'Actions that change access to this brain.',
+      'variables' =>
+        api == null
+            ? _notConnected('Variables and secrets')
+            : VariablesTab(api: api),
+      'notifications' =>
+        api == null
+            ? _notConnected('Notifications')
+            : NotificationsTab(api: api),
+      'archived' => const ArchivedTab(),
+      'danger' => DangerTab(
+        accountBase: widget.kernelBaseUri,
+        onOpen: widget.onOpen,
       ),
       _ => GeneralTab(store: widget.store),
     };

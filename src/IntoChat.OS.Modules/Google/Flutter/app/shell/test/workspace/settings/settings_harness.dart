@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/connections/connectors_menu.dart';
 import 'package:intochat_os_flutter_shell/workspace/settings/settings_api.dart';
 import 'package:intochat_os_flutter_shell/workspace/workspace_settings.dart';
 import 'package:intochat_os_flutter_shell/workspace/workspace_store.dart';
@@ -9,6 +10,8 @@ Future<WorkspaceStore> pumpSettings(
   WidgetTester tester,
   SettingsApi api, {
   String tab = 'general',
+  Uri? kernelBaseUri,
+  OpenUrl? onOpen,
 }) async {
   final store = WorkspaceStore();
   addTearDown(store.dispose);
@@ -21,6 +24,8 @@ Future<WorkspaceStore> pumpSettings(
         initialTab: tab,
         onClose: () {},
         api: api,
+        kernelBaseUri: kernelBaseUri,
+        onOpen: onOpen,
       ),
     ),
   );

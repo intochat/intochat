@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'settings_api.dart';
+import 'settings_dialog.dart';
 import 'settings_tab_heading.dart';
 
 const _ownerOnly = 'Only the brain owner can change API keys.';
@@ -76,7 +77,7 @@ class _KeysTabState extends State<KeysTab> {
   Future<void> _remove(String id, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialog) => _SettingsDialog(
+      builder: (dialog) => SettingsDialog(
         title: 'Remove the $name key?',
         body:
             'Models from $name stop working in this brain until you add a key again.',
@@ -256,7 +257,7 @@ class _KeyDialogState extends State<_KeyDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => _SettingsDialog(
+  Widget build(BuildContext context) => SettingsDialog(
     title: '${widget.replace ? 'Replace' : 'Add'} ${widget.provider} key',
     body: 'The key is sealed for this brain and cannot be read back.',
     field: UiKitField(
@@ -283,50 +284,4 @@ class _KeyDialogState extends State<_KeyDialog> {
       ),
     ],
   );
-}
-
-/// A kit-styled dialog with full-width actions.
-class _SettingsDialog extends StatelessWidget {
-  const _SettingsDialog({
-    required this.title,
-    required this.body,
-    required this.actions,
-    this.field,
-  });
-  final String title, body;
-  final Widget? field;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = UiColors.of(context);
-    final type = UiType.of(context);
-    return Dialog(
-      backgroundColor: c.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(UiTokens.of(context).modalRadius),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(title, style: type.heading.copyWith(color: c.strong)),
-              const SizedBox(height: 8),
-              Text(body, style: type.bodyMuted),
-              if (field != null) ...[const SizedBox(height: 16), field!],
-              const SizedBox(height: 20),
-              for (final (i, action) in actions.indexed) ...[
-                if (i > 0) const SizedBox(height: 8),
-                action,
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

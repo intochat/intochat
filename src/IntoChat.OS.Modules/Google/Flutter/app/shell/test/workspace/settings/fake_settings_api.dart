@@ -3,8 +3,13 @@ import 'package:intochat_os_flutter_shell/workspace/settings/settings_api.dart';
 
 /// In-memory [SettingsApi]: a provider's models are available once its key is set.
 base class FakeSettingsApi implements SettingsApi {
-  FakeSettingsApi({Map<String, String>? secrets}) : secrets = secrets ?? {};
+  FakeSettingsApi({
+    Map<String, String>? secrets,
+    Map<String, String>? variables,
+  }) : secrets = secrets ?? {},
+       variables = variables ?? {};
   final Map<String, String> secrets;
+  final Map<String, String> variables;
   final puts = <(String, EntryKind, String)>[];
   final removed = <String>[];
   var modelLoads = 0;
@@ -12,6 +17,8 @@ base class FakeSettingsApi implements SettingsApi {
 
   @override
   Future<List<EntrySummary>> listEntries() async => [
+    for (final e in variables.entries)
+      EntrySummary(name: e.key, kind: EntryKind.variable, value: e.value),
     for (final e in secrets.entries)
       EntrySummary(
         name: e.key,
@@ -25,13 +32,14 @@ base class FakeSettingsApi implements SettingsApi {
   @override
   Future<void> putEntry(String name, EntryKind kind, String value) async {
     puts.add((name, kind, value));
-    secrets[name] = value;
+    (kind == EntryKind.secret ? secrets : variables)[name] = value;
   }
 
   @override
   Future<void> removeEntry(String name) async {
     removed.add(name);
     secrets.remove(name);
+    variables.remove(name);
   }
 
   @override
