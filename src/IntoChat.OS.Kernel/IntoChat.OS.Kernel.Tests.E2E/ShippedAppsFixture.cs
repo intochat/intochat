@@ -24,7 +24,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     // The layout the page last mounted per scope: switching stores the desktop's layout text and reloads.
     private readonly Dictionary<string, string> _layouts = new(StringComparer.Ordinal);
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
-    // Desktop.Hidden: background services the desktop shows in no window; v1 still shows them.
+    // ShippedApps.Services (Desktop.Hidden) without the desktop and workspace: background services the desktop
+    // shows in no window; v1 still shows them.
     public static readonly HashSet<string> ClassicOnly = new(["router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
     public string Scope => _circle ?? Person.BrainId;
     public void EnsureUsable() => Assert.True(_unusable is null, $"The shared app fixture could not retire its previous case: {_unusable}");
@@ -71,8 +72,9 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         return ready;
     }
 
-    // Opens the app the way a person does: a desktop window from the gallery's Open (or, for a
-    // service app the desktop never windows, the classic Workspace's navigation).
+    // Opens the app the way a person does: a desktop window from the Apps window's Open, which hands the root's
+    // receiver (the Workspace app) its workspace activation (or, for a service app the desktop never windows,
+    // the classic Workspace's navigation).
     public async Task ShowAsync(string name, CancellationToken ct)
     {
         using var caller = Person.AsCallerIn(Scope);
@@ -85,9 +87,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         else
         {
             await LayoutAsync("desktop", ct);
-            if (!(await DesktopNodesAsync(ct)).Any(node => node.Key == "gallery-close")) { await ActivateAsync(node => node.Key == "gallery", ct); }
-            await ActivateAsync(node => node.Action == "open:" + name, ct);
-            await ActivateAsync(node => node.Key == "gallery-close", ct);
+            await App("workspace").Request("activate", JsonSerializer.Serialize(new { kind = "workspace", brainId = Scope, application = name })).WaitAsync(ct);
             // The app's tab id is its name; its window (w-<n>) has the one viewport.
             var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
             var window = placed.Windows.First(window => window.Tabs.Any(tab => tab.Id == name)).Id;
@@ -111,7 +111,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     {
         ct.ThrowIfCancellationRequested();
         var marker = layout == "desktop" ? "Apps" : "New desktop";
-        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = marker, Exact = true })).ToBeVisibleAsync(new() { Timeout = 60_000 });
+        // First: an open Apps window's title and its dock entry are buttons named Apps too.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = marker, Exact = true }).First).ToBeVisibleAsync(new() { Timeout = 60_000 });
         _layouts[Scope] = layout;
     }
 
@@ -214,6 +215,11 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             if (IApp.NameOf(Scope, instance.Key) is { } name && name is not ("workspace" or "desktop")) { names.Add(name); }
         }
         foreach (var name in names) { await App(name).Delete().WaitAsync(ct); }
+        // The desktop root keeps "greeted" (set once a start finds the greeting in Ino's selected chat) and Ino's chat
+        // keeps its selection (a case that clicked New chat leaves an empty chat selected) after Ino itself is removed.
+        // Together they made the next case's reinstalled Ino start with no greeting anywhere: a case starts with only
+        // the roots, so the root's first-run memory is cleared too and the next start greets the chat Ino then shows.
+        await Brain.Get<IText>(IApp.Key(Scope, "desktop") + "/greeted").Set("").WaitAsync(ct);
         Console.WriteLine($"[app-e2e] removed {names.Count} apps: {watch.Elapsed.TotalSeconds:F2}s");
     }
 

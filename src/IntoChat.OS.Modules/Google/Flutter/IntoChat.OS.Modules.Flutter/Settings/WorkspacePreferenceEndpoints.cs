@@ -1,6 +1,4 @@
-using IntoChat.OS.Flutter.TextField;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Apps;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,56 +9,34 @@ namespace IntoChat.OS.Flutter.Settings;
 // as a text field holding the app name. Any member may read and change it.
 internal static class WorkspacePreferenceEndpoints
 {
-    public const string Default = "ino";
+    public const string Default = BrainPreferenceStore.NewTabDefault;
 
-    // Copy of Desktop.Hidden in features/os/Desktop/Desktop.cs: background services and roots never appear
-    // as apps a person can choose. WorkspacePreferenceFacts pins the two lists equal.
-    internal static readonly HashSet<string> Hidden = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"];
+    internal static HashSet<string> Hidden => BrainPreferenceStore.Hidden;
 
-    internal sealed record Choice(string Name, string Title);
-
-    internal sealed record Preferences(string NewTabApp, Choice[] Choices);
+    internal sealed record Preferences(string NewTabApp, BrainPreferenceStore.Choice[] Choices);
 
     internal sealed record Input(string? NewTabApp);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = BrainRoutes.Group(endpoints, "/preferences/workspace");
-        group.MapGet("", async (IIntoChatOS brain, CancellationToken ct) => Results.Ok(await Read(brain, ct)));
+        group.MapGet("", async (IIntoChatOS brain, CancellationToken ct) => Results.Ok(await Read(brain, BrainScope.CurrentId(), ct)));
         group.MapPut("", Write);
     }
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences.
     internal static async Task<IResult> Write(Input? input, IIntoChatOS brain, CancellationToken ct)
     {
-        if (CallerContextStamper.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy))
-        { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-        var choices = await Choices(brain, ct);
-        if (input?.NewTabApp is not { } name || !choices.Any(choice => choice.Name == name))
-        { return Results.BadRequest(new { error = "Choose an installed app." }); }
-        await brain.Get<ITextField>(Field()).SetValue(name).WaitAsync(ct);
-        return Results.Ok(await Read(brain, ct));
-    }
-
-    private static string Field() => BrainScope.CurrentId() + "/settings/workspace/new-tab-app";
-
-    private static async Task<Preferences> Read(IIntoChatOS brain, CancellationToken ct)
-    {
-        var choices = await Choices(brain, ct);
-        var stored = (await brain.Get<ITextField>(Field()).Read().WaitAsync(ct)).Value;
-        return new(choices.Any(choice => choice.Name == stored) ? stored! : Default, choices);
-    }
-
-    private static async Task<Choice[]> Choices(IIntoChatOS brain, CancellationToken ct)
-    {
+        if (BrainPreferenceStore.IsAppCaller()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var scope = BrainScope.CurrentId();
-        var found = new List<Choice>();
-        await foreach (var instance in brain.Kernel.Instances<IApp>(ct))
-        {
-            if (IApp.NameOf(scope, instance.Key) is not { } name || Hidden.Contains(name)) { continue; }
-            var app = await brain.Get<IApp>(instance.Key).Read().WaitAsync(ct);
-            if (!string.IsNullOrWhiteSpace(app.Manifest.Title) && app.MigrationTarget is null) { found.Add(new(name, app.Manifest.Title)); }
-        }
-        return [.. found.OrderBy(choice => choice.Name == Default ? 0 : 1).ThenBy(choice => choice.Title, StringComparer.OrdinalIgnoreCase)];
+        if (!await BrainPreferenceStore.WriteNewTab(brain, scope, input?.NewTabApp, ct))
+        { return Results.BadRequest(new { error = "Choose an installed app." }); }
+        return Results.Ok(await Read(brain, scope, ct));
+    }
+
+    private static async Task<Preferences> Read(IIntoChatOS brain, string scope, CancellationToken ct)
+    {
+        var choices = await BrainPreferenceStore.NewTabChoices(brain, scope, ct);
+        return new(await BrainPreferenceStore.ReadNewTab(brain, scope, choices, ct), choices);
     }
 }

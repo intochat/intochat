@@ -16,5 +16,6 @@ abstract final class ChatCopy {
   static const jumpToLatest = 'Jump to latest';
   static const open = 'Open';
   static const notInstalled = 'Not installed';
+  static const install = 'Install';
   static const answeredBy = 'Answered by';
 }

@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:intochat_os_ui/intochat_os_ui.dart' show UiTheme;
+import 'package:intochat_os_ui/intochat_os_ui.dart'
+    show LocalPreferences, PreferenceStore, UiTheme;
 
 String _text(dynamic value, String fallback) =>
     value is String ? value : fallback;
@@ -79,5 +80,49 @@ class WorkspaceStore extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     super.dispose();
+  }
+}
+
+/// The device-local `preference` stores, read from and saved to [store].
+final class WorkspaceLocalPreferences implements LocalPreferences {
+  WorkspaceLocalPreferences(this.store);
+  final WorkspaceStore store;
+
+  @override
+  String? read(PreferenceStore store) {
+    final settings = this.store.settings;
+    return switch (store) {
+      PreferenceStore.localDisplayName => settings.displayName,
+      PreferenceStore.localTheme => settings.theme,
+      PreferenceStore.localCompactSpacing =>
+        settings.compactDensity ? 'on' : 'off',
+      PreferenceStore.localReducedMotion =>
+        settings.reducedMotion ? 'on' : 'off',
+      PreferenceStore.localDefaultModel => settings.defaultModelProfile,
+      _ => null,
+    };
+  }
+
+  @override
+  Future<void> write(PreferenceStore store, String value) async {
+    final settings = this.store.settings;
+    switch (store) {
+      case PreferenceStore.localDisplayName:
+        settings.displayName = value;
+      case PreferenceStore.localTheme:
+        settings.theme = UiTheme.paletteName(value);
+      case PreferenceStore.localCompactSpacing:
+        settings.compactDensity = value == 'on';
+      case PreferenceStore.localReducedMotion:
+        settings.reducedMotion = value == 'on';
+      case PreferenceStore.localDefaultModel:
+        settings.defaultModelProfile = value.isEmpty ? null : value;
+      default:
+        throw ArgumentError.value(store, 'store', 'Not a device preference.');
+    }
+    await this.store.save();
+    if (this.store.persistenceError case final String error) {
+      throw StateError(error);
+    }
   }
 }

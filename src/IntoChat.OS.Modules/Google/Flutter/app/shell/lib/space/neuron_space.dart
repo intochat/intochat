@@ -21,6 +21,8 @@ class NeuronSpace extends StatefulWidget {
     this.onRequest,
     this.loadIcon,
     this.menu,
+    this.entries,
+    this.localPreferences,
   });
   final SpaceController controller;
   final NeuronLoader load;
@@ -31,6 +33,9 @@ class NeuronSpace extends StatefulWidget {
   final Future<void> Function(String, String)? onRequest;
   final SphereIconLoader? loadIcon;
   final Widget? menu;
+  // As the root view has them: Settings saves keys and variables over the person's session and device choices here.
+  final EntriesClient Function(String brainId)? entries;
+  final LocalPreferences? localPreferences;
   @override
   State<NeuronSpace> createState() => _NeuronSpaceState();
 }
@@ -119,6 +124,8 @@ class _NeuronSpaceState extends State<NeuronSpace>
                       onAction: widget.onAction,
                       onActivate: widget.onActivate,
                       scenes: widget.controller.scenes,
+                      entries: widget.entries,
+                      localPreferences: widget.localPreferences,
                     ),
                   ),
                 ),
@@ -143,6 +150,8 @@ class _NeuronSpaceState extends State<NeuronSpace>
                       onAction: widget.onAction,
                       onActivate: widget.onActivate,
                       scenes: widget.controller.scenes,
+                      entries: widget.entries,
+                      localPreferences: widget.localPreferences,
                     ),
                   ),
                 ),

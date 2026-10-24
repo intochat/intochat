@@ -90,7 +90,9 @@
             "title": "Title",
             "icon": "Icon",
             "installed": true,
-            "input": "Input"
+            "input": "Input",
+            "publisher": "Publisher",
+            "release": "Release"
           }
         }
       ],
@@ -216,6 +218,15 @@
         "count": 5000
       }
     ]
+  },
+  "IntoChat.OS.Flutter.Entries.EntryControlState": {
+    "name": "Name",
+    "version": 7,
+    "spec": {
+      "mode": 1,
+      "label": "Label",
+      "entryName": "EntryName"
+    }
   },
   "IntoChat.OS.Flutter.Expander.ExpanderState": {
     "name": "Name",
@@ -348,6 +359,24 @@
     "version": 7,
     "displayName": "DisplayName",
     "avatarUrl": "AvatarUrl"
+  },
+  "IntoChat.OS.Flutter.Preferences.PreferenceControlState": {
+    "name": "Name",
+    "version": 7,
+    "spec": {
+      "store": 14,
+      "label": "Label",
+      "kind": 2,
+      "choices": [
+        {
+          "id": "Id",
+          "label": "Label",
+          "enabled": true,
+          "detail": "Detail"
+        }
+      ]
+    },
+    "value": "Value"
   },
   "IntoChat.OS.Flutter.Progress.ProgressState": {
     "name": "Name",

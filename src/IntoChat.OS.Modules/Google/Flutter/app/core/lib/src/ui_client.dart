@@ -1016,9 +1016,25 @@ final class IntoChatOSUiClient {
 final class UiRequestException extends StateError {
   UiRequestException(String method, String path, this.statusCode, String body)
     : detail = _problemDetail(body),
+      error = _field(body, 'error'),
+      status = _field(body, 'status'),
       super('$method $path failed: $statusCode $body');
   final int statusCode;
   final String? detail;
+
+  /// The answer's own `error` and `status` strings, when it is a JSON object that carries them.
+  final String? error, status;
+
+  static String? _field(String body, String name) {
+    try {
+      final value = jsonDecode(body);
+      return value is Map && value[name] is String
+          ? value[name] as String
+          : null;
+    } on FormatException {
+      return null;
+    }
+  }
 
   static String? _problemDetail(String body) {
     try {

@@ -176,6 +176,57 @@ void main() {
     expect(find.byTooltip(ChatCopy.jumpToLatest), findsNothing);
   });
 
+  testWidgets('app_card_install_opens_the_apps_detail', (tester) async {
+    final opened = <Map<String, dynamic>>[];
+    await show(tester, [
+      assistant(
+        'r1/assistant',
+        'Opened.',
+        app: {
+          'app': 'ledger',
+          'title': 'Ledger',
+          'icon': '',
+          'installed': false,
+          'input': '',
+          'publisher': 'vlad',
+          'release': '1.2.3',
+        },
+      ),
+    ], onOpenApp: opened.add);
+    final card = find.byType(ChatAppCard);
+    expect(
+      find.descendant(of: card, matching: find.text(ChatCopy.notInstalled)),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(UiKitButton, ChatCopy.install));
+    expect(opened, [
+      {
+        'kind': 'workspace',
+        'application': 'apps',
+        'operation': 'open',
+        'input': 'app:vlad/ledger@1.2.3',
+      },
+    ]);
+  });
+
+  testWidgets('app_card_without_publisher_has_no_install', (tester) async {
+    await show(tester, [
+      assistant(
+        'r1/assistant',
+        'Opened.',
+        app: {
+          'app': 'ledger',
+          'title': 'Ledger',
+          'icon': '',
+          'installed': false,
+          'input': '',
+        },
+      ),
+    ], onOpenApp: (_) {});
+    expect(find.text(ChatCopy.notInstalled), findsOneWidget);
+    expect(find.byType(UiKitButton), findsNothing);
+  });
+
   testWidgets('app_card_opens_the_app_and_uninstalled_shows_badge', (
     tester,
   ) async {

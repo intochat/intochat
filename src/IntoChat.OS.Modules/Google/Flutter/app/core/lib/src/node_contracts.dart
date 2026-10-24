@@ -71,6 +71,14 @@ abstract final class NodeContracts {
       'IntoChat.OS.Flutter.Toggle.IToggle',
       'ToggleChanged',
     ),
+    'entrycontrol': NodeContract(
+      'IntoChat.OS.Flutter.Entries.IEntryControl',
+      'EntryControlChanged',
+    ),
+    'preference': NodeContract(
+      'IntoChat.OS.Flutter.Preferences.IPreferenceControl',
+      'PreferenceChanged',
+    ),
     'progress': NodeContract(
       'IntoChat.OS.Flutter.Progress.IProgress',
       'ProgressChanged',

@@ -11,7 +11,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "workspace";
-    public const string Version = "0.3.5";
+    public const string Version = "0.3.6";
     public static readonly AppManifest Manifest = new(
         Title: "Workspace", Description: "Your apps, in one quiet workspace.",
         Operations: [new("open", "Rebuild without changing focus."), new("navigate", "Apply a revision-bound navigation command."), new("activate", "Open an app and dispatch an explicit user action.")],

@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
-using IntoChat.OS.Flutter.Layout;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Chat;
 
@@ -37,10 +36,10 @@ internal static class ShippedAppJourneys
                 await Assertions.Expect(page.GetByText("Error", new() { Exact = true })).ToHaveCountAsync(0);
                 break;
             case "settings":
-                var connections = fixture.Brain.Get<ILayout>(fixture.Person.BrainId + "/apps/settings/connections");
-                var revision = (await connections.Read()).Revision;
-                await Button("Refresh connections").ClickAsync();
-                await TestWait.UntilAsync(_ => connections.Read(), state => state.Revision > revision, TimeSpan.FromSeconds(15), ct);
+                // Settings 2.0.0 is a value tree: a tab click is stored in its view state, so a reconnect shows it again.
+                var viewState = fixture.Brain.Get<IText>(fixture.Person.BrainId + "/apps/settings/view-state");
+                await Button("API keys").ClickAsync();
+                await TestWait.UntilAsync(_ => viewState.Read(), state => state.Markdown.Contains("\"tab\":\"keys\"", StringComparison.Ordinal), TimeSpan.FromSeconds(15), ct);
                 break;
             case "usage":
                 await Text("recorded in this brain over the last 30 days");
@@ -112,6 +111,13 @@ internal static class ShippedAppJourneys
                 await Text("FilmCraft tools connected");
                 break;
             case "workspace": await Text("Your workspace is clear."); break;
+            case "apps":
+                // The library lists this brain's apps; Details shows one app's detail and Back returns.
+                await Button("Details").First.ClickAsync();
+                await Assertions.Expect(Button("Back")).ToBeVisibleAsync();
+                await Button("Back").ClickAsync();
+                await Assertions.Expect(Button("Details").First).ToBeVisibleAsync();
+                break;
             default: Assert.Fail($"Add a browser journey for the shipped app '{name}'."); break;
         }
     }

@@ -15,8 +15,11 @@
     <Compile Include="../../../features/os/Ino/Pending.cs" Link="Features/InoPending.cs" />
     <Compile Include="../../../features/os/Desktop/Desktop.cs" Link="Features/Desktop.cs" />
     <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />
-    <Compile Include="../../../features/os/Desktop/Gallery.cs" Link="Features/Gallery.cs" />
     <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
+    <Compile Include="../../../features/os/Settings/Settings.cs" Link="Features/Settings.cs" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <Compile Include="../../../features/os/Ino/InoChats.cs" Link="Features/InoChats.cs" />
     <Compile Include="../../../features/os/Ino/InoLayout.cs" Link="Features/InoLayout.cs" />
@@ -26,6 +29,8 @@
     <Compile Include="../../../features/os/Ino/InoModels.cs" Link="Features/InoModels.cs" />
     <Compile Include="../../../features/os/Ino/InoCopy.cs" Link="Features/InoCopy.cs" />
     <Compile Include="../../../features/os/Ino/InoLinks.cs" Link="Features/InoLinks.cs" />
+    <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
+    <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />

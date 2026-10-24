@@ -177,7 +177,7 @@ public sealed class OsInoModelFacts
     [Fact]
     public void AddAnApiKeyOpensSettingsOnTheKeysTab()
     {
-        Assert.Equal("""{"kind":"settings","brainId":"b1","tab":"keys"}""", InoModels.KeysActivation("b1"));
+        Assert.Equal("""{"kind":"workspace","brainId":"b1","application":"settings","operation":"open","input":"keys"}""", InoModels.KeysActivation("b1"));
         Assert.Equal("""{"url":"https://ollama.com/download"}""", InoModels.InstallOllamaActivation);
     }
 

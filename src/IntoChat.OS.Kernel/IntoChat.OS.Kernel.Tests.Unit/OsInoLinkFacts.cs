@@ -12,15 +12,15 @@ public sealed class OsInoLinkFacts
     [Fact]
     public void OnlyAWholeWorkspaceLinkBecomesACard()
     {
-        Assert.Equal("notes", InoLinks.Parse("#/open?application=notes"));
-        Assert.Equal("notes", InoLinks.Parse("https://os.intochat.io/#/open?application=notes&input=x"));
-        Assert.Equal("notes", InoLinks.Parse("  #/open?application=notes  "));
+        Assert.Equal("notes", InoLinks.Parse("#/open?application=notes")?.App);
+        Assert.Equal("notes", InoLinks.Parse("https://os.intochat.io/#/open?application=notes&input=x")?.App);
+        Assert.Equal("notes", InoLinks.Parse("  #/open?application=notes  ")?.App);
         Assert.Null(InoLinks.Parse("see #/open?application=notes"));
         Assert.Null(InoLinks.Parse("#/open?application=notes thanks"));
         Assert.Null(InoLinks.Parse("#/open?application=Bad_Name"));
         Assert.Null(InoLinks.Parse("#/open?application=-notes"));
         Assert.Null(InoLinks.Parse("#/open?application=" + new string('a', 81)));
-        Assert.Equal(new string('a', 80), InoLinks.Parse("#/open?application=" + new string('a', 80)));
+        Assert.Equal(new string('a', 80), InoLinks.Parse("#/open?application=" + new string('a', 80))?.App);
         Assert.Null(InoLinks.Parse("#/close?application=notes"));
         Assert.Null(InoLinks.Parse("#/open"));
         Assert.Null(InoLinks.Parse("#/open?application=notes&application=other"));
@@ -29,13 +29,49 @@ public sealed class OsInoLinkFacts
     }
 
     [Fact]
+    public void ParseMirrorsTheShellRules()
+    {
+        var link = InoLinks.Parse("#/open?application=notes&publisher=vlad&release=1.2.3&input=x");
+        Assert.Equal(new InoLink("notes", "vlad", "1.2.3", "x"), link);
+        Assert.Equal(new InoLink("notes", "vlad", null, ""), InoLinks.Parse("#/open?application=notes&publisher=vlad"));
+        Assert.Equal(new InoLink("notes", null, null, ""), InoLinks.Parse("#/open?application=notes"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=Vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=-vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=" + new string('a', 65)));
+        Assert.NotNull(InoLinks.Parse("#/open?application=notes&publisher=" + new string('a', 64)));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=vlad&release=1.0"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&release=1.0.0"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=vlad&publisher=other"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&input=" + new string('x', 2049)));
+        Assert.NotNull(InoLinks.Parse("#/open?application=notes&input=" + new string('x', 2048)));
+    }
+
+    [Fact]
+    public void ParseGrammarMatchesTheAppsRules()
+    {
+        const string head = "#/open?application=notes&publisher=vlad";
+        Assert.Null(InoLinks.Parse(head + "%0A"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes%0A"));
+        Assert.Null(InoLinks.Parse(head + "&release=1.2.3%0A"));
+        Assert.Null(InoLinks.Parse(head + "&release=%D9%A1.%D9%A2.%D9%A3"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&input=a&input=b"));
+        Assert.Null(InoLinks.Parse(head + "&release=1.0.0&release=2.0.0"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=1vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=1notes&publisher=vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=" + new string('a', 65) + "&publisher=vlad"));
+        Assert.NotNull(InoLinks.Parse("#/open?application=" + new string('a', 64) + "&publisher=vlad"));
+        Assert.NotNull(InoLinks.Parse("#/open?application=my_app&publisher=my_pub"));
+        Assert.Null(InoLinks.Parse(head + "&release=1234567890.0.0"));
+        Assert.NotNull(InoLinks.Parse(head + "&release=123456789.0.0"));
+    }
+
+    [Fact]
     public void TheInputStaysOpaque()
     {
-        Assert.True(InoLinks.TryParse("https://os.intochat.io/#/open?application=notes&input=a%20b%2Bc%26d", out var app, out var input));
-        Assert.Equal("notes", app);
-        Assert.Equal("a b+c&d", input);
-        Assert.True(InoLinks.TryParse("#/open?application=notes", out _, out var empty));
-        Assert.Equal("", empty);
+        var link = InoLinks.Parse("https://os.intochat.io/#/open?application=notes&input=a%20b%2Bc%26d");
+        Assert.Equal("notes", link?.App);
+        Assert.Equal("a b+c&d", link?.Input);
+        Assert.Equal("", InoLinks.Parse("#/open?application=notes")?.Input);
     }
 
     [Fact]
@@ -193,6 +229,8 @@ public sealed class OsInoLinkFacts
         Assert.Contains("empty = '" + InoCopy.EmptyTranscript + "';", dart, StringComparison.Ordinal);
         Assert.Contains("failed = \"" + InoCopy.TurnFailed + "\";", dart, StringComparison.Ordinal);
         Assert.Contains("notInstalled = '" + InoCopy.AppNotInstalled + "';", dart, StringComparison.Ordinal);
+        Assert.Contains("install = '" + InoCopy.AppInstall + "';", dart, StringComparison.Ordinal);
+        Assert.DoesNotContain("gallery", InoCopy.Greeting, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("stepFailed = \"" + InoCopy.StepFailed + "\";", dart, StringComparison.Ordinal);
     }
 

@@ -52,7 +52,7 @@ public sealed class MarketplaceRouteFacts
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
 
         // Install lands in alice's apps with its origin; a second install clashes.
-        using var installed = await alice.Http.PostAsync($"{market}/intochat/echo/install", null, ct);
+        using var installed = await alice.Http.PostAsync($"{market}/intochat/echo/install", NoRequirements(), ct);
         Assert.Equal("intochat", (await Json(installed, ct)).GetProperty("origin").GetProperty("publisher").GetString());
         using var installedIcon = await alice.Http.GetAsync($"{aliceApps}/echo/icon", ct);
         Assert.Equal(HttpStatusCode.OK, installedIcon.StatusCode);
@@ -66,7 +66,7 @@ public sealed class MarketplaceRouteFacts
         Assert.Equal("intochat", item.GetProperty("origin").GetProperty("publisher").GetString());
         Assert.Equal(released, item.GetProperty("origin").GetProperty("version").GetString());
         Assert.False(item.GetProperty("updateAvailable").GetBoolean());
-        using var again = await alice.Http.PostAsync($"{market}/intochat/echo/install", null, ct);
+        using var again = await alice.Http.PostAsync($"{market}/intochat/echo/install", NoRequirements(), ct);
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
 
         // The publisher ships a new version; alice sees the update and takes it.
@@ -100,19 +100,22 @@ public sealed class MarketplaceRouteFacts
         Assert.True(published.IsSuccessStatusCode);
         var aliceApps = $"/brains/{alice.BrainId}/apps";
         var install = $"/brains/{alice.BrainId}/marketplace/intochat/echo/install";
-        using var first = await alice.Http.PostAsync(install, null, ct);
+        using var first = await alice.Http.PostAsync(install, NoRequirements(), ct);
         Assert.True(first.IsSuccessStatusCode);
 
         using var deleted = await alice.Http.DeleteAsync($"{aliceApps}/echo", ct);
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
         using var gone = await alice.Http.GetAsync($"{aliceApps}/echo", ct);
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
-        using var again = await alice.Http.PostAsync(install, null, ct);
+        using var again = await alice.Http.PostAsync(install, NoRequirements(), ct);
 
         var reinstalled = await Json(again, ct);
         Assert.Equal("intochat", reinstalled.GetProperty("origin").GetProperty("publisher").GetString());
         Assert.False(reinstalled.GetProperty("edited").GetBoolean());
     }
+
+    // The consent of an app that asks for nothing, as the install panel sends it.
+    private static System.Net.Http.Json.JsonContent NoRequirements() => System.Net.Http.Json.JsonContent.Create(new { consent = AppConsent.Of(null) });
 
     private static async Task<JsonElement> Json(HttpResponseMessage response, CancellationToken ct)
     {

@@ -18,15 +18,15 @@ public sealed record TabModel(string Id, string App, string Title, bool Favourit
 public sealed record WindowModel(string Id, string Title, string ViewportKey, IReadOnlyList<TabModel> Tabs, string ActiveTabId, string ActiveApp);
 public sealed record FavouriteModel(string Id, string Title, string Action, bool View);
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
-public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow, bool ShowGallery, string? Notice,
-    string? Usage = null, string? Person = null, IReadOnlyList<GalleryEntry>? Entries = null, string? ConnectButtons = null, string? LayoutButton = null, string? SettingsButton = null,
+public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow,
+    string? Usage = null, string? Person = null, string? LayoutButton = null, string? SettingsButton = null,
     IReadOnlyList<FavouriteModel>? Favourites = null, string? Toast = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
 {
     // Background services and roots never appear in the dock.
-    public static readonly HashSet<string> Hidden = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"];
+    public static readonly HashSet<string> Hidden = [.. ShippedApps.Services];
 
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string ViewKey(IntoChatOSConnection brain) => Key(brain) + "/view";
@@ -38,21 +38,17 @@ public static class Desktop
     public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
     // Whether the shell's window is narrow (< 900 logical px), as its `narrow` request last reported.
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
-    // Durable: set once Ino's greeting is seen, so later starts never greet again.
-    // Durable: whether the apps gallery is showing, and the last Get's refusal shown in it.
-    public static IText ShowGallery(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/gallery");
-    public static IText Notice(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/notice");
-    // The gallery's Connect buttons: one button neuron per connector under this prefix.
-    public static string ConnectButtons(IntoChatOSConnection brain) => Key(brain) + "/connect";
     // The layout the next connect shows ("classic" or "desktop"); the kernel's root reads it.
     public static IText Layout(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/layout");
     // More's Classic layout: a button neuron whose activation asks the shell to switch and connect again.
     public static string LayoutButton(IntoChatOSConnection brain) => Key(brain) + "/classic";
-    // More's Settings: a button neuron whose activation asks the shell for its native Settings screen.
+    // More's Settings: a button neuron whose activation asks the shell to open the Settings app's window.
     public static string SettingsButton(IntoChatOSConnection brain) => Key(brain) + "/settings";
     public static string? ChosenLayout(string input) => input is "classic" or "desktop" ? input : null;
     public static string LayoutActivation(string brainId, string layout) => System.Text.Json.JsonSerializer.Serialize(
         new { kind = "reconnect", brainId, application = "desktop", operation = "layout", input = layout });
+    // Durable: set once Ino's greeting is seen, so later starts never greet again.
+    // (0.2's {desktop}/gallery and {desktop}/notice texts are no longer read; they are kept, never wiped.)
     public static IText Greeted(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/greeted");
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -143,15 +139,10 @@ public static class Desktop
         var focused = FocusedWindow(Scope(brain), state);
         var toast = ShownToast((await Toast(brain).Read()).Markdown, state.Revision);
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
-        var gallery = (await ShowGallery(brain).Read()).Markdown == "true";
-        var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
-        // The gallery is read from the store only while it shows.
-        var (entries, shown) = gallery ? await LoadGallery(() => brain.Get<IAppStore>(IAppStore.Key(Scope(brain))).List(), notice) : (null, notice);
-        return new(windows, focused, dock, narrow, gallery, shown, await Usage(brain), await Person(brain), entries, ConnectButtons(brain), LayoutButton(brain), SettingsButton(brain),
-            favourites, toast);
+        return new(windows, focused, dock, narrow, await Usage(brain), await Person(brain), LayoutButton(brain), SettingsButton(brain), favourites, toast);
     }
 
-    // Ino first, then pinned apps, then open apps; each group by title. Everything else is in the gallery.
+    // Ino first, then pinned apps, then open apps; each group by title. Everything else opens from the Apps app.
     public static string[] DockOrder(IReadOnlyDictionary<string, string> titles, IReadOnlySet<string> pinned, IReadOnlySet<string> open)
         => [.. titles.Where(pair => pair.Key == "ino" || pinned.Contains(pair.Key) || open.Contains(pair.Key)).OrderBy(pair => pair.Key == "ino" ? 0 : pinned.Contains(pair.Key) ? 1 : 2)
             .ThenBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase).Select(pair => pair.Key)];
@@ -169,27 +160,14 @@ public static class Desktop
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
     }
 
-    // A store that cannot answer still leaves the desktop (and an empty gallery) rendering.
-    public static async Task<(IReadOnlyList<GalleryEntry> Entries, string? Notice)> LoadGallery(Func<Task<IReadOnlyList<GalleryEntry>>> list, string? notice)
-    {
-        try { return (await list(), notice); }
-        catch (Exception error) when (error is not OperationCanceledException) { return ([], "The gallery could not be loaded."); }
-    }
-
-    // What the gallery says after Get: the refusal, or that the install worked but the window did not open.
-    // A window cap's refusal already shows its toast, so the gallery adds nothing for it.
-    public static string GetNotice(InstallOutcome outcome, bool opened, bool refused = false)
-        => !outcome.Ok ? outcome.Message ?? "That app could not be installed."
-            : opened || refused ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
-
     // What a Connect button hands the shell: open its connection window for this connector in this brain.
     public static string ConnectActivation(string brainId, string connectorId)
         => System.Text.Json.JsonSerializer.Serialize(new { kind = "connections", brainId, connector = connectorId });
 
-    // What More's Settings hands the shell: open its native Settings screen for this brain, at a tab if given.
-    public static string SettingsActivation(string brainId, string? tab = null) => tab is null
-        ? System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId })
-        : System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId, tab });
+    // What More's Settings hands the shell: a workspace activation that opens (or focuses) the Settings app's
+    // window in this brain and asks it for a tab; the Settings app maps an old or unknown tab name to General.
+    public static string SettingsActivation(string brainId, string? tab = null) => System.Text.Json.JsonSerializer.Serialize(
+        new { kind = "workspace", brainId, application = "settings", operation = "open", input = tab ?? "general" });
 
     // Arms More's Settings button with the settings activation (render and settings.cs both call it).
     public static async Task SetSettingsButton(IntoChatOSConnection brain)
@@ -198,18 +176,6 @@ public static class Desktop
         var activation = SettingsActivation(Scope(brain));
         var current = await button.Read();
         if (current.Activation != activation || current.Label != "Settings") { await button.SetActivation("Settings", activation); }
-    }
-
-    // Each connectable connector's button carries its activation before the gallery references it.
-    private static async Task SetConnectButtons(IntoChatOSConnection brain, IReadOnlyList<GalleryEntry> entries)
-    {
-        foreach (var entry in entries.Where(entry => entry is { Kind: "connection", Available: true, Installed: false, ConnectorId: not null }))
-        {
-            var button = brain.Get<IButton>(Gallery.ConnectButton(ConnectButtons(brain), entry.ConnectorId!));
-            var activation = ConnectActivation(Scope(brain), entry.ConnectorId!);
-            var current = await button.Read();
-            if (current.Activation != activation || current.Label != "Connect") { await button.SetActivation("Connect", activation); }
-        }
     }
 
     // Opens the installed app in a window beside the others (or focuses its window). Not opened if it
@@ -276,7 +242,6 @@ public static class Desktop
             var current = await stale.Read();
             if (current.Target is not null) { await stale.Set(null, current.Revision); }
         }
-        if (model.Entries is { } shownEntries) { await SetConnectButtons(brain, shownEntries); }
         await SetSettingsButton(brain);
         var classic = brain.Get<IButton>(LayoutButton(brain));
         var switching = LayoutActivation(Scope(brain), "classic");

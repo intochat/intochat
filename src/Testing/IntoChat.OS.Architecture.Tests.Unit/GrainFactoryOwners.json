@@ -44,7 +44,7 @@
   "IntoChat.OS.Modules.Apps/Features/FeatureBoot.cs": 2,
   "IntoChat.OS.Modules.Apps/Features/FeatureLoader.cs": 3,
   "IntoChat.OS.Modules.Apps/Features/FeatureReconciler.cs": 2,
-  "IntoChat.OS.Modules.Apps/Marketplace/AppInstaller.cs": 6,
+  "IntoChat.OS.Modules.Apps/Marketplace/AppInstaller.cs": 10,
   "IntoChat.OS.Modules.Apps/Marketplace/MarketplaceView.cs": 3,
   "IntoChat.OS.Modules.Apps/Runtimes/CSharpAppRuntime.cs": 2,
   "IntoChat.OS.Modules.Apps/Studio/AppStudioNeuron.cs": 1,
@@ -64,7 +64,7 @@
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Space/FriendsSpaceFacts.cs": 18,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Space/SpaceFacts.cs": 6,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Views/AliasViewHttpFacts.cs": 6,
-  "IntoChat.OS.Modules.Flutter/Button/ButtonNeuron.cs": 1,
+  "IntoChat.OS.Modules.Flutter/Button/ButtonNeuron.cs": 2,
   "IntoChat.OS.Modules.Flutter/Chat/ChatNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Chat/ComposerNeuron.cs": 4,
   "IntoChat.OS.Modules.Flutter/FileInput/FileInputNeuron.cs": 1,
@@ -116,5 +116,6 @@
   "IntoChat.OS.Modules.AI.Tests.Integration/Models/AutomaticChoiceFacts.cs": 2,
   "IntoChat.OS.Modules.AI.Tests.Integration/Models/BrainKeyFacts.cs": 2,
   "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2,
-  "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2
+  "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2,
+  "IntoChat.OS.Modules.Flutter.Tests.Integration/Button/SessionActivationGuardFacts.cs": 2
 }

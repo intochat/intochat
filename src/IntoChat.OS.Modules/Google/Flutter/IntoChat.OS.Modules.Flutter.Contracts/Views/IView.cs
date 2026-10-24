@@ -40,6 +40,8 @@ public static class Ui
 {
     public static UiNode Text(string key, string text) => new(UiNodeKind.Text, key) { Text = text };
     public static UiNode Button(string key, string text, string action, bool enabled = true, UiStyle style = UiStyle.Secondary, string? icon = null) => new(UiNodeKind.Button, key) { Text = text, Action = action, Enabled = enabled, Style = style, Icon = icon };
+    // The renderer copies the text and shows a toast; no view action is dispatched.
+    public static UiNode CopyButton(string key, string label, string text) => Button(key, label, "copy:" + text, icon: "copy");
     // Text is the accessible label; the shell shows only the icon.
     public static UiNode IconButton(string key, string icon, string label, string action) => new(UiNodeKind.Button, key) { Text = label, Action = action, Style = UiStyle.Ghost, Icon = icon };
     public static UiNode Column(string key, UiNode[] children, double gap = 12, double[]? extents = null, bool followEnd = false) => new(UiNodeKind.Column, key) { Children = children, Gap = gap, Extents = extents, FollowEnd = followEnd };

@@ -23,22 +23,21 @@ closes its window. `favourite:<w>` stars the active tab: favourites (at most 5 a
 follow Ino in the dock, hidden when empty and a menu when narrow; `view:<id>` opens a view
 favourite as a new tab. A refusal (a cap reached) shows a toast above the dock until the next change.
 
-## Scenario: Apps gallery
-The dock holds Ino, pinned and open apps only. `gallery` shows or hides the gallery
-(Built-in, Mine, From others): installed entries Open, others Get (`get:<publisher>/<name>`),
-which installs for real and opens the app in a window, or shows why not.
+## Scenario: Apps opens the Apps window
+The dock holds Ino, pinned and open apps only. Its Apps button (`open:apps`) opens the Apps app's window beside the
+others, or focuses it: the library, details, installs and connections live there. The desktop has no gallery.
 
-## Scenario: Connect
-Connections (Gmail and Salesforce first) sit under From others. Connect is a button whose
-activation hands the shell {kind: connections, connector}: the shell's connection window signs
-in as the user (no app starts a login). After the callback stores the connection, connected.cs
-re-renders and the card reads Connected. A connector this host has not configured shows
-"Not available on this host."
+The same holds for a workspace activation (Settings, an Apps detail, a finished install): while the desktop is the
+root, the Workspace app hands a new window to the desktop's `open` request, so the cap and its toast apply there too.
+
+## Scenario: Settings opens the Settings window on a tab
+More's Settings is a button whose activation hands the shell {kind: workspace, brainId, application: settings,
+operation: open, input: <tab>} (General when none): the root's activation receiver, the Workspace app, opens or
+focuses the Settings window and sends the Settings app its "open" request with the tab. A legacy {kind: settings, tab}
+from an older button is translated by the shell to the same activation.
 
 ## Scenario: Classic layout
-More holds Settings, a button whose activation hands the shell {kind: settings, brainId, tab?} so
-the shell opens its native Settings screen (the Settings app is no longer how Settings opens), and
-Classic layout, a button
+More holds Settings (above) and Classic layout, a button
 whose activation hands the shell {kind: reconnect} with the `layout` request: layout-switch.cs
 stores "classic" or "desktop" in the desktop's layout text and the shell connects again, so the
 next root is the v1 Workspace (or the desktop). Open views are the same workspace either way.
@@ -47,11 +46,12 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "desktop";
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),
             new("layout", "Choose the layout the next connect shows: desktop or classic."),
+            new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
             new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise.")],
         Settings: [], Slots: [], Icon: "icon.svg");
 }

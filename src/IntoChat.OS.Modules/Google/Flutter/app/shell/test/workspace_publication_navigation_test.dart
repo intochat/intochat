@@ -71,4 +71,75 @@ void main() {
       },
     );
   }
+  // A settings activation names a brain: membership is checked before switching, as for any other.
+  for (final allowed in [false, true]) {
+    testWidgets('settings activation checks brain membership $allowed', (
+      tester,
+    ) async {
+      final f = await ApplicationFixture.start(
+        tester,
+        server: ApplicationServer()..allowed = allowed,
+      );
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        'kind': 'settings',
+        'brainId': 'circle-test',
+        'tab': 'keys',
+      });
+      await tester.pumpAndSettle();
+      final settings = f.server.requestsTo(
+        '/brains/circle-test/apps/settings/request',
+      );
+      if (allowed) {
+        expect(f.space.brain, 'circle-test');
+        expect(settings.single.body, {'operation': 'open', 'input': 'keys'});
+      } else {
+        expect(f.space.brain, f.brainId);
+        expect(
+          f.server.requests.any(
+            (r) => r.path.startsWith('/brains/circle-test/'),
+          ),
+          isFalse,
+        );
+        expect(find.textContaining('not a member'), findsOneWidget);
+        await tester.pump(kitToastLifetime);
+      }
+      await f.dispose();
+    });
+  }
+  // Install, update and remove name a brain: membership is checked first; the space does not switch.
+  for (final allowed in [false, true]) {
+    testWidgets('app activations check brain membership $allowed', (
+      tester,
+    ) async {
+      final f = await ApplicationFixture.start(
+        tester,
+        server: ApplicationServer()..allowed = allowed,
+      );
+      final request = {
+        'ref': {'publisher': 'os', 'name': 'notes'},
+      };
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        'kind': 'install',
+        'brainId': 'circle-test',
+        'request': request,
+      });
+      await tester.pumpAndSettle();
+      final installs = f.server.requestsTo('/brains/circle-test/apps/install');
+      expect(f.space.brain, f.brainId);
+      if (allowed) {
+        expect(installs.single.body, request);
+        expect(find.text('Installed.'), findsOneWidget);
+      } else {
+        expect(
+          f.server.requests.any(
+            (r) => r.path.startsWith('/brains/circle-test/'),
+          ),
+          isFalse,
+        );
+        expect(find.textContaining('not a member'), findsOneWidget);
+      }
+      await tester.pump(kitToastLifetime);
+      await f.dispose();
+    });
+  }
 }

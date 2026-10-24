@@ -61,6 +61,8 @@ final class RendererRegistry {
     'fileinput',
     'select',
     'form',
+    'entrycontrol',
+    'preference',
   ];
 
   /// Kinds `NeuronView` draws itself. Everything else in [uiKinds] uses the fallback.
@@ -89,6 +91,8 @@ final class RendererRegistry {
     'infobar',
     'image',
     'expander',
+    'entrycontrol',
+    'preference',
   };
 
   /// Mirrors `IntoChat.OS.Contracts.Types.FieldKind`.

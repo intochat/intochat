@@ -1,5 +1,5 @@
-import 'package:intochat_os_flutter_shell/workspace/workspace_settings.dart';
 import 'package:intochat_os_flutter_shell/workspace/compute_usage_panel.dart';
+import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
 import 'package:intochat_os_flutter_shell/connections/connect_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,19 +8,39 @@ import '../application_fixture.dart';
 
 void main() {
   testWidgets(
-    'settings opens the native screen and profile keeps preferences reachable',
+    'settings opens the Settings app and profile keeps preferences reachable',
     (tester) async {
       final fixture = await ApplicationFixture.start(tester);
+      const path = '/brains/brain-1/apps/settings/request';
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
-      expect(find.byType(WorkspaceSettings), findsOneWidget);
-      await tester.tap(find.byTooltip('Back to workspace'));
-      await tester.pumpAndSettle();
+      expect(fixture.server.requestsTo(path).single.body, {
+        'operation': 'open',
+        'input': '',
+      });
       await fixture.menu('Workspace configuration');
-      expect(find.byType(WorkspaceSettings), findsOneWidget);
+      expect(fixture.server.requestsTo(path), hasLength(2));
       await fixture.dispose();
     },
   );
+  test('a settings activation opens the Settings app on its tab', () {
+    expect(
+      settingsActivation({'kind': 'settings', 'brainId': 'b', 'tab': 'keys'}),
+      {
+        'kind': 'workspace',
+        'brainId': 'b',
+        'application': 'settings',
+        'operation': 'open',
+        'input': 'keys',
+      },
+    );
+    expect(settingsActivation({'kind': 'settings'}), {
+      'kind': 'workspace',
+      'application': 'settings',
+      'operation': 'open',
+      'input': '',
+    });
+  });
   testWidgets(
     'connections and compute remain reachable from the toolbar menu',
     (tester) async {

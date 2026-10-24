@@ -8,7 +8,7 @@ using IntoChat.OS.Google.Gmail;
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
 // The reference composition with Google stubbed on loopback: a configured Gmail OAuth client, its token
-// exchange and profile on a TokenEndpointStub, so the gallery's Connect completes for real on the script runtime.
+// exchange and profile on a TokenEndpointStub, so the Apps window's Connect completes for real on the script runtime.
 // Salesforce stays unconfigured. Its own host: the shared reference host offers no OAuth client at all.
 public sealed class ConnectHostFixture : ReferenceBrainFixture
 {

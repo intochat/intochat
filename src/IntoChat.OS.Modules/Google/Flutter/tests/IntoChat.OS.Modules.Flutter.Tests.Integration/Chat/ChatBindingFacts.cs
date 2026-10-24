@@ -73,7 +73,7 @@ public sealed class ChatBindingFacts
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         var chat = brain.Get<IChat>("owner/apps/test/cards");
-        var card = new ChatAppCard("notes", "Notes", "note", false, "opaque <input>");
+        var card = new ChatAppCard("notes", "Notes", "note", false, "opaque <input>", "vlad", "1.2.3");
         await chat.Project(new("owner/apps/test/a", 3, 1,
             [new ChatEntry("r1/assistant", ChatRole.Assistant, "Opened.") { Model = "gpt-5-mini", App = card }]));
         await brain.DeactivateAsync(chat, ct);

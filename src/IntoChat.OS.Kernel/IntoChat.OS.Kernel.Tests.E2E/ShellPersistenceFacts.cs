@@ -13,7 +13,8 @@ public sealed class ShellPersistenceFacts(ReferenceBrainFixture host) : BrainFac
         using var caller = User.AsCaller();
         var page = await OpenPageAsync(ct);
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
-        await page.GetByRole(AriaRole.Button, new() { Name = "Ino", Exact = true }).ClickAsync();
+        // The dock's Ino, the window's tab and header are all buttons named Ino (the first run may already have opened its window).
+        await page.GetByRole(AriaRole.Button, new() { Name = "Ino", Exact = true }).First.ClickAsync();
         await TestWait.UntilAsync(_ => workspace.Read(), value => value.FocusedViewId == "ino", TimeSpan.FromSeconds(15), ct);
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "New chat", Exact = true })).ToBeVisibleAsync();
 

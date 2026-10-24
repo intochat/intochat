@@ -271,11 +271,9 @@ public static partial class Ino
         if ((await field.Read()).Label != label) { await field.Configure(label, "text"); }
     }
 
-    public const string Greeting = "Hi, I'm Ino. Find and open apps in the Apps gallery in the dock, or just tell me what you need.";
-
     // "open" with input "greet" (the desktop's first run) posts one greeting; the fixed id keeps it to one.
     public static async Task Greet(IntoChatOSConnection brain)
-        => await brain.Get<IAgent>((await EnsureSelection(brain)).Agent).Post(Greeting, "greeting");
+        => await brain.Get<IAgent>((await EnsureSelection(brain)).Agent).Post(InoCopy.Greeting, "greeting");
 
     public static async Task ComposeAsync(IntoChatOSConnection brain)
     {

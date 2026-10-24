@@ -84,8 +84,8 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
         var full = await Apply(new WorkspaceUpdate([.. eight.SelectMany(window => window.Tabs)], "ino-8", []) { Windows = eight }, ct);
         await Until(nodes => nodes.Any(node => node.Key == "frame-w-8"), ct);
 
-        await Click("gallery", "gallery", ct);
-        await ClickAction("open:calculator", ct);
+        // The dock's Apps would open a ninth window.
+        await Click("apps-open", "open:apps", ct);
         var refused = await Until(nodes => nodes.Any(node => node.Key == "toast"), ct);
         Assert.Equal("You can have at most 8 windows. Close one to open another.", refused.Single(node => node.Key == "toast").Text);
         // Let any late write land before checking that nothing changed.
@@ -93,9 +93,7 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
         var unchanged = await Workspace.Read();
         Assert.Equal(full.Revision, unchanged.Revision);
         Assert.Equal(8, unchanged.Windows.Length);
-        Assert.DoesNotContain(unchanged.OpenViews, view => view.Id == "calculator");
-        // Open is not Get: the gallery shows no notice of its own.
-        Assert.DoesNotContain(refused, node => node.Key == "notice");
+        Assert.DoesNotContain(unchanged.OpenViews, view => view.Id == "apps");
 
         // Classic closes a view outside Desktop.Change: the revision moves on, so back on the desktop the toast is gone.
         await Brain.Get<IText>(Desktop + "/layout").Set("classic");
@@ -107,47 +105,31 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
         await Until(nodes => nodes.All(node => node.Key != "toast") && nodes.All(node => node.Key != "frame-w-8"), ct);
     }
 
+    // Settings, Apps details and post-install opens reach the desktop as workspace activations, not as dock clicks.
     [Fact(Timeout = 360_000)]
-    public async Task GettingAnAppAtTheWindowCapShowsOnlyTheCapToast()
+    public async Task AWorkspaceActivationAtTheWindowCapShowsTheCapToastAndChangesNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Another account publishes an app this user does not have.
-        var name = "echo" + Guid.NewGuid().ToString("N")[..8];
-        using (var author = await Brain.PersonAsync("author-" + Guid.NewGuid().ToString("N"), ct))
-        using (author.AsCaller())
-        {
-            var app = Brain.Get<IApp>(IApp.Key(author.BrainId, name));
-            await app.Create(new("Echo " + name, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
-            await app.BeginBuild(null);
-            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
-            await app.Publish();
-        }
         using var caller = User.AsCaller();
         await Start(ct);
         WorkspaceWindow[] eight = [.. Enumerable.Range(1, 8).Select(n => new WorkspaceWindow("w-" + n, [Ino(n == 1 ? "ino" : "ino-" + n)], n == 1 ? "ino" : "ino-" + n))];
         var full = await Apply(new WorkspaceUpdate([.. eight.SelectMany(window => window.Tabs)], "ino-8", []) { Windows = eight }, ct);
         await Until(nodes => nodes.Any(node => node.Key == "frame-w-8"), ct);
 
-        await Click("gallery", "gallery", ct);
-        var gallery = await Until(nodes => nodes.Any(node => node.Action?.StartsWith("get:", StringComparison.Ordinal) == true && node.Action.EndsWith("/" + name, StringComparison.Ordinal)), ct);
-        await ClickAction(gallery.First(node => node.Action?.StartsWith("get:", StringComparison.Ordinal) == true && node.Action.EndsWith("/" + name, StringComparison.Ordinal)).Action!, ct);
-        // Installed, not opened: the cap's toast says why, and the gallery adds no notice of its own.
-        var shown = await Until(nodes => nodes.Any(node => node.Key == "toast") && nodes.Any(node => node.Action == "open:" + name), ct);
+        var activation = JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = "settings", operation = "open", input = "general" });
+        // The receiver subscribes from its start, so (as a person clicks again) the activation is sent until it answers.
+        var shown = await TestWait.UntilAsync(async _ =>
+        {
+            using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
+            response.EnsureSuccessStatusCode();
+            return Flatten((await Brain.Get<IView>(Desktop + "/view").Read())!.Root).ToArray();
+        }, nodes => nodes.Any(node => node.Key == "toast"), Patience, ct);
         Assert.Equal("You can have at most 8 windows. Close one to open another.", shown.Single(node => node.Key == "toast").Text);
-        Assert.DoesNotContain(shown, node => node.Key == "notice");
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
         var unchanged = await Workspace.Read();
         Assert.Equal((full.Revision, 8), (unchanged.Revision, unchanged.Windows.Length));
-        Assert.DoesNotContain(Flatten((await Brain.Get<IView>(Desktop + "/view").Read())!.Root), node => node.Key == "notice");
+        Assert.DoesNotContain(unchanged.OpenViews, view => view.Id == "settings");
     }
-
-    // A minimal real synapse: it answers "ask" requests by doing nothing.
-    private const string Echo = """
-        using IntoChat.OS.Apps;
-        using IntoChat.OS.Client;
-        await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        await foreach (var request in brain.On(brain.Get<IApp>(brain.Setting("App")!), "ask", brain.Stopping)) { }
-        """;
 
     [Fact(Timeout = 360_000)]
     public async Task StarringAWindowAddsAFavouriteToTheDockAndStarringAgainRemovesIt()
@@ -287,14 +269,6 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
     {
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);
         connected.EnsureSuccessStatusCode();
-    }
-
-    private async Task ClickAction(string action, CancellationToken ct)
-    {
-        var view = await TestWait.UntilAsync(_ => Brain.Get<IView>(Desktop + "/view").Read(),
-            published => published is not null && Flatten(published.Root).Any(node => node.Action == action && node.Kind == UiNodeKind.Button), Patience, ct);
-        var key = Flatten(view!.Root).First(node => node.Action == action && node.Kind == UiNodeKind.Button).Key;
-        await Brain.Get<IView>(Desktop + "/view").Activate(view.Generation, key, action, Guid.NewGuid());
     }
 
     private async Task Click(string key, string action, CancellationToken ct)

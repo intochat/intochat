@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.Json;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
@@ -75,8 +76,11 @@ internal static class ViewValidation
     internal static readonly JsonSerializerOptions Json = new() { MaxDepth = 128 };
     // Only leaf controls can be embedded: layouts and views can themselves refer to other nodes.
     // A viewport is the one window: it shows an app's view chosen by its owner (the desktop's windows).
+    // Line and paragraph separators and bidirectional controls: they hide what a copied link says.
+    private static readonly SearchValues<char> HiddenDirection = SearchValues.Create("\u2028\u2029\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069");
+
     private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image" };
+    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "entrycontrol", "preference" };
 
     public static UiView Clone(UiView view, string name)
     {
@@ -111,6 +115,8 @@ internal static class ViewValidation
             { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
             if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }
             if (node.Kind == UiNodeKind.Button && (string.IsNullOrWhiteSpace(node.Text) || string.IsNullOrWhiteSpace(node.Action))) { throw new ArgumentException("Buttons require text and a canonical action."); }
+            if (node.Action is { } action && action.StartsWith("copy:", StringComparison.Ordinal) && (action.Length is 5 or > 2053 || action.AsSpan(5).ContainsAnyInRange('\u0000', '\u001f') || action.AsSpan(5).ContainsAnyInRange('\u007f', '\u009f') || action.AsSpan(5).IndexOfAny(HiddenDirection) >= 0))
+            { throw new ArgumentException("Copy actions carry 1 to 2048 printable characters."); }
             if (node.Kind != UiNodeKind.Button && node.Action is not null) { throw new ArgumentException("Only buttons have actions."); }
             if (node.Kind == UiNodeKind.Reference)
             {

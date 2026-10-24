@@ -39,7 +39,7 @@ public sealed class SaveToSourceFacts : IDisposable
         var copy = brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter"));
         using (alice.AsCaller())
         {
-            await brain.Services.GetRequiredService<AppInstaller>().Install("intochat", "greeter", Ct);
+            await brain.InstallLatest("intochat", "greeter", Ct);
             await copy.WriteBehavior("greet.cs", "// greet warmly\n", Guid.NewGuid());
         }
         return (alice, copy);

@@ -2,6 +2,7 @@ import '../components/button/ui_neuron_select.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
 import '../components/kit/ui_kit_field.dart';
+import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../theme/ui_tokens.dart';
 
@@ -28,8 +29,12 @@ import '../components/image/ui_image.dart';
 import '../components/infobar/ui_info_bar.dart';
 import '../components/progress/ui_progress.dart';
 import '../components/toggle/ui_toggle.dart';
+import '../entries/entries_client.dart';
+import '../entries/ui_entry_control.dart';
 import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
+import '../preferences/local_preferences.dart';
+import '../preferences/ui_preference_control.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
 import 'value_nodes/view_avatar.dart';
@@ -96,6 +101,8 @@ class NeuronView extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.scenes,
+    this.entries,
+    this.localPreferences,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -116,6 +123,12 @@ class NeuronView extends StatefulWidget {
 
   /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
   final SceneClient? scenes;
+
+  /// The brain's entries over the person's session, for `entrycontrol`. Without it the control cannot save.
+  final EntriesClient Function(String brainId)? entries;
+
+  /// This device's preferences, for a `preference` neuron with a `local*` store. Without it those cannot save.
+  final LocalPreferences? localPreferences;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -430,6 +443,8 @@ class _NeuronViewState extends State<NeuronView> {
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
     scenes: widget.scenes,
+    entries: widget.entries,
+    localPreferences: widget.localPreferences,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -998,6 +1013,56 @@ class _NeuronViewState extends State<NeuronView> {
           label: _text(definition['label']),
           on: definition['on'] == true,
           onChanged: enabled ? (_) => _act('toggle', 'flip') : null,
+        );
+      case 'entrycontrol':
+        final spec = definition['spec'];
+        if (spec is! Map) return const SizedBox.shrink();
+        final brain = widget.name.split('/').first;
+        return UiEntryControl(
+          mode: EntryControlMode.parse(spec['mode']),
+          label: _text(spec['label']),
+          entryName: spec['entryName'] as String?,
+          entries: widget.entries?.call(brain),
+          enabled: enabled,
+          onChanged: () => _dispatch({
+            'kind': 'entrycontrol',
+            'name': widget.name,
+            'action': 'changed',
+          }),
+        );
+      case 'preference':
+        final spec = definition['spec'];
+        if (spec is! Map) return const SizedBox.shrink();
+        final store = PreferenceStore.parse(spec['store']);
+        if (store == null) return const SizedBox.shrink();
+        final choices = spec['choices'];
+        return UiPreferenceControl(
+          store: store,
+          label: _text(spec['label']),
+          kind: PreferenceKind.parse(spec['kind']),
+          choices: [
+            if (choices is List)
+              for (final choice in choices.whereType<Map>())
+                PreferenceChoiceItem(
+                  _text(choice['id']),
+                  _text(choice['label']),
+                  enabled: choice['enabled'] != false,
+                  detail: choice['detail'] as String?,
+                ),
+          ],
+          value: definition['value'] as String?,
+          local: widget.localPreferences,
+          enabled: enabled,
+          onSet: (value) async {
+            final send = widget.onAction;
+            if (send == null) throw StateError('No transport.');
+            await _events.dispatch(send, {
+              'kind': 'preference',
+              'name': widget.name,
+              'action': 'set',
+              'value': value,
+            });
+          },
         );
       case 'progress':
         return UiProgress(

@@ -22,6 +22,8 @@ using IntoChat.OS.Flutter.Tabs;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.TextField;
 using IntoChat.OS.Flutter.Toggle;
+using IntoChat.OS.Flutter.Entries;
+using IntoChat.OS.Flutter.Preferences;
 using IntoChat.OS.Flutter.Viewport;
 using IntoChat.OS.Flutter.Views;
 using IntoChat.OS.Flutter.VoiceInput;
@@ -101,6 +103,8 @@ internal static class AppUiEndpoints
                 "table" => Results.Ok(await brain.Get<ITable>(name).Read().WaitAsync(ct)),
                 "chart" => Results.Ok(await brain.Get<IChart>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ToggleType => Results.Ok(await brain.Get<IToggle>(name).Read().WaitAsync(ct)),
+                UIVocabulary.EntryControlType => Results.Ok(await brain.Get<IEntryControl>(name).Read().WaitAsync(ct)),
+                UIVocabulary.PreferenceType => Results.Ok(await brain.Get<IPreferenceControl>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ProgressType => Results.Ok(await brain.Get<IProgress>(name).Read().WaitAsync(ct)),
                 UIVocabulary.InfoBarType => Results.Ok(await brain.Get<IInfoBar>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ImageType => Results.Ok(await brain.Get<IImage>(name).Read().WaitAsync(ct)),
@@ -174,6 +178,8 @@ internal static class AppUiEndpoints
                 case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;
                 case "tabs": await brain.Get<ITabs>(input.Name).Select(input.Value ?? "").WaitAsync(ct); break;
                 case UIVocabulary.ToggleType when input.Action == "flip": await brain.Get<IToggle>(input.Name).Flip().WaitAsync(ct); break;
+                case UIVocabulary.EntryControlType when input.Action == "changed": await brain.Get<IEntryControl>(input.Name).Changed().WaitAsync(ct); break;
+                case UIVocabulary.PreferenceType when input.Action == "set": await brain.Get<IPreferenceControl>(input.Name).Set(input.Value ?? "").WaitAsync(ct); break;
                 case UIVocabulary.InfoBarType when input.Action == "dismiss": await brain.Get<IInfoBar>(input.Name).Dismiss().WaitAsync(ct); break;
                 case UIVocabulary.ExpanderType when input.Action == "toggle": await brain.Get<IExpander>(input.Name).Toggle().WaitAsync(ct); break;
                 case "collection":

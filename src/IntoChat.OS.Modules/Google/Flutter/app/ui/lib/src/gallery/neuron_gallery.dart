@@ -24,6 +24,9 @@ const neuronDescriptions = <String, String>{
   'select': 'Choose from options declared by its neuron.',
   'voiceinput': 'Record the user speaking and hand the audio to its neuron.',
   'toggle': 'An on/off value for a setting or option.',
+  'entrycontrol': 'An API key or the variables and secrets of a brain, saved over the session.',
+  'preference':
+      'A member preference of a brain, or a choice kept on this device.',
   'slider': 'A numeric value selected along a range.',
   'progress': 'Progress or activity feedback for ongoing work.',
   'infobar': 'An informational notice, warning, or status message.',
@@ -215,6 +218,13 @@ Map<String, dynamic> neuronExample(String kind) => switch (kind) {
     ],
   },
   'toggle' => {'label': 'Show finished books', 'on': true},
+  'entrycontrol' => {
+    'spec': {'mode': 0, 'label': 'OpenAI', 'entryName': 'provider:openai'},
+  },
+  'preference' => {
+    'spec': {'store': 3, 'label': 'Product updates', 'kind': 0},
+    'value': 'off',
+  },
   'progress' => {
     'determinate': true,
     'value': .62,

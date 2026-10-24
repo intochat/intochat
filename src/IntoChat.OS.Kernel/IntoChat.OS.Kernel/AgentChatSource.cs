@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace IntoChat.OS.Kernel;
 
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
-internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
+internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider services) : IChatAgentSource
 {
     public INeuron Source(string key) => grains.GetGrain<IAgent>(key);
 
@@ -46,6 +46,7 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
     {
         var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : IntoChat.OS.Framework.BrainKey.BrainOf(key);
         var manifests = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
+        IReadOnlyList<(string Publisher, string Name)>? listed = null;
         for (var i = 0; i < entries.Length; i++)
         {
             if (entries[i].App is not { } card) { continue; }
@@ -55,7 +56,21 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }
-            entries[i] = entries[i] with { App = Named(card, manifest) };
+            var named = Named(card, manifest);
+            // An app that is not installed names its publisher from the store so the card can offer Install.
+            if (!named.Installed && named.Publisher is null)
+            {
+                // The platform-wide listing, not the brain's gallery: this read runs in the chat's own deferred
+                // reconciliation, where no person's brain is stamped, and the gallery answers nothing then.
+                try
+                {
+                    listed ??= services.GetService<MarketplaceView>() is { } marketplace
+                        ? [.. (await marketplace.List(default)).Select(listing => (listing.Publisher, listing.Name))] : [];
+                }
+                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App listing unreadable"); listed = []; }
+                named = Published(named, listed);
+            }
+            entries[i] = entries[i] with { App = named };
         }
         return entries;
     }
@@ -64,6 +79,14 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
         => manifest is { Title.Length: > 0 }
             ? card with { Title = manifest.Title, Icon = manifest.Icon ?? "", Installed = true }
             : card with { Title = card.App, Installed = false };
+
+    // The listing of an app (the os publisher first, else the first listed) gives an uninstalled card its publisher.
+    internal static ChatAppCard Published(ChatAppCard card, IReadOnlyList<(string Publisher, string Name)> listings)
+    {
+        var apps = listings.Where(listing => listing.Name == card.App).Select(listing => listing.Publisher).ToList();
+        var publisher = apps.Contains("os") ? "os" : apps.FirstOrDefault();
+        return publisher is null ? card : card with { Publisher = publisher };
+    }
 
     // The app a completed IApp.Request("open") or IWorkspace.Show tool call opened, else null.
     internal static ChatAppCard? Opened(AgentToolCall call)

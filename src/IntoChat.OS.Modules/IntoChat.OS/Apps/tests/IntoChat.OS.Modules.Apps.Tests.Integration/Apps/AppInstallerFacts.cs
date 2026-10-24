@@ -59,7 +59,7 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
 
         using var _ = alice.AsCaller();
-        var installed = await Installer(brain).Install("intochat", "echo", Ct);
+        var installed = await brain.InstallLatest("intochat", "echo", Ct);
 
         Assert.Equal(AppStatus.Live, installed.Status);
         Assert.Equal((await source.ExportPublished()).Version, installed.Version);
@@ -82,7 +82,7 @@ public sealed class AppInstallerFacts
         var principal = IntoChat.OS.Framework.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
 
         using var _ = alice.AsCaller();
-        await Installer(brain).Install("intochat", "echo", Ct);
+        await brain.InstallLatest("intochat", "echo", Ct);
 
         var member = await identity.Membership(alice.BrainId, principal);
         Assert.NotNull(member);
@@ -115,7 +115,7 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
 
         using var _ = alice.AsCaller();
-        await Installer(brain).Install("intochat", "echo", Ct);
+        await brain.InstallLatest("intochat", "echo", Ct);
 
         var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
         var grant = Assert.Single(await identity.ListGrants(alice.BrainId), grant => grant.SemanticTypeId == "person.email");
@@ -129,7 +129,7 @@ public sealed class AppInstallerFacts
         await using var brain = await Start();
         var alice = await brain.PersonAsync("alice", Ct);
         using var _ = alice.AsCaller();
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => brain.InstallLatest("intochat", "echo", Ct));
     }
 
     [Trait("host", "own")]
@@ -143,7 +143,7 @@ public sealed class AppInstallerFacts
         var own = Mine(brain, alice);
         await own.Create(Manifest() with { Title = "Alice's echo" }, Spec);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.InstallLatest("intochat", "echo", Ct));
         var after = await own.Read();
         Assert.Equal("Alice's echo", after.Manifest.Title);
         Assert.Null(after.Origin);
@@ -156,7 +156,7 @@ public sealed class AppInstallerFacts
         await using var brain = await Start();
         var (intochat, _) = await Published(brain);
         using var caller = intochat.AsCaller();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.InstallLatest("intochat", "echo", Ct));
     }
 
     [Trait("host", "own")]
@@ -168,13 +168,13 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
         using (alice.AsCaller())
         {
-            await Installer(brain).Install("intochat", "echo", Ct);
+            await brain.InstallLatest("intochat", "echo", Ct);
             await Mine(brain, alice).Configure(new() { ["Text"] = "alice's words" }, new() { ["gmail"] = "alice-gmail" });
         }
         var next = await PublishNewVersion(intochat, source);
 
         using var _ = alice.AsCaller();
-        var updated = await Installer(brain).Update("echo", Ct);
+        var updated = await brain.UpdateApp("echo", Ct);
 
         Assert.Equal(next, updated.Version);
         Assert.Equal("// v2", updated.Files["synapses/echo.cs"]);
@@ -193,13 +193,13 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
         using (alice.AsCaller())
         {
-            await Installer(brain).Install("intochat", "echo", Ct);
+            await brain.InstallLatest("intochat", "echo", Ct);
             await Mine(brain, alice).WriteFile("notes.md", "mine now", Guid.NewGuid());
         }
         await PublishNewVersion(intochat, source);
 
         using var _ = alice.AsCaller();
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => brain.UpdateApp("echo", Ct));
         Assert.Contains("edits", error.Message, StringComparison.Ordinal);
     }
 
@@ -211,8 +211,8 @@ public sealed class AppInstallerFacts
         await Published(brain);
         var alice = await brain.PersonAsync("alice", Ct);
         using var _ = alice.AsCaller();
-        var installed = await Installer(brain).Install("intochat", "echo", Ct);
-        var again = await Installer(brain).Update("echo", Ct);
+        var installed = await brain.InstallLatest("intochat", "echo", Ct);
+        var again = await brain.UpdateApp("echo", Ct);
         Assert.Equal(installed.Version, again.Version);
         Assert.Equal(installed.Versions.Length, again.Versions.Length);
     }
@@ -225,9 +225,9 @@ public sealed class AppInstallerFacts
         var (intochat, source) = await Published(brain);
         var alice = await brain.PersonAsync("alice", Ct);
         using var _ = alice.AsCaller();
-        await Installer(brain).Install("intochat", "echo", Ct);
+        await brain.InstallLatest("intochat", "echo", Ct);
         var next = await PublishNewVersion(intochat, source);
-        var updated = await Installer(brain).Update("echo", Ct);
+        var updated = await brain.UpdateApp("echo", Ct);
 
         var retried = await Mine(brain, alice).Replace((await source.ExportPublished()) with { Name = "echo" });
 
@@ -244,7 +244,7 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
         using var _ = alice.AsCaller();
         await Mine(brain, alice).Create(Manifest(), Spec);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.UpdateApp("echo", Ct));
     }
 
     [Trait("host", "own")]
@@ -264,7 +264,7 @@ public sealed class AppInstallerFacts
         Assert.False(before.Installed);
         Assert.False(before.UpdateAvailable);
 
-        using (alice.AsCaller()) { await Installer(brain).Install("intochat", "echo", Ct); }
+        using (alice.AsCaller()) { await brain.InstallLatest("intochat", "echo", Ct); }
         var current = await Entry(alice);
         Assert.True(current.Installed);
         Assert.False(current.UpdateAvailable);
@@ -288,12 +288,12 @@ public sealed class AppInstallerFacts
         await using var brain = await Start();
         var (intochat, source) = await Published(brain);
         var alice = await brain.PersonAsync("alice", Ct);
-        using (alice.AsCaller()) { await Installer(brain).Install("intochat", "echo", Ct); }
+        using (alice.AsCaller()) { await brain.InstallLatest("intochat", "echo", Ct); }
         using (intochat.AsCaller()) { await source.Delete(); }
 
         using var _ = alice.AsCaller();
         Assert.Equal(AppStatus.Live, (await Mine(brain, alice).Read()).Status);
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Update("echo", Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => brain.UpdateApp("echo", Ct));
     }
 
     [Trait("host", "own")]
@@ -303,7 +303,7 @@ public sealed class AppInstallerFacts
         await using var brain = await StartShipping();
         var alice = await brain.PersonAsync("alice", Ct);
         using var _ = alice.AsCaller();
-        var installed = await Installer(brain).Install("os", "greeter", Ct);
+        var installed = await brain.InstallLatest("os", "greeter", Ct);
         var entry = await Installer(brain).Entry((await brain.Services.GetRequiredService<MarketplaceView>().Read("os", "greeter", Ct))!, Ct);
 
         Assert.Equal("1.2.0", installed.Version);
@@ -339,7 +339,7 @@ public sealed class AppInstallerFacts
         await copy.Create(Manifest(), Spec);
         await copy.RecordOrigin(new AppOrigin("os", new AppSource.Shipped(), "retired", "1.0.0"));
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("retired", Ct));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => brain.UpdateApp("retired", Ct));
         Assert.Contains("no longer ships", error.Message, StringComparison.Ordinal);
     }
 
@@ -378,7 +378,7 @@ public sealed class AppInstallerFacts
         var alice = await brain.PersonAsync("alice", Ct);
         var kernel = brain.Services.GetRequiredService<IntoChat.OS.Framework.IKernel>();
         using var _ = alice.AsCaller();
-        await Installer(brain).Install("os", "greeter", Ct);
+        await brain.InstallLatest("os", "greeter", Ct);
 
         Assert.Equal(new IntoChat.OS.Framework.Feature("greeter", "1.2.0", "os"), Assert.Single(await kernel.Features(alice.BrainId, Ct)));
 

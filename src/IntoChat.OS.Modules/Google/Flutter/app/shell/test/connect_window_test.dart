@@ -173,6 +173,67 @@ void main() {
 }
 
 void galleryConnectTests() {
+  test('an activation names its connection, else the connector', () {
+    expect(
+      connectWindowConnectionId({
+        'connector': 'gmail',
+        'connection': 'notes-mail',
+      }),
+      'notes-mail',
+    );
+    expect(connectWindowConnectionId({'connector': 'gmail'}), 'gmail');
+    expect(
+      connectWindowConnectionId({'connector': 'gmail', 'connection': 'a/b'}),
+      'gmail',
+    );
+    expect(
+      connectWindowConnectionId({'connector': 'gmail', 'connection': 7}),
+      'gmail',
+    );
+  });
+  testWidgets('the connect window signs in under the named connection', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    Future<Object?> request(String path, {Map<String, Object?>? body}) async {
+      calls.add(path);
+      return path.endsWith('/login')
+          ? {'url': 'https://accounts.google.com/o/oauth2/v2/auth?state=s'}
+          : [];
+    }
+
+    Future<Object?> catalog(String path, {Map<String, Object?>? body}) async =>
+        [
+          {
+            'id': 'gmail',
+            'displayName': 'Gmail',
+            'authMethods': ['google-oauth'],
+          },
+        ];
+    final action = <String, dynamic>{
+      'kind': 'connections',
+      'connector': 'gmail',
+      'connection': 'notes-mail',
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectWindow(
+            request: request,
+            connectorRequest: catalog,
+            initialConnectorId: action['connector'] as String?,
+            initialConnectionId: connectWindowConnectionId(action),
+            onOpen: (url) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('connect_oauth')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('notes-mail/login'));
+  });
+
   testWidgets(
     'a gallery Connect preselects its connector and signs in as the user',
     (tester) async {

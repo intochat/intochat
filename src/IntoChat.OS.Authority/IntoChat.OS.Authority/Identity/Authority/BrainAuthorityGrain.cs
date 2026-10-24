@@ -143,7 +143,7 @@ internal sealed class BrainAuthorityGrain(
         if (!CallerContextStamper.IsTrusted(caller) || caller.Kind != CallerKind.User
             || BrainScope.Create(caller.AccountId, caller.BrainId).Id != this.GetPrimaryKeyString())
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
-        if (auth.Value.Posture == IdentityPosture.Open && caller.PrincipalId == "owner" && caller.AccountId == "owner")
+        if (AuthOptions.IsOpenPostureOwner(auth.Value.Posture, caller))
         { await Initialize(caller.AccountId, caller.BrainId); return; }
         if (State.Members.GetValueOrDefault(caller.PrincipalId)?.Role != MemberRole.Owner)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }

@@ -27,13 +27,13 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
     private string InoKey => IApp.Key(WorkspaceId, "ino");
 
     [Fact(Timeout = 360_000)]
-    public async Task TheInoAppIsVersion320()
+    public async Task TheInoAppIsVersion330()
     {
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
-        Assert.Equal("3.2.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "ino").Bundle.Version);
+        Assert.Equal("3.3.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "ino").Bundle.Version);
         var installed = await TestWait.UntilAsync(_ => Brain.Get<IApp>(InoKey).Read(), snapshot => snapshot.Status == AppStatus.Live, Patience, ct);
-        Assert.Equal("3.2.0", installed.Version);
+        Assert.Equal("3.3.0", installed.Version);
     }
 
     // Carried from Task 5: a fixture-key brain answers (no first-run card, no failed turn) and the new chat is
@@ -119,6 +119,47 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         Assert.Empty((await empty.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("chats").EnumerateArray());
     }
 
+    // The Settings app's own journey: archive in Ino, open Settings on the Archived tab, click Unarchive on the row and
+    // see "Chat restored." with the chat back in the sidebar (the row's token resolves server-side to the shown chat).
+    [Fact(Timeout = 360_000)]
+    public async Task ArchiveThenUnarchiveFromSettingsRestoresTheChat()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        using var model = Answering();
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        var data = await DataKey(ct);
+        var first = await NewChat(data, "Trip to Porto", ct);
+        var second = await NewChat(data, "Garden layout", ct);
+        await Until(view => view.Any(node => node.Action == "archive:" + first) && view.Any(node => node.Action == "archive:" + second), ct);
+        await Click("archive:" + first, ct);
+        await Until(view => view.All(node => node.Action != "chat:" + first) && view.Any(node => node.Action == "chat:" + second), ct);
+
+        var settings = IApp.Key(WorkspaceId, "settings");
+        var activation = JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = "settings", operation = "open", input = "archived" });
+        var settingsView = Brain.Get<IView>(settings + "/view");
+        UiView? shown = null;
+        for (var attempt = 0; attempt < 12 && shown is null; attempt++)
+        {
+            using var sent = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
+            sent.EnsureSuccessStatusCode();
+            try
+            {
+                shown = await TestWait.UntilAsync(_ => settingsView.Read(),
+                    current => current is not null && Flatten(current.Root).Any(node => node.Action?.StartsWith("unarchive:", StringComparison.Ordinal) == true), TimeSpan.FromSeconds(10), ct);
+            }
+            catch (TimeoutException) { }
+        }
+        Assert.NotNull(shown);
+        var row = Flatten(shown.Root).First(node => node.Kind == UiNodeKind.Button && node.Action?.StartsWith("unarchive:", StringComparison.Ordinal) == true);
+        await settingsView.Activate(shown.Generation, row.Key, row.Action!, Guid.NewGuid());
+
+        await TestWait.UntilAsync(_ => settingsView.Read(),
+            current => current is not null && Flatten(current.Root).Any(node => node.Kind == UiNodeKind.Toast && node.Text == "Chat restored."), Patience, ct);
+        await Until(view => view.Any(node => node.Action == "chat:" + first) && view.Any(node => node.Action == "chat:" + second), ct);
+        Assert.False((await Index(data).Get(first))!.Archived);
+    }
+
     [Fact(Timeout = 360_000)]
     public async Task TheChatsModelChoiceIsUsedForItsTurns()
     {
@@ -175,6 +216,41 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         Assert.Equal(asked, Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn));
     }
 
+    // Task 12: a pasted link to an app the brain does not have posts a card that offers Install, which hands the shell
+    // Apps' detail for the app (never a one-click install); installing there as the person is the one install path.
+    [Fact(Timeout = 360_000)]
+    public async Task InoNotInstalledCardInstallsThroughApps()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        using var model = Answering();
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        var data = await DataKey(ct);
+        await Send("new", "", ct);
+        await TestWait.UntilAsync(async _ => (await Brain.Get<IChat>(data + "/transcript").Read()).Selection,
+            current => current is not null && current.Agent.Contains("/conversations/c-", StringComparison.Ordinal), Patience, ct);
+        // Calculator is built in: remove this brain's copy so the card sees an app it does not have.
+        await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Delete();
+        Assert.Equal("", (await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Read()).Manifest.Title);
+
+        await Send("send", "#/open?application=calculator", ct);
+        var shown = await TestWait.UntilAsync(_ => Brain.Get<IChat>(data + "/transcript").Read(),
+            state => state.Projection?.Messages.Any(message => message.App?.App == "calculator") == true, Patience, ct);
+        var card = shown.Projection!.Messages.Single(message => message.App is not null).App!;
+        Assert.False(card.Installed);
+        Assert.Equal("os", card.Publisher);
+
+        // What the card's Install does in the shell: open Apps on the app's detail.
+        using (var opened = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/apps/request", new { operation = "open", input = $"app:{card.Publisher}/{card.App}" }, ct))
+        { opened.EnsureSuccessStatusCode(); }
+        var install = await TestWait.UntilAsync(_ => Brain.Get<IButton>(WorkspaceId + "/apps/apps/install").Read(), state => state.Activation is not null, Patience, ct);
+        var request = JsonDocument.Parse(install.Activation!).RootElement.GetProperty("request");
+        using var installed = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/install", request, ct);
+        installed.EnsureSuccessStatusCode();
+        Assert.Equal("calculator", (await installed.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("installedName").GetString());
+        Assert.NotEqual("", (await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Read()).Manifest.Title);
+    }
+
     // Review focus 1: conversations from 3.1.3 (agents with history, no index entries) are all listed after the
     // upgrade's first start, titled by their first message; the selection and the transcripts stay as they were.
     [Fact(Timeout = 360_000)]
@@ -204,7 +280,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
 
         // One restart, nothing selected after it: all three are listed.
         await Restart(ct);
-        Assert.Equal("3.2.0", (await Brain.Get<IApp>(InoKey).Read()).Version);
+        Assert.Equal("3.3.0", (await Brain.Get<IApp>(InoKey).Read()).Version);
         await Until(view => view.Any(node => node.Action == "chat:main")
             && view.Any(node => node.Action == "chat:" + older && node.Text == "Draft a letter to my landlord")
             && view.Any(node => node.Action == "chat:" + newer && node.Text == "Compare two phone plans"), ct);
@@ -331,7 +407,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
 
 // Task 5's first run on a brain with no usable model: the deployment holds no provider key and the catalog
 // lists a local model (a local desktop run) whose server is not configured, so the card offers Install
-// Ollama and Retry, IntoChat Cloud as coming soon, and Add an API key, which opens Settings on the keys tab.
+// Ollama and Retry, IntoChat Cloud as coming soon, and Add an API key, which opens the Settings window on the keys tab.
 [Collection("No model host")]
 public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
 {
@@ -362,8 +438,8 @@ public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
         Assert.Equal("Add an API key", keys.Label);
         using (var activation = JsonDocument.Parse(keys.Activation!))
         {
-            Assert.Equal("settings", activation.RootElement.GetProperty("kind").GetString());
-            Assert.Equal("keys", activation.RootElement.GetProperty("tab").GetString());
+            Assert.Equal(("workspace", "settings", "open", "keys"), (activation.RootElement.GetProperty("kind").GetString(), activation.RootElement.GetProperty("application").GetString(),
+                activation.RootElement.GetProperty("operation").GetString(), activation.RootElement.GetProperty("input").GetString()));
         }
         // The local profile lists a local model whose server is not running: Install Ollama and Retry, no "On this computer".
         Assert.DoesNotContain(inCard, node => node.Action == "setup-local");

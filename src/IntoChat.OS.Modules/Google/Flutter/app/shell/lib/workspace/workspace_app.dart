@@ -10,12 +10,10 @@ import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
 import '../space/neuron_space.dart';
 import '../space/space_controller.dart';
-import 'home/app_detail_screen.dart';
+import 'apps/app_activations.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
-import 'settings/settings_api.dart';
-import 'workspace_settings.dart';
 import 'compute_usage_panel.dart';
 import 'csharp/csharp_manager.dart';
 import 'workspace_preferences_io.dart'
@@ -61,6 +59,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         writePreferences: (value) =>
             preferences.writePreferences(widget.persistenceKey, value),
       );
+  late final _localPreferences = WorkspaceLocalPreferences(store);
   final _navigator = GlobalKey<NavigatorState>();
   SpaceController? _space;
   String? _rootName;
@@ -139,7 +138,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
       if (_rootName == null &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
-        _openSettings('general');
+        unawaited(_activate({'kind': 'settings'}));
       }
     } catch (error) {
       if (mounted) setState(() => _startupError = error);
@@ -278,23 +277,15 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
+    // A legacy settings activation is the Settings app's workspace activation.
+    if (action['kind'] == 'settings') action = settingsActivation(action);
+    // An app's configuration is the Apps app's detail for it.
+    if (action['view'] == 'configuration' && action['application'] is String) {
+      action = configurationActivation(action);
+    }
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
-        return;
-      }
-      // Settings is the shell's native screen, never the Settings feature app.
-      if (action['kind'] == 'settings') {
-        if (action['brainId'] case final String brain when brain != _brain) {
-          final brains = await client.listBrains();
-          if (!brains.any((entry) => entry.id == brain)) {
-            throw StateError('This account is not a member of that brain.');
-          }
-          if (!mounted) return;
-          await _selectBrain(brain);
-        }
-        if (!mounted) return;
-        _openSettings(action['tab'] as String? ?? 'general');
         return;
       }
       // The layout switch: hand the app its request, then connect again and mount the new root.
@@ -311,6 +302,38 @@ class _WorkspaceAppState extends State<WorkspaceApp>
           action['neuron'] as String? ??
           (app == null ? null : '$brain/apps/$app');
       final changingBrain = brain != _brain;
+      // Install, update and remove run over the person's own session in a brain they belong to; the space
+      // stays where it is, and an install then opens the app.
+      if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
+        if (changingBrain &&
+            !(await client.listBrains()).any((entry) => entry.id == brain)) {
+          throw StateError('This account is not a member of that brain.');
+        }
+        final result = await runAppActivation({
+          ...action,
+          'brainId': brain,
+        }, client.jsonRequest);
+        if (!mounted) return;
+        if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
+        if (result.reopen case final String reopen) {
+          await _activate({
+            'brainId': brain,
+            'kind': 'workspace',
+            'application': 'apps',
+            'operation': 'open',
+            'input': reopen,
+          });
+        }
+        if (result.open case final String open) {
+          await _activate({
+            'brainId': brain,
+            'kind': 'workspace',
+            'application': open,
+            'operation': 'open',
+          });
+        }
+        return;
+      }
       if (changingBrain) {
         final brains = await client.listBrains();
         if (!brains.any((entry) => entry.id == brain)) {
@@ -320,27 +343,15 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         await _selectBrain(
           brain,
           show:
-              action['view'] == 'configuration' ||
-                  action['kind'] == 'connections'
+              const {
+                'connections',
+                'install',
+                'update',
+                'remove',
+              }.contains(action['kind'])
               ? null
               : neuron,
         );
-      }
-      if (action['view'] == 'configuration' && app != null) {
-        if (!mounted) return;
-        _navigator.currentState?.push(
-          MaterialPageRoute<void>(
-            builder: (_) => AppDetailScreen(
-              workspaceId: brain,
-              installedName: app,
-              request: client.jsonRequest,
-              onOpen: (name) =>
-                  _activate({'brainId': brain, 'application': name}),
-              loadIcon: client.readBytes,
-            ),
-          ),
-        );
-        return;
       }
       if (action['kind'] == 'connections') {
         if (!mounted) return;
@@ -351,9 +362,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               width: 560,
               height: 520,
               child: ConnectWindow(
-                // The desktop gallery's Connect preselects its connector (and names the connection after it).
+                // Connect preselects its connector; the connection is the one the activation names, else the connector.
                 initialConnectorId: action['connector'] as String?,
-                initialConnectionId: action['connector'] as String?,
+                initialConnectionId: connectWindowConnectionId(action),
                 request: (path, {body}) =>
                     client.workspaceConnectionsRequest(brain, path, body: body),
                 connectorRequest: (path, {body}) =>
@@ -421,35 +432,13 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     }
   }
 
-  Widget _settings(String section) => WorkspaceSettings(
-    brainId: _brain!,
-    store: store,
-    initialTab: section,
-    api: ClientSettingsApi(widget.programmingClient!, _brain!),
-    onClose: () => _navigator.currentState?.pop(),
-    kernelBaseUri: widget.kernelBaseUri,
-    onOpen: widget.onOpenUrl,
-    connectionsRequest: (path, {body}) => widget.programmingClient!
-        .workspaceConnectionsRequest(_brain!, path, body: body),
-    connectorRequest: (path, {body}) =>
-        widget.programmingClient!.connectorRequest(_brain!, path, body: body),
-    windowsRequest: (path, {body}) => widget.programmingClient!
-        .workspaceWindowsRequest(_brain!, path, body: body),
-    loadModels: widget.programmingClient!.readModelCatalog,
-  );
-  void _openSettings(String section) => _navigator.currentState?.push(
-    MaterialPageRoute<void>(
-      settings: RouteSettings(name: '/settings/$section'),
-      builder: (_) => _settings(section),
-    ),
-  );
   Future<void> _tool(String name) async {
     final client = widget.programmingClient!;
     final navigator = _navigator.currentState!;
     try {
       switch (name) {
         case 'preferences':
-          _openSettings('general');
+          await _activate({'kind': 'settings'});
         case 'connections':
           await _activate({'kind': 'connections'});
         case 'compute':
@@ -563,6 +552,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                   },
                   onActivate: (action) => unawaited(_activate(action)),
                   scenes: widget.programmingClient!.scenes(_brain!),
+                  entries: (brain) =>
+                      EntriesClient(widget.programmingClient!, brain),
+                  localPreferences: _localPreferences,
                 ),
               ),
             )
@@ -595,8 +587,21 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               onRequest: _request,
               loadIcon: _icon,
               menu: _menu(),
-              onSettings: () => _openSettings('general'),
+              onSettings: () => unawaited(_activate({'kind': 'settings'})),
+              entries: (brain) =>
+                  EntriesClient(widget.programmingClient!, brain),
+              localPreferences: _localPreferences,
             ),
     ),
   );
 }
+
+/// A legacy `{kind: settings, brainId?, tab?}` (an older Ino card or Desktop button) as the Settings app's
+/// workspace activation: open its window in that brain and ask it for the tab (the app maps an old or no name).
+Map<String, dynamic> settingsActivation(Map<String, dynamic> action) => {
+  'kind': 'workspace',
+  if (action['brainId'] case final String brain) 'brainId': brain,
+  'application': 'settings',
+  'operation': 'open',
+  'input': action['tab'] is String ? action['tab'] as String : '',
+};

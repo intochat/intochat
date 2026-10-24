@@ -31,11 +31,11 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         await ShippedAppJourneys.ExerciseAsync(fixture, "workspace", ct);
     });
 
-    // The v2 journey in the real shell: Ino's greeting, the gallery, Get, a second window, close,
+    // The v2 journey in the real shell: Ino's greeting, the dock's Apps window, Install there, a third window, close,
     // then the More menu's Classic layout and v1's New desktop (the shell's reconnect both ways).
     // DesktopStartFacts, DesktopWindowFacts and DesktopLayoutSwitchFacts cover each step's state.
     [Fact(Timeout = 240_000)]
-    public Task TheDesktopJourneyGreetsGetsAnAppAndSwitchesToClassicAndBack() => RunAsync("desktop", TestContext.Current.CancellationToken, async ct =>
+    public Task TheDesktopJourneyGreetsInstallsAnAppAndSwitchesToClassicAndBack() => RunAsync("desktop", TestContext.Current.CancellationToken, async ct =>
     {
         var page = fixture.Page;
         ILocator Button(string name) => page.GetByRole(AriaRole.Button, new() { Name = name, Exact = true });
@@ -51,33 +51,36 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         // Ino is first in the dock; its window shows the one greeting, which points to the gallery.
         // The dock's Ino and, once Ino's window shows, its header title: either focuses Ino.
         await Button("Ino").First.ClickAsync();
-        await Visible(page.GetByText("Find and open apps in the Apps gallery", new() { Exact = false }).First);
+        await Visible(page.GetByText("Open apps from the dock, or just tell me", new() { Exact = false }).First);
 
+        // The dock's Apps opens the Apps window (its library; the desktop has no gallery).
         await Button("Apps").ClickAsync();
-        foreach (var heading in new[] { "Built-in", "Mine", "From others" }) { await Visible(page.GetByText(heading, new() { Exact = true }).First); }
-        // Get the built-in Calculator (not installed in this brain): it installs and opens in a second window.
-        await fixture.ActivateAsync(node => node.Action == "get:os/calculator", ct);
+        await Visible(Button("Details").First);
+        // The built-in Calculator's detail (the link form a share uses), then its Install: the shell installs it
+        // as the person and opens it in a third window.
+        using (fixture.Person.AsCallerIn(fixture.Scope)) { await fixture.App("apps").Request("open", "app:os/calculator").WaitAsync(ct); }
+        await Button("Install").ClickAsync();
         using (fixture.Person.AsCallerIn(fixture.Scope))
         {
             await TestWait.UntilAsync(_ => fixture.Brain.Get<IWorkspace>(fixture.Scope).Read(),
-                state => state.FocusedViewId == "calculator" && state.OpenViews.Any(view => view.Id == "ino"), TimeSpan.FromSeconds(60), ct);
+                state => state.FocusedViewId == "calculator" && state.OpenViews.Any(view => view.Id == "ino") && state.OpenViews.Any(view => view.Id == "apps"),
+                TimeSpan.FromSeconds(60), ct);
         }
-        await Button("Close").ClickAsync();
         await Visible(Button("="));
-        await Visible(Button("New chat"));
-        await Assertions.Expect(Button("Close tab")).ToHaveCountAsync(2);
+        await Visible(Button("New chat").First);
+        await Assertions.Expect(Button("Close tab")).ToHaveCountAsync(3);
 
-        // Close the second window's only tab (windows sit in the order they opened: Ino, then Calculator).
+        // Close the last window's only tab (windows sit in the order they opened: Ino, Apps, then Calculator).
         await Button("Close tab").Last.ClickAsync();
         await Assertions.Expect(Button("=")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
-        await Visible(Button("New chat"));
+        await Visible(Button("New chat").First);
 
         // More holds Classic layout; v1 offers New desktop back.
         await Button("Classic layout").ClickAsync();
         await fixture.ReadyAsync("classic", ct);
         await Button("New desktop").ClickAsync();
         await fixture.ReadyAsync("desktop", ct);
-        await Visible(Button("New chat"));
+        await Visible(Button("New chat").First);
     });
 
     private async Task RunAsync(string name, CancellationToken test, Func<CancellationToken, Task> journey)

@@ -7,6 +7,8 @@ public static class InoCopy
     // these by OsInoLinkFacts.TheChatRendererUsesInoCopy.
     public const string EmptyTranscript = "Ask Ino anything, or open an app from the dock.";
     public const string AppNotInstalled = "Not installed";
+    public const string AppInstall = "Install";
+    public const string Greeting = "Hi, I'm Ino. Open apps from the dock, or just tell me what you need.";
     public const string StepFailed = "This step didn't work.";
     public const string StartFailed = "Couldn't start the answer. Try again.";
     public const string NewChatFailed = "Couldn't start a new chat. Try again.";

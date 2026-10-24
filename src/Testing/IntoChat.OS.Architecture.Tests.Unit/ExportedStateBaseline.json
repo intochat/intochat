@@ -296,6 +296,14 @@
     ]
   },
   {
+    "type": "IntoChat.OS.Flutter.Entries.EntryControlState",
+    "state": "state",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.Flutter.Entries.EntryControlNeuron"
+    ]
+  },
+  {
     "type": "IntoChat.OS.Flutter.Expander.ExpanderState",
     "state": "state",
     "exportedToday": true,
@@ -373,6 +381,14 @@
     "exportedToday": true,
     "grains": [
       "IntoChat.OS.Flutter.Person.PersonNeuron"
+    ]
+  },
+  {
+    "type": "IntoChat.OS.Flutter.Preferences.PreferenceControlState",
+    "state": "state",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.Flutter.Preferences.PreferenceControlNeuron"
     ]
   },
   {
