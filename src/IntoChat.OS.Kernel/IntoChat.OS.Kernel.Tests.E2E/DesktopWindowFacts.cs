@@ -63,8 +63,9 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
         await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
-        // Not AppRuntimeReadiness: the gallery's other app may be a program that never reports ready;
-        // the new view generation below is the desktop's own readiness.
+        // Not AppRuntimeReadiness here: it never settles after Ino's greeting, on master too (b784ae493). Inspect shows
+        // apps/memory/capture.cs holding one undelivered TurnCompleted from apps/memory/agents/capture, while every
+        // other behavior is Running with nothing pending. The new view generation below is the desktop's own readiness.
         await Connect(ct);
         var restored = await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(),
             view => view!.Generation > before && Has([.. Flatten(view.Root)], calculator), Patience, ct);
