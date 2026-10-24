@@ -10,7 +10,7 @@ import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
 import '../space/neuron_space.dart';
 import '../space/space_controller.dart';
-import 'home/app_detail_screen.dart';
+import 'apps/app_activations.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
@@ -279,6 +279,10 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     if (client == null) return;
     // Settings is the Settings app: open its window and hand it the tab.
     if (action['kind'] == 'settings') action = settingsActivation(action);
+    // An app's configuration is the Apps app's detail for it.
+    if (action['view'] == 'configuration' && action['application'] is String) {
+      action = configurationActivation(action);
+    }
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
@@ -307,26 +311,32 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         await _selectBrain(
           brain,
           show:
-              action['view'] == 'configuration' ||
-                  action['kind'] == 'connections'
+              const {
+                'connections',
+                'install',
+                'update',
+                'remove',
+              }.contains(action['kind'])
               ? null
               : neuron,
         );
       }
-      if (action['view'] == 'configuration' && app != null) {
+      // Install, update and remove run over the person's own session; an install then opens the app.
+      if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
+        final result = await runAppActivation({
+          ...action,
+          'brainId': brain,
+        }, client.jsonRequest);
         if (!mounted) return;
-        _navigator.currentState?.push(
-          MaterialPageRoute<void>(
-            builder: (_) => AppDetailScreen(
-              workspaceId: brain,
-              installedName: app,
-              request: client.jsonRequest,
-              onOpen: (name) =>
-                  _activate({'brainId': brain, 'application': name}),
-              loadIcon: client.readBytes,
-            ),
-          ),
-        );
+        if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
+        if (result.open case final String open) {
+          await _activate({
+            'brainId': brain,
+            'kind': 'workspace',
+            'application': open,
+            'operation': 'open',
+          });
+        }
         return;
       }
       if (action['kind'] == 'connections') {
