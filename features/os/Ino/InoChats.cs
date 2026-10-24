@@ -27,24 +27,45 @@ public static class InoChats
 
     public static string AgentKey(string dataKey, string id) => dataKey + Conversations + id;
 
-    // Conversations started before the index existed get an entry when Ino next composes.
-    public static async Task Backfill(IntoChatOSConnection brain)
+    public static bool TryIdOf(string? agentKey, out string id)
     {
-        ArgumentNullException.ThrowIfNull(brain);
-        if ((await brain.Get<IChat>(Ino.DataKey(brain) + "/transcript").Read()).Selection is not { } selection) { return; }
-        await Backfill(Index(brain), selection.Agent, agent => brain.Get<IAgent>(agent).Transcript());
+        var at = agentKey?.LastIndexOf(Conversations, StringComparison.Ordinal) ?? -1;
+        id = at < 0 ? "" : agentKey![(at + Conversations.Length)..];
+        return ChatIndex.IsId(id);
     }
 
-    public static async Task Backfill(IChatIndex index, string agentKey, Func<string, Task<AiMessage[]>> transcript)
+    // Conversations started before the index existed get an entry when Ino next composes. Never gates the
+    // surface: any failure but cancellation is swallowed and the agent stays unmarked, so the next compose retries.
+    public static async Task<bool> TryBackfill(IntoChatOSConnection brain, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        try
+        {
+            if ((await brain.Get<IChat>(Ino.DataKey(brain) + "/transcript").Read()).Selection is not { } selection) { return false; }
+            return await TryBackfill(Index(brain), selection.Agent, agent => brain.Get<IAgent>(agent).Transcript(), cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested) { return false; }
+    }
+
+    public static async Task<bool> TryBackfill(IChatIndex index, string agentKey, Func<string, Task<AiMessage[]>> transcript,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(transcript);
-        var id = IdOf(agentKey);
-        if (!ChatIndex.IsId(id) || Backfilled.ContainsKey(agentKey)) { return; }
-        if (await index.Get(id) is not null) { Backfilled.TryAdd(agentKey, true); return; }
-        var first = (await transcript(agentKey)).FirstOrDefault(message => message.Role == "user");
-        var title = first is null ? ChatIndex.Untitled : Title(string.Concat(first.Content.OfType<AiText>().Select(part => part.Text)));
-        await index.Create(id, title == ChatIndex.NewChat ? ChatIndex.Untitled : title);
-        Backfilled.TryAdd(agentKey, true);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!TryIdOf(agentKey, out var id)) { return false; }
+        if (Backfilled.ContainsKey(agentKey)) { return true; }
+        try
+        {
+            if (await index.Get(id) is null)
+            {
+                var first = (await transcript(agentKey)).FirstOrDefault(message => message.Role == "user");
+                var title = first is null ? ChatIndex.Untitled : Title(string.Concat(first.Content.OfType<AiText>().Select(part => part.Text)));
+                await index.Create(id, title == ChatIndex.NewChat ? ChatIndex.Untitled : title);
+            }
+            Backfilled.TryAdd(agentKey, true);
+            return true;
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 }

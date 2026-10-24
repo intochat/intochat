@@ -77,7 +77,7 @@ public sealed class ChatIndexFacts(FlutterHost host)
         await index.Rename("main", "  Trip plans  ");
         Assert.Equal("Trip plans", (await index.Get("main"))!.Title);
         await index.Rename("main", new string('x', 120));
-        foreach (var bad in new[] { "", "   ", "one\ntwo", "one\rtwo", "bell\u0007", "tab\tbed", new string('x', 121) })
+        foreach (var bad in new[] { "", "   ", "one\ntwo", "one\rtwo", "bell\u0007", "tab\tbed", "rtl‮override", "zero​width", "⁦iso", "bom﻿", "​‏", new string('x', 121) })
         {
             await Assert.ThrowsAsync<ArgumentException>(() => index.Rename("main", bad));
         }
@@ -109,6 +109,11 @@ public sealed class ChatIndexFacts(FlutterHost host)
         Assert.Equal("Untitled", (await index.Get(untitled))!.Title);
         await index.Touch(untitled, "bell\u0007 rings");
         Assert.Equal("bell rings", (await index.Get(untitled))!.Title);
+        var hidden = NewId();
+        await index.Touch(hidden, "‮​");
+        Assert.Equal("New chat", (await index.Get(hidden))!.Title);
+        await index.Touch(hidden, "‮hi​ there");
+        Assert.Equal("hi there", (await index.Get(hidden))!.Title);
 
         var renamed = NewId();
         await index.Create(renamed, "New chat");

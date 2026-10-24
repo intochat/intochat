@@ -7,6 +7,8 @@ namespace IntoChat.OS.Kernel.Tests.Unit;
 
 public sealed class OsInoChatsFacts
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     [Fact]
     public void TitlesAreOneLineClippedAndNeverEmpty()
     {
@@ -16,6 +18,14 @@ public sealed class OsInoChatsFacts
         Assert.Equal("a b c", InoChats.Title("a\nb  c"));
         Assert.Equal("bell", InoChats.Title("bell\u0007"));
         Assert.Equal(51, InoChats.Title(new string('a', 51) + "\U0001F600").Length);
+        Assert.Equal("ab", InoChats.Title("a‮b​⁦﻿"));
+        Assert.Equal("New chat", InoChats.Title("​‮ ⁩﻿"));
+        Assert.Equal("New chat", InoChats.Title("‍"));
+        var family = "\U0001F468‍\U0001F469‍\U0001F467";
+        Assert.Equal(new string('a', 51), InoChats.Title(new string('a', 51) + family));
+        Assert.Equal(new string('a', 44) + family, InoChats.Title(new string('a', 44) + family + "b"));
+        Assert.Equal(new string('a', 51), InoChats.Title(new string('a', 51) + "éx"));
+        Assert.Equal(new string('a', 50) + "é", InoChats.Title(new string('a', 50) + "éx"));
     }
 
     [Fact]
@@ -45,13 +55,13 @@ public sealed class OsInoChatsFacts
                 : agent.EndsWith("main", StringComparison.Ordinal) ? [new("user", [new AiText("hello there")])] : []);
         }
 
-        await InoChats.Backfill(index, InoChats.AgentKey(data, spoken), Read);
-        await InoChats.Backfill(index, InoChats.AgentKey(data, silent), Read);
-        await InoChats.Backfill(index, InoChats.AgentKey(data, listed), Read);
-        await InoChats.Backfill(index, InoChats.AgentKey(data, "main"), Read);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, spoken), Read, Ct);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, silent), Read, Ct);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, listed), Read, Ct);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, "main"), Read, Ct);
         await index.Rename(spoken, "Renamed");
-        await InoChats.Backfill(index, InoChats.AgentKey(data, spoken), Read);
-        await InoChats.Backfill(index, InoChats.AgentKey(data, "main"), Read);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, spoken), Read, Ct);
+        await InoChats.TryBackfill(index, InoChats.AgentKey(data, "main"), Read, Ct);
 
         Assert.Equal("Renamed", index.Entries[spoken].Title);
         Assert.Equal("Untitled", index.Entries[silent].Title);
@@ -61,10 +71,31 @@ public sealed class OsInoChatsFacts
         Assert.Equal(4, index.Created);
     }
 
+    [Fact]
+    public async Task AFailingIndexNeverThrowsAndRetriesOnTheNextCompose()
+    {
+        var agent = InoChats.AgentKey("brain-" + Guid.NewGuid().ToString("N") + "/apps/ino", "main");
+        var failing = new FakeIndex { Fail = true };
+        var reads = 0;
+        Task<AiMessage[]> Read(string _) { reads++; return Task.FromResult<AiMessage[]>([]); }
+
+        Assert.False(await InoChats.TryBackfill(failing, agent, Read, Ct));
+        Assert.False(await InoChats.TryBackfill(failing, "not-a-conversation", Read, Ct));
+        failing.Fail = false;
+        Assert.True(await InoChats.TryBackfill(failing, agent, Read, Ct));
+        Assert.Equal("Untitled", failing.Entries["main"].Title);
+        Assert.Equal(1, reads);
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        failing.Fail = true;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InoChats.TryBackfill(failing, InoChats.AgentKey("x/apps/ino", "c-" + Guid.NewGuid().ToString("N")), Read, cancelled.Token));
+    }
+
     private sealed class FakeIndex : IChatIndex
     {
         public Dictionary<string, ChatIndexEntry> Entries { get; } = [];
         public int Created { get; private set; }
+        public bool Fail { get; set; }
 
         public Task<ChatIndexEntry> Create(string id, string title)
         {
@@ -73,7 +104,7 @@ public sealed class OsInoChatsFacts
             return Task.FromResult(entry);
         }
 
-        public Task<ChatIndexEntry?> Get(string id) => Task.FromResult(Entries.GetValueOrDefault(id));
+        public Task<ChatIndexEntry?> Get(string id) => Fail ? throw new InvalidOperationException("index down") : Task.FromResult(Entries.GetValueOrDefault(id));
         public Task Rename(string id, string title) { Entries[id] = Entries[id] with { Title = title }; return Task.CompletedTask; }
         public Task<ChatIndexPage> List(bool archived, int skip = 0, int take = 100) => throw new NotSupportedException();
         public Task Archive(string id) => throw new NotSupportedException();
