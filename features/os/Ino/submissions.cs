@@ -40,8 +40,13 @@ async Task Reconcile()
                     continue;
                 }
                 var snapshot = await app.Read();
-                var choice = snapshot.Settings.GetValueOrDefault("Model", "");
-                var model = choice.Length > 0 ? await Ino.Models(brain).Select(choice) : null;
+                // A chosen model that is unavailable starts no turn; the draft stays and the menu names the reason.
+                if (await Ino.TurnModel(brain, snapshot, request.Context) is not (true, var model))
+                {
+                    await Ino.Status(brain, InoModels.UnavailableCopy);
+                    await composer.Settle(request.Id, InoModels.UnavailableCopy);
+                    continue;
+                }
                 var contracts = InoTools.Select(Ino.Contracts, await brain.Kernel.Types(brain.Stopping));
                 await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: contracts)
                     with { RunId = runId, Model = model });

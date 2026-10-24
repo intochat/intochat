@@ -49,8 +49,8 @@ public static partial class Ino
     public static string Clip(string text) => text.Length <= 200 ? text : text[..200];
 
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
-    // instead of running twice. A turn that cannot start (a response is already running, the Model
-    // setting names an unavailable model) says so on the status line and never stops the synapse.
+    // instead of running twice. A turn that cannot start (a response is already running, the chat's
+    // model or the Model setting is unavailable) says so on the status line and never stops the synapse.
     public static async Task<AnswerOutcome> Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
         IntentBrief? brief = null, bool confirmed = false, string? memoryKey = null, Guid? intentId = null)
     {
@@ -63,19 +63,21 @@ public static partial class Ino
             {
                 // A redelivered message whose turn is still running is already being answered.
                 if (running.RunId == runId) { return AnswerOutcome.Started; }
-                // The message is kept in an empty draft, so sending it later is one click; typing is never replaced.
-                var composer = brain.Get<IComposer>(DataKey(brain) + "/composer");
-                var draft = await composer.Read();
-                var kept = draft.Draft.Length == 0 && draft.Context == source;
-                if (kept) { await composer.Edit(source, draft.Generation, input); }
+                var kept = await KeepInDraft(brain, source, input);
                 await Status(brain, kept
                     ? "A response is already running; your message is in the draft, send it when the response finishes."
                     : "A response is already running; send your message again when it finishes.");
                 await Advance(brain, "attention", "A response is already running");
                 return AnswerOutcome.KeptInDraft;
             }
-            var choice = snapshot.Settings.GetValueOrDefault("Model", "");
-            var model = choice.Length > 0 ? await Models(brain).Select(choice) : null;
+            // A chosen model that is unavailable starts no turn and never falls back silently; the choice is kept.
+            if (await TurnModel(brain, snapshot, source) is not (true, var model))
+            {
+                await KeepInDraft(brain, source, input);
+                await Status(brain, InoModels.UnavailableCopy);
+                await Advance(brain, "attention", "The chosen model isn't available");
+                return AnswerOutcome.KeptInDraft;
+            }
             if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
             var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
             var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
@@ -90,6 +92,45 @@ public static partial class Ino
             await Advance(brain, "attention", "Could not start the answer");
             return AnswerOutcome.Failed;
         }
+    }
+
+    // The message is kept in an empty draft, so sending it later is one click; typing is never replaced.
+    private static async Task<bool> KeepInDraft(IntoChatOSConnection brain, string source, string input)
+    {
+        var composer = brain.Get<IComposer>(DataKey(brain) + "/composer");
+        var draft = await composer.Read();
+        var kept = draft.Draft.Length == 0 && draft.Context == source;
+        if (kept) { await composer.Edit(source, draft.Generation, input); }
+        return kept;
+    }
+
+    // The chat's choice, else the app setting Model, else Automatic (null). False when a chosen model is not
+    // available now. An unreadable index falls back to the app setting.
+    public static async Task<(bool Available, ModelSelection? Model)> TurnModel(IntoChatOSConnection brain, AppSnapshot snapshot, string agentKey)
+    {
+        var effective = InoModels.Effective(await ChatModelChoice(brain, agentKey), snapshot.Settings.GetValueOrDefault("Model", ""));
+        if (effective is null) { return (true, null); }
+        var model = await Models(brain).Select(effective);
+        return (model is not null, model);
+    }
+
+    private static async Task<string?> ChatModelChoice(IntoChatOSConnection brain, string agentKey)
+    {
+        if (!InoChats.TryIdOf(agentKey, out var id)) { return null; }
+        try { return (await InoChats.Index(brain).Get(id))?.ModelChoice; }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return null; }
+    }
+
+    // The header's model menu for the selected chat; an unreadable catalog shows no menu.
+    private static async Task<UiNode?> ModelMenu(IntoChatOSConnection brain, string agentKey)
+    {
+        try
+        {
+            var settings = (await brain.Get<IApp>(Key(brain)).Read()).Settings;
+            var effective = InoModels.Effective(await ChatModelChoice(brain, agentKey), settings.GetValueOrDefault("Model", ""));
+            return InoModels.Menu(await Models(brain).List(), effective);
+        }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return null; }
     }
 
     // Memory is an app like any other: present when its manifest has a title.
@@ -200,7 +241,8 @@ public static partial class Ino
         try { chats = (await InoChats.Index(brain).List(false, 0, ChatIndex.MaxPage)).Entries; }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { chats = []; }
         InoChats.TryIdOf(selection.Agent, out var selected);
-        var model = new InoViewModel(chats, selected, state.Query, RenamingId: state.RenamingId, Toast: state.Toast, UndoId: state.UndoId);
+        var model = new InoViewModel(chats, selected, state.Query, await ModelMenu(brain, selection.Agent),
+            RenamingId: state.RenamingId, Toast: state.Toast, UndoId: state.UndoId);
         await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), ProgramRevision(brain)).Publish(InoView.Render(data, model));
         return state.ToastUntil;
     }

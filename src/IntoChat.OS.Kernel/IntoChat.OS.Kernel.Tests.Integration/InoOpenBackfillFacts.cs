@@ -61,6 +61,7 @@ public sealed class InoOpenBackfillFacts
         Assert.Contains("search.cs", compiled.Assemblies.Keys);
         Assert.Contains("view.cs", compiled.Assemblies.Keys);
         Assert.Contains("index.cs", compiled.Assemblies.Keys);
+        Assert.Contains("model.cs", compiled.Assemblies.Keys);
     }
 
     private static byte[] Compile()
