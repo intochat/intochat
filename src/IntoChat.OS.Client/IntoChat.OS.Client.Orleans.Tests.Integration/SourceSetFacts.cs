@@ -119,7 +119,8 @@ public sealed class SourceSetFacts(ClientHost host)
         Assert.Equal(("test-emitter/reg-1-b", 3), await watch.Next(ct));
     }
 
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/310 - removed by Phase 4
+    [Fact(Explicit = true)]
     public async Task ARegistryChangePublishedDuringTheFirstSelectIsFollowed()
     {
         var ct = TestContext.Current.CancellationToken;

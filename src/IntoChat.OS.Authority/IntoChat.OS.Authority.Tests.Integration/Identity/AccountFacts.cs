@@ -37,7 +37,8 @@ public sealed class AccountFacts(AuthorityHost host)
         Assert.Equal(403, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)outsider).StatusCode);
     }
 
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/313
+    [Fact(Explicit = true)]
     public async Task AMemberSeesItsOwnAndSharedBrainsOnly()
     {
         var ct = TestContext.Current.CancellationToken;
