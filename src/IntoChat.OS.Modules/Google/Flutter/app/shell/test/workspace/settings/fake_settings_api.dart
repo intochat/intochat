@@ -23,9 +23,17 @@ base class FakeSettingsApi implements SettingsApi {
   final archivedList = <ArchivedChat>[];
   final unarchived = <String>[];
   Object? unarchiveError;
+  final archivedSkips = <int>[];
+  var pageSize = 100;
 
   @override
-  Future<List<ArchivedChat>> archivedChats() async => [...archivedList];
+  Future<ArchivedChatPage> archivedChats({int skip = 0}) async {
+    archivedSkips.add(skip);
+    return ArchivedChatPage(
+      archivedList.skip(skip).take(pageSize).toList(),
+      archivedList.length,
+    );
+  }
 
   @override
   Future<void> unarchiveChat(String id) async {

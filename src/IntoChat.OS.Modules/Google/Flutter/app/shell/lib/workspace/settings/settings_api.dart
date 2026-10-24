@@ -94,6 +94,20 @@ final class ArchivedChat {
   );
 }
 
+/// One page of archived chats; [total] counts every archived chat.
+final class ArchivedChatPage {
+  const ArchivedChatPage(this.chats, this.total);
+  final List<ArchivedChat> chats;
+  final int total;
+}
+
+/// Thrown when a chat no longer exists (HTTP 404).
+final class ChatGone implements Exception {
+  const ChatGone();
+  @override
+  String toString() => 'That chat no longer exists.';
+}
+
 /// What the Settings tabs read and write for one brain.
 abstract interface class SettingsApi {
   Future<List<EntrySummary>> listEntries();
@@ -104,7 +118,7 @@ abstract interface class SettingsApi {
   Future<void> putNotifications(Map<String, bool> preferences);
   Future<NewTabPreferences> workspacePreferences();
   Future<NewTabPreferences> putNewTabApp(String name);
-  Future<List<ArchivedChat>> archivedChats();
+  Future<ArchivedChatPage> archivedChats({int skip = 0});
   Future<void> unarchiveChat(String id);
 }
 
@@ -177,16 +191,23 @@ final class ClientSettingsApi implements SettingsApi {
       );
 
   @override
-  Future<List<ArchivedChat>> archivedChats() async {
-    final body = await _call('GET', '/chats?archived=true&skip=0&take=100');
-    return [
-      if (body is Map)
-        for (final row in body['chats'] as List? ?? const [])
-          ArchivedChat.fromJson(Map<String, dynamic>.from(row as Map)),
+  Future<ArchivedChatPage> archivedChats({int skip = 0}) async {
+    final body = await _call('GET', '/chats?archived=true&skip=$skip&take=100');
+    if (body is! Map) return const ArchivedChatPage([], 0);
+    final chats = [
+      for (final row in body['chats'] as List? ?? const [])
+        ArchivedChat.fromJson(Map<String, dynamic>.from(row as Map)),
     ];
+    return ArchivedChatPage(chats, body['total'] as int? ?? chats.length);
   }
 
   @override
-  Future<void> unarchiveChat(String id) =>
-      _call('POST', '/chats/${Uri.encodeComponent(id)}/unarchive');
+  Future<void> unarchiveChat(String id) async {
+    try {
+      await _call('POST', '/chats/${Uri.encodeComponent(id)}/unarchive');
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 404) throw const ChatGone();
+      rethrow;
+    }
+  }
 }

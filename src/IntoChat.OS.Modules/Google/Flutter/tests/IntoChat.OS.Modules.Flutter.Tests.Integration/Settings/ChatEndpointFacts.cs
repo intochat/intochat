@@ -119,6 +119,46 @@ public sealed class ChatEndpointFacts(FlutterHost host)
         Assert.True((await Index(person).Get(id))!.Archived);
     }
 
+    private async Task InstallIno(IntoChat.OS.Testing.Person person, Dictionary<string, string>? settings = null)
+    {
+        var app = host.Brain.Get<IApp>(IApp.Key(person.BrainId, "ino"));
+        await app.Create(new AppManifest("Ino", "Ino", [], [], []), "spec");
+        if (settings is not null) { await app.Configure(settings, []); }
+    }
+
+    [Fact]
+    public async Task ListsChatsKeptUnderChatDataAppThroughHttp()
+    {
+        using var person = await host.PersonAsync(ct: Ct);
+        await InstallIno(person, new() { ["ChatDataApp"] = person.BrainId + "/apps/ino-data" });
+        // The Ino scripts' key: Ino.DataKey(brain) + "/chats" with ChatDataApp = {brain}/apps/ino-data.
+        var inoSide = host.Brain.Get<IChatIndex>(person.BrainId + "/apps/ino-data/chats");
+        var id = NewId();
+        await inoSide.Create(id, "Kept by Ino");
+        await inoSide.Archive(id);
+        await Seed(person, "Under the app key", archive: true);
+
+        var body = await person.Http.GetFromJsonAsync<JsonElement>(Url(person) + "?archived=true", Ct);
+        using var post = await person.Http.PostAsync(Url(person, $"/{id}/unarchive"), null, Ct);
+
+        Assert.Equal([id], Ids(body));
+        Assert.Equal(HttpStatusCode.NoContent, post.StatusCode);
+        Assert.False((await inoSide.Get(id))!.Archived);
+    }
+
+    [Fact]
+    public async Task WithoutInoTheListIsEmptyAndUnarchiveIs404()
+    {
+        using var person = await host.PersonAsync(ct: Ct);
+
+        var body = await person.Http.GetFromJsonAsync<JsonElement>(Url(person) + "?archived=true", Ct);
+        using var post = await person.Http.PostAsync(Url(person, $"/{NewId()}/unarchive"), null, Ct);
+
+        Assert.Empty(Ids(body));
+        Assert.Equal(0, body.GetProperty("total").GetInt32());
+        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+    }
+
     [Fact]
     public void IndexKeyFollowsChatDataApp()
     {

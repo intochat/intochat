@@ -60,4 +60,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Archived chats appear here.'), findsOneWidget);
   });
+
+  testWidgets('archived_tab_removes_stale_row_on_404', (tester) async {
+    final api = _api()..unarchiveError = const ChatGone();
+    await pumpSettings(tester, api, tab: 'archived');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('archived-unarchive-main')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('archived-row-main')), findsNothing);
+    expect(find.text('Second'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+  });
+
+  testWidgets('archived_tab_shows_more_pages', (tester) async {
+    final api = _api()..pageSize = 1;
+    await pumpSettings(tester, api, tab: 'archived');
+    await tester.pumpAndSettle();
+    expect(find.text('Second'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('archived-show-more')));
+    await tester.pumpAndSettle();
+
+    expect(api.archivedSkips, [0, 1]);
+    expect(find.text('Second'), findsOneWidget);
+    expect(find.byKey(const Key('archived-show-more')), findsNothing);
+  });
 }

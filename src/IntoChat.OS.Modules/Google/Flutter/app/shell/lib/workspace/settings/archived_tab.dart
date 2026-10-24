@@ -15,7 +15,9 @@ class ArchivedTab extends StatefulWidget {
 
 class _ArchivedTabState extends State<ArchivedTab> {
   List<ArchivedChat> _chats = const [];
+  int _total = 0;
   bool _loading = true;
+  bool _more = false;
   String? _error;
   final _busy = <String>{};
 
@@ -27,29 +29,56 @@ class _ArchivedTabState extends State<ArchivedTab> {
 
   Future<void> _load() async {
     try {
-      final chats = await widget.api.archivedChats();
-      if (mounted) setState(() => _chats = chats);
+      final page = await widget.api.archivedChats(skip: _chats.length);
+      if (mounted) {
+        setState(() {
+          _chats = [..._chats, ...page.chats];
+          _total = page.total;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Archived chats could not be loaded.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _more = false;
+        });
+      }
     }
   }
+
+  void _showMore() {
+    setState(() {
+      _more = true;
+      _error = null;
+    });
+    _load();
+  }
+
+  void _drop(ArchivedChat chat) => setState(() {
+    _chats = [
+      for (final c in _chats)
+        if (c.id != chat.id) c,
+    ];
+    if (_total > 0) _total--;
+  });
 
   Future<void> _unarchive(ArchivedChat chat) async {
     setState(() => _busy.add(chat.id));
     try {
       await widget.api.unarchiveChat(chat.id);
       if (!mounted) return;
-      setState(
-        () => _chats = [
-          for (final c in _chats)
-            if (c.id != chat.id) c,
-        ],
-      );
+      _drop(chat);
       showKitToast(context, 'Chat restored.');
+    } on ChatGone {
+      // Already restored or deleted elsewhere: the row is stale.
+      if (mounted) {
+        _drop(chat);
+        showKitToast(context, 'That chat no longer exists.');
+      }
     } catch (error) {
       if (mounted) {
         showKitToast(
@@ -128,14 +157,36 @@ class _ArchivedTabState extends State<ArchivedTab> {
         title: 'Archived chats',
         description: 'Conversations you have archived.',
       ),
-      if (_loading) const LinearProgressIndicator(),
-      if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
+      if (_loading || _more)
+        Semantics(
+          label: 'Loading archived chats',
+          child: const LinearProgressIndicator(),
+        ),
+      if (_error != null)
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _error!,
+            style: UiType.of(context).body
+                .copyWith(color: UiColors.of(context).error),
+          ),
+        ),
       if (!_loading && _error == null && _chats.isEmpty)
         Text(
           'Archived chats appear here.',
           style: UiType.of(context).bodyMuted,
         ),
       for (final chat in _chats) _row(chat),
+      if (!_loading && !_more && _chats.length < _total)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: UiKitButton(
+            key: const Key('archived-show-more'),
+            label: 'Show more',
+            style: UiKitButtonStyle.secondary,
+            onPressed: _showMore,
+          ),
+        ),
     ],
   );
 }
