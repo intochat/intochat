@@ -298,8 +298,12 @@ jobs:
           name: packages
           path: artifacts/packages
 
+      # Platform has no Directory.Build.props of its own: inside the os workspace it would inherit os's (duplicate
+      # test package references, NU1504). Build it from outside the os tree.
       - name: Build platform against fresh packages
-        run: bash scripts/ci/downstream-build.sh "$GITHUB_WORKSPACE/platform" "$GITHUB_WORKSPACE/artifacts/packages"
+        run: |
+          mv "$GITHUB_WORKSPACE/platform" "$RUNNER_TEMP/platform"
+          bash scripts/ci/downstream-build.sh "$RUNNER_TEMP/platform" "$GITHUB_WORKSPACE/artifacts/packages"
 
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
