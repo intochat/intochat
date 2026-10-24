@@ -17,7 +17,8 @@ public sealed class OsInoModelFacts
         new ModelChoice(null, "Automatic", null, null, autoAvailable, []) { Reason = autoAvailable ? null : "No model with tools" },
         [
             new("profile:fast", "Fast", "openai", "gpt-fast", true, ["tools"]),
-            new("preset:Big", "Big", "anthropic", "big", false, ["tools"]) { Reason = "Add an Anthropic key" },
+            new("preset:Big", "Big", "anthropic", "big", false, ["tools"]) { Reason = "refused: fake-secret-value at https://internal" },
+            new("preset:Keyed", "Keyed", "openai", "keyed", false, ["tools"]) { Reason = InoModels.NoKeyReason },
         ]);
 
     [Fact]
@@ -28,7 +29,7 @@ public sealed class OsInoModelFacts
         var auto = menu.Children[0];
         Assert.Equal(("model-auto", "Auto, cheapest model with tools", "model:auto"), (auto.Key, auto.Text!, auto.Action!));
         Assert.False(auto.Enabled);
-        Assert.Equal("No model with tools", auto.Detail);
+        Assert.Equal(InoCopy.ModelNotAvailable, auto.Detail);
         Assert.Equal("Auto", menu.Text);
         Assert.Equal(UiStyle.Primary, auto.Style);
     }
@@ -37,11 +38,13 @@ public sealed class OsInoModelFacts
     public void UnavailableModelsAreDisabledWithTheirReason()
     {
         var menu = InoModels.Menu(Choices(), null);
-        Assert.Equal(["model-auto", "model-0", "model-1"], menu.Children.Select(item => item.Key));
+        Assert.Equal(["model-auto", "model-0", "model-1", "model-2"], menu.Children.Select(item => item.Key));
         var (fast, big) = (menu.Children[1], menu.Children[2]);
+        // A catalog reason can carry exception text: only the fixed key hint is shown, anything else is fixed copy.
+        Assert.Equal("Add a key in API keys", menu.Children[3].Detail);
         Assert.Equal(("Fast", "model:profile:fast", true), (fast.Text!, fast.Action!, fast.Enabled));
         Assert.Null(fast.Detail);
-        Assert.Equal(("Big", "model:preset:Big", false, "Add an Anthropic key"), (big.Text!, big.Action!, big.Enabled, big.Detail!));
+        Assert.Equal(("Big", "model:preset:Big", false, InoCopy.ModelNotAvailable), (big.Text!, big.Action!, big.Enabled, big.Detail!));
     }
 
     [Fact]
@@ -49,7 +52,7 @@ public sealed class OsInoModelFacts
     {
         var menu = InoModels.Menu(Choices(), "profile:fast");
         Assert.Equal("Fast", menu.Text);
-        Assert.Equal([UiStyle.Secondary, UiStyle.Primary, UiStyle.Secondary], menu.Children.Select(item => item.Style));
+        Assert.Equal([UiStyle.Secondary, UiStyle.Primary, UiStyle.Secondary, UiStyle.Secondary], menu.Children.Select(item => item.Style));
     }
 
     [Fact]
@@ -57,7 +60,7 @@ public sealed class OsInoModelFacts
     {
         var menu = InoModels.Menu(Choices(), "preset:Big");
         Assert.Equal("Big (unavailable)", menu.Text);
-        Assert.Equal([UiStyle.Secondary, UiStyle.Secondary, UiStyle.Primary], menu.Children.Select(item => item.Style));
+        Assert.Equal([UiStyle.Secondary, UiStyle.Secondary, UiStyle.Primary, UiStyle.Secondary], menu.Children.Select(item => item.Style));
     }
 
     [Fact]

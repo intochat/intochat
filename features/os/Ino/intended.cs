@@ -111,7 +111,7 @@ async Task Act(Guid requestId, IntentBrief? brief, bool confirmed, Guid? intentI
         var outcome = await Ino.Answer(brain, await app.Read(), pending.Message, pending.Hint, requestId,
             brief, confirmed, await Ino.MemoryKey(brain), intentId);
         if (!PendingStore.KeepsClaim(outcome) && !await PendingStore.Release(brain, requestId))
-        { await Ino.Status(brain, "Could not start the answer after " + PendingStore.MaxAttempts + " attempts"); }
+        { await Ino.Status(brain, InoCopy.StartRetriesExhausted); }
     }
     finally { gate.Release(); }
 }
@@ -131,7 +131,7 @@ async Task NoticeReviews(DateTimeOffset now)
         var count = new string((entry?.Text ?? "").TakeWhile(char.IsDigit).ToArray());
         if (count.Length == 0) { return; }
         lastNotice = now;
-        await Ino.Status(brain, "Memory has " + count + " items to review");
+        await Ino.Status(brain, InoCopy.ReviewsWaiting(count));
         noticeFailed = false;
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

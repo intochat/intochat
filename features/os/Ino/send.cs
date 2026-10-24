@@ -25,7 +25,7 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
             var outcome = await InoLinks.Handle(brain.Get<IAgent>((await Ino.EnsureSelection(brain)).Agent),
                 brain.Get<IText>(Ino.DataKey(brain) + "/links"), brain.Get<IText>(Ino.DataKey(brain) + "/status"),
                 (state, detail) => Ino.Advance(brain, state, detail), request.Input, request.RequestId);
-            if (outcome == InoLinkOutcome.Busy) { await Ino.Status(brain, InoCopy.AnswerRunning); }
+            if (outcome == InoLinkOutcome.Busy) { await Ino.Status(brain, InoCopy.AnswerRunningResend); }
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.LinkFailed, error)); }
         await ledger.Record(request.RequestId);
@@ -34,7 +34,7 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
     await Ino.Touched(brain, (await Ino.EnsureSelection(brain)).Agent, request.Input);
     if (request.Input.Length > Ino.MaxRoutedChars)
     {
-        await Ino.Status(brain, "A long message goes straight to the model");
+        await Ino.Status(brain, InoCopy.LongMessage);
         var snapshot = await app.Read();
         var conversation = (await Ino.EnsureSelection(brain)).Agent;
         if (!await Ino.Intend(brain, snapshot, request.Input, "", request.RequestId, conversation, "send"))

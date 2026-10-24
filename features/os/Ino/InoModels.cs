@@ -13,6 +13,11 @@ public static class InoModels
     public const string UnavailableCopy = "This model isn't available right now. Pick another in the model menu.";
     public const string DefaultUnavailableCopy = "The default model isn't available. Using Auto.";
     public const string UnavailableSuffix = " (unavailable)";
+    // The AI catalog's fixed reason for a key-based provider without a key (ModelCatalog.NoKeyReason).
+    public const string NoKeyReason = "Add a key in API keys";
+
+    // Only known copy reaches the menu: a catalog reason may carry exception text.
+    public static string? ReasonCopy(string? reason) => reason is null ? null : reason == NoKeyReason ? NoKeyReason : InoCopy.ModelNotAvailable;
 
     // First run: the "How should Ino run?" card. Copy moves into the INT-20 strings file later.
     public const string FirstRunTitle = "How should Ino run?";
@@ -93,9 +98,9 @@ public static class InoModels
     {
         var auto = Ui.Button("model-auto", AutoLabel, "model:" + AutoChoice, choices.Automatic.Available,
             selected is null ? UiStyle.Primary : UiStyle.Secondary) with
-        { Detail = choices.Automatic.Reason };
+        { Detail = ReasonCopy(choices.Automatic.Reason) };
         UiNode[] items = [auto, .. choices.Models.Select((model, i) => Ui.Button("model-" + i, model.Label, "model:" + model.Id, model.Available,
-            model.Id == selected ? UiStyle.Primary : UiStyle.Secondary) with { Detail = model.Reason })];
+            model.Id == selected ? UiStyle.Primary : UiStyle.Secondary) with { Detail = ReasonCopy(model.Reason) })];
         string label;
         if (selected is null) { label = "Auto"; }
         else if (choices.Models.FirstOrDefault(model => model.Id == selected) is { } listed)

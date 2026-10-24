@@ -77,35 +77,63 @@ public static class InoChats
     }
 
     // Upgrade back-fill: every conversation agent of this brain gets an entry, oldest first so the newest lists first.
-    private static int _allIndexed;
+    // Brains whose pass completed in this script activation, by Ino.DataKey.
+    private static readonly ConcurrentDictionary<string, bool> AllIndexed = new(StringComparer.Ordinal);
 
-    // Once per script activation once it has completed; a failed or abandoned pass runs again on the next compose.
-    public static async Task<int> TryBackfillAll(IntoChatOSConnection brain, CancellationToken cancellationToken)
+    // One conversation's read is abandoned after this long; it counts as attempted, so the pass still completes.
+    public static readonly TimeSpan AgentBackfillTimeout = TimeSpan.FromSeconds(2);
+
+    // Once per brain per script activation once a pass has completed; a pass whose listing fails runs again on the next compose.
+    public static Task<int> TryBackfillAll(IntoChatOSConnection brain, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        if (Volatile.Read(ref _allIndexed) == 1) { return 0; }
-        try
+        return TryBackfillAll(Ino.DataKey(brain), async token =>
         {
             var instances = new List<Instance>();
-            await foreach (var instance in brain.Kernel.Instances<IAgent>(cancellationToken)) { instances.Add(instance); }
-            var keys = ConversationKeys(instances, Ino.DataKey(brain));
-            var done = await TryBackfillAll(Index(brain), keys, agent => brain.Get<IAgent>(agent).Transcript(), cancellationToken);
-            if (done == keys.Count) { Volatile.Write(ref _allIndexed, 1); }
+            await foreach (var instance in brain.Kernel.Instances<IAgent>(token)) { instances.Add(instance); }
+            return ConversationKeys(instances, Ino.DataKey(brain));
+        }, Index(brain), agent => brain.Get<IAgent>(agent).Transcript(), cancellationToken);
+    }
+
+    public static async Task<int> TryBackfillAll(string dataKey, Func<CancellationToken, Task<IReadOnlyList<string>>> conversations, IChatIndex index,
+        Func<string, Task<AiMessage[]>> transcript, CancellationToken cancellationToken, TimeSpan? perAgent = null)
+    {
+        ArgumentNullException.ThrowIfNull(conversations);
+        if (AllIndexed.ContainsKey(dataKey)) { return 0; }
+        try
+        {
+            var keys = await conversations(cancellationToken);
+            var done = await TryBackfillAll(index, keys, transcript, cancellationToken, perAgent);
+            AllIndexed.TryAdd(dataKey, true);
             return done;
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested) { return 0; }
     }
 
+    // Each conversation gets its own timeout; one that fails or hangs is skipped for this pass.
     public static async Task<int> TryBackfillAll(IChatIndex index, IReadOnlyList<string> newestFirst, Func<string, Task<AiMessage[]>> transcript,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, TimeSpan? perAgent = null)
     {
         ArgumentNullException.ThrowIfNull(newestFirst);
         var done = 0;
         for (var i = newestFirst.Count - 1; i >= 0; i--)
         {
-            if (await TryBackfill(index, newestFirst[i], transcript, cancellationToken)) { done++; }
+            var agent = newestFirst[i];
+            if (await Within(perAgent ?? AgentBackfillTimeout, token => TryBackfill(index, agent, transcript, token), cancellationToken)) { done++; }
         }
         return done;
+    }
+
+    // Runs work off the caller's path: the caller never waits, a failure is logged by type, and stopping cancels it.
+    public static Task Background(string what, Func<CancellationToken, Task> work, CancellationToken stopping)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        return Task.Run(async () =>
+        {
+            try { await work(stopping); }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+            catch (Exception error) { Console.Error.WriteLine("Ino: " + what + " failed (" + error.GetType().Name + ")"); }
+        }, CancellationToken.None);
     }
 
     public static async Task<bool> TryBackfill(IChatIndex index, string agentKey, Func<string, Task<AiMessage[]>> transcript,

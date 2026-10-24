@@ -42,12 +42,10 @@ public static partial class Ino
         typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
         typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!, typeof(IFacts).FullName!];
 
-
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
             && gate is >= 0 and <= 1 ? gate : DefaultRouteGate;
 
-    public static string Clip(string text) => text.Length <= 200 ? text : text[..200];
 
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
     // instead of running twice. A turn that cannot start (a response is already running, the chat's
@@ -65,9 +63,7 @@ public static partial class Ino
                 // A redelivered message whose turn is still running is already being answered.
                 if (running.RunId == runId) { return AnswerOutcome.Started; }
                 var kept = await KeepInDraft(brain, source, input);
-                await Status(brain, kept
-                    ? "A response is already running; your message is in the draft, send it when the response finishes."
-                    : "A response is already running; send your message again when it finishes.");
+                await Status(brain, kept ? InoCopy.AnswerRunning : InoCopy.AnswerRunningResend);
                 await Advance(brain, "attention", "A response is already running");
                 return AnswerOutcome.KeptInDraft;
             }
@@ -178,7 +174,7 @@ public static partial class Ino
     {
         if (await MemoryKey(brain) is not { } memoryKey)
         {
-            if (Interlocked.Exchange(ref _toldMemoryMissing, 1) == 0) { await Status(brain, "Memory is not installed; answering directly"); }
+            if (Interlocked.Exchange(ref _toldMemoryMissing, 1) == 0) { await Status(brain, InoCopy.MemoryMissing); }
             return false;
         }
         await PendingStore.Write(brain, synapse, requestId, new(input, hint, conversation, DateTimeOffset.UtcNow, false));
@@ -292,14 +288,16 @@ public static partial class Ino
             new(new Sphere("icon.svg", ["mood"], Presence()),
                 Main: new(UIVocabulary.ViewType, key + "/view"),
                 Views: [new("full", new(UIVocabulary.ViewType, key + "/view"))]));
-        // After Present and best effort: the first-run card's handoffs never keep Ino from opening.
-        try { await SetupButtons(brain); }
-        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
-        // After Present and bounded: indexing old conversations never keeps Ino from opening or answering.
-        // A new entry raises ChatIndexChanged, so index.cs marks the view dirty.
-        await InoChats.Within(InoChats.BackfillTimeout, token => InoChats.TryBackfill(brain, token), brain.Stopping);
-        // Then every other conversation (an upgraded 3.1.3 brain has none indexed), bounded the same way.
-        await InoChats.Within(InoChats.BackfillAllTimeout, async token => await InoChats.TryBackfillAll(brain, token) >= 0, brain.Stopping);
+        // After Present and off the open path: the first-run card's handoffs and indexing old conversations run in
+        // the background, so greet and compose never wait on them. A new entry raises ChatIndexChanged, so index.cs
+        // marks the view dirty; the selected chat first, then every other (an upgraded 3.1.3 brain has none indexed).
+        _ = InoChats.Background("setup buttons", _ => SetupButtons(brain), brain.Stopping);
+        _ = InoChats.Background("back-fill", async token =>
+        {
+            await InoChats.Within(InoChats.BackfillTimeout, inner => InoChats.TryBackfill(brain, inner), token);
+            await InoChats.Within(InoChats.BackfillAllTimeout, async inner => await InoChats.TryBackfillAll(brain, inner) >= 0, token);
+            await Dirty(brain);
+        }, brain.Stopping);
         await Dirty(brain);
     }
 

@@ -86,7 +86,9 @@ public sealed class InoSecretFacts(RouterHostFixture host) : BrainFact(host)
         { Assert.False(text.Contains(Secret, StringComparison.Ordinal), surface + " holds the secret"); }
         Assert.DoesNotContain("secret://", status, StringComparison.Ordinal);
         Assert.DoesNotContain("403", status, StringComparison.Ordinal);
-        // The model saw only the conversation: no request it received carries the value.
+        // The model saw only the conversation: it was asked (so the check below is not vacuous), and no request it
+        // received carries the value.
+        Assert.NotEmpty(Host.Model.Requests(ModelId));
         Assert.DoesNotContain(Host.Model.Requests(ModelId), request => request.GetRawText().Contains(Secret, StringComparison.Ordinal));
     }
 

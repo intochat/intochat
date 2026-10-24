@@ -19,7 +19,7 @@ await foreach (var request in brain.On(app, "make", brain.Stopping))
         var (sentence, focus) = Parse(request.Input);
         var target = await Target(focus);
         await brain.Get<IApp>(IApp.Key(scope, target)).WriteSynapse(sentence, focus, request.RequestId);
-        await Ino.Status(brain, $"Making it in {target}: the synapse lands in {target}'s synapse list.");
+        await Ino.Status(brain, InoCopy.Making(target));
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { await Ino.Status(brain, Ino.Failure(InoCopy.MakeFailed, error)); }

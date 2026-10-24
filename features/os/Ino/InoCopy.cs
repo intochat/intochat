@@ -29,6 +29,14 @@ public static class InoCopy
     public const string LinkPosted = "Here's the app from your link.";
     public const string AnswerRunning = "A response is already running. Your draft is saved; send it when the response finishes.";
     public const string LinkFailed = "Couldn't show the app from your link. Try again.";
+    // The tool path keeps no draft, so its busy copy asks for the message again.
+    public const string AnswerRunningResend = "A response is already running. Send your message again when it finishes.";
+    public const string StartRetriesExhausted = "Couldn't start the answer after several tries. Send it again.";
+    // A model's catalog refusal can carry exception text; the menu shows this instead (or the fixed key hint).
+    public const string ModelNotAvailable = "Not available right now.";
+    public const string MemoryMissing = "Memory is not installed; answering directly.";
+    public const string LongMessage = "A long message goes straight to the model.";
+    public const string JevUnsure = "Jev unsure (no capability fits); asking the model.";
     public const string CaptureFailed = "Memory couldn't capture this conversation yet. It will try again.";
 
     // intended.cs clears its own scan notice after a healthy scan by this prefix (the older "...; retrying: <detail>"
@@ -40,10 +48,22 @@ public static class InoCopy
     [
         TurnFailed, StartFailed, NewChatFailed, OpenFailed, StopFailed, DeliveryUnconfirmed, EarlierAttemptFailed,
         ChatUpdateFailed, ModelChangeFailed, SetupFailed, MakeFailed, VoiceFailed, RouterUnavailable, RouterFailed,
-        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure, LinkFailed, ShowFailed,
+        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure, LinkFailed, ShowFailed, StartRetriesExhausted,
     ];
 
     public static string RouteNotCarried(string chosen) => "Jev chose " + chosen + " but couldn't carry it out.";
+
+    // Status copy built only from route names, scores, app titles and counts; never from a result or an error.
+    public static string RouteDone(string chosen) => "Done with " + chosen + ".";
+    public static string JevUnsureScored(double confidence) => $"Jev unsure ({confidence:0.00}); asking the model.";
+    public static string JevPointedBack(string app, string operation, double confidence)
+        => $"Jev pointed back at the assistant ({app}.{operation}, {confidence:0.00}); asking the model.";
+    public static string JevSuggestedUnnamed(string chosen, double confidence, string title)
+        => $"Jev suggested {chosen} ({confidence:0.00}), but the message does not name {title}; asking the model.";
+    public static string JevSuggested(string chosen, double confidence) => $"Jev suggested {chosen} ({confidence:0.00}); asking the model to fill its input.";
+    public static string JevOpened(string chosen, double confidence, string title) => $"Jev: {chosen} ({confidence:0.00}) opened {title}.";
+    public static string Making(string target) => $"Making it in {target}: the synapse lands in {target}'s synapse list.";
+    public static string ReviewsWaiting(string count) => "Memory has " + count + " items to review.";
 }
 
 public static partial class Ino

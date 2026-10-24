@@ -155,6 +155,45 @@ public sealed class OsInoChatsFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InoChats.Within(InoChats.BackfillTimeout, _ => Task.FromResult(true), cancelled.Token));
     }
 
+    // A hung conversation read times out alone: the others are indexed, the pass completes for this brain (the hung
+    // agent counts as attempted), and another brain still back-fills its own conversations.
+    [Fact]
+    public async Task AHungConversationReadDoesNotStallThePassAndAnotherBrainStillBackfills()
+    {
+        var first = "brain-" + Guid.NewGuid().ToString("N") + "/apps/ino-data";
+        var second = "brain-" + Guid.NewGuid().ToString("N") + "/apps/ino-data";
+        var hung = InoChats.AgentKey(first, "c-" + Guid.NewGuid().ToString("N"));
+        var fine = InoChats.AgentKey(first, "c-" + Guid.NewGuid().ToString("N"));
+        var other = InoChats.AgentKey(second, "main");
+        var index = new FakeIndex();
+        var lists = 0;
+        Task<AiMessage[]> Read(string agent) => agent == hung ? new TaskCompletionSource<AiMessage[]>().Task : Task.FromResult<AiMessage[]>([]);
+        Task<IReadOnlyList<string>> List(string data) { lists++; return Task.FromResult<IReadOnlyList<string>>(data == first ? [hung, fine] : [other]); }
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal(1, await InoChats.TryBackfillAll(first, _ => List(first), index, Read, Ct, TimeSpan.FromMilliseconds(100)));
+        Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        Assert.True(index.Entries.ContainsKey(InoChats.IdOf(fine)));
+        Assert.Equal(0, await InoChats.TryBackfillAll(first, _ => List(first), index, Read, Ct, TimeSpan.FromMilliseconds(100)));
+        Assert.Equal(1, lists);
+        Assert.Equal(1, await InoChats.TryBackfillAll(second, _ => List(second), index, Read, Ct, TimeSpan.FromMilliseconds(100)));
+        Assert.True(index.Entries.ContainsKey("main"));
+    }
+
+    // Opens never wait on back-fill: the work runs in the background, and its failure is logged, never thrown.
+    [Fact]
+    public async Task BackgroundWorkNeverDelaysTheCaller()
+    {
+        var never = new TaskCompletionSource();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var running = InoChats.Background("hung back-fill", _ => never.Task, Ct);
+        Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        Assert.False(running.IsCompleted);
+        await InoChats.Background("failing back-fill", _ => throw new InvalidOperationException("down"), Ct);
+        never.SetResult();
+        await running;
+    }
+
     private sealed class FakeIndex : IChatIndex
     {
         public Dictionary<string, ChatIndexEntry> Entries { get; } = [];

@@ -209,7 +209,7 @@ the `IIntents` contract, and it then appears in the next conversation the same w
 
 ## Scenario: Memory not installed answers directly
 
-With Memory not installed, sending a message shows the status "Memory is not installed; answering directly"
+With Memory not installed, sending a message shows the status "Memory is not installed; answering directly."
 (once per synapse lifetime, not on every message) and the turn runs on the message alone, with no brief and no Memory context.
 
 ## Scenario: Intend is slow
@@ -239,7 +239,7 @@ the old one as superseded. Credentials, passwords, tokens and API keys are never
 
 ## Scenario: Pending review items are announced
 
-While Memory holds review items, the status line shows "Memory has 3 items to review", checked at most once an hour.
+While Memory holds review items, the status line shows "Memory has 3 items to review.", checked at most once an hour.
 
 Progress states are Ino's mood source: listening when input arrives, working while answering,
 completed after an answer, and attention on failure. Each of those writes publishes mood on the

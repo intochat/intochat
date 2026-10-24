@@ -60,11 +60,68 @@ public sealed partial class OsInoSecretFacts
         }
     }
 
+    // Every status line and menu detail Ino writes is InoCopy (or InoModels/InoLayout fixed copy, or a model's label):
+    // no string literal or interpolation is passed to a status write or a Detail, so no runtime text can leak in.
+    [Fact]
+    public void StatusAndDetailTextIsFixedCopy()
+    {
+        var literals = Scripts()
+            .SelectMany(file => StatusWrite().Matches(File.ReadAllText(file)).Select(match => (file, match)))
+            .Where(item => Literal().IsMatch(item.match.Groups["arg"].Value))
+            .Select(item => $"{Path.GetFileName(item.file)}: {item.match.Value.Trim()}")
+            .ToArray();
+        Assert.Empty(literals);
+    }
+
+    // A caught exception's text (Message, InnerException, ToString or an interpolation of it) is never used in its
+    // catch body: the exception goes only to Ino.Failure, which logs its type.
+    [Fact]
+    public void CatchBodiesNeverUseTheExceptionText()
+    {
+        var uses = new List<string>();
+        foreach (var file in Scripts())
+        {
+            var text = File.ReadAllText(file);
+            foreach (Match caught in Catch().Matches(text))
+            {
+                var name = caught.Groups["name"].Value;
+                var body = Body(text, caught.Index + caught.Length);
+                if (Regex.IsMatch(body, $@"\b{name}\s*\.\s*(Message|InnerException|ToString\s*\()|\{{\s*{name}\b"))
+                { uses.Add($"{Path.GetFileName(file)}: catch ({caught.Groups["type"].Value} {name})"); }
+            }
+        }
+        Assert.Empty(uses);
+    }
+
+    // The catch's block: from its first '{' to the matching '}'.
+    private static string Body(string text, int from)
+    {
+        var start = text.IndexOf('{', from);
+        if (start < 0) { return ""; }
+        var depth = 0;
+        for (var i = start; i < text.Length; i++)
+        {
+            if (text[i] == '{') { depth++; }
+            else if (text[i] == '}' && --depth == 0) { return text[start..(i + 1)]; }
+        }
+        return text[start..];
+    }
+
     private static IEnumerable<string> Scripts() => Directory.EnumerateFiles(Sources, "*.cs");
 
     // error.Message (or any caught exception's Message), and the router/agent error strings that carry it.
     [GeneratedRegex(@"\b(error|ex|exception)\.Message\b|\b(asked|routed|outcome|retained)\.Error\b")]
     private static partial Regex Echo();
+
+    [GeneratedRegex(@"(\bStatus\(brain,|\bstatus\.(Try)?Set\(|\bDetail\s*=)(?<arg>[^;]*)")]
+    private static partial Regex StatusWrite();
+
+    // A non-empty string literal or any interpolation ("" clears the line and is allowed).
+    [GeneratedRegex(@"\$""|@""|(?<!"")""(?!"")")]
+    private static partial Regex Literal();
+
+    [GeneratedRegex(@"\bcatch\s*\(\s*(?<type>[\w.]+)\s+(?<name>\w+)\s*\)")]
+    private static partial Regex Catch();
 
     [GeneratedRegex(@"Get<IForm>|\bFormState\b|\bFormFieldState\b|\bFormSecret\b")]
     private static partial Regex FormRead();

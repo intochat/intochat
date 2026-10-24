@@ -41,9 +41,12 @@ async Task Reconcile()
                     continue;
                 }
                 // A message that is a workspace link becomes an app card: no turn, and the link never reaches the model.
-                if (await InoLinks.Handle(agent, LinksStore(), StatusText(), Advance, request.Text, request.Id) != InoLinkOutcome.NotALink)
+                // A run that started meanwhile (Busy) keeps the draft with the same copy as above.
+                var link = await InoLinks.Handle(agent, LinksStore(), StatusText(), Advance, request.Text, request.Id);
+                if (link != InoLinkOutcome.NotALink)
                 {
-                    await composer.Settle(request.Id);
+                    if (link == InoLinkOutcome.Busy) { await composer.Settle(request.Id, InoCopy.AnswerRunning); }
+                    else { await composer.Settle(request.Id); }
                     continue;
                 }
                 var snapshot = await app.Read();
