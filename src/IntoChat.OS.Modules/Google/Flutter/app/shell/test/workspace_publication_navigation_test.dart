@@ -106,4 +106,40 @@ void main() {
       await f.dispose();
     });
   }
+  // Install, update and remove name a brain: membership is checked first; the space does not switch.
+  for (final allowed in [false, true]) {
+    testWidgets('app activations check brain membership $allowed', (
+      tester,
+    ) async {
+      final f = await ApplicationFixture.start(
+        tester,
+        server: ApplicationServer()..allowed = allowed,
+      );
+      final request = {
+        'ref': {'publisher': 'os', 'name': 'notes'},
+      };
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        'kind': 'install',
+        'brainId': 'circle-test',
+        'request': request,
+      });
+      await tester.pumpAndSettle();
+      final installs = f.server.requestsTo('/brains/circle-test/apps/install');
+      expect(f.space.brain, f.brainId);
+      if (allowed) {
+        expect(installs.single.body, request);
+        expect(find.text('Installed.'), findsOneWidget);
+      } else {
+        expect(
+          f.server.requests.any(
+            (r) => r.path.startsWith('/brains/circle-test/'),
+          ),
+          isFalse,
+        );
+        expect(find.textContaining('not a member'), findsOneWidget);
+      }
+      await tester.pump(kitToastLifetime);
+      await f.dispose();
+    });
+  }
 }

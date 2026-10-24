@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Button.Signals;
+using IntoChat.OS.Flutter.Settings;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -36,17 +38,31 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
         return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
     }
 
-    public Task SetActivation(string label, string activationJson)
+    public async Task SetActivation(string label, string activationJson)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(activationJson);
         if (activationJson.Length > 32_000) { throw new ArgumentException("Activation JSON has at most 32000 characters.", nameof(activationJson)); }
+        string? kind, brainId;
         try
         {
             using var document = JsonDocument.Parse(activationJson);
             if (document.RootElement.ValueKind != JsonValueKind.Object) { throw new ArgumentException("Activation must be a JSON object.", nameof(activationJson)); }
+            // A repeated key would let a reader other than this check see another value.
+            if (document.RootElement.EnumerateObject().GroupBy(property => property.Name, StringComparer.Ordinal).Any(group => group.Count() > 1))
+            { throw new ArgumentException("Activation keys must be unique.", nameof(activationJson)); }
+            kind = Text(document.RootElement, "kind");
+            brainId = Text(document.RootElement, "brainId");
         }
         catch (JsonException error) { throw new ArgumentException("Activation must be a JSON object.", nameof(activationJson), error); }
+        // One click on an install, update or remove runs with the person's session, so only the Apps app the OS
+        // ships may set one, and only for the button's own brain: no other app can put a misleading label on it.
+        if (kind is not null && AppKinds.Contains(kind))
+        {
+            var scope = this.GetPrimaryKeyString().Split('/')[0];
+            if (brainId != scope || !await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), scope, "apps"))
+            { throw new UnauthorizedAccessException("Only the Apps app sets an install, update or remove activation."); }
+        }
         var next = Snapshot;
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
@@ -54,8 +70,13 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
         next.Enabled = true;
         next.Action = "activate";
         next.Activation = activationJson;
-        return Save(next, new ButtonChanged(next.Name, next.Version));
+        await Save(next, new ButtonChanged(next.Name, next.Version));
     }
+
+    private static readonly HashSet<string> AppKinds = new(["install", "update", "remove"], StringComparer.OrdinalIgnoreCase);
+
+    private static string? Text(JsonElement root, string name)
+        => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     public Task ClickCurrent(string expectedAction)
     {

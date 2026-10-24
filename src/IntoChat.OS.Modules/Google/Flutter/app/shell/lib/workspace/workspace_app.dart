@@ -302,6 +302,29 @@ class _WorkspaceAppState extends State<WorkspaceApp>
           action['neuron'] as String? ??
           (app == null ? null : '$brain/apps/$app');
       final changingBrain = brain != _brain;
+      // Install, update and remove run over the person's own session in a brain they belong to; the space
+      // stays where it is, and an install then opens the app.
+      if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
+        if (changingBrain &&
+            !(await client.listBrains()).any((entry) => entry.id == brain)) {
+          throw StateError('This account is not a member of that brain.');
+        }
+        final result = await runAppActivation({
+          ...action,
+          'brainId': brain,
+        }, client.jsonRequest);
+        if (!mounted) return;
+        if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
+        if (result.open case final String open) {
+          await _activate({
+            'brainId': brain,
+            'kind': 'workspace',
+            'application': open,
+            'operation': 'open',
+          });
+        }
+        return;
+      }
       if (changingBrain) {
         final brains = await client.listBrains();
         if (!brains.any((entry) => entry.id == brain)) {
@@ -320,24 +343,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               ? null
               : neuron,
         );
-      }
-      // Install, update and remove run over the person's own session; an install then opens the app.
-      if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
-        final result = await runAppActivation({
-          ...action,
-          'brainId': brain,
-        }, client.jsonRequest);
-        if (!mounted) return;
-        if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
-        if (result.open case final String open) {
-          await _activate({
-            'brainId': brain,
-            'kind': 'workspace',
-            'application': open,
-            'operation': 'open',
-          });
-        }
-        return;
       }
       if (action['kind'] == 'connections') {
         if (!mounted) return;

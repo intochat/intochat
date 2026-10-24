@@ -32,14 +32,14 @@ void main() {
     final result = await runAppActivation({
       'kind': 'install',
       'brainId': 'b 1',
-      'title': 'Notes',
+      'title': 'Misleading',
       'request': request,
     }, answering((_, _) => {'status': 'ok', 'installedName': 'notes'}));
 
     expect(calls.single.method, 'POST');
     expect(calls.single.path, '/brains/b%201/apps/install');
     expect(calls.single.body, request);
-    expect(result.toast, 'Installed Notes.');
+    expect(result.toast, 'Installed notes.');
     expect(result.tone, UiTone.done);
     expect(result.open, 'notes');
   });
@@ -79,28 +79,78 @@ void main() {
   });
 
   test('update_and_remove_call_their_routes', () async {
-    final updated = await runAppActivation({
-      'kind': 'update',
-      'brainId': 'b',
-      'name': 'notes',
-      'title': 'Notes',
-      'consent': 'fixture-value-0002',
-    }, answering((_, _) => {'name': 'notes'}));
+    final updated = await runAppActivation(
+      {
+        'kind': 'update',
+        'brainId': 'b',
+        'name': 'notes',
+        'title': 'Misleading',
+        'consent': 'fixture-value-0002',
+      },
+      answering(
+        (_, _) => {
+          'name': 'notes',
+          'manifest': {'title': 'Notes'},
+        },
+      ),
+    );
     expect(calls.last.method, 'POST');
     expect(calls.last.path, '/brains/b/apps/notes/update');
     expect(calls.last.body, {'consent': 'fixture-value-0002'});
     expect(updated.toast, 'Updated Notes.');
     expect(updated.open, isNull);
 
+    final unconfirmed = await runAppActivation({
+      'kind': 'remove',
+      'brainId': 'b',
+      'name': 'notes',
+    }, answering((_, _) => {'deleted': 'notes'}));
+    expect(calls, hasLength(1));
+    expect(unconfirmed.toast, isEmpty);
+
     final removed = await runAppActivation({
       'kind': 'remove',
       'brainId': 'b',
       'name': 'notes',
-      'title': 'Notes',
+      'title': 'Misleading',
+      'confirmed': true,
     }, answering((_, _) => {'deleted': 'notes'}));
     expect(calls.last.method, 'DELETE');
     expect(calls.last.path, '/brains/b/apps/notes');
-    expect(removed.toast, 'Removed Notes.');
+    expect(removed.toast, 'Removed notes.');
+  });
+
+  test('install_without_a_name_says_installed', () async {
+    final result = await runAppActivation({
+      'kind': 'install',
+      'brainId': 'b',
+      'request': {'ref': {}},
+    }, answering((_, _) => {'status': 'ok'}));
+    expect(result.toast, 'Installed.');
+    expect(result.tone, UiTone.done);
+    expect(result.open, isNull);
+  });
+
+  test('update_and_remove_failures_have_their_own_copy', () async {
+    final updated = await runAppActivation({
+      'kind': 'update',
+      'brainId': 'b',
+      'name': 'notes',
+    }, failing(500, {'error': 'boom'}));
+    expect(updated.toast, 'That app could not be updated.');
+    final removed = await runAppActivation({
+      'kind': 'remove',
+      'brainId': 'b',
+      'name': 'notes',
+      'confirmed': true,
+    }, failing(500, {'error': 'boom'}));
+    expect(removed.toast, 'That app could not be removed.');
+    expect(removed.tone, UiTone.error);
+    final malformed = await runAppActivation({
+      'kind': 'install',
+      'brainId': 7,
+    }, answering((_, _) => null));
+    expect(malformed.toast, 'That app could not be installed.');
   });
 
   test('configuration_view_opens_the_apps_detail', () {
