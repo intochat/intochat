@@ -21,7 +21,7 @@ internal sealed class OsWorkspaceRoot(IIntoChatOS brain, AppInstaller installer,
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "circle"), new("os", "workspace"), new("os", "desktop"), new("os", "filmcraft"), new("os", "photocraft") })
+        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "apps"), new("os", "circle"), new("os", "workspace"), new("os", "desktop"), new("os", "filmcraft"), new("os", "photocraft") })
         {
             var app = brain.Neuron<IApp>($"apps/{required.Name}");
             if ((await app.Read()).Manifest.Title.Length != 0) { continue; }

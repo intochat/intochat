@@ -30,6 +30,8 @@
     <Compile Include="../../../features/os/Ino/InoModels.cs" Link="Features/InoModels.cs" />
     <Compile Include="../../../features/os/Ino/InoCopy.cs" Link="Features/InoCopy.cs" />
     <Compile Include="../../../features/os/Ino/InoLinks.cs" Link="Features/InoLinks.cs" />
+    <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
+    <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />

@@ -9,7 +9,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["brainview", "calculator", "circle", "circleroom", "datavisualizer", "desktop", "engineer", "files", "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "settings", "usage", "workspace"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
+        Assert.Equal(["apps", "brainview", "calculator", "circle", "circleroom", "datavisualizer", "desktop", "engineer", "files", "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "settings", "usage", "workspace"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps(os => os.Apps.Add(new("acme", "example")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/desktop", "os/usage", "acme/example"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
+        Assert.Equal(["os/settings", "os/apps", "os/router", "os/calculator", "os/filmcraft", "os/photocraft", "os/datavisualizer", "os/selfimprove", "os/memory", "os/ino", "os/brainview", "os/friends", "os/circle", "os/workspace", "os/desktop", "os/usage", "acme/example"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]
@@ -46,6 +46,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Equal(15, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
+        Assert.Equal(16, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
     }
 }
