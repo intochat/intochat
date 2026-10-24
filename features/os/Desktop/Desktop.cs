@@ -48,7 +48,7 @@ public static class Desktop
     public static IText Layout(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/layout");
     // More's Classic layout: a button neuron whose activation asks the shell to switch and connect again.
     public static string LayoutButton(IntoChatOSConnection brain) => Key(brain) + "/classic";
-    // More's Settings: a button neuron whose activation asks the shell for its native Settings screen.
+    // More's Settings: a button neuron whose activation asks the shell to open the Settings app's window.
     public static string SettingsButton(IntoChatOSConnection brain) => Key(brain) + "/settings";
     public static string? ChosenLayout(string input) => input is "classic" or "desktop" ? input : null;
     public static string LayoutActivation(string brainId, string layout) => System.Text.Json.JsonSerializer.Serialize(
@@ -186,7 +186,7 @@ public static class Desktop
     public static string ConnectActivation(string brainId, string connectorId)
         => System.Text.Json.JsonSerializer.Serialize(new { kind = "connections", brainId, connector = connectorId });
 
-    // What More's Settings hands the shell: open its native Settings screen for this brain, at a tab if given.
+    // What More's Settings hands the shell: open the Settings app's window in this brain, at a tab if given.
     public static string SettingsActivation(string brainId, string? tab = null) => tab is null
         ? System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId })
         : System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId, tab });

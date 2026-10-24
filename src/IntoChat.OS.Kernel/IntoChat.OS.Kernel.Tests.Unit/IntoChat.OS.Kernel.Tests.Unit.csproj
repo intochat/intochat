@@ -20,6 +20,7 @@
     <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
     <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
     <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
+    <Compile Include="../../../features/os/Settings/Settings.cs" Link="Features/Settings.cs" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <Compile Include="../../../features/os/Ino/InoChats.cs" Link="Features/InoChats.cs" />
     <Compile Include="../../../features/os/Ino/InoLayout.cs" Link="Features/InoLayout.cs" />

@@ -2,7 +2,7 @@ using IntoChat.OS.Client;
 using IntoChat.OS.Flutter.Views;
 
 // More's Settings is a button whose activation (Desktop.SettingsActivation) hands the shell
-// {kind: settings}: the shell opens its native Settings screen, not the Settings app.
+// {kind: settings}: the shell opens the Settings app's window on the requested tab.
 // A `settings` click from an older render re-arms that button and re-renders the desktop, so the
 // shell's next click on More's Settings carries the activation.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

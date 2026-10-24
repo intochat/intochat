@@ -20,10 +20,10 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
-    public void TheDesktopIsVersion020()
+    public void TheDesktopIsVersion030()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Equal("0.2.0", bundle.Version);
+        Assert.Equal("0.3.0", bundle.Version);
         Assert.Contains("## Scenario: Tabs and favourites", bundle.Spec, StringComparison.Ordinal);
     }
 
@@ -174,7 +174,7 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("new { kind = \"reconnect\", brainId = Scope(brain), application = \"desktop\", operation = \"layout\", input = \"desktop\" }", workspace, StringComparison.Ordinal);
     }
 
-    // Ruling 1: More's Settings hands the shell {kind: settings}, so the shell opens its native screen.
+    // Ruling 1: More's Settings hands the shell {kind: settings}, so the shell opens the Settings app on that tab.
     [Fact]
     public void MoreSettingsProducesTheSettingsActivation()
     {

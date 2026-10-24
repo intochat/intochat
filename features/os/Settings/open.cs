@@ -2,18 +2,16 @@ using System.Text.Json;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Layout;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.TextField;
 
-// Compose the declared root at startup; workspace navigation owns visibility and focus.
+// Startup configures every control the view references, arms its buttons and presents the view on the durable tab.
+// `open` takes a tab id (or an old section name) and shows that tab; `read` publishes the stored preferences.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
-var appKey = brain.Setting("App")!;
+var appKey = Settings.Key(brain);
 var app = brain.Get<IApp>(appKey);
 // Preferences are the brain's, not the installation's: keyed by the brain scope they survive
-// the app being renamed, reinstalled or forked. Only the derived UI stays app-keyed.
+// the app being renamed, reinstalled or forked.
 var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScope + "/settings" : appKey;
 var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
 var theme = brain.Get<ITextField>(prefsRoot + "/theme");
@@ -26,31 +24,29 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     {
         if (request.Operation == "open")
         {
+            await SettingsCommands.Open(Settings.ViewState(brain), request.Input);
             await Compose();
-            // Refresh is owned by the connection projection behavior, not this surface composer.
-            await app.Request("refresh-connections", "");
         }
         // Preferences are neuron state: whoever asked reads {appKey}/preferences.
         var name = (await displayName.Read()).Value;
         var chosen = (await theme.Read()).Value;
-        // Bounded the way the shell renders them: a short name, a known theme.
         await brain.Get<IText>(appKey + "/preferences").Set(JsonSerializer.Serialize(new
         {
             displayName = name.Length > 120 ? name[..120] : name,
             theme = chosen is "dark" or "light" ? chosen : "system",
         }));
     }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested)
-    { await brain.Get<IText>(appKey + "/status").Set("Settings could not load. Reopen Settings to try again."); }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { Console.Error.WriteLine("Settings could not open: " + error.GetType().Name); }
 }
 
-// Surface composition is separate from preference persistence and connection discovery.
 async Task Compose()
 {
-    await brain.Get<IButton>(appKey + "/refresh-connections").Set("Refresh connections", "refresh");
-    var main = brain.Get<ILayout>(appKey + "/main");
-    await main.Set(new("column", [new("button", appKey + "/refresh-connections"),
-        new("layout", appKey + "/connections")], Extents: [40, 0]), (await main.Read()).Revision);
-    await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main"), Views: [new("full", new("layout", appKey + "/main"))]));
+    // Present even if a control or the first render fails: the next action renders again.
+    try
+    {
+        await Settings.ConfigureControls(brain);
+        await Settings.Show(brain);
+    }
+    finally { await Settings.Present(brain); }
 }

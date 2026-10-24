@@ -1,65 +1,61 @@
 /*
 # Settings
 
-The primary Settings layout presents credential-free connections and installed app bindings.
-Refresh is an explicit control above a scrolling list. The workspace shell routes its Settings
-action to this installed app. Profile > Workspace configuration retains working appearance,
-profile, model, account authorization and advanced controls.
+Settings is a value tree the app publishes to {app}/view: tabs (General, AI models, API keys,
+Connections, Variables and secrets, Notifications, Archived chats, Danger zone, then a disabled
+Billing · Later) above the active tab's body. Every control that reads or writes a person's data
+is a neuron the view references by name, so the tree carries labels and row indexes only. The
+durable view state {app}/view-state holds the tab, the archived page, the delete confirmation and
+the toast, so a reconnect shows the same tab.
 
-The existing brain preference read/save operations and durable values remain available for
-callers, but their fields are not presented as shell appearance settings: they are separate
-from the shell's configuration. The preference behavior retains validation, version-checked
-writes and explicit conflict/reload recovery for those operations.
+## Scenario: Opening on a tab
+Invoking "open" with a tab id shows that tab; an old section name maps as before (agents opens AI
+models, profile or appearance opens General) and an empty or unknown one opens General. Desktop's
+More > Settings, Classic's Settings and Ino's Add an API key hand the shell {kind: settings, tab?},
+and the shell opens this app's window with "open" and that tab. At startup every preference and
+entry control is configured and the buttons are armed before the view is presented.
 
-Connection refresh reads the brain connection registry and installed app bindings. It distinguishes
-connected accounts, available connector capabilities, deployment integration configuration and
-missing app configuration. Cards show provider, connection identity, status and consuming apps,
-never credentials. Loading, empty and retryable error states replace the projected list. Repeated
-refresh uses stable card keys and does not duplicate connections. A separate behavior owns each
-of surface composition, preference persistence and connection discovery.
+## Scenario: General and Notifications
+Display name, Theme, Compact spacing and Reduce motion are device preferences the renderer keeps
+on the device; New tab opens and the four notifications are the brain's member preferences, which
+the renderer writes as the person. Installed apps cannot write them.
 
-Connection status and membership changes publish a credential-free catalog invalidation signal.
-Settings observes it and pending-authorization requests, then invokes the same serialized refresh
-operation used by the button. Repeated delivery rebuilds stable card keys without duplicates.
+## Scenario: AI models and API keys
+AI models lists Auto first, then the brain's catalog; an unavailable model says "Not available.
+Add a key in API keys or pick another model." and cannot be the default. API keys holds one key
+control per key-based provider. Saving a key changes the key control (models-changed.cs), and the
+models and the default-model choices are shown again.
 
-## Scenario: Opening Settings shows the connections surface
+## Scenario: Connections
+Connections lists the brain's connections, then each connector this host offers that is not
+connected. Connect hands the shell {kind: connections, brainId, connector}: the shell signs in as
+the person. A connector the host has not configured says "Not available on this host." The
+registry's change signals post "refresh-connections", which shows the list again.
 
-Invoking "open" labels the Refresh connections button, composes the main column with that button
-above the connections list and publishes the preferences neuron in the main layout.
+## Scenario: Archived chats
+Archived chats lists Ino's archived chats, at most 100 per page with Show more. Unarchive restores
+the row and toasts "Chat restored."
 
-## Scenario: Read publishes the stored preferences
+## Scenario: Danger zone
+Delete account asks "Delete your account?"; Open account page opens the host's public origin at
+/account/profile. Without a public origin the button is disabled.
 
-Invoking "read" sets the preferences neuron to {"displayName", "theme"} from the stored values, with
-a theme of system, light or dark.
+## Rule: Trust
+Only the unedited Settings the OS ships may configure the preference and entry controls, and only
+it unarchives a chat; an edited Settings, or another app, writes nothing.
 
-## Scenario: Refresh lists connections and app bindings without duplicates
+## Rule: Key secrecy
+A key or secret value never enters the view, a neuron state, a view action, a signal, a log line
+or the status text. Values travel only from the renderer's secret field to
+PUT /brains/{id}/entries/{name}, over the person's own session, which is owner-only.
 
-Invoking "refresh-connections" sets the connections layout to a list of cards: the intro, one card
-per connection (or "No connections yet"), "App connections" with one card per installed app, and
-"Available connector types" with one card per connector kind. Card bodies never carry credentials.
-Invoking it again yields the same card keys, each once.
+## Scenario: Stored preferences for callers
+The "read", "save-preferences", "reload-preferences" and "reconcile-preferences" operations stay
+for callers: "read" publishes {"displayName", "theme"} to {app}/preferences; a save carries
+DisplayName, Theme and the Baseline, is version-checked, rejects a stale or invalid draft and is
+idempotent when redelivered.
 
-## Scenario: The Refresh connections button rebuilds the list
-
-Clicking the Refresh connections button posts "refresh-connections": the connections layout's
-revision advances and its card keys stay the same.
-
-## Scenario: Reload then save stores the preferences
-
-Invoking "reload-preferences" copies the stored name and theme into the drafts and the baseline and
-reports "Stored preferences loaded.". Invoking "save-preferences" with DisplayName, Theme and that
-Baseline stores the edited fields and reports "Preferences saved."; "read" then publishes them.
-Delivering that same save again (at-least-once) still reports "Preferences saved.".
-
-## Scenario: A stale or invalid save is rejected
-
-Invoking "save-preferences" with a Baseline older than the stored values reports "Preferences
-changed elsewhere. Reload preferences before saving your changes." and a theme other than system,
-light or dark reports the validation message; the stored preferences stay unchanged. Invoking
-"reconcile-preferences" while the draft holds unsaved edits keeps the draft.
-Presentation: startup publishes one sphere and its main content using stable neuron identities.
-Workspace navigation owns focus; composition never changes it.
-
+Actions the view does not own (copy: actions and older clients' actions) are ignored.
 */
 
 using IntoChat.OS.Apps;
@@ -67,16 +63,16 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "settings";
-    public const string Version = "1.1.10";
+    public const string Version = "2.0.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Settings",
-        Description: "Available connections and the connections used by your apps.",
+        Description: "Your preferences, models, keys, connections and archived chats.",
         Operations:
         [
-            new("open", "Compose the settings surface and publish the current preferences to {app}/preferences."),
+            new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
             new("read", "Publish the current preferences to {app}/preferences."),
-            new("refresh-connections", "Rebuild this brain's credential-free connection summaries and installed app bindings as cards."),
+            new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
             new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
             new("reload-preferences", "Discard editable drafts and load the stored preferences."),
             new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),

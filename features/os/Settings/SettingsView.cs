@@ -8,7 +8,8 @@ public sealed record ModelRow(string Id, string Label, bool Available);
 // An archived chat as Settings lists it: no id, so actions name the row index.
 public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt);
 
-public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected);
+// Connectable is false for a connector this host has not configured: it shows no Connect.
+public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected, bool Connectable = true);
 
 public sealed record SettingsModel(string Tab, string AppKey, ModelRow Auto, IReadOnlyList<ModelRow> Models,
     IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast);
@@ -87,7 +88,7 @@ public static class SettingsView
     private static UiNode[] Connections(SettingsModel m) =>
     [
         Ui.List("connections", [.. m.Connections.Take(ConnectionsShown).Select((row, i) => Ui.Card("connection-" + i, row.Title, row.Status,
-            row.Connected ? [] : [Ui.Reference("connection-" + i + "-connect", new(UIVocabulary.ButtonType, m.AppKey + "/connect/" + row.Connector))]))]),
+            row.Connected || !row.Connectable ? [] : [Ui.Reference("connection-" + i + "-connect", new(UIVocabulary.ButtonType, m.AppKey + "/connect/" + row.Connector))]))]),
     ];
 
     private static UiNode[] Archived(SettingsModel m, DateTimeOffset now)

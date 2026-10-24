@@ -14,8 +14,6 @@ import 'home/app_detail_screen.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
-import 'settings/settings_api.dart';
-import 'workspace_settings.dart';
 import 'compute_usage_panel.dart';
 import 'csharp/csharp_manager.dart';
 import 'workspace_preferences_io.dart'
@@ -140,7 +138,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
       if (_rootName == null &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
-        _openSettings('general');
+        unawaited(_activate({'kind': 'settings'}));
       }
     } catch (error) {
       if (mounted) setState(() => _startupError = error);
@@ -279,23 +277,11 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
+    // Settings is the Settings app: open its window and hand it the tab.
+    if (action['kind'] == 'settings') action = settingsActivation(action);
     try {
       if (action['kind'] == 'account') {
         await widget.onSwitchAccount?.call();
-        return;
-      }
-      // Settings is the shell's native screen, never the Settings feature app.
-      if (action['kind'] == 'settings') {
-        if (action['brainId'] case final String brain when brain != _brain) {
-          final brains = await client.listBrains();
-          if (!brains.any((entry) => entry.id == brain)) {
-            throw StateError('This account is not a member of that brain.');
-          }
-          if (!mounted) return;
-          await _selectBrain(brain);
-        }
-        if (!mounted) return;
-        _openSettings(action['tab'] as String? ?? 'general');
         return;
       }
       // The layout switch: hand the app its request, then connect again and mount the new root.
@@ -422,35 +408,13 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     }
   }
 
-  Widget _settings(String section) => WorkspaceSettings(
-    brainId: _brain!,
-    store: store,
-    initialTab: section,
-    api: ClientSettingsApi(widget.programmingClient!, _brain!),
-    onClose: () => _navigator.currentState?.pop(),
-    kernelBaseUri: widget.kernelBaseUri,
-    onOpen: widget.onOpenUrl,
-    connectionsRequest: (path, {body}) => widget.programmingClient!
-        .workspaceConnectionsRequest(_brain!, path, body: body),
-    connectorRequest: (path, {body}) =>
-        widget.programmingClient!.connectorRequest(_brain!, path, body: body),
-    windowsRequest: (path, {body}) => widget.programmingClient!
-        .workspaceWindowsRequest(_brain!, path, body: body),
-    loadModels: widget.programmingClient!.readModelCatalog,
-  );
-  void _openSettings(String section) => _navigator.currentState?.push(
-    MaterialPageRoute<void>(
-      settings: RouteSettings(name: '/settings/$section'),
-      builder: (_) => _settings(section),
-    ),
-  );
   Future<void> _tool(String name) async {
     final client = widget.programmingClient!;
     final navigator = _navigator.currentState!;
     try {
       switch (name) {
         case 'preferences':
-          _openSettings('general');
+          await _activate({'kind': 'settings'});
         case 'connections':
           await _activate({'kind': 'connections'});
         case 'compute':
@@ -564,6 +528,8 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                   },
                   onActivate: (action) => unawaited(_activate(action)),
                   scenes: widget.programmingClient!.scenes(_brain!),
+                  entries: (brain) =>
+                      EntriesClient(widget.programmingClient!, brain),
                   localPreferences: _localPreferences,
                 ),
               ),
@@ -597,8 +563,17 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               onRequest: _request,
               loadIcon: _icon,
               menu: _menu(),
-              onSettings: () => _openSettings('general'),
+              onSettings: () => unawaited(_activate({'kind': 'settings'})),
             ),
     ),
   );
 }
+
+/// The Settings app's activation for a `{kind: settings, brainId?, tab?}` request: open its window in that
+/// brain and ask it to show the tab (an old section name or none maps in the app).
+Map<String, dynamic> settingsActivation(Map<String, dynamic> action) => {
+  if (action['brainId'] case final String brain) 'brainId': brain,
+  'application': 'settings',
+  'operation': 'open',
+  'input': action['tab'] is String ? action['tab'] as String : '',
+};
