@@ -193,4 +193,71 @@ public sealed class OsAppsViewFacts
         using var none = JsonDocument.Parse(AppsView.InstallActivation("b1", detail, [AppsView.NewChoice, null], operation));
         Assert.False(none.RootElement.GetProperty("request").TryGetProperty("bindings", out _));
     }
+
+    [Fact]
+    public void InstallIsDisarmedWhileASlotIsNew()
+    {
+        var detail = Detail(requires: new(null, ["gmail"]), slots: [new("mail", "gmail")]);
+        Assert.Null(AppsView.InstallArming("b1", detail, [AppsView.NewChoice], Guid.NewGuid()));
+        Assert.Null(AppsView.InstallArming("b1", detail, [null], Guid.NewGuid()));
+        var tree = Render(Model(detail) with { SlotsUnbound = true });
+        Assert.Equal("Choose a connection for each one.", Find(tree, "install-hint").Text);
+        Assert.DoesNotContain(All(Render(Model(detail))), node => node.Key == "install-hint");
+    }
+
+    [Fact]
+    public void AfterConnectingTheSlotBindsAndInstallArms()
+    {
+        var detail = Detail(requires: new(null, ["gmail"]), slots: [new("mail", "gmail")]);
+        Assert.Equal(AppsView.NewChoice, AppsView.Choose(null, [], "calculator-mail"));
+        // The slot's own connection arrived; or, as a stopgap, any connection of that kind.
+        Assert.Equal("calculator-mail", AppsView.Choose(AppsView.NewChoice, ["gmail", "calculator-mail"], "calculator-mail"));
+        Assert.Equal("gmail", AppsView.Choose(AppsView.NewChoice, ["gmail"], "calculator-mail"));
+        Assert.Equal("work", AppsView.Choose("work", ["gmail", "work"], "calculator-mail"));
+        using var install = JsonDocument.Parse(AppsView.InstallArming("b1", detail, ["calculator-mail"], Guid.NewGuid())!);
+        Assert.Equal("calculator-mail", install.RootElement.GetProperty("request").GetProperty("bindings").GetProperty("mail").GetString());
+    }
+
+    [Fact]
+    public void AnInstalledCopyIsTheAppItsDetailActsOn()
+    {
+        var copy = new AppSnapshot("calc2", new("Calculator", "Adds things up.", [], [], [], Requires: new(["person.name"])), "", [], [], [], "1.1.0",
+            AppStatus.Live, [], [], Origin: new("os", new AppSource.Shipped(), "calculator", "1.1.0", Consented: new(["person.name"])));
+        var listed = Detail("installed", "calculator", requires: new(["person.name"]));
+        var detail = AppsView.ForInstalled("calc2", copy, listed);
+        Assert.Equal("calc2", detail.InstalledName);
+        using var open = JsonDocument.Parse(AppsView.OpenActivation("b1", detail.InstalledName!));
+        Assert.Equal("calc2", open.RootElement.GetProperty("application").GetString());
+        using var remove = JsonDocument.Parse(AppsView.RemoveActivation("b1", detail));
+        Assert.Equal("calc2", remove.RootElement.GetProperty("name").GetString());
+        Assert.Same(listed, AppsView.ForInstalled("calculator", copy with { Name = "calculator" }, listed));
+    }
+
+    [Fact]
+    public void CancelDisarmsRemove()
+    {
+        var detail = Detail("installed", "calculator");
+        Assert.NotNull(AppsView.RemoveArming("b1", Model(detail, confirm: true)));
+        Assert.Null(AppsView.RemoveArming("b1", Model(detail, confirm: false)));
+    }
+
+    [Fact]
+    public void AnInstalledAppShowsWhatItWasInstalledWith()
+    {
+        var installed = Detail("installed", "calculator", requires: new(["person.name", "person.birthDate"]), consented: new(["person.name"]));
+        var tree = Render(Model(installed));
+        Assert.Equal("This app asks for", Find(tree, "requires").Text);
+        Assert.Equal(["person.name"], Find(tree, "requires-data").Children.Select(node => node.Text));
+    }
+
+    // A NeedsConsent answer shows nothing in the shell; the activation names the detail the shell reopens, so the panel
+    // shows the requirements as they are now.
+    [Fact]
+    public void AppActivationsNameTheDetailToReopen()
+    {
+        using var install = JsonDocument.Parse(AppsView.InstallActivation("b1", Detail(), [], Guid.NewGuid()));
+        Assert.Equal("app:os/calculator", install.RootElement.GetProperty("target").GetString());
+        using var update = JsonDocument.Parse(AppsView.UpdateActivation("b1", Detail("update", "calc2")));
+        Assert.Equal("installed:calc2", update.RootElement.GetProperty("target").GetString());
+    }
 }

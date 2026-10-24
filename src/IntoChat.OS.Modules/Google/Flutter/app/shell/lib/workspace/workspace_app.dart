@@ -315,6 +315,15 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         }, client.jsonRequest);
         if (!mounted) return;
         if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
+        if (result.reopen case final String reopen) {
+          await _activate({
+            'brainId': brain,
+            'kind': 'workspace',
+            'application': 'apps',
+            'operation': 'open',
+            'input': reopen,
+          });
+        }
         if (result.open case final String open) {
           await _activate({
             'brainId': brain,
@@ -353,9 +362,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               width: 560,
               height: 520,
               child: ConnectWindow(
-                // The desktop gallery's Connect preselects its connector (and names the connection after it).
+                // Connect preselects its connector; the connection is the one the activation names, else the connector.
                 initialConnectorId: action['connector'] as String?,
-                initialConnectionId: action['connector'] as String?,
+                initialConnectionId: connectWindowConnectionId(action),
                 request: (path, {body}) =>
                     client.workspaceConnectionsRequest(brain, path, body: body),
                 connectorRequest: (path, {body}) =>

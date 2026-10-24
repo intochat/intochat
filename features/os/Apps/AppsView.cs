@@ -33,6 +33,7 @@ public static class AppsCopy
     public const string Connect = "Connect";
     public const string NotAvailable = "Not available";
     public const string AddNew = "Add new";
+    public const string ChooseConnections = "Choose a connection for each one.";
     public const string LoadFailed = "The apps could not be loaded.";
     public static string MadeBy(string publisher) => "Made by " + (publisher == ShippedApps.Publisher ? AppsNames.ShippedDisplay : publisher);
     public static string RemoveTitle(string title) => "Remove " + title + "?";
@@ -40,7 +41,7 @@ public static class AppsCopy
 }
 
 public sealed record AppsModel(IReadOnlyList<AppDetail> Installed, IReadOnlyList<AppDetail> Available, IReadOnlyList<GalleryEntry> Connections,
-    AppDetail? Detail, string? Share, bool ConfirmRemove, string? Toast, string? Notice);
+    AppDetail? Detail, string? Share, bool ConfirmRemove, string? Toast, string? Notice, bool SlotsUnbound = false);
 
 // Pure composition of the Apps surface: the library (installed, available, connections) or one app's detail with
 // what it asks for. Install, Update, Remove, Open, slot choices and Add new are neurons the view references, armed by
@@ -119,6 +120,7 @@ public static class AppsView
         if (Versions(d) is { Length: > 0 } versions) { nodes.Add(Ui.Text("versions", versions)); }
         if (d.Status == "unavailable") { nodes.Add(Ui.Badge("unavailable", AppsCopy.ReleaseGone, UiTone.Error)); }
         if (Requirements(appKey, d) is { } requires) { nodes.Add(requires); }
+        if (Choosing(d) && m.SlotsUnbound) { nodes.Add(Ui.Text("install-hint", AppsCopy.ChooseConnections)); }
         if (Actions(appKey, d, installed) is { Length: > 0 } actions) { nodes.Add(Ui.Row("actions", actions)); }
         nodes.Add(m.Share is { Length: > 0 } link ? Ui.CopyButton("share", AppsCopy.CopyLink, link) : Ui.Text("share-off", AppsCopy.SharingOff));
         if (m.ConfirmRemove && MayRemove(d))
@@ -142,11 +144,13 @@ public static class AppsView
         d.LatestVersion is { Length: > 0 } latest ? "Latest " + latest : null,
     }.OfType<string>());
 
-    // An update that adds requirements shows only what it adds, under its own heading; anything else shows all.
+    // An update that adds requirements shows only what it adds, under its own heading; anything else shows all it asks.
     public static (string Heading, AppRequirements Shown) Asks(AppDetail d)
     {
         var added = AppConsent.Added(d.Consented, d.Requires);
-        return d.Status == "update" && !AppConsent.IsEmpty(added) ? (AppsCopy.AsksForMore, added) : (AppsCopy.AsksFor, d.Requires);
+        if (d.Status == "update" && !AppConsent.IsEmpty(added)) { return (AppsCopy.AsksForMore, added); }
+        // An installed app shows what it was installed with.
+        return (AppsCopy.AsksFor, d.InstalledName is { Length: > 0 } ? d.Consented ?? d.Requires : d.Requires);
     }
 
     // Slot choices exist only before install: an installed app's connections are bound already.
@@ -224,6 +228,7 @@ public static class AppsView
             kind = "install",
             brainId,
             title = d.Title,
+            target = new AppsTarget(d.Publisher, d.App).ToString(),
             request = new
             {
                 @ref = new { publisher = d.Publisher, app = d.App },
@@ -235,7 +240,7 @@ public static class AppsView
     }
 
     public static string UpdateActivation(string brainId, AppDetail d)
-        => JsonSerializer.Serialize(new { kind = "update", brainId, name = d.InstalledName, title = d.Title, consent = AppConsent.Of(d.Requires) }, Json);
+        => JsonSerializer.Serialize(new { kind = "update", brainId, name = d.InstalledName, title = d.Title, target = "installed:" + d.InstalledName, consent = AppConsent.Of(d.Requires) }, Json);
 
     // Set only on the confirm Modal's button: the shell removes nothing without confirmed.
     public static string RemoveActivation(string brainId, AppDetail d)
@@ -252,4 +257,32 @@ public static class AppsView
 
     // The connection a slot's Add new asks for, named for this app and slot.
     public static string SlotConnection(AppDetail d, AppSlot slot) => d.App + "-" + slot.Name;
+
+    // A slot keeps a connection it chose while that connection exists. Otherwise it takes its own new connection once
+    // that exists, else the first connection of its kind, else stays on new (which Install refuses to send).
+    public static string Choose(string? current, IReadOnlyList<string> existing, string own)
+        => current is { } kept && kept != NewChoice && existing.Contains(kept) ? kept
+            : existing.Contains(own) ? own : existing.Count > 0 ? existing[0] : NewChoice;
+
+    // Every shown slot must name a connection before Install is armed: an app never installs with a slot unbound.
+    public static bool Unbound(AppDetail d, IReadOnlyList<string?> choices)
+        => Slots(d).Select((_, i) => i < choices.Count ? choices[i] : null).Any(choice => choice is not { Length: > 0 } || choice == NewChoice);
+
+    public static string? InstallArming(string brainId, AppDetail d, IReadOnlyList<string?> choices, Guid operationId)
+        => Choosing(d) && !Unbound(d, choices) ? InstallActivation(brainId, d, choices, operationId) : null;
+
+    // Remove is armed only while its confirm Modal shows; Cancel (or leaving) disarms it.
+    public static string? RemoveArming(string brainId, AppsModel m)
+        => m.ConfirmRemove && m.Detail is { } d && MayRemove(d) ? RemoveActivation(brainId, d) : null;
+
+    // The detail of the app installed under this name. The listing's description stands only when it describes this
+    // very installation; a copy under another name is described from its own snapshot (with the listing's latest).
+    public static AppDetail ForInstalled(string name, AppSnapshot app, AppDetail? listed)
+    {
+        if (listed is not null && listed.InstalledName == name) { return listed; }
+        var update = listed?.LatestVersion is { } latest && app.Origin is { } origin && !app.Edited && AppVersions.Compare(latest, origin.Version) > 0;
+        return new(app.Origin?.Publisher ?? "", app.Origin?.Name ?? name, app.Manifest.Title, app.Manifest.Description, app.Manifest.Icon,
+            listed?.LatestVersion, name, app.Version, app.Edited, update ? listed!.Requires : app.Manifest.Requires ?? new(),
+            app.Origin?.Consented ?? app.Manifest.Requires ?? new(), app.Manifest.Slots, update ? "update" : "installed", null);
+    }
 }

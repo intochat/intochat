@@ -54,6 +54,26 @@ void main() {
     expect(result.open, isNull);
   });
 
+  test('consent_conflict_reopens_the_named_detail', () async {
+    Future<AppActivationResult> run(Object? target) => runAppActivation({
+      'kind': 'install',
+      'brainId': 'b',
+      'target': target,
+      'request': {'ref': {}},
+    }, failing(409, {'status': 'needsConsent', 'requires': []}));
+    expect((await run('app:os/calculator')).reopen, 'app:os/calculator');
+    expect((await run('installed:calc2')).reopen, 'installed:calc2');
+    expect((await run('settings')).reopen, isNull);
+    expect((await run(7)).reopen, isNull);
+    final refused = await runAppActivation({
+      'kind': 'install',
+      'brainId': 'b',
+      'target': 'app:os/calculator',
+      'request': {'ref': {}},
+    }, failing(409, {'status': 'refused'}));
+    expect(refused.reopen, isNull);
+  });
+
   test('forbidden_shows_server_copy', () async {
     final result = await runAppActivation(
       {

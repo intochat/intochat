@@ -5,11 +5,20 @@ import 'apps_request.dart';
 
 /// What the shell shows after an app activation: a toast (empty for none) and, after an install, the app to open.
 final class AppActivationResult {
-  const AppActivationResult(this.toast, this.tone, [this.open]);
+  const AppActivationResult(this.toast, this.tone, [this.open, this.reopen]);
   final String toast;
   final UiTone tone;
   final String? open;
+
+  /// After a consent conflict: the Apps detail to show again (its `open` input), so the panel shows what the release
+  /// asks for now.
+  final String? reopen;
 }
+
+// The Apps app's open inputs, as AppsNames.Parse accepts them.
+final _target = RegExp(
+  r'^(app:[a-z][a-z0-9_-]{0,63}/[a-z][a-z0-9_-]{0,63}(@\d{1,9}\.\d{1,9}\.\d{1,9})?|installed:[a-z][a-z0-9_-]{0,63})$',
+);
 
 const _failed = {
   'install': 'That app could not be installed.',
@@ -73,7 +82,13 @@ Future<AppActivationResult> runAppActivation(
     }
   } on UiRequestException catch (error) {
     if (error.statusCode == 409 && error.status == 'needsConsent') {
-      return const AppActivationResult('', UiTone.neutral);
+      final target = action['target'];
+      return AppActivationResult(
+        '',
+        UiTone.neutral,
+        null,
+        target is String && _target.hasMatch(target) ? target : null,
+      );
     }
     // Only a refusal's fixed server copy is shown; other failures never surface their text.
     if (error.statusCode == 403 && error.error != null) {

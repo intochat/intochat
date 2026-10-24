@@ -18,6 +18,16 @@ typedef ConnectionsRequest = Future<Object?> Function(
   Map<String, Object?>? body,
 });
 
+/// The connection id a `{kind: connections}` activation names: its `connection` when well formed (the Apps app's
+/// Add new names one per app and slot), else the connector's own id as the gallery's Connect always used.
+String? connectWindowConnectionId(Map<String, dynamic> action) =>
+    switch (action['connection']) {
+      final String id when _connectionIdPattern.hasMatch(id) => id,
+      _ => action['connector'] as String?,
+    };
+
+final _connectionIdPattern = RegExp(r'^[a-z0-9][a-z0-9_-]{0,127}$');
+
 class ConnectWindow extends StatefulWidget {
   const ConnectWindow({
     super.key,

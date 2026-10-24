@@ -96,11 +96,8 @@ public static class Apps
         {
             var app = await brain.Get<IApp>(IApp.Key(Scope(brain), name)).Read();
             if (app.Manifest.Title.Length == 0) { return null; }
-            if (app.Origin is { } origin && await Describe(store, new(origin.Publisher, origin.Name)) is { InstalledName: not null } listed)
-            { return listed; }
-            return new(app.Origin?.Publisher ?? "", app.Origin?.Name ?? name, app.Manifest.Title, app.Manifest.Description, app.Manifest.Icon,
-                null, name, app.Version, app.Edited, app.Manifest.Requires ?? new(), app.Origin?.Consented ?? app.Manifest.Requires ?? new(),
-                app.Manifest.Slots, "installed", null);
+            var listed = app.Origin is { } origin ? await Describe(store, new(origin.Publisher, origin.Name)) : null;
+            return AppsView.ForInstalled(name, app, listed);
         }
         if (target.App is null) { return null; }
         var detail = await Describe(store, new(target.Publisher!, target.App));
@@ -167,9 +164,7 @@ public static class Apps
             var select = Slot(brain, i);
             var current = await select.Read();
             var own = AppsView.SlotConnection(detail, slot);
-            var chosen = current.Selected is { } kept && options.Any(option => option.Id == kept) && !(kept == AppsView.NewChoice && options.Any(option => option.Id == own))
-                ? kept
-                : options.FirstOrDefault(option => option.Id == own)?.Id ?? options[0].Id;
+            var chosen = AppsView.Choose(current.Selected, [.. options.Where(option => option.Id != AppsView.NewChoice).Select(option => option.Id)], own);
             if (current.Label != slot.Name || current.Selected != chosen || !current.Options.SequenceEqual(options))
             { await select.Set(slot.Name, options, chosen); }
             choices[i] = chosen;
@@ -181,7 +176,13 @@ public static class Apps
 
     // Every button the tree references carries its activation before the publish. Install, update and remove are
     // set by this app through its own proxy for its own brain (the button neuron accepts them from nothing else).
-    private static async Task ArmButtons(IntoChatOSConnection brain, AppsModel model)
+    private static async Task Disarm(IButton button, string label, string action)
+    {
+        var current = await button.Read();
+        if (current.Activation is not null || current.Enabled || current.Label != label) { await button.Set(label, action, enabled: false); }
+    }
+
+    private static async Task<AppsModel> ArmButtons(IntoChatOSConnection brain, AppsModel model)
     {
         var app = Key(brain);
         var scope = Scope(brain);
@@ -189,19 +190,30 @@ public static class Apps
         {
             foreach (var entry in model.Connections.Where(entry => entry is { Available: true, Installed: false, ConnectorId: { Length: > 0 } }).Take(AppsView.ConnectionsShown))
             { await Arm(brain.Get<IButton>(AppsView.ConnectButton(app, entry.ConnectorId!)), AppsCopy.Connect, AppsView.ConnectActivation(scope, entry.ConnectorId!)); }
-            return;
+            return model;
         }
         var choices = await ArmSlots(brain, detail);
         if (AppsView.Choosing(detail))
-        { await Arm(brain.Get<IButton>(app + "/install"), AppsCopy.Install, AppsView.InstallActivation(scope, detail, choices, Guid.NewGuid())); }
+        {
+            var install = brain.Get<IButton>(app + "/install");
+            if (AppsView.InstallArming(scope, detail, choices, Guid.NewGuid()) is { } activation) { await Arm(install, AppsCopy.Install, activation); }
+            else
+            {
+                await Disarm(install, AppsCopy.Install, "install");
+                model = model with { SlotsUnbound = true };
+            }
+        }
         if (detail.InstalledName is { Length: > 0 } name)
         {
             await Arm(brain.Get<IButton>(app + "/open"), AppsCopy.Open, AppsView.OpenActivation(scope, name));
             if (detail.Status == "update") { await Arm(brain.Get<IButton>(app + "/update"), AppsCopy.Update, AppsView.UpdateActivation(scope, detail)); }
-            if (model.ConfirmRemove && AppsView.MayRemove(detail)) { await Arm(brain.Get<IButton>(app + "/remove"), AppsCopy.Remove, AppsView.RemoveActivation(scope, detail)); }
+            var remove = brain.Get<IButton>(app + "/remove");
+            if (AppsView.RemoveArming(scope, model) is { } activation) { await Arm(remove, AppsCopy.Remove, activation); }
+            else { await Disarm(remove, AppsCopy.Remove, "remove"); }
         }
         if ((AppsView.Asks(detail).Shown.Secrets ?? []).Length > 0)
         { await Arm(brain.Get<IButton>(app + "/to-variables"), AppsCopy.ManageSecrets, AppsView.VariablesActivation(scope)); }
+        return model;
     }
 
     public static async Task Show(IntoChatOSConnection brain)
@@ -214,7 +226,7 @@ public static class Apps
     private static async Task Render(IntoChatOSConnection brain)
     {
         var model = await Model(brain, await ReadState(ViewState(brain)));
-        await ArmButtons(brain, model);
+        model = await ArmButtons(brain, model);
         await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), Revision(brain)).Publish(AppsView.Render(Key(brain), model));
     }
 
