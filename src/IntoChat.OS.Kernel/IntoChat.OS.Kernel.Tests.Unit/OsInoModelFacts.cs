@@ -123,6 +123,29 @@ public sealed class OsInoModelFacts
         Assert.Equal("", (await status.Read()).Markdown);
     }
 
+    // The whole surface as Ino publishes it, with every optional part shown (first-run card with the local missing
+    // state, model menu, rename modal, archive toast), is accepted by IView. A refused node would leave Ino blank.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheFullInoViewPassesViewValidation(bool narrow)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("view", ct);
+        using var caller = person.AsCaller();
+        var app = IntoChat.OS.Apps.IApp.Key(person.BrainId, "ino");
+        var nothing = Nothing(Local(false));
+        var model = new InoViewModel(
+            [new(Chat, "Trip", DateTimeOffset.UnixEpoch, false), new("main", "Main", DateTimeOffset.UnixEpoch.AddMinutes(1), false)], Chat, "tr",
+            InoModels.Menu(Choices(), "profile:fast"), RenamingId: Chat, Toast: "Chat archived.", UndoId: Chat,
+            FirstRun: InoModels.FirstRun(nothing, null, "", app));
+        Assert.NotNull(model.FirstRun);
+        var view = brain.Get<IView>(app + "/view");
+        await view.Publish(new UiView(1, 1, InoView.Render(app, model, narrow)));
+        Assert.NotNull(await view.Read());
+    }
+
     private const string Data = "b1/apps/ino-data";
 
     private static ModelChoices Nothing(params ModelChoice[] models) => new(

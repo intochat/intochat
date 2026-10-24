@@ -11,6 +11,8 @@ public static class InoCopy
     public const string StartFailed = "Couldn't start the answer. Try again.";
     public const string NewChatFailed = "Couldn't start a new chat. Try again.";
     public const string OpenFailed = "Couldn't open Ino. Try again.";
+    // The surface could not be published (for example IView refused it): said instead of a blank Ino.
+    public const string ShowFailed = "Couldn't show Ino's window. Try reopening it.";
     public const string StopFailed = "Couldn't stop the answer. Try Stop again.";
     public const string DeliveryUnconfirmed = "Couldn't confirm your message was sent. Your draft is saved; Send retries the same message.";
     public const string EarlierAttemptFailed = "The earlier attempt didn't finish. Review your draft and send again.";
@@ -38,7 +40,7 @@ public static class InoCopy
     [
         TurnFailed, StartFailed, NewChatFailed, OpenFailed, StopFailed, DeliveryUnconfirmed, EarlierAttemptFailed,
         ChatUpdateFailed, ModelChangeFailed, SetupFailed, MakeFailed, VoiceFailed, RouterUnavailable, RouterFailed,
-        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure, LinkFailed,
+        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure, LinkFailed, ShowFailed,
     ];
 
     public static string RouteNotCarried(string chosen) => "Jev chose " + chosen + " but couldn't carry it out.";

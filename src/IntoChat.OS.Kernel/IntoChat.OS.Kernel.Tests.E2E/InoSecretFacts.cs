@@ -37,10 +37,15 @@ public sealed class InoSecretFacts(RouterHostFixture host) : BrainFact(host)
         using var model = Answering();
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
 
-        await Send("new", "", ct);
-        await Send("send", Ask, ct);
         var chat = Brain.Get<IChat>(InoKey + "/transcript");
-        var agentKey = (await TestWait.UntilAsync(async _ => (await chat.Read()).Selection, selection => selection is not null, TimeSpan.FromSeconds(30), ct))!.Agent;
+        var before = (await chat.Read()).Selection?.Agent;
+        await Send("new", "", ct);
+        // "new" is handled asynchronously: send only once the new conversation is selected, and watch that agent,
+        // or the message can land in (and the wait can watch) the previous conversation.
+        var agentKey = (await TestWait.UntilAsync(async _ => (await chat.Read()).Selection,
+            selection => selection is not null && selection.Agent != before && selection.Agent.Contains("/conversations/c-", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(30), ct))!.Agent;
+        await Send("send", Ask, ct);
         var agent = Brain.Get<IAgent>(agentKey);
         var running = await TestWait.UntilAsync(_ => agent.Read(), state => state.ActiveRun is not null, TimeSpan.FromSeconds(90), ct);
         var runId = running.ActiveRun!.RunId;

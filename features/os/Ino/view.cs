@@ -17,7 +17,12 @@ await foreach (var changed in brain.On<TextChanged>(InoViewState.Text(brain), Re
 async Task Refresh()
 {
     try { await refresher.Refresh(); }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    {
+        // Never a silent blank surface: a refused or failed publish says so in generic words (Ruling 7: no error text).
+        try { await Ino.Status(brain, Ino.Failure(InoCopy.ShowFailed, error)); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
 }
 
 async Task Expire()

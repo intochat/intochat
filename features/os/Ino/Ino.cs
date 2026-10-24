@@ -298,6 +298,8 @@ public static partial class Ino
         // After Present and bounded: indexing old conversations never keeps Ino from opening or answering.
         // A new entry raises ChatIndexChanged, so index.cs marks the view dirty.
         await InoChats.Within(InoChats.BackfillTimeout, token => InoChats.TryBackfill(brain, token), brain.Stopping);
+        // Then every other conversation (an upgraded 3.1.3 brain has none indexed), bounded the same way.
+        await InoChats.Within(InoChats.BackfillAllTimeout, async token => await InoChats.TryBackfillAll(brain, token) >= 0, brain.Stopping);
         await Dirty(brain);
     }
 

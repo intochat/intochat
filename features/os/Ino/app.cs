@@ -78,8 +78,10 @@ card with an Open button and reaches neither Jev nor the model. An app that is n
 
 ## Scenario: Upgrading from 3.1.3 keeps every conversation
 
-Conversations started before the chat index existed are listed when Ino next composes, titled by their first
-user message (else "Untitled"); the selected chat stays selected and no transcript changes.
+Every conversation started before the chat index existed (main and each c-*, the newest 500) is listed when Ino
+first composes after the upgrade, without selecting any of them, titled by its first user message (else "Untitled");
+the selected chat stays selected and no transcript changes. Indexing runs after the surface is presented and is
+bounded, so it never keeps Ino from opening; an unfinished pass continues on the next compose.
 
 ## Scenario: The dock is the assistant's toolbar
 

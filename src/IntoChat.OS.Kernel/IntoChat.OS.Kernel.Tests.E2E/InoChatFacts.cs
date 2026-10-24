@@ -136,6 +136,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         var choices = await Brain.Get<IModelCatalog>(IModelCatalog.Key(WorkspaceId)).List();
         var defaultModel = LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id;
         var chosen = choices.Models.Where(choice => choice.Available).OrderBy(choice => choice.Model == defaultModel ? 1 : 0).First();
+        Assert.NotEqual(defaultModel, chosen.Model);
         var menu = await Until(view => view.Any(node => node.Kind == UiNodeKind.Menu && node.Key == "model"), ct);
         var items = menu.Single(node => node.Kind == UiNodeKind.Menu && node.Key == "model").Children;
         Assert.Equal("model:auto", items[0].Action);
@@ -174,8 +175,8 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         Assert.Equal(asked, Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn));
     }
 
-    // Review focus 1: conversations from 3.1.3 (agents with history, no index) are listed on the first render
-    // after the upgrade, titled by their first message; the selection and the transcripts stay as they were.
+    // Review focus 1: conversations from 3.1.3 (agents with history, no index entries) are all listed after the
+    // upgrade's first start, titled by their first message; the selection and the transcripts stay as they were.
     [Fact(Timeout = 360_000)]
     public async Task UpgradeFrom313ListsExistingConversations()
     {
@@ -184,30 +185,32 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         using var model = Answering();
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         var data = await DataKey(ct);
-        // What a 3.1.3 brain holds: conversation agents with turns and no index entries (3.1.3 had no index).
+        // What a 3.1.3 brain holds: messages in main and two c-* conversations, none of the c-* indexed (3.1.3 had no
+        // index), and the selection on one of them. Ino 3.2.0 already composed once in this brain, so main has its
+        // boot entry; the c-* are the conversations an upgrade would otherwise lose.
         var older = "c-" + Guid.NewGuid().ToString("N");
         var newer = "c-" + Guid.NewGuid().ToString("N");
+        await Converse(data + "/conversations/main", "Good morning", ct);
         await Converse(data + "/conversations/" + older, "Draft a letter to my landlord", ct);
         await Converse(data + "/conversations/" + newer, "Compare two phone plans", ct);
         Assert.Null(await Index(data).Get(older));
         Assert.Null(await Index(data).Get(newer));
         var chat = Brain.Get<IChat>(data + "/transcript");
         var current = (await chat.Read()).Selection!;
-        await chat.SelectAgent(data + "/conversations/" + newer, current.Revision, Guid.NewGuid());
-        var before = await Brain.Get<IAgent>(data + "/conversations/" + newer).Transcript();
+        await chat.SelectAgent(data + "/conversations/" + older, current.Revision, Guid.NewGuid());
+        var transcripts = new Dictionary<string, string>();
+        foreach (var id in new[] { "main", older, newer })
+        { transcripts[id] = JsonSerializer.Serialize(await Brain.Get<IAgent>(data + "/conversations/" + id).Transcript()); }
 
+        // One restart, nothing selected after it: all three are listed.
         await Restart(ct);
         Assert.Equal("3.2.0", (await Brain.Get<IApp>(InoKey).Read()).Version);
-        await Until(view => view.Any(node => node.Action == "chat:" + newer && node.Text == "Compare two phone plans"), ct);
-        Assert.Equal(data + "/conversations/" + newer, (await chat.Read()).Selection!.Agent);
-        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(await Brain.Get<IAgent>(data + "/conversations/" + newer).Transcript()));
-
-        // The other one is indexed when it is next selected, as the brief's lazy back-fill says, and lists under its title.
-        current = (await chat.Read()).Selection!;
-        await chat.SelectAgent(data + "/conversations/" + older, current.Revision, Guid.NewGuid());
-        await Restart(ct);
-        await Until(view => view.Any(node => node.Action == "chat:" + older && node.Text == "Draft a letter to my landlord")
-            && view.Any(node => node.Action == "chat:" + newer), ct);
+        await Until(view => view.Any(node => node.Action == "chat:main")
+            && view.Any(node => node.Action == "chat:" + older && node.Text == "Draft a letter to my landlord")
+            && view.Any(node => node.Action == "chat:" + newer && node.Text == "Compare two phone plans"), ct);
+        Assert.Equal(data + "/conversations/" + older, (await chat.Read()).Selection!.Agent);
+        foreach (var (id, before) in transcripts)
+        { Assert.Equal(before, JsonSerializer.Serialize(await Brain.Get<IAgent>(data + "/conversations/" + id).Transcript())); }
     }
 
     private IChatIndex Index(string data) => Brain.Get<IChatIndex>(data + "/chats");
@@ -373,7 +376,7 @@ public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
         using (var sent = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/ino/request", new { operation = "send", input = "hello" }, ct))
         { sent.EnsureSuccessStatusCode(); }
         var agentKey = (await Brain.Get<IChat>(data + "/transcript").Read()).Selection!.Agent;
-        await TestWait.UntilAsync(_ => Brain.Get<IComposer>(data + "/composer").Read(), state => JsonSerializer.Serialize(state).Contains("hello", StringComparison.Ordinal), Patience, ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IComposer>(data + "/composer").Read(), state => state.Draft == "hello", Patience, ct);
         Assert.DoesNotContain((await Brain.Get<IAgent>(agentKey).Read()).Runs, run => !run.Posted);
         Assert.DoesNotContain((await Brain.Get<IChat>(data + "/transcript").Read()).Projection?.Messages ?? [], message => message.Status == "failed");
 

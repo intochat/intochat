@@ -71,6 +71,50 @@ public sealed class OsInoChatsFacts
         Assert.Equal(4, index.Created);
     }
 
+    // Upgrade from 3.1.3: every conversation agent under {DataKey}/conversations/ is found (main and each c-*),
+    // newest first and at most MaxListed, ignoring other agents and keys that are not chat ids.
+    [Fact]
+    public void ConversationsUnderTheDataKeyAreFoundNewestFirstAndBounded()
+    {
+        var data = "brain/apps/ino-data";
+        var at = DateTimeOffset.UnixEpoch;
+        var older = "c-" + Guid.NewGuid().ToString("N");
+        var newer = "c-" + Guid.NewGuid().ToString("N");
+        Instance[] instances =
+        [
+            new("agent", InoChats.AgentKey(data, older), at.AddMinutes(1), null),
+            new("agent", InoChats.AgentKey(data, "main"), at, null),
+            new("agent", InoChats.AgentKey(data, newer), at.AddMinutes(2), null),
+            new("agent", "brain/apps/other/conversations/main", at.AddMinutes(3), null),
+            new("agent", data + "/conversations/not-an-id", at.AddMinutes(4), null),
+            new("agent", data + "/conversations/main/nested", at.AddMinutes(5), null),
+        ];
+        Assert.Equal([InoChats.AgentKey(data, newer), InoChats.AgentKey(data, older), InoChats.AgentKey(data, "main")],
+            InoChats.ConversationKeys(instances, data));
+        var many = Enumerable.Range(0, ChatIndex.MaxListed + 20)
+            .Select(i => new Instance("agent", InoChats.AgentKey(data, "c-" + i.ToString("x32")), at.AddSeconds(i), null)).ToArray();
+        var found = InoChats.ConversationKeys(many, data);
+        Assert.Equal(ChatIndex.MaxListed, found.Count);
+        Assert.Equal(InoChats.AgentKey(data, "c-" + (ChatIndex.MaxListed + 19).ToString("x32")), found[0]);
+    }
+
+    // Every found conversation gets its entry, titled from its first user message, else "Untitled".
+    [Fact]
+    public async Task BackfillAllIndexesEveryConversation()
+    {
+        var data = "brain-" + Guid.NewGuid().ToString("N") + "/apps/ino-data";
+        var index = new FakeIndex();
+        var first = "c-" + Guid.NewGuid().ToString("N");
+        var second = "c-" + Guid.NewGuid().ToString("N");
+        Task<AiMessage[]> Read(string agent) => Task.FromResult<AiMessage[]>(agent.EndsWith(first, StringComparison.Ordinal)
+            ? [new("user", [new AiText("Draft a letter")])] : agent.EndsWith("main", StringComparison.Ordinal) ? [new("user", [new AiText("hello")])] : []);
+
+        Assert.Equal(3, await InoChats.TryBackfillAll(index, [InoChats.AgentKey(data, second), InoChats.AgentKey(data, first), InoChats.AgentKey(data, "main")], Read, Ct));
+        Assert.Equal("Draft a letter", index.Entries[first].Title);
+        Assert.Equal("Untitled", index.Entries[second].Title);
+        Assert.Equal("hello", index.Entries["main"].Title);
+    }
+
     [Fact]
     public async Task AFailingIndexNeverThrowsAndRetriesOnTheNextCompose()
     {
