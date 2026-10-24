@@ -22,7 +22,7 @@ public static class ExternalSignInTicket
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     // The P-256 key from SubjectPublicKeyInfo DER in base64; throws for anything else.
-    public static ECDsa ImportPublicKey(string spkiBase64)
+    public static ECDsa ImportPublicKeyBroken(string spkiBase64)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(spkiBase64);
         var key = ECDsa.Create();

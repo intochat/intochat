@@ -15,7 +15,7 @@ internal sealed partial class TrustedIssuerKeys : IDisposable
     public TrustedIssuerKeys(IOptions<AuthOptions> options)
     {
         foreach (var issuer in options.Value.TrustedIssuers)
-        { _issuers[issuer.Name] = (ExternalSignInTicket.ImportPublicKey(issuer.PublicKey), issuer.Audience); }
+        { _issuers[issuer.Name] = (ExternalSignInTicket.ImportPublicKeyBroken(issuer.PublicKey), issuer.Audience); }
     }
 
     public bool Any => _issuers.Count > 0;
@@ -39,7 +39,7 @@ internal sealed partial class TrustedIssuerKeys : IDisposable
             if (issuer is null || !IssuerName().IsMatch(issuer.Name)) { return $"{key}:Name must be 1-100 characters of letters, digits, '.', '-' or '_'."; }
             if (!names.Add(issuer.Name)) { return $"{key}:Name '{issuer.Name}' is listed twice."; }
             if (string.IsNullOrWhiteSpace(issuer.Audience) || issuer.Audience.Length > 500) { return $"{key}:Audience must name this install (1-500 characters)."; }
-            try { using var _ = ExternalSignInTicket.ImportPublicKey(issuer.PublicKey); }
+            try { using var _ = ExternalSignInTicket.ImportPublicKeyBroken(issuer.PublicKey); }
             catch (FormatException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
             catch (CryptographicException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
             catch (ArgumentException) { return $"{key}:PublicKey must be a P-256 SubjectPublicKeyInfo in base64."; }
