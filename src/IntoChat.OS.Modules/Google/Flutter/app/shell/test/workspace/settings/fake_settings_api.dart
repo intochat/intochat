@@ -20,6 +20,19 @@ base class FakeSettingsApi implements SettingsApi {
     (name: 'notes', title: 'Notes'),
   ];
   var notificationPrefs = <String, bool>{'agent-finished': true};
+  final archivedList = <ArchivedChat>[];
+  final unarchived = <String>[];
+  Object? unarchiveError;
+
+  @override
+  Future<List<ArchivedChat>> archivedChats() async => [...archivedList];
+
+  @override
+  Future<void> unarchiveChat(String id) async {
+    if (unarchiveError != null) throw unarchiveError!;
+    unarchived.add(id);
+    archivedList.removeWhere((chat) => chat.id == id);
+  }
 
   @override
   Future<List<EntrySummary>> listEntries() async => [

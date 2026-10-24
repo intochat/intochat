@@ -74,6 +74,26 @@ final class NewTabPreferences {
       );
 }
 
+/// One archived chat. The title is customer data and is shown as plain text.
+final class ArchivedChat {
+  const ArchivedChat({
+    required this.id,
+    required this.title,
+    required this.updatedAt,
+  });
+  final String id;
+  final String title;
+  final DateTime updatedAt;
+
+  factory ArchivedChat.fromJson(Map<String, dynamic> json) => ArchivedChat(
+    id: json['id'] as String,
+    title: json['title'] as String? ?? '',
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
+}
+
 /// What the Settings tabs read and write for one brain.
 abstract interface class SettingsApi {
   Future<List<EntrySummary>> listEntries();
@@ -84,6 +104,8 @@ abstract interface class SettingsApi {
   Future<void> putNotifications(Map<String, bool> preferences);
   Future<NewTabPreferences> workspacePreferences();
   Future<NewTabPreferences> putNewTabApp(String name);
+  Future<List<ArchivedChat>> archivedChats();
+  Future<void> unarchiveChat(String id);
 }
 
 /// [SettingsApi] over the signed-in client's session.
@@ -153,4 +175,18 @@ final class ClientSettingsApi implements SettingsApi {
               as Map,
         ),
       );
+
+  @override
+  Future<List<ArchivedChat>> archivedChats() async {
+    final body = await _call('GET', '/chats?archived=true&skip=0&take=100');
+    return [
+      if (body is Map)
+        for (final row in body['chats'] as List? ?? const [])
+          ArchivedChat.fromJson(Map<String, dynamic>.from(row as Map)),
+    ];
+  }
+
+  @override
+  Future<void> unarchiveChat(String id) =>
+      _call('POST', '/chats/${Uri.encodeComponent(id)}/unarchive');
 }

@@ -149,7 +149,8 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
         api == null
             ? _notConnected('Notifications')
             : NotificationsTab(api: api),
-      'archived' => const ArchivedTab(),
+      'archived' =>
+        api == null ? _notConnected('Archived chats') : ArchivedTab(api: api),
       'danger' => DangerTab(
         accountBase: widget.kernelBaseUri,
         onOpen: widget.onOpen,

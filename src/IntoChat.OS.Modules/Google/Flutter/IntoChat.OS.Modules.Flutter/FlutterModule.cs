@@ -35,5 +35,6 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
         AppUiEndpoints.Map(endpoints);
         Settings.NotificationPreferenceEndpoints.Map(endpoints);
         Settings.WorkspacePreferenceEndpoints.Map(endpoints);
+        Settings.ChatEndpoints.Map(endpoints);
     }
 }
