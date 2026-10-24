@@ -446,7 +446,7 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["fav-0", "fav-1"], favourites.Children.Select(node => node.Key));
         Assert.Equal(["open:calc", "view:v-notes"], favourites.Children.Select(node => node.Action));
         Assert.Equal(["grid", "list"], favourites.Children.Select(node => node.Icon));
-        Assert.All(favourites.Children, node => Assert.Equal(UiStyle.Ghost, node.Style));
+        Assert.All(favourites.Children, node => Assert.Equal(UiStyle.Secondary, node.Style));
     }
 
     [Fact]
@@ -492,6 +492,52 @@ public sealed class OsDesktopAppFacts
         Assert.Equal("ino", Desktop.NewTabChoice("", installed));
         Assert.Equal("ino", Desktop.NewTabChoice(null, installed));
         Assert.Equal("ino", Desktop.NewTabChoice("weather", installed));
+    }
+
+    // Rows share space equally unless given extents: the dock sizes every item from its label, so items pack left.
+    [Fact]
+    public void TheDockPacksItemsLeftInLabelSizedSlots()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null,
+            Favourites: [new("calc", "Calc", "open:calc", false), new("v-notes", "Notes list", "view:v-notes", true), new("files", "Files", "open:files", false)]);
+        var apps = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "apps");
+        Assert.Equal(["dock-ino", "favourites", "dock-notes", "newtab", "gallery"], apps.Children.Select(node => node.Key));
+        var extents = apps.Extents ?? [];
+        Assert.Equal(apps.Children.Length, extents.Length);
+        Assert.All(extents, extent => Assert.True(extent > 0));
+        var favourites = apps.Children[1];
+        var widths = favourites.Extents ?? [];
+        Assert.Equal(favourites.Children.Length, widths.Length);
+        Assert.Equal(widths.Sum() + 4 * (favourites.Children.Length - 1), extents[1]);
+        // A longer label gets a wider slot.
+        Assert.True(widths[1] > widths[0]);
+    }
+
+    // Figma's favourites show their names: labelled buttons with an icon, not icon-only ghosts.
+    [Fact]
+    public void FavouritesAreLabelledButtons()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, false, null, Favourites: [new("calc", "Calc", "open:calc", false)]);
+        var favourite = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "fav-0");
+        Assert.Equal((UiStyle.Secondary, "grid", "Calc"), (favourite.Style, favourite.Icon, favourite.Text));
+    }
+
+    // At 390 px a fixed 360 px right group leaves no room: narrow folds it into one More menu, keeping
+    // Settings and Classic layout as button neurons so their activations still reach the shell.
+    [Fact]
+    public void NarrowFoldsTheRightGroupIntoAMoreMenu()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], true, false, null, Usage: "$1.25", Person: "Vlad",
+            LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
+        var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
+        Assert.Equal(["apps", "more"], dock.Children.Select(node => node.Key));
+        Assert.Equal([0, 40], dock.Extents ?? []);
+        var more = dock.Children[1];
+        Assert.Equal((UiNodeKind.Menu, "More", "more-horizontal"), (more.Kind, more.Text, more.Icon));
+        Assert.Equal(["usage", "avatar", "more-settings", "more-classic"], more.Children.Select(node => node.Key));
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/settings"), more.Children[2].Reference);
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/classic"), more.Children[3].Reference);
+        Assert.Equal([0, 360], Assert.Single(DesktopLayout.Render(model with { Narrow = false }).Children, node => node.Key == "dock").Extents ?? []);
     }
 
     // The toast belongs to the workspace revision it refused at: any later change, from anywhere, hides it.

@@ -97,6 +97,67 @@ void main() {
     expect(sent, isEmpty);
   });
 
+  testWidgets('a button neuron in a menu hands over its own activation', (
+    tester,
+  ) async {
+    final sent = <Map<String, dynamic>>[];
+    final activated = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'view',
+            name: 'nodes',
+            load: (kind, name) async => kind == 'button'
+                ? {'label': 'Settings', 'activation': '{"kind":"settings"}'}
+                : {
+                    'generation': 1,
+                    'version': 1,
+                    'root': {
+                      'kind': 6,
+                      'key': 'more',
+                      'text': 'More',
+                      'icon': 'more-horizontal',
+                      'children': [
+                        {'kind': 0, 'key': 'usage', 'text': r'$1.00'},
+                        {
+                          'kind': 5,
+                          'key': 'more-settings',
+                          'reference': {
+                            'kind': 'button',
+                            'name': 'brain/apps/desktop/settings',
+                          },
+                        },
+                      ],
+                    },
+                  },
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async => sent.add(event),
+            onActivate: activated.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsNothing);
+    expect(sent, isEmpty);
+    expect(activated, isEmpty);
+    await tester.tap(find.bySemanticsLabel('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(activated, [
+      {'kind': 'settings'},
+    ]);
+    expect(sent, isEmpty);
+    expect(find.text('Settings'), findsNothing);
+  });
+
   testWidgets('modal Escape dispatches the cancel action', (tester) async {
     final sent = await _pump(tester, {
       'kind': 7,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
-import 'package:intochat_os_ui/src/components/kit/ui_kit_tabs.dart';
 import 'package:intochat_os_ui/src/composition/value_nodes/view_menu.dart';
 
 import 'desktop_shape.dart';
@@ -55,11 +55,33 @@ void main() {
 
   testWidgets('desktop_favourites_hidden_when_empty', (tester) async {
     await pumpShape(tester, desktopShape(), size: wide);
-    expect(_icon('Notes'), findsNothing);
+    expect(find.text('Notes'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await pumpShape(tester, desktopShape(favourites: 3), size: wide);
-    expect(_icon('Notes'), findsNWidgets(2));
-    expect(_icon('Report'), findsOneWidget);
+    // Labelled, packed left after Ino, and never clipped.
+    expect(find.widgetWithText(UiKitButton, 'Notes'), findsNWidgets(2));
+    expect(find.widgetWithText(UiKitButton, 'Report'), findsOneWidget);
+    final ino = tester.getRect(find.widgetWithText(UiKitButton, 'Ino').last);
+    final first = tester.getRect(
+      find.widgetWithText(UiKitButton, 'Notes').first,
+    );
+    expect(first.left - ino.right, lessThanOrEqualTo(8));
+    for (final label in ['Notes', 'Report']) {
+      for (final text in find.text(label).evaluate()) {
+        // An ellipsis or a wrap means the slot was too narrow for the name.
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.byWidget(text.widget),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+        final line = paragraph.getFullHeightForCaret(
+          const TextPosition(offset: 0),
+        );
+        expect(paragraph.size.height, lessThan(line * 1.5), reason: label);
+      }
+    }
   });
 
   testWidgets(
@@ -74,8 +96,31 @@ void main() {
       expect(find.byType(UiKitTabs), findsOneWidget);
       expect(find.text('Transcript'), findsNothing);
       expect(find.text('Files content'), findsOneWidget);
-      expect(find.byType(ViewMenu), findsOneWidget);
-      expect(_icon('Notes'), findsNothing);
+      expect(find.byType(ViewMenu), findsNWidgets(2)); // Favourites and More
+      expect(find.text('Notes'), findsNothing);
+      // Ino, the favourites menu, Files, New tab, Apps and More all sit inside 390 px.
+      for (final finder in [
+        find.widgetWithText(UiKitButton, 'Ino').last,
+        find.bySemanticsLabel('Favourites'),
+        find.widgetWithText(UiKitButton, 'Files').last,
+        find.bySemanticsLabel('New tab').last,
+        find.bySemanticsLabel('Apps'),
+        find.bySemanticsLabel('More'),
+      ]) {
+        final rect = tester.getRect(finder);
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(390));
+      }
+      // The apps group fits beside More: nothing scrolls under it.
+      expect(
+        tester.getRect(find.bySemanticsLabel('Apps')).right,
+        lessThanOrEqualTo(tester.getRect(find.bySemanticsLabel('More')).left),
+      );
+      expect(find.text('Classic layout'), findsNothing);
+      await tester.tap(find.bySemanticsLabel('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Classic layout'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
     },
   );
 

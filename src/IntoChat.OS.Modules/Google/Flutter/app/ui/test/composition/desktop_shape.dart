@@ -139,74 +139,120 @@ Map<String, dynamic> desktopShape({
         'key': 'fav-$i',
         'text': i.isEven ? 'Notes' : 'Report',
         'action': 'fav-$i',
-        'style': 2,
+        'style': 1,
         'icon': i.isEven ? 'grid' : 'list',
       },
   ];
+  final favouriteWidths = [
+    for (final button in favouriteButtons)
+      dockWidth(button['text']! as String, icon: true),
+  ];
+  final usage = _text('usage', 'Usage');
+  final avatar = shapeButton('avatar', 'Vlad');
+  final settings = shapeButton('more-settings', 'Settings');
+  final classic = shapeButton('more-classic', 'Classic layout');
+  // DesktopLayout.Packed: label-sized slots only.
+  final apps = _row(
+    'apps',
+    [
+      {
+        'kind': 1,
+        'key': 'dock-ino',
+        'text': 'Ino',
+        'action': 'open:ino',
+        'style': 0,
+        'icon': 'ino',
+      },
+      if (favourites > 0)
+        narrow
+            ? {
+                'kind': 6,
+                'key': 'favourites',
+                'text': 'Favourites',
+                'icon': 'star',
+                'children': favouriteButtons,
+              }
+            : _row(
+                'favourites',
+                favouriteButtons,
+                gap: 4,
+                extents: favouriteWidths,
+              ),
+      {
+        'kind': 1,
+        'key': 'dock-files',
+        'text': 'Files',
+        'action': 'open:files',
+        'style': 2,
+      },
+      _iconButton('newtab', 'plus', 'New tab'),
+      {
+        'kind': 1,
+        'key': 'gallery',
+        'text': 'Apps',
+        'action': 'gallery',
+        'style': 2,
+        'icon': 'grid',
+      },
+    ],
+    gap: 4,
+    extents: [
+      dockWidth('Ino', icon: true),
+      if (favourites > 0)
+        narrow
+            ? 40
+            : favouriteWidths.fold<num>(0, (sum, w) => sum + w) +
+                  4 * (favourites - 1),
+      dockWidth('Files'),
+      40,
+      40,
+    ],
+  );
   return _column(
     'desktop',
     [
       _column('windows', [_row('windows-0', windows)], extents: [0]),
       if (toast != null) {'kind': 8, 'key': 'toast', 'text': toast, 'tone': 3},
-      _row(
-        'dock',
-        [
-          _row('apps', [
-            {
-              'kind': 1,
-              'key': 'dock-ino',
-              'text': 'Ino',
-              'action': 'open:ino',
-              'style': 0,
-              'icon': 'ino',
-            },
-            if (favourites > 0)
-              narrow
-                  ? {
-                      'kind': 6,
-                      'key': 'favourites',
-                      'text': 'Favourites',
-                      'icon': 'star',
-                      'children': favouriteButtons,
-                    }
-                  : _row('favourites', favouriteButtons, gap: 4),
-            {
-              'kind': 1,
-              'key': 'dock-files',
-              'text': 'Files',
-              'action': 'open:files',
-              'style': 2,
-            },
-            _iconButton('newtab', 'plus', 'New tab'),
-            {
-              'kind': 1,
-              'key': 'gallery',
-              'text': 'Apps',
-              'action': 'gallery',
-              'style': 2,
-              'icon': 'grid',
-            },
-          ], gap: 4),
-          _row(
-            'right',
-            [
-              _text('usage', 'Usage'),
-              shapeButton('avatar', 'Vlad'),
-              _row('more', [
-                shapeButton('more-settings', 'Settings'),
-                shapeButton('more-classic', 'Classic layout'),
-              ], gap: 4),
-            ],
-            gap: 4,
-            extents: [72, 72, 0],
-          ),
-        ],
-        extents: [0, 360],
-      ),
+      narrow
+          ? _row(
+              'dock',
+              [
+                apps,
+                {
+                  'kind': 6,
+                  'key': 'more',
+                  'text': 'More',
+                  'icon': 'more-horizontal',
+                  'children': [usage, avatar, settings, classic],
+                },
+              ],
+              extents: [0, 40],
+            )
+          : _row(
+              'dock',
+              [
+                apps,
+                _row(
+                  'right',
+                  [
+                    usage,
+                    avatar,
+                    _row('more', [settings, classic], gap: 4),
+                  ],
+                  gap: 4,
+                  extents: [72, 72, 0],
+                ),
+              ],
+              extents: [0, 360],
+            ),
     ],
     extents: [0, if (toast != null) 48, 68],
   );
 }
+
+/// DesktopLayout.Width: the kit's 48 px button for [label].
+num dockWidth(String label, {bool icon = false}) =>
+    36 + 14 * label.length + (icon ? 28 : 0);
 
 /// Pumps [root] as a view value at [size].
 Future<void> pumpShape(

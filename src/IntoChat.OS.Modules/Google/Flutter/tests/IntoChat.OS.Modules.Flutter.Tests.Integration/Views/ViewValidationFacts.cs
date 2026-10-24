@@ -88,6 +88,18 @@ public sealed class ViewValidationFacts
         Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go")]) with { Action = "open" });
     }
 
+    // A menu item may be a button neuron, so it keeps its own activation (the desktop's narrow More).
+    [Fact]
+    public void MenusMayHoldButtonNeuronReferences()
+    {
+        var settings = Ui.Reference("settings", new(UIVocabulary.ButtonType, "brain/apps/test/settings"));
+        var menu = Ui.Menu("menu", "More", [Ui.Text("usage", "$1.00"), settings], icon: "more-horizontal");
+        Assert.Equal(UiNodeKind.Reference, ViewValidation.Clone(new(1, 1, menu), "brain/apps/test/view").Root.Children[1].Kind);
+        Invalid(Ui.Menu("menu", "More", [Ui.Reference("viewport", new(UIVocabulary.ViewportType, "brain/apps/test/window"))]));
+        Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go"), Ui.Reference("text", new("text", "brain/apps/test/text"))]));
+        Invalid(Ui.Menu("menu", "More", [Ui.Reference("foreign", new(UIVocabulary.ButtonType, "other/apps/test/settings"))]));
+    }
+
     [Fact]
     public void IconsStyleAndToneAreBounded()
     {

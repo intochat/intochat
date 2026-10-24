@@ -110,9 +110,18 @@ Widget viewButton(Map node, VoidCallback? onPressed, {bool compact = false}) {
 /// Buttons (items), Dividers and Text (section labels). Escape or a tap
 /// outside closes it; selecting an item dispatches, then closes.
 final class ViewMenu extends StatefulWidget {
-  const ViewMenu({super.key, required this.node, required this.action});
+  const ViewMenu({
+    super.key,
+    required this.node,
+    required this.action,
+    this.reference,
+  });
   final Map node;
   final VoidCallback? Function(Map node) action;
+
+  /// Builds a Reference (kind 5) item: a button neuron that keeps its own
+  /// activation. Without it, references are not shown.
+  final Widget Function(Map node)? reference;
 
   @override
   State<ViewMenu> createState() => _ViewMenuState();
@@ -123,6 +132,7 @@ class _ViewMenuState extends State<ViewMenu> {
   final _panel = FocusNode(debugLabel: 'view menu');
   // Closing the menu returns focus to its trigger.
   final _trigger = FocusNode(debugLabel: 'view menu trigger');
+  final _menu = MenuController();
 
   void _after(FocusNode node) =>
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -152,6 +162,18 @@ class _ViewMenuState extends State<ViewMenu> {
       for (final child in children)
         switch (child['kind']) {
           1 => _MenuItem(node: child, onPressed: action(child)),
+          // The neuron handles its own press; the menu then closes.
+          5 when widget.reference != null => Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerUp: (_) => WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _menu.close(),
+            ),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: widget.reference!(child),
+            ),
+          ),
+          5 => const SizedBox.shrink(),
           12 => Container(
             height: 1,
             margin: const EdgeInsets.symmetric(vertical: 6),
@@ -167,6 +189,7 @@ class _ViewMenuState extends State<ViewMenu> {
         },
     ];
     return MenuAnchor(
+      controller: _menu,
       clipBehavior: Clip.none,
       childFocusNode: _trigger,
       onOpen: () => _after(_panel),
