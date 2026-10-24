@@ -26,7 +26,7 @@ public sealed record ChatAppCard(
 {
     public const int MaxInput = 2048;
     private const string LinkPrefix = "link-";
-    private static readonly System.Text.RegularExpressions.Regex AppName = new("^[a-z0-9][a-z0-9-]{0,79}$");
+    private static readonly System.Text.RegularExpressions.Regex AppName = new(@"^[a-z0-9][a-z0-9-]{0,79}\z", System.Text.RegularExpressions.RegexOptions.ECMAScript);
 
     public static bool IsAppName(string? name) => name is not null && AppName.IsMatch(name);
 

@@ -71,6 +71,37 @@ void main() {
     expect(link({'application': 'notes', 'input': 'x' * 2048}), isNotNull);
   });
 
+  test('link_grammar_matches_the_apps_rules', () {
+    Map<String, dynamic>? parse(String query) =>
+        workspaceLink(Uri.parse('https://h/#/open?$query'));
+    expect(parse('application=notes&publisher=vlad%0A'), isNull);
+    expect(parse('application=notes&publisher=vlad&release=1.2.3%0A'), isNull);
+    expect(
+      parse('application=notes&publisher=vlad&release=%D9%A1.%D9%A2.%D9%A3'),
+      isNull,
+    );
+    expect(parse('application=notes&application=other'), isNull);
+    expect(parse('application=notes&input=a&input=b'), isNull);
+    expect(parse('application=notes&publisher=a&publisher=b'), isNull);
+    expect(
+      parse('application=notes&publisher=a&release=1.0.0&release=2.0.0'),
+      isNull,
+    );
+    expect(parse('application=notes&publisher=1vlad'), isNull);
+    expect(parse('application=1notes&publisher=vlad'), isNull);
+    expect(parse('application=${'a' * 65}&publisher=vlad'), isNull);
+    expect(parse('application=${'a' * 64}&publisher=vlad'), isNotNull);
+    expect(parse('application=my_app&publisher=my_pub'), isNotNull);
+    expect(
+      parse('application=notes&publisher=vlad&release=1234567890.0.0'),
+      isNull,
+    );
+    expect(
+      parse('application=notes&publisher=vlad&release=123456789.0.0'),
+      isNotNull,
+    );
+  });
+
   test('publisher_links_open_the_apps_detail', () {
     Map<String, dynamic>? link(Map<String, String> query) =>
         workspaceLink(Uri(path: '/open', queryParameters: query));

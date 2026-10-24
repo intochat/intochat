@@ -47,14 +47,16 @@ public static class InoLinks
                 case "release": if (release is not null) { return null; } release = item; break;
             }
         }
-        if (!ChatAppCard.IsAppName(name) || (value?.Length ?? 0) > ChatAppCard.MaxInput) { return null; }
-        if (publisher is not null && !PublisherName.IsMatch(publisher)) { return null; }
+        if (name is null || (value?.Length ?? 0) > ChatAppCard.MaxInput) { return null; }
+        if (publisher is null ? !ChatAppCard.IsAppName(name) : !PublisherName.IsMatch(publisher)) { return null; }
         if (release is not null && (publisher is null || !ReleaseName.IsMatch(release))) { return null; }
-        return new InoLink(name!, publisher, release, value ?? "");
+        // A publisher link names the app as Apps does (letter first, "_" allowed, 64), or Apps would fall back to the library.
+        if (publisher is not null && !PublisherName.IsMatch(name)) { return null; }
+        return new InoLink(name, publisher, release, value ?? "");
     }
 
-    private static readonly Regex PublisherName = new("^[a-z0-9][a-z0-9-]{0,63}$", RegexOptions.CultureInvariant);
-    private static readonly Regex ReleaseName = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
+    private static readonly Regex PublisherName = new(@"^[a-z][a-z0-9_-]{0,63}\z", RegexOptions.CultureInvariant | RegexOptions.ECMAScript);
+    private static readonly Regex ReleaseName = new(@"^[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}\z", RegexOptions.CultureInvariant | RegexOptions.ECMAScript);
 
     // How many times a concurrent writer of the links store is retried before the post fails.
     private const int StoreAttempts = 5;

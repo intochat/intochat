@@ -47,6 +47,25 @@ public sealed class OsInoLinkFacts
     }
 
     [Fact]
+    public void ParseGrammarMatchesTheAppsRules()
+    {
+        const string head = "#/open?application=notes&publisher=vlad";
+        Assert.Null(InoLinks.Parse(head + "%0A"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes%0A"));
+        Assert.Null(InoLinks.Parse(head + "&release=1.2.3%0A"));
+        Assert.Null(InoLinks.Parse(head + "&release=%D9%A1.%D9%A2.%D9%A3"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&input=a&input=b"));
+        Assert.Null(InoLinks.Parse(head + "&release=1.0.0&release=2.0.0"));
+        Assert.Null(InoLinks.Parse("#/open?application=notes&publisher=1vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=1notes&publisher=vlad"));
+        Assert.Null(InoLinks.Parse("#/open?application=" + new string('a', 65) + "&publisher=vlad"));
+        Assert.NotNull(InoLinks.Parse("#/open?application=" + new string('a', 64) + "&publisher=vlad"));
+        Assert.NotNull(InoLinks.Parse("#/open?application=my_app&publisher=my_pub"));
+        Assert.Null(InoLinks.Parse(head + "&release=1234567890.0.0"));
+        Assert.NotNull(InoLinks.Parse(head + "&release=123456789.0.0"));
+    }
+
+    [Fact]
     public void TheInputStaysOpaque()
     {
         var link = InoLinks.Parse("https://os.intochat.io/#/open?application=notes&input=a%20b%2Bc%26d");
