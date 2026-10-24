@@ -136,7 +136,8 @@ public sealed class OsInoLinkFacts
     {
         var request = Guid.NewGuid();
         var posted = new AgentRun("post/" + ChatAppCard.LinkPostId(request), AgentRunStatus.Completed, "", DateTimeOffset.UtcNow,
-            Reply: InoCopy.LinkPosted) { Posted = true };
+            Reply: InoCopy.LinkPosted)
+        { Posted = true };
         Assert.False(Episodes.Captures(posted));
         Assert.False(Episodes.Captures(posted with { Posted = false }));
         Assert.True(Episodes.Captures(new AgentRun("r1", AgentRunStatus.Completed, "hi", DateTimeOffset.UtcNow, Reply: "yo")));
@@ -187,9 +188,8 @@ public sealed class OsInoLinkFacts
     [Fact]
     public void TheChatRendererUsesInoCopy()
     {
-        var root = Root();
-        var dart = File.ReadAllText(Path.Combine(root.FullName,
-            "src/IntoChat.OS.Modules/Google/Flutter/app/ui/lib/src/chat/chat_copy.dart"));
+        var dart = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Modules.Flutter"),
+            "..", "app", "ui", "lib/src/chat/chat_copy.dart"));
         Assert.Contains("empty = '" + InoCopy.EmptyTranscript + "';", dart, StringComparison.Ordinal);
         Assert.Contains("failed = \"" + InoCopy.TurnFailed + "\";", dart, StringComparison.Ordinal);
         Assert.Contains("notInstalled = '" + InoCopy.AppNotInstalled + "';", dart, StringComparison.Ordinal);

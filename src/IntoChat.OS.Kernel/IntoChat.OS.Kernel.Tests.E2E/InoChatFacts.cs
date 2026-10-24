@@ -318,7 +318,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
                     continues = (string?)null,
                 }));
             }
-            return text.Contains(InoPrompt, StringComparison.Ordinal) ? FakeReply.Text(Answer) : fallback?.Invoke(request);
+            return text.Contains(InoPrompt, StringComparison.Ordinal) ? FakeReply.Text(Answer) : fallback?.Invoke(request) ?? FakeReply.Text(Answer);
         };
         return new Restore(() => { Host.Model.ChatFallback = fallback; Host.Model.SystemOneOverride = route; });
     }

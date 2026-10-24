@@ -28,7 +28,7 @@ public sealed class InoOpenBackfillFacts
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task execution;
         using (AmbientSession.Enter(session, App + "/open.cs", new Dictionary<string, string>
-               { ["App"] = App, ["Brain"] = "open-brain", ["ProgramRevision"] = "1" }, stop.Token))
+        { ["App"] = App, ["Brain"] = "open-brain", ["ProgramRevision"] = "1" }, stop.Token))
         {
             var entry = Assembly.Load(Compile()).EntryPoint!;
             execution = Task.Run(async () =>

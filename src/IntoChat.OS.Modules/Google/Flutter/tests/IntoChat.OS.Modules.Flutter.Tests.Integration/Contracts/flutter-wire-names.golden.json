@@ -17,6 +17,7 @@
   "IntoChat.OS.Flutter.Chat.ChatAction": "type; alias=ui.chat-action; serialized=True",
   "IntoChat.OS.Flutter.Chat.ChatActionActivated": "signal; short=ChatActionActivated; alias=ui.chat-action-activated",
   "IntoChat.OS.Flutter.Chat.ChatActivity": "type; alias=ui.chat-activity; serialized=True",
+  "IntoChat.OS.Flutter.Chat.ChatAppCard": "type; alias=ui.chat-app-card; serialized=True",
   "IntoChat.OS.Flutter.Chat.ChatChanged": "signal; short=ChatChanged; alias=ui.chat-changed",
   "IntoChat.OS.Flutter.Chat.ChatEntry": "type; alias=ui.chat-entry; serialized=True",
   "IntoChat.OS.Flutter.Chat.ChatIndex": "static; alias=-; serialized=False",

@@ -92,7 +92,8 @@ public static class InoModels
     public static UiNode Menu(ModelChoices choices, string? selected)
     {
         var auto = Ui.Button("model-auto", AutoLabel, "model:" + AutoChoice, choices.Automatic.Available,
-            selected is null ? UiStyle.Primary : UiStyle.Secondary) with { Detail = choices.Automatic.Reason };
+            selected is null ? UiStyle.Primary : UiStyle.Secondary) with
+        { Detail = choices.Automatic.Reason };
         UiNode[] items = [auto, .. choices.Models.Select((model, i) => Ui.Button("model-" + i, model.Label, "model:" + model.Id, model.Available,
             model.Id == selected ? UiStyle.Primary : UiStyle.Secondary) with { Detail = model.Reason })];
         string label;

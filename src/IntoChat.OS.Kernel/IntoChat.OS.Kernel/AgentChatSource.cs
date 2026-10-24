@@ -4,6 +4,9 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Kernel;
 
@@ -49,7 +52,7 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
                 try { manifest = (await grains.GetGrain<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
-                catch (Exception error) when (error is not OperationCanceledException) { manifest = null; }
+                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }
             entries[i] = entries[i] with { App = Named(card, manifest) };
@@ -89,7 +92,7 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
                 return ChatAppCard.IsAppName(name) ? new(name!, name!, "", true) : null;
             }
         }
-        catch (JsonException) { }
+        catch (JsonException exception) { NullLogger.Instance.LogSwallowed(exception, "Unreadable tool-call arguments"); }
         return null;
     }
 

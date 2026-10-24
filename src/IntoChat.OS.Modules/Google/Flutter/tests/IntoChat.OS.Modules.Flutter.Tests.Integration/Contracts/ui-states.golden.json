@@ -83,7 +83,15 @@
           "text": "Text",
           "status": "Status",
           "error": "Error",
-          "activities": []
+          "activities": [],
+          "model": "Model",
+          "app": {
+            "app": "App",
+            "title": "Title",
+            "icon": "Icon",
+            "installed": true,
+            "input": "Input"
+          }
         }
       ],
       "actions": [

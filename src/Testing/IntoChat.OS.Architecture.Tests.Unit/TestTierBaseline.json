@@ -8,7 +8,8 @@
     "IntoChat.OS.Kernel.Tests.Unit/FeatureCompileFacts.cs",
     "IntoChat.OS.Kernel.Tests.Unit/FriendsReplayFacts.cs",
     "IntoChat.OS.Kernel.Tests.Unit/OsBootFacts.cs",
-    "IntoChat.OS.Kernel.Tests.Unit/OsInoMigrationFacts.cs"
+    "IntoChat.OS.Kernel.Tests.Unit/OsInoMigrationFacts.cs",
+    "IntoChat.OS.Kernel.Tests.Unit/OsInoModelFacts.cs"
   ],
   "LegacyIntegrationWithoutFixture": [],
   "LegacyPlaywrightReferencers": []
