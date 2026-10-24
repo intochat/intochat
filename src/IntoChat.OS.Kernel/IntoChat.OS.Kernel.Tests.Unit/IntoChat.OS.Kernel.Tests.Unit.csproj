@@ -17,6 +17,9 @@
     <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />
     <Compile Include="../../../features/os/Desktop/Gallery.cs" Link="Features/Gallery.cs" />
     <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <Compile Include="../../../features/os/Ino/InoChats.cs" Link="Features/InoChats.cs" />
     <Compile Include="../../../features/os/Ino/InoLayout.cs" Link="Features/InoLayout.cs" />
