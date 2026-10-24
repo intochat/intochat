@@ -269,6 +269,42 @@ jobs:
       - name: Template smoke
         run: bash scripts/ci/template-smoke.sh "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/packages"
 
+  # Builds intochat/cloud (platform) against this run's packages. Not in the ci gate's needs (a fork-PR skip must
+  # not fail the gate) and not continue-on-error (a real break shows as a red check). Skipped on fork PRs: no secrets.
+  downstream:
+    name: downstream
+    needs: build
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: intochat/cloud
+          path: platform
+          token: ${{ secrets.PLATFORM_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: platform/global.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts/packages
+
+      # Platform has no Directory.Build.props of its own: inside the os workspace it would inherit os's (duplicate
+      # test package references, NU1504). Build it from outside the os tree.
+      - name: Build platform against fresh packages
+        run: |
+          mv "$GITHUB_WORKSPACE/platform" "$RUNNER_TEMP/platform"
+          bash scripts/ci/downstream-build.sh "$RUNNER_TEMP/platform" "$GITHUB_WORKSPACE/artifacts/packages"
+
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
   # shard reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
