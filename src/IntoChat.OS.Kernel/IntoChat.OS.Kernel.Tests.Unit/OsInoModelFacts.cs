@@ -142,6 +142,8 @@ public sealed class OsInoModelFacts
         Assert.Equal(["setup-cloud", "setup-cloud-soon", "setup-keys"], Keys(card));
         var cloud = card.Children[0];
         Assert.Equal(("IntoChat Cloud", false), (cloud.Text!, cloud.Enabled));
+        // IView refuses a button without an action, which would keep the whole surface from publishing.
+        Assert.Equal("setup-cloud", cloud.Action);
         Assert.Equal("Coming soon", card.Children[1].Text);
         Assert.Equal(new UiChildRef("button", Data + "/setup-keys"), card.Children[2].Reference);
     }

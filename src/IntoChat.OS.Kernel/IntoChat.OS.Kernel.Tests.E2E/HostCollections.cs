@@ -22,3 +22,7 @@ public sealed class CandidateHostCollection;
 // The gallery's real OAuth Connect against a loopback Google stub.
 [CollectionDefinition("Connect host", DisableParallelization = true)]
 public sealed class ConnectHostCollection : ICollectionFixture<ConnectHostFixture>;
+
+// No provider key and no local model server: Ino's first run.
+[CollectionDefinition("No model host", DisableParallelization = true)]
+public sealed class NoModelHostCollection : ICollectionFixture<NoModelHostFixture>;

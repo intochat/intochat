@@ -71,7 +71,7 @@ public static class InoModels
                 children.Add(Ui.Button(SetupRetry, RetryLabel, SetupRetry, style: UiStyle.Ghost, icon: "refresh"));
             }
         }
-        children.Add(Ui.Button("setup-cloud", CloudLabel, "", enabled: false, style: UiStyle.Ghost) with { Detail = CloudSoonCopy });
+        children.Add(Ui.Button("setup-cloud", CloudLabel, "setup-cloud", enabled: false, style: UiStyle.Ghost) with { Detail = CloudSoonCopy });
         children.Add(Ui.Text("setup-cloud-soon", CloudSoonCopy));
         children.Add(Ui.Reference("setup-keys", new(UIVocabulary.ButtonType, dataKey + KeysButton)));
         var detail = !LocalRun(choices) && IsLocalChoice(chatChoice) ? LocalHostedCopy : FirstRunDetail;

@@ -41,6 +41,46 @@ Undo does nothing. One script writes the view; the others only change state.
 The transcript and composer remain durable references, preserving read receipts, drafts and voice state.
 Repeated opens recover the native chat selection and reuse an unchanged view; program revisions replace its generation.
 
+## Scenario: A new chat is listed under its first message
+
+"New chat" (or "new") selects a fresh conversation and lists it as "New chat"; its first message titles it,
+on one line, clipped to 52 characters. The sidebar lists the newest chat first, and the search field filters
+titles literally and case-insensitively; with no match it says `No chats match "{query}".`, with no chats
+`Your chats will appear here.`. A rename (the row's menu, then Save in the modal) survives a restart.
+
+## Scenario: Archive, Undo and Settings' Archived chats
+
+Archiving a chat removes it from the sidebar and shows "Chat archived." with Undo for four seconds; Undo
+lists it again. An archived chat is listed by Settings → Archived chats (`GET /brains/{brainId}/chats?archived=true`),
+whose Unarchive (`POST /brains/{brainId}/chats/{id}/unarchive`) puts it back in the sidebar.
+
+## Scenario: Each chat has its own model
+
+The header's model menu lists "Auto, cheapest model with tools" first, then the catalog's models; one that is
+not available is shown disabled with its reason. A choice is stored for the selected chat only and its turns
+use it; a chat without a choice follows the Model setting, and a Model setting that is not available falls
+back to Auto with a note.
+
+## Scenario: With no usable model, Ino asks how it should run
+
+When nothing in the catalog can answer, Ino shows the card "How should Ino run?" instead of a failed turn: a
+message sent then is kept in the draft and starts no turn. "Add an API key" opens Settings on the API keys tab.
+On a local desktop run (the catalog lists a local model) "On this computer" picks the first available local
+model for the chat; when none is reachable the card offers "Install Ollama" (https://ollama.com/download) and
+Retry, which reads the catalog again. "IntoChat Cloud" is shown as coming soon. A hosted brain never offers
+"On this computer", and a chat whose choice is a local model says local models aren't available there.
+
+## Scenario: Apps appear as cards in the transcript
+
+A message that is a whole workspace link (`#/open?application=calculator`) is posted as an "Open Calculator"
+card with an Open button and reaches neither Jev nor the model. An app that is not installed says
+"Not installed" and offers no install.
+
+## Scenario: Upgrading from 3.1.3 keeps every conversation
+
+Conversations started before the chat index existed are listed when Ino next composes, titled by their first
+user message (else "Untitled"); the selected chat stays selected and no transcript changes.
+
 ## Scenario: The dock is the assistant's toolbar
 
 The manifest's toolbar is a text field for "send" and a mic button for "voice". Submitting the
@@ -209,7 +249,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "3.1.3";
+    public const string Version = "3.2.0";
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
         Description: "Talk to your brain, use its capabilities, and create apps.",
