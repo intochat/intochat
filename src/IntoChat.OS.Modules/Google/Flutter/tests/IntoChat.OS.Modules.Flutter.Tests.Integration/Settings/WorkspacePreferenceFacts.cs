@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Settings;
 using Microsoft.AspNetCore.Http;
@@ -111,16 +110,8 @@ public sealed class WorkspacePreferenceFacts(FlutterHost host)
         Assert.DoesNotContain("notes", Names(body));
     }
 
+    // Desktop.Hidden is ShippedApps.Services too: one list of the OS's own services.
     [Fact]
-    public void HiddenMatchesTheDesktopList()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "features", "os", "Desktop", "Desktop.cs"))) { dir = dir.Parent; }
-        Assert.NotNull(dir);
-        var source = File.ReadAllText(Path.Combine(dir.FullName, "features", "os", "Desktop", "Desktop.cs"));
-        var list = Regex.Match(source, @"Hidden\s*=\s*\[(?<names>[^\]]*)\]").Groups["names"].Value;
-        var desktop = Regex.Matches(list, "\"([^\"]+)\"").Select(m => m.Groups[1].Value);
-
-        Assert.Equal(desktop.Order(), WorkspacePreferenceEndpoints.Hidden.Order());
-    }
+    public void HiddenIsTheShippedServices()
+        => Assert.Equal(ShippedApps.Services.Order(), WorkspacePreferenceEndpoints.Hidden.Order());
 }

@@ -18,9 +18,8 @@ internal static class BrainPreferenceStore
         ("product-updates", false),
     ];
 
-    // Copy of Desktop.Hidden in features/os/Desktop/Desktop.cs: background services and roots never appear
-    // as apps a person can choose. WorkspacePreferenceFacts pins the two lists equal.
-    public static readonly HashSet<string> Hidden = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"];
+    // The OS's own services (ShippedApps.Services, which Desktop.Hidden also is) never appear as apps a person can choose.
+    public static readonly HashSet<string> Hidden = [.. ShippedApps.Services];
 
     public sealed record Choice(string Name, string Title);
 

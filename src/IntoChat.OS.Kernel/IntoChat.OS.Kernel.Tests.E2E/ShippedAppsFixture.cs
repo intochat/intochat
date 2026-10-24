@@ -24,7 +24,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     // The layout the page last mounted per scope: switching stores the desktop's layout text and reloads.
     private readonly Dictionary<string, string> _layouts = new(StringComparer.Ordinal);
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
-    // Desktop.Hidden: background services the desktop shows in no window; v1 still shows them.
+    // ShippedApps.Services (Desktop.Hidden) without the desktop and workspace: background services the desktop
+    // shows in no window; v1 still shows them.
     public static readonly HashSet<string> ClassicOnly = new(["router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
     public string Scope => _circle ?? Person.BrainId;
     public void EnsureUsable() => Assert.True(_unusable is null, $"The shared app fixture could not retire its previous case: {_unusable}");

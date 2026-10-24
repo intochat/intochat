@@ -387,12 +387,34 @@ public sealed class UnifiedInstallFacts
         await using var brain = await Start();
         await Publish(brain, await brain.PersonAsync("intochat", Ct), Needs);
         var owner = brain.Owner;
+        // As in a brain whose authority has recorded no Owner member yet: only the Open posture's rule makes "owner" its owner.
+        var unrecorded = UnrecordedMembers.Over(Identity(brain));
+        Assert.Null(await unrecorded.Membership(owner.BrainId, owner.PrincipalId));
+        var installer = ActivatorUtilities.CreateInstance<AppInstaller>(brain.Services, unrecorded);
 
         using var _ = owner.AsCaller();
-        var outcome = await Installer(brain).Install(Latest(AppConsent.Of(Needs)), Ct);
+        var outcome = await installer.Install(Latest(AppConsent.Of(Needs)), Ct);
 
         Assert.Equal(InstallStatus.Ok, outcome.Status);
         Assert.Equal(["person.birthDate", "person.email"], await Granted(brain, owner));
+    }
+
+    // The identity authority with no membership recorded for anyone; every other answer is the real one.
+    public class UnrecordedMembers : System.Reflection.DispatchProxy
+    {
+        private IIdentityClient _inner = null!;
+
+        public static IIdentityClient Over(IIdentityClient inner)
+        {
+            var proxy = Create<IIdentityClient, UnrecordedMembers>();
+            ((UnrecordedMembers)(object)proxy)._inner = inner;
+            return proxy;
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+            => targetMethod!.Name == nameof(IIdentityClient.Membership)
+                ? Task.FromResult<Member?>(null)
+                : targetMethod.Invoke(_inner, args);
     }
 
     // Binding a connection hands the app the brain's account: only the owner binds, and only a live connection.
