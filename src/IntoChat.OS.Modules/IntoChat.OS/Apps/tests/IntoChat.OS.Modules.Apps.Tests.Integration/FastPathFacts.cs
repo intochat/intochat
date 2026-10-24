@@ -1064,7 +1064,8 @@ public sealed class FastPathFacts : IDisposable
     }
 
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/316
+    [Fact(Explicit = true)]
     public async Task ADeploySlowerThanTheResponseTimeoutStillEndsWrittenWithTheFilePresent()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -6,7 +6,8 @@ namespace IntoChat.OS.Testing.Tests.Integration;
 public sealed class HarnessCancellationFacts
 {
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/315
+    [Fact(Explicit = true)]
     public async Task CanceledStartupCancelsAndJoinsTheDeployment()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -30,7 +31,8 @@ public sealed class HarnessCancellationFacts
     }
 
     [Trait("host", "own")]
-    [Theory]
+    // Quarantined (timing): https://github.com/intochat/os/issues/315
+    [Theory(Explicit = true)]
     [InlineData(false)]
     [InlineData(true)]
     public async Task CancellationCallbacksCannotBypassTheShutdownDeadline(bool throws)

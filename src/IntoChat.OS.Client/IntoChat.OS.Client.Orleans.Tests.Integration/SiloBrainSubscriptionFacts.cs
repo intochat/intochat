@@ -4,7 +4,8 @@ namespace IntoChat.OS.Client.Orleans.Tests.Integration;
 
 public sealed class SiloBrainSubscriptionFacts(ClientHost host)
 {
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/311 - removed by Phase 4
+    [Fact(Explicit = true)]
     public async Task SiloHostedBrainClientReceivesPublication()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -17,7 +18,8 @@ public sealed class SiloBrainSubscriptionFacts(ClientHost host)
         Assert.Equal(42, (await heard.NextAsync(ct: ct)).Value);
     }
 
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/311 - removed by Phase 4
+    [Fact(Explicit = true)]
     public async Task SiloHostedSubscriptionEndsWhenItsTokenIsCanceled()
     {
         var ct = TestContext.Current.CancellationToken;

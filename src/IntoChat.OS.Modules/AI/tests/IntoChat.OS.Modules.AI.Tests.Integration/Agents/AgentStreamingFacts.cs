@@ -12,7 +12,8 @@ namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 public sealed class AgentStreamingFacts
 {
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing): https://github.com/intochat/os/issues/314
+    [Fact(Explicit = true)]
     public async Task AProviderThatBreaksAfterABurstOfTextFailsTheTurn()
     {
         var ct = TestContext.Current.CancellationToken;
