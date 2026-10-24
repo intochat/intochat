@@ -564,6 +564,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
               loadIcon: _icon,
               menu: _menu(),
               onSettings: () => unawaited(_activate({'kind': 'settings'})),
+              entries: (brain) =>
+                  EntriesClient(widget.programmingClient!, brain),
+              localPreferences: _localPreferences,
             ),
     ),
   );

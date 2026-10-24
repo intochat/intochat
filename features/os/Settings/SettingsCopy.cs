@@ -15,6 +15,8 @@ public static class SettingsCopy
     public const string SaveFailed = "Could not save that change.";
     public const string ChatRestored = "Chat restored.";
     public const string LinkCopied = "Link copied.";
+    public const string ListChanged = "This list changed. Try again.";
+    public const string OpenFailed = "Settings could not load. Reopen Settings to try again.";
 
     public const string Billing = "Billing · Later";
     public const string Variables = "Variables and secrets";

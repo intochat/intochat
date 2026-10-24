@@ -29,6 +29,26 @@ public static class Settings
     public static string Scope(IntoChatOSConnection brain)
         => brain.Setting("Brain") is { Length: > 0 } scope ? scope : Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
     public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/view-state");
+    // Private to the app, never in the tree: the chat ids behind the archived rows last published, by view generation.
+    public static IText ArchivedPage(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/archived-page");
+
+    public sealed record PageRecord(long Generation, string[] Ids);
+
+    public static string ArchivedPageJson(long generation, string[] ids) => JsonSerializer.Serialize(new PageRecord(generation, ids), Json);
+
+    public static async Task RecordArchivedPage(IText page, long generation, string[] ids)
+    {
+        var json = ArchivedPageJson(generation, ids);
+        if ((await page.Read()).Markdown != json) { await page.Set(json); }
+    }
+
+    public static async Task<PageRecord?> ReadArchivedPage(IText page)
+    {
+        var stored = (await page.Read()).Markdown;
+        if (stored is not { Length: > 0 }) { return null; }
+        try { return JsonSerializer.Deserialize<PageRecord>(stored, Json); }
+        catch (JsonException) { return null; }
+    }
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
     // Unarchive is a write on the person's behalf: only the Settings the OS ships, unedited, may make it.
@@ -38,10 +58,12 @@ public static class Settings
     public static string ChatIndexKey(string brain, AppSnapshot ino)
         => (ino.Settings.GetValueOrDefault("ChatDataApp") is { Length: > 0 } data ? data : IApp.Key(brain, "ino")) + "/chats";
 
-    // Delete account opens the account page on the host's public origin; without one there is nowhere to send the person.
+    // Delete account opens the account page on the host's public origin: https, or http on loopback only, rebuilt
+    // from scheme, host and port (no user info). Without one there is nowhere to send the person.
     public static string? DeleteActivation(string? publicOrigin)
-        => Uri.TryCreate(publicOrigin, UriKind.Absolute, out var origin) && origin.Scheme is "https" or "http"
-            ? JsonSerializer.Serialize(new { url = origin.GetLeftPart(UriPartial.Authority) + "/account/profile" })
+        => Uri.TryCreate(publicOrigin, UriKind.Absolute, out var origin)
+            && (origin.Scheme == Uri.UriSchemeHttps || (origin.Scheme == Uri.UriSchemeHttp && origin.IsLoopback))
+            ? JsonSerializer.Serialize(new { url = origin.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped) + "/account/profile" })
             : null;
 
     public static async Task ArmDelete(IButton button, string? publicOrigin)
@@ -158,7 +180,7 @@ public static class Settings
         => brain.Get<IChatIndex>(ChatIndexKey(Scope(brain), await brain.Get<IApp>(IApp.Key(Scope(brain), "ino")).Read()));
 
     public static SettingsCommands Commands(IntoChatOSConnection brain)
-        => new(ViewState(brain), () => brain.Get<IApp>(Key(brain)).Read(), () => Index(brain));
+        => new(ViewState(brain), ArchivedPage(brain), () => brain.Get<IApp>(Key(brain)).Read(), () => Index(brain));
 
     // The preference controls the view references, by name under {app}/pref/.
     public static IEnumerable<(string Name, PreferenceSpec Spec)> Preferences()
@@ -210,7 +232,12 @@ public static class Settings
     {
         var app = Key(brain);
         var state = await ReadState(ViewState(brain));
-        var model = await Model(app, state, Sources(brain));
+        var sources = Sources(brain);
+        ChatIndexPage? shown = null;
+        var model = await Model(app, state, sources with { Archived = async (skip, take) => shown = await sources.Archived(skip, take) });
+        // Recorded before the publish, so a click on these rows resolves to these ids.
+        if (shown is not null)
+        { await RecordArchivedPage(ArchivedPage(brain), Revision(brain), [.. shown.Entries.Take(SettingsView.ArchivedPage).Select(entry => entry.Id)]); }
         if (state.Tab == "models")
         {
             await Configure(brain.Get<IPreferenceControl>(app + "/pref/default-model"),
@@ -233,12 +260,13 @@ public static class Settings
 
 // The view's own actions as state changes. Each returns null for an action it does not own (copy: and older
 // clients' actions among them), so a handler skips it.
-public sealed class SettingsCommands(IText viewState, Func<Task<AppSnapshot>> self, Func<Task<IChatIndex>> index)
+public sealed class SettingsCommands(IText viewState, IText archivedPage, Func<Task<AppSnapshot>> self, Func<Task<IChatIndex>> index)
 {
     public static Task Open(IText viewState, string? tab)
         => Settings.UpdateState(viewState, state => state with { Tab = SettingsTabs.Id(tab), ConfirmDelete = false, Toast = null });
 
-    public Func<Task>? Command(string action)
+    // generation is the clicked view's (ViewAction.Generation); unarchive resolves its row only against that render.
+    public Func<Task>? Command(string action, long generation = 0)
     {
         var at = action.IndexOf(':', StringComparison.Ordinal);
         var (verb, argument) = at < 0 ? (action, "") : (action[..at], action[(at + 1)..]);
@@ -250,22 +278,26 @@ public sealed class SettingsCommands(IText viewState, Func<Task<AppSnapshot>> se
             "delete" when at < 0 => () => Update(state => state with { ConfirmDelete = true, Toast = null }),
             "delete-cancel" when at < 0 => () => Update(state => state with { ConfirmDelete = false }),
             "unarchive" when int.TryParse(argument, NumberStyles.None, CultureInfo.InvariantCulture, out var row) && row < SettingsView.ArchivedPage
-                => () => Unarchive(row),
+                => () => Unarchive(row, generation),
             _ => null,
         };
     }
 
     private Task Update(Func<SettingsViewState, SettingsViewState> change) => Settings.UpdateState(viewState, change);
 
-    // The row index names the chat on the page the view shows; a stale index past it changes nothing.
-    private async Task Unarchive(int row)
+    // The row index names the chat the person saw: the id recorded for that render. Another render's click, or an
+    // index past the page, is refused with a toast. Unarchiving an already active chat is harmless.
+    private async Task Unarchive(int row, long generation)
     {
         if (!Settings.MayWrite(await self())) { return; }
-        var state = await Settings.ReadState(viewState);
         var chats = await index();
-        var page = await chats.List(true, Settings.ArchivedSkip(state), SettingsView.ArchivedPage);
-        if (row >= page.Entries.Length) { return; }
-        await chats.Unarchive(page.Entries[row].Id);
+        if (await Settings.ReadArchivedPage(archivedPage) is not { } page || page.Generation != generation || row >= page.Ids.Length
+            || await chats.Get(page.Ids[row]) is null)
+        {
+            await Update(current => current with { Toast = SettingsCopy.ListChanged });
+            return;
+        }
+        await chats.Unarchive(page.Ids[row]);
         await Update(current => current with { Toast = SettingsCopy.ChatRestored });
     }
 }

@@ -62,6 +62,25 @@ public sealed class AppRuntimeFacts
         Assert.Equal([IApp.Key("runtime-facts", "tracker")], runtime.Retired);
     }
 
+    // Settings opens the account page and Apps builds share links on the host's public origin; unset is empty.
+    [Trait("host", "own")]
+    [Theory]
+    [InlineData("https://os.example.test/", "https://os.example.test/")]
+    [InlineData(null, "")]
+    public async Task ScriptsReadTheHostsPublicOrigin(string? configured, string expected)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeAppRuntime();
+        var builder = TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(runtime);
+        if (configured is not null) { builder = builder.WithConfiguration("IntoChatOS:Connections:PublicOrigin", configured); }
+        await using var brain = await builder.StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key("runtime-facts", "origin"));
+        await app.Create(new("Origin", "reads the origin", [new("ask", "ask")], [], []), "spec");
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/a.cs"] = "// a" }, null);
+        Assert.Equal(expected, Assert.Single(runtime.Deployed).Configuration["PublicOrigin"]);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task EveryProgramOrSettingChangeRedeploysTheWholeProgram()

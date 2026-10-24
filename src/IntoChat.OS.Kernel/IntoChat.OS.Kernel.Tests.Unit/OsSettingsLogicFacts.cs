@@ -19,14 +19,20 @@ public sealed class OsSettingsLogicFacts
     private static AppSnapshot Self(bool edited = false) => new("settings", new("Settings", "Settings", [], [], []), "", [], [], [], "2.0.0",
         AppStatus.Live, [], [], Origin: new("os", new AppSource.Shipped(), "settings", "2.0.0"), Edited: edited);
 
-    private static (SettingsCommands Commands, FakeText State, FakeIndex Index) World(bool edited = false)
+    private const long Generation = 7;
+
+    private static (SettingsCommands Commands, FakeText State, FakeIndex Index, FakeText Page) World(bool edited = false)
     {
         var state = new FakeText();
+        var page = new FakeText();
         var index = new FakeIndex();
         index.Add("c-1", "Trip to Lisbon", Now.AddHours(-1), archived: true);
         index.Add("c-2", "Groceries", Now.AddHours(-2), archived: true);
-        return (new SettingsCommands(state, () => Task.FromResult(Self(edited)), () => Task.FromResult<IChatIndex>(index)), state, index);
+        return (new SettingsCommands(state, page, () => Task.FromResult(Self(edited)), () => Task.FromResult<IChatIndex>(index)), state, index, page);
     }
+
+    // What Show records when it renders the archived tab: the ids behind the rows, by view generation.
+    private static Task Rendered(FakeText page, params string[] ids) => Settings.RecordArchivedPage(page, Generation, ids);
 
     [Theory]
     [InlineData("keys", "keys")]
@@ -35,7 +41,7 @@ public sealed class OsSettingsLogicFacts
     [InlineData("archived", "archived")]
     public async Task OpenWithATabInputSelectsThatTab(string input, string tab)
     {
-        var (commands, state, _) = World();
+        var (commands, state, _, _) = World();
         await commands.Command("tab:danger")!();
         await commands.Command("delete")!();
         await SettingsCommands.Open(state, input);
@@ -47,23 +53,60 @@ public sealed class OsSettingsLogicFacts
     [Fact]
     public async Task UnarchiveRestoresTheRowAndToastsChatRestored()
     {
-        var (commands, state, index) = World();
+        var (commands, state, index, page) = World();
         await commands.Command("tab:archived")!();
-        await commands.Command("unarchive:1")!();
+        await Rendered(page, "c-1", "c-2");
+        await commands.Command("unarchive:1", Generation)!();
         Assert.False(index.Entries["c-2"].Archived);
         Assert.True(index.Entries["c-1"].Archived);
         Assert.Equal(SettingsCopy.ChatRestored, (await Settings.ReadState(state)).Toast);
         // A row index past the page is a stale click.
-        await commands.Command("unarchive:9")!();
+        await commands.Command("unarchive:9", Generation)!();
         Assert.True(index.Entries["c-1"].Archived);
+    }
+
+    // The ruling: unarchive restores exactly the chat the person saw, or nothing.
+    [Fact]
+    public async Task AListThatChangedBetweenRenderAndClickRestoresTheChatShown()
+    {
+        var (commands, state, index, page) = World();
+        await Rendered(page, "c-1", "c-2");
+        // c-0 is archived after the render: it now sits at row 0 of the page.
+        index.Add("c-0", "New one", Now, archived: true);
+        await commands.Command("unarchive:0", Generation)!();
+        Assert.True(index.Entries["c-0"].Archived);
+        Assert.False(index.Entries["c-1"].Archived);
+        Assert.Equal(SettingsCopy.ChatRestored, (await Settings.ReadState(state)).Toast);
+    }
+
+    [Fact]
+    public async Task AStaleGenerationIsRefused()
+    {
+        var (commands, state, index, page) = World();
+        await Rendered(page, "c-1", "c-2");
+        await commands.Command("unarchive:0", Generation - 1)!();
+        Assert.True(index.Entries["c-1"].Archived);
+        Assert.Equal(SettingsCopy.ListChanged, (await Settings.ReadState(state)).Toast);
+        // Nothing rendered yet: refused too.
+        var (fresh, freshState, freshIndex, _) = World();
+        await fresh.Command("unarchive:0", Generation)!();
+        Assert.True(freshIndex.Entries["c-1"].Archived);
+        Assert.Equal(SettingsCopy.ListChanged, (await Settings.ReadState(freshState)).Toast);
+    }
+
+    [Fact]
+    public void ThePageRecordHoldsNoTitles()
+    {
+        Assert.DoesNotContain("Trip", Settings.ArchivedPageJson(Generation, ["c-1"]), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task AnEditedSettingsWritesNothing()
     {
-        var (commands, state, index) = World(edited: true);
+        var (commands, state, index, page) = World(edited: true);
+        await Rendered(page, "c-1", "c-2");
         var before = (await state.Read()).Version;
-        await commands.Command("unarchive:0")!();
+        await commands.Command("unarchive:0", Generation)!();
         Assert.True(index.Entries["c-1"].Archived);
         Assert.True(index.Entries["c-2"].Archived);
         Assert.Equal(before, (await state.Read()).Version);
@@ -74,7 +117,7 @@ public sealed class OsSettingsLogicFacts
     [Fact]
     public async Task UnknownAndCopyActionsAreIgnored()
     {
-        var (commands, _, _) = World();
+        var (commands, _, _, _) = World();
         Assert.Null(commands.Command("copy:https://example.test/x"));
         Assert.Null(commands.Command("tab:billing"));
         Assert.Null(commands.Command("refresh"));
@@ -114,10 +157,19 @@ public sealed class OsSettingsLogicFacts
     }
 
     [Theory]
+    [InlineData("https://user:pw@os.example.test:8443/x?y#z", "https://os.example.test:8443/account/profile")]
+    [InlineData("http://localhost:5000", "http://localhost:5000/account/profile")]
+    [InlineData("http://127.0.0.1:5000/", "http://127.0.0.1:5000/account/profile")]
+    public void TheAccountLinkIsRebuiltFromSchemeHostAndPort(string origin, string url)
+        => Assert.Equal(url, JsonDocument.Parse(Settings.DeleteActivation(origin)!).RootElement.GetProperty("url").GetString());
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not a url")]
     [InlineData("javascript:alert(1)")]
+    [InlineData("http://os.example.test")]
+    [InlineData("ftp://os.example.test")]
     public async Task NoPublicOriginDisablesDeleteAccount(string? origin)
     {
         Assert.Null(Settings.DeleteActivation(origin));

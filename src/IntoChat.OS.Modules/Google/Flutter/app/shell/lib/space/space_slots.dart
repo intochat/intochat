@@ -13,6 +13,8 @@ class SideSlot extends StatelessWidget {
     this.onAction,
     this.onActivate,
     this.scenes,
+    this.entries,
+    this.localPreferences,
   });
   final UiChildRef reference;
   final NeuronLoader load;
@@ -20,6 +22,8 @@ class SideSlot extends StatelessWidget {
   final Future<void> Function(Map<String, dynamic>)? onAction;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final SceneClient? scenes;
+  final EntriesClient Function(String brainId)? entries;
+  final LocalPreferences? localPreferences;
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 320,
@@ -32,6 +36,8 @@ class SideSlot extends StatelessWidget {
         onAction: onAction,
         onActivate: onActivate,
         scenes: scenes,
+        entries: entries,
+        localPreferences: localPreferences,
       ),
     ),
   );
@@ -47,6 +53,8 @@ class MainSlot extends StatelessWidget {
     this.onAction,
     this.onActivate,
     this.scenes,
+    this.entries,
+    this.localPreferences,
   });
   final UiChildRef? reference;
   final NeuronLoader load;
@@ -55,6 +63,8 @@ class MainSlot extends StatelessWidget {
   final Future<void> Function(Map<String, dynamic>)? onAction;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final SceneClient? scenes;
+  final EntriesClient Function(String brainId)? entries;
+  final LocalPreferences? localPreferences;
   @override
   Widget build(BuildContext context) => UiSurface(
     child: error != null
@@ -69,6 +79,8 @@ class MainSlot extends StatelessWidget {
             onAction: onAction,
             onActivate: onActivate,
             scenes: scenes,
+            entries: entries,
+            localPreferences: localPreferences,
           ),
   );
 }

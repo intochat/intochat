@@ -2,16 +2,14 @@ using IntoChat.OS.Client;
 using IntoChat.OS.Flutter.Views;
 
 // `unarchive:<i>` restores row i of the archived page and toasts "Chat restored." Only the unedited shipped
-// Settings writes (SettingsCommands checks Settings.MayWrite). Each click is handled once, so a redelivery
-// never restores the row that moved up into its place.
+// Settings writes (SettingsCommands checks Settings.MayWrite). The row resolves to the chat id recorded for the
+// clicked render ({app}/archived-page), so a redelivery restores the same chat again, which is harmless.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var commands = Settings.Commands(brain);
-var handled = new HashSet<Guid>();
 await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Settings.Key(brain) + "/view"), brain.Stopping))
 {
-    if (!clicked.Action.StartsWith("unarchive:", StringComparison.Ordinal) || !handled.Add(clicked.RequestId)
-        || commands.Command(clicked.Action) is not { } command) { continue; }
-    if (handled.Count > 256) { handled.Clear(); handled.Add(clicked.RequestId); }
+    if (!clicked.Action.StartsWith("unarchive:", StringComparison.Ordinal)
+        || commands.Command(clicked.Action, clicked.Generation) is not { } command) { continue; }
     try { await command(); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {

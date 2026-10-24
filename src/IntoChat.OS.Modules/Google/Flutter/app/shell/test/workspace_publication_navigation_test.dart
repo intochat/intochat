@@ -71,4 +71,39 @@ void main() {
       },
     );
   }
+  // A settings activation names a brain: membership is checked before switching, as for any other.
+  for (final allowed in [false, true]) {
+    testWidgets('settings activation checks brain membership $allowed', (
+      tester,
+    ) async {
+      final f = await ApplicationFixture.start(
+        tester,
+        server: ApplicationServer()..allowed = allowed,
+      );
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        'kind': 'settings',
+        'brainId': 'circle-test',
+        'tab': 'keys',
+      });
+      await tester.pumpAndSettle();
+      final settings = f.server.requestsTo(
+        '/brains/circle-test/apps/settings/request',
+      );
+      if (allowed) {
+        expect(f.space.brain, 'circle-test');
+        expect(settings.single.body, {'operation': 'open', 'input': 'keys'});
+      } else {
+        expect(f.space.brain, f.brainId);
+        expect(
+          f.server.requests.any(
+            (r) => r.path.startsWith('/brains/circle-test/'),
+          ),
+          isFalse,
+        );
+        expect(find.textContaining('not a member'), findsOneWidget);
+        await tester.pump(kitToastLifetime);
+      }
+      await f.dispose();
+    });
+  }
 }

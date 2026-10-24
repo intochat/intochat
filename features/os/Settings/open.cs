@@ -37,7 +37,16 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         }));
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { Console.Error.WriteLine("Settings could not open: " + error.GetType().Name); }
+    {
+        Console.Error.WriteLine("Settings could not open: " + error.GetType().Name);
+        // Generic copy only, never the error text.
+        try
+        {
+            await Settings.UpdateState(Settings.ViewState(brain), state => state with { Toast = SettingsCopy.OpenFailed });
+            await Settings.Show(brain);
+        }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
 }
 
 async Task Compose()
