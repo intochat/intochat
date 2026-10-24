@@ -1,3 +1,4 @@
+using IntoChat.OS.AI.Agents;
 using IntoChat.OS.AI.Routing;
 using IntoChat.OS.Apps;
 
@@ -15,6 +16,14 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
     if (await router.Pending(request.RequestId, brain.Stopping) is not null) { await ledger.Record(request.RequestId); continue; }
     if (string.IsNullOrWhiteSpace(request.Input) || request.Input.Length > 32000) { await ledger.Record(request.RequestId); continue; }
     await Ino.Advance(brain, "listening", "Heard you");
+    // A pasted workspace link is an app card, never a turn: neither Jev nor the model sees it.
+    if (InoLinks.Parse(request.Input) is not null)
+    {
+        try { await InoLinks.PostCard(brain.Get<IAgent>((await Ino.EnsureSelection(brain)).Agent), request.Input, request.RequestId); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.LinkFailed, error)); }
+        await ledger.Record(request.RequestId);
+        continue;
+    }
     await Ino.Touched(brain, (await Ino.EnsureSelection(brain)).Agent, request.Input);
     if (request.Input.Length > Ino.MaxRoutedChars)
     {

@@ -9,6 +9,8 @@ public static class InoLayout
     public const double NarrowBreakpoint = 900;
     public const double HeaderHeight = 48;
     public const double ComposerHeight = 152;
+    // The search field's slot: the kit field is 48 high inside a 4 px inset, so a 40 px slot overflowed.
+    public const double SearchHeight = 56;
 
     // The first-run card's slot: the renderer has no auto-height slot, so it is sized for its tallest form.
     public const double FirstRunHeight = 340;

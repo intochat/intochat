@@ -30,7 +30,7 @@ public static class InoView
             Ui.Button("new", "New chat", "new", style: UiStyle.Primary, icon: "plus"),
             Ui.Reference("search", new(UIVocabulary.TextFieldType, appKey + "/chat-search")),
             history,
-        ], extents: [40, 40, 0]);
+        ], extents: [40, InoLayout.SearchHeight, 0]);
     }
 
     private static UiNode Row(ChatIndexEntry chat, int i, bool selected) => Ui.Row("chat-" + i,

@@ -3,6 +3,10 @@
 public static class InoCopy
 {
     public const string TurnFailed = "Ino couldn't answer. Try again.";
+    // The transcript's copy is drawn by the Flutter chat renderer (app/ui/lib/src/chat/chat_copy.dart), pinned to
+    // these by OsInoLinkFacts.TheChatRendererUsesInoCopy.
+    public const string EmptyTranscript = "Ask Ino anything, or open an app from the dock.";
+    public const string AppNotInstalled = "Not installed";
     public const string StartFailed = "Couldn't start the answer. Try again.";
     public const string NewChatFailed = "Couldn't start a new chat. Try again.";
     public const string OpenFailed = "Couldn't open Ino. Try again.";
@@ -18,6 +22,9 @@ public static class InoCopy
     public const string RouterFailed = "Jev couldn't carry it out; asking the model.";
     public const string BriefFailed = "Couldn't follow Memory's brief.";
     public const string ReviewCountFailed = "Couldn't check Memory's review count.";
+    // Posted with a pasted workspace link's app card. It is the only text the model later reads for that entry.
+    public const string LinkPosted = "Here's the app from your link.";
+    public const string LinkFailed = "Couldn't show the app from your link. Try again.";
     public const string CaptureFailed = "Memory couldn't capture this conversation yet. It will try again.";
 
     // intended.cs clears its own scan notice after a healthy scan by this prefix (the older "...; retrying: <detail>"
@@ -29,7 +36,7 @@ public static class InoCopy
     [
         TurnFailed, StartFailed, NewChatFailed, OpenFailed, StopFailed, DeliveryUnconfirmed, EarlierAttemptFailed,
         ChatUpdateFailed, ModelChangeFailed, SetupFailed, MakeFailed, VoiceFailed, RouterUnavailable, RouterFailed,
-        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure,
+        BriefFailed, ReviewCountFailed, CaptureFailed, ScanFailure, LinkFailed,
     ];
 
     public static string RouteNotCarried(string chosen) => "Jev chose " + chosen + " but couldn't carry it out.";

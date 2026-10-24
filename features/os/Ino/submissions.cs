@@ -39,6 +39,13 @@ async Task Reconcile()
                     await composer.Settle(request.Id, "A response is already running. Your draft is saved; send it when the response finishes.");
                     continue;
                 }
+                // A message that is a workspace link becomes an app card: no turn, and the link never reaches the model.
+                if (await InoLinks.PostCard(agent, request.Text, request.Id))
+                {
+                    await Ino.Status(brain, "");
+                    await composer.Settle(request.Id);
+                    continue;
+                }
                 var snapshot = await app.Read();
                 // A chat's own unavailable choice (or "auto" with no model) starts no turn; the draft stays.
                 var resolved = await Ino.TurnModel(brain, snapshot, request.Context);

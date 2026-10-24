@@ -57,10 +57,10 @@ void main() {
       tester.view.physicalSize = const Size(360, 100);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Send'));
+      await tester.ensureVisible(find.byTooltip('Send'));
       await tester.pumpAndSettle();
-      expect(find.text('Send').hitTestable(), findsOneWidget);
-      await tester.tap(find.text('Send'));
+      expect(find.byTooltip('Send').hitTestable(), findsOneWidget);
+      await tester.tap(find.byTooltip('Send'));
       await tester.pumpAndSettle();
       expect(events.last['value'], 'Keep this draft');
       tester.view.physicalSize = const Size(360, 500);

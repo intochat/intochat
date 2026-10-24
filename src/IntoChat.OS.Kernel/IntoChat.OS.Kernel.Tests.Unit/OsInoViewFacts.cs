@@ -31,7 +31,7 @@ public sealed class OsInoViewFacts
         Assert.Equal(new[] { InoLayout.SidebarWidth, 0 }, root.Extents);
         Assert.Equal(0, root.Gap);
         var sidebar = root.Children[0];
-        Assert.Equal(new double[] { 40, 40, 0 }, sidebar.Extents);
+        Assert.Equal(new double[] { 40, InoLayout.SearchHeight, 0 }, sidebar.Extents);
         var add = sidebar.Children[0];
         Assert.Equal((UiStyle.Primary, "plus", "New chat", "new"), (add.Style, add.Icon!, add.Text!, add.Action!));
         Assert.Equal(new UiChildRef(UIVocabulary.TextFieldType, App + "/chat-search"), sidebar.Children[1].Reference);
