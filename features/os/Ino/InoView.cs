@@ -4,7 +4,7 @@ using IntoChat.OS.Flutter.Views;
 
 // What the surface shows besides its durable references. Chats are the unarchived index entries.
 public sealed record InoViewModel(IReadOnlyList<ChatIndexEntry> Chats, string SelectedId, string Query,
-    UiNode? ModelMenu = null, string? RenamingId = null, string? Toast = null, string? UndoId = null);
+    UiNode? ModelMenu = null, string? RenamingId = null, string? Toast = null, string? UndoId = null, UiNode? FirstRun = null);
 
 // Pure composition: durable references retain their public contracts and local UI identity. Node keys use
 // row indexes, never chat ids; ids travel only in button actions.
@@ -58,12 +58,11 @@ public static class InoView
         var header = model.ModelMenu is { } menu
             ? Ui.Row("header", [status, menu], extents: [0, 160])
             : Ui.Row("header", [status], extents: [0]);
-        return Ui.Column("main",
-        [
-            header,
-            Ui.Reference("transcript", new(UIVocabulary.ChatType, appKey + "/transcript")),
-            Ui.Reference("composer", new(UIVocabulary.ComposerType, appKey + "/composer")),
-        ], extents: [InoLayout.HeaderHeight, 0, InoLayout.ComposerHeight]);
+        var transcript = Ui.Reference("transcript", new(UIVocabulary.ChatType, appKey + "/transcript"));
+        var composer = Ui.Reference("composer", new(UIVocabulary.ComposerType, appKey + "/composer"));
+        return model.FirstRun is { } card
+            ? Ui.Column("main", [header, card, transcript, composer], extents: [InoLayout.HeaderHeight, InoLayout.FirstRunHeight, 0, InoLayout.ComposerHeight])
+            : Ui.Column("main", [header, transcript, composer], extents: [InoLayout.HeaderHeight, 0, InoLayout.ComposerHeight]);
     }
 
     private static UiNode Rename(string appKey) => Ui.Modal("rename", "Rename chat", null,

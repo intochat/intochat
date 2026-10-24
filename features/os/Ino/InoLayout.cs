@@ -10,6 +10,9 @@ public static class InoLayout
     public const double HeaderHeight = 48;
     public const double ComposerHeight = 152;
 
+    // The first-run card's slot: the renderer has no auto-height slot, so it is sized for its tallest form.
+    public const double FirstRunHeight = 340;
+
     // An overlay (modal, toast) draws above the surface; its layout slot is a hairline.
     public const double OverlayExtent = 1;
 

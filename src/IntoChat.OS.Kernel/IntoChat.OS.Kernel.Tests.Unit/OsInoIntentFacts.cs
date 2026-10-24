@@ -56,6 +56,7 @@ public sealed class OsInoIntentFacts
     [InlineData(AnswerOutcome.Started, true)]
     [InlineData(AnswerOutcome.KeptInDraft, true)]
     [InlineData(AnswerOutcome.Failed, false)]
+    [InlineData(AnswerOutcome.NoModel, true)]
     public void OnlyAFailedAnswerReleasesTheClaim(AnswerOutcome outcome, bool kept)
         => Assert.Equal(kept, PendingStore.KeepsClaim(outcome));
 

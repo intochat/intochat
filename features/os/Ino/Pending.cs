@@ -146,7 +146,7 @@ public static class PendingStore
         => text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => Guid.TryParse(line, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty);
 }
 
-// NoModel: nothing can answer (no usable model); Task 5's first-run card takes over.
+// NoModel: nothing can answer (no usable model); the first-run card shows, no turn starts, the claim is kept.
 public enum AnswerOutcome { Started, KeptInDraft, Failed, NoModel }
 
 public enum MemoryAnswer { None, Ok, Failed }

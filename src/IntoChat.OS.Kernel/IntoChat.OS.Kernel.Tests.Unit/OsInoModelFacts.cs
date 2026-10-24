@@ -1,5 +1,6 @@
 using IntoChat.OS;
 using IntoChat.OS.AI.Models;
+using IntoChat.OS.Flutter;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Views;
@@ -120,6 +121,110 @@ public sealed class OsInoModelFacts
         Assert.True(await InoModels.Choose(catalog, index, status, Chat, "model:profile:fast"));
         Assert.Equal("profile:fast", index.Choice);
         Assert.Equal("", (await status.Read()).Markdown);
+    }
+
+    private const string Data = "b1/apps/ino-data";
+
+    private static ModelChoices Nothing(params ModelChoice[] models) => new(
+        new ModelChoice(null, "Automatic", null, null, false, []) { Reason = "No model with tools" }, models);
+
+    private static ModelChoice Local(bool available, string id = "preset:IQwen35")
+        => new(id, "qwen3.5:4b", "Ollama", "qwen3.5:4b", available, ["Tools"]) { Reason = available ? null : "Ollama is not reachable" };
+
+    private static string[] Keys(UiNode card) => [.. card.Children.Select(child => child.Key)];
+
+    [Fact]
+    public void NoUsableModelShowsTheFirstRunCard()
+    {
+        Assert.True(InoModels.NoneUsable(Nothing()));
+        var card = InoModels.FirstRun(Nothing(), null, "", Data)!;
+        Assert.Equal((UiNodeKind.Card, "first-run", "How should Ino run?"), (card.Kind, card.Key, card.Text!));
+        Assert.Equal(["setup-cloud", "setup-cloud-soon", "setup-keys"], Keys(card));
+        var cloud = card.Children[0];
+        Assert.Equal(("IntoChat Cloud", false), (cloud.Text!, cloud.Enabled));
+        Assert.Equal("Coming soon", card.Children[1].Text);
+        Assert.Equal(new UiChildRef("button", Data + "/setup-keys"), card.Children[2].Reference);
+    }
+
+    [Fact]
+    public void AddAnApiKeyOpensSettingsOnTheKeysTab()
+    {
+        Assert.Equal("""{"kind":"settings","brainId":"b1","tab":"keys"}""", InoModels.KeysActivation("b1"));
+        Assert.Equal("""{"url":"https://ollama.com/download"}""", InoModels.InstallOllamaActivation);
+    }
+
+    [Fact]
+    public void TheLocalOptionShowsOnlyOnALocalRun()
+    {
+        // A reachable local model makes Auto usable: no card.
+        Assert.Null(InoModels.FirstRun(new(new ModelChoice(null, "Automatic", "Ollama", "qwen3.5:4b", true, ["Tools"]), [Local(true)]), null, "", Data));
+        var card = InoModels.FirstRun(Nothing(Local(false)), null, "", Data)!;
+        Assert.Equal(["setup-local-missing", "install-ollama", "setup-retry", "setup-cloud", "setup-cloud-soon", "setup-keys"], Keys(card));
+        Assert.Equal(new UiChildRef("button", Data + "/install-ollama"), card.Children[1].Reference);
+        Assert.Equal(("Retry", "setup-retry"), (card.Children[2].Text!, card.Children[2].Action!));
+        Assert.DoesNotContain("setup-local", Keys(InoModels.FirstRun(Nothing(), null, "", Data)!));
+    }
+
+    [Fact]
+    public void ExplicitAutoWithAnAvailableLocalModelOffersOnThisComputer()
+    {
+        var card = InoModels.FirstRun(Nothing(Local(true)), "auto", "", Data)!;
+        var local = card.Children[0];
+        Assert.Equal(("setup-local", "On this computer", "setup-local", UiStyle.Primary), (local.Key, local.Text!, local.Action!, local.Style));
+        Assert.Equal("preset:IQwen35", InoModels.FirstLocal(Nothing(Local(false, "preset:IOther"), Local(true))));
+    }
+
+    [Fact]
+    public void AHostedBrainWithALocalChoiceSaysLocalModelsArentAvailable()
+    {
+        var card = InoModels.FirstRun(Nothing(), "preset:IQwen35", "", Data)!;
+        Assert.Equal("Local models aren't available in IntoChat Cloud. Add an API key or choose another model.", card.Detail);
+        Assert.Equal("Ino needs a model before it can answer.", InoModels.FirstRun(Nothing(), null, "", Data)!.Detail);
+    }
+
+    [Fact]
+    public async Task AHostedBrainRefusesALocalChoiceWithItsCopy()
+    {
+        var resolved = await InoModels.Resolve(new FakeCatalog(Choices()), "preset:IQwen35", "");
+        Assert.Equal(new InoModelResolution(InoModelOutcome.ChatModelUnavailable, Note: InoModels.LocalHostedCopy), resolved);
+    }
+
+    [Fact]
+    public void AUsableModelShowsNoCard()
+    {
+        Assert.False(InoModels.NoneUsable(Choices()));
+        Assert.Null(InoModels.FirstRun(Choices(), null, "", Data));
+        Assert.Null(InoModels.FirstRun(Choices(autoAvailable: false), null, "profile:fast", Data));
+    }
+
+    [Fact]
+    public async Task InheritedAutoWithNothingAvailableIsNoModel()
+    {
+        Assert.Equal(InoModelOutcome.NoModel, (await InoModels.Resolve(new FakeCatalog(Nothing()), null, "")).Outcome);
+        Assert.Equal(InoModelOutcome.NoModel, (await InoModels.Resolve(new FakeCatalog(Nothing()), null, "preset:Big")).Outcome);
+        Assert.NotNull(InoModels.FirstRun(Choices(autoAvailable: false), null, "preset:Big", Data));
+    }
+
+    [Fact]
+    public async Task SendingWithNoModelShowsTheCardAndStartsNoTurn()
+    {
+        var starts = new List<ModelSelection?>();
+        var resolved = await InoModels.Resolve(new FakeCatalog(Nothing()), null, "");
+        Assert.Equal(AnswerOutcome.NoModel, await InoModels.Begin(resolved, model => { starts.Add(model); return Task.CompletedTask; }));
+        Assert.Empty(starts);
+        Assert.True(PendingStore.KeepsClaim(AnswerOutcome.NoModel));
+        Assert.Equal(AnswerOutcome.Started, await InoModels.Begin(new(InoModelOutcome.Ready, new("profile:fast")), model => { starts.Add(model); return Task.CompletedTask; }));
+        Assert.Equal([new ModelSelection("profile:fast")], starts);
+    }
+
+    [Fact]
+    public void TheSurfaceGivesTheCardItsOwnSlot()
+    {
+        var card = InoModels.FirstRun(Nothing(), null, "", Data);
+        var root = InoView.Render(Data, new InoViewModel([], "main", "", FirstRun: card));
+        var main = root.Children[1];
+        Assert.Equal(["header", "first-run", "transcript", "composer"], main.Children.Select(child => child.Key));
+        Assert.Equal([InoLayout.HeaderHeight, InoLayout.FirstRunHeight, 0, InoLayout.ComposerHeight], main.Extents!);
     }
 
     private abstract class FakeNeuron : INeuron
