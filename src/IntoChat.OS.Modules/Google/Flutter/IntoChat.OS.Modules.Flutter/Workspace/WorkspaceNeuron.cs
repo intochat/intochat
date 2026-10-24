@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
@@ -31,8 +30,7 @@ internal sealed partial class WorkspaceNeuron(
         { throw new ArgumentException("Focus must name an open view."); }
         if (next.Windows is { } windows) { CheckWindows(windows, next.OpenViews); }
         if (next.Favourites is { } favourites) { CheckFavourites(favourites); }
-        // Absent members are left out, so an update shaped before windows keeps the digest its receipt holds.
-        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(next, DigestOptions))));
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(next))));
         var receipt = Snapshot.Receipts.FirstOrDefault(item => item.Id == operationId);
         if (receipt is not null)
         {
@@ -45,8 +43,8 @@ internal sealed partial class WorkspaceNeuron(
             FocusedViewId = next.FocusedViewId,
             Pins = next.Pins,
             Windows = next.Windows ?? WorkspaceWindows.Reconcile(
-                state.Windows is [] ? WorkspaceWindows.Derive(state.OpenViews) : state.Windows, next.OpenViews),
-            Favourites = next.Favourites ?? state.Favourites,
+                state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows, next.OpenViews),
+            Favourites = next.Favourites ?? state.Favourites ?? [],
             Path = [Brain],
             Open = [],
             Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
@@ -62,8 +60,6 @@ internal sealed partial class WorkspaceNeuron(
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
         return ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(app).Read(), named);
     }
-
-    private static readonly JsonSerializerOptions DigestOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
     private static partial Regex WindowId();
@@ -138,8 +134,8 @@ internal sealed partial class WorkspaceNeuron(
         return Task.FromResult(new WorkspaceState(state.Revision, state.Path, state.Open)
         {
             OpenViews = state.OpenViews, FocusedViewId = state.FocusedViewId, Pins = state.Pins,
-            Windows = state.Windows is [] ? WorkspaceWindows.Derive(state.OpenViews) : state.Windows,
-            Favourites = state.Favourites,
+            Windows = state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows,
+            Favourites = state.Favourites ?? [],
         });
     }
 

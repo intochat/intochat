@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter;
 using Microsoft.Extensions.DependencyInjection;
@@ -100,7 +101,7 @@ public sealed class WorkspaceUpdateFacts
         WorkspaceViewRef ino = View(scope, "ino"), notes = View(scope, "notes");
         await workspace.Apply(new([ino, notes], "notes", []), "open", 0);
         var windows = (await workspace.Read()).Windows;
-        Assert.Equal(["w-ino", "w-notes"], windows.Select(window => window.Id));
+        Assert.Equal(["w-1", "w-2"], windows.Select(window => window.Id));
         Assert.Equal([ino], windows[0].Tabs);
         Assert.Equal([notes], windows[1].Tabs);
         Assert.All(windows, window => Assert.Equal(window.Tabs.Single().Id, window.ActiveTabId));
@@ -146,7 +147,7 @@ public sealed class WorkspaceUpdateFacts
         using (brain.Owner.AsApp(scope + "/apps/workspace"))
         { await workspace.Apply(new([ino, files, calc], "ino", []), "classic", 1); }
         var windows = (await workspace.Read()).Windows;
-        Assert.Equal(["w-1", "w-2", "w-calc"], windows.Select(window => window.Id));
+        Assert.Equal(["w-1", "w-2", "w-3"], windows.Select(window => window.Id));
         Assert.Equal([ino], windows[0].Tabs);
         Assert.Equal("ino", windows[0].ActiveTabId);
         Assert.Equal([files], windows[1].Tabs);
@@ -208,6 +209,67 @@ public sealed class WorkspaceUpdateFacts
         using (brain.Owner.AsApp(scope + "/apps/workspace"))
         { await workspace.Apply(new([View(scope, "ino")], "ino", []), "classic", 1); }
         Assert.Equal([favourite], (await workspace.Read()).Favourites);
+    }
+
+    // The replay digest is the JSON of the update; a pre-window update must serialise exactly as it did before.
+    [Fact]
+    public void APreWindowUpdateSerialisesAsBeforeSoItsReceiptStillMatches()
+    {
+        WorkspaceViewRef[] views = [new("a", "b/apps/files", "full", "")];
+        Assert.Equal(JsonSerializer.Serialize(new PreWindowUpdate(views, null, [])), JsonSerializer.Serialize(new WorkspaceUpdate(views, null, [])));
+        Assert.Contains("\"Windows\":[]", JsonSerializer.Serialize(new WorkspaceUpdate(views, null, []) { Windows = [] }), StringComparison.Ordinal);
+    }
+
+    private sealed record PreWindowUpdate(WorkspaceViewRef[] OpenViews, string? FocusedViewId, WorkspaceViewRef[] Pins);
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task APreWindowReplayWithNoFocusReturnsTheSameState()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
+        var update = new WorkspaceUpdate([View(scope, "ino")], null, []);
+        await workspace.Apply(update, "op", 0);
+        Assert.Equal(1, (await workspace.Apply(update, "op", 0)).Revision);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ManyClassicViewsStayWithinTheWindowCapsAndEchoBack()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        var odd = new WorkspaceViewRef(new string('x', 100) + " / ü", scope + "/apps/notes", "full", "");
+        WorkspaceViewRef[] views = [odd, .. Enumerable.Range(0, 63).Select(i => new WorkspaceViewRef("v" + i, scope + "/apps/app" + i, "full", ""))];
+        using (brain.Owner.AsApp(scope + "/apps/workspace"))
+        { await workspace.Apply(new(views, null, []), "classic", 0); }
+        var state = await workspace.Read();
+        Assert.Equal(8, state.Windows.Length);
+        Assert.All(state.Windows, window => Assert.InRange(window.Tabs.Length, 1, 8));
+        Assert.All(state.Windows, window => Assert.Matches("^[A-Za-z0-9_.-]{1,64}$", window.Id));
+        Assert.Equal(views.Select(view => view.Id).Order(), state.Windows.SelectMany(window => window.Tabs).Select(tab => tab.Id).Order());
+        using (brain.Owner.AsApp(scope + "/apps/desktop"))
+        { await workspace.Apply(new(state.OpenViews, null, []) { Windows = state.Windows }, "echo", state.Revision); }
+        Assert.Equal(2, (await workspace.Read()).Revision);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ATabInTwoWindowsIsRefused()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
+        var ino = View(scope, "ino");
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([ino], null, [])
+        { Windows = [new("w-1", [ino], "ino"), new("w-2", [ino], "ino")] }, "dup", 0));
     }
 
     private static WorkspaceViewRef View(string scope, string app) => new(app, scope + "/apps/" + app, "full", "");
