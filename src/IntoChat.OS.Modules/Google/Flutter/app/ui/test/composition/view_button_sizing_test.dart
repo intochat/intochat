@@ -17,16 +17,16 @@ void main() {
   ) async {
     await pumpShape(tester, desktopShape());
     expect(tester.takeException(), isNull);
-    for (final label in ['Focus', 'Pin', 'Close', 'Ino', 'Apps', 'Settings']) {
+    for (final label in ['Files', 'Ino', 'Apps', 'Settings']) {
       for (final button in _button(label).evaluate()) {
         final text = find.descendant(
           of: find.byWidget(button.widget),
           matching: find.text(label),
         );
-        // Label + 2 x 18 px padding (11 px when compact), plus the border.
+        // Label + 2 x 18 px padding (11 px when compact), plus the border and an optional icon (<= 28).
         expect(
           button.size!.width,
-          lessThanOrEqualTo(tester.getSize(text).width + 2 * 18 + 2),
+          lessThanOrEqualTo(tester.getSize(text).width + 2 * 18 + 2 + 28),
           reason: label,
         );
       }

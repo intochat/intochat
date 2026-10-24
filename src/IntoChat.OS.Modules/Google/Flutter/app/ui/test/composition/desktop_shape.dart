@@ -60,69 +60,153 @@ Map<String, dynamic> inoShape() => _column(
   extents: [40, 0, 152],
 );
 
-Map<String, dynamic> _window(String id, String title, {bool pin = true}) =>
-    _column(
-      'frame-$id',
+Map<String, dynamic> _iconButton(String key, String icon, String label) => {
+  'kind': 1,
+  'key': key,
+  'text': label,
+  'action': key,
+  'style': 2,
+  'icon': icon,
+};
+
+Map<String, dynamic> _tab(String key, String label, bool active) => {
+  'kind': 1,
+  'key': key,
+  'text': label,
+  'action': key,
+  'style': active ? 0 : 2,
+};
+
+/// A window mirroring DesktopLayout.Window: a 40 px header, a 38 px tab strip
+/// (Tabs kind 13) and the active tab's content filling the rest.
+Map<String, dynamic> _window(
+  String id,
+  String title, {
+  int tabs = 1,
+  bool pin = true,
+}) => _column(
+  'frame-$id',
+  [
+    _row(
+      'chrome-$id',
       [
         {
-          'kind': 4,
-          'key': 'window-$id',
+          'kind': 1,
+          'key': 'focus-$id',
           'text': title,
-          'children': [
-            _row('chrome-$id', [
-              shapeButton('focus-$id', 'Focus'),
-              if (pin) shapeButton('pin-$id', 'Pin'),
-              shapeButton('close-$id', 'Close'),
-            ], gap: 4),
-          ],
+          'action': 'focus:$id',
+          'style': 2,
         },
-        id == 'ino' ? inoShape() : _text('content-$id', '$title content'),
+        _iconButton('newtab-$id', 'plus', 'New tab'),
+        _iconButton('star-$id', 'star', 'Add to favourites'),
+        if (pin) _iconButton('pin-$id', 'pin', 'Pin'),
+        _iconButton('close-$id', 'x', 'Close tab'),
       ],
       gap: 4,
-      extents: [112, 0],
-    );
-
-/// The desktop: one row of windows above the 68 px dock.
-Map<String, dynamic> desktopShape() => _column(
-  'desktop',
-  [
-    _column(
-      'windows',
-      [
-        _row('windows-0', [
-          _window('ino', 'Ino', pin: false),
-          _window('files', 'Files'),
-        ]),
-      ],
-      extents: [0],
+      extents: [0, 32, 32, if (pin) 32, 32],
     ),
-    _row(
-      'dock',
-      [
-        _row('apps', [
-          shapeButton('dock-ino', 'Ino'),
-          shapeButton('dock-files', 'Files'),
-          shapeButton('gallery', 'Apps'),
-        ], gap: 4),
-        _row(
-          'right',
-          [
-            _text('usage', 'Usage'),
-            shapeButton('avatar', 'Vlad'),
-            _row('more', [
-              shapeButton('more-settings', 'Settings'),
-              shapeButton('more-classic', 'Classic layout'),
-            ], gap: 4),
-          ],
-          gap: 4,
-          extents: [72, 72, 0],
-        ),
+    {
+      'kind': 13,
+      'key': 'tabs-$id',
+      'children': [
+        for (var i = 0; i < tabs; i++)
+          _tab('tab-$id-$i', i == 0 ? title : 'Tab ${i + 1}', i == 0),
       ],
-      extents: [0, 360],
-    ),
+    },
+    id == 'ino' ? inoShape() : _text('content-$id', '$title content'),
   ],
-  extents: [0, 68],
+  gap: 0,
+  extents: [40, 38, 0],
 );
+
+/// The desktop: windows above the 68 px dock, mirroring DesktopLayout.Render.
+/// [narrow] shows only the focused window and collapses favourites to a menu;
+/// [toast] adds the 48 px refusal row.
+Map<String, dynamic> desktopShape({
+  bool narrow = false,
+  int favourites = 0,
+  String? toast,
+  int filesTabs = 3,
+}) {
+  final windows = [
+    if (!narrow) _window('ino', 'Ino', pin: false),
+    _window('files', 'Files', tabs: filesTabs),
+  ];
+  final favouriteButtons = [
+    for (var i = 0; i < favourites; i++)
+      {
+        'kind': 1,
+        'key': 'fav-$i',
+        'text': i.isEven ? 'Notes' : 'Report',
+        'action': 'fav-$i',
+        'style': 2,
+        'icon': i.isEven ? 'grid' : 'list',
+      },
+  ];
+  return _column(
+    'desktop',
+    [
+      _column('windows', [_row('windows-0', windows)], extents: [0]),
+      if (toast != null) {'kind': 8, 'key': 'toast', 'text': toast, 'tone': 3},
+      _row(
+        'dock',
+        [
+          _row('apps', [
+            {
+              'kind': 1,
+              'key': 'dock-ino',
+              'text': 'Ino',
+              'action': 'open:ino',
+              'style': 0,
+              'icon': 'ino',
+            },
+            if (favourites > 0)
+              narrow
+                  ? {
+                      'kind': 6,
+                      'key': 'favourites',
+                      'text': 'Favourites',
+                      'icon': 'star',
+                      'children': favouriteButtons,
+                    }
+                  : _row('favourites', favouriteButtons, gap: 4),
+            {
+              'kind': 1,
+              'key': 'dock-files',
+              'text': 'Files',
+              'action': 'open:files',
+              'style': 2,
+            },
+            _iconButton('newtab', 'plus', 'New tab'),
+            {
+              'kind': 1,
+              'key': 'gallery',
+              'text': 'Apps',
+              'action': 'gallery',
+              'style': 2,
+              'icon': 'grid',
+            },
+          ], gap: 4),
+          _row(
+            'right',
+            [
+              _text('usage', 'Usage'),
+              shapeButton('avatar', 'Vlad'),
+              _row('more', [
+                shapeButton('more-settings', 'Settings'),
+                shapeButton('more-classic', 'Classic layout'),
+              ], gap: 4),
+            ],
+            gap: 4,
+            extents: [72, 72, 0],
+          ),
+        ],
+        extents: [0, 360],
+      ),
+    ],
+    extents: [0, if (toast != null) 48, 68],
+  );
+}
 
 /// Pumps [root] as a view value at [size].
 Future<void> pumpShape(
