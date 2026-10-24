@@ -380,11 +380,11 @@ class _UiChatTranscriptState extends State<UiChatTranscript> {
                                 style: type.meta,
                               ),
                             ],
+                            // A failed step shows fixed copy, never the error text it carries.
                             if (activity['error'] != null) ...[
                               const SizedBox(height: 12),
-                              const Text('Error'),
-                              SelectableText(
-                                '${activity['error']}',
+                              Text(
+                                ChatCopy.stepFailed,
                                 style: type.meta.copyWith(color: c.error),
                               ),
                             ],

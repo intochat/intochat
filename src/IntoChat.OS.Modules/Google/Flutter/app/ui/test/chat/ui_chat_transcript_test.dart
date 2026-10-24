@@ -233,4 +233,30 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('a failed activity shows fixed copy, not its error', (
+    tester,
+  ) async {
+    await show(tester, [
+      user('r1', 'Look it up'),
+      {
+        ...assistant('r1', 'Done.'),
+        'activities': [
+          {
+            'id': 'call',
+            'title': 'Query database',
+            'input': 'select 1',
+            'error': 'NpgsqlException: password=hunter2',
+          },
+        ],
+      },
+    ]);
+    await tester.tap(find.text('1 activity · 1 failed'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Query database'));
+    await tester.pumpAndSettle();
+    expect(find.text(ChatCopy.stepFailed), findsOneWidget);
+    expect(find.textContaining('hunter2'), findsNothing);
+    expect(find.textContaining('NpgsqlException'), findsNothing);
+  });
 }

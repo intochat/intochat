@@ -86,4 +86,37 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     expect(ChatRunLinks.followed('chat-r'), isFalse);
   });
+
+  testWidgets('a different draft in progress blocks Retry', (tester) async {
+    final events = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.light('intochat'),
+        home: Scaffold(
+          body: SizedBox(
+            height: 152,
+            child: UiComposer(
+              state: const {
+                'context': 'a',
+                'generation': 1,
+                'draft': '',
+                'followedChat': 'chat-d',
+              },
+              dispatch: (event) async => events.add(event),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'my unsent thought');
+    await tester.pump();
+    events.clear();
+    await ChatRunLinks.resend('chat-d')!('Again');
+    await tester.pump();
+    expect(events, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'my unsent thought',
+    );
+  });
 }

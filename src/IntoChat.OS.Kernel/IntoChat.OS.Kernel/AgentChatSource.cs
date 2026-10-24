@@ -2,6 +2,7 @@ using System.Text.Json;
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel;
@@ -14,9 +15,12 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         var state = await grains.GetGrain<IAgent>(key).Read();
+        // A pasted link's app and input live in the links store beside the conversations, never in the run.
+        var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _)) && ChatAppCard.LinksKey(key) is { } store
+            ? (await grains.GetGrain<IText>(store).Read()).Markdown : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
-        var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(Entries)]))
+        var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))
         {
             Actions = state.ActiveRun is { } running
                 ? [new("stop/" + running.RunId, "Stop", JsonSerializer.Serialize(new { runId = running.RunId }))] : [],
@@ -91,11 +95,11 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
 
     // A posted run (IAgent.Post, e.g. a greeting) has no user turn; any other run keeps its user
     // bubble, even an attachment-only turn with empty text.
-    internal static IEnumerable<ChatEntry> Entries(AgentRun run)
+    internal static IEnumerable<ChatEntry> Entries(AgentRun run, string? links = null)
     {
         if (!run.Posted) { yield return new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText); }
         var card = run.Posted
-            ? ChatAppCard.TryReadLinkPost(run.RunId, out var app, out var input) ? new ChatAppCard(app, app, "", true, input) : null
+            ? ChatAppCard.TryReadLinkPost(run.RunId, out var request) ? ChatAppCard.FindLink(links, request) : null
             : run.ToolCalls.Select(Opened).LastOrDefault(opened => opened is not null);
         yield return new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
         {

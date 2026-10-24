@@ -1,6 +1,7 @@
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.AI.Routing;
 using IntoChat.OS.Apps;
+using IntoChat.OS.Flutter.Text;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.
@@ -19,7 +20,13 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
     // A pasted workspace link is an app card, never a turn: neither Jev nor the model sees it.
     if (InoLinks.Parse(request.Input) is not null)
     {
-        try { await InoLinks.PostCard(brain.Get<IAgent>((await Ino.EnsureSelection(brain)).Agent), request.Input, request.RequestId); }
+        try
+        {
+            var outcome = await InoLinks.Handle(brain.Get<IAgent>((await Ino.EnsureSelection(brain)).Agent),
+                brain.Get<IText>(Ino.DataKey(brain) + "/links"), brain.Get<IText>(Ino.DataKey(brain) + "/status"),
+                (state, detail) => Ino.Advance(brain, state, detail), request.Input, request.RequestId);
+            if (outcome == InoLinkOutcome.Busy) { await Ino.Status(brain, InoCopy.AnswerRunning); }
+        }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.LinkFailed, error)); }
         await ledger.Record(request.RequestId);
         continue;

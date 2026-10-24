@@ -108,6 +108,9 @@ async Task CatchUp(string agentKey, CancellationToken ct)
 
 async Task Ask(string agentKey, string runId, CancellationToken ct)
 {
+    // A posted entry (a greeting, a pasted link's card) is not a turn: there is nothing to remember, and a link's
+    // data must never reach an episode.
+    if (runId.StartsWith("post/", StringComparison.Ordinal)) { return; }
     var key = agentKey + "#" + runId;
     lock (asked)
     {

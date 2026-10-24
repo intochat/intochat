@@ -3,6 +3,7 @@ using IntoChat.OS.AI.Models;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Text;
 
 // The composer path: each pending submission starts a turn in its conversation under the submission id
 // and is settled, so a redelivered submission never runs twice. It speaks the same contracts as "send".
@@ -36,13 +37,12 @@ async Task Reconcile()
             {
                 if (state.ActiveRun is not null)
                 {
-                    await composer.Settle(request.Id, "A response is already running. Your draft is saved; send it when the response finishes.");
+                    await composer.Settle(request.Id, InoCopy.AnswerRunning);
                     continue;
                 }
                 // A message that is a workspace link becomes an app card: no turn, and the link never reaches the model.
-                if (await InoLinks.PostCard(agent, request.Text, request.Id))
+                if (await InoLinks.Handle(agent, LinksStore(), StatusText(), Advance, request.Text, request.Id) != InoLinkOutcome.NotALink)
                 {
-                    await Ino.Status(brain, "");
                     await composer.Settle(request.Id);
                     continue;
                 }
@@ -72,3 +72,7 @@ async Task Reconcile()
         }
     }
 }
+
+IText LinksStore() => brain.Get<IText>(Ino.DataKey(brain) + "/links");
+IText StatusText() => brain.Get<IText>(Ino.DataKey(brain) + "/status");
+Task Advance(string state, string detail) => Ino.Advance(brain, state, detail);

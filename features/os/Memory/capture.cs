@@ -25,10 +25,13 @@ await foreach (var request in brain.On(app, "capture", brain.Stopping))
     {
         var ask = Episodes.ParseAsk(request.Input);
         if (!defined) { await episodes.Define(Episodes.Definition); defined = true; }
+        // A posted entry is never captured, not even looked up: its id is all that is known here.
+        if (ask.RunId.StartsWith("post/", StringComparison.Ordinal)) { continue; }
         var id = Episodes.Id(ask.Agent, ask.RunId);
         if (await episodes.Read(Key(id)) is not null) { continue; }
         var run = (await brain.Get<IAgent>(ask.Agent).Read()).Runs.FirstOrDefault(candidate => candidate.RunId == ask.RunId);
-        if (run is null || run.Status != AgentRunStatus.Completed)
+        if (run is { Posted: true }) { continue; }
+        if (run is null || !Episodes.Captures(run))
         {
             await brain.Get<IText>(appKey + "/status").Set(Clip("capture skipped: run " + ask.RunId + " "
                 + (run is null ? "not found on " : "was not completed on ") + ask.Agent));

@@ -7,6 +7,7 @@ public static class InoCopy
     // these by OsInoLinkFacts.TheChatRendererUsesInoCopy.
     public const string EmptyTranscript = "Ask Ino anything, or open an app from the dock.";
     public const string AppNotInstalled = "Not installed";
+    public const string StepFailed = "This step didn't work.";
     public const string StartFailed = "Couldn't start the answer. Try again.";
     public const string NewChatFailed = "Couldn't start a new chat. Try again.";
     public const string OpenFailed = "Couldn't open Ino. Try again.";
@@ -24,6 +25,7 @@ public static class InoCopy
     public const string ReviewCountFailed = "Couldn't check Memory's review count.";
     // Posted with a pasted workspace link's app card. It is the only text the model later reads for that entry.
     public const string LinkPosted = "Here's the app from your link.";
+    public const string AnswerRunning = "A response is already running. Your draft is saved; send it when the response finishes.";
     public const string LinkFailed = "Couldn't show the app from your link. Try again.";
     public const string CaptureFailed = "Memory couldn't capture this conversation yet. It will try again.";
 

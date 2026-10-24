@@ -52,12 +52,15 @@ public sealed class AgentChatSourceFacts
     }
 
     [Fact]
-    public void ALinkPostIsAnAppCardAndItsManifestNamesIt()
+    public void ALinkPostIsAnAppCardFromTheLinksStoreAndItsManifestNamesIt()
     {
-        var id = ChatAppCard.LinkPostId(Guid.NewGuid(), "notes", "x");
-        var run = new AgentRun("post/" + id, AgentRunStatus.Completed, "", DateTimeOffset.UtcNow, Reply: "Here it is") { Posted = true };
-        var card = Assert.Single(AgentChatSource.Entries(run)).App!;
+        var request = Guid.NewGuid();
+        var links = ChatAppCard.RememberLink(null, request, "notes", "x");
+        var run = new AgentRun("post/" + ChatAppCard.LinkPostId(request), AgentRunStatus.Completed, "", DateTimeOffset.UtcNow, Reply: "Here it is") { Posted = true };
+        var card = Assert.Single(AgentChatSource.Entries(run, links)).App!;
         Assert.Equal(("notes", "x"), (card.App, card.Input));
+        // A link the store no longer holds is plain text.
+        Assert.Null(Assert.Single(AgentChatSource.Entries(run, null)).App);
         Assert.Equal(card with { Title = "Notes", Icon = "note", Installed = true },
             AgentChatSource.Named(card, new IntoChat.OS.Apps.AppManifest("Notes", "", [], [], [], "note")));
         Assert.Equal(card with { Title = "notes", Installed = false }, AgentChatSource.Named(card, null));

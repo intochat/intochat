@@ -25,6 +25,11 @@ internal static class Episodes
 
     public static string Id(string agent, string run) => agent + "#" + run;
 
+    // Only a completed turn is an episode. A posted entry (a greeting, a pasted link's card) is not: it has no user
+    // turn, and a link's app and input must never reach an episode or the life index.
+    public static bool Captures(IntoChat.OS.AI.Agents.AgentRun run)
+        => run.Status == IntoChat.OS.AI.Agents.AgentRunStatus.Completed && !run.Posted && !run.RunId.StartsWith("post/", StringComparison.Ordinal);
+
     public static Ask ParseAsk(string json)
     {
         try

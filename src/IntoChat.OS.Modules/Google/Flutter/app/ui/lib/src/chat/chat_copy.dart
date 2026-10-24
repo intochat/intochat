@@ -4,6 +4,7 @@ abstract final class ChatCopy {
   static const empty = 'Ask Ino anything, or open an app from the dock.';
   static const failed = "Ino couldn't answer. Try again.";
   static const responding = 'Responding…';
+  static const stepFailed = "This step didn't work.";
   static const stopped = 'Response stopped.';
   static const interrupted =
       'Response interrupted. You can send another message.';

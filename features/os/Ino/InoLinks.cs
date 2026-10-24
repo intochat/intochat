@@ -1,5 +1,6 @@
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Text;
 
 // A pasted workspace link, parsed with the shell's rules (app/shell/lib/workspace/workspace_link.dart):
 // the route is /open, either as the fragment ("#/open?...", "https://host/#/open?...") or as the path, and
@@ -47,13 +48,42 @@ public static class InoLinks
         return true;
     }
 
-    // Posts the card for a message that is a link and answers true: the caller starts no turn. The posted text
-    // is fixed copy, so neither the link nor its input reaches the transcript the model reads.
-    public static async Task<bool> PostCard(IAgent agent, string message, Guid requestId)
+    // How many times a concurrent writer of the links store is retried before the post fails.
+    private const int StoreAttempts = 5;
+
+    // A message that is a whole link becomes an app card and never a turn. After the conversation's active-run
+    // check, the link's app and opaque input go to the links store and the card is posted under the plain id
+    // link-<request>, with fixed copy as its text: the link reaches no model, post id, episode or status line.
+    public static async Task<InoLinkOutcome> Handle(IAgent agent, IText links, IText status,
+        Func<string, string, Task> advance, string message, Guid requestId)
     {
-        if (!TryParse(message, out var app, out var input)) { return false; }
-        await agent.Post(InoCopy.LinkPosted, ChatAppCard.LinkPostId(requestId, app, input));
-        return true;
+        if (!TryParse(message, out var app, out var input)) { return InoLinkOutcome.NotALink; }
+        var id = ChatAppCard.LinkPostId(requestId);
+        var state = await agent.Read();
+        if (!state.Runs.Any(run => run.RunId == "post/" + id))
+        {
+            if (state.ActiveRun is not null)
+            {
+                await advance("attention", InoCopy.AnswerRunning);
+                return InoLinkOutcome.Busy;
+            }
+            await Remember(links, requestId, app, input);
+            await agent.Post(InoCopy.LinkPosted, id);
+        }
+        // The "Heard you" the request started with is settled: nothing else will answer it.
+        await status.Set("");
+        await advance("completed", InoCopy.LinkPosted);
+        return InoLinkOutcome.Posted;
+    }
+
+    private static async Task Remember(IText links, Guid requestId, string app, string input)
+    {
+        for (var attempt = 0; attempt < StoreAttempts; attempt++)
+        {
+            var current = await links.Read();
+            if (await links.TrySet(ChatAppCard.RememberLink(current.Markdown, requestId, app, input), current.Version)) { return; }
+        }
+        throw new InvalidOperationException("The links store kept changing.");
     }
 
     private static string? Decode(string component)
@@ -62,3 +92,5 @@ public static class InoLinks
         catch (UriFormatException) { return null; }
     }
 }
+
+public enum InoLinkOutcome { NotALink, Busy, Posted }
