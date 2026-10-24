@@ -135,7 +135,9 @@ internal sealed partial class WorkspaceNeuron(
         var state = Seed(Snapshot);
         return Task.FromResult(new WorkspaceState(state.Revision, state.Path, state.Open)
         {
-            OpenViews = state.OpenViews, FocusedViewId = state.FocusedViewId, Pins = state.Pins,
+            OpenViews = state.OpenViews,
+            FocusedViewId = state.FocusedViewId,
+            Pins = state.Pins,
             Windows = state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows,
             Favourites = state.Favourites ?? [],
         });
