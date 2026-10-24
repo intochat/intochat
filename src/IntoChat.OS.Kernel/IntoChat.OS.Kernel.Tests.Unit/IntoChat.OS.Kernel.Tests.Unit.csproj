@@ -24,6 +24,7 @@
     <Compile Include="../../../features/os/Ino/InoChatCommands.cs" Link="Features/InoChatCommands.cs" />
     <Compile Include="../../../features/os/Ino/InoRefresher.cs" Link="Features/InoRefresher.cs" />
     <Compile Include="../../../features/os/Ino/InoModels.cs" Link="Features/InoModels.cs" />
+    <Compile Include="../../../features/os/Ino/InoCopy.cs" Link="Features/InoCopy.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />

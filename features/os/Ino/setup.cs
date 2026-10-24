@@ -21,6 +21,6 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Ino.Key(brai
         }
         await Ino.Dirty(brain);
     }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, "Couldn't set up the model. Try again."); }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.SetupFailed, error)); }
     await ledger.Record(clicked.RequestId);
 }

@@ -29,7 +29,7 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
         try { await router.Ask(new RouteRequest(request.RequestId, request.Input), brain.Stopping); }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
-            await Ino.Status(brain, "Jev unavailable; asking the model. " + Ino.Clip(error.Message));
+            await Ino.Status(brain, Ino.Failure(InoCopy.RouterUnavailable, error));
             await Ino.Advance(brain, "attention", "Jev unavailable; asking the model");
             await Ino.Answer(brain, await app.Read(), request.Input, "", request.RequestId);
         }

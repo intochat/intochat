@@ -99,7 +99,7 @@ public static partial class Ino
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
-            await Status(brain, "Could not start the answer: " + Clip(error.Message));
+            await Status(brain, Failure(InoCopy.StartFailed, error));
             await Advance(brain, "attention", "Could not start the answer");
             return AnswerOutcome.Failed;
         }

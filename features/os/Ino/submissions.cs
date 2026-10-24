@@ -29,7 +29,7 @@ async Task Reconcile()
             var retained = state.Runs.FirstOrDefault(run => run.RunId == runId);
             if (retained is not null && retained.Status != AgentRunStatus.Completed)
             {
-                await composer.Settle(request.Id, retained.Error ?? "The earlier attempt was interrupted. Review your draft and send again.");
+                await composer.Settle(request.Id, InoCopy.EarlierAttemptFailed);
                 continue;
             }
             if (retained is null && state.ActiveRun?.RunId != runId)
@@ -61,7 +61,7 @@ async Task Reconcile()
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             // Admission may have committed before its response failed. Keep the same run ID for retry.
-            await composer.Defer(request.Id, "Could not confirm delivery. Your draft is saved; Send retries the same message. " + error.Message);
+            await composer.Defer(request.Id, Ino.Failure(InoCopy.DeliveryUnconfirmed, error));
         }
     }
 }

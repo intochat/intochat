@@ -22,7 +22,7 @@ await foreach (var request in brain.On(app, "make", brain.Stopping))
         await Ino.Status(brain, $"Making it in {target}: the synapse lands in {target}'s synapse list.");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Could not make it: " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.MakeFailed, error)); }
     await ledger.Record(request.RequestId);
 }
 

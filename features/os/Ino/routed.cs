@@ -37,7 +37,7 @@ async Task Carry(Routed routed)
             // Failed means Jev itself could not answer.
             await Ino.Status(brain, asked.Status == "Routed"
                 ? "Jev unsure (no capability fits); asking the model"
-                : "Jev unavailable; asking the model. " + Ino.Clip(asked.Error ?? routed.Error ?? ""));
+                : InoCopy.RouterUnavailable);
         }
         else if (route.Confidence < Ino.RouteGate(snapshot) || !route.IsDirect)
         {
@@ -50,7 +50,7 @@ async Task Carry(Routed routed)
             var chosen = $"{route.Contract}.{route.Method}";
             await Ino.Status(brain, outcome.Dispatched
                 ? $"Jev: {chosen} ({route.Confidence:0.00}) -> {Ino.Clip(outcome.Result ?? "done")}"
-                : $"Jev chose {chosen} but could not carry it out: {Ino.Clip(outcome.Error ?? "")}");
+                : InoCopy.RouteNotCarried(chosen));
             if (outcome.Dispatched) { return; }
             hint = "\n\n" + route.Hint();
         }
@@ -88,7 +88,7 @@ async Task Carry(Routed routed)
         }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Jev could not carry it out; asking the model. " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.RouterFailed, error)); }
     var conversation = (await Ino.EnsureSelection(brain)).Agent;
     if (!await Ino.Intend(brain, snapshot, asked.State, hint, routed.Id, conversation))
     { await Ino.Answer(brain, snapshot, asked.State, hint, routed.Id); }

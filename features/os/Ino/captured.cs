@@ -65,7 +65,7 @@ async Task Release(string agentKey, CancellationTokenSource stop)
     }
     catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { return; }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Report("Could not wait for the previous conversation's turn: " + Ino.Clip(error.Message)); }
+    { await Report(Ino.Failure(InoCopy.CaptureFailed, error)); }
     await stop.CancelAsync();
     await CatchUp(agentKey, brain.Stopping);
 }
@@ -85,7 +85,7 @@ async Task Watch(string agentKey, CancellationToken ct)
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-        { await Report("Could not follow the conversation for capture: " + Ino.Clip(error.Message) + "; retrying in 5 seconds."); }
+        { await Report(Ino.Failure(InoCopy.CaptureFailed, error)); }
         try { await Task.Delay(TimeSpan.FromSeconds(5), ct); }
         catch (OperationCanceledException) { return; }
     }
@@ -103,7 +103,7 @@ async Task CatchUp(string agentKey, CancellationToken ct)
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Report("Could not catch up on the conversation's turns: " + Ino.Clip(error.Message)); }
+    { await Report(Ino.Failure(InoCopy.CaptureFailed, error)); }
 }
 
 async Task Ask(string agentKey, string runId, CancellationToken ct)
@@ -124,7 +124,7 @@ async Task Ask(string agentKey, string runId, CancellationToken ct)
     {
         // Not asked after all: a later catch-up may ask again.
         lock (asked) { asked.Remove(key); }
-        await Report("Could not ask Memory to capture the turn: " + Ino.Clip(error.Message));
+        await Report(Ino.Failure(InoCopy.CaptureFailed, error));
     }
 }
 

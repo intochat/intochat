@@ -11,6 +11,6 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         || ledger.Handled(request.RequestId)) { continue; }
     try { await Ino.NewConversation(brain, request.RequestId); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Could not start a new conversation: " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.NewChatFailed, error)); }
     await ledger.Record(request.RequestId);
 }

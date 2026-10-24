@@ -16,6 +16,6 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Ino.Key(brai
     if (clicked.RequestId == Guid.Empty || ledger.Handled(clicked.RequestId)
         || commands.Command(clicked.Action, clicked.RequestId) is not { } command) { continue; }
     try { await command(); }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, "Couldn't update the chat. Try again."); }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.ChatUpdateFailed, error)); }
     await ledger.Record(clicked.RequestId);
 }

@@ -22,7 +22,6 @@ var watches = new ConcurrentDictionary<Guid, CancellationTokenSource>();
 var lastNotice = DateTimeOffset.MinValue;
 var nextNoticeCheck = DateTimeOffset.MinValue;
 var noticeFailed = false;
-const string ScanFailure = "Could not check pending messages; retrying: ";
 const string LegacyScanFailure = "Could not answer a message Memory was slow to intend: ";
 // Check once on startup too: a previous activation may have left its failure in durable status.
 var recoverScanNotice = true;
@@ -42,7 +41,7 @@ await foreach (var rephrased in brain.On<IntentRephrased>(intents, brain.Stoppin
         { if (PendingStore.Decide(pending, now, gateTime) == PendingStep.Watch) { await EnsureWatch(pendingId); } }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Could not follow Memory's brief: " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.BriefFailed, error)); }
 }
 await scanning;
 
@@ -58,7 +57,7 @@ async Task EnsureWatch(Guid requestId)
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             // The scan starts a new watch for a request still pending, and answers it once it is stale.
-            try { await Ino.Status(brain, "Could not follow Memory's brief: " + Ino.Clip(error.Message)); }
+            try { await Ino.Status(brain, Ino.Failure(InoCopy.BriefFailed, error)); }
             catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
         }
         finally { watches.TryRemove(KeyValuePair.Create(requestId, stop)); stop.Dispose(); }
@@ -139,7 +138,7 @@ async Task NoticeReviews(DateTimeOffset now)
     {
         if (noticeFailed) { return; }
         noticeFailed = true;
-        try { await Ino.Status(brain, "Could not check Memory's review count: " + Ino.Clip(error.Message)); }
+        try { await Ino.Status(brain, Ino.Failure(InoCopy.ReviewCountFailed, error)); }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
     }
 }
@@ -177,7 +176,7 @@ async Task Scan()
             {
                 var status = brain.Get<IText>(Ino.DataKey(brain) + "/status");
                 var current = await status.Read();
-                if (current.Markdown.StartsWith(ScanFailure, StringComparison.Ordinal)
+                if (current.Markdown.StartsWith(InoCopy.ScanFailurePrefix, StringComparison.Ordinal)
                     || current.Markdown.StartsWith(LegacyScanFailure, StringComparison.Ordinal))
                 {
                     // Another synapse may write after the read; only this observed version can be cleared.
@@ -190,7 +189,7 @@ async Task Scan()
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
             recoverScanNotice = true;
-            try { await Ino.Status(brain, ScanFailure + Ino.Clip(error.Message)); }
+            try { await Ino.Status(brain, Ino.Failure(InoCopy.ScanFailure, error)); }
             catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
         }
     }

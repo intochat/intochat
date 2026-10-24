@@ -15,6 +15,7 @@ public sealed class InoScanRecoveryFacts
 {
     private const string Legacy = "Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Flutter.Text.IText.Read (504): Gateway timeout";
     private const string Recovering = "Could not check pending messages; retrying: ";
+    private const string Failed = "Could not check pending messages; retrying.";
     private static readonly Lazy<byte[]> Script = new(Compile);
     private static readonly TimeSpan Within = TimeSpan.FromSeconds(15);
 
@@ -37,10 +38,11 @@ public sealed class InoScanRecoveryFacts
         var ct = TestContext.Current.CancellationToken;
         using var edge = new ScanEdge { FailReads = true };
         await using var running = await Running.Start(edge, ct);
-        var failed = await TestWait.UntilAsync(_ => Task.FromResult(edge.Status), status => status.Markdown.Contains("504", StringComparison.Ordinal), Within, ct);
+        var failed = await TestWait.UntilAsync(_ => Task.FromResult(edge.Status), status => status.Markdown == Failed, Within, ct);
 
-        Assert.StartsWith(Recovering, failed.Markdown, StringComparison.Ordinal);
-        Assert.DoesNotContain("Memory was slow", failed.Markdown, StringComparison.Ordinal);
+        // Generic copy: the gateway's error text stays in the server log.
+        Assert.Equal(Failed, failed.Markdown);
+        Assert.DoesNotContain("504", failed.Markdown, StringComparison.Ordinal);
         edge.FailReads = false;
         await TestWait.UntilAsync(_ => Task.FromResult(edge.Status), status => status.Markdown.Length == 0, Within, ct);
     }

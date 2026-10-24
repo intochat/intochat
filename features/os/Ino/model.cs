@@ -19,6 +19,6 @@ await foreach (var clicked in brain.On<ViewAction>(view, brain.Stopping))
             await InoModels.Choose(Ino.Models(brain), InoChats.Index(brain), brain.Get<IText>(Ino.DataKey(brain) + "/status"), chatId, clicked.Action);
         }
     }
-    catch (Exception) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, "Couldn't change the model. Try again."); }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Ino.Status(brain, Ino.Failure(InoCopy.ModelChangeFailed, error)); }
     await ledger.Record(clicked.RequestId);
 }

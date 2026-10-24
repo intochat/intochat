@@ -10,6 +10,6 @@ await foreach (var clicked in brain.On<ViewAction>(view, brain.Stopping))
         || clicked.RequestId == Guid.Empty || ledger.Handled(clicked.RequestId)) { continue; }
     try { await Ino.NewConversation(brain, clicked.RequestId); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Could not start a new conversation: " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.NewChatFailed, error)); }
     await ledger.Record(clicked.RequestId);
 }
