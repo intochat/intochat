@@ -18,6 +18,18 @@ public sealed class AuthOptions
     public static string Key(string property) => SectionName + ":" + property;
 
     public IdentityPosture? Posture { get; set; }
+
+    // The Open posture's synthetic owner ("owner" signing in as "owner"), a person at the authenticated edge:
+    // it owns its own brain before the brain's authority records any membership. Every owner rule asks this.
+    public const string OpenOwner = "owner";
+
+    public static bool IsOpenPostureOwner(IdentityPosture? posture, IntoChat.OS.Framework.CallerContext caller)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        return posture == IdentityPosture.Open && caller.Kind == IntoChat.OS.Framework.CallerKind.User
+            && caller.StampedBy != IntoChat.OS.Framework.TrustedEdge.AppProxy
+            && caller.PrincipalId == OpenOwner && caller.AccountId == OpenOwner;
+    }
     public string? Username { get; set; }
     public string? Password { get; set; }
 

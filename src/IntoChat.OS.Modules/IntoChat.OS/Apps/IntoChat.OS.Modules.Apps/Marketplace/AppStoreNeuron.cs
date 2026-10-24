@@ -126,9 +126,6 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         });
     }
 
-    // The apps the OS runs on: the desktop and its services, Settings, Apps and Ino.
-    internal static readonly HashSet<string> Roots = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage", "settings", "apps", "ino"];
-
     public async Task<InstallOutcome> Remove(string name)
     {
         return await Answer(async () =>
@@ -137,7 +134,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
             if (BrainScope.CurrentId() != Scope || !CallerContextStamper.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
             { return InstallOutcome.Refused("Only you can remove apps."); }
-            if (Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
+            if (ShippedApps.Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
             var app = App(IApp.Key(Scope, name));
             if ((await app.Read()).Manifest.Title.Length == 0) { return InstallOutcome.Refused($"No app named {name} exists in this brain."); }
             await app.Delete();

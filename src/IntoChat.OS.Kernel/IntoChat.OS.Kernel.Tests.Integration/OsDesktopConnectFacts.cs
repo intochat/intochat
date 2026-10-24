@@ -88,7 +88,7 @@ public sealed class OsDesktopConnectFacts
     }
 
     [Fact]
-    public async Task ABrainWithDesktop013UpgradesTo020OnConnect()
+    public async Task AnOlderDesktopUpgradesToTheShippedVersionOnConnect()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Boot(ct);
@@ -98,11 +98,11 @@ public sealed class OsDesktopConnectFacts
         await provider.Connect(ct);
         var desktop = brain.Get<IApp>(IApp.Key(person.BrainId, "desktop"));
         var installed = (await desktop.Read()).Origin!;
-        Assert.Equal("0.2.0", installed.Version);
+        Assert.True(AppVersions.Compare(installed.Version, "0.1.3") > 0);
         await desktop.RecordOrigin(installed with { Version = "0.1.3" });
 
         Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("view", IApp.Key(person.BrainId, "desktop") + "/view"), await provider.Connect(ct));
-        Assert.Equal("0.2.0", (await desktop.Read()).Origin!.Version);
+        Assert.Equal(installed.Version, (await desktop.Read()).Origin!.Version);
     }
 
     // The connect-time updater never widens: a shipped app whose next release asks for more than the person accepted

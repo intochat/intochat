@@ -1,7 +1,9 @@
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Authority.Identity.Configuration;
 using IntoChat.OS.Integrations;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Apps;
 
@@ -9,7 +11,7 @@ namespace IntoChat.OS.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null)
+    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null, IOptions<AuthOptions>? auth = null)
 {
     public const string OwnerOnly = "Only the brain owner can install apps that read your data.";
     public const string ReviewInApps = "Open Apps to review what this app needs.";
@@ -64,23 +66,35 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         var requires = bundle.Manifest.Requires ?? new AppRequirements();
         if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(requires); }
         if (await Unbound(scope, bundle.Manifest, request.Bindings, ct) is { } refusal) { return InstallOutcome.Refused(refusal); }
-        if (requires.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return InstallOutcome.Refused(OwnerOnly); }
+        if ((requires.SemanticTypes is { Length: > 0 } || request.Bindings is { Count: > 0 }) && !await IsOwner(scope, caller))
+        { return InstallOutcome.Refused(OwnerOnly); }
 
+        // A retried exact install resumes a copy that exists already; only a copy this call created is rolled back.
+        var existed = exact && (await grains.GetGrain<IApp>(IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
         var consented = origin with { Consented = Recorded(requires) };
         _ = exact
             ? await loader.Create(scope, name, bundle, consented, receipt!, ct)
             : await loader.Load(scope, name, bundle, consented, ct);
         var key = IApp.Key(scope, name);
-        await Grant(key, requires.SemanticTypes, caller, ct);
-        if (request.Bindings is { Count: > 0 } bindings)
-        { await grains.GetGrain<IApp>(key).Configure([], new(bindings, StringComparer.Ordinal)).WaitAsync(ct); }
+        try
+        {
+            await Grant(key, requires.SemanticTypes, caller, ct);
+            if (request.Bindings is { Count: > 0 } bindings)
+            { await grains.GetGrain<IApp>(key).Configure([], new(bindings, StringComparer.Ordinal)).WaitAsync(ct); }
+        }
+        catch
+        {
+            // No half-granted state: the copy and whatever was granted to it go, and the person sees the failure.
+            if (!existed) { await RollBack(key, requires.SemanticTypes, caller); }
+            throw;
+        }
         return InstallOutcome.Installed(name);
     }
 
     // An app that asks for nothing records no consent, as every copy installed before consent was asked does.
     private static AppRequirements? Recorded(AppRequirements requires) => AppConsent.IsEmpty(requires) ? null : requires;
 
-    // Each binding names a slot the manifest declares and one of this brain's connections of that slot's connector.
+    // Each binding names a slot the manifest declares and one of this brain's live connections of that slot's connector.
     private async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
     {
         if (bindings is not { Count: > 0 }) { return null; }
@@ -89,17 +103,32 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         {
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)
             { return $"This app has no connection named {slotName}."; }
-            if (!connections.Any(connection => connection.Id == id && connection.Kind == slot.Connector))
+            if (!connections.Any(connection => connection.Id == id && connection.Kind == slot.Connector && connection.Status == "connected"))
             { return $"Choose a {slot.Connector} connection for {slot.Name}."; }
         }
         return null;
     }
 
-    // A person, not an app or a script, who owns this brain.
+    // A person, not an app or a script, who owns this brain: its Owner member, or the Open posture's owner in its own
+    // brain, by the same rule the brain's authority grants with.
     private async Task<bool> IsOwner(string scope, CallerContext? caller)
         => identity is not null && caller is { Kind: CallerKind.User } && caller.StampedBy != TrustedEdge.AppProxy
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == scope
-            && (await identity.Membership(scope, caller.PrincipalId))?.Role == MemberRole.Owner;
+            && (AuthOptions.IsOpenPostureOwner(auth?.Value.Posture, caller)
+                || (await identity.Membership(scope, caller.PrincipalId))?.Role == MemberRole.Owner);
+
+    private async Task RollBack(string appKey, string[]? types, CallerContext? caller)
+    {
+        if (identity is not null && caller is not null)
+        {
+            foreach (var type in types ?? [])
+            {
+                try { await identity.RevokeAsOwner(caller, appKey, type, GrantMode.Always); }
+                catch (UnauthorizedAccessException) { break; }
+            }
+        }
+        await grains.GetGrain<IApp>(appKey).Delete();
+    }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
     private async Task Grant(string appKey, string[]? types, CallerContext? caller, CancellationToken ct)
@@ -148,10 +177,11 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         var next = origin with { PublicationDigest = null };
         if (AppConsent.IsEmpty(added))
         {
-            await loader.Load(scope, name, bundle, next, ct);
+            // Asking for no more: consent follows the release, so a release that asks for less narrows it.
+            await loader.Load(scope, name, bundle, next with { Consented = origin.Consented is null ? null : Recorded(requires) }, ct);
             return InstallOutcome.Installed(name);
         }
-        if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(added); }
+        if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(added, requires); }
         var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
         if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return InstallOutcome.Refused(OwnerOnly); }
         await loader.Load(scope, name, bundle, next with { Consented = Recorded(requires) }, ct);

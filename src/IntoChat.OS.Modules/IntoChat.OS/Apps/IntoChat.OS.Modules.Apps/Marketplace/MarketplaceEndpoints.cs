@@ -34,18 +34,22 @@ internal static class MarketplaceEndpoints
             return AppsEndpoints.Icon(listing.Icon, bundle.Files, $"{publisher}/{name}");
         }));
 
-        // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
-        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, InstallBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
-        {
-            var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
-            return outcome.Status switch
-            {
-                InstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), outcome.InstalledName!)).Read().WaitAsync(ct))),
-                InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
-                _ => AppsEndpoints.Refused(outcome),
-            };
-        }));
+        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, InstallBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct)
+            => Install(publisher, name, body, brain, installer, ct));
     }
+
+    // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
+    internal static Task<IResult> Install(string publisher, string name, InstallBody? body, IIntoChatOS brain, AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+    {
+        if (!AppsEndpoints.IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
+        var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
+        return outcome.Status switch
+        {
+            InstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), outcome.InstalledName!)).Read().WaitAsync(ct))),
+            InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
+            _ => AppsEndpoints.Refused(outcome),
+        };
+    });
 
     private static async Task<MarketplaceListing> Listing(MarketplaceView view, string publisher, string name, CancellationToken ct)
         => await view.Read(publisher, name, ct)

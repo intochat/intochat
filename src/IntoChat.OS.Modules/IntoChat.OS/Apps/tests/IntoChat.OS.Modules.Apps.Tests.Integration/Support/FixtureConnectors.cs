@@ -6,7 +6,8 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Apps.Tests;
 
-// Two connector kinds a slot can bind, each with a pasted credential that always probes connected.
+// Two connector kinds a slot can bind, each with a pasted credential that probes connected, except a mailbox
+// credential named "fixture-value-expired", which probes expired.
 public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-connectors"))
 {
     public static ConnectorDefinition[] Connectors =>
@@ -32,7 +33,8 @@ internal sealed class FixtureMailboxNeuron(
     [PersistentState("mailbox", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FixtureConnectionState> store)
     : ConnectionNeuron<FixtureConnectionState>(store), IFixtureMailbox
 {
-    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
+    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
+        => Task.FromResult(credential.Value == "fixture-value-expired" ? ConnectionProbeResult.Expired("expired by fixture") : ConnectionProbeResult.Connected());
     public Task<string> Kind() => Task.FromResult("mailbox");
 }
 

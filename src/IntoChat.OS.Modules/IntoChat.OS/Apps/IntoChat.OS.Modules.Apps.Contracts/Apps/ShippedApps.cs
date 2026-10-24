@@ -8,6 +8,12 @@ public static class ShippedApps
     // The publisher the OS ships its own apps as; hosts may trust more (OsAppsOptions.TrustedPublishers).
     public const string Publisher = "os";
 
+    // The OS's own services: the desktop shows none of them as a window.
+    public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
+
+    // What the OS runs on, which Remove refuses: its services, Settings, Apps and Ino.
+    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, "settings", "apps", "ino"], StringComparer.Ordinal);
+
     public static bool Is(AppSnapshot app, string name) => Is(app, name, [Publisher]);
 
     public static bool Is(AppSnapshot app, string name, IEnumerable<string> trustedPublishers)

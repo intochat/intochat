@@ -26,7 +26,7 @@ public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? Fo
 public static class Desktop
 {
     // Background services and roots never appear in the dock.
-    public static readonly HashSet<string> Hidden = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"];
+    public static readonly HashSet<string> Hidden = [.. ShippedApps.Services];
 
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string ViewKey(IntoChatOSConnection brain) => Key(brain) + "/view";

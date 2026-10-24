@@ -106,29 +106,10 @@ internal static class AppsEndpoints
             => Results.Ok(View(await App(brain, name).SaveToSource()))));
 
         // The one install path over HTTP: a person's own session, never an app's.
-        apps.MapPost("/install", (InstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
-        {
-            if (!IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
-            ArgumentNullException.ThrowIfNull(request?.Ref);
-            var outcome = await installer.Install(request, ct);
-            return outcome.Status switch
-            {
-                InstallStatus.Ok => Results.Ok(new { status = "ok", installedName = outcome.InstalledName }),
-                InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
-                _ => Refused(outcome),
-            };
-        }));
+        apps.MapPost("/install", (InstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Install(request, installer, ct));
 
-        apps.MapPost("/{name}/update", (string name, UpdateBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
-        {
-            var outcome = await installer.Update(new(name, body?.Consent), ct);
-            return outcome.Status switch
-            {
-                InstallStatus.Ok => Results.Ok(View(await App(brain, outcome.InstalledName!).Read().WaitAsync(ct))),
-                InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", added = outcome.Requires, error = outcome.Message }),
-                _ => Refused(outcome),
-            };
-        }));
+        apps.MapPost("/{name}/update", (string name, UpdateBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct)
+            => Update(name, body, brain, installer, ct));
 
         apps.MapGet("/{name}/icon", (string name, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
         {
@@ -152,6 +133,32 @@ internal static class AppsEndpoints
             return Results.Ok(new { deleted = name });
         }));
     }
+
+    // The one install path over HTTP: a person's own session, never an app's.
+    internal static Task<IResult> Install(InstallRequest request, AppInstaller installer, CancellationToken ct) => Respond(async () =>
+    {
+        if (!IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
+        ArgumentNullException.ThrowIfNull(request?.Ref);
+        var outcome = await installer.Install(request, ct);
+        return outcome.Status switch
+        {
+            InstallStatus.Ok => Results.Ok(new { status = "ok", installedName = outcome.InstalledName }),
+            InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
+            _ => Refused(outcome),
+        };
+    });
+
+    internal static Task<IResult> Update(string name, UpdateBody? body, IIntoChatOS brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
+    {
+        if (!IsPerson()) { return Results.Json(new { error = "Only you can update apps." }, statusCode: 403); }
+        var outcome = await installer.Update(new(name, body?.Consent), ct);
+        return outcome.Status switch
+        {
+            InstallStatus.Ok => Results.Ok(View(await App(brain, outcome.InstalledName!).Read().WaitAsync(ct))),
+            InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", added = outcome.Requires, requires = outcome.Latest, error = outcome.Message }),
+            _ => Refused(outcome),
+        };
+    });
 
     // A person at the authenticated edge: an app's call through the app proxy is not one.
     internal static bool IsPerson()

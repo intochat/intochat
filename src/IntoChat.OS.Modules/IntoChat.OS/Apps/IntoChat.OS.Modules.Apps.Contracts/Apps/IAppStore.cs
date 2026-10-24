@@ -24,19 +24,21 @@ public sealed record GalleryEntry(
 public enum InstallStatus { Ok = 0, Refused = 1, NeedsConsent = 2 }
 
 // What an install, update or remove did: the installed app's name, or why nothing changed. NeedsConsent carries the
-// requirements the person must see and accept (all of them for an install, the added ones for an update).
+// requirements the person must see and accept (all of them for an install, the added ones for an update); Latest is
+// everything the release asks for, the panel's full list.
 [GenerateSerializer, Alias("apps.store.outcome")]
 public sealed record InstallOutcome(
     [property: Id(0)] bool Ok,
     [property: Id(1)] string? InstalledName,
     [property: Id(2)] string? Message,
     [property: Id(3)] InstallStatus Status = InstallStatus.Ok,
-    [property: Id(4)] AppRequirements? Requires = null)
+    [property: Id(4)] AppRequirements? Requires = null,
+    [property: Id(5)] AppRequirements? Latest = null)
 {
     public static InstallOutcome Installed(string name) => new(true, name, null);
     public static InstallOutcome Refused(string message) => new(false, null, message, InstallStatus.Refused);
-    public static InstallOutcome NeedsConsent(AppRequirements requires)
-        => new(false, null, "Review what this app asks for, then install again.", InstallStatus.NeedsConsent, requires);
+    public static InstallOutcome NeedsConsent(AppRequirements requires, AppRequirements? latest = null)
+        => new(false, null, "Review what this app asks for, then install again.", InstallStatus.NeedsConsent, requires, latest ?? requires);
 }
 
 // A listed app: both Version and Digest name one exact release; neither names the latest listing.

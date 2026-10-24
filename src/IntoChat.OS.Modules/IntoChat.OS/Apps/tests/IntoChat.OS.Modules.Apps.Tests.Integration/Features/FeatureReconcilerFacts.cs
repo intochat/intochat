@@ -57,6 +57,26 @@ public sealed class FeatureReconcilerFacts : IDisposable
     private static IFeatureReconciler Reconciler(ITestBrain brain, Person person)
         => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(person.BrainId));
 
+    // Activation never widens: a shipped release that asks for more than the copy's consent is not loaded until the person consents.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ReconcilingNeverWidensAShippedApp()
+    {
+        await using var brain = await Start();
+        var (alice, copy) = await Installed(brain);
+        var catalog = brain.Services.GetRequiredService<FeatureCatalog>();
+        var current = (await catalog.Find("os", "greeter"))!;
+        await catalog.SaveToSource("os", current with
+        {
+            Version = "2.0.0",
+            Manifest = current.Manifest with { Requires = new(Connectors: ["mailbox"]) },
+        });
+
+        using (alice.AsCaller()) { await Reconciler(brain, alice).Reconcile(Ct); }
+
+        Assert.Equal("1.2.0", (await copy.Read()).Version);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task ADeletedFeatureAppCanBeReinstalledAndIsAttachedToItsOrigin()

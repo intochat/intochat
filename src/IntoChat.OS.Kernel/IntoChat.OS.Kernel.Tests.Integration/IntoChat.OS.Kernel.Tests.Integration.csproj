@@ -6,6 +6,9 @@
     <Using Include="IntoChat.OS.Kernel.Testing" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <Compile Include="../../../features/os/Engineer/EngineerKeys.cs" Link="Features/EngineerKeys.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
+    <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
     <!-- Storage fixtures from earlier builds; facts read copies beside the test binary. -->
     <None Include="Storage/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

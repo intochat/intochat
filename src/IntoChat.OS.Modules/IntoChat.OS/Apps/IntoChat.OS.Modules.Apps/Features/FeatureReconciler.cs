@@ -51,6 +51,13 @@ internal sealed class FeatureReconciler(
             if (bundle is null)
             { logger.LogWarning("{Brain}/{App} came from {Owner}/{Name}, which the features folder does not carry; it stays at {Version}.", brainId, name, origin.Publisher, origin.Name, origin.Version); continue; }
             if (!migrating && AppVersions.Compare(bundle.Version, origin.Version) <= 0 && !AppInstaller.Unconfirmed(snapshot.Status)) { continue; }
+            // Activation never widens: a release asking for more than the copy's consent waits for the person in Apps.
+            if (!AppConsent.IsEmpty(AppConsent.Added(origin.Consented ?? snapshot.Manifest.Requires, bundle.Manifest.Requires)))
+            {
+                logger.LogInformation("{Brain}/{App} {Version} asks for more than was accepted; it stays at {Installed} until the person consents.",
+                    brainId, name, bundle.Version, origin.Version);
+                continue;
+            }
             try { await loader.Load(brainId, name, bundle, origin, ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Reconciling {Brain}/{App} to {Version} failed.", brainId, name, bundle.Version); continue; }

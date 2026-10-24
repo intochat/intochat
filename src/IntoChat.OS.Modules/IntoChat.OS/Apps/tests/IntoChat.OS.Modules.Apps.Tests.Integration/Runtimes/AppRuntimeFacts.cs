@@ -1,4 +1,5 @@
 using IntoChat.OS.Apps;
+using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -72,7 +73,7 @@ public sealed class AppRuntimeFacts
         var ct = TestContext.Current.CancellationToken;
         var runtime = new FakeAppRuntime();
         var builder = TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(runtime);
-        if (configured is not null) { builder = builder.WithConfiguration("IntoChatOS:Connections:PublicOrigin", configured); }
+        if (configured is not null) { builder = builder.WithConfiguration(IntoChatOSConfiguration.ConnectionsPublicOriginKey, configured); }
         await using var brain = await builder.StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key("runtime-facts", "origin"));
         await app.Create(new("Origin", "reads the origin", [new("ask", "ask")], [], []), "spec");

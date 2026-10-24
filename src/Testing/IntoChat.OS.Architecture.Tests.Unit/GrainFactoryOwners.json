@@ -44,7 +44,7 @@
   "IntoChat.OS.Modules.Apps/Features/FeatureBoot.cs": 2,
   "IntoChat.OS.Modules.Apps/Features/FeatureLoader.cs": 3,
   "IntoChat.OS.Modules.Apps/Features/FeatureReconciler.cs": 2,
-  "IntoChat.OS.Modules.Apps/Marketplace/AppInstaller.cs": 8,
+  "IntoChat.OS.Modules.Apps/Marketplace/AppInstaller.cs": 10,
   "IntoChat.OS.Modules.Apps/Marketplace/MarketplaceView.cs": 3,
   "IntoChat.OS.Modules.Apps/Runtimes/CSharpAppRuntime.cs": 2,
   "IntoChat.OS.Modules.Apps/Studio/AppStudioNeuron.cs": 1,

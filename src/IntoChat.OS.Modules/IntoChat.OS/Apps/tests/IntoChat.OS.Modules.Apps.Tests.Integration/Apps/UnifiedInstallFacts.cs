@@ -342,6 +342,7 @@ public sealed class UnifiedInstallFacts
         {
             Assert.Equal(InstallStatus.NeedsConsent, outcome.Status);
             Assert.Equal(new AppRequirements(["person.birthDate"], [], []), outcome.Requires);
+            Assert.Equal(Needs, outcome.Latest);
         }
         Assert.Equal(installed, (await Copy(brain, alice).Read()).Version);
         Assert.Equal(["person.email"], await Granted(brain, alice));
@@ -372,7 +373,107 @@ public sealed class UnifiedInstallFacts
         Assert.Equal(InstallStatus.Ok, (await Installer(brain).Update(new("echo"), Ct)).Status);
         var updated = await Copy(brain, alice).Read();
         Assert.NotEqual(installed, updated.Version);
-        Assert.Equal(Needs, updated.Origin!.Consented);
+        // Consent follows the release down: what the person accepted is now what it asks for.
+        var narrowed = updated.Origin!.Consented!;
+        Assert.Equal((string[])["person.email"], narrowed.SemanticTypes!);
+        Assert.Equal((string[])["mailbox"], narrowed.Connectors!);
+    }
+
+    // The Open posture's local owner owns its brain exactly as the authority's own owner rule says.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task TheOpenPostureOwnerInstallsDataApps()
+    {
+        await using var brain = await Start();
+        await Publish(brain, await brain.PersonAsync("intochat", Ct), Needs);
+        var owner = brain.Owner;
+
+        using var _ = owner.AsCaller();
+        var outcome = await Installer(brain).Install(Latest(AppConsent.Of(Needs)), Ct);
+
+        Assert.Equal(InstallStatus.Ok, outcome.Status);
+        Assert.Equal(["person.birthDate", "person.email"], await Granted(brain, owner));
+    }
+
+    // Binding a connection hands the app the brain's account: only the owner binds, and only a live connection.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task BindingsNeedTheOwnerAndAConnectedConnection()
+    {
+        await using var brain = await Start();
+        var mailOnly = new AppRequirements(Connectors: ["mailbox"]);
+        await Publish(brain, await brain.PersonAsync("intochat", Ct), mailOnly);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Connect(brain, alice, "mailbox", "mail-1");
+        using (alice.AsCaller())
+        {
+            var stale = brain.Get<IConnection>(ConnectionKeys.For(alice.BrainId, "mailbox", "mail-stale"));
+            await stale.Connect("api-key", "fixture-value-expired");
+            await stale.Probe();
+        }
+
+        using (alice.AsApp(alice.Key("apps/desktop")))
+        {
+            var app = await Installer(brain).Install(Latest(AppConsent.Of(mailOnly), new() { ["inbox"] = "mail-1" }), Ct);
+            Assert.Equal((InstallStatus.Refused, AppInstaller.OwnerOnly), (app.Status, app.Message));
+        }
+        using (alice.AsCaller())
+        {
+            var stale = await Installer(brain).Install(Latest(AppConsent.Of(mailOnly), new() { ["inbox"] = "mail-stale" }), Ct);
+            Assert.Equal((InstallStatus.Refused, "Choose a mailbox connection for inbox."), (stale.Status, stale.Message));
+        }
+        Assert.Equal("", (await Copy(brain, alice).Read()).Manifest.Title);
+    }
+
+    // No half-granted state: a binding the app's storage vetoes after the copy landed takes the copy and its grants back.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AFailedBindingRollsTheInstallBack()
+    {
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule>()
+            .WithModule<FixtureConnectorsModule>()
+            .WithFakeAppRuntime(new())
+            .ConfigureServices(services => services.AddSingleton<IAppStorageHook, VetoingHook>())
+            .StartAsync(Ct);
+        await Publish(brain, await brain.PersonAsync("intochat", Ct), Needs);
+        var alice = await brain.PersonAsync("alice", Ct);
+        await Connect(brain, alice, "mailbox", "mail-1");
+
+        using var _ = alice.AsCaller();
+        await Assert.ThrowsAsync<InvalidOperationException>(()
+            => Installer(brain).Install(Latest(AppConsent.Of(Needs), new() { ["inbox"] = "mail-1" }), Ct));
+
+        Assert.Equal("", (await Copy(brain, alice).Read()).Manifest.Title);
+        Assert.Empty(await Granted(brain, alice));
+    }
+
+    private sealed class VetoingHook : IAppStorageHook
+    {
+        public Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("The fixture's storage depends on this binding.");
+    }
+
+    // The marketplace route and the update route are a person's, as the install route is.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AppCallersAreRefusedOnTheMarketplaceAndUpdateRoutes()
+    {
+        await using var brain = await Start();
+        await Publish(brain, await brain.PersonAsync("intochat", Ct), null);
+        var alice = await brain.PersonAsync("alice", Ct);
+        using (alice.AsCaller()) { await brain.InstallLatest("intochat", "echo", Ct); }
+        await Copy(brain, alice).Delete();
+
+        using (alice.AsApp(alice.Key("apps/desktop")))
+        {
+            var market = await MarketplaceEndpoints.Install("intochat", "echo", new(AppConsent.Of(null), null, null), brain, Installer(brain), Ct);
+            var update = await AppsEndpoints.Update("echo", new(null), brain, Installer(brain), Ct);
+            Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(market).StatusCode);
+            Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(update).StatusCode);
+        }
+        Assert.Equal("", (await Copy(brain, alice).Read()).Manifest.Title);
     }
 
     private static async Task<JsonElement> Body(HttpResponseMessage response)
