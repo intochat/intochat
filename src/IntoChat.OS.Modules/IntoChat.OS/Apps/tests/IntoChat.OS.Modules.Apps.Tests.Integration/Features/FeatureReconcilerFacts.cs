@@ -38,7 +38,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
     private static async Task<(Person Alice, IApp Copy)> Installed(ITestBrain brain)
     {
         var alice = await brain.PersonAsync("alice", Ct);
-        using (alice.AsCaller()) { await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct); }
+        using (alice.AsCaller()) { await brain.InstallLatest("os", "greeter", Ct); }
         return (alice, brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter")));
     }
 
@@ -66,7 +66,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
         using (alice.AsCaller())
         {
             await copy.Delete();
-            var again = await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct);
+            var again = await brain.InstallLatest("os", "greeter", Ct);
             Assert.Equal(new AppOrigin("os", new AppSource.Shipped(), "greeter", "1.2.0"), again.Origin);
             Assert.False(again.Edited);
         }
@@ -85,7 +85,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
             await copy.Delete();
             Assert.Empty((await copy.Read()).Manifest.Title);
 
-            var again = await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct);
+            var again = await brain.InstallLatest("os", "greeter", Ct);
 
             Assert.False(again.Edited);
             Assert.Equal("// greet\n", again.Files["greet.cs"]);
@@ -216,7 +216,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
         var alice = await brain.PersonAsync("alice", Ct);
         runtime.Refuse = _ => new TimeoutException("Response did not arrive on time in 00:00:30");
         using (alice.AsCaller())
-        { await Assert.ThrowsAsync<TimeoutException>(() => brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct)); }
+        { await Assert.ThrowsAsync<TimeoutException>(() => brain.InstallLatest("os", "greeter", Ct)); }
         runtime.Refuse = null;
         return (alice, brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter")));
     }
@@ -250,7 +250,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
 
         using (alice.AsCaller())
         {
-            var updated = await brain.Services.GetRequiredService<AppInstaller>().Update("greeter", Ct);
+            var updated = await brain.UpdateApp("greeter", Ct);
             Assert.Equal(AppStatus.Live, updated.Status);
             Assert.Equal(Shipped, updated.Origin);
         }

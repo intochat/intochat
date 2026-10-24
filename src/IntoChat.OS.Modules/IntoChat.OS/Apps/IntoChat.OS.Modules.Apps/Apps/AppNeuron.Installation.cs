@@ -13,7 +13,7 @@ internal sealed partial class AppNeuron
             || BrainScope.CurrentId() != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
         if (installation.OperationId == Guid.Empty || installation.TargetName != Name()
-            || origin != new AppOrigin(reference.Publisher, reference.Source, reference.Name, reference.Version, reference.Digest, caller.AccountId)
+            || (origin is null ? null : origin with { Consented = null }) != new AppOrigin(reference.Publisher, reference.Source, reference.Name, reference.Version, reference.Digest, caller.AccountId)
             || bundle.Version != reference.Version || AppPublicationDigest.Of(bundle) != reference.Digest)
         { throw new InvalidOperationException("The installation receipt does not match this publication."); }
     }

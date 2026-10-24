@@ -75,7 +75,7 @@ internal sealed class OsDefaults(
             try
             {
                 if ((await brains.Open(brainId).Neuron<IApp>($"apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
-                { await installer.Install(app.Publisher, app.Name, cancellationToken); }
+                { await InstallDefault(app, cancellationToken); }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -83,5 +83,17 @@ internal sealed class OsDefaults(
                 logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, brainId);
             }
         }
+    }
+
+    // A default the deployment names may need connections or secrets the person adds later; those grant nothing, so the
+    // deployment's choice stands for them. A default that reads the person's data is never installed for them.
+    private async Task InstallDefault(OsApp app, CancellationToken cancellationToken)
+    {
+        InstallRequest Request(AppRequirements? requires) => new(new(app.Publisher, app.Name), AppConsent.Of(requires), Guid.Empty);
+        var outcome = await installer.Install(Request(null), cancellationToken);
+        if (outcome is { Status: InstallStatus.NeedsConsent, Requires: { } requires } && requires.SemanticTypes is not { Length: > 0 })
+        { outcome = await installer.Install(Request(requires), cancellationToken); }
+        if (outcome.Status != InstallStatus.Ok)
+        { throw new InvalidOperationException($"Default app {app.Publisher}/{app.Name} needs the person's consent: {outcome.Message}"); }
     }
 }

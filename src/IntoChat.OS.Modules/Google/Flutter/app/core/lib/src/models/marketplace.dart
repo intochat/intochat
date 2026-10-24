@@ -27,20 +27,30 @@ class AppSource {
       : const AppSource.brain(accountId: '', brainId: '');
 }
 
+// Consented is what the person accepted at install or update; a copy recorded
+// before consent was asked has none, and its manifest's requirements stand for it.
 class AppOrigin {
   const AppOrigin({
     required this.publisher,
     required this.source,
     required this.name,
     required this.version,
+    this.publicationDigest,
+    this.installedByAccount,
+    this.consented,
   });
   final String publisher, name, version;
   final AppSource source;
+  final String? publicationDigest, installedByAccount;
+  final AppRequirements? consented;
   factory AppOrigin.fromJson(Map<String, dynamic> json) => AppOrigin(
     publisher: json['publisher'] as String? ?? '',
     source: AppSource.read(json['source']),
     name: json['name'] as String? ?? '',
     version: json['version'] as String? ?? '',
+    publicationDigest: json['publicationDigest'] as String?,
+    installedByAccount: json['installedByAccount'] as String?,
+    consented: AppRequirements.read(json['consented']),
   );
 }
 

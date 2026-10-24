@@ -58,4 +58,30 @@ public sealed class CirclePublicationFacts(CirclesHost host)
         Assert.Equal(selected.Reference.Version, copy.Version);
         Assert.Empty((await reader.In(reader.BrainId, () => factory.Publications("nobody"))).Items);
     }
+
+    // Fork and bring carry the consent of no requirements: a release that asks for more is refused, nothing is created,
+    // and the person installs it from its Apps detail, where they see what it asks for.
+    [Fact]
+    public async Task ForkAndBringWithoutConsentAreRefusedForAReleaseThatAsksForMore()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var vlad = await host.PersonAsync("vlad", ct);
+        var reader = await host.PersonAsync("reader", ct);
+        var source = brain.Get<IApp>(IApp.Key(vlad.BrainId, "needs"));
+        await vlad.In(vlad.BrainId, () => source.Import(new AppBundle("needs", "1.0.0",
+            Manifest("needs") with { Requires = new(["person.email"], [Connector]) }, "# needs", [])));
+        await vlad.In(vlad.BrainId, () => source.Publish());
+        var release = Assert.Single(await source.PublishedReleases()).Reference;
+        var factory = brain.Get<ICircleFactory>(ICircleFactory.Key(reader.BrainId));
+
+        var fork = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.In(reader.BrainId, () => factory.Fork(release, "my-needs", Guid.NewGuid())));
+        Assert.Equal(AppInstaller.ReviewInApps, fork.Message);
+        Assert.Equal("", (await brain.Get<IApp>(IApp.Key(reader.BrainId, "my-needs")).Read()).Manifest.Title);
+
+        var room = await Create(brain, reader);
+        var bring = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.In(room, () => Circle(brain, room).BringPublication(release, "shared-needs", Guid.NewGuid())));
+        Assert.Equal(AppInstaller.ReviewInApps, bring.Message);
+        Assert.Equal("", (await brain.Get<IApp>(IApp.Key(room, "shared-needs")).Read()).Manifest.Title);
+    }
 }

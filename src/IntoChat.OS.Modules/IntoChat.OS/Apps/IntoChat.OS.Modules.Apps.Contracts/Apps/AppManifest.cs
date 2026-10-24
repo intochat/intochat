@@ -39,6 +39,14 @@ public sealed record AppRequirements(
     [property: Id(1)] string[]? Connectors = null,
     [property: Id(2)] string[]? Secrets = null)
 {
+    // By value, so an origin read back from storage equals the one that was written; null and empty lists are the same need.
+    public bool Equals(AppRequirements? other)
+        => other is not null && Same(SemanticTypes, other.SemanticTypes) && Same(Connectors, other.Connectors) && Same(Secrets, other.Secrets);
+
+    public override int GetHashCode() => AppConsent.Of(this).GetHashCode(StringComparison.Ordinal);
+
+    private static bool Same(string[]? left, string[]? right) => (left ?? []).SequenceEqual(right ?? [], StringComparer.Ordinal);
+
     public AppRequirements Validated()
     {
         Check("semantic type", SemanticTypes);

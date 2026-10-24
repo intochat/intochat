@@ -93,7 +93,7 @@ internal sealed class CircleFactoryNeuron(
         Own();
         if (await identity.KindOf(Brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("Fork to my brain needs a personal brain. Use Bring into a circle for shared copies."); }
-        return await ServiceProvider.GetRequiredService<AppInstaller>().InstallPublication(publication, targetName, operationId, CancellationToken.None);
+        return await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<IIntoChatOS>(), publication, targetName, operationId);
     }
 
     // The member acts in its own brain.

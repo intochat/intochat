@@ -90,18 +90,112 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
             && ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(caller.AppId).Read(), "desktop");
     }
 
+    // Scripts install only apps that ask for nothing: one with requirements is installed from Apps, where the person sees them.
     public async Task<InstallOutcome> Get(string publisher, string name)
     {
-        try
+        return await Answer(async () =>
         {
-            if (BrainScope.CurrentId() != Scope) { return new(false, null, "Apps install only into your own brain."); }
-            if (!await MayInstall()) { return new(false, null, "Only you or the desktop can install apps."); }
-            var snapshot = await installer.Install(publisher, name, default);
-            return new(true, snapshot.Name, null);
-        }
-        catch (InvalidOperationException error) { return new(false, null, error.Message); }
-        catch (KeyNotFoundException error) { return new(false, null, error.Message); }
-        catch (UnauthorizedAccessException error) { return new(false, null, error.Message); }
-        catch (ArgumentException error) { return new(false, null, error.Message); }
+            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps install only into your own brain."); }
+            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can install apps."); }
+            if (await marketplace.Read(publisher, name, default) is { } listing && !AppConsent.IsEmpty(listing.Requires))
+            { return InstallOutcome.Refused(AppInstaller.ReviewInApps); }
+            var outcome = await installer.Install(new(new(publisher, name), AppConsent.Of(null), Guid.Empty), default);
+            return outcome.Status == InstallStatus.NeedsConsent ? InstallOutcome.Refused(AppInstaller.ReviewInApps) : outcome;
+        });
     }
+
+    public async Task<InstallOutcome> Install(InstallRequest request)
+    {
+        return await Answer(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps install only into your own brain."); }
+            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can install apps."); }
+            return await installer.Install(request, default);
+        });
+    }
+
+    public async Task<InstallOutcome> Update(UpdateRequest request)
+    {
+        return await Answer(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps update only in your own brain."); }
+            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can update apps."); }
+            return await installer.Update(request, default);
+        });
+    }
+
+    // The apps the OS runs on: the desktop and its services, Settings, Apps and Ino.
+    internal static readonly HashSet<string> Roots = ["desktop", "workspace", "router", "selfimprove", "circleroom", "usage", "settings", "apps", "ino"];
+
+    public async Task<InstallOutcome> Remove(string name)
+    {
+        return await Answer(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            if (BrainScope.CurrentId() != Scope || !CallerContextStamper.TryGet(out var caller)
+                || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
+            { return InstallOutcome.Refused("Only you can remove apps."); }
+            if (Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
+            var app = App(IApp.Key(Scope, name));
+            if ((await app.Read()).Manifest.Title.Length == 0) { return InstallOutcome.Refused($"No app named {name} exists in this brain."); }
+            await app.Delete();
+            return InstallOutcome.Installed(name);
+        });
+    }
+
+    // One app as the Apps detail shows it: the release it names (the latest listing or one exact release), what that
+    // release asks for, and the copy this brain holds of it. A release that can no longer be read is unavailable.
+    public async Task<AppDetail?> Describe(AppRef reference)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        if (BrainScope.CurrentId() != Scope) { return null; }
+        bool exact;
+        try { exact = reference.IsExact(); }
+        catch (ArgumentException) { return null; }
+        var listing = await marketplace.Read(reference.Publisher, reference.App, default);
+        var bundle = await Release(async () =>
+        {
+            if (exact && listing?.Source is AppSource.Brain published)
+            {
+                var release = await App(IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!);
+                return release.Version == reference.Version && AppPublicationDigest.Of(release) == reference.Digest ? release : null;
+            }
+            return !exact && listing is not null ? await installer.Bundle(listing.Source, listing.Publisher, reference.App, default) : null;
+        });
+        var local = await App(IApp.Key(Scope, reference.App)).Read();
+        var installed = local.Manifest.Title.Length > 0 && local.Origin is { } origin
+            && origin.Publisher == reference.Publisher && origin.Name == reference.App ? local : null;
+        if (bundle is null && installed is null) { return null; }
+        var manifest = bundle?.Manifest ?? installed!.Manifest;
+        var status = bundle is null ? "unavailable"
+            : installed is null ? "available"
+            : !installed.Edited && listing is not null && AppVersions.Compare(listing.Version, installed.Origin!.Version) > 0 ? "update"
+            : "installed";
+        return new(reference.Publisher, reference.App, manifest.Title, manifest.Description, manifest.Icon, listing?.Version,
+            installed?.Name, installed?.Version, installed?.Edited ?? false, manifest.Requires ?? new AppRequirements(),
+            installed is null ? null : installed.Origin!.Consented ?? installed.Manifest.Requires ?? new AppRequirements(),
+            manifest.Slots, status, bundle is null ? "This release is no longer available." : null);
+    }
+
+    // A refusal is answered as a message, not thrown, as Get always has.
+    private static async Task<InstallOutcome> Answer(Func<Task<InstallOutcome>> act)
+    {
+        try { return await act(); }
+        catch (InvalidOperationException error) { return InstallOutcome.Refused(error.Message); }
+        catch (KeyNotFoundException error) { return InstallOutcome.Refused(error.Message); }
+        catch (UnauthorizedAccessException error) { return InstallOutcome.Refused(error.Message); }
+        catch (ArgumentException error) { return InstallOutcome.Refused(error.Message); }
+    }
+
+    private static async Task<AppBundle?> Release(Func<Task<AppBundle?>> read)
+    {
+        try { return await read(); }
+        catch (KeyNotFoundException) { return null; }
+        catch (InvalidOperationException) { return null; }
+        catch (InvalidDataException) { return null; }
+    }
+
+    private IApp App(string key) => ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(key);
 }

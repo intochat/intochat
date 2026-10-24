@@ -9,6 +9,8 @@ namespace IntoChat.OS.Apps;
 // Browse, inspect and install published apps from inside one brain.
 internal static class MarketplaceEndpoints
 {
+    public sealed record InstallBody(string? Consent, string? Name, Dictionary<string, string>? Bindings);
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var marketplace = BrainRoutes.Group(endpoints, "/marketplace").AddEndpointFilter(ModuleRouteGuard.Guard);
@@ -32,8 +34,17 @@ internal static class MarketplaceEndpoints
             return AppsEndpoints.Icon(listing.Icon, bundle.Files, $"{publisher}/{name}");
         }));
 
-        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, [FromServices] AppInstaller installer, CancellationToken ct)
-            => AppsEndpoints.Respond(async () => Results.Ok(AppsEndpoints.View(await installer.Install(publisher, name, ct)))));
+        // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
+        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, InstallBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+        {
+            var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
+            return outcome.Status switch
+            {
+                InstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), outcome.InstalledName!)).Read().WaitAsync(ct))),
+                InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
+                _ => AppsEndpoints.Refused(outcome),
+            };
+        }));
     }
 
     private static async Task<MarketplaceListing> Listing(MarketplaceView view, string publisher, string name, CancellationToken ct)

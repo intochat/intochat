@@ -209,8 +209,7 @@ internal sealed class CircleNeuron(
         var caller = Caller();
         try
         {
-            var installed = await ServiceProvider.GetRequiredService<AppInstaller>()
-                .InstallPublication(publication, targetName, operationId, CancellationToken.None);
+            var installed = await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<IIntoChatOS>(), publication, targetName, operationId);
             await IndexInstallation(installed);
             return installed;
         }

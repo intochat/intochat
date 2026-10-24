@@ -32,7 +32,7 @@ public sealed class ExactAppInstallFacts
         using var caller = reader.AsCaller();
         var installer = brain.Services.GetRequiredService<AppInstaller>();
         var operation = Guid.NewGuid();
-        var copy = await installer.InstallPublication(reference, "mine", operation, Ct);
+        var copy = await brain.InstallRelease(reference, "mine", operation, Ct);
         Assert.Equal("1.0.0", copy.Version);
         Assert.Equal("A", copy.Files["preview.txt"]);
         Assert.Equal("default", copy.Settings["text"]);
@@ -42,9 +42,9 @@ public sealed class ExactAppInstallFacts
         Assert.Equal(reader.AccountId, copy.Origin.InstalledByAccount);
         var app = brain.Get<IApp>(IApp.Key(reader.BrainId, "mine"));
         await app.WriteFile("preview.txt", "my edit", Guid.NewGuid());
-        var retry = await installer.InstallPublication(reference, "mine", operation, Ct);
+        var retry = await brain.InstallRelease(reference, "mine", operation, Ct);
         Assert.Equal("my edit", retry.Files["preview.txt"]);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => installer.InstallPublication(reference, "mine", Guid.NewGuid(), Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.InstallRelease(reference, "mine", Guid.NewGuid(), Ct));
     }
 
     [Trait("host", "own")]
@@ -59,7 +59,7 @@ public sealed class ExactAppInstallFacts
         var installer = brain.Services.GetRequiredService<AppInstaller>();
         async Task<bool> Attempt()
         {
-            try { await installer.InstallPublication(reference, "mine", Guid.NewGuid(), Ct); return true; }
+            try { await brain.InstallRelease(reference, "mine", Guid.NewGuid(), Ct); return true; }
             catch (InvalidOperationException) { return false; }
         }
         var results = await Task.WhenAll(Attempt(), Attempt());
@@ -77,8 +77,8 @@ public sealed class ExactAppInstallFacts
         var reader = await brain.PersonAsync("reader", Ct);
         using var caller = reader.AsCaller();
         var installer = brain.Services.GetRequiredService<AppInstaller>();
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => installer.InstallPublication(reference with { Digest = new string('0', 64) }, "mine", Guid.NewGuid(), Ct));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => installer.InstallPublication(reference with { Source = new(reader.AccountId, reader.BrainId) }, "mine", Guid.NewGuid(), Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => brain.InstallRelease(reference with { Digest = new string('0', 64) }, "mine", Guid.NewGuid(), Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => brain.InstallRelease(reference with { Source = new(reader.AccountId, reader.BrainId) }, "mine", Guid.NewGuid(), Ct));
         Assert.Equal("", (await brain.Get<IApp>(IApp.Key(reader.BrainId, "mine")).Read()).Manifest.Title);
     }
 }

@@ -25,7 +25,14 @@ internal sealed class OsWorkspaceRoot(IIntoChatOS brain, AppInstaller installer,
         {
             var app = brain.Neuron<IApp>($"apps/{required.Name}");
             if ((await app.Read()).Manifest.Title.Length != 0) { continue; }
-            try { await installer.Install(required.Publisher, required.Name, cancellationToken); }
+            // The OS's required apps ship asking for nothing, so they install with the consent of no requirements;
+            // one that came to ask for more is refused here rather than installed without the person.
+            try
+            {
+                var outcome = await installer.Install(new(new(required.Publisher, required.Name), AppConsent.Of(null), Guid.Empty), cancellationToken);
+                if (outcome.Status != InstallStatus.Ok)
+                { throw new InvalidOperationException($"Required app {required.Name} did not install: {outcome.Message}"); }
+            }
             catch (InvalidOperationException)
             { if ((await app.Read()).Manifest.Title.Length == 0) { throw; } }
         }
@@ -35,7 +42,13 @@ internal sealed class OsWorkspaceRoot(IIntoChatOS brain, AppInstaller installer,
             if (IApp.NameOf(scope, instance.Key) is not { } name) { continue; }
             var app = await brain.Neuron<IApp>($"apps/{name}").Read();
             if (app.Edited || app.Origin is not { Source: AppSource.Shipped } origin || !options.Value.TrustedPublishers.Contains(origin.Publisher)) { continue; }
-            try { await installer.Update(name, cancellationToken); }
+            // Never widens: an update that asks for more waits, at the installed version, for the person's consent in Apps.
+            try
+            {
+                var outcome = await installer.Update(new(name), cancellationToken);
+                if (outcome.Status != InstallStatus.Ok)
+                { logger.LogInformation("App {App} has an update that asks for more; its installed version was retained until the person consents.", name); }
+            }
             catch (Exception error) when (error is not OperationCanceledException && name is not ("workspace" or "desktop"))
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }
         }
