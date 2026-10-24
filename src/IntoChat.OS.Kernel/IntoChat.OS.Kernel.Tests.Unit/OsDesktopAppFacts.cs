@@ -486,6 +486,52 @@ public sealed class OsDesktopAppFacts
         Assert.Equal("ino", Desktop.NewTabChoice("weather", installed));
     }
 
+    // The toast belongs to the workspace revision it refused at: any later change, from anywhere, hides it.
+    [Fact]
+    public void ARefusalToastShowsOnlyAtItsRevision()
+    {
+        var stored = Desktop.ToastAt(7, WindowOps.TabsRefusal);
+        Assert.Equal(WindowOps.TabsRefusal, Desktop.ShownToast(stored, 7));
+        Assert.Null(Desktop.ShownToast(stored, 8));
+        Assert.Null(Desktop.ShownToast("", 7));
+        Assert.Null(Desktop.ShownToast("not a toast", 7));
+        var change = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["Desktop.cs"];
+        var apply = change.IndexOf("await State(brain).Apply(update", StringComparison.Ordinal);
+        Assert.True(apply >= 0 && change.IndexOf("await Toast(brain).Set(\"\")", apply, StringComparison.Ordinal) > apply);
+    }
+
+    [Fact]
+    public void TabIndicesResolveAgainstVisibleTabsAndStaleOnesAreNull()
+    {
+        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        { Windows = [new("w-1", [View("notes"), View("desktop"), View("calc")], "calc")] };
+        Assert.Equal("notes", Desktop.TabAt("brain", state, "w-1", "0"));
+        // The hidden desktop tab is skipped, so index 1 is calc.
+        Assert.Equal("calc", Desktop.TabAt("brain", state, "w-1", "1"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "2"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-9", "0"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "-1"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "x"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", ""));
+        Assert.Equal(("w-1", "3"), Desktop.WindowAndIndex("w-1/3"));
+        Assert.Equal(("a/b", "3"), Desktop.WindowAndIndex("a/b/3"));
+        Assert.Equal(("w-1", ""), Desktop.WindowAndIndex("w-1"));
+    }
+
+    [Fact]
+    public void FocusOnAHiddenActiveTabStillResolvesToItsWindow()
+    {
+        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        {
+            Windows = [new("w-1", [View("ino")], "ino"), new("w-2", [View("notes"), View("desktop")], "desktop")],
+            FocusedViewId = "desktop",
+        };
+        Assert.Equal("w-2", Desktop.FocusedWindow("brain", state));
+        Assert.Null(Desktop.FocusedWindow("brain", state with { FocusedViewId = "gone" }));
+    }
+
     // A window whose tabs are the given apps (just the active one when none are given).
     private static WindowModel Window(string id, string active, params string[] apps)
     {

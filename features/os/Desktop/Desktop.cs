@@ -57,7 +57,17 @@ public static class Desktop
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
     // Durable: the last refusal (a cap reached), shown as a toast above the dock until a change succeeds.
+    // It holds "<revision>\n<text>": shown only while the workspace is still at the revision it refused at,
+    // so any later change (Classic, another app, a restart after one) hides it.
     public static IText Toast(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/toast");
+    public static string ToastAt(long revision, string text) => revision.ToString(CultureInfo.InvariantCulture) + "\n" + text;
+    public static string? ShownToast(string stored, long revision)
+        => stored.IndexOf('\n', StringComparison.Ordinal) is var at and > 0 && long.TryParse(stored[..at], NumberStyles.None, CultureInfo.InvariantCulture, out var stamped)
+            && stamped == revision && stored[(at + 1)..] is { Length: > 0 } text ? text : null;
+
+    // The window holding the focused tab, even when that tab is hidden (the window then shows its last visible tab).
+    public static string? FocusedWindow(string scope, WorkspaceState state)
+        => Shown(scope, state).FirstOrDefault(shown => shown.Window.Tabs.Any(tab => tab.Id == state.FocusedViewId)).Window?.Id;
 
     // Hidden apps (the desktop itself, the workspace, services) never become windows: no recursion.
     public static WorkspaceViewRef[] Windowed(string scope, IEnumerable<WorkspaceViewRef> views)
@@ -126,8 +136,8 @@ public static class Desktop
         var favourites = state.Favourites.Where(favourite => installed.ContainsKey(Name(favourite)))
             .Select(favourite => favourite.Variant == "" ? new FavouriteModel(favourite.Id, Title(favourite), "open:" + Name(favourite), false)
                 : new FavouriteModel(favourite.Id, Title(favourite), "view:" + favourite.Id, true)).ToArray();
-        var focused = windows.FirstOrDefault(window => window.Tabs.Any(tab => tab.Id == state.FocusedViewId))?.Id;
-        var toast = (await Toast(brain).Read()).Markdown is { Length: > 0 } refusal ? refusal : null;
+        var focused = FocusedWindow(Scope(brain), state);
+        var toast = ShownToast((await Toast(brain).Read()).Markdown, state.Revision);
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
         var gallery = (await ShowGallery(brain).Read()).Markdown == "true";
         var notice = (await Notice(brain).Read()).Markdown is { Length: > 0 } text ? text : null;
@@ -220,13 +230,14 @@ public static class Desktop
         {
             var state = await State(brain).Read();
             var next = await change(state);
-            if (next.Refusal is { } refusal) { await Toast(brain).Set(refusal); await Show(brain); return; }
+            if (next.Refusal is { } refusal) { await Toast(brain).Set(ToastAt(state.Revision, refusal)); await Show(brain); return; }
             if (next.Update is not { } update) { return; }
-            // Cleared first, so the render the change triggers no longer shows it.
-            if ((await Toast(brain).Read()).Markdown is { Length: > 0 }) { await Toast(brain).Set(""); }
             // Another change landed between read and apply: re-read once so the click is not dropped.
-            try { await State(brain).Apply(update, "desktop:" + request, state.Revision); return; }
-            catch (RevisionConflictException) when (attempt == 0) { }
+            try { await State(brain).Apply(update, "desktop:" + request, state.Revision); }
+            catch (RevisionConflictException) when (attempt == 0) { continue; }
+            // The new revision already hides it; clearing keeps the stored text from lingering.
+            if ((await Toast(brain).Read()).Markdown is { Length: > 0 }) { await Toast(brain).Set(""); }
+            return;
         }
     }
 
