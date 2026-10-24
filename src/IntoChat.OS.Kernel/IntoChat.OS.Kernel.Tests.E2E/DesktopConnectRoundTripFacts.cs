@@ -9,7 +9,7 @@ using IntoChat.OS.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
-// The gallery's Connect on the real script runtime, Google stubbed on loopback (ConnectHostFixture). The Connect
+// The Apps window's Connect (opened from the dock's Apps) on the real script runtime, Google stubbed on loopback (ConnectHostFixture). The Connect
 // button's activation hands the shell its connection window for Gmail; that window's login is the user's own
 // HTTP call, made here the way ConnectWindow makes it (its widget test covers the click). The callback stores the
 // connection. Manual: the browser at Google, and (see below) seeing the card turn Connected on this host.
@@ -19,7 +19,7 @@ public sealed class DesktopConnectRoundTripFacts(ConnectHostFixture host) : Brai
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(90);
 
     [Fact(Timeout = 360_000)]
-    public async Task ConnectGmailFromTheGalleryReachesTheProviderAsTheUser()
+    public async Task ConnectGmailFromTheAppsWindowReachesTheProviderAsTheUser()
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = Brain;
@@ -29,8 +29,8 @@ public sealed class DesktopConnectRoundTripFacts(ConnectHostFixture host) : Brai
         await brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(brain, User, ct);
         using (var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct)) { connected.EnsureSuccessStatusCode(); }
-        await Click(brain, desktop, "gallery", ct);
-        var gallery = await Until(brain, desktop, nodes => nodes.Any(node => node.Key == "connect-connection/gmail" && node.Kind == UiNodeKind.Reference), ct);
+        await Click(brain, desktop, "open:apps", ct);
+        var gallery = await Until(brain, WorkspaceId + "/apps/apps", nodes => nodes.Any(node => node.Key == "connect-connection/gmail" && node.Kind == UiNodeKind.Reference), ct);
         var cards = gallery.Where(node => node.Kind == UiNodeKind.Card && node.Key.StartsWith("entry-connection/", StringComparison.Ordinal)).Select(node => node.Text).ToArray();
         Assert.Equal(["Gmail", "Salesforce"], cards[..2]);
         Assert.False(Assert.Single(gallery, node => node.Key == "connect-connection/salesforce").Enabled);

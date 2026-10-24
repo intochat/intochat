@@ -277,7 +277,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
-    // Settings is the Settings app: open its window and hand it the tab.
+    // A legacy settings activation is the Settings app's workspace activation.
     if (action['kind'] == 'settings') action = settingsActivation(action);
     // An app's configuration is the Apps app's detail for it.
     if (action['view'] == 'configuration' && action['application'] is String) {
@@ -596,9 +596,10 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   );
 }
 
-/// The Settings app's activation for a `{kind: settings, brainId?, tab?}` request: open its window in that
-/// brain and ask it to show the tab (an old section name or none maps in the app).
+/// A legacy `{kind: settings, brainId?, tab?}` (an older Ino card or Desktop button) as the Settings app's
+/// workspace activation: open its window in that brain and ask it for the tab (the app maps an old or no name).
 Map<String, dynamic> settingsActivation(Map<String, dynamic> action) => {
+  'kind': 'workspace',
   if (action['brainId'] case final String brain) 'brainId': brain,
   'application': 'settings',
   'operation': 'open',

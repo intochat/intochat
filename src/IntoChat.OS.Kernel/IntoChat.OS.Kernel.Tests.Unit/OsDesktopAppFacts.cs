@@ -31,7 +31,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void AnEmptyDesktopShowsNoWindowsAndTheDockAtTheBottom()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("calculator", "Calculator", null, false, false)], false, false, null);
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("calculator", "Calculator", null, false, false)], false);
         var tree = DesktopLayout.Render(model);
         Assert.Equal(["windows", "dock"], tree.Children.Select(node => node.Key));
         Assert.Equal([0, 68], tree.Extents ?? []);
@@ -133,16 +133,16 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
-    public void TheDockShowsInoFirstThenTheGalleryAndUsageAvatarAndMoreOnTheRight()
+    public void TheDockShowsInoFirstThenAppsAndUsageAvatarAndMoreOnTheRight()
     {
         var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false), new("calc", "Calc", null, false, true)],
-            false, false, null, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
+            false, Usage: "$1.25", Person: "Vlad", LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
         var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
         var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
         Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
-        Assert.Contains(buttons, node => node.Key == "gallery" && node.Text == "Apps" && node.Style == UiStyle.Ghost && node.Icon == "grid");
+        Assert.Contains(buttons, node => node.Key == "apps-open" && node.Text == "Apps" && node.Action == "open:apps" && node.Style == UiStyle.Ghost && node.Icon == "grid");
         var apps = Assert.Single(Flatten(dock), node => node.Key == "apps");
-        Assert.Equal(["dock-ino", "dock-notes", "dock-calc", "newtab", "gallery"], apps.Children.Select(node => node.Key));
+        Assert.Equal(["dock-ino", "dock-notes", "dock-calc", "newtab", "apps-open"], apps.Children.Select(node => node.Key));
         Assert.Equal(("New tab", "newtab", "plus"), (apps.Children[3].Text, apps.Children[3].Action, apps.Children[3].Icon));
         var right = Assert.Single(Flatten(dock), node => node.Key == "right");
         Assert.Equal(["usage", "avatar", "more"], right.Children.Select(node => node.Key));
@@ -174,19 +174,73 @@ public sealed class OsDesktopAppFacts
         Assert.Contains("new { kind = \"reconnect\", brainId = Scope(brain), application = \"desktop\", operation = \"layout\", input = \"desktop\" }", workspace, StringComparison.Ordinal);
     }
 
-    // Ruling 1: More's Settings hands the shell {kind: settings}, so the shell opens the Settings app on that tab.
+    // More's Settings hands the shell a workspace activation: open the Settings app's window and ask it for the tab.
     [Fact]
-    public void MoreSettingsProducesTheSettingsActivation()
+    public void SettingsActivationOpensTheSettingsAppOnATab()
     {
-        var activation = System.Text.Json.JsonDocument.Parse(Desktop.SettingsActivation("brain-1")).RootElement;
-        Assert.Equal(["kind", "brainId"], activation.EnumerateObject().Select(property => property.Name));
-        Assert.Equal(("settings", "brain-1"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString()));
-        var tabbed = System.Text.Json.JsonDocument.Parse(Desktop.SettingsActivation("brain-1", "keys")).RootElement;
-        Assert.Equal("keys", tabbed.GetProperty("tab").GetString());
+        static (string, string, string, string, string) Read(string json)
+        {
+            var root = System.Text.Json.JsonDocument.Parse(json).RootElement;
+            return (root.GetProperty("kind").GetString()!, root.GetProperty("brainId").GetString()!, root.GetProperty("application").GetString()!,
+                root.GetProperty("operation").GetString()!, root.GetProperty("input").GetString()!);
+        }
+        Assert.Equal(("workspace", "brain-1", "settings", "open", "general"), Read(Desktop.SettingsActivation("brain-1")));
+        Assert.Equal(("workspace", "brain-1", "settings", "open", "keys"), Read(Desktop.SettingsActivation("brain-1", "keys")));
+        Assert.Equal(["kind", "brainId", "application", "operation", "input"],
+            System.Text.Json.JsonDocument.Parse(Desktop.SettingsActivation("b")).RootElement.EnumerateObject().Select(property => property.Name));
         var desktop = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["Desktop.cs"];
         Assert.Contains("SettingsActivation(Scope(brain))", desktop, StringComparison.Ordinal);
-        var dock = Flatten(DesktopLayout.Render(new DesktopModel([], null, [], false, false, null, SettingsButton: "brain/apps/desktop/settings"))).ToArray();
+        var dock = Flatten(DesktopLayout.Render(new DesktopModel([], null, [], false, SettingsButton: "brain/apps/desktop/settings"))).ToArray();
         Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/settings"), Assert.Single(dock, node => node.Key == "more-settings").Reference);
+        // Ino's setup card arms the same shape for the API keys tab.
+        Assert.Equal(Desktop.SettingsActivation("b1", "keys"), InoModels.KeysActivation("b1"));
+    }
+
+    [Fact]
+    public void TheDockAppsButtonOpensTheAppsApp()
+    {
+        foreach (var narrow in new[] { false, true })
+        {
+            var nodes = Flatten(DesktopLayout.Render(new DesktopModel([], null, [new("ino", "Ino", null, true, false)], narrow))).ToArray();
+            var apps = Assert.Single(nodes, node => node.Key == "apps-open");
+            Assert.Equal((UiNodeKind.Button, "Apps", "open:apps", "grid"), (apps.Kind, apps.Text, apps.Action, apps.Icon));
+            Assert.DoesNotContain(nodes, node => node.Action == "gallery");
+        }
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Contains("## Scenario: Apps opens the Apps window", bundle.Spec, StringComparison.Ordinal);
+        Assert.Contains("## Scenario: Settings opens the Settings window on a tab", bundle.Spec, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoGalleryRemainsInTheDesktopTree()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.DoesNotContain("Gallery.cs", bundle.Files.Keys);
+        Assert.DoesNotContain("apps.cs", bundle.Files.Keys);
+        Assert.DoesNotContain("get.cs", bundle.Files.Keys);
+        Assert.All(bundle.Files.Values, file => Assert.DoesNotContain("\"get:", file, StringComparison.Ordinal));
+        Assert.All(bundle.Files.Values, file => Assert.DoesNotContain("ShowGallery", file, StringComparison.Ordinal));
+        Assert.DoesNotContain(typeof(DesktopModel).GetProperties(), property => property.Name is "ShowGallery" or "Notice" or "Entries" or "ConnectButtons");
+        var keys = Flatten(DesktopLayout.Render(Model(3, "b", narrow: false))).Select(node => node.Key).ToArray();
+        Assert.DoesNotContain(keys, key => key.StartsWith("gallery", StringComparison.Ordinal) || key.StartsWith("entry-", StringComparison.Ordinal));
+        Assert.Equal(keys.Length, keys.Distinct().Count());
+    }
+
+    // The desktop root's activation receiver is the Workspace app (OsWorkspaceRoot.ActivationApp): an
+    // {application, operation, input} activation opens or focuses that app's window, then hands it the request.
+    [Fact]
+    public void OpeningWithInputForwardsItToTheApp()
+    {
+        var root = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Kernel"), "OsWorkspaceRoot.cs"));
+        Assert.Contains("public string ActivationApp => \"workspace\";", root, StringComparison.Ordinal);
+        var workspace = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "workspace").Files["Workspace.cs"];
+        var activate = workspace[workspace.IndexOf("public static async Task Activate(", StringComparison.Ordinal)..];
+        activate = activate[..activate.IndexOf("public static async Task Navigate(", StringComparison.Ordinal)];
+        var open = activate.IndexOf("Encode(state.Revision, \"open\", name)", StringComparison.Ordinal);
+        var request = activate.IndexOf(".Request(action.Operation, action.Input ?? \"\")", StringComparison.Ordinal);
+        Assert.True(open >= 0 && request > open);
+        // Settings and Apps are visible apps, so the window they open shows on the desktop.
+        Assert.Equal(["settings", "apps"], Desktop.Windowed("brain", [new("settings", "brain/apps/settings", "full", ""), new("apps", "brain/apps/apps", "full", "")]).Select(view => view.Id));
     }
 
     [Fact]
@@ -208,7 +262,7 @@ public sealed class OsDesktopAppFacts
     public void WindowsOfferPinOrUnpinButInoStaysPinned()
     {
         var windows = new[] { Window("w-1", "ino"), Window("w-2", "notes", "ino", "notes"), Window("w-3", "calc") };
-        var model = new DesktopModel(windows, "w-3", [new("ino", "Ino", null, true, true), new("notes", "Notes", null, true, true), new("calc", "Calc", null, false, true)], false, false, null);
+        var model = new DesktopModel(windows, "w-3", [new("ino", "Ino", null, true, true), new("notes", "Notes", null, true, true), new("calc", "Calc", null, false, true)], false);
         var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
         Assert.Equal(("unpin:notes", "pin-off"), (Assert.Single(nodes, node => node.Key == "unpin-w-2").Action, nodes.Single(node => node.Key == "unpin-w-2").Icon));
         Assert.Equal(("pin:calc", "pin"), (Assert.Single(nodes, node => node.Key == "pin-w-3").Action, nodes.Single(node => node.Key == "pin-w-3").Icon));
@@ -229,118 +283,8 @@ public sealed class OsDesktopAppFacts
     public void DockOrderIsInoFirstThenPinnedThenOpenAppsOnly()
     {
         var titles = new Dictionary<string, string> { ["zeta"] = "Zeta", ["alpha"] = "Alpha", ["ino"] = "Ino", ["notes"] = "Notes", ["beta"] = "Beta", ["gamma"] = "Gamma" };
-        // Everything else is reached through the gallery.
+        // Everything else is reached through the Apps app.
         Assert.Equal(["ino", "notes", "zeta", "beta"], Desktop.DockOrder(titles, new HashSet<string> { "zeta", "notes" }, new HashSet<string> { "beta", "notes" }));
-    }
-
-    [Fact]
-    public void TheGalleryHasBuiltInMineAndFromOthersInOrder()
-    {
-        var tree = Gallery.Render(Entries, null, null);
-        Assert.Equal("gallery-panel", tree.Key);
-        Assert.Equal(["Built-in", "Mine", "From others"], tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)).Select(node => node.Children[0].Text));
-        // The heading is set once, as the section's first child.
-        Assert.All(tree.Children.Where(node => node.Key.StartsWith("section-", StringComparison.Ordinal)), section => Assert.Null(section.Text));
-        Assert.Contains(Flatten(tree), node => node.Kind == UiNodeKind.Button && node.Action == "gallery");
-    }
-
-    [Fact]
-    public void InstalledEntriesOfferOpenAndForeignOnesOfferGet()
-    {
-        var actions = Flatten(Gallery.Render(Entries, null, null)).Where(node => node.Kind == UiNodeKind.Button).Select(node => (node.Text, node.Action)).ToArray();
-        Assert.Contains(("Open", "open:calculator"), actions);
-        Assert.Contains(("Open", "open:notes-2"), actions);
-        Assert.Contains(("Get", "get:alice/weather"), actions);
-        Assert.DoesNotContain(actions, action => action.Action == "get:shipped/calculator");
-    }
-
-    [Fact]
-    public void AGetFailureShowsItsNoticeAndStillTheGallery()
-    {
-        var tree = Gallery.Render(Entries, "You already have an app called weather.", null);
-        Assert.Equal("You already have an app called weather.", Assert.Single(Flatten(tree), node => node.Key == "notice").Text);
-        Assert.Equal(3, tree.Children.Count(node => node.Key.StartsWith("section-", StringComparison.Ordinal)));
-    }
-
-    [Fact]
-    public void AnOriginalAndItsCopyAreDistinguishable()
-    {
-        var cards = Flatten(Gallery.Render(Entries, null, null)).Where(node => node.Kind == UiNodeKind.Card).ToArray();
-        Assert.Equal(cards.Length, cards.Select(node => node.Key).Distinct().Count());
-        Assert.Contains(cards, node => node.Text == "Notes");
-        Assert.Contains(cards, node => node.Text == "Copy of Notes");
-    }
-
-    [Fact]
-    public void TheDesktopShowsTheGalleryAboveTheDockWhenAsked()
-    {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, true, "Nope", Entries: Entries);
-        var tree = DesktopLayout.Render(model);
-        Assert.Equal(["gallery-panel", "dock"], tree.Children.Select(node => node.Key));
-        // The view refuses duplicate keys: the gallery and the dock's Apps button must not collide.
-        var keys = Flatten(tree).Select(node => node.Key).ToArray();
-        Assert.Equal(keys.Length, keys.Distinct().Count());
-        Assert.Contains(Flatten(tree), node => node.Key == "notice" && node.Text == "Nope");
-        Assert.DoesNotContain(DesktopLayout.Render(model with { ShowGallery = false }).Children, node => node.Key == "gallery-panel");
-    }
-
-    [Fact]
-    public void GalleryAndGetHaveSmallHandlers()
-    {
-        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Contains("\"gallery\"", bundle.Files["apps.cs"], StringComparison.Ordinal);
-        Assert.Contains("\"get:\"", bundle.Files["get.cs"], StringComparison.Ordinal);
-        Assert.All((string[])["apps.cs", "get.cs", "open.cs"], file => Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40));
-    }
-
-    [Fact]
-    public void CardKeysNeverCollideEvenWhenNamesContainDashes()
-    {
-        GalleryEntry[] tricky = [new("others", "a-b", "c", "One", "", null, false, false, null), new("others", "a", "b-c", "Two", "", null, false, false, null)];
-        var keys = Flatten(Gallery.Render(tricky, null, null)).Select(node => node.Key).ToArray();
-        Assert.Equal(keys.Length, keys.Distinct().Count());
-    }
-
-    [Fact]
-    public void GetNoticesSeparateInstallFromOpenFailures()
-    {
-        Assert.Equal("", Desktop.GetNotice(new(true, "echo", null), opened: true));
-        Assert.Equal("Already have it.", Desktop.GetNotice(new(false, null, "Already have it."), opened: false));
-        Assert.Equal("That app could not be installed.", Desktop.GetNotice(new(false, null, null), opened: false));
-        Assert.Equal("Installed echo, but it could not be opened.", Desktop.GetNotice(new(true, "echo", null), opened: false));
-    }
-
-    [Fact]
-    public void GetAtTheWindowCapLeavesOnlyTheCapToast()
-    {
-        // The cap's toast already says why the window did not open; the gallery adds nothing.
-        Assert.Equal("", Desktop.GetNotice(new(true, "echo", null), opened: false, refused: true));
-        Assert.Equal("Already have it.", Desktop.GetNotice(new(false, null, "Already have it."), opened: false, refused: true));
-    }
-
-    [Fact]
-    public async Task AGalleryThatCannotLoadStillRendersWithANotice()
-    {
-        var (entries, notice) = await Desktop.LoadGallery(() => throw new InvalidOperationException("store down"), null);
-        Assert.Empty(entries);
-        Assert.Equal("The gallery could not be loaded.", notice);
-        var (loaded, kept) = await Desktop.LoadGallery(() => Task.FromResult<IReadOnlyList<GalleryEntry>>(Entries), "Earlier");
-        Assert.Equal((4, "Earlier"), (loaded.Count, kept));
-        await Assert.ThrowsAsync<OperationCanceledException>(() => Desktop.LoadGallery(() => throw new OperationCanceledException(), null));
-    }
-
-    [Fact]
-    public void ConnectionsOfferAConnectButtonNeuronAndShowConnectedOrNotAvailable()
-    {
-        var tree = Flatten(Gallery.Render(Connections, null, "brain/apps/desktop/connect")).ToArray();
-        var gmail = Assert.Single(tree, node => node.Key == "connect-connection/gmail");
-        Assert.Equal((UiNodeKind.Reference, new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/connect/gmail")), (gmail.Kind, gmail.Reference));
-        var salesforce = Assert.Single(tree, node => node.Key == "connect-connection/salesforce");
-        Assert.Equal((UiNodeKind.Button, "Not available", false), (salesforce.Kind, salesforce.Text, salesforce.Enabled));
-        Assert.DoesNotContain(tree, node => node.Key == "connect-connection/github");
-        Assert.Contains(tree, node => node.Key == "entry-connection/github" && node.Text == "GitHub" && node.Detail == "Connected.");
-        var others = Assert.Single(Gallery.Render(Connections, null, null).Children, node => node.Key == "section-others");
-        Assert.Equal(3, Flatten(others).Count(node => node.Kind == UiNodeKind.Card));
     }
 
     [Fact]
@@ -352,28 +296,13 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
-    public void NoScriptStartsALoginAndConnectedHasASmallHandler()
+    public void NoScriptStartsALoginAndNoConnectionCardsRemain()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
         Assert.DoesNotContain("connect.cs", bundle.Files.Keys);
         Assert.All(bundle.Files.Values, file => Assert.DoesNotContain("/login", file, StringComparison.Ordinal));
-        Assert.InRange(bundle.Files["connected.cs"].Split('\n').Length, 1, 40);
+        Assert.DoesNotContain("connected.cs", bundle.Files.Keys);
     }
-
-    private static readonly GalleryEntry[] Connections =
-    [
-        new("others", "", "gmail", "Gmail", "Connect your Gmail account.", null, false, false, null, "connection", "gmail"),
-        new("others", "", "salesforce", "Salesforce", "Not available on this host.", null, false, false, null, "connection", "salesforce", Available: false),
-        new("others", "", "github", "GitHub", "Connected.", null, true, false, null, "connection", "github"),
-    ];
-
-    private static readonly GalleryEntry[] Entries =
-    [
-        new("others", "alice", "weather", "Weather", "Forecasts", null, false, false, null),
-        new("builtin", "shipped", "calculator", "Calculator", "Sums", null, true, false, "calculator"),
-        new("mine", "me", "notes", "Notes", "Mine", null, true, false, "notes"),
-        new("mine", "shipped", "notes-2", "Copy of Notes", "Edited", null, true, false, "notes-2"),
-    ];
 
     [Fact]
     public void AFailedFirstRunNeverSkipsStart()
@@ -388,13 +317,13 @@ public sealed class OsDesktopAppFacts
     {
         var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())
             .Select(id => new WindowModel(id, "App " + id, "brain/apps/desktop/window/" + id, [new(id, id, "App " + id, false)], id, id)).ToArray();
-        return new(windows, focused, [new("ino", "Ino", null, true, false)], narrow, false, null);
+        return new(windows, focused, [new("ino", "Ino", null, true, false)], narrow);
     }
 
     [Fact]
     public void EachWindowShowsItsTabStripWithTheActiveTabPrimary()
     {
-        var model = new DesktopModel([Window("w-1", "notes", "ino", "notes", "calc")], "w-1", [], false, false, null);
+        var model = new DesktopModel([Window("w-1", "notes", "ino", "notes", "calc")], "w-1", [], false);
         var strip = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "tabs-w-1");
         Assert.Equal(UiNodeKind.Tabs, strip.Kind);
         Assert.Equal(["tab-w-1-0", "tab-w-1-1", "tab-w-1-2"], strip.Children.Select(node => node.Key));
@@ -406,7 +335,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void ChromeUsesIconButtonsForNewTabStarPinAndClose()
     {
-        var model = new DesktopModel([Window("w-1", "calc", "ino", "calc")], "w-1", [new("calc", "Calc", null, false, true)], false, false, null);
+        var model = new DesktopModel([Window("w-1", "calc", "ino", "calc")], "w-1", [new("calc", "Calc", null, false, true)], false);
         var chrome = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "chrome-w-1");
         Assert.Equal(["focus-w-1", "newtab-w-1", "star-w-1", "pin-w-1", "close-w-1"], chrome.Children.Select(node => node.Key));
         Assert.Equal([0, 32, 32, 32, 32], chrome.Extents ?? []);
@@ -425,7 +354,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void TheInoDockEntryIsPrimaryAndOthersAreGhost()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null);
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false);
         var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
         var ino = Assert.Single(nodes, node => node.Key == "dock-ino");
         Assert.Equal((UiStyle.Primary, "ino", "Ino", "open:ino"), (ino.Style, ino.Icon, ino.Text, ino.Action));
@@ -436,7 +365,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void FavouritesFollowInoAndAreHiddenWhenEmpty()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null);
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false);
         Assert.DoesNotContain(Flatten(DesktopLayout.Render(model)), node => node.Key == "favourites");
         Assert.DoesNotContain(Flatten(DesktopLayout.Render(model with { Favourites = [] })), node => node.Key == "favourites");
         var with = model with { Favourites = [new("calc", "Calc", "open:calc", false), new("v-notes", "Notes list", "view:v-notes", true)] };
@@ -452,7 +381,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void NarrowShowsTheFocusedWindowWithTabsAndFavouritesInAMenu()
     {
-        var model = new DesktopModel([Window("w-1", "ino"), Window("w-2", "notes", "notes", "calc")], "w-2", [new("ino", "Ino", null, true, true)], true, false, null,
+        var model = new DesktopModel([Window("w-1", "ino"), Window("w-2", "notes", "notes", "calc")], "w-2", [new("ino", "Ino", null, true, true)], true,
             Favourites: [new("calc", "Calc", "open:calc", false)]);
         var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
         Assert.DoesNotContain(nodes, node => node.Key == "frame-w-1");
@@ -465,7 +394,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void ARefusalShowsAToastAboveTheDock()
     {
-        var model = new DesktopModel([Window("w-1", "ino")], "w-1", [new("ino", "Ino", null, true, true)], false, false, null, Toast: WindowOps.WindowsRefusal);
+        var model = new DesktopModel([Window("w-1", "ino")], "w-1", [new("ino", "Ino", null, true, true)], false, Toast: WindowOps.WindowsRefusal);
         var tree = DesktopLayout.Render(model);
         Assert.Equal(["windows", "toast", "dock"], tree.Children.Select(node => node.Key));
         Assert.Equal([0, 48, 68], tree.Extents ?? []);
@@ -478,7 +407,7 @@ public sealed class OsDesktopAppFacts
     public void TabAndWindowKeysNeverCollide()
     {
         var model = new DesktopModel([Window("w-a", "a-b", "a-b", "b"), Window("w-a-b", "c", "c", "a-b-c")], "w-a",
-            [new("ino", "Ino", null, true, false), new("a-b", "AB", null, false, true)], false, false, null, Favourites: [new("a-b", "AB", "open:a-b", false)]);
+            [new("ino", "Ino", null, true, false), new("a-b", "AB", null, false, true)], false, Favourites: [new("a-b", "AB", "open:a-b", false)]);
         var keys = Flatten(DesktopLayout.Render(model)).Select(node => node.Key).ToArray();
         Assert.Equal(keys.Length, keys.Distinct().Count());
     }
@@ -498,10 +427,10 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void TheDockPacksItemsLeftInLabelSizedSlots()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null,
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false,
             Favourites: [new("calc", "Calc", "open:calc", false), new("v-notes", "Notes list", "view:v-notes", true), new("files", "Files", "open:files", false)]);
         var apps = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "apps");
-        Assert.Equal(["dock-ino", "favourites", "dock-notes", "newtab", "gallery"], apps.Children.Select(node => node.Key));
+        Assert.Equal(["dock-ino", "favourites", "dock-notes", "newtab", "apps-open"], apps.Children.Select(node => node.Key));
         var extents = apps.Extents ?? [];
         Assert.Equal(apps.Children.Length, extents.Length);
         Assert.All(extents, extent => Assert.True(extent > 0));
@@ -517,7 +446,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void FavouritesAreLabelledButtons()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, false, null, Favourites: [new("calc", "Calc", "open:calc", false)]);
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, Favourites: [new("calc", "Calc", "open:calc", false)]);
         var favourite = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "fav-0");
         Assert.Equal((UiStyle.Secondary, "grid", "Calc"), (favourite.Style, favourite.Icon, favourite.Text));
     }
@@ -527,7 +456,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void NarrowFoldsTheRightGroupIntoAMoreMenu()
     {
-        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], true, false, null, Usage: "$1.25", Person: "Vlad",
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], true, Usage: "$1.25", Person: "Vlad",
             LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
         var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
         Assert.Equal(["apps", "more"], dock.Children.Select(node => node.Key));

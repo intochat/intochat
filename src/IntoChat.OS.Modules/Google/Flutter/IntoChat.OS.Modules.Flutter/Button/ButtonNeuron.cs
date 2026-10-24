@@ -43,7 +43,7 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(activationJson);
         if (activationJson.Length > 32_000) { throw new ArgumentException("Activation JSON has at most 32000 characters.", nameof(activationJson)); }
-        string? kind, brainId;
+        string? kind, brainId, connection;
         try
         {
             using var document = JsonDocument.Parse(activationJson);
@@ -53,6 +53,7 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
             { throw new ArgumentException("Activation keys must be unique.", nameof(activationJson)); }
             kind = Text(document.RootElement, "kind");
             brainId = Text(document.RootElement, "brainId");
+            connection = Text(document.RootElement, "connection");
         }
         catch (JsonException error) { throw new ArgumentException("Activation must be a JSON object.", nameof(activationJson), error); }
         // One click on an install, update or remove runs with the person's session, so only the Apps app the OS
@@ -62,6 +63,17 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
             var scope = this.GetPrimaryKeyString().Split('/')[0];
             if (brainId != scope || !await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), scope, "apps"))
             { throw new UnauthorizedAccessException("Only the Apps app sets an install, update or remove activation."); }
+        }
+        // Switching the account, reconnecting to a new root, or signing an existing connection in again acts on the
+        // person's session in one click: only the shipped apps that own that control may set one, for this brain.
+        if (SessionOwners(kind, connection) is { } owners)
+        {
+            var scope = this.GetPrimaryKeyString().Split('/')[0];
+            var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
+            var ownBrain = brainId == scope || (brainId is null && string.Equals(kind, "account", StringComparison.OrdinalIgnoreCase));
+            var shipped = false;
+            foreach (var owner in owners) { shipped = shipped || await SettingsCaller.IsShipped(os, scope, owner); }
+            if (!ownBrain || !shipped) { throw new UnauthorizedAccessException("Only the app that owns this control sets a session activation."); }
         }
         var next = Snapshot;
         next.Name = this.GetPrimaryKeyString();
@@ -74,6 +86,15 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
     }
 
     private static readonly HashSet<string> AppKinds = new(["install", "update", "remove"], StringComparer.OrdinalIgnoreCase);
+
+    // The shipped apps that may set a session-affecting activation, or null when the activation is not one.
+    private static string[]? SessionOwners(string? kind, string? connection) => kind?.ToLowerInvariant() switch
+    {
+        "account" => ["circle"],
+        "reconnect" => ["desktop", "workspace"],
+        "connections" when !string.IsNullOrEmpty(connection) => ["settings", "apps"],
+        _ => null,
+    };
 
     private static string? Text(JsonElement root, string name)
         => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

@@ -72,8 +72,9 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         return ready;
     }
 
-    // Opens the app the way a person does: a desktop window from the gallery's Open (or, for a
-    // service app the desktop never windows, the classic Workspace's navigation).
+    // Opens the app the way a person does: a desktop window from the Apps window's Open, which hands the root's
+    // receiver (the Workspace app) its workspace activation (or, for a service app the desktop never windows,
+    // the classic Workspace's navigation).
     public async Task ShowAsync(string name, CancellationToken ct)
     {
         using var caller = Person.AsCallerIn(Scope);
@@ -86,9 +87,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         else
         {
             await LayoutAsync("desktop", ct);
-            if (!(await DesktopNodesAsync(ct)).Any(node => node.Key == "gallery-close")) { await ActivateAsync(node => node.Key == "gallery", ct); }
-            await ActivateAsync(node => node.Action == "open:" + name, ct);
-            await ActivateAsync(node => node.Key == "gallery-close", ct);
+            await App("workspace").Request("activate", JsonSerializer.Serialize(new { kind = "workspace", brainId = Scope, application = name })).WaitAsync(ct);
             // The app's tab id is its name; its window (w-<n>) has the one viewport.
             var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
             var window = placed.Windows.First(window => window.Tabs.Any(tab => tab.Id == name)).Id;
@@ -112,7 +111,8 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     {
         ct.ThrowIfCancellationRequested();
         var marker = layout == "desktop" ? "Apps" : "New desktop";
-        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = marker, Exact = true })).ToBeVisibleAsync(new() { Timeout = 60_000 });
+        // First: an open Apps window's title and its dock entry are buttons named Apps too.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = marker, Exact = true }).First).ToBeVisibleAsync(new() { Timeout = 60_000 });
         _layouts[Scope] = layout;
     }
 

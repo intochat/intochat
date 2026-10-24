@@ -19,7 +19,7 @@ public sealed class RouterHostCollection : ICollectionFixture<RouterHostFixture>
 [CollectionDefinition("Candidate host", DisableParallelization = true)]
 public sealed class CandidateHostCollection;
 
-// The gallery's real OAuth Connect against a loopback Google stub.
+// The Apps window's real OAuth Connect against a loopback Google stub.
 [CollectionDefinition("Connect host", DisableParallelization = true)]
 public sealed class ConnectHostCollection : ICollectionFixture<ConnectHostFixture>;
 

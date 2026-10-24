@@ -14,8 +14,6 @@ public static class DesktopLayout
     public static UiNode Render(DesktopModel m)
     {
         var dock = Dock(m);
-        // The gallery sits over the windows, above the dock, until `gallery` closes it.
-        if (m.ShowGallery) { return Desktop(Gallery.Render(m.Entries ?? [], m.Notice, m.ConnectButtons), dock, m); }
         // An empty desktop keeps the (empty) window area, so the dock stays at the bottom.
         if (m.Windows.Count == 0) { return Desktop(Ui.Column("windows", []), dock, m); }
         var focus = m.FocusedId is { } id && m.Windows.Any(window => window.Id == id) ? id : m.Windows[^1].Id;
@@ -59,7 +57,7 @@ public static class DesktopLayout
             ? [Ui.IconButton("unpin-" + window.Id, "pin-off", "Unpin", "unpin:" + window.ActiveApp)]
             : [Ui.IconButton("pin-" + window.Id, "pin", "Pin", "pin:" + window.ActiveApp)];
 
-    // Apps on the left (Ino, favourites, pins and open apps, New tab, then the gallery); usage, avatar and more on the right.
+    // Apps on the left (Ino, favourites, pins and open apps, New tab, then Apps); usage, avatar and more on the right.
     // Narrow folds the right group into one More menu; Settings and Classic stay button neurons there, so their
     // activations still reach the shell.
     private static UiNode Dock(DesktopModel m)
@@ -70,7 +68,8 @@ public static class DesktopLayout
             .. Favourites(m),
             .. m.Dock.Where(item => item.Key != "ino").Select(item => (Ui.Button("dock-" + item.Key, item.Title, "open:" + item.Key, style: UiStyle.Ghost), Width(item.Title, false))),
             (Ui.IconButton("newtab", "plus", "New tab", "newtab"), IconWidth),
-            (Ui.Button("gallery", "Apps", "gallery", style: UiStyle.Ghost, icon: "grid"), IconWidth),
+            // The Apps app's window: its own key, since the row is "apps" and an open Apps app is "dock-apps".
+            (Ui.Button("apps-open", "Apps", "open:apps", style: UiStyle.Ghost, icon: "grid"), IconWidth),
         ]);
         UiNode settings = m.SettingsButton is { } armed
             ? Ui.Reference("more-settings", new(UIVocabulary.ButtonType, armed)) : Ui.Button("more-settings", "Settings", "settings", enabled: false);

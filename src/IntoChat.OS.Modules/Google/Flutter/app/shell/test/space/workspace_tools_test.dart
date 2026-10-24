@@ -27,6 +27,7 @@ void main() {
     expect(
       settingsActivation({'kind': 'settings', 'brainId': 'b', 'tab': 'keys'}),
       {
+        'kind': 'workspace',
         'brainId': 'b',
         'application': 'settings',
         'operation': 'open',
@@ -34,6 +35,7 @@ void main() {
       },
     );
     expect(settingsActivation({'kind': 'settings'}), {
+      'kind': 'workspace',
       'application': 'settings',
       'operation': 'open',
       'input': '',

@@ -8,7 +8,8 @@ using IntoChat.OS.Flutter.Workspace;
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
 // On the real script runtime: the desktop's open/focus/close synapses (windows w-<n>, tabs by index) change the durable
-// workspace, restore.cs re-renders, and a restarted desktop brings the same windows back.
+// workspace, restore.cs re-renders, and a restarted desktop brings the same windows back. Apps other than the dock's
+// open as the Apps window's Open does: a workspace activation the root's receiver (the Workspace app) applies.
 [Collection("Reference host")]
 public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
@@ -25,16 +26,11 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        // The dock is narrow (Ino, pins, open apps): other installed apps open from the gallery.
-        await Click(desktop, "gallery", "gallery", ct);
-        var gallery = await Until(desktop, nodes => nodes.Any(node => node.Action == "open:calculator"), ct);
-        // Any second installed app beside the calculator.
-        var other = gallery.First(node => node.Action is { } action && action.StartsWith("open:", StringComparison.Ordinal)
-            && action is not ("open:calculator" or "open:ino" or "open:circle")).Action!["open:".Length..];
-
-        await ClickAction(desktop, "open:calculator", ct);
-        await ClickAction(desktop, "open:" + other, ct);
-        await Click(desktop, "gallery-close", "gallery", ct);
+        // The dock is narrow (Ino, pins, open apps): the calculator opens as the Apps window's Open does, through the
+        // root's activation receiver; the second window is the Apps app itself, from the dock's Apps button.
+        var other = "apps";
+        await OpenApp("calculator", ct);
+        await Click(desktop, "apps-open", "open:apps", ct);
         // Each app opens in its own single-tab window w-<n>; the tab id is the app's name.
         var opened = await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, "calculator") is not null && WindowOf(state, other) is not null, Patience, ct);
         var (calculator, second) = (WindowOf(opened, "calculator")!, WindowOf(opened, other)!);
@@ -86,9 +82,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        await Click(desktop, "gallery", "gallery", ct);
-        await ClickAction(desktop, "open:calculator", ct);
-        await Click(desktop, "gallery-close", "gallery", ct);
+        await OpenApp("calculator", ct);
 
         var window = WindowOf(await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, "calculator") is not null, Patience, ct), "calculator")!;
 
@@ -101,53 +95,69 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.All(view => view.Id != "calculator"), Patience, ct);
     }
 
+    // The Apps window's Install is the person's own install request; its result opens the app in a window.
     [Fact(Timeout = 360_000)]
-    public async Task GettingAnotherAccountsAppInstallsItAndOpensItInAWindow()
+    public async Task AnotherAccountsAppInstalledAsThePersonOpensInAWindow()
     {
         var ct = TestContext.Current.CancellationToken;
         var desktop = WorkspaceId + "/apps/desktop";
-        // Another account publishes two apps this user does not have.
+        // Another account publishes an app this user does not have.
         var name = "echo" + Guid.NewGuid().ToString("N")[..8];
-        var clash = "clash" + Guid.NewGuid().ToString("N")[..8];
         using (var author = await Brain.PersonAsync("author-" + Guid.NewGuid().ToString("N"), ct))
         using (author.AsCaller())
         {
-            foreach (var published in new[] { name, clash })
-            {
-                var app = Brain.Get<IApp>(IApp.Key(author.BrainId, published));
-                await app.Create(new("Echo " + published, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
-                await app.BeginBuild(null);
-                await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
-                await app.Publish();
-            }
+            var app = Brain.Get<IApp>(IApp.Key(author.BrainId, name));
+            await app.Create(new("Echo " + name, "echoes", [new("ask", "ask it")], [], []), "## Scenario: Echoes\nIt echoes.");
+            await app.BeginBuild(null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = Echo }, null);
+            await app.Publish();
         }
         using var caller = User.AsCaller();
+        var publisher = (await TestWait.UntilAsync(_ => Brain.Get<IAppStore>(IAppStore.Key(WorkspaceId)).List(),
+            entries => entries.Any(entry => entry.Name == name), Patience, ct)).First(entry => entry.Name == name).Publisher;
         await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        await Click(desktop, "gallery", "gallery", ct);
-        var gallery = await Until(desktop, nodes => nodes.Any(node => node.Action?.EndsWith("/" + name, StringComparison.Ordinal) == true), ct);
-        var get = gallery.First(node => node.Action?.EndsWith("/" + name, StringComparison.Ordinal) == true);
-        Assert.Equal(("Get", true), (get.Text, get.Action!.StartsWith("get:", StringComparison.Ordinal)));
 
-        await ClickAction(desktop, get.Action, ct);
+        using (var installed = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/install",
+            new { @ref = new { publisher, app = name }, consent = AppConsent.Of(null) }, ct))
+        {
+            installed.EnsureSuccessStatusCode();
+            Assert.Equal(name, (await installed.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct)).GetProperty("installedName").GetString());
+        }
+        await OpenApp(name, ct);
         var placed = WindowOf(await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => WindowOf(state, name) is not null, Patience, ct), name)!;
         var window = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + placed).Read(), state => state.Target is not null, Patience, ct);
         Assert.Equal(WorkspaceId + "/apps/" + name, window.Target!.App);
         Assert.Equal(name, (await Brain.Get<IWorkspace>(WorkspaceId).Read()).FocusedViewId);
-        // The entry now offers Open.
-        await Until(desktop, nodes => nodes.Any(node => node.Action == "open:" + name && node.Text == "Open"), ct);
+        Assert.DoesNotContain(await Until(desktop, nodes => Has(nodes, placed), ct), node => node.Key.StartsWith("gallery", StringComparison.Ordinal));
+    }
 
-        // The user then makes an app of their own under the second name, while its Get is still shown:
-        // getting the listing is refused with a notice, and the gallery stays.
-        var getClash = get.Action[..get.Action.LastIndexOf('/')] + "/" + clash;
-        await Until(desktop, nodes => nodes.Any(node => node.Action == getClash), ct);
-        await Brain.Get<IApp>(IApp.Key(WorkspaceId, clash)).Create(new("Mine", "mine", [new("ask", "ask it")], [], []), "## Scenario: Mine\nIt is mine.");
-        await ClickAction(desktop, getClash, ct);
-        var refused = await Until(desktop, nodes => nodes.Any(node => node.Key == "notice"), ct);
-        Assert.False(string.IsNullOrWhiteSpace(Assert.Single(refused, node => node.Key == "notice").Text));
-        Assert.Contains(refused, node => node.Key == "gallery-panel");
+    // More's Settings carries a workspace activation; the root's receiver opens the Settings window on its tab.
+    [Fact(Timeout = 360_000)]
+    public async Task MoreSettingsOpensTheSettingsWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        var desktop = WorkspaceId + "/apps/desktop";
+        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IApp>(desktop).Configure(new(), []);
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        await Connect(ct);
+        var settings = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Button.IButton>(desktop + "/settings").Read(),
+            button => button.Activation?.Contains("\"workspace\"", StringComparison.Ordinal) == true, Patience, ct);
+        var activation = System.Text.Json.JsonDocument.Parse(settings.Activation!).RootElement;
+        Assert.Equal(("workspace", WorkspaceId, "settings", "open", "general"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString(),
+            activation.GetProperty("application").GetString(), activation.GetProperty("operation").GetString(), activation.GetProperty("input").GetString()));
+        await Activate(settings.Activation!, ct);
+        var placed = WindowOf(await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => WindowOf(state, "settings") is not null, Patience, ct), "settings")!;
+        var window = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + placed).Read(), state => state.Target is not null, Patience, ct);
+        Assert.Equal(WorkspaceId + "/apps/settings", window.Target!.App);
+        // Again: the window already showing Settings is focused, not duplicated.
+        await Activate(settings.Activation!, ct);
+        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+        Assert.Single((await Brain.Get<IWorkspace>(WorkspaceId).Read()).Windows, candidate => candidate.Tabs.Any(view => view.Id == "settings"));
     }
 
     // A minimal real synapse: it answers "ask" requests by doing nothing.
@@ -158,12 +168,26 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await foreach (var request in brain.On(brain.Get<IApp>(brain.Setting("App")!), "ask", brain.Stopping)) { }
         """;
 
-    private async Task ClickAction(string desktop, string action, CancellationToken ct)
+    // What the shell does with a workspace activation on the desktop root: hand it to the root's receiver, Workspace.
+    private async Task Activate(string activation, CancellationToken ct)
     {
-        var view = await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(),
-            published => published is not null && Flatten(published.Root).Any(node => node.Action == action && node.Kind == UiNodeKind.Button), Patience, ct);
-        var key = Flatten(view!.Root).First(node => node.Action == action && node.Kind == UiNodeKind.Button).Key;
-        await Brain.Get<IView>(desktop + "/view").Activate(view.Generation, key, action, Guid.NewGuid());
+        using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // The receiver subscribes to requests from its start: one sent while a connect's update restarts it is not seen,
+    // so (as a person clicks again) the activation is sent again until the app has a window.
+    private async Task OpenApp(string name, CancellationToken ct)
+    {
+        var activation = System.Text.Json.JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = name });
+        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        for (var attempt = 0; attempt < 12; attempt++)
+        {
+            await Activate(activation, ct);
+            try { await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, name) is not null, TimeSpan.FromSeconds(10), ct); return; }
+            catch (TimeoutException) { }
+        }
+        throw new TimeoutException("No window opened for " + name + ": " + (await Brain.Get<IntoChat.OS.Flutter.Text.IText>(WorkspaceId + "/apps/workspace/navigation-error").Read()).Markdown);
     }
 
     private async Task Connect(CancellationToken ct)

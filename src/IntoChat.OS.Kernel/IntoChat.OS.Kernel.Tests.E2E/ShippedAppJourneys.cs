@@ -111,6 +111,13 @@ internal static class ShippedAppJourneys
                 await Text("FilmCraft tools connected");
                 break;
             case "workspace": await Text("Your workspace is clear."); break;
+            case "apps":
+                // The library lists this brain's apps; Details shows one app's detail and Back returns.
+                await Button("Details").First.ClickAsync();
+                await Assertions.Expect(Button("Back")).ToBeVisibleAsync();
+                await Button("Back").ClickAsync();
+                await Assertions.Expect(Button("Details").First).ToBeVisibleAsync();
+                break;
             default: Assert.Fail($"Add a browser journey for the shipped app '{name}'."); break;
         }
     }

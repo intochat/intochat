@@ -55,8 +55,9 @@ public static class InoModels
         => NoneUsable(choices) || !choices.Automatic.Available && (chatChoice == AutoChoice
             || chatChoice is null && !(appSetting.Length > 0 && choices.Models.Any(model => model.Id == appSetting && model.Available)));
 
+    // Desktop.SettingsActivation's shape: open (or focus) the Settings app's window on the API keys tab.
     public static string KeysActivation(string brainId)
-        => System.Text.Json.JsonSerializer.Serialize(new { kind = "settings", brainId, tab = "keys" });
+        => System.Text.Json.JsonSerializer.Serialize(new { kind = "workspace", brainId, application = "settings", operation = "open", input = "keys" });
 
     public static readonly string InstallOllamaActivation = System.Text.Json.JsonSerializer.Serialize(new { url = OllamaDownload });
 

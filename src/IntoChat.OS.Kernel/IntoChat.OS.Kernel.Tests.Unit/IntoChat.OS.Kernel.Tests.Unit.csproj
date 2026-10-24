@@ -15,7 +15,6 @@
     <Compile Include="../../../features/os/Ino/Pending.cs" Link="Features/InoPending.cs" />
     <Compile Include="../../../features/os/Desktop/Desktop.cs" Link="Features/Desktop.cs" />
     <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />
-    <Compile Include="../../../features/os/Desktop/Gallery.cs" Link="Features/Gallery.cs" />
     <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
     <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
     <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
