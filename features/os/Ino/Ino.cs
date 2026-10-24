@@ -171,33 +171,38 @@ public static partial class Ino
         // The first message would create the entry too, so a failed write never fails the new chat.
         try { await InoChats.Index(brain).Create(InoChats.IdOf(source), ChatIndex.NewChat); }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
-        await PublishView(brain);
+        await Dirty(brain);
     }
 
-    // A user message marks its chat active (and titles a new one), then the sidebar is published again.
-    public static async Task Touched(IntoChatOSConnection brain, string agentKey, string message)
+    // Tells view.cs, the single view writer, to republish. Best effort: the next change republishes anyway.
+    public static async Task Dirty(IntoChatOSConnection brain)
     {
-        if (!InoChats.TryIdOf(agentKey, out var id)) { return; }
-        try
-        {
-            await InoChats.Index(brain).Touch(id, message);
-            await PublishView(brain);
-        }
+        try { await InoViewState.MarkDirty(InoViewState.Text(brain), DateTimeOffset.UtcNow); }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
     }
 
-    // The sidebar is read from the index and the durable view state; an unreadable index shows no chats.
-    public static async Task PublishView(IntoChatOSConnection brain)
+    // A user message marks its chat active (and titles a new one); index.cs marks the view dirty on the change.
+    public static async Task Touched(IntoChatOSConnection brain, string agentKey, string message)
+    {
+        if (!InoChats.TryIdOf(agentKey, out var id)) { return; }
+        try { await InoChats.Index(brain).Touch(id, message); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
+
+    // Called only by view.cs, the single view writer. State is read here, after the writer's gate, so the tree
+    // reflects every committed change; an unreadable index shows no chats. Returns when a shown toast expires.
+    public static async Task<DateTimeOffset?> PublishView(IntoChatOSConnection brain)
     {
         var data = DataKey(brain);
         var selection = await EnsureSelection(brain);
-        var state = (await InoViewState.Load(brain)).Current(DateTimeOffset.UtcNow);
+        var state = await InoViewState.Read(InoViewState.Text(brain), DateTimeOffset.UtcNow);
         IReadOnlyList<ChatIndexEntry> chats;
         try { chats = (await InoChats.Index(brain).List(false, 0, ChatIndex.MaxPage)).Entries; }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { chats = []; }
         InoChats.TryIdOf(selection.Agent, out var selected);
         var model = new InoViewModel(chats, selected, state.Query, RenamingId: state.RenamingId, Toast: state.Toast, UndoId: state.UndoId);
         await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), ProgramRevision(brain)).Publish(InoView.Render(data, model));
+        return state.ToastUntil;
     }
 
     private static async Task Field(IntoChatOSConnection brain, string name, string label)
@@ -219,14 +224,14 @@ public static partial class Ino
         await brain.Get<IComposer>(DataKey(brain) + "/composer").Follow(DataKey(brain) + "/transcript");
         await Field(brain, "/chat-search", "Search chats");
         await Field(brain, "/rename", "Chat title");
-        await PublishView(brain);
         await brain.Get<IApp>(key).Present(ProgramRevision(brain),
             new(new Sphere("icon.svg", ["mood"], Presence()),
                 Main: new(UIVocabulary.ViewType, key + "/view"),
                 Views: [new("full", new(UIVocabulary.ViewType, key + "/view"))]));
         // After Present and bounded: indexing old conversations never keeps Ino from opening or answering.
-        if (await InoChats.Within(InoChats.BackfillTimeout, token => InoChats.TryBackfill(brain, token), brain.Stopping))
-        { await PublishView(brain); }
+        // A new entry raises ChatIndexChanged, so index.cs marks the view dirty.
+        await InoChats.Within(InoChats.BackfillTimeout, token => InoChats.TryBackfill(brain, token), brain.Stopping);
+        await Dirty(brain);
     }
 
     public static BehaviorTree Presence() => new(TreeNode.Selector(

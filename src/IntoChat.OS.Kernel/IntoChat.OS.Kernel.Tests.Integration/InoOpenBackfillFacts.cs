@@ -8,7 +8,6 @@ using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Views;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
@@ -45,8 +44,6 @@ public sealed class InoOpenBackfillFacts
 
         Assert.False(execution.IsFaulted, execution.Exception?.ToString());
         Assert.DoesNotContain(edge.Calls, call => call.EndsWith(nameof(IApp.FailPresentation), StringComparison.Ordinal));
-        // The sidebar is published even though the index cannot be read.
-        Assert.Contains(typeof(IView).FullName + "." + nameof(IView.Publish), edge.Calls);
         await stop.CancelAsync();
         try { await execution; } catch (OperationCanceledException) { }
     }
@@ -62,6 +59,8 @@ public sealed class InoOpenBackfillFacts
         Assert.True(compiled.Success, string.Join(Environment.NewLine, compiled.Errors));
         Assert.Contains("chats.cs", compiled.Assemblies.Keys);
         Assert.Contains("search.cs", compiled.Assemblies.Keys);
+        Assert.Contains("view.cs", compiled.Assemblies.Keys);
+        Assert.Contains("index.cs", compiled.Assemblies.Keys);
     }
 
     private static byte[] Compile()

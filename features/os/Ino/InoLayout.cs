@@ -13,8 +13,10 @@ public static class InoLayout
     // An overlay (modal, toast) draws above the surface; its layout slot is a hairline.
     public const double OverlayExtent = 1;
 
-    // A durable toast is shown for this long after the archive; a later compose or reconnect drops it.
-    public static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(10);
+    // The client hides a toast after 4 s; the durable one is dropped then too, so a fresh mount never shows it stale.
+    public static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(4);
+
+    public const int QueryMax = 120;
 
     public const string ArchivedToast = "Chat archived.";
     public const string EmptyCopy = "Your chats will appear here.";
@@ -35,6 +37,14 @@ public static class InoLayout
     // The newest other unarchived chat, or null when none remains (the caller starts a new one).
     public static string? NextSelection(IReadOnlyList<ChatIndexEntry> chats, string archivedId)
         => Newest(chats.Where(chat => chat.Id != archivedId)).FirstOrDefault()?.Id;
+
+    // A search query as kept: no control or invisible format characters (bidi overrides, zero-width marks), at most QueryMax.
+    public static string CleanQuery(string? query)
+    {
+        var kept = new string([.. (query ?? "").Where(c => !char.IsControl(c)
+            && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format)]);
+        return kept.Length <= QueryMax ? kept : kept[..(char.IsHighSurrogate(kept[QueryMax - 1]) ? QueryMax - 1 : QueryMax)];
+    }
 
     // Text nodes render markdown; a query is shown as typed, so its markdown characters are escaped.
     public static string Literal(string text)
