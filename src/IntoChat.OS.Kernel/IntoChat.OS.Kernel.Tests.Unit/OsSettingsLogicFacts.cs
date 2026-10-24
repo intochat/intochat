@@ -19,8 +19,6 @@ public sealed class OsSettingsLogicFacts
     private static AppSnapshot Self(bool edited = false) => new("settings", new("Settings", "Settings", [], [], []), "", [], [], [], "2.0.0",
         AppStatus.Live, [], [], Origin: new("os", new AppSource.Shipped(), "settings", "2.0.0"), Edited: edited);
 
-    private const long Generation = 7;
-
     private static (SettingsCommands Commands, FakeText State, FakeIndex Index, FakeText Page) World(bool edited = false)
     {
         var state = new FakeText();
@@ -31,8 +29,8 @@ public sealed class OsSettingsLogicFacts
         return (new SettingsCommands(state, page, () => Task.FromResult(Self(edited)), () => Task.FromResult<IChatIndex>(index)), state, index, page);
     }
 
-    // What Show records when it renders the archived tab: the ids behind the rows, by view generation.
-    private static Task Rendered(FakeText page, params string[] ids) => Settings.RecordArchivedPage(page, Generation, ids);
+    // What Show records when it renders the archived tab: one opaque token per row, mapped to the row's chat id.
+    private static Task<string[]> Rendered(FakeText page, params string[] ids) => Settings.RecordArchivedPage(page, ids);
 
     [Theory]
     [InlineData("keys", "keys")]
@@ -55,58 +53,79 @@ public sealed class OsSettingsLogicFacts
     {
         var (commands, state, index, page) = World();
         await commands.Command("tab:archived")!();
-        await Rendered(page, "c-1", "c-2");
-        await commands.Command("unarchive:1", Generation)!();
+        var tokens = await Rendered(page, "c-1", "c-2");
+        await commands.Command("unarchive:" + tokens[1])!();
         Assert.False(index.Entries["c-2"].Archived);
         Assert.True(index.Entries["c-1"].Archived);
         Assert.Equal(SettingsCopy.ChatRestored, (await Settings.ReadState(state)).Toast);
-        // A row index past the page is a stale click.
-        await commands.Command("unarchive:9", Generation)!();
+        // Clicking it again: the chat is already active, which is harmless.
+        await commands.Command("unarchive:" + tokens[1])!();
         Assert.True(index.Entries["c-1"].Archived);
     }
 
-    // The ruling: unarchive restores exactly the chat the person saw, or nothing.
+    // (a) The ruling: an old row's click restores exactly the chat that row showed, even after a re-render.
     [Fact]
-    public async Task AListThatChangedBetweenRenderAndClickRestoresTheChatShown()
+    public async Task AnOldRowRestoresTheChatItShowedAfterTheListChanged()
     {
         var (commands, state, index, page) = World();
-        await Rendered(page, "c-1", "c-2");
-        // c-0 is archived after the render: it now sits at row 0 of the page.
+        var old = await Rendered(page, "c-1", "c-2");
+        // c-0 is archived and the view re-renders under the same program revision: c-0 is now row 0.
         index.Add("c-0", "New one", Now, archived: true);
-        await commands.Command("unarchive:0", Generation)!();
+        await Rendered(page, "c-0", "c-1", "c-2");
+        await commands.Command("unarchive:" + old[0])!();
         Assert.True(index.Entries["c-0"].Archived);
         Assert.False(index.Entries["c-1"].Archived);
         Assert.Equal(SettingsCopy.ChatRestored, (await Settings.ReadState(state)).Toast);
     }
 
+    // (b) An unknown or expired token is refused.
     [Fact]
-    public async Task AStaleGenerationIsRefused()
+    public async Task AnUnknownOrExpiredTokenIsRefused()
     {
         var (commands, state, index, page) = World();
-        await Rendered(page, "c-1", "c-2");
-        await commands.Command("unarchive:0", Generation - 1)!();
+        var first = await Rendered(page, "c-1", "c-2");
+        for (var i = 0; i < Settings.PagesKept; i++) { await Rendered(page, "c-2", "c-1"); }
+        await commands.Command("unarchive:" + first[0])!();
         Assert.True(index.Entries["c-1"].Archived);
         Assert.Equal(SettingsCopy.ListChanged, (await Settings.ReadState(state)).Toast);
-        // Nothing rendered yet: refused too.
         var (fresh, freshState, freshIndex, _) = World();
-        await fresh.Command("unarchive:0", Generation)!();
+        await fresh.Command("unarchive:0123456789abcdef")!();
         Assert.True(freshIndex.Entries["c-1"].Archived);
         Assert.Equal(SettingsCopy.ListChanged, (await Settings.ReadState(freshState)).Toast);
     }
 
+    // (c) Tokens are opaque: never a chat id, and new on every render.
     [Fact]
-    public void ThePageRecordHoldsNoTitles()
+    public async Task TokensAreNotChatIdsAndDifferPerRender()
     {
-        Assert.DoesNotContain("Trip", Settings.ArchivedPageJson(Generation, ["c-1"]), StringComparison.Ordinal);
+        var (_, _, _, page) = World();
+        var first = await Rendered(page, "c-1", "c-2");
+        var second = await Rendered(page, "c-1", "c-2");
+        Assert.All(first.Concat(second), token => Assert.Matches("^[0-9a-f]{16}$", token));
+        Assert.Empty(first.Intersect(second));
+        Assert.DoesNotContain("Trip", (await page.Read()).Markdown, StringComparison.Ordinal);
+    }
+
+    // (d) The record keeps the current page and the previous two, no more.
+    [Fact]
+    public async Task ThePageRecordIsBounded()
+    {
+        var (_, _, _, page) = World();
+        string[] ids = [.. Enumerable.Range(0, SettingsView.ArchivedPage).Select(i => "c-" + i)];
+        for (var i = 0; i < 10; i++) { await Rendered(page, ids); }
+        var record = await Settings.ReadArchivedPage(page);
+        Assert.Equal(Settings.PagesKept, record!.Pages.Length);
+        Assert.Equal(3, Settings.PagesKept);
+        Assert.All(record.Pages, map => Assert.Equal(SettingsView.ArchivedPage, map.Count));
     }
 
     [Fact]
     public async Task AnEditedSettingsWritesNothing()
     {
         var (commands, state, index, page) = World(edited: true);
-        await Rendered(page, "c-1", "c-2");
+        var tokens = await Rendered(page, "c-1", "c-2");
         var before = (await state.Read()).Version;
-        await commands.Command("unarchive:0", Generation)!();
+        await commands.Command("unarchive:" + tokens[0])!();
         Assert.True(index.Entries["c-1"].Archived);
         Assert.True(index.Entries["c-2"].Archived);
         Assert.Equal(before, (await state.Read()).Version);
@@ -122,6 +141,7 @@ public sealed class OsSettingsLogicFacts
         Assert.Null(commands.Command("tab:billing"));
         Assert.Null(commands.Command("refresh"));
         Assert.Null(commands.Command("unarchive:x"));
+        Assert.Null(commands.Command("unarchive:c-1"));
     }
 
     [Fact]

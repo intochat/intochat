@@ -6,7 +6,8 @@ using IntoChat.OS.Flutter.Views;
 public sealed record ModelRow(string Id, string Label, bool Available);
 
 // An archived chat as Settings lists it: no id, so actions name the row index.
-public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt);
+// Token is the row's opaque per-render handle (Settings.RecordArchivedPage); never a chat id.
+public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt, string? Token = null);
 
 // Connectable is false for a connector this host has not configured: it shows no Connect.
 public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected, bool Connectable = true);
@@ -98,7 +99,7 @@ public static class SettingsView
         [
             Ui.Text("archived-" + i + "-title", row.Title),
             Ui.Text("archived-" + i + "-when", Ago(row.UpdatedAt, now)),
-            Ui.Button("unarchive-" + i, SettingsCopy.Unarchive, "unarchive:" + i),
+            Ui.Button("unarchive-" + i, SettingsCopy.Unarchive, "unarchive:" + (row.Token ?? i.ToString(CultureInfo.InvariantCulture))),
         ]))])];
         return m.ArchivedTotal > ArchivedPage ? [.. nodes, Ui.Button("archived-more", SettingsCopy.ShowMore, "archived-more")] : nodes;
     }

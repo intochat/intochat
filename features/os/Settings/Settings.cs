@@ -29,17 +29,30 @@ public static class Settings
     public static string Scope(IntoChatOSConnection brain)
         => brain.Setting("Brain") is { Length: > 0 } scope ? scope : Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
     public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/view-state");
-    // Private to the app, never in the tree: the chat ids behind the archived rows last published, by view generation.
+    // Private to the app, never in the tree: each rendered archived row's opaque token mapped to the chat id it showed,
+    // for the current page and the previous two, so a click on a slightly older render still restores what it showed.
     public static IText ArchivedPage(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/archived-page");
+    public const int PagesKept = 3;
 
-    public sealed record PageRecord(long Generation, string[] Ids);
+    public sealed record PageRecord(Dictionary<string, string>[] Pages);
 
-    public static string ArchivedPageJson(long generation, string[] ids) => JsonSerializer.Serialize(new PageRecord(generation, ids), Json);
+    public static string NewToken() => Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
 
-    public static async Task RecordArchivedPage(IText page, long generation, string[] ids)
+    public static bool IsToken(string value) => value.Length == 16 && value.All(char.IsAsciiHexDigitLower);
+
+    // Mints one token per row, appends the page, keeps the newest PagesKept and returns the tokens in row order.
+    public static async Task<string[]> RecordArchivedPage(IText page, IReadOnlyList<string> ids)
     {
-        var json = ArchivedPageJson(generation, ids);
-        if ((await page.Read()).Markdown != json) { await page.Set(json); }
+        string[] tokens = [.. ids.Select(_ => NewToken())];
+        var map = tokens.Zip(ids).ToDictionary(pair => pair.First, pair => pair.Second, StringComparer.Ordinal);
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var version = (await page.Read()).Version;
+            var pages = (await ReadArchivedPage(page))?.Pages ?? [];
+            var next = new PageRecord([.. pages.Append(map).TakeLast(PagesKept)]);
+            if (await page.TrySet(JsonSerializer.Serialize(next, Json), version)) { return tokens; }
+        }
+        throw new InvalidOperationException("Settings could not record the archived page.");
     }
 
     public static async Task<PageRecord?> ReadArchivedPage(IText page)
@@ -235,9 +248,12 @@ public static class Settings
         var sources = Sources(brain);
         ChatIndexPage? shown = null;
         var model = await Model(app, state, sources with { Archived = async (skip, take) => shown = await sources.Archived(skip, take) });
-        // Recorded before the publish, so a click on these rows resolves to these ids.
+        // Recorded before the publish, so each row's Unarchive names a token that resolves to that row's chat.
         if (shown is not null)
-        { await RecordArchivedPage(ArchivedPage(brain), Revision(brain), [.. shown.Entries.Take(SettingsView.ArchivedPage).Select(entry => entry.Id)]); }
+        {
+            var tokens = await RecordArchivedPage(ArchivedPage(brain), [.. shown.Entries.Take(SettingsView.ArchivedPage).Select(entry => entry.Id)]);
+            model = model with { Archived = [.. model.Archived.Take(tokens.Length).Select((row, i) => row with { Token = tokens[i] })] };
+        }
         if (state.Tab == "models")
         {
             await Configure(brain.Get<IPreferenceControl>(app + "/pref/default-model"),
@@ -265,8 +281,7 @@ public sealed class SettingsCommands(IText viewState, IText archivedPage, Func<T
     public static Task Open(IText viewState, string? tab)
         => Settings.UpdateState(viewState, state => state with { Tab = SettingsTabs.Id(tab), ConfirmDelete = false, Toast = null });
 
-    // generation is the clicked view's (ViewAction.Generation); unarchive resolves its row only against that render.
-    public Func<Task>? Command(string action, long generation = 0)
+    public Func<Task>? Command(string action)
     {
         var at = action.IndexOf(':', StringComparison.Ordinal);
         var (verb, argument) = at < 0 ? (action, "") : (action[..at], action[(at + 1)..]);
@@ -277,27 +292,26 @@ public sealed class SettingsCommands(IText viewState, IText archivedPage, Func<T
             "archived-more" when at < 0 => () => Update(state => state with { ArchivedTake = state.ArchivedTake + SettingsView.ArchivedPage, Toast = null }),
             "delete" when at < 0 => () => Update(state => state with { ConfirmDelete = true, Toast = null }),
             "delete-cancel" when at < 0 => () => Update(state => state with { ConfirmDelete = false }),
-            "unarchive" when int.TryParse(argument, NumberStyles.None, CultureInfo.InvariantCulture, out var row) && row < SettingsView.ArchivedPage
-                => () => Unarchive(row, generation),
+            "unarchive" when Settings.IsToken(argument) => () => Unarchive(argument),
             _ => null,
         };
     }
 
     private Task Update(Func<SettingsViewState, SettingsViewState> change) => Settings.UpdateState(viewState, change);
 
-    // The row index names the chat the person saw: the id recorded for that render. Another render's click, or an
-    // index past the page, is refused with a toast. Unarchiving an already active chat is harmless.
-    private async Task Unarchive(int row, long generation)
+    // The token names the chat its row showed. An unknown or expired token, or a chat that is gone, is refused with a
+    // toast. Unarchiving an already active chat is harmless.
+    private async Task Unarchive(string token)
     {
         if (!Settings.MayWrite(await self())) { return; }
         var chats = await index();
-        if (await Settings.ReadArchivedPage(archivedPage) is not { } page || page.Generation != generation || row >= page.Ids.Length
-            || await chats.Get(page.Ids[row]) is null)
+        var id = (await Settings.ReadArchivedPage(archivedPage))?.Pages.Reverse().Select(map => map.GetValueOrDefault(token)).FirstOrDefault(found => found is not null);
+        if (id is null || await chats.Get(id) is null)
         {
             await Update(current => current with { Toast = SettingsCopy.ListChanged });
             return;
         }
-        await chats.Unarchive(page.Ids[row]);
+        await chats.Unarchive(id);
         await Update(current => current with { Toast = SettingsCopy.ChatRestored });
     }
 }
