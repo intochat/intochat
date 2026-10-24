@@ -25,6 +25,8 @@ class _GeneralTabState extends State<GeneralTab> {
   String? _notice;
   NewTabPreferences? _workspace;
   var _newTabState = _Save.idle;
+  // Only the latest save's response applies; an earlier one arriving late is stale.
+  var _newTabSave = 0;
 
   @override
   void initState() {
@@ -46,20 +48,21 @@ class _GeneralTabState extends State<GeneralTab> {
   Future<void> _saveNewTabApp(String name) async {
     final before = _workspace;
     if (before == null) return;
+    final save = ++_newTabSave;
     setState(() {
       _workspace = NewTabPreferences(newTabApp: name, choices: before.choices);
       _newTabState = _Save.saving;
     });
     try {
       final saved = await widget.api!.putNewTabApp(name);
-      if (mounted) {
+      if (mounted && save == _newTabSave) {
         setState(() {
           _workspace = saved;
           _newTabState = _Save.saved;
         });
       }
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || save != _newTabSave) return;
       setState(() {
         _workspace = before;
         _newTabState = _Save.idle;

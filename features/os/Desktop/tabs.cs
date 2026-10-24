@@ -20,7 +20,7 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Desktop.View
         var window = clicked.Action == "newtab" ? null : clicked.Action["newtab:".Length..];
         var name = await Desktop.NewTabApp(brain);
         if (await Desktop.AppView(brain, name) is not { } view) { continue; }
-        await Desktop.Change(brain, clicked.RequestId, state => Task.FromResult(WindowOps.NewTab(state, window, name, view)));
+        await Desktop.Change(brain, clicked.RequestId, state => Task.FromResult(WindowOps.NewTab(state, window, name, view, Desktop.Visible(Desktop.Scope(brain)))));
     }
     // One bad click must not end the subscription.
     catch (Exception error) when (error is not OperationCanceledException)

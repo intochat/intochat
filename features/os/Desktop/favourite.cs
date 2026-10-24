@@ -14,10 +14,10 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Desktop.View
     try
     {
         await Desktop.Change(brain, clicked.RequestId, state => Task.FromResult(star
-            ? WindowOps.ToggleFavourite(state, id, app => IApp.NameOf(scope, app) ?? "")
+            ? WindowOps.ToggleFavourite(state, id, app => IApp.NameOf(scope, app) ?? "", Desktop.Visible(scope))
             // A favourite removed meanwhile is a stale click: nothing to open.
             : state.Favourites.FirstOrDefault(favourite => favourite.Id == id) is { } view && IApp.NameOf(scope, view.App) is { } name
-                ? WindowOps.NewTab(state, null, name, view) : new WindowChange(null, null)));
+                ? WindowOps.NewTab(state, null, name, view, Desktop.Visible(scope)) : new WindowChange(null, null)));
     }
     // One bad click must not end the subscription.
     catch (Exception error) when (error is not OperationCanceledException)

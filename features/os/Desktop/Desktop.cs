@@ -71,7 +71,11 @@ public static class Desktop
 
     // Hidden apps (the desktop itself, the workspace, services) never become windows: no recursion.
     public static WorkspaceViewRef[] Windowed(string scope, IEnumerable<WorkspaceViewRef> views)
-        => [.. views.Where(view => IApp.NameOf(scope, view.App) is { } name && !Hidden.Contains(name))];
+        => [.. views.Where(Visible(scope))];
+
+    // Whether the desktop shows a tab: its app is in this brain and not hidden. WindowOps counts caps by it.
+    public static Func<WorkspaceViewRef, bool> Visible(string scope)
+        => view => IApp.NameOf(scope, view.App) is { } name && !Hidden.Contains(name);
 
     // A window's visible tabs. Actions name a tab by its index here, so the layout and the scripts share it.
     public static WorkspaceViewRef[] Tabs(string scope, WorkspaceWindow window) => Windowed(scope, window.Tabs);
@@ -88,7 +92,7 @@ public static class Desktop
     // Windows with at least one visible tab, each with its active (visible) tab.
     private static (WorkspaceWindow Window, WorkspaceViewRef[] Tabs, WorkspaceViewRef Active)[] Shown(string scope, WorkspaceState state)
         => [.. state.Windows.Select(window => (window, tabs: Tabs(scope, window))).Where(shown => shown.tabs.Length > 0)
-            .Select(shown => (shown.window, shown.tabs, shown.tabs.FirstOrDefault(tab => tab.Id == shown.window.ActiveTabId) ?? shown.tabs[^1]))];
+            .Select(shown => (shown.window, shown.tabs, WindowOps.ActiveTab(shown.window, Visible(scope))!))];
 
     // The app a new tab opens: the person's choice if it is a visible installed app, else Ino.
     public static string NewTabChoice(string? stored, IReadOnlySet<string> installed)
@@ -217,7 +221,7 @@ public static class Desktop
         if (view is null) { return (false, false); }
         await Change(brain, request, state =>
         {
-            var next = WindowOps.OpenApp(state, name, view);
+            var next = WindowOps.OpenApp(state, name, view, Visible(Scope(brain)));
             (opened, refused) = (next.Update is not null, next.Refusal is not null);
             return Task.FromResult(next);
         });
@@ -291,7 +295,7 @@ public static class Desktop
         if ((await brain.Get<IChat>(ino + "/transcript").Read()).Selection is { } selection
             && (await brain.Get<IAgent>(selection.Agent).Read()).Runs.Any(run => run.Posted && run.RunId == "post/greeting"))
         { await Greeted(brain).Set("true"); return; }
-        await Change(brain, Guid.NewGuid(), state => Task.FromResult(WindowOps.OpenApp(state, "ino", new WorkspaceViewRef("ino", ino, "full", ""))));
+        await Change(brain, Guid.NewGuid(), state => Task.FromResult(WindowOps.OpenApp(state, "ino", new WorkspaceViewRef("ino", ino, "full", ""), Visible(Scope(brain)))));
         await brain.Get<IApp>(ino).Request("open", "greet");
     }
 

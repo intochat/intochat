@@ -18,7 +18,9 @@ public static class WindowOps
 
     private static readonly WindowChange NoOp = new(null, null);
 
-    public static WindowChange OpenApp(WorkspaceState s, string name, WorkspaceViewRef view)
+    // `visible` is the desktop's tab visibility (hidden apps never show); windows with no visible tab
+    // do not count toward the window cap and a window's active tab is its visible one. Null: all visible.
+    public static WindowChange OpenApp(WorkspaceState s, string name, WorkspaceViewRef view, Func<WorkspaceViewRef, bool>? visible = null)
     {
         foreach (var window in s.Windows)
         {
@@ -27,15 +29,16 @@ public static class WindowOps
                 return Change(s, Replace(s.Windows, window with { ActiveTabId = tab.Id }), tab.Id);
             }
         }
-        return NewWindow(s, name, view);
+        return NewWindow(s, name, view, visible);
     }
 
-    public static WindowChange NewTab(WorkspaceState s, string? windowId, string name, WorkspaceViewRef view)
+    public static WindowChange NewTab(WorkspaceState s, string? windowId, string name, WorkspaceViewRef view, Func<WorkspaceViewRef, bool>? visible = null)
     {
+        visible ??= _ => true;
         var target = windowId is { } id
             ? s.Windows.FirstOrDefault(window => window.Id == id)
-            : s.Windows.FirstOrDefault(window => window.Tabs.Any(tab => tab.Id == s.FocusedViewId)) ?? s.Windows.LastOrDefault();
-        if (target is null) { return windowId is null || s.Windows.Length == 0 ? NewWindow(s, name, view) : NoOp; }
+            : s.Windows.FirstOrDefault(window => window.Tabs.Any(tab => tab.Id == s.FocusedViewId)) ?? s.Windows.LastOrDefault(window => window.Tabs.Any(visible));
+        if (target is null) { return windowId is null || s.Windows.Length == 0 ? NewWindow(s, name, view, visible) : NoOp; }
         if (target.Tabs.Length >= MaxTabsPerWindow) { return new(null, TabsRefusal); }
         var tab = view with { Id = TabId(s, name) };
         return Change(s, Replace(s.Windows, new WorkspaceWindow(target.Id, [.. target.Tabs, tab], tab.Id)), tab.Id);
@@ -74,10 +77,10 @@ public static class WindowOps
         return Change(s, windows, focused);
     }
 
-    public static WindowChange ToggleFavourite(WorkspaceState s, string windowId, Func<string, string> appName)
+    public static WindowChange ToggleFavourite(WorkspaceState s, string windowId, Func<string, string> appName, Func<WorkspaceViewRef, bool>? visible = null)
     {
         var window = s.Windows.FirstOrDefault(w => w.Id == windowId);
-        var tab = window?.Tabs.FirstOrDefault(t => t.Id == window.ActiveTabId);
+        var tab = window is null ? null : ActiveTab(window, visible ?? (_ => true));
         if (tab is null) { return NoOp; }
         var favourite = IsApp(tab) ? new WorkspaceViewRef("", tab.App, "", "") : new WorkspaceViewRef("", tab.App, tab.Variant, tab.Context);
         WorkspaceViewRef[] favourites;
@@ -121,11 +124,27 @@ public static class WindowOps
         return s.Favourites.Any(f => Same(f, key));
     }
 
-    private static WindowChange NewWindow(WorkspaceState s, string name, WorkspaceViewRef view)
+    // The tab the desktop shows for a window: its active tab if visible, else its last visible tab.
+    public static WorkspaceViewRef? ActiveTab(WorkspaceWindow window, Func<WorkspaceViewRef, bool> visible)
+        => window.Tabs.Where(visible).ToArray() is { Length: > 0 } tabs ? tabs.FirstOrDefault(tab => tab.Id == window.ActiveTabId) ?? tabs[^1] : null;
+
+    private static WindowChange NewWindow(WorkspaceState s, string name, WorkspaceViewRef view, Func<WorkspaceViewRef, bool>? visible)
     {
-        if (s.Windows.Length >= MaxWindows) { return new(null, WindowsRefusal); }
+        visible ??= _ => true;
+        if (s.Windows.Count(window => window.Tabs.Any(visible)) >= MaxWindows) { return new(null, WindowsRefusal); }
         var tab = view with { Id = TabId(s, name) };
-        return Change(s, [.. s.Windows, new WorkspaceWindow(WindowId(s), [tab], tab.Id)], tab.Id);
+        var windows = s.Windows;
+        WorkspaceViewRef[] tabs = [tab];
+        // The stored cap counts every window: at it, the hidden-only windows fold into the new one (unseen).
+        if (windows.Length >= MaxWindows)
+        {
+            var hidden = windows.Where(window => !window.Tabs.Any(visible)).ToArray();
+            tabs = [.. hidden.SelectMany(window => window.Tabs), tab];
+            if (tabs.Length > MaxTabsPerWindow) { return new(null, WindowsRefusal); }
+            windows = [.. windows.Except(hidden)];
+        }
+        var id = WindowId(s with { Windows = windows });
+        return Change(s, [.. windows, new WorkspaceWindow(id, tabs, tab.Id)], tab.Id);
     }
 
     // w-<n>, the smallest unused positive integer, as Task 1 derives them.

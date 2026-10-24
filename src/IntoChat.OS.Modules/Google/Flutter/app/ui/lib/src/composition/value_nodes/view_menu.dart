@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../components/kit/ui_kit_button.dart';
 import '../../components/kit/ui_kit_surface.dart';
@@ -139,6 +140,9 @@ class _ViewMenuState extends State<ViewMenu> {
         if (mounted && node.context != null) node.requestFocus();
       });
 
+  void _closeAfterFrame() =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _menu.close());
+
   @override
   void dispose() {
     _panel.dispose();
@@ -162,15 +166,27 @@ class _ViewMenuState extends State<ViewMenu> {
       for (final child in children)
         switch (child['kind']) {
           1 => _MenuItem(node: child, onPressed: action(child)),
-          // The neuron handles its own press; the menu then closes.
-          5 when widget.reference != null => Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerUp: (_) => WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _menu.close(),
-            ),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: widget.reference!(child),
+          // The neuron handles its own press (pointer, Enter or Space); the
+          // menu then closes. The key is observed, not consumed.
+          5 when widget.reference != null => Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: (_, event) {
+              if (event is KeyDownEvent &&
+                  (event.logicalKey == LogicalKeyboardKey.enter ||
+                      event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+                      event.logicalKey == LogicalKeyboardKey.space)) {
+                _closeAfterFrame();
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerUp: (_) => _closeAfterFrame(),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: widget.reference!(child),
+              ),
             ),
           ),
           5 => const SizedBox.shrink(),

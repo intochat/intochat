@@ -72,9 +72,11 @@ internal sealed partial class WorkspaceNeuron(
         { throw new ArgumentException("Provide at most 8 windows, each with an id, 1 to 8 tabs and an active tab among them."); }
         if (windows.Select(window => window.Id).Distinct(StringComparer.Ordinal).Count() != windows.Length)
         { throw new ArgumentException("Window ids are unique."); }
-        var tabs = windows.SelectMany(window => window.Tabs).Select(tab => tab.Id).ToArray();
-        if (tabs.Distinct(StringComparer.Ordinal).Count() != tabs.Length
-            || !tabs.ToHashSet(StringComparer.Ordinal).SetEquals(openViews.Select(view => view.Id)))
+        var tabs = windows.SelectMany(window => window.Tabs).ToArray();
+        var open = openViews.ToDictionary(view => view.Id, StringComparer.Ordinal);
+        // Each tab is its open view exactly (app, variant and context too), so a tab cannot bypass CheckViews.
+        if (tabs.Select(tab => tab.Id).Distinct(StringComparer.Ordinal).Count() != tabs.Length || tabs.Length != open.Count
+            || tabs.Any(tab => !open.TryGetValue(tab.Id, out var view) || view != tab))
         { throw new ArgumentException("Each open view is exactly one tab of one window."); }
     }
 

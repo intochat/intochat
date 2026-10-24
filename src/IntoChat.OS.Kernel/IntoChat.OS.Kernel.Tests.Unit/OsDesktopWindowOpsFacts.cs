@@ -73,6 +73,39 @@ public sealed class OsDesktopWindowOpsFacts
         Assert.Equal("You can have at most 8 windows. Close one to open another.", change.Refusal);
     }
 
+    private static bool Visible(WorkspaceViewRef view) => view.App != "usage";
+
+    [Fact]
+    public void HiddenOnlyWindowsDoNotCountTowardTheWindowCap()
+    {
+        // Classic opened usage and seven apps: eight windows, seven visible.
+        var s = S("a7", [W("w-1", "usage", V("usage", "usage")), .. Enumerable.Range(1, 7).Select(i => W("w-" + (i + 1), "a" + i, V("a" + i, "a" + i)))]);
+        var u = Ok(WindowOps.OpenApp(s, "z", V("z", "z"), Visible));
+        Assert.Equal(8, u.Windows!.Length);
+        Assert.Equal(8, u.Windows.Count(window => window.Tabs.Any(Visible)));
+        Assert.Contains(u.Windows, window => window.Tabs.Any(tab => tab.Id == "usage"));
+        Assert.Equal("z", u.FocusedViewId);
+        // Eight visible windows still refuse a ninth.
+        var full = S(null, [.. Enumerable.Range(1, 8).Select(i => W("w-" + i, "a" + i, V("a" + i, "a" + i))), W("w-9", "usage", V("usage", "usage"))]);
+        Assert.Equal(WindowOps.WindowsRefusal, WindowOps.OpenApp(full, "z", V("z", "z"), Visible).Refusal);
+    }
+
+    [Fact]
+    public void StarringAWindowWhoseActiveTabIsHiddenFavouritesItsVisibleTab()
+    {
+        var s = S("usage", W("w-1", "usage", V("notes", "notes"), V("usage", "usage")));
+        var u = Ok(WindowOps.ToggleFavourite(s, "w-1", app => app, Visible));
+        Assert.Equal([new WorkspaceViewRef("notes", "notes", "", "")], u.Favourites!);
+    }
+
+    [Fact]
+    public void NewTabWithoutAFocusedWindowTargetsTheLastVisibleWindow()
+    {
+        var s = S(null, W("w-1", "notes", V("notes", "notes")), W("w-2", "usage", V("usage", "usage")));
+        var u = Ok(WindowOps.NewTab(s, null, "files", V("files", "files"), Visible));
+        Assert.Equal(["notes", "files"], u.Windows![0].Tabs.Select(tab => tab.Id));
+    }
+
     [Fact]
     public void NewTabAddsAnActiveTabToTheTargetWindow()
     {

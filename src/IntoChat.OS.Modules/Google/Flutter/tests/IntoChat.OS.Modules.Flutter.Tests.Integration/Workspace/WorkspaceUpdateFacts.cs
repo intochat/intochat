@@ -172,6 +172,9 @@ public sealed class WorkspaceUpdateFacts
         await Try(views, new WorkspaceWindow("w", views, views[0].Id));
         await Try([views[0]], new WorkspaceWindow("w", [views[0]], views[0].Id), new WorkspaceWindow("e", [], ""));
         await Try([views[0]], new WorkspaceWindow("w", [views[0]], "missing"));
+        // A tab must be the open view with its id, not another app, variant or context under that id.
+        await Try([views[0]], new WorkspaceWindow("w", [views[0] with { App = views[1].App }], views[0].Id));
+        await Try([views[0]], new WorkspaceWindow("w", [views[0] with { Variant = "thread" }], views[0].Id));
         await Try([views[0], views[1]], new WorkspaceWindow("w", [views[0]], views[0].Id), new WorkspaceWindow("w", [views[1]], views[1].Id));
         Assert.Equal(0, (await workspace.Read()).Revision);
     }
