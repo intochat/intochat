@@ -87,6 +87,131 @@ public sealed class WorkspaceUpdateFacts
         { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => workspace.Apply(new([], null, []), "edited", 0)); }
     }
 
+    [Trait("host", "own")]
+    [Fact]
+    public async Task OpenViewsWithoutWindowsDeriveOneSingleTabWindowEach()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
+        WorkspaceViewRef ino = View(scope, "ino"), notes = View(scope, "notes");
+        await workspace.Apply(new([ino, notes], "notes", []), "open", 0);
+        var windows = (await workspace.Read()).Windows;
+        Assert.Equal(["w-ino", "w-notes"], windows.Select(window => window.Id));
+        Assert.Equal([ino], windows[0].Tabs);
+        Assert.Equal([notes], windows[1].Tabs);
+        Assert.All(windows, window => Assert.Equal(window.Tabs.Single().Id, window.ActiveTabId));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task WindowsAndFavouritesRoundTripAndSurviveReactivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
+        WorkspaceViewRef ino = View(scope, "ino"), ino2 = new("ino-2", scope + "/apps/ino", "full", "");
+        WorkspaceViewRef favourite = new("notes", scope + "/apps/notes", "", "");
+        await workspace.Apply(new([ino, ino2], "ino-2", [])
+        { Windows = [new("w-1", [ino, ino2], "ino-2")], Favourites = [favourite] }, "open", 0);
+        await brain.DeactivateAsync(workspace, ct);
+        var restored = await workspace.Read();
+        var window = Assert.Single(restored.Windows);
+        Assert.Equal("w-1", window.Id);
+        Assert.Equal([ino, ino2], window.Tabs);
+        Assert.Equal("ino-2", window.ActiveTabId);
+        Assert.Equal([favourite], restored.Favourites);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task UpdateWithoutWindowsReconcilesTabsWithOpenViews()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        WorkspaceViewRef ino = View(scope, "ino"), notes = View(scope, "notes"), files = View(scope, "files"), calc = View(scope, "calc");
+        using (brain.Owner.AsApp(scope + "/apps/desktop"))
+        {
+            await workspace.Apply(new([ino, notes, files], "notes", [])
+            { Windows = [new("w-1", [ino, notes], "notes"), new("w-2", [files], "files")] }, "desktop", 0);
+        }
+        using (brain.Owner.AsApp(scope + "/apps/workspace"))
+        { await workspace.Apply(new([ino, files, calc], "ino", []), "classic", 1); }
+        var windows = (await workspace.Read()).Windows;
+        Assert.Equal(["w-1", "w-2", "w-calc"], windows.Select(window => window.Id));
+        Assert.Equal([ino], windows[0].Tabs);
+        Assert.Equal("ino", windows[0].ActiveTabId);
+        Assert.Equal([files], windows[1].Tabs);
+        Assert.Equal([calc], windows[2].Tabs);
+        Assert.Equal("calc", windows[2].ActiveTabId);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task WindowsMustMatchOpenViewsAndRespectCaps()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
+        var views = Enumerable.Range(0, 9).Select(i => View(scope, "app" + i)).ToArray();
+        Task Try(WorkspaceViewRef[] open, params WorkspaceWindow[] windows)
+            => Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new(open, null, []) { Windows = windows }, Guid.NewGuid().ToString(), 0));
+        await Try([views[0]], new WorkspaceWindow("w", [views[0], views[1]], views[0].Id));
+        await Try(views, [.. views.Select(view => new WorkspaceWindow("w-" + view.Id, [view], view.Id))]);
+        await Try(views, new WorkspaceWindow("w", views, views[0].Id));
+        await Try([views[0]], new WorkspaceWindow("w", [views[0]], views[0].Id), new WorkspaceWindow("e", [], ""));
+        await Try([views[0]], new WorkspaceWindow("w", [views[0]], "missing"));
+        await Try([views[0], views[1]], new WorkspaceWindow("w", [views[0]], views[0].Id), new WorkspaceWindow("w", [views[1]], views[1].Id));
+        Assert.Equal(0, (await workspace.Read()).Revision);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task FavouritesHoldAtMostFiveAppsAndFiveViews()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
+        WorkspaceViewRef App(int i) => new("app" + i, scope + "/apps/app" + i, "", "");
+        WorkspaceViewRef ViewOf(int i) => new("view" + i, scope + "/apps/app" + i, "full", "c" + i);
+        WorkspaceViewRef[] apps = [.. Enumerable.Range(0, 5).Select(App)], views = [.. Enumerable.Range(0, 5).Select(ViewOf)];
+        var state = await workspace.Apply(new([], null, []) { Favourites = [.. apps, .. views] }, "ten", 0);
+        Assert.Equal(10, state.Favourites.Length);
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([], null, []) { Favourites = [.. apps, App(5), .. views] }, "apps", state.Revision));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([], null, []) { Favourites = [.. apps, .. views, ViewOf(5)] }, "views", state.Revision));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.Apply(new([App(0)], null, []), "open", state.Revision));
+    }
+
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnUpdateWithoutFavouritesKeepsThem()
+    {
+        await using var brain = await Start(TestContext.Current.CancellationToken);
+        var scope = brain.Owner.BrainId;
+        var workspace = brain.Get<IWorkspace>(scope);
+        await Shipped(brain, scope);
+        WorkspaceViewRef favourite = new("notes", scope + "/apps/notes", "", "");
+        using (brain.Owner.AsApp(scope + "/apps/desktop"))
+        { await workspace.Apply(new([], null, []) { Favourites = [favourite] }, "star", 0); }
+        using (brain.Owner.AsApp(scope + "/apps/workspace"))
+        { await workspace.Apply(new([View(scope, "ino")], "ino", []), "classic", 1); }
+        Assert.Equal([favourite], (await workspace.Read()).Favourites);
+    }
+
+    private static WorkspaceViewRef View(string scope, string app) => new(app, scope + "/apps/" + app, "full", "");
+
     private static Task<ITestBrain> Start(CancellationToken ct) => TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>()
         .ConfigureServices(services => { services.RemoveAll<IAppRuntime>(); services.AddSingleton<IAppRuntime, NoRuntime>(); })
         .StartAsync(ct);

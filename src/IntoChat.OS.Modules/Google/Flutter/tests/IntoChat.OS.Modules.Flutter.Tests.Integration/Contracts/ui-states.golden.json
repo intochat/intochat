@@ -625,6 +625,21 @@
         "variant": "Variant",
         "context": "Context"
       }
+    ],
+    "windows": [
+      {
+        "id": "Id",
+        "tabs": [],
+        "activeTabId": "ActiveTabId"
+      }
+    ],
+    "favourites": [
+      {
+        "id": "Id",
+        "app": "App",
+        "variant": "Variant",
+        "context": "Context"
+      }
     ]
   }
 }

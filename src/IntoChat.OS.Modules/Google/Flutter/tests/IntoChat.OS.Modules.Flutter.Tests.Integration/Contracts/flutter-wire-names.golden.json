@@ -186,5 +186,6 @@
   "IntoChat.OS.Flutter.Workspace.Signals.WorkspaceChanged": "signal; short=WorkspaceChanged; alias=ui.workspace-changed",
   "IntoChat.OS.Flutter.Workspace.WorkspaceState": "type; alias=ui.workspace-state; serialized=True",
   "IntoChat.OS.Flutter.Workspace.WorkspaceUpdate": "type; alias=ui.workspace-update; serialized=True",
-  "IntoChat.OS.Flutter.Workspace.WorkspaceViewRef": "type; alias=ui.workspace-view-ref; serialized=True"
+  "IntoChat.OS.Flutter.Workspace.WorkspaceViewRef": "type; alias=ui.workspace-view-ref; serialized=True",
+  "IntoChat.OS.Flutter.Workspace.WorkspaceWindow": "type; alias=ui.workspace-window; serialized=True"
 }
