@@ -154,7 +154,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
         accountBase: widget.kernelBaseUri,
         onOpen: widget.onOpen,
       ),
-      _ => GeneralTab(store: widget.store),
+      _ => GeneralTab(store: widget.store, api: api),
     };
   }
 

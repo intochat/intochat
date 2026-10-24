@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import '../workspace_store.dart';
+import 'settings_api.dart';
 import 'settings_tab_heading.dart';
 
 /// General: display name and appearance, with Advanced (storage and the UI
 /// Kit) at the bottom.
 class GeneralTab extends StatefulWidget {
-  const GeneralTab({super.key, required this.store});
+  const GeneralTab({super.key, required this.store, this.api});
   final WorkspaceStore store;
+  final SettingsApi? api;
   @override
   State<GeneralTab> createState() => _GeneralTabState();
 }
+
+enum _Save { idle, saving, saved }
 
 class _GeneralTabState extends State<GeneralTab> {
   late final TextEditingController _name = TextEditingController(
@@ -19,6 +23,88 @@ class _GeneralTabState extends State<GeneralTab> {
   );
   bool _saving = false;
   String? _notice;
+  NewTabPreferences? _workspace;
+  var _newTabState = _Save.idle;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWorkspace();
+  }
+
+  Future<void> _loadWorkspace() async {
+    final api = widget.api;
+    if (api == null) return;
+    try {
+      final loaded = await api.workspacePreferences();
+      if (mounted) setState(() => _workspace = loaded);
+    } catch (_) {
+      // The select stays hidden; the rest of General still works.
+    }
+  }
+
+  Future<void> _saveNewTabApp(String name) async {
+    final before = _workspace;
+    if (before == null) return;
+    setState(() {
+      _workspace = NewTabPreferences(newTabApp: name, choices: before.choices);
+      _newTabState = _Save.saving;
+    });
+    try {
+      final saved = await widget.api!.putNewTabApp(name);
+      if (mounted) {
+        setState(() {
+          _workspace = saved;
+          _newTabState = _Save.saved;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _workspace = before;
+        _newTabState = _Save.idle;
+      });
+      showKitToast(context, 'Could not save that change.', tone: UiTone.error);
+    }
+  }
+
+  Widget _newTabSelect() {
+    final workspace = _workspace;
+    if (workspace == null) return const SizedBox.shrink();
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          UiKitSelect<String>(
+            key: const Key('settings-general-new-tab-app'),
+            label: 'New tab opens',
+            value: workspace.newTabApp,
+            items: [
+              for (final choice in workspace.choices)
+                UiKitSelectItem(choice.name, choice.title),
+            ],
+            onChanged: _saveNewTabApp,
+          ),
+          const SizedBox(height: 6),
+          switch (_newTabState) {
+            _Save.saving => Text('Saving…', style: type.meta),
+            _Save.saved => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check, size: 12, color: c.done),
+                const SizedBox(width: 4),
+                Text('Saved', style: type.metaStrong),
+              ],
+            ),
+            _Save.idle => const SizedBox.shrink(),
+          },
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -145,6 +231,7 @@ class _GeneralTabState extends State<GeneralTab> {
             store.save();
           },
         ),
+        _newTabSelect(),
         const SizedBox(height: 16),
         _toggle(
           'Compact spacing',

@@ -55,6 +55,25 @@ final class SettingsForbidden implements Exception {
   String toString() => 'Only the brain owner can change these settings.';
 }
 
+/// The workspace preferences: the app a new tab opens, and the apps to choose from.
+final class NewTabPreferences {
+  const NewTabPreferences({required this.newTabApp, required this.choices});
+  final String newTabApp;
+  final List<({String name, String title})> choices;
+
+  factory NewTabPreferences.fromJson(Map<String, dynamic> json) =>
+      NewTabPreferences(
+        newTabApp: json['newTabApp'] as String? ?? 'ino',
+        choices: [
+          for (final row in json['choices'] as List? ?? const [])
+            (
+              name: (row as Map)['name'] as String,
+              title: row['title'] as String,
+            ),
+        ],
+      );
+}
+
 /// What the Settings tabs read and write for one brain.
 abstract interface class SettingsApi {
   Future<List<EntrySummary>> listEntries();
@@ -63,6 +82,8 @@ abstract interface class SettingsApi {
   Future<ChatModelCatalog> models();
   Future<Map<String, bool>> notifications();
   Future<void> putNotifications(Map<String, bool> preferences);
+  Future<NewTabPreferences> workspacePreferences();
+  Future<NewTabPreferences> putNewTabApp(String name);
 }
 
 /// [SettingsApi] over the signed-in client's session.
@@ -115,4 +136,21 @@ final class ClientSettingsApi implements SettingsApi {
   @override
   Future<void> putNotifications(Map<String, bool> preferences) =>
       _call('PUT', '/preferences/notifications', preferences);
+
+  @override
+  Future<NewTabPreferences> workspacePreferences() async =>
+      NewTabPreferences.fromJson(
+        Map<String, dynamic>.from(
+          await _call('GET', '/preferences/workspace') as Map,
+        ),
+      );
+
+  @override
+  Future<NewTabPreferences> putNewTabApp(String name) async =>
+      NewTabPreferences.fromJson(
+        Map<String, dynamic>.from(
+          await _call('PUT', '/preferences/workspace', {'newTabApp': name})
+              as Map,
+        ),
+      );
 }
