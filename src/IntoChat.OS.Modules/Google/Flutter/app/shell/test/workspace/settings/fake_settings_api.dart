@@ -13,6 +13,12 @@ base class FakeSettingsApi implements SettingsApi {
   final puts = <(String, EntryKind, String)>[];
   final removed = <String>[];
   var modelLoads = 0;
+  var newTabApp = 'ino';
+  final newTabPuts = <String>[];
+  var newTabChoices = const <({String name, String title})>[
+    (name: 'ino', title: 'Ino'),
+    (name: 'notes', title: 'Notes'),
+  ];
   var notificationPrefs = <String, bool>{'agent-finished': true};
 
   @override
@@ -72,4 +78,15 @@ base class FakeSettingsApi implements SettingsApi {
   @override
   Future<void> putNotifications(Map<String, bool> preferences) async =>
       notificationPrefs = {...notificationPrefs, ...preferences};
+
+  @override
+  Future<NewTabPreferences> workspacePreferences() async =>
+      NewTabPreferences(newTabApp: newTabApp, choices: newTabChoices);
+
+  @override
+  Future<NewTabPreferences> putNewTabApp(String name) async {
+    newTabPuts.add(name);
+    newTabApp = name;
+    return workspacePreferences();
+  }
 }

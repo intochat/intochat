@@ -9,10 +9,19 @@ start.cs alone handles it. The layout text "classic" keeps the v1 Workspace as t
 Invoking "start" publishes the desktop view with a dock row, Ino pinned first.
 
 ## Scenario: Windows side by side
-Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<id>` and
-`close:<id>` act on one window; restore.cs re-renders on every workspace change, so a
+Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<window>` and
+`close:<window>/<tab>` act on one window; restore.cs re-renders on every workspace change, so a
 restarted desktop shows the same windows and focus. Below 900 logical pixels the shell sends
 the `narrow` request (true; false when wider again) and only the focused window shows.
+
+## Scenario: Tabs and favourites
+A window holds tabs (at most 8; at most 8 windows): its header shows the active tab's title with
+New tab, favourite, pin and close icon buttons, and the tab strip beneath. `tab:<w>/<i>` selects a
+tab; `newtab:<w>` (a window's +) and `newtab` (the dock, into the focused window) open the brain's
+New tab app, Ino unless Settings chose another; `close:<w>/<i>` closes one tab, and the last tab
+closes its window. `favourite:<w>` stars the active tab: favourites (at most 5 apps and 5 views)
+follow Ino in the dock, hidden when empty and a menu when narrow; `view:<id>` opens a view
+favourite as a new tab. A refusal (a cap reached) shows a toast above the dock until the next change.
 
 ## Scenario: Apps gallery
 The dock holds Ino, pinned and open apps only. `gallery` shows or hides the gallery
@@ -38,7 +47,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "desktop";
-    public const string Version = "0.1.3";
+    public const string Version = "0.2.0";
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),

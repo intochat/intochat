@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../components/kit/ui_kit_button.dart';
 import '../../components/kit/ui_kit_surface.dart';
@@ -110,9 +111,18 @@ Widget viewButton(Map node, VoidCallback? onPressed, {bool compact = false}) {
 /// Buttons (items), Dividers and Text (section labels). Escape or a tap
 /// outside closes it; selecting an item dispatches, then closes.
 final class ViewMenu extends StatefulWidget {
-  const ViewMenu({super.key, required this.node, required this.action});
+  const ViewMenu({
+    super.key,
+    required this.node,
+    required this.action,
+    this.reference,
+  });
   final Map node;
   final VoidCallback? Function(Map node) action;
+
+  /// Builds a Reference (kind 5) item: a button neuron that keeps its own
+  /// activation. Without it, references are not shown.
+  final Widget Function(Map node)? reference;
 
   @override
   State<ViewMenu> createState() => _ViewMenuState();
@@ -123,11 +133,15 @@ class _ViewMenuState extends State<ViewMenu> {
   final _panel = FocusNode(debugLabel: 'view menu');
   // Closing the menu returns focus to its trigger.
   final _trigger = FocusNode(debugLabel: 'view menu trigger');
+  final _menu = MenuController();
 
   void _after(FocusNode node) =>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && node.context != null) node.requestFocus();
       });
+
+  void _closeAfterFrame() =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _menu.close());
 
   @override
   void dispose() {
@@ -152,6 +166,30 @@ class _ViewMenuState extends State<ViewMenu> {
       for (final child in children)
         switch (child['kind']) {
           1 => _MenuItem(node: child, onPressed: action(child)),
+          // The neuron handles its own press (pointer, Enter or Space); the
+          // menu then closes. The key is observed, not consumed.
+          5 when widget.reference != null => Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: (_, event) {
+              if (event is KeyDownEvent &&
+                  (event.logicalKey == LogicalKeyboardKey.enter ||
+                      event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+                      event.logicalKey == LogicalKeyboardKey.space)) {
+                _closeAfterFrame();
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerUp: (_) => _closeAfterFrame(),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: widget.reference!(child),
+              ),
+            ),
+          ),
+          5 => const SizedBox.shrink(),
           12 => Container(
             height: 1,
             margin: const EdgeInsets.symmetric(vertical: 6),
@@ -167,6 +205,7 @@ class _ViewMenuState extends State<ViewMenu> {
         },
     ];
     return MenuAnchor(
+      controller: _menu,
       clipBehavior: Clip.none,
       childFocusNode: _trigger,
       onOpen: () => _after(_panel),

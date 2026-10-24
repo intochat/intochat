@@ -19,6 +19,14 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["start.cs"], bundle.Files.Where(file => file.Value.Contains("\"start\"", StringComparison.Ordinal) && file.Key != "app.cs").Select(file => file.Key));
     }
 
+    [Fact]
+    public void TheDesktopIsVersion020()
+    {
+        var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
+        Assert.Equal("0.2.0", bundle.Version);
+        Assert.Contains("## Scenario: Tabs and favourites", bundle.Spec, StringComparison.Ordinal);
+    }
+
     // Option A: the dock is at the bottom even before any window opens.
     [Fact]
     public void AnEmptyDesktopShowsNoWindowsAndTheDockAtTheBottom()
@@ -40,10 +48,10 @@ public sealed class OsDesktopAppFacts
         Assert.Equal(["windows", "dock"], tree.Children.Select(node => node.Key));
         Assert.Equal([new UiChildRef(UIVocabulary.ViewportType, "brain/apps/desktop/window/a"), new UiChildRef(UIVocabulary.ViewportType, "brain/apps/desktop/window/b")],
             Flatten(tree).Where(node => node.Kind == UiNodeKind.Reference).Select(node => node.Reference));
-        var chrome = Assert.Single(Flatten(tree), node => node.Key == "window-a");
-        Assert.Equal((UiNodeKind.Card, "App a"), (chrome.Kind, chrome.Text));
-        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "close:a");
-        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "focus:a");
+        var chrome = Assert.Single(Flatten(tree), node => node.Key == "chrome-a");
+        Assert.Equal(UiNodeKind.Row, chrome.Kind);
+        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "close:a/0");
+        Assert.Contains(Flatten(chrome), node => node.Kind == UiNodeKind.Button && node.Action == "focus:a" && node.Text == "App a");
     }
 
     // An app's view fills its window: rows share the window area and each window's content takes
@@ -57,9 +65,11 @@ public sealed class OsDesktopAppFacts
         foreach (var id in new[] { "a", "b", "c", "d" })
         {
             var frame = Assert.Single(Flatten(tree), node => node.Key == "frame-" + id);
-            Assert.Equal(["window-" + id, "content-" + id], frame.Children.Select(node => node.Key));
-            Assert.Equal([DesktopLayout.ChromeHeight, 0], frame.Extents ?? []);
+            Assert.Equal(["chrome-" + id, "tabs-" + id, "content-" + id], frame.Children.Select(node => node.Key));
+            Assert.Equal([40, 38, 0], frame.Extents ?? []);
+            Assert.Equal(0, frame.Gap);
         }
+        Assert.Equal(78, DesktopLayout.ChromeHeight);
     }
 
     [Fact]
@@ -91,7 +101,8 @@ public sealed class OsDesktopAppFacts
     public void EachWindowVerbHasItsOwnSmallHandler()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        foreach (var (file, prefix) in new[] { ("open.cs", "\"open:\""), ("close.cs", "\"close:\""), ("focus.cs", "\"focus:\"") })
+        foreach (var (file, prefix) in new[] { ("open.cs", "\"open:\""), ("close.cs", "\"close:\""), ("focus.cs", "\"focus:\""),
+            ("tabs.cs", "\"tab:\""), ("tabs.cs", "\"newtab\""), ("favourite.cs", "\"favourite:\""), ("favourite.cs", "\"view:\"") })
         {
             Assert.Contains(prefix, bundle.Files[file], StringComparison.Ordinal);
             Assert.InRange(bundle.Files[file].Split('\n').Length, 1, 40);
@@ -129,7 +140,10 @@ public sealed class OsDesktopAppFacts
         var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
         var buttons = Flatten(dock).Where(node => node.Kind == UiNodeKind.Button).ToArray();
         Assert.Equal(["open:ino", "open:notes", "open:calc"], buttons.Take(3).Select(node => node.Action));
-        Assert.Contains(buttons, node => node.Key == "gallery" && node.Text == "Apps");
+        Assert.Contains(buttons, node => node.Key == "gallery" && node.Text == "Apps" && node.Style == UiStyle.Ghost && node.Icon == "grid");
+        var apps = Assert.Single(Flatten(dock), node => node.Key == "apps");
+        Assert.Equal(["dock-ino", "dock-notes", "dock-calc", "newtab", "gallery"], apps.Children.Select(node => node.Key));
+        Assert.Equal(("New tab", "newtab", "plus"), (apps.Children[3].Text, apps.Children[3].Action, apps.Children[3].Icon));
         var right = Assert.Single(Flatten(dock), node => node.Key == "right");
         Assert.Equal(["usage", "avatar", "more"], right.Children.Select(node => node.Key));
         Assert.Contains(Flatten(right), node => node.Text == "$1.25");
@@ -193,12 +207,13 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void WindowsOfferPinOrUnpinButInoStaysPinned()
     {
-        var windows = new WindowModel[] { new("ino", "brain/apps/ino", "Ino", "w/ino"), new("notes", "brain/apps/notes", "Notes", "w/notes"), new("calc", "brain/apps/calc", "Calc", "w/calc") };
-        var model = new DesktopModel(windows, "calc", [new("ino", "Ino", null, true, true), new("notes", "Notes", null, true, true), new("calc", "Calc", null, false, true)], false, false, null);
-        var actions = Flatten(DesktopLayout.Render(model)).Select(node => node.Action).ToArray();
-        Assert.Contains("unpin:notes", actions);
-        Assert.Contains("pin:calc", actions);
-        Assert.DoesNotContain(actions, action => action is "pin:ino" or "unpin:ino");
+        var windows = new[] { Window("w-1", "ino"), Window("w-2", "notes", "ino", "notes"), Window("w-3", "calc") };
+        var model = new DesktopModel(windows, "w-3", [new("ino", "Ino", null, true, true), new("notes", "Notes", null, true, true), new("calc", "Calc", null, false, true)], false, false, null);
+        var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
+        Assert.Equal(("unpin:notes", "pin-off"), (Assert.Single(nodes, node => node.Key == "unpin-w-2").Action, nodes.Single(node => node.Key == "unpin-w-2").Icon));
+        Assert.Equal(("pin:calc", "pin"), (Assert.Single(nodes, node => node.Key == "pin-w-3").Action, nodes.Single(node => node.Key == "pin-w-3").Icon));
+        Assert.DoesNotContain(nodes, node => node.Key is "pin-w-1" or "unpin-w-1");
+        Assert.DoesNotContain(nodes, node => node.Action is "pin:ino" or "unpin:ino");
     }
 
     [Fact]
@@ -296,6 +311,14 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
+    public void GetAtTheWindowCapLeavesOnlyTheCapToast()
+    {
+        // The cap's toast already says why the window did not open; the gallery adds nothing.
+        Assert.Equal("", Desktop.GetNotice(new(true, "echo", null), opened: false, refused: true));
+        Assert.Equal("Already have it.", Desktop.GetNotice(new(false, null, "Already have it."), opened: false, refused: true));
+    }
+
+    [Fact]
     public async Task AGalleryThatCannotLoadStillRendersWithANotice()
     {
         var (entries, notice) = await Desktop.LoadGallery(() => throw new InvalidOperationException("store down"), null);
@@ -364,8 +387,211 @@ public sealed class OsDesktopAppFacts
     private static DesktopModel Model(int count, string? focused, bool narrow)
     {
         var windows = Enumerable.Range(0, count).Select(i => ((char)('a' + i)).ToString())
-            .Select(id => new WindowModel(id, "brain/apps/" + id, "App " + id, "brain/apps/desktop/window/" + id)).ToArray();
+            .Select(id => new WindowModel(id, "App " + id, "brain/apps/desktop/window/" + id, [new(id, id, "App " + id, false)], id, id)).ToArray();
         return new(windows, focused, [new("ino", "Ino", null, true, false)], narrow, false, null);
+    }
+
+    [Fact]
+    public void EachWindowShowsItsTabStripWithTheActiveTabPrimary()
+    {
+        var model = new DesktopModel([Window("w-1", "notes", "ino", "notes", "calc")], "w-1", [], false, false, null);
+        var strip = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "tabs-w-1");
+        Assert.Equal(UiNodeKind.Tabs, strip.Kind);
+        Assert.Equal(["tab-w-1-0", "tab-w-1-1", "tab-w-1-2"], strip.Children.Select(node => node.Key));
+        Assert.Equal(["tab:w-1/0", "tab:w-1/1", "tab:w-1/2"], strip.Children.Select(node => node.Action));
+        Assert.Equal(["Ino", "Notes", "Calc"], strip.Children.Select(node => node.Text));
+        Assert.Equal([UiStyle.Ghost, UiStyle.Primary, UiStyle.Ghost], strip.Children.Select(node => node.Style));
+    }
+
+    [Fact]
+    public void ChromeUsesIconButtonsForNewTabStarPinAndClose()
+    {
+        var model = new DesktopModel([Window("w-1", "calc", "ino", "calc")], "w-1", [new("calc", "Calc", null, false, true)], false, false, null);
+        var chrome = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "chrome-w-1");
+        Assert.Equal(["focus-w-1", "newtab-w-1", "star-w-1", "pin-w-1", "close-w-1"], chrome.Children.Select(node => node.Key));
+        Assert.Equal([0, 32, 32, 32, 32], chrome.Extents ?? []);
+        Assert.Equal(4, chrome.Gap);
+        Assert.All(chrome.Children, node => Assert.Equal(UiStyle.Ghost, node.Style));
+        Assert.Equal(["plus", "star", "pin", "x"], chrome.Children.Skip(1).Select(node => node.Icon));
+        Assert.Equal(["newtab:w-1", "favourite:w-1", "pin:calc", "close:w-1/1"], chrome.Children.Skip(1).Select(node => node.Action));
+        Assert.Equal(("Calc", "focus:w-1"), (chrome.Children[0].Text, chrome.Children[0].Action));
+        Assert.Equal("Add to favourites", chrome.Children[2].Text);
+        var starred = model with { Windows = [Window("w-1", "calc") with { Tabs = [new("calc", "calc", "Calc", true)] }] };
+        Assert.Equal("Remove from favourites", Assert.Single(Flatten(DesktopLayout.Render(starred)), node => node.Key == "star-w-1").Text);
+        var ino = model with { Windows = [Window("w-1", "ino")] };
+        Assert.Equal([0, 32, 32, 32], Assert.Single(Flatten(DesktopLayout.Render(ino)), node => node.Key == "chrome-w-1").Extents ?? []);
+    }
+
+    [Fact]
+    public void TheInoDockEntryIsPrimaryAndOthersAreGhost()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null);
+        var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
+        var ino = Assert.Single(nodes, node => node.Key == "dock-ino");
+        Assert.Equal((UiStyle.Primary, "ino", "Ino", "open:ino"), (ino.Style, ino.Icon, ino.Text, ino.Action));
+        Assert.Equal(UiStyle.Ghost, Assert.Single(nodes, node => node.Key == "dock-notes").Style);
+        Assert.Equal(UiStyle.Ghost, Assert.Single(nodes, node => node.Key == "newtab").Style);
+    }
+
+    [Fact]
+    public void FavouritesFollowInoAndAreHiddenWhenEmpty()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null);
+        Assert.DoesNotContain(Flatten(DesktopLayout.Render(model)), node => node.Key == "favourites");
+        Assert.DoesNotContain(Flatten(DesktopLayout.Render(model with { Favourites = [] })), node => node.Key == "favourites");
+        var with = model with { Favourites = [new("calc", "Calc", "open:calc", false), new("v-notes", "Notes list", "view:v-notes", true)] };
+        var apps = Assert.Single(Flatten(DesktopLayout.Render(with)), node => node.Key == "apps");
+        var favourites = apps.Children[1];
+        Assert.Equal(("favourites", UiNodeKind.Row, 4.0), (favourites.Key, favourites.Kind, favourites.Gap));
+        Assert.Equal(["fav-0", "fav-1"], favourites.Children.Select(node => node.Key));
+        Assert.Equal(["open:calc", "view:v-notes"], favourites.Children.Select(node => node.Action));
+        Assert.Equal(["grid", "list"], favourites.Children.Select(node => node.Icon));
+        Assert.All(favourites.Children, node => Assert.Equal(UiStyle.Secondary, node.Style));
+    }
+
+    [Fact]
+    public void NarrowShowsTheFocusedWindowWithTabsAndFavouritesInAMenu()
+    {
+        var model = new DesktopModel([Window("w-1", "ino"), Window("w-2", "notes", "notes", "calc")], "w-2", [new("ino", "Ino", null, true, true)], true, false, null,
+            Favourites: [new("calc", "Calc", "open:calc", false)]);
+        var nodes = Flatten(DesktopLayout.Render(model)).ToArray();
+        Assert.DoesNotContain(nodes, node => node.Key == "frame-w-1");
+        Assert.Contains(nodes, node => node.Key == "tabs-w-2" && node.Children.Length == 2);
+        var menu = Assert.Single(nodes, node => node.Key == "favourites");
+        Assert.Equal((UiNodeKind.Menu, "Favourites", "star"), (menu.Kind, menu.Text, menu.Icon));
+        Assert.Equal(["open:calc"], menu.Children.Select(node => node.Action));
+    }
+
+    [Fact]
+    public void ARefusalShowsAToastAboveTheDock()
+    {
+        var model = new DesktopModel([Window("w-1", "ino")], "w-1", [new("ino", "Ino", null, true, true)], false, false, null, Toast: WindowOps.WindowsRefusal);
+        var tree = DesktopLayout.Render(model);
+        Assert.Equal(["windows", "toast", "dock"], tree.Children.Select(node => node.Key));
+        Assert.Equal([0, 48, 68], tree.Extents ?? []);
+        var toast = tree.Children[1];
+        Assert.Equal((UiNodeKind.Toast, "You can have at most 8 windows. Close one to open another.", UiTone.Error), (toast.Kind, toast.Text, toast.Tone));
+        Assert.Equal(["windows", "dock"], DesktopLayout.Render(model with { Toast = null }).Children.Select(node => node.Key));
+    }
+
+    [Fact]
+    public void TabAndWindowKeysNeverCollide()
+    {
+        var model = new DesktopModel([Window("w-a", "a-b", "a-b", "b"), Window("w-a-b", "c", "c", "a-b-c")], "w-a",
+            [new("ino", "Ino", null, true, false), new("a-b", "AB", null, false, true)], false, false, null, Favourites: [new("a-b", "AB", "open:a-b", false)]);
+        var keys = Flatten(DesktopLayout.Render(model)).Select(node => node.Key).ToArray();
+        Assert.Equal(keys.Length, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public void NewTabUsesInoWhenThePreferenceNamesAHiddenApp()
+    {
+        var installed = new HashSet<string> { "ino", "notes", "desktop" };
+        Assert.Equal("notes", Desktop.NewTabChoice("notes", installed));
+        Assert.Equal("ino", Desktop.NewTabChoice("desktop", installed));
+        Assert.Equal("ino", Desktop.NewTabChoice("", installed));
+        Assert.Equal("ino", Desktop.NewTabChoice(null, installed));
+        Assert.Equal("ino", Desktop.NewTabChoice("weather", installed));
+    }
+
+    // Rows share space equally unless given extents: the dock sizes every item from its label, so items pack left.
+    [Fact]
+    public void TheDockPacksItemsLeftInLabelSizedSlots()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false), new("notes", "Notes", null, true, false)], false, false, null,
+            Favourites: [new("calc", "Calc", "open:calc", false), new("v-notes", "Notes list", "view:v-notes", true), new("files", "Files", "open:files", false)]);
+        var apps = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "apps");
+        Assert.Equal(["dock-ino", "favourites", "dock-notes", "newtab", "gallery"], apps.Children.Select(node => node.Key));
+        var extents = apps.Extents ?? [];
+        Assert.Equal(apps.Children.Length, extents.Length);
+        Assert.All(extents, extent => Assert.True(extent > 0));
+        var favourites = apps.Children[1];
+        var widths = favourites.Extents ?? [];
+        Assert.Equal(favourites.Children.Length, widths.Length);
+        Assert.Equal(widths.Sum() + 4 * (favourites.Children.Length - 1), extents[1]);
+        // A longer label gets a wider slot.
+        Assert.True(widths[1] > widths[0]);
+    }
+
+    // Figma's favourites show their names: labelled buttons with an icon, not icon-only ghosts.
+    [Fact]
+    public void FavouritesAreLabelledButtons()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], false, false, null, Favourites: [new("calc", "Calc", "open:calc", false)]);
+        var favourite = Assert.Single(Flatten(DesktopLayout.Render(model)), node => node.Key == "fav-0");
+        Assert.Equal((UiStyle.Secondary, "grid", "Calc"), (favourite.Style, favourite.Icon, favourite.Text));
+    }
+
+    // At 390 px a fixed 360 px right group leaves no room: narrow folds it into one More menu, keeping
+    // Settings and Classic layout as button neurons so their activations still reach the shell.
+    [Fact]
+    public void NarrowFoldsTheRightGroupIntoAMoreMenu()
+    {
+        var model = new DesktopModel([], null, [new("ino", "Ino", null, true, false)], true, false, null, Usage: "$1.25", Person: "Vlad",
+            LayoutButton: "brain/apps/desktop/classic", SettingsButton: "brain/apps/desktop/settings");
+        var dock = Assert.Single(DesktopLayout.Render(model).Children, node => node.Key == "dock");
+        Assert.Equal(["apps", "more"], dock.Children.Select(node => node.Key));
+        Assert.Equal([0, 40], dock.Extents ?? []);
+        var more = dock.Children[1];
+        Assert.Equal((UiNodeKind.Menu, "More", "more-horizontal"), (more.Kind, more.Text, more.Icon));
+        Assert.Equal(["usage", "avatar", "more-settings", "more-classic"], more.Children.Select(node => node.Key));
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/settings"), more.Children[2].Reference);
+        Assert.Equal(new UiChildRef(UIVocabulary.ButtonType, "brain/apps/desktop/classic"), more.Children[3].Reference);
+        Assert.Equal([0, 360], Assert.Single(DesktopLayout.Render(model with { Narrow = false }).Children, node => node.Key == "dock").Extents ?? []);
+    }
+
+    // The toast belongs to the workspace revision it refused at: any later change, from anywhere, hides it.
+    [Fact]
+    public void ARefusalToastShowsOnlyAtItsRevision()
+    {
+        var stored = Desktop.ToastAt(7, WindowOps.TabsRefusal);
+        Assert.Equal(WindowOps.TabsRefusal, Desktop.ShownToast(stored, 7));
+        Assert.Null(Desktop.ShownToast(stored, 8));
+        Assert.Null(Desktop.ShownToast("", 7));
+        Assert.Null(Desktop.ShownToast("not a toast", 7));
+        var change = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop").Files["Desktop.cs"];
+        var apply = change.IndexOf("await State(brain).Apply(update", StringComparison.Ordinal);
+        Assert.True(apply >= 0 && change.IndexOf("await Toast(brain).Set(\"\")", apply, StringComparison.Ordinal) > apply);
+    }
+
+    [Fact]
+    public void TabIndicesResolveAgainstVisibleTabsAndStaleOnesAreNull()
+    {
+        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        { Windows = [new("w-1", [View("notes"), View("desktop"), View("calc")], "calc")] };
+        Assert.Equal("notes", Desktop.TabAt("brain", state, "w-1", "0"));
+        // The hidden desktop tab is skipped, so index 1 is calc.
+        Assert.Equal("calc", Desktop.TabAt("brain", state, "w-1", "1"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "2"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-9", "0"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "-1"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", "x"));
+        Assert.Null(Desktop.TabAt("brain", state, "w-1", ""));
+        Assert.Equal(("w-1", "3"), Desktop.WindowAndIndex("w-1/3"));
+        Assert.Equal(("a/b", "3"), Desktop.WindowAndIndex("a/b/3"));
+        Assert.Equal(("w-1", ""), Desktop.WindowAndIndex("w-1"));
+    }
+
+    [Fact]
+    public void FocusOnAHiddenActiveTabStillResolvesToItsWindow()
+    {
+        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        {
+            Windows = [new("w-1", [View("ino")], "ino"), new("w-2", [View("notes"), View("desktop")], "desktop")],
+            FocusedViewId = "desktop",
+        };
+        Assert.Equal("w-2", Desktop.FocusedWindow("brain", state));
+        Assert.Null(Desktop.FocusedWindow("brain", state with { FocusedViewId = "gone" }));
+    }
+
+    // A window whose tabs are the given apps (just the active one when none are given).
+    private static WindowModel Window(string id, string active, params string[] apps)
+    {
+        string[] names = apps.Length == 0 ? [active] : apps;
+        TabModel[] tabs = [.. names.Select(name => new TabModel(name, name, char.ToUpperInvariant(name[0]) + name[1..], false))];
+        return new(id, tabs.First(tab => tab.App == active).Title, "brain/apps/desktop/window/" + id, tabs, active, active);
     }
 
     private static IEnumerable<UiNode> Flatten(UiNode root)

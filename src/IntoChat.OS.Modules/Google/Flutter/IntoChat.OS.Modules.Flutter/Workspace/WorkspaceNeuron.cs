@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Apps;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Flutter.Workspace;
 
 [GrainType("ui.workspace")]
-internal sealed class WorkspaceNeuron(
+internal sealed partial class WorkspaceNeuron(
     [PersistentState("workspace", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<WorkspaceStorage> store)
     : RevisionedNeuron<WorkspaceStorage>(store), IWorkspace
 {
@@ -27,6 +28,8 @@ internal sealed class WorkspaceNeuron(
         CheckViews(next.Pins);
         if (next.FocusedViewId is { } focus && !next.OpenViews.Any(view => view.Id == focus))
         { throw new ArgumentException("Focus must name an open view."); }
+        if (next.Windows is { } windows) { CheckWindows(windows, next.OpenViews); }
+        if (next.Favourites is { } favourites) { CheckFavourites(favourites); }
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(next))));
         var receipt = Snapshot.Receipts.FirstOrDefault(item => item.Id == operationId);
         if (receipt is not null)
@@ -39,6 +42,9 @@ internal sealed class WorkspaceNeuron(
             OpenViews = next.OpenViews,
             FocusedViewId = next.FocusedViewId,
             Pins = next.Pins,
+            Windows = next.Windows ?? WorkspaceWindows.Reconcile(
+                state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows, next.OpenViews),
+            Favourites = next.Favourites ?? state.Favourites ?? [],
             Path = [Brain],
             Open = [],
             Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
@@ -55,11 +61,37 @@ internal sealed class WorkspaceNeuron(
         return ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(app).Read(), named);
     }
 
-    private void CheckViews(WorkspaceViewRef[] views)
+    [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
+    private static partial Regex WindowId();
+
+    private static void CheckWindows(WorkspaceWindow[] windows, WorkspaceViewRef[] openViews)
+    {
+        if (windows.Length > 8 || windows.Any(window => window is null || window.Tabs is null || window.Tabs.Length is 0 or > 8
+            || window.Id is null || !WindowId().IsMatch(window.Id) || window.Tabs.Any(tab => tab is null)
+            || !window.Tabs.Any(tab => tab.Id == window.ActiveTabId)))
+        { throw new ArgumentException("Provide at most 8 windows, each with an id, 1 to 8 tabs and an active tab among them."); }
+        if (windows.Select(window => window.Id).Distinct(StringComparer.Ordinal).Count() != windows.Length)
+        { throw new ArgumentException("Window ids are unique."); }
+        var tabs = windows.SelectMany(window => window.Tabs).ToArray();
+        var open = openViews.ToDictionary(view => view.Id, StringComparer.Ordinal);
+        // Each tab is its open view exactly (app, variant and context too), so a tab cannot bypass CheckViews.
+        if (tabs.Select(tab => tab.Id).Distinct(StringComparer.Ordinal).Count() != tabs.Length || tabs.Length != open.Count
+            || tabs.Any(tab => !open.TryGetValue(tab.Id, out var view) || view != tab))
+        { throw new ArgumentException("Each open view is exactly one tab of one window."); }
+    }
+
+    private void CheckFavourites(WorkspaceViewRef[] favourites)
+    {
+        CheckViews(favourites, allowAppOnly: true);
+        if (favourites.Count(view => view.Variant.Length == 0) > 5 || favourites.Count(view => view.Variant.Length > 0) > 5)
+        { throw new ArgumentException("Favourites hold at most 5 apps and 5 views."); }
+    }
+
+    private void CheckViews(WorkspaceViewRef[] views, bool allowAppOnly = false)
     {
         ArgumentNullException.ThrowIfNull(views);
         if (views.Length > 64 || views.Any(view => view is null || string.IsNullOrWhiteSpace(view.Id) || view.Id.Length > 128
-            || string.IsNullOrWhiteSpace(view.Variant) || view.Variant.Length > 64 || view.Context is null || view.Context.Length > 1024
+            || view.Variant is null || (view.Variant.Length == 0 ? !allowAppOnly : string.IsNullOrWhiteSpace(view.Variant)) || view.Variant.Length > 64 || view.Context is null || view.Context.Length > 1024
             || string.IsNullOrWhiteSpace(view.App) || view.App.Length > 512 || !IsApp(view.App)
             || view.App.Split('/').Any(part => part.Length == 0 || part is "." or ".."))
             || views.Select(view => view.Id).Distinct(StringComparer.Ordinal).Count() != views.Length)
@@ -102,7 +134,13 @@ internal sealed class WorkspaceNeuron(
     {
         var state = Seed(Snapshot);
         return Task.FromResult(new WorkspaceState(state.Revision, state.Path, state.Open)
-        { OpenViews = state.OpenViews, FocusedViewId = state.FocusedViewId, Pins = state.Pins });
+        {
+            OpenViews = state.OpenViews,
+            FocusedViewId = state.FocusedViewId,
+            Pins = state.Pins,
+            Windows = state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows,
+            Favourites = state.Favourites ?? [],
+        });
     }
 
     private async Task<WorkspaceState> Change(string operationId, long expectedRevision, Func<WorkspaceStorage, WorkspaceStorage> change)
@@ -140,6 +178,8 @@ internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
     [Id(5)] public string? FocusedViewId { get; init; }
     [Id(6)] public WorkspaceViewRef[] Pins { get; init; } = [];
     [Id(7)] public WorkspaceReceipt[] Receipts { get; init; } = [];
+    [Id(8)] public WorkspaceWindow[] Windows { get; init; } = [];
+    [Id(9)] public WorkspaceViewRef[] Favourites { get; init; } = [];
     public WorkspaceStorage Advanced(string operationId) => this with
     { Revision = checked(Revision + 1), Operations = [.. Operations.TakeLast(63), operationId] };
 }

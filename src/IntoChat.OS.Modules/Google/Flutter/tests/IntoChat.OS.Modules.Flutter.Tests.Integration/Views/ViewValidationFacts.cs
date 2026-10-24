@@ -88,6 +88,18 @@ public sealed class ViewValidationFacts
         Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go")]) with { Action = "open" });
     }
 
+    // A menu item may be a button neuron, so it keeps its own activation (the desktop's narrow More).
+    [Fact]
+    public void MenusMayHoldButtonNeuronReferences()
+    {
+        var settings = Ui.Reference("settings", new(UIVocabulary.ButtonType, "brain/apps/test/settings"));
+        var menu = Ui.Menu("menu", "More", [Ui.Text("usage", "$1.00"), settings], icon: "more-horizontal");
+        Assert.Equal(UiNodeKind.Reference, ViewValidation.Clone(new(1, 1, menu), "brain/apps/test/view").Root.Children[1].Kind);
+        Invalid(Ui.Menu("menu", "More", [Ui.Reference("viewport", new(UIVocabulary.ViewportType, "brain/apps/test/window"))]));
+        Invalid(Ui.Menu("menu", "More", [Ui.Button("go", "Go", "go"), Ui.Reference("text", new("text", "brain/apps/test/text"))]));
+        Invalid(Ui.Menu("menu", "More", [Ui.Reference("foreign", new(UIVocabulary.ButtonType, "other/apps/test/settings"))]));
+    }
+
     [Fact]
     public void IconsStyleAndToneAreBounded()
     {
@@ -99,6 +111,21 @@ public sealed class ViewValidationFacts
         Invalid(Ui.Button("go", "Go", "go", style: (UiStyle)9));
         Invalid(Ui.Badge("badge", "x", (UiTone)9));
     }
+
+    [Fact]
+    public void TabsHoldOnlyButtonsWithExactlyOneActive()
+    {
+        var tabs = Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Tab("b", "B", "open-b", false)]);
+        var copy = ViewValidation.Clone(new(1, 1, tabs), "brain/apps/test/view").Root;
+        Assert.Equal((UiNodeKind.Tabs, UiStyle.Primary, UiStyle.Ghost), (copy.Kind, copy.Children[0].Style, copy.Children[1].Style));
+        InvalidTabs(Ui.Tabs("tabs", []));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Text("text", "x")]));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Tab("b", "B", "open-b", true)]));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", false), Ui.Tab("b", "B", "open-b", false)]));
+        InvalidTabs(tabs with { Text = "Tabs" });
+    }
+
+    private static void InvalidTabs(UiNode root) => Assert.Equal("Tabs hold buttons, exactly one of them active.", Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view")).Message);
 
     private static void Invalid(UiNode root) => Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view"));
 }

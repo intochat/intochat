@@ -13,7 +13,7 @@ public interface IView : INeuron
 [GenerateSerializer, Alias("ui.view")]
 public sealed record UiView([property: Id(0)] long Generation, [property: Id(1)] long Version, [property: Id(2)] UiNode Root);
 
-public enum UiNodeKind { Text = 0, Button = 1, Column = 2, Row = 3, Card = 4, Reference = 5, Menu = 6, Modal = 7, Toast = 8, List = 9, Badge = 10, Avatar = 11, Divider = 12 }
+public enum UiNodeKind { Text = 0, Button = 1, Column = 2, Row = 3, Card = 4, Reference = 5, Menu = 6, Modal = 7, Toast = 8, List = 9, Badge = 10, Avatar = 11, Divider = 12, Tabs = 13 }
 
 public enum UiStyle { Primary = 0, Secondary = 1, Ghost = 2, Danger = 3, Link = 4 }
 
@@ -53,6 +53,8 @@ public static class Ui
     public static UiNode Badge(string key, string text, UiTone tone) => new(UiNodeKind.Badge, key) { Text = text, Tone = tone };
     public static UiNode Avatar(string key, string initials) => new(UiNodeKind.Avatar, key) { Text = initials };
     public static UiNode Divider(string key, string? label = null) => new(UiNodeKind.Divider, key) { Text = label };
+    public static UiNode Tabs(string key, UiNode[] tabs) => new(UiNodeKind.Tabs, key) { Children = tabs };
+    public static UiNode Tab(string key, string label, string action, bool active) => new(UiNodeKind.Button, key) { Text = label, Action = action, Style = active ? UiStyle.Primary : UiStyle.Ghost };
 }
 
 [GenerateSerializer, Alias("ui.view-changed")]

@@ -16,6 +16,7 @@
     <Compile Include="../../../features/os/Desktop/Desktop.cs" Link="Features/Desktop.cs" />
     <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />
     <Compile Include="../../../features/os/Desktop/Gallery.cs" Link="Features/Gallery.cs" />
+    <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />

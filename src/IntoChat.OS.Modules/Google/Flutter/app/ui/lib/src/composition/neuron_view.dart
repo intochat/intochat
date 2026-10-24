@@ -36,6 +36,7 @@ import 'value_nodes/view_divider.dart';
 import 'value_nodes/view_list.dart';
 import 'value_nodes/view_menu.dart';
 import 'value_nodes/view_modal.dart';
+import 'value_nodes/view_tabs.dart';
 import 'value_nodes/view_toast.dart';
 
 part 'immutable_view.dart';

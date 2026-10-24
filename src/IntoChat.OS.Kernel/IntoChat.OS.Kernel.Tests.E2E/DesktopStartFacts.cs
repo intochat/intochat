@@ -55,10 +55,13 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         Assert.Contains("apps", greeting.Text, StringComparison.OrdinalIgnoreCase);
 
         // Second start: a new program generation re-runs start.cs; the durable flag keeps it to one greeting.
-        var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
+        // Ino's greeting can land before start.cs publishes the desktop: wait for the first view.
+        var before = (await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(), view => view is not null, TimeSpan.FromSeconds(90), ct))!.Generation;
         await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
-        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        // Not AppRuntimeReadiness here: it never settles after Ino's greeting, on master too (b784ae493). Inspect shows
+        // apps/memory/capture.cs holding one undelivered TurnCompleted from apps/memory/agents/capture, while every
+        // other behavior is Running with nothing pending. The new view generation below is the desktop's own readiness.
         await Connect(ct);
         await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(), view => view!.Generation > before, TimeSpan.FromSeconds(90), ct);
         await Task.Delay(TimeSpan.FromSeconds(5), ct);

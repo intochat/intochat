@@ -48,7 +48,9 @@ internal static class ShippedAppJourneys
                 await Text("Amounts in USD");
                 break;
             case "files":
-                var filter = page.GetByRole(AriaRole.Textbox, new() { Name = "Filter names", Exact = true });
+                // Two "Filter names" fields mount at once, one disabled; master (b784ae493) renders the same pair, so the
+                // duplicate predates R3's windows. Type into the enabled one.
+                var filter = page.Locator("input[aria-label='Filter names']:not([disabled])");
                 await WorkspaceBrowser.EnterTextAsync(filter, "nonexistent-e2e-file");
                 await Assertions.Expect(filter).ToHaveValueAsync("nonexistent-e2e-file");
                 break;

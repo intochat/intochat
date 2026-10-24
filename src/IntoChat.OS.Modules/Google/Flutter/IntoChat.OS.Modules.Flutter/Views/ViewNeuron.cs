@@ -89,6 +89,8 @@ internal static class ViewValidation
         if (JsonSerializer.SerializeToUtf8Bytes(copy, Json).Length > 1_048_576) { throw new ArgumentException("A view is limited to 1 MiB."); }
         return copy;
 
+        static bool IsButtonReference(UiNode? node) => node is { Kind: UiNodeKind.Reference, Reference.Kind: UIVocabulary.ButtonType };
+
         UiNode Copy(UiNode node, int depth)
         {
             if (node is null || depth > 32 || ++count > 512 || !path.Add(node)) { throw new ArgumentException("A view must be an acyclic tree of at most 512 nodes and depth 32."); }
@@ -99,8 +101,12 @@ internal static class ViewValidation
             if (!Enum.IsDefined(node.Style) || !Enum.IsDefined(node.Tone)) { throw new ArgumentException("View nodes require a known style and tone."); }
             if (node.Icon is { } icon && (icon.Length is 0 or > 64 || !icon.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-'))) { throw new ArgumentException("Icons are at most 64 characters of [a-z0-9-]."); }
             if (node.Kind is UiNodeKind.Badge or UiNodeKind.Avatar && string.IsNullOrWhiteSpace(node.Text)) { throw new ArgumentException("Badges and avatars require text."); }
-            if (node.Kind == UiNodeKind.Menu && (node.Children.Any(child => child?.Kind is not (UiNodeKind.Button or UiNodeKind.Divider or UiNodeKind.Text)) || !node.Children.Any(child => child.Kind == UiNodeKind.Button)))
-            { throw new ArgumentException("Menus hold buttons, dividers and text labels, with at least one button."); }
+            // A menu item is a button, or a button neuron referenced so it keeps its own activation.
+            if (node.Kind == UiNodeKind.Menu && (node.Children.Any(child => child?.Kind is not (UiNodeKind.Button or UiNodeKind.Divider or UiNodeKind.Text) && !IsButtonReference(child))
+                || !node.Children.Any(child => child.Kind == UiNodeKind.Button || IsButtonReference(child))))
+            { throw new ArgumentException("Menus hold buttons, button references, dividers and text labels, with at least one button."); }
+            if (node.Kind == UiNodeKind.Tabs && (node.Text is not null || node.Children.Length == 0 || node.Children.Any(child => child?.Kind != UiNodeKind.Button) || node.Children.Count(child => child.Style == UiStyle.Primary) != 1))
+            { throw new ArgumentException("Tabs hold buttons, exactly one of them active."); }
             if (node.Kind == UiNodeKind.Modal && (string.IsNullOrWhiteSpace(node.Text) || !node.Children.Any(child => child?.Kind == UiNodeKind.Button)))
             { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
             if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }

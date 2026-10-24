@@ -88,7 +88,10 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             if (!(await DesktopNodesAsync(ct)).Any(node => node.Key == "gallery-close")) { await ActivateAsync(node => node.Key == "gallery", ct); }
             await ActivateAsync(node => node.Action == "open:" + name, ct);
             await ActivateAsync(node => node.Key == "gallery-close", ct);
-            await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + name).Read(),
+            // The app's tab id is its name; its window (w-<n>) has the one viewport.
+            var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
+            var window = placed.Windows.First(window => window.Tabs.Any(tab => tab.Id == name)).Id;
+            await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + window).Read(),
                 viewport => viewport.Target is not null, Patience, ct);
         }
         await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.FocusedViewId == name, TimeSpan.FromSeconds(15), ct);

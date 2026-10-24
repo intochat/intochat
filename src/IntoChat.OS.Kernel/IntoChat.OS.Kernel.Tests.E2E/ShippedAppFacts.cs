@@ -49,7 +49,8 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         await TestWait.UntilAsync(fixture.DesktopNodesAsync, nodes => nodes.Any(node => node.Key == "dock-ino"), TimeSpan.FromSeconds(60), ct);
 
         // Ino is first in the dock; its window shows the one greeting, which points to the gallery.
-        await Button("Ino").ClickAsync();
+        // The dock's Ino and, once Ino's window shows, its header title: either focuses Ino.
+        await Button("Ino").First.ClickAsync();
         await Visible(page.GetByText("Find and open apps in the Apps gallery", new() { Exact = false }).First);
 
         await Button("Apps").ClickAsync();
@@ -64,10 +65,10 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         await Button("Close").ClickAsync();
         await Visible(Button("="));
         await Visible(Button("New conversation"));
-        await Assertions.Expect(Button("Close")).ToHaveCountAsync(2);
+        await Assertions.Expect(Button("Close tab")).ToHaveCountAsync(2);
 
-        // Close the second window (windows sit in the order they opened: Ino, then Calculator).
-        await Button("Close").Last.ClickAsync();
+        // Close the second window's only tab (windows sit in the order they opened: Ino, then Calculator).
+        await Button("Close tab").Last.ClickAsync();
         await Assertions.Expect(Button("=")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
         await Visible(Button("New conversation"));
 

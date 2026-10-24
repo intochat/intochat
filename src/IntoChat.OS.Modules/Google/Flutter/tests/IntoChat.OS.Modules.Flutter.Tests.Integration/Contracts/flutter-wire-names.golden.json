@@ -163,7 +163,7 @@
   "IntoChat.OS.Flutter.Views.IView": "contract; alias=view; grain=view; read=IntoChat.OS.Flutter.Views.UiView; methods=Activate(Int64,String,String,Guid)=-,Publish(UiView)=-,Read()=-",
   "IntoChat.OS.Flutter.Views.Ui": "static; alias=-; serialized=False",
   "IntoChat.OS.Flutter.Views.UiNode": "type; alias=ui.node; serialized=True",
-  "IntoChat.OS.Flutter.Views.UiNodeKind": "enum; alias=-; serialized=False; members=Text,Button,Column,Row,Card,Reference,Menu,Modal,Toast,List,Badge,Avatar,Divider",
+  "IntoChat.OS.Flutter.Views.UiNodeKind": "enum; alias=-; serialized=False; members=Text,Button,Column,Row,Card,Reference,Menu,Modal,Toast,List,Badge,Avatar,Divider,Tabs",
   "IntoChat.OS.Flutter.Views.UiStyle": "enum; alias=-; serialized=False; members=Primary,Secondary,Ghost,Danger,Link",
   "IntoChat.OS.Flutter.Views.UiTone": "enum; alias=-; serialized=False; members=Neutral,Done,Working,Error",
   "IntoChat.OS.Flutter.Views.UiView": "type; alias=ui.view; serialized=True",
@@ -186,5 +186,6 @@
   "IntoChat.OS.Flutter.Workspace.Signals.WorkspaceChanged": "signal; short=WorkspaceChanged; alias=ui.workspace-changed",
   "IntoChat.OS.Flutter.Workspace.WorkspaceState": "type; alias=ui.workspace-state; serialized=True",
   "IntoChat.OS.Flutter.Workspace.WorkspaceUpdate": "type; alias=ui.workspace-update; serialized=True",
-  "IntoChat.OS.Flutter.Workspace.WorkspaceViewRef": "type; alias=ui.workspace-view-ref; serialized=True"
+  "IntoChat.OS.Flutter.Workspace.WorkspaceViewRef": "type; alias=ui.workspace-view-ref; serialized=True",
+  "IntoChat.OS.Flutter.Workspace.WorkspaceWindow": "type; alias=ui.workspace-window; serialized=True"
 }
