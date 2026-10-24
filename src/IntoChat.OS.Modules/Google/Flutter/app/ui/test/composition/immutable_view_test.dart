@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -162,4 +163,60 @@ void main() {
       await changes.close();
     },
   );
+  testWidgets('copy_button_copies_and_dispatches_nothing', (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final sent = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'view',
+            name: 'share',
+            load: (kind, name) async => {
+              'generation': 1,
+              'version': 1,
+              'root': {
+                'kind': 2,
+                'key': 'root',
+                'children': [
+                  {
+                    'kind': 1,
+                    'key': 'copy',
+                    'text': 'Copy link',
+                    'action': 'copy:https://example.test/#/open?app=fixture-value-0001',
+                    'icon': 'copy',
+                  },
+                ],
+              },
+            },
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async => sent.add(event),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(UiKitButton, 'Copy link'));
+    await tester.pump();
+    expect(copied, ['https://example.test/#/open?app=fixture-value-0001']);
+    expect(sent, isEmpty);
+    expect(find.text('Link copied.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+  });
 }

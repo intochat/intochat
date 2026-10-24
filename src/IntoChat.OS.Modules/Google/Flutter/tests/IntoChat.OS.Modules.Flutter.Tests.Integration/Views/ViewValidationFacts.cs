@@ -125,6 +125,21 @@ public sealed class ViewValidationFacts
         InvalidTabs(tabs with { Text = "Tabs" });
     }
 
+    [Fact]
+    public void CopyActionsAreBoundedAndPrintable()
+    {
+        var button = Ui.CopyButton("share", "Copy link", "https://example.test/#/open?app=fixture-value-0001");
+        Assert.Equal("copy:https://example.test/#/open?app=fixture-value-0001", button.Action);
+        Assert.Equal("copy", button.Icon);
+        Assert.Equal(UiStyle.Secondary, button.Style);
+        Assert.Equal(button.Action, ViewValidation.Clone(new(1, 1, button), "brain/apps/test/view").Root.Action);
+        Assert.Equal(new string('x', 2048), ViewValidation.Clone(new(1, 1, Ui.CopyButton("max", "Copy", new string('x', 2048))), "brain/apps/test/view").Root.Action![5..]);
+        foreach (var text in new[] { "", new string('x', 2049), "line\nbreak", "tab\tbed", "bell\u0007" })
+        { InvalidCopy(Ui.Button("copy", "Copy", "copy:" + text)); }
+    }
+
+    private static void InvalidCopy(UiNode root) => Assert.Equal("Copy actions carry 1 to 2048 printable characters.", Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view")).Message);
+
     private static void InvalidTabs(UiNode root) => Assert.Equal("Tabs hold buttons, exactly one of them active.", Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view")).Message);
 
     private static void Invalid(UiNode root) => Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view"));

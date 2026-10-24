@@ -2,6 +2,7 @@ import '../components/button/ui_neuron_select.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
 import '../components/kit/ui_kit_field.dart';
+import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../theme/ui_tokens.dart';
 

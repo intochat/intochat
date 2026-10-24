@@ -111,6 +111,8 @@ internal static class ViewValidation
             { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
             if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }
             if (node.Kind == UiNodeKind.Button && (string.IsNullOrWhiteSpace(node.Text) || string.IsNullOrWhiteSpace(node.Action))) { throw new ArgumentException("Buttons require text and a canonical action."); }
+            if (node.Action is { } action && action.StartsWith("copy:", StringComparison.Ordinal) && (action.Length is 5 or > 2053 || action.AsSpan(5).ContainsAnyInRange('\u0000', '\u001f') || action.AsSpan(5).ContainsAnyInRange('\u007f', '\u009f')))
+            { throw new ArgumentException("Copy actions carry 1 to 2048 printable characters."); }
             if (node.Kind != UiNodeKind.Button && node.Action is not null) { throw new ArgumentException("Only buttons have actions."); }
             if (node.Kind == UiNodeKind.Reference)
             {

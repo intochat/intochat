@@ -31,10 +31,22 @@ class _ImmutableView extends StatelessWidget {
   }
 
   /// The one button dispatch for every kind; null when it cannot act.
-  VoidCallback? _dispatchButton(Map node) =>
+  /// A `copy:` action is handled here: it copies its payload and dispatches
+  /// nothing.
+  VoidCallback? _dispatchButton(BuildContext context, Map node) =>
       enabled && node['enabled'] != false && node['action'] is String
       ? () {
           FocusManager.instance.primaryFocus?.unfocus();
+          final action = node['action'] as String;
+          if (action.startsWith('copy:')) {
+            unawaited(
+              Clipboard.setData(ClipboardData(text: action.substring(5)))
+                  .then((_) {
+                    if (context.mounted) showKitToast(context, 'Link copied.');
+                  }, onError: (Object _) {}),
+            );
+            return;
+          }
           unawaited(
             dispatch({
               'kind': 'view',
@@ -87,7 +99,7 @@ class _ImmutableView extends StatelessWidget {
         content = LayoutBuilder(
           builder: (context, constraints) => viewButton(
             node,
-            _dispatchButton(node),
+            _dispatchButton(context, node),
             compact: constraints.maxHeight < 48,
           ),
         );
@@ -145,7 +157,7 @@ class _ImmutableView extends StatelessWidget {
       case 6:
         content = ViewMenu(
           node: node,
-          action: _dispatchButton,
+          action: (node) => _dispatchButton(context, node),
           reference: (child) => switch (child['reference']) {
             final Map target
                 when target['kind'] is String && target['name'] is String =>
@@ -166,13 +178,13 @@ class _ImmutableView extends StatelessWidget {
                     : widgets[children.indexOf(child)],
               ),
           ],
-          action: _dispatchButton,
+          action: (node) => _dispatchButton(context, node),
         );
       case 8:
         content = ViewToast(
           node: node,
           generation: generation,
-          action: _dispatchButton,
+          action: (node) => _dispatchButton(context, node),
         );
       case 9:
         content = ViewList(
@@ -186,7 +198,10 @@ class _ImmutableView extends StatelessWidget {
       case 12:
         content = ViewDivider(label: text);
       case 13:
-        content = ViewTabs(node: node, action: _dispatchButton);
+        content = ViewTabs(
+          node: node,
+          action: (node) => _dispatchButton(context, node),
+        );
       default:
         content = const Text('This component cannot be displayed.');
     }
