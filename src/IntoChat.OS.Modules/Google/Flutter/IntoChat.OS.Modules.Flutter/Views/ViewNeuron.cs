@@ -76,7 +76,7 @@ internal static class ViewValidation
     // Only leaf controls can be embedded: layouts and views can themselves refer to other nodes.
     // A viewport is the one window: it shows an app's view chosen by its owner (the desktop's windows).
     private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "entrycontrol" };
+    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "entrycontrol", "preference" };
 
     public static UiView Clone(UiView view, string name)
     {

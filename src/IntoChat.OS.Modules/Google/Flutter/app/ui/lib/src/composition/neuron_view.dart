@@ -33,6 +33,8 @@ import '../entries/entries_client.dart';
 import '../entries/ui_entry_control.dart';
 import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
+import '../preferences/local_preferences.dart';
+import '../preferences/ui_preference_control.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
 import 'value_nodes/view_avatar.dart';
@@ -100,6 +102,7 @@ class NeuronView extends StatefulWidget {
     this.watch,
     this.scenes,
     this.entries,
+    this.localPreferences,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -123,6 +126,9 @@ class NeuronView extends StatefulWidget {
 
   /// The brain's entries over the person's session, for `entrycontrol`. Without it the control cannot save.
   final EntriesClient Function(String brainId)? entries;
+
+  /// This device's preferences, for a `preference` neuron with a `local*` store. Without it those cannot save.
+  final LocalPreferences? localPreferences;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -438,6 +444,7 @@ class _NeuronViewState extends State<NeuronView> {
     watch: widget.watch,
     scenes: widget.scenes,
     entries: widget.entries,
+    localPreferences: widget.localPreferences,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -1022,6 +1029,40 @@ class _NeuronViewState extends State<NeuronView> {
             'name': widget.name,
             'action': 'changed',
           }),
+        );
+      case 'preference':
+        final spec = definition['spec'];
+        if (spec is! Map) return const SizedBox.shrink();
+        final store = PreferenceStore.parse(spec['store']);
+        if (store == null) return const SizedBox.shrink();
+        final choices = spec['choices'];
+        return UiPreferenceControl(
+          store: store,
+          label: _text(spec['label']),
+          kind: PreferenceKind.parse(spec['kind']),
+          choices: [
+            if (choices is List)
+              for (final choice in choices.whereType<Map>())
+                PreferenceChoiceItem(
+                  _text(choice['id']),
+                  _text(choice['label']),
+                  enabled: choice['enabled'] != false,
+                  detail: choice['detail'] as String?,
+                ),
+          ],
+          value: definition['value'] as String?,
+          local: widget.localPreferences,
+          enabled: enabled,
+          onSet: (value) async {
+            final send = widget.onAction;
+            if (send == null) throw StateError('No transport.');
+            await _events.dispatch(send, {
+              'kind': 'preference',
+              'name': widget.name,
+              'action': 'set',
+              'value': value,
+            });
+          },
         );
       case 'progress':
         return UiProgress(

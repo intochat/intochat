@@ -40,6 +40,7 @@ public static class UIVocabulary
     public const string FileInputType = "fileinput";
     public const string FormType = "form";
     public const string EntryControlType = "entrycontrol";
+    public const string PreferenceType = "preference";
 
     public const int ChartMaxPoints = 256;
 }

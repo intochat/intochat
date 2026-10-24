@@ -358,6 +358,24 @@
     "displayName": "DisplayName",
     "avatarUrl": "AvatarUrl"
   },
+  "IntoChat.OS.Flutter.Preferences.PreferenceControlState": {
+    "name": "Name",
+    "version": 7,
+    "spec": {
+      "store": 14,
+      "label": "Label",
+      "kind": 2,
+      "choices": [
+        {
+          "id": "Id",
+          "label": "Label",
+          "enabled": true,
+          "detail": "Detail"
+        }
+      ]
+    },
+    "value": "Value"
+  },
   "IntoChat.OS.Flutter.Progress.ProgressState": {
     "name": "Name",
     "version": 7,

@@ -61,6 +61,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         writePreferences: (value) =>
             preferences.writePreferences(widget.persistenceKey, value),
       );
+  late final _localPreferences = WorkspaceLocalPreferences(store);
   final _navigator = GlobalKey<NavigatorState>();
   SpaceController? _space;
   String? _rootName;
@@ -563,6 +564,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                   },
                   onActivate: (action) => unawaited(_activate(action)),
                   scenes: widget.programmingClient!.scenes(_brain!),
+                  localPreferences: _localPreferences,
                 ),
               ),
             )

@@ -52,7 +52,7 @@ public sealed partial class DartVocabularyFacts
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(28, table.Length);
+        Assert.Equal(29, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in table)

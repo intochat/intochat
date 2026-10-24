@@ -31,6 +31,8 @@ export 'src/components/table/ui_table_controller.dart';
 export 'src/components/toggle/ui_toggle.dart';
 export 'src/entries/entries_client.dart';
 export 'src/entries/ui_entry_control.dart';
+export 'src/preferences/local_preferences.dart';
+export 'src/preferences/ui_preference_control.dart';
 export 'src/components/video/ui_video.dart';
 export 'src/gallery/ui_gallery_screen.dart';
 export 'src/lumen/lumen_controls.dart';

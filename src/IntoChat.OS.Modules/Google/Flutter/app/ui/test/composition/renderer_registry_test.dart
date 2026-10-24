@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('every catalog kind resolves to a renderer or a declared fallback', () {
-    expect(RendererRegistry.uiKinds.length, 35);
+    expect(RendererRegistry.uiKinds.length, 36);
     for (final kind in RendererRegistry.uiKinds) {
       final entry = RendererRegistry.uiEntry(kind);
       expect(
