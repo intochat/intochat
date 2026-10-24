@@ -70,14 +70,18 @@ public static partial class Ino
                 await Advance(brain, "attention", "A response is already running");
                 return AnswerOutcome.KeptInDraft;
             }
-            // A chosen model that is unavailable starts no turn and never falls back silently; the choice is kept.
-            if (await TurnModel(brain, snapshot, source) is not (true, var model))
+            // Only a chat's own unavailable choice is refused (kept, never silently replaced); an inherited
+            // setting falls back to Auto with a note. NoModel is the first-run hook (Task 5).
+            var resolved = await TurnModel(brain, snapshot, source);
+            if (resolved.Outcome != InoModelOutcome.Ready)
             {
                 await KeepInDraft(brain, source, input);
                 await Status(brain, InoModels.UnavailableCopy);
                 await Advance(brain, "attention", "The chosen model isn't available");
-                return AnswerOutcome.KeptInDraft;
+                return resolved.Outcome == InoModelOutcome.NoModel ? AnswerOutcome.NoModel : AnswerOutcome.KeptInDraft;
             }
+            if (resolved.Note is { } note) { await Status(brain, note); }
+            var model = resolved.Model;
             if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
             var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
             var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
@@ -104,15 +108,10 @@ public static partial class Ino
         return kept;
     }
 
-    // The chat's choice, else the app setting Model, else Automatic (null). False when a chosen model is not
-    // available now. An unreadable index falls back to the app setting.
-    public static async Task<(bool Available, ModelSelection? Model)> TurnModel(IntoChatOSConnection brain, AppSnapshot snapshot, string agentKey)
-    {
-        var effective = InoModels.Effective(await ChatModelChoice(brain, agentKey), snapshot.Settings.GetValueOrDefault("Model", ""));
-        if (effective is null) { return (true, null); }
-        var model = await Models(brain).Select(effective);
-        return (model is not null, model);
-    }
+    // The chat's choice, else the app setting Model, else Automatic; see InoModels.Resolve. An unreadable index
+    // falls back to the app setting.
+    public static async Task<InoModelResolution> TurnModel(IntoChatOSConnection brain, AppSnapshot snapshot, string agentKey)
+        => await InoModels.Resolve(Models(brain), await ChatModelChoice(brain, agentKey), snapshot.Settings.GetValueOrDefault("Model", ""));
 
     private static async Task<string?> ChatModelChoice(IntoChatOSConnection brain, string agentKey)
     {
@@ -127,8 +126,8 @@ public static partial class Ino
         try
         {
             var settings = (await brain.Get<IApp>(Key(brain)).Read()).Settings;
-            var effective = InoModels.Effective(await ChatModelChoice(brain, agentKey), settings.GetValueOrDefault("Model", ""));
-            return InoModels.Menu(await Models(brain).List(), effective);
+            var choices = await Models(brain).List();
+            return InoModels.Menu(choices, InoModels.Shown(choices, await ChatModelChoice(brain, agentKey), settings.GetValueOrDefault("Model", "")));
         }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return null; }
     }

@@ -40,18 +40,20 @@ async Task Reconcile()
                     continue;
                 }
                 var snapshot = await app.Read();
-                // A chosen model that is unavailable starts no turn; the draft stays and the menu names the reason.
-                if (await Ino.TurnModel(brain, snapshot, request.Context) is not (true, var model))
+                // A chat's own unavailable choice (or "auto" with no model) starts no turn; the draft stays.
+                var resolved = await Ino.TurnModel(brain, snapshot, request.Context);
+                if (resolved.Outcome != InoModelOutcome.Ready)
                 {
                     await Ino.Status(brain, InoModels.UnavailableCopy);
                     await composer.Settle(request.Id, InoModels.UnavailableCopy);
                     continue;
                 }
+                var model = resolved.Model;
                 var contracts = InoTools.Select(Ino.Contracts, await brain.Kernel.Types(brain.Stopping));
                 await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: contracts)
                     with { RunId = runId, Model = model });
                 // The composer asks the model directly; an earlier route's status no longer applies.
-                await Ino.Status(brain, "");
+                await Ino.Status(brain, resolved.Note ?? "");
                 await Ino.Touched(brain, request.Context, request.Text);
             }
             await composer.Settle(request.Id);

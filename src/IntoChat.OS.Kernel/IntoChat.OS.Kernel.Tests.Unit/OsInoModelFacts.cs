@@ -46,9 +46,54 @@ public sealed class OsInoModelFacts
     [Fact]
     public void TheSelectedModelIsPrimaryAndLabelsTheMenu()
     {
+        var menu = InoModels.Menu(Choices(), "profile:fast");
+        Assert.Equal("Fast", menu.Text);
+        Assert.Equal([UiStyle.Secondary, UiStyle.Primary, UiStyle.Secondary], menu.Children.Select(item => item.Style));
+    }
+
+    [Fact]
+    public void AListedUnavailableSelectionSaysSoAndStaysMarked()
+    {
         var menu = InoModels.Menu(Choices(), "preset:Big");
-        Assert.Equal("Big", menu.Text);
+        Assert.Equal("Big (unavailable)", menu.Text);
         Assert.Equal([UiStyle.Secondary, UiStyle.Secondary, UiStyle.Primary], menu.Children.Select(item => item.Style));
+    }
+
+    [Fact]
+    public void ARemovedSelectionGetsAMarkedDisabledStandIn()
+    {
+        var menu = InoModels.Menu(Choices(), "preset:Gone");
+        Assert.Equal("preset:Gone (unavailable)", menu.Text);
+        var stand = menu.Children[^1];
+        Assert.Equal(("model-removed", "preset:Gone", false, UiStyle.Primary), (stand.Key, stand.Text!, stand.Enabled, stand.Style));
+        Assert.DoesNotContain(menu.Children[..^1], item => item.Style == UiStyle.Primary);
+    }
+
+    [Fact]
+    public async Task AnInheritedUnavailableSettingAnswersOnAutoWithANote()
+    {
+        var catalog = new FakeCatalog(Choices());
+        var resolved = await InoModels.Resolve(catalog, null, "preset:Big");
+        Assert.Equal(new InoModelResolution(InoModelOutcome.Ready, null, "The default model isn't available. Using Auto."), resolved);
+        Assert.Null(InoModels.Shown(Choices(), null, "preset:Big"));
+        Assert.Equal(new InoModelResolution(InoModelOutcome.Ready, new("profile:fast")), await InoModels.Resolve(catalog, null, "profile:fast"));
+        Assert.Equal("profile:fast", InoModels.Shown(Choices(), null, "profile:fast"));
+    }
+
+    [Fact]
+    public async Task AChatChosenUnavailableModelStartsNoTurn()
+    {
+        var catalog = new FakeCatalog(Choices());
+        Assert.Equal(InoModelOutcome.ChatModelUnavailable, (await InoModels.Resolve(catalog, "preset:Big", "profile:fast")).Outcome);
+        Assert.Equal(InoModelOutcome.ChatModelUnavailable, (await InoModels.Resolve(catalog, "preset:Gone", "")).Outcome);
+        Assert.Equal("preset:Gone", InoModels.Shown(Choices(), "preset:Gone", "profile:fast"));
+    }
+
+    [Fact]
+    public async Task ExplicitAutoWithoutAutomaticIsNoModel()
+    {
+        Assert.Equal(InoModelOutcome.NoModel, (await InoModels.Resolve(new FakeCatalog(Choices(autoAvailable: false)), "auto", "profile:fast")).Outcome);
+        Assert.Equal(new InoModelResolution(InoModelOutcome.Ready), await InoModels.Resolve(new FakeCatalog(Choices()), "auto", "profile:fast"));
     }
 
     [Fact]
@@ -88,7 +133,8 @@ public sealed class OsInoModelFacts
     private sealed class FakeCatalog(ModelChoices choices) : FakeNeuron, IModelCatalog
     {
         public Task<ModelChoices> List(string? defaultModel = null) => Task.FromResult(choices);
-        public Task<ModelSelection?> Select(string? id, string? defaultModel = null) => throw new NotSupportedException();
+        public Task<ModelSelection?> Select(string? id, string? defaultModel = null)
+            => Task.FromResult(choices.Models.Any(model => model.Id == id && model.Available) ? new ModelSelection(id) : null);
     }
 
     private sealed class FakeText : FakeNeuron, IText

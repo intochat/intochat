@@ -7,6 +7,8 @@ await using var brain = await IntoChatOSClient.ConnectAsync(args);
 DateTimeOffset? toastUntil = null;
 var refresher = new InoRefresher(async () => toastUntil = await Ino.PublishView(brain));
 _ = Expire();
+// A settings change (the app setting Model among them) redeploys the program, so a fresh start republishes.
+await Refresh();
 await foreach (var changed in brain.On<TextChanged>(InoViewState.Text(brain), Refresh, brain.Stopping))
 {
     await Refresh();
