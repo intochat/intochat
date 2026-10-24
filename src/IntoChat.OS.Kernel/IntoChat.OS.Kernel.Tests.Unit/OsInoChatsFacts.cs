@@ -91,11 +91,32 @@ public sealed class OsInoChatsFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InoChats.TryBackfill(failing, InoChats.AgentKey("x/apps/ino", "c-" + Guid.NewGuid().ToString("N")), Read, cancelled.Token));
     }
 
+    [Fact]
+    public async Task AHungBackfillIsAbandonedAfterTheTimeoutSoInoKeepsAnswering()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(2), InoChats.BackfillTimeout);
+        var agent = InoChats.AgentKey("brain-" + Guid.NewGuid().ToString("N") + "/apps/ino", "c-" + Guid.NewGuid().ToString("N"));
+        var hung = new FakeIndex { Hang = true };
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.False(await InoChats.Within(TimeSpan.FromMilliseconds(100),
+            token => InoChats.TryBackfill(hung, agent, _ => Task.FromResult<AiMessage[]>([]), token), Ct));
+        Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        // Not marked done: the next compose tries again and succeeds once the index answers.
+        hung.Hang = false;
+        Assert.True(await InoChats.Within(InoChats.BackfillTimeout,
+            token => InoChats.TryBackfill(hung, agent, _ => Task.FromResult<AiMessage[]>([]), token), Ct));
+        Assert.Equal("Untitled", hung.Entries[InoChats.IdOf(agent)].Title);
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InoChats.Within(InoChats.BackfillTimeout, _ => Task.FromResult(true), cancelled.Token));
+    }
+
     private sealed class FakeIndex : IChatIndex
     {
         public Dictionary<string, ChatIndexEntry> Entries { get; } = [];
         public int Created { get; private set; }
         public bool Fail { get; set; }
+        public bool Hang { get; set; }
 
         public Task<ChatIndexEntry> Create(string id, string title)
         {
@@ -104,7 +125,8 @@ public sealed class OsInoChatsFacts
             return Task.FromResult(entry);
         }
 
-        public Task<ChatIndexEntry?> Get(string id) => Fail ? throw new InvalidOperationException("index down") : Task.FromResult(Entries.GetValueOrDefault(id));
+        public Task<ChatIndexEntry?> Get(string id) => Hang ? new TaskCompletionSource<ChatIndexEntry?>().Task
+            : Fail ? throw new InvalidOperationException("index down") : Task.FromResult(Entries.GetValueOrDefault(id));
         public Task Rename(string id, string title) { Entries[id] = Entries[id] with { Title = title }; return Task.CompletedTask; }
         public Task<ChatIndexPage> List(bool archived, int skip = 0, int take = 100) => throw new NotSupportedException();
         public Task Archive(string id) => throw new NotSupportedException();

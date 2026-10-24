@@ -55,5 +55,7 @@ IconData? uiIcon(String name) => switch (name) {
   'log-out' => LucideIcons.logOut,
   'x' => LucideIcons.x,
   'ino' => LucideIcons.sparkles,
+  'more' => LucideIcons.ellipsis,
+  'edit' => LucideIcons.pencil,
   _ => null,
 };

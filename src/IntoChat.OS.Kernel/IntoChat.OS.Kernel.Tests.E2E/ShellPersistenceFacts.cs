@@ -15,12 +15,12 @@ public sealed class ShellPersistenceFacts(ReferenceBrainFixture host) : BrainFac
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
         await page.GetByRole(AriaRole.Button, new() { Name = "Ino", Exact = true }).ClickAsync();
         await TestWait.UntilAsync(_ => workspace.Read(), value => value.FocusedViewId == "ino", TimeSpan.FromSeconds(15), ct);
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "New conversation", Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "New chat", Exact = true })).ToBeVisibleAsync();
 
         // A fresh context has no cookies or device preferences. Signing into the same
         // account must restore the durable open view from the server.
         var fresh = await OpenPageAsync(ct);
-        await Assertions.Expect(fresh.GetByRole(AriaRole.Button, new() { Name = "New conversation", Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(fresh.GetByRole(AriaRole.Button, new() { Name = "New chat", Exact = true })).ToBeVisibleAsync();
         Assert.Equal("ino", (await workspace.Read()).FocusedViewId);
         Assert.Equal(0, await fresh.EvaluateAsync<int>("() => Object.keys(localStorage).filter(k => k.includes('workspace')).length"));
     }

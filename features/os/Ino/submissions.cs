@@ -47,6 +47,7 @@ async Task Reconcile()
                     with { RunId = runId, Model = model });
                 // The composer asks the model directly; an earlier route's status no longer applies.
                 await Ino.Status(brain, "");
+                await Ino.Touched(brain, request.Context, request.Text);
             }
             await composer.Settle(request.Id);
         }

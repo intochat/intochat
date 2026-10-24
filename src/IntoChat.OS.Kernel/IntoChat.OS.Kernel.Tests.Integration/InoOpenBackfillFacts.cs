@@ -6,6 +6,9 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Flutter.Views;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
@@ -42,8 +45,23 @@ public sealed class InoOpenBackfillFacts
 
         Assert.False(execution.IsFaulted, execution.Exception?.ToString());
         Assert.DoesNotContain(edge.Calls, call => call.EndsWith(nameof(IApp.FailPresentation), StringComparison.Ordinal));
+        // The sidebar is published even though the index cannot be read.
+        Assert.Contains(typeof(IView).FullName + "." + nameof(IView.Publish), edge.Calls);
         await stop.CancelAsync();
         try { await execution; } catch (OperationCanceledException) { }
+    }
+
+    // Every Ino script compiles against the shared files, including the sidebar's chats.cs and search.cs.
+    [Fact]
+    public void EveryInoProgramCompiles()
+    {
+        var feature = new FeatureDirectory(SolutionProjects.Features).Load().Single(item => item.Owner == "os" && item.Bundle.Name == "ino");
+        var sources = feature.Bundle.Files.Where(file => AppFiles.IsProgram(file.Key))
+            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        var compiled = new CSharpScriptCheck().Compile(sources);
+        Assert.True(compiled.Success, string.Join(Environment.NewLine, compiled.Errors));
+        Assert.Contains("chats.cs", compiled.Assemblies.Keys);
+        Assert.Contains("search.cs", compiled.Assemblies.Keys);
     }
 
     private static byte[] Compile()
@@ -86,6 +104,8 @@ public sealed class InoOpenBackfillFacts
             }
             if (call.Contract == typeof(IChat).FullName && call.Method == nameof(IChat.Read))
             { return Json(new ChatState { Name = call.Key, Selection = new(App + "/conversations/main", 1) }); }
+            if (call.Contract == typeof(IText).FullName && call.Method == nameof(IText.Read)) { return Json(new TextState { Name = call.Key }); }
+            if (call.Contract == typeof(ITextField).FullName && call.Method == nameof(ITextField.Read)) { return Json(new TextFieldState { Name = call.Key }); }
             if (call.Contract == typeof(IApp).FullName && call.Method == nameof(IApp.Present)) { Presented.TrySetResult(); }
             return Json<object?>(null);
         }

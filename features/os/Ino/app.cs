@@ -31,8 +31,12 @@ running is put into the composer's draft when the draft is empty, so sending it 
 
 ## Scenario: Opening the assistant composes its surface
 
-Invoking "open" composes and publishes the Ino view in main: an inline header row
-(durable status and inline New conversation action), transcript chat and composer. Ino owns this view.
+Invoking "open" composes and publishes the Ino view in main: a chat sidebar (New chat, a search field,
+the chat history newest first, each row with a menu to Rename in a modal or Archive with an Undo toast)
+beside the header (durable status), transcript chat and composer. Ino owns this view. Opening a row
+selects that chat; archiving the open chat selects the newest remaining one, or a new chat when none is left.
+The search query, a rename in progress and the archive toast are durable view state; the toast is
+dropped once it is ten seconds old, so a reconnect never shows a stale one.
 The transcript and composer remain durable references, preserving read receipts, drafts and voice state.
 Repeated opens recover the native chat selection and reuse an unchanged view; program revisions replace its generation.
 

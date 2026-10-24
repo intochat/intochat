@@ -34,6 +34,20 @@ public static class InoChats
         return ChatIndex.IsId(id);
     }
 
+    // A hung index or transcript read is abandoned after this long; the next compose tries again.
+    public static readonly TimeSpan BackfillTimeout = TimeSpan.FromSeconds(2);
+
+    // Runs a back-fill for at most `timeout`; a timeout or failure is false, only the caller's cancellation throws.
+    public static async Task<bool> Within(TimeSpan timeout, Func<CancellationToken, Task<bool>> work, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        cancellationToken.ThrowIfCancellationRequested();
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        bounded.CancelAfter(timeout);
+        try { return await work(bounded.Token).WaitAsync(timeout, cancellationToken); }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested) { return false; }
+    }
+
     // Conversations started before the index existed get an entry when Ino next composes. Never gates the
     // surface: any failure but cancellation is swallowed and the agent stays unmarked, so the next compose retries.
     public static async Task<bool> TryBackfill(IntoChatOSConnection brain, CancellationToken cancellationToken)

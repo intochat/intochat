@@ -14,6 +14,7 @@ using IntoChat.OS.Flame.Scene;
 using IntoChat.OS;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Flutter.TextField;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows;
 using IntoChat.OS.Microsoft.CSharp.Files;
@@ -167,6 +168,42 @@ public static partial class Ino
         var source = DataKey(brain) + "/conversations/c-" + operationId.ToString("N");
         var selected = await chat.SelectAgent(source, current.Revision, operationId);
         if ((await chat.Read()).Selection == selected) { await Status(brain, ""); }
+        // The first message would create the entry too, so a failed write never fails the new chat.
+        try { await InoChats.Index(brain).Create(InoChats.IdOf(source), ChatIndex.NewChat); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+        await PublishView(brain);
+    }
+
+    // A user message marks its chat active (and titles a new one), then the sidebar is published again.
+    public static async Task Touched(IntoChatOSConnection brain, string agentKey, string message)
+    {
+        if (!InoChats.TryIdOf(agentKey, out var id)) { return; }
+        try
+        {
+            await InoChats.Index(brain).Touch(id, message);
+            await PublishView(brain);
+        }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
+
+    // The sidebar is read from the index and the durable view state; an unreadable index shows no chats.
+    public static async Task PublishView(IntoChatOSConnection brain)
+    {
+        var data = DataKey(brain);
+        var selection = await EnsureSelection(brain);
+        var state = (await InoViewState.Load(brain)).Current(DateTimeOffset.UtcNow);
+        IReadOnlyList<ChatIndexEntry> chats;
+        try { chats = (await InoChats.Index(brain).List(false, 0, ChatIndex.MaxPage)).Entries; }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { chats = []; }
+        InoChats.TryIdOf(selection.Agent, out var selected);
+        var model = new InoViewModel(chats, selected, state.Query, RenamingId: state.RenamingId, Toast: state.Toast, UndoId: state.UndoId);
+        await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), ProgramRevision(brain)).Publish(InoView.Render(data, model));
+    }
+
+    private static async Task Field(IntoChatOSConnection brain, string name, string label)
+    {
+        var field = brain.Get<ITextField>(DataKey(brain) + name);
+        if ((await field.Read()).Label != label) { await field.Configure(label, "text"); }
     }
 
     public const string Greeting = "Hi, I'm Ino. Find and open apps in the Apps gallery in the dock, or just tell me what you need.";
@@ -180,14 +217,16 @@ public static partial class Ino
         var key = Key(brain);
         await EnsureSelection(brain);
         await brain.Get<IComposer>(DataKey(brain) + "/composer").Follow(DataKey(brain) + "/transcript");
-        await new ViewPublisher(brain.Get<IView>(key + "/view"),
-            ProgramRevision(brain)).Publish(InoView.Render(DataKey(brain)));
+        await Field(brain, "/chat-search", "Search chats");
+        await Field(brain, "/rename", "Chat title");
+        await PublishView(brain);
         await brain.Get<IApp>(key).Present(ProgramRevision(brain),
             new(new Sphere("icon.svg", ["mood"], Presence()),
                 Main: new(UIVocabulary.ViewType, key + "/view"),
                 Views: [new("full", new(UIVocabulary.ViewType, key + "/view"))]));
-        // After Present: indexing old conversations never keeps Ino from opening.
-        await InoChats.TryBackfill(brain, brain.Stopping);
+        // After Present and bounded: indexing old conversations never keeps Ino from opening or answering.
+        if (await InoChats.Within(InoChats.BackfillTimeout, token => InoChats.TryBackfill(brain, token), brain.Stopping))
+        { await PublishView(brain); }
     }
 
     public static BehaviorTree Presence() => new(TreeNode.Selector(

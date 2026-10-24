@@ -15,6 +15,7 @@ await foreach (var request in brain.On(app, "send", brain.Stopping))
     if (await router.Pending(request.RequestId, brain.Stopping) is not null) { await ledger.Record(request.RequestId); continue; }
     if (string.IsNullOrWhiteSpace(request.Input) || request.Input.Length > 32000) { await ledger.Record(request.RequestId); continue; }
     await Ino.Advance(brain, "listening", "Heard you");
+    await Ino.Touched(brain, (await Ino.EnsureSelection(brain)).Agent, request.Input);
     if (request.Input.Length > Ino.MaxRoutedChars)
     {
         await Ino.Status(brain, "A long message goes straight to the model");

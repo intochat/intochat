@@ -64,20 +64,20 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         }
         await Button("Close").ClickAsync();
         await Visible(Button("="));
-        await Visible(Button("New conversation"));
+        await Visible(Button("New chat"));
         await Assertions.Expect(Button("Close tab")).ToHaveCountAsync(2);
 
         // Close the second window's only tab (windows sit in the order they opened: Ino, then Calculator).
         await Button("Close tab").Last.ClickAsync();
         await Assertions.Expect(Button("=")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
-        await Visible(Button("New conversation"));
+        await Visible(Button("New chat"));
 
         // More holds Classic layout; v1 offers New desktop back.
         await Button("Classic layout").ClickAsync();
         await fixture.ReadyAsync("classic", ct);
         await Button("New desktop").ClickAsync();
         await fixture.ReadyAsync("desktop", ct);
-        await Visible(Button("New conversation"));
+        await Visible(Button("New chat"));
     });
 
     private async Task RunAsync(string name, CancellationToken test, Func<CancellationToken, Task> journey)
