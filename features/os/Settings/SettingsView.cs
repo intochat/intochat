@@ -8,7 +8,7 @@ public sealed record ModelRow(string Id, string Label, bool Available);
 // An archived chat as Settings lists it: no id, so actions name the row index.
 public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt);
 
-public sealed record ConnectionRow(string Connector, string Title, string Status);
+public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected);
 
 public sealed record SettingsModel(string Tab, string AppKey, ModelRow Auto, IReadOnlyList<ModelRow> Models,
     IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast);
@@ -20,6 +20,8 @@ public static class SettingsView
     public const double TabsHeight = 40;
     public const double OverlayExtent = 1;
     public const int ArchivedPage = 100;
+    // Rows a tab shows at most, so the whole tree stays inside IView's 512 nodes.
+    public const int ConnectionsShown = 64;
 
     public static UiNode Render(SettingsModel m, DateTimeOffset? now = null)
     {
@@ -84,14 +86,14 @@ public static class SettingsView
 
     private static UiNode[] Connections(SettingsModel m) =>
     [
-        Ui.List("connections", [.. m.Connections.Select((row, i) => Ui.Card("connection-" + i, row.Title, row.Status,
-            row.Status == SettingsCopy.Connected ? [] : [Ui.Reference("connect-" + row.Connector, new(UIVocabulary.ButtonType, m.AppKey + "/connect/" + row.Connector))]))]),
+        Ui.List("connections", [.. m.Connections.Take(ConnectionsShown).Select((row, i) => Ui.Card("connection-" + i, row.Title, row.Status,
+            row.Connected ? [] : [Ui.Reference("connection-" + i + "-connect", new(UIVocabulary.ButtonType, m.AppKey + "/connect/" + row.Connector))]))]),
     ];
 
     private static UiNode[] Archived(SettingsModel m, DateTimeOffset now)
     {
         if (m.Archived.Count == 0) { return [Ui.Text("archived-empty", SettingsCopy.ArchivedEmpty)]; }
-        UiNode[] nodes = [Ui.List("archived", [.. m.Archived.Select((row, i) => Ui.Row("archived-" + i,
+        UiNode[] nodes = [Ui.List("archived", [.. m.Archived.Take(ArchivedPage).Select((row, i) => Ui.Row("archived-" + i,
         [
             Ui.Text("archived-" + i + "-title", row.Title),
             Ui.Text("archived-" + i + "-when", Ago(row.UpdatedAt, now)),

@@ -3,6 +3,7 @@ using IntoChat.OS.Apps;
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 
 // The Settings app the OS ships, installed in a person's brain, so facts can configure its controls as it does.
+// RecordOrigin also clears Edited, so Install makes an edited Settings shipped again.
 // Enter Caller after awaiting Install: a caller stamp entered inside an awaited method does not flow back out.
 internal static class ShippedSettings
 {

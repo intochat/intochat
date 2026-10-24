@@ -44,7 +44,6 @@ public static class SettingsCopy
     ];
 
     public const string Connect = "Connect";
-    public const string Connected = "Connected";
 
     public const string ArchivedEmpty = "Archived chats appear here.";
     public const string Unarchive = "Unarchive";
