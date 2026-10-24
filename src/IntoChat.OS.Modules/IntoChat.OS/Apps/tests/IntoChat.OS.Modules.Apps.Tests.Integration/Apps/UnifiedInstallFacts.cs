@@ -16,10 +16,10 @@ namespace IntoChat.OS.Apps.Tests.Apps;
 public sealed class UnifiedInstallFacts
 {
     private const string Spec = "## Scenario: Echoes\nIt echoes.";
-    private static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
-    private static readonly AppRequirements Needs = new(["person.email", "person.birthDate"], ["mailbox"]);
+    internal static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
+    internal static readonly AppRequirements Needs = new(["person.email", "person.birthDate"], ["mailbox"]);
 
-    private static Task<ITestBrain> Start() => TestBrain.Create()
+    internal static Task<ITestBrain> Start() => TestBrain.Create()
         .WithModule<AppsModule>()
         .WithModule<FixtureConnectorsModule>()
         .WithFakeAppRuntime(new())
@@ -28,7 +28,7 @@ public sealed class UnifiedInstallFacts
     private static AppManifest Manifest(AppRequirements? requires) =>
         new("Echo", "echoes", [new("ask", "ask it")], [], requires is null ? [] : [new("inbox", "mailbox")], Requires: requires);
 
-    private static async Task<IApp> Publish(ITestBrain brain, Person publisher, AppRequirements? requires)
+    internal static async Task<IApp> Publish(ITestBrain brain, Person publisher, AppRequirements? requires)
     {
         var app = brain.Get<IApp>(IApp.Key(publisher.BrainId, "echo"));
         using var _ = publisher.AsCaller();
@@ -39,19 +39,19 @@ public sealed class UnifiedInstallFacts
         return app;
     }
 
-    private static async Task Republish(Person publisher, IApp app, AppRequirements? requires)
+    internal static async Task Republish(Person publisher, IApp app, AppRequirements? requires)
     {
         using var _ = publisher.AsCaller();
         await app.SaveManifest(Manifest(requires), Guid.NewGuid());
         await app.Publish();
     }
 
-    private static AppInstaller Installer(ITestBrain brain) => brain.Services.GetRequiredService<AppInstaller>();
-    private static IIdentityClient Identity(ITestBrain brain) => brain.Services.GetRequiredService<IIdentityClient>();
-    private static IApp Copy(ITestBrain brain, Person person, string name = "echo") => brain.Get<IApp>(IApp.Key(person.BrainId, name));
-    private static InstallRequest Latest(string consent, Dictionary<string, string>? bindings = null) => new(new("intochat", "echo"), consent, Guid.Empty, null, bindings);
+    internal static AppInstaller Installer(ITestBrain brain) => brain.Services.GetRequiredService<AppInstaller>();
+    internal static IIdentityClient Identity(ITestBrain brain) => brain.Services.GetRequiredService<IIdentityClient>();
+    internal static IApp Copy(ITestBrain brain, Person person, string name = "echo") => brain.Get<IApp>(IApp.Key(person.BrainId, name));
+    internal static InstallRequest Latest(string consent, Dictionary<string, string>? bindings = null) => new(new("intochat", "echo"), consent, Guid.Empty, null, bindings);
 
-    private static async Task<string[]> Granted(ITestBrain brain, Person person, string name = "echo")
+    internal static async Task<string[]> Granted(ITestBrain brain, Person person, string name = "echo")
         => [.. (await Identity(brain).ListGrants(person.BrainId)).Where(grant => grant.AppId == IApp.Key(person.BrainId, name))
             .Select(grant => grant.SemanticTypeId).Order(StringComparer.Ordinal)];
 
@@ -498,6 +498,6 @@ public sealed class UnifiedInstallFacts
         Assert.Equal("", (await Copy(brain, alice).Read()).Manifest.Title);
     }
 
-    private static async Task<JsonElement> Body(HttpResponseMessage response)
+    internal static async Task<JsonElement> Body(HttpResponseMessage response)
         => JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct)).RootElement.Clone();
 }
