@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Flutter.Chat;
 using IntoChat.OS.Flutter.Text;
@@ -10,13 +11,12 @@ public static class InoLinks
     // A longer message is never treated as a link (its input could not be carried on the card).
     public const int MaxLength = 4096;
 
-    public static string? Parse(string message) => TryParse(message, out var app, out _) ? app : null;
-
-    public static bool TryParse(string? message, out string app, out string input)
+    // Mirrors workspaceLink in the shell: application, optional publisher (and release with it), input <= 2048.
+    // Any invalid parameter makes it not a link.
+    public static InoLink? Parse(string? message)
     {
-        app = input = "";
         var text = message?.Trim() ?? "";
-        if (text.Length == 0 || text.Length > MaxLength || text.Any(char.IsWhiteSpace)) { return false; }
+        if (text.Length == 0 || text.Length > MaxLength || text.Any(char.IsWhiteSpace)) { return null; }
         string? route;
         if (text.StartsWith('#')) { route = text[1..].StartsWith('/') ? text[1..] : null; }
         else if (text.StartsWith('/')) { route = text; }
@@ -25,28 +25,36 @@ public static class InoLinks
             var fragment = location.Fragment.TrimStart('#');
             route = fragment.StartsWith('/') ? fragment : location.PathAndQuery;
         }
-        else { return false; }
-        if (route is null) { return false; }
+        else { return null; }
+        if (route is null) { return null; }
         var cut = route.IndexOf('#');
         if (cut >= 0) { route = route[..cut]; }
         var question = route.IndexOf('?');
-        if ((question < 0 ? route : route[..question]) != "/open" || question < 0) { return false; }
-        string? name = null, value = null;
+        if ((question < 0 ? route : route[..question]) != "/open" || question < 0) { return null; }
+        string? name = null, value = null, publisher = null, release = null;
         foreach (var pair in route[(question + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var equals = pair.IndexOf('=');
             var key = Decode(equals < 0 ? pair : pair[..equals]);
             var item = equals < 0 ? "" : Decode(pair[(equals + 1)..]);
-            if (key is null || item is null) { return false; }
+            if (key is null || item is null) { return null; }
             // A repeated key is ambiguous, so it is not a link.
-            if (key == "application") { if (name is not null) { return false; } name = item; }
-            else if (key == "input") { if (value is not null) { return false; } value = item; }
+            switch (key)
+            {
+                case "application": if (name is not null) { return null; } name = item; break;
+                case "input": if (value is not null) { return null; } value = item; break;
+                case "publisher": if (publisher is not null) { return null; } publisher = item; break;
+                case "release": if (release is not null) { return null; } release = item; break;
+            }
         }
-        if (!ChatAppCard.IsAppName(name) || (value?.Length ?? 0) > ChatAppCard.MaxInput) { return false; }
-        app = name!;
-        input = value ?? "";
-        return true;
+        if (!ChatAppCard.IsAppName(name) || (value?.Length ?? 0) > ChatAppCard.MaxInput) { return null; }
+        if (publisher is not null && !PublisherName.IsMatch(publisher)) { return null; }
+        if (release is not null && (publisher is null || !ReleaseName.IsMatch(release))) { return null; }
+        return new InoLink(name!, publisher, release, value ?? "");
     }
+
+    private static readonly Regex PublisherName = new("^[a-z0-9][a-z0-9-]{0,63}$", RegexOptions.CultureInvariant);
+    private static readonly Regex ReleaseName = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
 
     // How many times a concurrent writer of the links store is retried before the post fails.
     private const int StoreAttempts = 5;
@@ -57,7 +65,10 @@ public static class InoLinks
     public static async Task<InoLinkOutcome> Handle(IAgent agent, IText links, IText status,
         Func<string, string, Task> advance, string message, Guid requestId)
     {
-        if (!TryParse(message, out var app, out var input)) { return InoLinkOutcome.NotALink; }
+        if (Parse(message) is not { } link) { return InoLinkOutcome.NotALink; }
+        // A publisher link opens that app's detail in Apps, as the shell does.
+        var (app, input) = link.Publisher is null ? (link.App, link.Input)
+            : ("apps", $"app:{link.Publisher}/{link.App}{(link.Release is null ? "" : "@" + link.Release)}");
         var id = ChatAppCard.LinkPostId(requestId);
         var state = await agent.Read();
         if (!state.Runs.Any(run => run.RunId == "post/" + id))
@@ -92,5 +103,7 @@ public static class InoLinks
         catch (UriFormatException) { return null; }
     }
 }
+
+public sealed record InoLink(string App, string? Publisher, string? Release, string Input);
 
 public enum InoLinkOutcome { NotALink, Busy, Posted }

@@ -56,6 +56,55 @@ void main() {
     },
   );
 
+  test('share_links_reject_bad_publisher_and_release', () {
+    Map<String, dynamic>? link(Map<String, String> query) =>
+        workspaceLink(Uri(path: '/open', queryParameters: query));
+    expect(link({'application': 'notes', 'publisher': 'Vlad'}), isNull);
+    expect(link({'application': 'notes', 'publisher': '-vlad'}), isNull);
+    expect(link({'application': 'notes', 'publisher': 'a' * 65}), isNull);
+    expect(
+      link({'application': 'notes', 'publisher': 'vlad', 'release': '1.0'}),
+      isNull,
+    );
+    expect(link({'application': 'notes', 'release': '1.0.0'}), isNull);
+    expect(link({'application': 'notes', 'input': 'x' * 2049}), isNull);
+    expect(link({'application': 'notes', 'input': 'x' * 2048}), isNotNull);
+  });
+
+  test('publisher_links_open_the_apps_detail', () {
+    Map<String, dynamic>? link(Map<String, String> query) =>
+        workspaceLink(Uri(path: '/open', queryParameters: query));
+    expect(link({'application': 'notes', 'publisher': 'vlad'}), {
+      'kind': 'workspace',
+      'application': 'apps',
+      'operation': 'open',
+      'input': 'app:vlad/notes',
+    });
+    expect(
+      link({'application': 'notes', 'publisher': 'vlad', 'release': '1.2.3'}),
+      {
+        'kind': 'workspace',
+        'application': 'apps',
+        'operation': 'open',
+        'input': 'app:vlad/notes@1.2.3',
+      },
+    );
+  });
+
+  test('plain_links_are_unchanged', () {
+    expect(
+      workspaceLink(
+        Uri(path: '/open', queryParameters: {'application': 'notes'}),
+      ),
+      {
+        'kind': 'workspace',
+        'application': 'notes',
+        'operation': 'open',
+        'input': '',
+      },
+    );
+  });
+
   testWidgets('app-authored account action invokes the session gate', (
     tester,
   ) async {
