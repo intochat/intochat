@@ -179,6 +179,7 @@ public static partial class Ino
     {
         var key = Key(brain);
         await EnsureSelection(brain);
+        await InoChats.Backfill(brain);
         await brain.Get<IComposer>(DataKey(brain) + "/composer").Follow(DataKey(brain) + "/transcript");
         await new ViewPublisher(brain.Get<IView>(key + "/view"),
             ProgramRevision(brain)).Publish(InoView.Render(DataKey(brain)));

@@ -248,6 +248,14 @@
     ]
   },
   {
+    "type": "IntoChat.OS.Flutter.Chat.ChatIndexState",
+    "state": "state",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.Flutter.Chat.ChatIndexNeuron"
+    ]
+  },
+  {
     "type": "IntoChat.OS.Flutter.Chat.ChatState",
     "state": "state",
     "exportedToday": true,
