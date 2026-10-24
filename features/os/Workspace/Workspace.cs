@@ -56,6 +56,12 @@ public static class Workspace
                 if (string.IsNullOrEmpty(installed.Manifest.Title)) { throw new ArgumentException("This app is not installed."); }
                 if (installed.MigrationTarget is { } migrated) { app = migrated; }
                 var existing = views.FirstOrDefault(view => view.App == app);
+                // On the desktop, a new window is the Desktop's to place: it keeps the window cap and shows its toast.
+                if (existing is null && await DesktopPlaces(brain))
+                {
+                    await brain.Get<IApp>(IApp.Key(Scope(brain), "desktop")).Request("open", IApp.NameOf(Scope(brain), app) ?? command.Id);
+                    return;
+                }
                 var viewId = existing?.Id ?? IApp.NameOf(Scope(brain), app) ?? command.Id;
                 if (existing is null) { views.Add(new(viewId, app, "full", "")); }
                 focus = viewId;
@@ -81,6 +87,14 @@ public static class Workspace
             default: throw new ArgumentException("Unknown navigation action.");
         }
         await State(brain).Apply(new([.. views], focus, [.. pins]), operation, current.Revision);
+    }
+
+    // Whether the installed Desktop is the root (its layout is not classic): it places windows and enforces their cap.
+    private static async Task<bool> DesktopPlaces(IntoChatOSConnection brain)
+    {
+        var desktop = IApp.Key(Scope(brain), "desktop");
+        if (string.IsNullOrEmpty((await brain.Get<IApp>(desktop).Read()).Manifest.Title)) { return false; }
+        return (await brain.Get<IText>(desktop + "/layout").Read()).Markdown != "classic";
     }
 
     public static async Task<INeuron[]> Inputs(IntoChatOSConnection brain)

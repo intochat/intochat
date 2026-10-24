@@ -11,7 +11,7 @@ public sealed class OsDesktopAppFacts
     public void TheDesktopDeclaresStartAndLayoutOperations()
     {
         var bundle = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "desktop");
-        Assert.Equal(["start", "layout", "narrow"], bundle.Manifest.Operations.Select(operation => operation.Name));
+        Assert.Equal(["start", "layout", "open", "narrow"], bundle.Manifest.Operations.Select(operation => operation.Name));
         // The layout is the desktop's own text (apps/desktop/layout), not a setting: a configure would redeploy the desktop.
         Assert.Empty(bundle.Manifest.Settings);
         Assert.Contains("start.cs", bundle.Files.Keys);

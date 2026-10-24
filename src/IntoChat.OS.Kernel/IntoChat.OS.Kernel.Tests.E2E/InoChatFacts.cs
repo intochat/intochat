@@ -27,13 +27,13 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
     private string InoKey => IApp.Key(WorkspaceId, "ino");
 
     [Fact(Timeout = 360_000)]
-    public async Task TheInoAppIsVersion320()
+    public async Task TheInoAppIsVersion330()
     {
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
-        Assert.Equal("3.2.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "ino").Bundle.Version);
+        Assert.Equal("3.3.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "ino").Bundle.Version);
         var installed = await TestWait.UntilAsync(_ => Brain.Get<IApp>(InoKey).Read(), snapshot => snapshot.Status == AppStatus.Live, Patience, ct);
-        Assert.Equal("3.2.0", installed.Version);
+        Assert.Equal("3.3.0", installed.Version);
     }
 
     // Carried from Task 5: a fixture-key brain answers (no first-run card, no failed turn) and the new chat is
@@ -204,7 +204,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
 
         // One restart, nothing selected after it: all three are listed.
         await Restart(ct);
-        Assert.Equal("3.2.0", (await Brain.Get<IApp>(InoKey).Read()).Version);
+        Assert.Equal("3.3.0", (await Brain.Get<IApp>(InoKey).Read()).Version);
         await Until(view => view.Any(node => node.Action == "chat:main")
             && view.Any(node => node.Action == "chat:" + older && node.Text == "Draft a letter to my landlord")
             && view.Any(node => node.Action == "chat:" + newer && node.Text == "Compare two phone plans"), ct);

@@ -27,6 +27,9 @@ favourite as a new tab. A refusal (a cap reached) shows a toast above the dock u
 The dock holds Ino, pinned and open apps only. Its Apps button (`open:apps`) opens the Apps app's window beside the
 others, or focuses it: the library, details, installs and connections live there. The desktop has no gallery.
 
+The same holds for a workspace activation (Settings, an Apps detail, a finished install): while the desktop is the
+root, the Workspace app hands a new window to the desktop's `open` request, so the cap and its toast apply there too.
+
 ## Scenario: Settings opens the Settings window on a tab
 More's Settings is a button whose activation hands the shell {kind: workspace, brainId, application: settings,
 operation: open, input: <tab>} (General when none): the root's activation receiver, the Workspace app, opens or
@@ -48,6 +51,7 @@ static class App
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),
             new("layout", "Choose the layout the next connect shows: desktop or classic."),
+            new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
             new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise.")],
         Settings: [], Slots: [], Icon: "icon.svg");
 }

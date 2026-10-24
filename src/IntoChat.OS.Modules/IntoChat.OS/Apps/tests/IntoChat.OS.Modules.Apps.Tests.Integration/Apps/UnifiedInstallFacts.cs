@@ -294,6 +294,28 @@ public sealed class UnifiedInstallFacts
         Assert.Equal("intochat", (await Body(consented)).GetProperty("origin").GetProperty("publisher").GetString());
     }
 
+    // RecordOrigin marks a copy as the publisher's own, unedited: that would defeat every ShippedApps.Is guard,
+    // so an app behind the proxy (its own key included) must not reach it; only the kernel and a person may.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AnAppCannotRecordItsOwnOrigin()
+    {
+        await using var brain = await Start();
+        var alice = await brain.PersonAsync("alice", Ct);
+        var own = Copy(brain, alice, "notes");
+        using (alice.AsCaller()) { await own.Create(new AppManifest("Notes", "notes", [], [], []), Spec); }
+        var forged = new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "notes", "1.0.0");
+
+        using (alice.AsApp(alice.Key("apps/notes")))
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => own.RecordOrigin(forged)); }
+        using (alice.AsApp(alice.Key("apps/desktop")))
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => own.RecordOrigin(forged)); }
+        Assert.Null((await own.Read()).Origin);
+
+        using (alice.AsCaller()) { await own.RecordOrigin(forged); }
+        Assert.Equal(forged.Publisher, (await own.Read()).Origin?.Publisher);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task RemoveRefusesShippedRoots()

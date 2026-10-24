@@ -105,6 +105,32 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
         await Until(nodes => nodes.All(node => node.Key != "toast") && nodes.All(node => node.Key != "frame-w-8"), ct);
     }
 
+    // Settings, Apps details and post-install opens reach the desktop as workspace activations, not as dock clicks.
+    [Fact(Timeout = 360_000)]
+    public async Task AWorkspaceActivationAtTheWindowCapShowsTheCapToastAndChangesNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        await Start(ct);
+        WorkspaceWindow[] eight = [.. Enumerable.Range(1, 8).Select(n => new WorkspaceWindow("w-" + n, [Ino(n == 1 ? "ino" : "ino-" + n)], n == 1 ? "ino" : "ino-" + n))];
+        var full = await Apply(new WorkspaceUpdate([.. eight.SelectMany(window => window.Tabs)], "ino-8", []) { Windows = eight }, ct);
+        await Until(nodes => nodes.Any(node => node.Key == "frame-w-8"), ct);
+
+        var activation = JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = "settings", operation = "open", input = "general" });
+        // The receiver subscribes from its start, so (as a person clicks again) the activation is sent until it answers.
+        var shown = await TestWait.UntilAsync(async _ =>
+        {
+            using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
+            response.EnsureSuccessStatusCode();
+            return Flatten((await Brain.Get<IView>(Desktop + "/view").Read())!.Root).ToArray();
+        }, nodes => nodes.Any(node => node.Key == "toast"), Patience, ct);
+        Assert.Equal("You can have at most 8 windows. Close one to open another.", shown.Single(node => node.Key == "toast").Text);
+        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        var unchanged = await Workspace.Read();
+        Assert.Equal((full.Revision, 8), (unchanged.Revision, unchanged.Windows.Length));
+        Assert.DoesNotContain(unchanged.OpenViews, view => view.Id == "settings");
+    }
+
     [Fact(Timeout = 360_000)]
     public async Task StarringAWindowAddsAFavouriteToTheDockAndStarringAgainRemovesIt()
     {

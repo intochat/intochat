@@ -38,7 +38,7 @@ public sealed class AppActivationGuardFacts(FlutterHost host)
         await Refused(person.AsApp(person.Key("apps/apps")), own);
         Assert.Null((await button.Read()).Activation);
 
-        await apps.RecordOrigin(new(ShippedApps.Publisher, new AppSource.Shipped(), "apps", "1.0.0"));
+        using (person.AsCaller()) { await apps.RecordOrigin(new(ShippedApps.Publisher, new AppSource.Shipped(), "apps", "1.0.0")); }
         await Refused(person.AsApp(person.Key("apps/apps")), Install("another-brain"));
         await Refused(person.AsApp(person.Key("apps/apps")), """{"kind":"remove","name":"notes"}""");
         using (person.AsApp(person.Key("apps/notes")))

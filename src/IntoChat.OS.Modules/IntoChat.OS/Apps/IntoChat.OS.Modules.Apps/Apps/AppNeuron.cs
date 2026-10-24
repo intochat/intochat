@@ -481,6 +481,10 @@ internal sealed partial class AppNeuron(
     public async Task RecordOrigin(AppOrigin origin)
     {
         ArgumentNullException.ThrowIfNull(origin);
+        // Recording the publisher's origin marks a copy unedited and shipped, which every ShippedApps.Is guard trusts:
+        // an app behind the proxy (itself included) must never write its own.
+        if (CallerContextStamper.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
+        { throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from."); }
         RequireCreated();
         var next = Snapshot.Clone();
         next.Origin = origin;

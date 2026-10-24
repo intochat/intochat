@@ -6,13 +6,14 @@ using IntoChat.OS.Flutter.Button.Signals;
 using IntoChat.OS.Flutter.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Platform.Connections;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Flutter.Button;
 
 [GrainType(UIVocabulary.ButtonType)]
-internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)
+internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)
     : Neuron<ButtonState>(store), IButton
 {
     public Task Set(string label, string action, bool enabled = true)
@@ -43,7 +44,8 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(activationJson);
         if (activationJson.Length > 32_000) { throw new ArgumentException("Activation JSON has at most 32000 characters.", nameof(activationJson)); }
-        string? kind, brainId, connection;
+        string? kind, brainId, connection, connector;
+        var brainNamed = false;
         try
         {
             using var document = JsonDocument.Parse(activationJson);
@@ -54,6 +56,8 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
             kind = Text(document.RootElement, "kind");
             brainId = Text(document.RootElement, "brainId");
             connection = Text(document.RootElement, "connection");
+            connector = Text(document.RootElement, "connector");
+            brainNamed = document.RootElement.TryGetProperty("brainId", out var named) && named.ValueKind != JsonValueKind.Null;
         }
         catch (JsonException error) { throw new ArgumentException("Activation must be a JSON object.", nameof(activationJson), error); }
         // One click on an install, update or remove runs with the person's session, so only the Apps app the OS
@@ -66,15 +70,29 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
         }
         // Switching the account, reconnecting to a new root, or signing an existing connection in again acts on the
         // person's session in one click: only the shipped apps that own that control may set one, for this brain.
-        if (SessionOwners(kind, connection) is { } owners)
+        var own = this.GetPrimaryKeyString().Split('/')[0];
+        var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
+        var owners = SessionOwners(kind);
+        var ownBrain = brainId == own || (brainId is null && !brainNamed && string.Equals(kind, "account", StringComparison.OrdinalIgnoreCase));
+        var connecting = string.Equals(kind, "connections", StringComparison.OrdinalIgnoreCase);
+        if (connecting)
         {
-            var scope = this.GetPrimaryKeyString().Split('/')[0];
-            var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
-            var ownBrain = brainId == scope || (brainId is null && string.Equals(kind, "account", StringComparison.OrdinalIgnoreCase));
+            // The shell signs in the connection id the activation names when it is well formed, else the connector's own id
+            // (connect_window.dart): so an existing connection is reached with `connection` absent, empty, not a string or
+            // malformed too. A first Connect, for a connector with no connection of that id, stays open to any app.
+            var explicitId = ConnectionIdPattern().IsMatch(connection ?? "");
+            if (explicitId || await HoldsConnection(own, connector)) { owners = ["settings", "apps"]; }
+            // Whatever the app, the sign-in is for this brain only: a brainId that is present must be the button's.
+            ownBrain = !brainNamed || brainId == own;
+        }
+        if (owners is not null)
+        {
             var shipped = false;
-            foreach (var owner in owners) { shipped = shipped || await SettingsCaller.IsShipped(os, scope, owner); }
+            foreach (var owner in owners) { shipped = shipped || await SettingsCaller.IsShipped(os, own, owner); }
             if (!ownBrain || !shipped) { throw new UnauthorizedAccessException("Only the app that owns this control sets a session activation."); }
         }
+        else if (connecting && !ownBrain)
+        { throw new UnauthorizedAccessException("A connection window opens for the button's own brain only."); }
         var next = Snapshot;
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
@@ -87,14 +105,28 @@ internal sealed class ButtonNeuron([PersistentState("state", IntoChatOSNames.Clu
 
     private static readonly HashSet<string> AppKinds = new(["install", "update", "remove"], StringComparer.OrdinalIgnoreCase);
 
-    // The shipped apps that may set a session-affecting activation, or null when the activation is not one.
-    private static string[]? SessionOwners(string? kind, string? connection) => kind?.ToLowerInvariant() switch
+    // The shipped apps that may set an account or reconnect activation, or null when the activation is not one.
+    private static string[]? SessionOwners(string? kind) => kind?.ToLowerInvariant() switch
     {
         "account" => ["circle"],
         "reconnect" => ["desktop", "workspace"],
-        "connections" when !string.IsNullOrEmpty(connection) => ["settings", "apps"],
         _ => null,
     };
+
+    // The shell's connectWindowConnectionId pattern.
+    [GeneratedRegex("^[a-z0-9][a-z0-9_-]{0,127}$")]
+    private static partial Regex ConnectionIdPattern();
+
+    // Whether this brain holds a connection with the id, of any connector (the shell's fallback id is the connector's).
+    private async Task<bool> HoldsConnection(string scope, string? id)
+    {
+        if (string.IsNullOrEmpty(id)) { return false; }
+        foreach (var key in await GrainFactory.GetGrain<IConnectionIndex>(scope).List())
+        {
+            if (ConnectionKeys.Parse(key).ConnectionId.Equals(id, StringComparison.OrdinalIgnoreCase)) { return true; }
+        }
+        return false;
+    }
 
     private static string? Text(JsonElement root, string name)
         => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

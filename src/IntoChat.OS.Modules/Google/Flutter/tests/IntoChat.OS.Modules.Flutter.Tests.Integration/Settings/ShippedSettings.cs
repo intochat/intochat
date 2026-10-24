@@ -10,6 +10,8 @@ internal static class ShippedSettings
     public static async Task<IApp> Install(Func<string, IApp> apps, IntoChat.OS.Testing.Person person)
     {
         var settings = apps(IApp.Key(person.BrainId, "settings"));
+        // As the person: an app behind the proxy may not record an origin.
+        using var asPerson = person.AsCaller();
         if (!(await settings.Read()).Manifest.Title.Equals("Settings", StringComparison.Ordinal))
         {
             await settings.Create(new AppManifest("Settings", "Settings", [], [], []), "spec");
