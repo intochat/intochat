@@ -60,6 +60,8 @@ public sealed class OsSettingsViewHostFacts
         var connections = SettingsView.Render(Model("connections") with { AppKey = app, Connections = rows }, Now);
         var list = Find(connections, "connections");
         Assert.Equal(SettingsView.ConnectionsShown, list.Children.Length);
+        Assert.Equal(SettingsCopy.ConnectionsCapped(SettingsView.ConnectionsShown, rows.Length), Find(connections, "connections-capped").Text);
+        Assert.DoesNotContain(SettingsView.Render(Model("connections") with { AppKey = app, Connections = rows[..3] }, Now).Children[1].Children, n => n.Key == "connections-capped");
         Assert.Equal(["connection-0-connect", "connection-1-connect"], list.Children.Take(2).Select(row => row.Children.Single().Key));
         Assert.All(list.Children.Take(2), row => Assert.Equal(app + "/connect/gmail", row.Children.Single().Reference!.Name));
         await publisher.Publish(connections);

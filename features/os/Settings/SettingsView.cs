@@ -5,9 +5,9 @@ using IntoChat.OS.Flutter.Views;
 
 public sealed record ModelRow(string Id, string Label, bool Available);
 
-// An archived chat as Settings lists it: no id, so actions name the row index.
-// Token is the row's opaque per-render handle (Settings.RecordArchivedPage); never a chat id.
-public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt, string? Token = null);
+// An archived chat as Settings lists it: no chat id. Token is the row's opaque per-render handle
+// (Settings.RecordArchivedPage), the only thing an unarchive action names.
+public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt, string Token = "");
 
 // Connectable is false for a connector this host has not configured: it shows no Connect.
 public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected, bool Connectable = true);
@@ -16,7 +16,7 @@ public sealed record SettingsModel(string Tab, string AppKey, ModelRow Auto, IRe
     IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast);
 
 // Pure composition of the Settings surface. Controls that read or write a person's data are neurons referenced by
-// name; the tree itself carries labels and row indexes only, never an entry name, a value or a chat id.
+// name; the tree itself carries labels and opaque tokens only, never an entry name, a value or a chat id.
 public static class SettingsView
 {
     public const double TabsHeight = 40;
@@ -90,6 +90,7 @@ public static class SettingsView
     [
         Ui.List("connections", [.. m.Connections.Take(ConnectionsShown).Select((row, i) => Ui.Card("connection-" + i, row.Title, row.Status,
             row.Connected || !row.Connectable ? [] : [Ui.Reference("connection-" + i + "-connect", new(UIVocabulary.ButtonType, m.AppKey + "/connect/" + row.Connector))]))]),
+        .. m.Connections.Count > ConnectionsShown ? [Ui.Text("connections-capped", SettingsCopy.ConnectionsCapped(ConnectionsShown, m.Connections.Count))] : Array.Empty<UiNode>(),
     ];
 
     private static UiNode[] Archived(SettingsModel m, DateTimeOffset now)
@@ -99,7 +100,7 @@ public static class SettingsView
         [
             Ui.Text("archived-" + i + "-title", row.Title),
             Ui.Text("archived-" + i + "-when", Ago(row.UpdatedAt, now)),
-            Ui.Button("unarchive-" + i, SettingsCopy.Unarchive, "unarchive:" + (row.Token ?? i.ToString(CultureInfo.InvariantCulture))),
+            Ui.Button("unarchive-" + i, SettingsCopy.Unarchive, "unarchive:" + row.Token),
         ]))])];
         return m.ArchivedTotal > ArchivedPage ? [.. nodes, Ui.Button("archived-more", SettingsCopy.ShowMore, "archived-more")] : nodes;
     }

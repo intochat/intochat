@@ -40,10 +40,22 @@ class _ImmutableView extends StatelessWidget {
           final action = node['action'] as String;
           if (action.startsWith('copy:')) {
             unawaited(
-              Clipboard.setData(ClipboardData(text: action.substring(5)))
-                  .then((_) {
-                    if (context.mounted) showKitToast(context, 'Link copied.');
-                  }, onError: (Object _) {}),
+              Clipboard.setData(ClipboardData(text: action.substring(5))).then(
+                (_) {
+                  if (context.mounted) {
+                    showKitToast(context, 'Link copied.');
+                  }
+                },
+                onError: (Object _) {
+                  if (context.mounted) {
+                    showKitToast(
+                      context,
+                      'Could not copy the link.',
+                      tone: UiTone.error,
+                    );
+                  }
+                },
+              ),
             );
             return;
           }

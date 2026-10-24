@@ -18,6 +18,7 @@ public static class SettingsCopy
     public const string ListChanged = "This list changed. Try again.";
     public const string OpenFailed = "Settings could not load. Reopen Settings to try again.";
 
+    public static string ConnectionsCapped(int shown, int total) => $"Showing {shown} of {total} connections.";
     public const string Billing = "Billing · Later";
     public const string Variables = "Variables and secrets";
 

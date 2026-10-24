@@ -51,6 +51,16 @@ public sealed class OsAppsViewFacts
             AppsNames.ShareLink("http://localhost:5000", "os", "calculator", null));
     }
 
+    [Fact]
+    public void ShareLinkOpensTheSameAppTheWorkspaceParses()
+    {
+        var link = new Uri(AppsNames.ShareLink("https://os.example.test", "os", "my-app", "1.2.0")!);
+        var query = System.Web.HttpUtility.ParseQueryString(link.Fragment[(link.Fragment.IndexOf('?') + 1)..]);
+        Assert.Equal("#/open", link.Fragment[..link.Fragment.IndexOf('?')]);
+        Assert.Equal(new AppsTarget("os", "my-app", "1.2.0"), AppsNames.Parse($"app:{query["publisher"]}/{query["application"]}@{query["release"]}"));
+        Assert.Equal(["application", "publisher", "release"], query.AllKeys.Order());
+    }
+
     [Theory]
     [InlineData("", "")]
     [InlineData("app:os/calculator", "app:os/calculator")]

@@ -134,7 +134,7 @@ public sealed class ViewValidationFacts
         Assert.Equal(UiStyle.Secondary, button.Style);
         Assert.Equal(button.Action, ViewValidation.Clone(new(1, 1, button), "brain/apps/test/view").Root.Action);
         Assert.Equal(new string('x', 2048), ViewValidation.Clone(new(1, 1, Ui.CopyButton("max", "Copy", new string('x', 2048))), "brain/apps/test/view").Root.Action![5..]);
-        foreach (var text in new[] { "", new string('x', 2049), "line\nbreak", "tab\tbed", "bell\u0007" })
+        foreach (var text in new[] { "", new string('x', 2049), "line\nbreak", "tab\tbed", "bell\u0007", "sep\u2028x", "para\u2029x", "lrm\u200ex", "rlm\u200fx", "emb\u202ax", "pdf\u202cx", "ovr\u202ex", "iso\u2066x", "pdi\u2069x" })
         { InvalidCopy(Ui.Button("copy", "Copy", "copy:" + text)); }
     }
 

@@ -219,4 +219,59 @@ void main() {
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('copy_button_failure_shows_a_toast', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          throw PlatformException(code: 'unavailable');
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'view',
+            name: 'share',
+            load: (kind, name) async => {
+              'generation': 1,
+              'version': 1,
+              'root': {
+                'kind': 2,
+                'key': 'root',
+                'children': [
+                  {
+                    'kind': 1,
+                    'key': 'copy',
+                    'text': 'Copy link',
+                    'action': 'copy:https://example.test/#/open?app=x',
+                    'icon': 'copy',
+                  },
+                ],
+              },
+            },
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(UiKitButton, 'Copy link'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Could not copy the link.'), findsOneWidget);
+    expect(find.text('Link copied.'), findsNothing);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+  });
 }

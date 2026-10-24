@@ -27,10 +27,10 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
     {
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
-        Assert.Equal("2.0.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "settings").Bundle.Version);
+        Assert.Equal("2.0.1", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "settings").Bundle.Version);
         await StartDesktop(ct);
         var installed = await TestWait.UntilAsync(_ => Brain.Get<IApp>(Settings).Read(), snapshot => snapshot.Status == AppStatus.Live, Patience, ct);
-        Assert.Equal("2.0.0", installed.Version);
+        Assert.Equal("2.0.1", installed.Version);
     }
 
     [Fact(Timeout = 360_000)]

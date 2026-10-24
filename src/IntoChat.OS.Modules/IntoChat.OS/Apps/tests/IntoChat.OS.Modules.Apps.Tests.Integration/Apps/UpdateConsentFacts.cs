@@ -52,6 +52,10 @@ public sealed class UpdateConsentFacts
         Assert.Equal(["person.birthDate"], added.GetProperty("semanticTypes").EnumerateArray().Select(item => item.GetString()));
         Assert.Empty(added.GetProperty("connectors").EnumerateArray());
         Assert.Equal(installed, (await Copy(brain, alice).Read()).Version);
+        Assert.Equal(["person.email"], await Granted(brain, alice));
+        AppDetail? detail;
+        using (alice.AsCaller()) { detail = await brain.Get<IAppStore>(IAppStore.Key(alice.BrainId)).Describe(new("intochat", "echo")); }
+        Assert.Equal(("update", Needs, First), (detail!.Status, detail.Requires, detail.Consented));
 
         using var consented = await alice.Http.PostAsJsonAsync(update, new { consent = AppConsent.Of(Needs) }, Ct);
         Assert.Equal(HttpStatusCode.OK, consented.StatusCode);

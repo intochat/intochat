@@ -8,11 +8,8 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 const _value = 'fixture-value-0001';
 
 final class _FakeEntries extends EntriesClient {
-  _FakeEntries(this.entries)
-    : super(
-        IntoChatOSUiClient(baseUri: Uri.parse('http://localhost')),
-        'brain-1',
-      );
+  _FakeEntries(this.entries, [String brain = 'brain-1'])
+    : super(IntoChatOSUiClient(baseUri: Uri.parse('http://localhost')), brain);
   List<EntrySummary> entries;
   Object? failure;
   final puts = <(String, EntryKind, String)>[];
@@ -174,6 +171,46 @@ void main() {
     expect(
       find.text('Only the brain owner can change variables and secrets.'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('entry_control_forbidden_clears_when_the_brain_changes', (
+    tester,
+  ) async {
+    final forbidden = _FakeEntries([])..failure = const SettingsForbidden();
+    final fine = _FakeEntries([], 'brain-2');
+    var current = forbidden;
+    Future<void> show(String brain) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'entrycontrol',
+            name: 'brain-1/settings/keys-openai',
+            load: (kind, n) async => _key(n),
+            onAction: (event) async {},
+            entries: (id) => brain == 'a' ? current : fine,
+          ),
+        ),
+      ),
+    );
+    await show('a');
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Only the brain owner can change API keys.'),
+      findsOneWidget,
+    );
+    current = fine;
+    await show('b');
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Only the brain owner can change API keys.'),
+      findsNothing,
+    );
+    expect(
+      tester
+          .widget<UiKitButton>(find.widgetWithText(UiKitButton, 'Add'))
+          .onPressed,
+      isNotNull,
     );
   });
 

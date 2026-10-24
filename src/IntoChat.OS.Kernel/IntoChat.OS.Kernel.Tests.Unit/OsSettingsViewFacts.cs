@@ -15,7 +15,7 @@ public sealed class OsSettingsViewFacts
     private static SettingsModel Model(string tab = "general", bool confirm = false, string? toast = null, int archived = 2, int total = 2) => new(
         tab, App, new("auto", "Automatic", true),
         [new("profile:fast", "Fast", true), new("preset:Big", "Big", false)],
-        [.. Enumerable.Range(0, archived).Select(i => new ArchivedRow("Trip " + i, Now.AddHours(-i - 1)))], total,
+        [.. Enumerable.Range(0, archived).Select(i => new ArchivedRow("Trip " + i, Now.AddHours(-i - 1), "token" + i))], total,
         [new("gmail", "Gmail", "Connected", true), new("salesforce", "Salesforce", "Not connected", false)],
         confirm, toast);
 
@@ -111,7 +111,7 @@ public sealed class OsSettingsViewFacts
         var row = list.Children[1];
         Assert.Equal(UiNodeKind.Row, row.Kind);
         Assert.Equal(["Trip 1", "2 h ago", "Unarchive"], row.Children.Select(child => child.Text!));
-        Assert.Equal("unarchive:1", row.Children[2].Action);
+        Assert.Equal("unarchive:token1", row.Children[2].Action);
         Assert.Equal(("Show more", "archived-more"), (Find(root, "archived-more").Text!, Find(root, "archived-more").Action!));
 
         Assert.DoesNotContain(All(SettingsView.Render(Model("archived", total: 100), Now)), node => node.Key == "archived-more");

@@ -63,7 +63,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "settings";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Settings",

@@ -91,6 +91,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
     if (old.entries?.brainId != widget.entries?.brainId ||
         old.entryName != widget.entryName ||
         old.mode != widget.mode) {
+      _forbidden = false;
       _load();
     }
   }
