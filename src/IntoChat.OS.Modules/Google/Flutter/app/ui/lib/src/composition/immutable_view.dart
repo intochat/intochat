@@ -176,6 +176,8 @@ class _ImmutableView extends StatelessWidget {
         content = ViewAvatar(initials: text);
       case 12:
         content = ViewDivider(label: text);
+      case 13:
+        content = ViewTabs(node: node, action: _dispatchButton);
       default:
         content = const Text('This component cannot be displayed.');
     }

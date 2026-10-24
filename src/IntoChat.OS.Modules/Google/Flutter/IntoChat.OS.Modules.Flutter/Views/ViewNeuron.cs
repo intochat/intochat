@@ -101,6 +101,8 @@ internal static class ViewValidation
             if (node.Kind is UiNodeKind.Badge or UiNodeKind.Avatar && string.IsNullOrWhiteSpace(node.Text)) { throw new ArgumentException("Badges and avatars require text."); }
             if (node.Kind == UiNodeKind.Menu && (node.Children.Any(child => child?.Kind is not (UiNodeKind.Button or UiNodeKind.Divider or UiNodeKind.Text)) || !node.Children.Any(child => child.Kind == UiNodeKind.Button)))
             { throw new ArgumentException("Menus hold buttons, dividers and text labels, with at least one button."); }
+            if (node.Kind == UiNodeKind.Tabs && (node.Text is not null || node.Children.Length == 0 || node.Children.Any(child => child?.Kind != UiNodeKind.Button) || node.Children.Count(child => child.Style == UiStyle.Primary) != 1))
+            { throw new ArgumentException("Tabs hold buttons, exactly one of them active."); }
             if (node.Kind == UiNodeKind.Modal && (string.IsNullOrWhiteSpace(node.Text) || !node.Children.Any(child => child?.Kind == UiNodeKind.Button)))
             { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
             if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }

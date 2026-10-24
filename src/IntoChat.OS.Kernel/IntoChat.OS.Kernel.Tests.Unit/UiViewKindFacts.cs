@@ -7,8 +7,8 @@ public sealed class UiViewKindFacts
     [Fact]
     public void KitKindsStylesAndTonesKeepTheirWireNumbers()
     {
-        Assert.Equal(Enumerable.Range(0, 13), Enum.GetValues<UiNodeKind>().Select(kind => (int)kind));
-        Assert.Equal([UiNodeKind.Menu, UiNodeKind.Modal, UiNodeKind.Toast, UiNodeKind.List, UiNodeKind.Badge, UiNodeKind.Avatar, UiNodeKind.Divider], Enum.GetValues<UiNodeKind>()[6..]);
+        Assert.Equal(Enumerable.Range(0, 14), Enum.GetValues<UiNodeKind>().Select(kind => (int)kind));
+        Assert.Equal([UiNodeKind.Menu, UiNodeKind.Modal, UiNodeKind.Toast, UiNodeKind.List, UiNodeKind.Badge, UiNodeKind.Avatar, UiNodeKind.Divider, UiNodeKind.Tabs], Enum.GetValues<UiNodeKind>()[6..]);
         Assert.Equal(["Primary", "Secondary", "Ghost", "Danger", "Link"], Enum.GetNames<UiStyle>());
         Assert.Equal(["Neutral", "Done", "Working", "Error"], Enum.GetNames<UiTone>());
     }
@@ -35,5 +35,7 @@ public sealed class UiViewKindFacts
         Assert.Equal((UiNodeKind.Badge, UiTone.Working), (Ui.Badge("badge", "Busy", UiTone.Working).Kind, Ui.Badge("badge", "Busy", UiTone.Working).Tone));
         Assert.Equal((UiNodeKind.Avatar, "VH"), (Ui.Avatar("avatar", "VH").Kind, Ui.Avatar("avatar", "VH").Text));
         Assert.Equal((UiNodeKind.Divider, null), (Ui.Divider("divider").Kind, Ui.Divider("divider").Text));
+        var tabs = Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", active: true), Ui.Tab("b", "B", "open-b", active: false)]);
+        Assert.Equal((UiNodeKind.Tabs, UiStyle.Primary, UiStyle.Ghost, UiNodeKind.Button, "A", "open-a"), (tabs.Kind, tabs.Children[0].Style, tabs.Children[1].Style, tabs.Children[0].Kind, tabs.Children[0].Text, tabs.Children[0].Action));
     }
 }

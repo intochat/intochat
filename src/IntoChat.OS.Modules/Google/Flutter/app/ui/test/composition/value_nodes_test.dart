@@ -399,4 +399,30 @@ void main() {
     expect(detector.focusNode, isNotNull);
     expect(detector.focusNode!.hasPrimaryFocus, isTrue);
   });
+
+  testWidgets('tabs_node_renders_kit_tabs_and_dispatches_inactive_tab', (
+    tester,
+  ) async {
+    final sent = await _pump(tester, {
+      'kind': 13,
+      'key': 'tabs',
+      'children': [_button('a', 'Alpha'), _button('b', 'Beta', style: 2)],
+    });
+    final tabs = tester.widget<UiKitTabs>(find.byType(UiKitTabs));
+    expect(find.byType(UiKitTabs), findsOneWidget);
+    expect(tabs.labels, ['Alpha', 'Beta']);
+    expect(tabs.index, 0);
+    await tester.tap(find.text('Beta'));
+    await tester.pumpAndSettle();
+    expect(sent, hasLength(1));
+    expect(sent.single, containsPair('action', 'b'));
+    await tester.tap(find.text('Alpha'));
+    await tester.pumpAndSettle();
+    expect(sent, hasLength(1));
+  });
+
+  testWidgets('unknown_kind_still_shows_cannot_be_displayed', (tester) async {
+    await _pump(tester, {'kind': 14, 'key': 'next'});
+    expect(find.text('This component cannot be displayed.'), findsOneWidget);
+  });
 }

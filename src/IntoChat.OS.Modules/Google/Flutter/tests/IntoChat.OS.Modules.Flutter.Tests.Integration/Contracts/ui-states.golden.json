@@ -501,7 +501,7 @@
     }
   },
   "IntoChat.OS.Flutter.Views.UiNode": {
-    "kind": 12,
+    "kind": 13,
     "key": "Key",
     "text": "Text",
     "detail": "Detail",
@@ -509,7 +509,7 @@
     "enabled": true,
     "children": [
       {
-        "kind": 12,
+        "kind": 13,
         "key": "Key",
         "text": "Text",
         "detail": "Detail",
@@ -545,7 +545,7 @@
     "generation": 10000,
     "version": 7000,
     "root": {
-      "kind": 12,
+      "kind": 13,
       "key": "Key",
       "text": "Text",
       "detail": "Detail",
@@ -553,7 +553,7 @@
       "enabled": true,
       "children": [
         {
-          "kind": 12,
+          "kind": 13,
           "key": "Key",
           "text": "Text",
           "detail": "Detail",

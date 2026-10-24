@@ -100,5 +100,20 @@ public sealed class ViewValidationFacts
         Invalid(Ui.Badge("badge", "x", (UiTone)9));
     }
 
+    [Fact]
+    public void TabsHoldOnlyButtonsWithExactlyOneActive()
+    {
+        var tabs = Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Tab("b", "B", "open-b", false)]);
+        var copy = ViewValidation.Clone(new(1, 1, tabs), "brain/apps/test/view").Root;
+        Assert.Equal((UiNodeKind.Tabs, UiStyle.Primary, UiStyle.Ghost), (copy.Kind, copy.Children[0].Style, copy.Children[1].Style));
+        InvalidTabs(Ui.Tabs("tabs", []));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Text("text", "x")]));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", true), Ui.Tab("b", "B", "open-b", true)]));
+        InvalidTabs(Ui.Tabs("tabs", [Ui.Tab("a", "A", "open-a", false), Ui.Tab("b", "B", "open-b", false)]));
+        InvalidTabs(tabs with { Text = "Tabs" });
+    }
+
+    private static void InvalidTabs(UiNode root) => Assert.Equal("Tabs hold buttons, exactly one of them active.", Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view")).Message);
+
     private static void Invalid(UiNode root) => Assert.Throws<ArgumentException>(() => ViewValidation.Clone(new(1, 1, root), "brain/apps/test/view"));
 }
