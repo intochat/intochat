@@ -296,6 +296,14 @@
     ]
   },
   {
+    "type": "IntoChat.OS.Flutter.Entries.EntryControlState",
+    "state": "state",
+    "exportedToday": true,
+    "grains": [
+      "IntoChat.OS.Flutter.Entries.EntryControlNeuron"
+    ]
+  },
+  {
     "type": "IntoChat.OS.Flutter.Expander.ExpanderState",
     "state": "state",
     "exportedToday": true,

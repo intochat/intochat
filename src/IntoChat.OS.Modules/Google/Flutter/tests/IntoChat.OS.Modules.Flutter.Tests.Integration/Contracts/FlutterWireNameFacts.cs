@@ -70,10 +70,10 @@ public sealed class FlutterWireNameFacts
     {
         var golden = UiContractFiles.Golden(GoldenFile);
 
-        Assert.Equal(40, golden.Count(entry => entry.Value!.GetValue<string>().StartsWith("contract;", StringComparison.Ordinal)));
+        Assert.Equal(41, golden.Count(entry => entry.Value!.GetValue<string>().StartsWith("contract;", StringComparison.Ordinal)));
         Assert.StartsWith("contract; alias=button; grain=button; read=IntoChat.OS.Flutter.Button.ButtonState;", golden["IntoChat.OS.Flutter.Button.IButton"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.DoesNotContain(golden, entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=-; serialized=True", StringComparison.Ordinal));
-        Assert.Equal(["IntoChat.OS.Flutter.Chat.ChatRole", "IntoChat.OS.Flutter.Chat.ChatRunStatus", "IntoChat.OS.Flutter.WebBrowser.BrowserConnection"],
+        Assert.Equal(["IntoChat.OS.Flutter.Chat.ChatRole", "IntoChat.OS.Flutter.Chat.ChatRunStatus", "IntoChat.OS.Flutter.Entries.EntryControlMode", "IntoChat.OS.Flutter.WebBrowser.BrowserConnection"],
             golden.Where(entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=ui.", StringComparison.Ordinal) && entry.Value!.GetValue<string>().Contains("serialized=True", StringComparison.Ordinal)).Select(entry => entry.Key));
     }
 

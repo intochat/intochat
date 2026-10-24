@@ -29,6 +29,8 @@ import '../components/image/ui_image.dart';
 import '../components/infobar/ui_info_bar.dart';
 import '../components/progress/ui_progress.dart';
 import '../components/toggle/ui_toggle.dart';
+import '../entries/entries_client.dart';
+import '../entries/ui_entry_control.dart';
 import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
@@ -97,6 +99,7 @@ class NeuronView extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.scenes,
+    this.entries,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -117,6 +120,9 @@ class NeuronView extends StatefulWidget {
 
   /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
   final SceneClient? scenes;
+
+  /// The brain's entries over the person's session, for `entrycontrol`. Without it the control cannot save.
+  final EntriesClient Function(String brainId)? entries;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -431,6 +437,7 @@ class _NeuronViewState extends State<NeuronView> {
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
     scenes: widget.scenes,
+    entries: widget.entries,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -999,6 +1006,22 @@ class _NeuronViewState extends State<NeuronView> {
           label: _text(definition['label']),
           on: definition['on'] == true,
           onChanged: enabled ? (_) => _act('toggle', 'flip') : null,
+        );
+      case 'entrycontrol':
+        final spec = definition['spec'];
+        if (spec is! Map) return const SizedBox.shrink();
+        final brain = widget.name.split('/').first;
+        return UiEntryControl(
+          mode: EntryControlMode.parse(spec['mode']),
+          label: _text(spec['label']),
+          entryName: spec['entryName'] as String?,
+          entries: widget.entries?.call(brain),
+          enabled: enabled,
+          onChanged: () => _dispatch({
+            'kind': 'entrycontrol',
+            'name': widget.name,
+            'action': 'changed',
+          }),
         );
       case 'progress':
         return UiProgress(

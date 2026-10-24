@@ -217,6 +217,15 @@
       }
     ]
   },
+  "IntoChat.OS.Flutter.Entries.EntryControlState": {
+    "name": "Name",
+    "version": 7,
+    "spec": {
+      "mode": 1,
+      "label": "Label",
+      "entryName": "EntryName"
+    }
+  },
   "IntoChat.OS.Flutter.Expander.ExpanderState": {
     "name": "Name",
     "version": 7,

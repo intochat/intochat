@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/workspace/settings/keys_tab.dart';
 import 'package:intochat_os_flutter_shell/workspace/settings/models_tab.dart';
-import 'package:intochat_os_flutter_shell/workspace/settings/settings_api.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'fake_settings_api.dart';
