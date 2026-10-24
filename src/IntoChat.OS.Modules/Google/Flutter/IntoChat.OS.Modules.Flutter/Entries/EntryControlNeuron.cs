@@ -1,7 +1,10 @@
 using IntoChat.OS;
 using IntoChat.OS.Flutter.Entries.Signals;
+using IntoChat.OS.Flutter.Settings;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
@@ -11,8 +14,10 @@ namespace IntoChat.OS.Flutter.Entries;
 internal sealed class EntryControlNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<EntryControlState> store)
     : Neuron<EntryControlState>(store), IEntryControl
 {
-    public Task Configure(EntryControlSpec spec)
+    public async Task Configure(EntryControlSpec spec)
     {
+        if (!await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), NeuronAddress.ScopeOf(this.GetPrimaryKeyString())))
+        { throw new UnauthorizedAccessException("Only the Settings app configures an entry control."); }
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Label);
         if (spec.Label.Length > 128) { throw new ArgumentException("An entry control label is at most 128 characters.", nameof(spec)); }
@@ -31,7 +36,7 @@ internal sealed class EntryControlNeuron([PersistentState("state", IntoChatOSNam
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
         next.Spec = spec with { Label = spec.Label.Trim() };
-        return Save(next, new EntryControlChanged(next.Name));
+        await Save(next, new EntryControlChanged(next.Name));
     }
 
     [ReadOnly] public Task<EntryControlState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }

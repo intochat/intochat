@@ -15,7 +15,8 @@ public sealed class PreferenceControlFacts(FlutterHost host)
     private async Task<IPreferenceControl> Control(IntoChat.OS.Testing.Person person, string name, PreferenceSpec spec)
     {
         var control = host.Brain.Get<IPreferenceControl>(person.Key("settings/" + name));
-        using (person.AsCaller()) { await control.Configure(spec); }
+        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        using (ShippedSettings.Caller(person)) { await control.Configure(spec); }
         return control;
     }
 
@@ -37,7 +38,7 @@ public sealed class PreferenceControlFacts(FlutterHost host)
             Assert.Equal("off", (await updates.Read()).Value);
             var before = await tab.Read();
             Assert.Equal("ino", before.Value);
-            Assert.Equal(["ino", "notes"], before.Spec!.Choices!.Select(choice => choice.Id));
+            Assert.Equal(["ino", "notes", "settings"], before.Spec!.Choices!.Select(choice => choice.Id));
 
             await finished.Set("off");
             await updates.Set("on");
@@ -133,13 +134,54 @@ public sealed class PreferenceControlFacts(FlutterHost host)
     {
         using var person = await host.PersonAsync(ct: Ct);
         var control = host.Brain.Get<IPreferenceControl>(person.Key("settings/pref-bad"));
-        using (person.AsCaller())
+        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        using (ShippedSettings.Caller(person))
         {
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new(PreferenceStore.NotifyAgentFinished, " ", PreferenceKind.Toggle)));
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new(PreferenceStore.NotifyAgentFinished, "Label", PreferenceKind.Choice)));
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new(PreferenceStore.NewTabApp, "Label", PreferenceKind.Toggle)));
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new((PreferenceStore)7, "Label", PreferenceKind.Toggle)));
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new(PreferenceStore.LocalTheme, "Label", (PreferenceKind)9)));
+        }
+    }
+
+    [Fact]
+    public async Task OnlyTheShippedSettingsConfiguresControls()
+    {
+        using var person = await host.PersonAsync(ct: Ct);
+        await Install(person, "notes", "Notes");
+        var control = host.Brain.Get<IPreferenceControl>(person.Key("settings/pref-guard"));
+        var spec = Toggle(PreferenceStore.NotifyAgentFinished);
+
+        async Task Refused(IDisposable caller)
+        {
+            using (caller)
+            {
+                var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => control.Configure(spec with { Label = "Misleading" }));
+                Assert.Equal("Only the Settings app configures a preference control.", refused.Message);
+            }
+        }
+
+        // The person directly, another installed app, the proxy with no app key, and a Settings that only bears the name.
+        await Refused(person.AsCaller());
+        await Refused(person.AsApp(person.Key("apps/notes")));
+        await Refused(person.AsApp(""));
+        await Install(person, "settings", "Settings");
+        await Refused(person.AsApp(person.Key("apps/settings")));
+        using (person.AsCaller()) { Assert.Null((await control.Read()).Spec); }
+
+        var settings = await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        using (person.AsApp(person.Key("apps/settings"))) { await control.Configure(spec); }
+        await Refused(person.AsApp(person.Key("apps/notes")));
+
+        // An edited Settings is the person's own program, no longer the one the OS ships.
+        await settings.SaveManifest(new AppManifest("Settings", "edited", [], [], []), Guid.NewGuid());
+        await Refused(person.AsApp(person.Key("apps/settings")));
+        using (person.AsCaller())
+        {
+            var state = await control.Read();
+            Assert.Equal("Label", state.Spec!.Label);
+            Assert.Equal(1, state.Version);
         }
     }
 }

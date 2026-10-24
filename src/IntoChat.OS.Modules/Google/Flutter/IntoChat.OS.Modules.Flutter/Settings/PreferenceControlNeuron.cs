@@ -23,8 +23,10 @@ internal sealed class PreferenceControlNeuron([PersistentState("state", IntoChat
     private string Scope => NeuronAddress.ScopeOf(this.GetPrimaryKeyString())
         ?? throw new InvalidOperationException("A preference control lives inside a brain.");
 
-    public Task Configure(PreferenceSpec spec)
+    public async Task Configure(PreferenceSpec spec)
     {
+        if (!await SettingsCaller.IsShipped(Brain, NeuronAddress.ScopeOf(this.GetPrimaryKeyString())))
+        { throw new UnauthorizedAccessException("Only the Settings app configures a preference control."); }
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Label);
         if (spec.Label.Length > 128) { throw new ArgumentException("A preference label is at most 128 characters.", nameof(spec)); }
@@ -43,7 +45,7 @@ internal sealed class PreferenceControlNeuron([PersistentState("state", IntoChat
         next.Version++;
         next.Spec = spec with { Label = spec.Label.Trim() };
         next.Value = null;
-        return Save(next, new PreferenceChanged(spec.Store));
+        await Save(next, new PreferenceChanged(spec.Store));
     }
 
     [ReadOnly]
