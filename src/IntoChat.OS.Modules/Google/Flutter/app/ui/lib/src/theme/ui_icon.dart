@@ -55,5 +55,11 @@ IconData? uiIcon(String name) => switch (name) {
   'log-out' => LucideIcons.logOut,
   'x' => LucideIcons.x,
   'ino' => LucideIcons.sparkles,
+  'more' => LucideIcons.ellipsis,
+  'edit' => LucideIcons.pencil,
+  // Figma's send button draws an arrow up.
+  'send' => LucideIcons.arrowUp,
+  'refresh' => LucideIcons.rotateCcw,
+  'external' => LucideIcons.externalLink,
   _ => null,
 };

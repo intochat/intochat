@@ -2,7 +2,6 @@ using System.Text.Json;
 using IntoChat.OS.AI.Agents;
 using IntoChat.OS.Client;
 using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.DataKey(brain);
@@ -20,6 +19,6 @@ await foreach (var clicked in brain.On<ChatActionActivated>(brain.Get<IChat>(key
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
-        await brain.Get<IText>(key + "/status").Set("Could not stop the response. Try Stop again. " + error.Message);
+        await Ino.Status(brain, Ino.Failure(InoCopy.StopFailed, error));
     }
 }

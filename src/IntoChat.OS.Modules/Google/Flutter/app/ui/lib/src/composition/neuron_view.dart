@@ -17,7 +17,9 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
+import '../chat/chat_run_link.dart';
 import '../chat/ui_chat_transcript.dart';
+import '../components/kit/ui_kit_button.dart';
 import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
@@ -133,6 +135,7 @@ class _NeuronViewState extends State<NeuronView> {
   void initState() {
     super.initState();
     _events.addListener(_changed);
+    ChatRunLinks.follows.addListener(_followsChanged);
     _reload();
     final watch = widget.watch;
     if (watch == null) {
@@ -564,10 +567,45 @@ class _NeuronViewState extends State<NeuronView> {
               Map<String, dynamic>.from(message),
           ],
           markdown: _markdown,
+          onRetry: enabled && widget.onAction != null
+              ? (text) => unawaited(
+                  ChatRunLinks.resend(widget.name)?.call(text) ??
+                      Future<void>.value(),
+                )
+              : null,
+          onOpenApp: enabled ? widget.onActivate : null,
         );
-        final actions = (projection['actions'] as List? ?? const [])
+        void act(Map action) => unawaited(
+          _dispatch({
+            'kind': 'chat',
+            'name': widget.name,
+            'action': action['id'],
+            'context': projection['source'],
+            'revision': projection['generation'],
+          }).catchError((Object _) {}),
+        );
+        bool usable(Map action) =>
+            enabled && widget.onAction != null && action['enabled'] != false;
+        var actions = (projection['actions'] as List? ?? const [])
             .whereType<Map>()
             .toList();
+        // A following composer shows Stop in place of Send; the chat keeps
+        // only its other actions.
+        final stop = actions
+            .where((action) => '${action['id']}'.startsWith('stop/'))
+            .firstOrNull;
+        final follower = ChatRunLinks.followed(widget.name);
+        _publishStop(
+          follower && stop != null && usable(stop)
+              ? ('${stop['id']}', () => act(stop))
+              : null,
+        );
+        if (follower) {
+          actions = [
+            for (final action in actions)
+              if (!identical(action, stop)) action,
+          ];
+        }
         return Column(
           children: [
             if (unreadIds.isNotEmpty)
@@ -610,22 +648,14 @@ class _NeuronViewState extends State<NeuronView> {
                   runSpacing: 4,
                   children: [
                     for (final action in actions)
-                      OutlinedButton(
-                        onPressed:
-                            enabled &&
-                                widget.onAction != null &&
-                                action['enabled'] != false
-                            ? () => unawaited(
-                                _dispatch({
-                                  'kind': 'chat',
-                                  'name': widget.name,
-                                  'action': action['id'],
-                                  'context': projection['source'],
-                                  'revision': projection['generation'],
-                                }).catchError((Object _) {}),
-                              )
+                      UiKitButton(
+                        label: '${action['label'] ?? ''}',
+                        icon: '${action['id']}'.startsWith('stop/')
+                            ? 'square'
                             : null,
-                        child: Text('${action['label'] ?? ''}'),
+                        compact: true,
+                        style: UiKitButtonStyle.secondary,
+                        onPressed: usable(action) ? () => act(action) : null,
                       ),
                   ],
                 ),
@@ -1003,8 +1033,31 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  // The Stop this chat offers its following composer, keyed by action id so
+  // a rebuild does not republish it.
+  String? _stopId;
+  void _publishStop((String, VoidCallback)? stop) {
+    if (stop?.$1 == _stopId) return;
+    _stopId = stop?.$1;
+    final name = widget.name;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ChatRunLinks.publishStop(name, stop?.$2),
+    );
+  }
+
+  void _followsChanged() {
+    if (mounted && widget.kind == 'chat') setState(() {});
+  }
+
   @override
   void dispose() {
+    ChatRunLinks.follows.removeListener(_followsChanged);
+    if (_stopId != null) {
+      final name = widget.name;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => ChatRunLinks.publishStop(name, null),
+      );
+    }
     _timer?.cancel();
     _resubscribe?.cancel();
     _watch?.cancel();

@@ -24,6 +24,6 @@ await foreach (var request in brain.On(app, "voice", brain.Stopping))
         }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Could not start voice input: " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.VoiceFailed, error)); }
     await ledger.Record(request.RequestId);
 }

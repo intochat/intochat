@@ -13,7 +13,8 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
-        await app.FailPresentation(Ino.ProgramRevision(brain), error.Message);
-        await Ino.Status(brain, "Could not open Ino: " + Ino.Clip(error.Message));
+        var copy = Ino.Failure(InoCopy.OpenFailed, error);
+        await app.FailPresentation(Ino.ProgramRevision(brain), copy);
+        await Ino.Status(brain, copy);
     }
 }

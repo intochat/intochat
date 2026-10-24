@@ -106,7 +106,7 @@
   "IntoChat.OS.Modules.Postgres/Tables/TablePlacements.cs": 2,
   "IntoChat.OS.Modules.Postgres/Tables/TableStorageHook.cs": 5,
   "IntoChat.OS.Modules.Tools/ToolCapabilitySource.cs": 2,
-  "IntoChat.OS.Kernel/AgentChatSource.cs": 3,
+  "IntoChat.OS.Kernel/AgentChatSource.cs": 5,
   "IntoChat.OS.Testing/Targets/InProcessTarget.cs": 2,
   "IntoChat.OS.Authority/AuthorityNeurons.cs": 2,
   "IntoChat.OS.Modules.Google.Gmail.Testing/GmailBrain.cs": 2,

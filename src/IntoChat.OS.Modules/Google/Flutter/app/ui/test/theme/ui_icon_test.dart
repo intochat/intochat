@@ -52,11 +52,13 @@ const _figmaNames = [
   'log-out',
   'x',
   'ino',
+  'more',
+  'edit',
 ];
 
 void main() {
   test('every Figma icon name resolves', () {
-    expect(_figmaNames.toSet().length, 49);
+    expect(_figmaNames.toSet().length, 51);
     for (final name in _figmaNames) {
       expect(uiIcon(name), isNotNull, reason: name);
     }

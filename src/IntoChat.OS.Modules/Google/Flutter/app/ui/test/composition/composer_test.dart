@@ -34,7 +34,7 @@ void main() {
       });
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.pump();
-      await tester.tap(find.text('Send'));
+      await tester.tap(find.byTooltip('Send'));
       await tester.pump();
       await tester.widget<UiVoiceInput>(find.byType(UiVoiceInput)).onBegin!();
       expect(events.map((event) => event['action']), [
@@ -153,7 +153,7 @@ void main() {
     await show(tester, {'context': 'a', 'draft': ''}, dispatch);
     await tester.enterText(find.byType(TextField), 'A');
     await tester.pump();
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     await tester.enterText(find.byType(TextField), 'AB');
     await tester.enterText(find.byType(TextField), 'A');
     await tester.pump();
@@ -202,7 +202,7 @@ void main() {
         await show(tester, {'context': 'a', 'draft': ''}, dispatch);
         await tester.enterText(find.byType(TextField), 'A');
         await tester.pump();
-        await tester.tap(find.text('Send'));
+        await tester.tap(find.byTooltip('Send'));
         if (dispose) {
           await tester.pumpWidget(const SizedBox());
         } else {
@@ -270,9 +270,9 @@ void main() {
         draft = '';
       }
     });
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(submissions, 1);
     expect(draft, '');
@@ -297,7 +297,7 @@ void main() {
       'unsaved work',
     );
     offline = false;
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(events, ['edit', 'edit', 'submit']);
   });
@@ -349,7 +349,7 @@ void main() {
     expect(events.where((e) => e['action'] == 'submit'), isEmpty);
     await tester.enterText(find.byType(TextField), '  \n');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     expect(events.where((e) => e['action'] == 'submit'), isEmpty);
   });
 
@@ -361,7 +361,7 @@ void main() {
         throw StateError('Connection unavailable');
       }
     });
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Connection unavailable'), findsOneWidget);
     expect(

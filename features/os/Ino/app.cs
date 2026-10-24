@@ -31,10 +31,57 @@ running is put into the composer's draft when the draft is empty, so sending it 
 
 ## Scenario: Opening the assistant composes its surface
 
-Invoking "open" composes and publishes the Ino view in main: an inline header row
-(durable status and inline New conversation action), transcript chat and composer. Ino owns this view.
+Invoking "open" composes and publishes the Ino view in main: a chat sidebar (New chat, a search field,
+the chat history newest first, each row with a menu to Rename in a modal or Archive with an Undo toast)
+beside the header (durable status), transcript chat and composer. Ino owns this view. Opening a row
+selects that chat; archiving the open chat selects the newest remaining one, or a new chat when none is left.
+The search query, a rename in progress and the archive toast are durable view state. The toast lasts
+four seconds, as on screen: then it is republished away, so a reconnect never shows a stale one, and its
+Undo does nothing. One script writes the view; the others only change state.
 The transcript and composer remain durable references, preserving read receipts, drafts and voice state.
 Repeated opens recover the native chat selection and reuse an unchanged view; program revisions replace its generation.
+
+## Scenario: A new chat is listed under its first message
+
+"New chat" (or "new") selects a fresh conversation and lists it as "New chat"; its first message titles it,
+on one line, clipped to 52 characters. The sidebar lists the newest chat first, and the search field filters
+titles literally and case-insensitively; with no match it says `No chats match "{query}".`, with no chats
+`Your chats will appear here.`. A rename (the row's menu, then Save in the modal) survives a restart.
+
+## Scenario: Archive, Undo and Settings' Archived chats
+
+Archiving a chat removes it from the sidebar and shows "Chat archived." with Undo for four seconds; Undo
+lists it again. An archived chat is listed by Settings → Archived chats (`GET /brains/{brainId}/chats?archived=true`),
+whose Unarchive (`POST /brains/{brainId}/chats/{id}/unarchive`) puts it back in the sidebar.
+
+## Scenario: Each chat has its own model
+
+The header's model menu lists "Auto, cheapest model with tools" first, then the catalog's models; one that is
+not available is shown disabled with its reason. A choice is stored for the selected chat only and its turns
+use it; a chat without a choice follows the Model setting, and a Model setting that is not available falls
+back to Auto with a note.
+
+## Scenario: With no usable model, Ino asks how it should run
+
+When nothing in the catalog can answer, Ino shows the card "How should Ino run?" instead of a failed turn: a
+message sent then is kept in the draft and starts no turn. "Add an API key" opens Settings on the API keys tab.
+On a local desktop run (the catalog lists a local model) "On this computer" picks the first available local
+model for the chat; when none is reachable the card offers "Install Ollama" (https://ollama.com/download) and
+Retry, which reads the catalog again. "IntoChat Cloud" is shown as coming soon. A hosted brain never offers
+"On this computer", and a chat whose choice is a local model says local models aren't available there.
+
+## Scenario: Apps appear as cards in the transcript
+
+A message that is a whole workspace link (`#/open?application=calculator`) is posted as an "Open Calculator"
+card with an Open button and reaches neither Jev nor the model. An app that is not installed says
+"Not installed" and offers no install.
+
+## Scenario: Upgrading from 3.1.3 keeps every conversation
+
+Every conversation started before the chat index existed (main and each c-*, the newest 500) is listed when Ino
+first composes after the upgrade, without selecting any of them, titled by its first user message (else "Untitled");
+the selected chat stays selected and no transcript changes. Indexing runs after the surface is presented and is
+bounded, so it never keeps Ino from opening; an unfinished pass continues on the next compose.
 
 ## Scenario: The dock is the assistant's toolbar
 
@@ -162,7 +209,7 @@ the `IIntents` contract, and it then appears in the next conversation the same w
 
 ## Scenario: Memory not installed answers directly
 
-With Memory not installed, sending a message shows the status "Memory is not installed; answering directly"
+With Memory not installed, sending a message shows the status "Memory is not installed; answering directly."
 (once per synapse lifetime, not on every message) and the turn runs on the message alone, with no brief and no Memory context.
 
 ## Scenario: Intend is slow
@@ -192,7 +239,7 @@ the old one as superseded. Credentials, passwords, tokens and API keys are never
 
 ## Scenario: Pending review items are announced
 
-While Memory holds review items, the status line shows "Memory has 3 items to review", checked at most once an hour.
+While Memory holds review items, the status line shows "Memory has 3 items to review.", checked at most once an hour.
 
 Progress states are Ino's mood source: listening when input arrives, working while answering,
 completed after an answer, and attention on failure. Each of those writes publishes mood on the
@@ -204,7 +251,7 @@ using IntoChat.OS.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "3.1.3";
+    public const string Version = "3.2.0";
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
         Description: "Talk to your brain, use its capabilities, and create apps.",

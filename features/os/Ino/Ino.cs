@@ -14,6 +14,8 @@ using IntoChat.OS.Flame.Scene;
 using IntoChat.OS;
 using IntoChat.OS.Flutter.Text;
 using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Flutter.TextField;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Microsoft.Windows;
 using IntoChat.OS.Microsoft.CSharp.Files;
@@ -40,16 +42,14 @@ public static partial class Ino
         typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
         typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!, typeof(IFacts).FullName!];
 
-
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
             && gate is >= 0 and <= 1 ? gate : DefaultRouteGate;
 
-    public static string Clip(string text) => text.Length <= 200 ? text : text[..200];
 
     // Starts the model's turn for a sent message, under the request id so a redelivered message replays
-    // instead of running twice. A turn that cannot start (a response is already running, the Model
-    // setting names an unavailable model) says so on the status line and never stops the synapse.
+    // instead of running twice. A turn that cannot start (a response is already running, the chat's
+    // model or the Model setting is unavailable) says so on the status line and never stops the synapse.
     public static async Task<AnswerOutcome> Answer(IntoChatOSConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId,
         IntentBrief? brief = null, bool confirmed = false, string? memoryKey = null, Guid? intentId = null)
     {
@@ -62,32 +62,91 @@ public static partial class Ino
             {
                 // A redelivered message whose turn is still running is already being answered.
                 if (running.RunId == runId) { return AnswerOutcome.Started; }
-                // The message is kept in an empty draft, so sending it later is one click; typing is never replaced.
-                var composer = brain.Get<IComposer>(DataKey(brain) + "/composer");
-                var draft = await composer.Read();
-                var kept = draft.Draft.Length == 0 && draft.Context == source;
-                if (kept) { await composer.Edit(source, draft.Generation, input); }
-                await Status(brain, kept
-                    ? "A response is already running; your message is in the draft, send it when the response finishes."
-                    : "A response is already running; send your message again when it finishes.");
+                var kept = await KeepInDraft(brain, source, input);
+                await Status(brain, kept ? InoCopy.AnswerRunning : InoCopy.AnswerRunningResend);
                 await Advance(brain, "attention", "A response is already running");
                 return AnswerOutcome.KeptInDraft;
             }
-            var choice = snapshot.Settings.GetValueOrDefault("Model", "");
-            var model = choice.Length > 0 ? await Models(brain).Select(choice) : null;
-            if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
-            var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
-            var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
-            await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: contracts,
-                    contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
-                with { Model = model, RunId = runId, Intent = intentId?.ToString() });
-            return AnswerOutcome.Started;
+            // Only a chat's own unavailable choice is refused (kept, never silently replaced); an inherited
+            // setting falls back to Auto with a note. NoModel (nothing can answer) shows the first-run card
+            // instead: no turn, no failed status, the message kept in the draft.
+            var resolved = await TurnModel(brain, snapshot, source);
+            if (resolved.Outcome == InoModelOutcome.NoModel)
+            {
+                await KeepInDraft(brain, source, input);
+                await Dirty(brain);
+            }
+            else if (resolved.Outcome != InoModelOutcome.Ready)
+            {
+                await KeepInDraft(brain, source, input);
+                await Status(brain, resolved.Note ?? InoModels.UnavailableCopy);
+                await Advance(brain, "attention", "The chosen model isn't available");
+            }
+            return await InoModels.Begin(resolved, async model =>
+            {
+                if (resolved.Note is { } note) { await Status(brain, note); }
+                if (confirmed && intentId is { } dispatched) { await Dispatch(brain, dispatched, runId); }
+                var instructions = snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint + (brief is null ? "" : BriefInstructions(brief, confirmed));
+                var contracts = InoTools.Select(Contracts, await brain.Kernel.Types(brain.Stopping));
+                await conversation.Start(AgentTurn.Text(input, instructions: instructions, contracts: contracts,
+                        contexts: memoryKey is null ? null : [MemoryContextKey(memoryKey)])
+                    with { Model = model, RunId = runId, Intent = intentId?.ToString() });
+            });
         }
         catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
         {
-            await Status(brain, "Could not start the answer: " + Clip(error.Message));
+            await Status(brain, Failure(InoCopy.StartFailed, error));
             await Advance(brain, "attention", "Could not start the answer");
             return AnswerOutcome.Failed;
+        }
+    }
+
+    // The message is kept in an empty draft, so sending it later is one click; typing is never replaced.
+    private static async Task<bool> KeepInDraft(IntoChatOSConnection brain, string source, string input)
+    {
+        var composer = brain.Get<IComposer>(DataKey(brain) + "/composer");
+        var draft = await composer.Read();
+        var kept = draft.Draft.Length == 0 && draft.Context == source;
+        if (kept) { await composer.Edit(source, draft.Generation, input); }
+        return kept;
+    }
+
+    // The chat's choice, else the app setting Model, else Automatic; see InoModels.Resolve. An unreadable index
+    // falls back to the app setting.
+    public static async Task<InoModelResolution> TurnModel(IntoChatOSConnection brain, AppSnapshot snapshot, string agentKey)
+        => await InoModels.Resolve(Models(brain), await ChatModelChoice(brain, agentKey), snapshot.Settings.GetValueOrDefault("Model", ""));
+
+    private static async Task<string?> ChatModelChoice(IntoChatOSConnection brain, string agentKey)
+    {
+        if (!InoChats.TryIdOf(agentKey, out var id)) { return null; }
+        try { return (await InoChats.Index(brain).Get(id))?.ModelChoice; }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return null; }
+    }
+
+    // The header's model menu and the first-run card for the selected chat, from one catalog read (each
+    // publish re-reads it, so Retry is a republish); an unreadable catalog shows neither.
+    private static async Task<(UiNode? Menu, UiNode? FirstRun)> ModelSurface(IntoChatOSConnection brain, string agentKey)
+    {
+        try
+        {
+            var setting = (await brain.Get<IApp>(Key(brain)).Read()).Settings.GetValueOrDefault("Model", "");
+            var choices = await Models(brain).List();
+            var chatChoice = await ChatModelChoice(brain, agentKey);
+            return (InoModels.Menu(choices, InoModels.Shown(choices, chatChoice, setting)),
+                InoModels.FirstRun(choices, chatChoice, setting, DataKey(brain)));
+        }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return (null, null); }
+    }
+
+    // Arms the card's two shell handoffs: Settings on the API keys tab, and the Ollama download page.
+    private static async Task SetupButtons(IntoChatOSConnection brain)
+    {
+        await Arm(brain.Get<IButton>(DataKey(brain) + InoModels.KeysButton), InoModels.KeysLabel, InoModels.KeysActivation(Scope(brain)));
+        await Arm(brain.Get<IButton>(DataKey(brain) + InoModels.InstallOllamaButton), InoModels.InstallOllamaLabel, InoModels.InstallOllamaActivation);
+        static async Task Arm(IButton button, string label, string activation)
+        {
+            var current = await button.Read();
+            if (current.Activation != activation || current.Label != label) { await button.SetActivation(label, activation); }
         }
     }
 
@@ -115,7 +174,7 @@ public static partial class Ino
     {
         if (await MemoryKey(brain) is not { } memoryKey)
         {
-            if (Interlocked.Exchange(ref _toldMemoryMissing, 1) == 0) { await Status(brain, "Memory is not installed; answering directly"); }
+            if (Interlocked.Exchange(ref _toldMemoryMissing, 1) == 0) { await Status(brain, InoCopy.MemoryMissing); }
             return false;
         }
         await PendingStore.Write(brain, synapse, requestId, new(input, hint, conversation, DateTimeOffset.UtcNow, false));
@@ -167,6 +226,49 @@ public static partial class Ino
         var source = DataKey(brain) + "/conversations/c-" + operationId.ToString("N");
         var selected = await chat.SelectAgent(source, current.Revision, operationId);
         if ((await chat.Read()).Selection == selected) { await Status(brain, ""); }
+        // The first message would create the entry too, so a failed write never fails the new chat.
+        try { await InoChats.Index(brain).Create(InoChats.IdOf(source), ChatIndex.NewChat); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+        await Dirty(brain);
+    }
+
+    // Tells view.cs, the single view writer, to republish. Best effort: the next change republishes anyway.
+    public static async Task Dirty(IntoChatOSConnection brain)
+    {
+        try { await InoViewState.MarkDirty(InoViewState.Text(brain), DateTimeOffset.UtcNow); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
+
+    // A user message marks its chat active (and titles a new one); index.cs marks the view dirty on the change.
+    public static async Task Touched(IntoChatOSConnection brain, string agentKey, string message)
+    {
+        if (!InoChats.TryIdOf(agentKey, out var id)) { return; }
+        try { await InoChats.Index(brain).Touch(id, message); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
+    }
+
+    // Called only by view.cs, the single view writer. State is read here, after the writer's gate, so the tree
+    // reflects every committed change; an unreadable index shows no chats. Returns when a shown toast expires.
+    public static async Task<DateTimeOffset?> PublishView(IntoChatOSConnection brain)
+    {
+        var data = DataKey(brain);
+        var selection = await EnsureSelection(brain);
+        var state = await InoViewState.Read(InoViewState.Text(brain), DateTimeOffset.UtcNow);
+        IReadOnlyList<ChatIndexEntry> chats;
+        try { chats = (await InoChats.Index(brain).List(false, 0, ChatIndex.MaxPage)).Entries; }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { chats = []; }
+        InoChats.TryIdOf(selection.Agent, out var selected);
+        var (menu, firstRun) = await ModelSurface(brain, selection.Agent);
+        var model = new InoViewModel(chats, selected, state.Query, menu,
+            RenamingId: state.RenamingId, Toast: state.Toast, UndoId: state.UndoId, FirstRun: firstRun);
+        await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), ProgramRevision(brain)).Publish(InoView.Render(data, model));
+        return state.ToastUntil;
+    }
+
+    private static async Task Field(IntoChatOSConnection brain, string name, string label)
+    {
+        var field = brain.Get<ITextField>(DataKey(brain) + name);
+        if ((await field.Read()).Label != label) { await field.Configure(label, "text"); }
     }
 
     public const string Greeting = "Hi, I'm Ino. Find and open apps in the Apps gallery in the dock, or just tell me what you need.";
@@ -180,12 +282,23 @@ public static partial class Ino
         var key = Key(brain);
         await EnsureSelection(brain);
         await brain.Get<IComposer>(DataKey(brain) + "/composer").Follow(DataKey(brain) + "/transcript");
-        await new ViewPublisher(brain.Get<IView>(key + "/view"),
-            ProgramRevision(brain)).Publish(InoView.Render(DataKey(brain)));
+        await Field(brain, "/chat-search", "Search chats");
+        await Field(brain, "/rename", "Chat title");
         await brain.Get<IApp>(key).Present(ProgramRevision(brain),
             new(new Sphere("icon.svg", ["mood"], Presence()),
                 Main: new(UIVocabulary.ViewType, key + "/view"),
                 Views: [new("full", new(UIVocabulary.ViewType, key + "/view"))]));
+        // After Present and off the open path: the first-run card's handoffs and indexing old conversations run in
+        // the background, so greet and compose never wait on them. A new entry raises ChatIndexChanged, so index.cs
+        // marks the view dirty; the selected chat first, then every other (an upgraded 3.1.3 brain has none indexed).
+        _ = InoChats.Background("setup buttons", _ => SetupButtons(brain), brain.Stopping);
+        _ = InoChats.Background("back-fill", async token =>
+        {
+            await InoChats.Within(InoChats.BackfillTimeout, inner => InoChats.TryBackfill(brain, inner), token);
+            await InoChats.Within(InoChats.BackfillAllTimeout, async inner => await InoChats.TryBackfillAll(brain, inner) >= 0, token);
+            await Dirty(brain);
+        }, brain.Stopping);
+        await Dirty(brain);
     }
 
     public static BehaviorTree Presence() => new(TreeNode.Selector(

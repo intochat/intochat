@@ -18,6 +18,14 @@
     <Compile Include="../../../features/os/Desktop/Gallery.cs" Link="Features/Gallery.cs" />
     <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
+    <Compile Include="../../../features/os/Ino/InoChats.cs" Link="Features/InoChats.cs" />
+    <Compile Include="../../../features/os/Ino/InoLayout.cs" Link="Features/InoLayout.cs" />
+    <Compile Include="../../../features/os/Ino/InoViewState.cs" Link="Features/InoViewState.cs" />
+    <Compile Include="../../../features/os/Ino/InoChatCommands.cs" Link="Features/InoChatCommands.cs" />
+    <Compile Include="../../../features/os/Ino/InoRefresher.cs" Link="Features/InoRefresher.cs" />
+    <Compile Include="../../../features/os/Ino/InoModels.cs" Link="Features/InoModels.cs" />
+    <Compile Include="../../../features/os/Ino/InoCopy.cs" Link="Features/InoCopy.cs" />
+    <Compile Include="../../../features/os/Ino/InoLinks.cs" Link="Features/InoLinks.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />

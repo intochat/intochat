@@ -74,6 +74,40 @@ final class NewTabPreferences {
       );
 }
 
+/// One archived chat. The title is customer data and is shown as plain text.
+final class ArchivedChat {
+  const ArchivedChat({
+    required this.id,
+    required this.title,
+    required this.updatedAt,
+  });
+  final String id;
+  final String title;
+  final DateTime updatedAt;
+
+  factory ArchivedChat.fromJson(Map<String, dynamic> json) => ArchivedChat(
+    id: json['id'] as String,
+    title: json['title'] as String? ?? '',
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
+}
+
+/// One page of archived chats; [total] counts every archived chat.
+final class ArchivedChatPage {
+  const ArchivedChatPage(this.chats, this.total);
+  final List<ArchivedChat> chats;
+  final int total;
+}
+
+/// Thrown when a chat no longer exists (HTTP 404).
+final class ChatGone implements Exception {
+  const ChatGone();
+  @override
+  String toString() => 'That chat no longer exists.';
+}
+
 /// What the Settings tabs read and write for one brain.
 abstract interface class SettingsApi {
   Future<List<EntrySummary>> listEntries();
@@ -84,6 +118,8 @@ abstract interface class SettingsApi {
   Future<void> putNotifications(Map<String, bool> preferences);
   Future<NewTabPreferences> workspacePreferences();
   Future<NewTabPreferences> putNewTabApp(String name);
+  Future<ArchivedChatPage> archivedChats({int skip = 0});
+  Future<void> unarchiveChat(String id);
 }
 
 /// [SettingsApi] over the signed-in client's session.
@@ -153,4 +189,25 @@ final class ClientSettingsApi implements SettingsApi {
               as Map,
         ),
       );
+
+  @override
+  Future<ArchivedChatPage> archivedChats({int skip = 0}) async {
+    final body = await _call('GET', '/chats?archived=true&skip=$skip&take=100');
+    if (body is! Map) return const ArchivedChatPage([], 0);
+    final chats = [
+      for (final row in body['chats'] as List? ?? const [])
+        ArchivedChat.fromJson(Map<String, dynamic>.from(row as Map)),
+    ];
+    return ArchivedChatPage(chats, body['total'] as int? ?? chats.length);
+  }
+
+  @override
+  Future<void> unarchiveChat(String id) async {
+    try {
+      await _call('POST', '/chats/${Uri.encodeComponent(id)}/unarchive');
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 404) throw const ChatGone();
+      rethrow;
+    }
+  }
 }

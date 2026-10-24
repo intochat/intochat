@@ -95,19 +95,19 @@ void main() {
       expect(scroll.position.extentAfter, 0);
       await tester.drag(
         find.byType(SingleChildScrollView).first,
-        const Offset(0, 400),
+        const Offset(0, 1400),
       );
       await tester.pumpAndSettle();
       final reading = scroll.offset;
-      expect(find.text('Latest message'), findsOneWidget);
+      expect(find.byTooltip('Jump to latest'), findsOneWidget);
       text += 'More streamed text.\n\n' * 20;
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(scroll.offset, reading);
-      await tester.tap(find.text('Latest message'));
+      await tester.tap(find.byTooltip('Jump to latest'));
       await tester.pumpAndSettle();
       expect(scroll.position.extentAfter, 0);
-      expect(find.text('Latest message'), findsNothing);
+      expect(find.byTooltip('Jump to latest'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -153,7 +153,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Assistant'), findsOneWidget);
+      // Answers are plain text under the Figma restyle: no "Assistant" label.
+      expect(find.text('Show the results'), findsOneWidget);
       expect(find.text('private result details'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.text('1 activity'));

@@ -35,13 +35,12 @@ async Task Carry(Routed routed)
         {
             // Routed with no result means Jev answered and nothing fits (unsure, with no hint to give);
             // Failed means Jev itself could not answer.
-            await Ino.Status(brain, asked.Status == "Routed"
-                ? "Jev unsure (no capability fits); asking the model"
-                : "Jev unavailable; asking the model. " + Ino.Clip(asked.Error ?? routed.Error ?? ""));
+            var answered = asked.Status == "Routed";
+            await Ino.Status(brain, answered ? InoCopy.JevUnsure : InoCopy.RouterUnavailable);
         }
         else if (route.Confidence < Ino.RouteGate(snapshot) || !route.IsDirect)
         {
-            await Ino.Status(brain, $"Jev unsure ({route.Confidence:0.00}); asking the model");
+            await Ino.Status(brain, InoCopy.JevUnsureScored(route.Confidence));
             hint = "\n\n" + route.Hint();
         }
         else if (route.App is null)
@@ -49,14 +48,14 @@ async Task Carry(Routed routed)
             var outcome = await router.Dispatch(asked.State, [route.Contract], brain.Stopping);
             var chosen = $"{route.Contract}.{route.Method}";
             await Ino.Status(brain, outcome.Dispatched
-                ? $"Jev: {chosen} ({route.Confidence:0.00}) -> {Ino.Clip(outcome.Result ?? "done")}"
-                : $"Jev chose {chosen} but could not carry it out: {Ino.Clip(outcome.Error ?? "")}");
+                ? InoCopy.RouteDone(chosen)
+                : InoCopy.RouteNotCarried(chosen));
             if (outcome.Dispatched) { return; }
             hint = "\n\n" + route.Hint();
         }
         else if (route.App == "assistant" || IApp.Key(scope, route.App) == key)
         {
-            await Ino.Status(brain, $"Jev pointed back at the assistant ({route.App}.{route.Operation}, {route.Confidence:0.00}); asking the model");
+            await Ino.Status(brain, InoCopy.JevPointedBack(route.App, route.Operation, route.Confidence));
             hint = "\n\n" + route.Hint();
         }
         else
@@ -69,26 +68,26 @@ async Task Carry(Routed routed)
             {
                 // Jev guessed an app the person never named: the model answers the message itself, and the
                 // guess is offered only as a weak hint, never as an operation whose input to fill.
-                await Ino.Status(brain, $"Jev suggested {chosen} ({route.Confidence:0.00}), but the message does not name {title}; asking the model");
+                await Ino.Status(brain, InoCopy.JevSuggestedUnnamed(chosen, route.Confidence, title));
                 hint = $"\n\nJev suggested the {title} app's \"{route.Operation}\", but the message does not name that app. "
                     + "Answer the message itself with your tools; use that app only if it clearly fits.";
             }
             else if (route.Operation != "open")
             {
-                await Ino.Status(brain, $"Jev suggested {chosen} ({route.Confidence:0.00}); asking the model to fill its input");
+                await Ino.Status(brain, InoCopy.JevSuggested(chosen, route.Confidence));
                 hint = "\n\n" + route.Hint();
             }
             else
             {
                 var workspace = brain.Get<IWorkspace>(scope);
                 await workspace.Show(IApp.Key(scope, route.App), routed.Id.ToString(), (await workspace.Read()).Revision);
-                await Ino.Status(brain, $"Jev: {chosen} ({route.Confidence:0.00}) -> opened {title}");
+                await Ino.Status(brain, InoCopy.JevOpened(chosen, route.Confidence, title));
                 return;
             }
         }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await Ino.Status(brain, "Jev could not carry it out; asking the model. " + Ino.Clip(error.Message)); }
+    { await Ino.Status(brain, Ino.Failure(InoCopy.RouterFailed, error)); }
     var conversation = (await Ino.EnsureSelection(brain)).Agent;
     if (!await Ino.Intend(brain, snapshot, asked.State, hint, routed.Id, conversation))
     { await Ino.Answer(brain, snapshot, asked.State, hint, routed.Id); }

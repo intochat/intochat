@@ -66,6 +66,24 @@ public sealed class ChatBindingFacts
 
     [Trait("host", "own")]
     [Fact]
+    public async Task ProjectionsCarryTheModelLabelAndTheAppCard()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+            .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        var chat = brain.Get<IChat>("owner/apps/test/cards");
+        var card = new ChatAppCard("notes", "Notes", "note", false, "opaque <input>");
+        await chat.Project(new("owner/apps/test/a", 3, 1,
+            [new ChatEntry("r1/assistant", ChatRole.Assistant, "Opened.") { Model = "gpt-5-mini", App = card }]));
+        await brain.DeactivateAsync(chat, ct);
+        var entry = Assert.Single((await chat.Read()).Projection!.Messages);
+        Assert.Equal("gpt-5-mini", entry.Model);
+        Assert.Equal(card, entry.App);
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task SameSourceSelectionKeepsTheVisibleRevisionButRetainsItsOperationReceipt()
     {
         var ct = TestContext.Current.CancellationToken;

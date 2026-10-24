@@ -60,7 +60,7 @@ internal static class ShippedAppJourneys
                 var conversation = fixture.Brain.Get<IChat>(fixture.Person.BrainId + "/apps/ino/transcript");
                 var previous = (await conversation.Read()).Selection;
                 Assert.NotNull(previous);
-                await Button("New conversation").ClickAsync();
+                await Button("New chat").ClickAsync();
                 var changed = await TestWait.UntilAsync(_ => conversation.Read(),
                     state => state.Selection is { } selected && selected.Agent.Length > 0 && selected.Agent != previous.Agent,
                     TimeSpan.FromSeconds(15), ct);

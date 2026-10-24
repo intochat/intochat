@@ -53,6 +53,10 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         var greeting = Assert.Single(greeted.Projection!.Messages);
         Assert.Equal(ChatRole.Assistant, greeting.Role);
         Assert.Contains("apps", greeting.Text, StringComparison.OrdinalIgnoreCase);
+        // Composing Ino back-fills the selected conversation into the chat index; the greeting is not a user message.
+        var indexed = await TestWait.UntilAsync(_ => Brain.Get<IChatIndex>(WorkspaceId + "/apps/ino/chats").Get("main"),
+            entry => entry is not null, TimeSpan.FromSeconds(90), ct);
+        Assert.Equal(ChatIndex.Untitled, indexed!.Title);
 
         // Second start: a new program generation re-runs start.cs; the durable flag keeps it to one greeting.
         // Ino's greeting can land before start.cs publishes the desktop: wait for the first view.
