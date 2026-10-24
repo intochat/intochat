@@ -64,7 +64,7 @@
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Space/FriendsSpaceFacts.cs": 18,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Space/SpaceFacts.cs": 6,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Views/AliasViewHttpFacts.cs": 6,
-  "IntoChat.OS.Modules.Flutter/Button/ButtonNeuron.cs": 1,
+  "IntoChat.OS.Modules.Flutter/Button/ButtonNeuron.cs": 2,
   "IntoChat.OS.Modules.Flutter/Chat/ChatNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Chat/ComposerNeuron.cs": 4,
   "IntoChat.OS.Modules.Flutter/FileInput/FileInputNeuron.cs": 1,
@@ -116,5 +116,6 @@
   "IntoChat.OS.Modules.AI.Tests.Integration/Models/AutomaticChoiceFacts.cs": 2,
   "IntoChat.OS.Modules.AI.Tests.Integration/Models/BrainKeyFacts.cs": 2,
   "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2,
-  "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2
+  "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2,
+  "IntoChat.OS.Modules.Flutter.Tests.Integration/Button/SessionActivationGuardFacts.cs": 2
 }

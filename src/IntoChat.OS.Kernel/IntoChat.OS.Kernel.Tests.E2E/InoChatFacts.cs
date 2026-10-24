@@ -119,6 +119,47 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         Assert.Empty((await empty.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("chats").EnumerateArray());
     }
 
+    // The Settings app's own journey: archive in Ino, open Settings on the Archived tab, click Unarchive on the row and
+    // see "Chat restored." with the chat back in the sidebar (the row's token resolves server-side to the shown chat).
+    [Fact(Timeout = 360_000)]
+    public async Task ArchiveThenUnarchiveFromSettingsRestoresTheChat()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        using var model = Answering();
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        var data = await DataKey(ct);
+        var first = await NewChat(data, "Trip to Porto", ct);
+        var second = await NewChat(data, "Garden layout", ct);
+        await Until(view => view.Any(node => node.Action == "archive:" + first) && view.Any(node => node.Action == "archive:" + second), ct);
+        await Click("archive:" + first, ct);
+        await Until(view => view.All(node => node.Action != "chat:" + first) && view.Any(node => node.Action == "chat:" + second), ct);
+
+        var settings = IApp.Key(WorkspaceId, "settings");
+        var activation = JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = "settings", operation = "open", input = "archived" });
+        var settingsView = Brain.Get<IView>(settings + "/view");
+        UiView? shown = null;
+        for (var attempt = 0; attempt < 12 && shown is null; attempt++)
+        {
+            using var sent = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
+            sent.EnsureSuccessStatusCode();
+            try
+            {
+                shown = await TestWait.UntilAsync(_ => settingsView.Read(),
+                    current => current is not null && Flatten(current.Root).Any(node => node.Action?.StartsWith("unarchive:", StringComparison.Ordinal) == true), TimeSpan.FromSeconds(10), ct);
+            }
+            catch (TimeoutException) { }
+        }
+        Assert.NotNull(shown);
+        var row = Flatten(shown.Root).First(node => node.Kind == UiNodeKind.Button && node.Action?.StartsWith("unarchive:", StringComparison.Ordinal) == true);
+        await settingsView.Activate(shown.Generation, row.Key, row.Action!, Guid.NewGuid());
+
+        await TestWait.UntilAsync(_ => settingsView.Read(),
+            current => current is not null && Flatten(current.Root).Any(node => node.Kind == UiNodeKind.Toast && node.Text == "Chat restored."), Patience, ct);
+        await Until(view => view.Any(node => node.Action == "chat:" + first) && view.Any(node => node.Action == "chat:" + second), ct);
+        Assert.False((await Index(data).Get(first))!.Archived);
+    }
+
     [Fact(Timeout = 360_000)]
     public async Task TheChatsModelChoiceIsUsedForItsTurns()
     {

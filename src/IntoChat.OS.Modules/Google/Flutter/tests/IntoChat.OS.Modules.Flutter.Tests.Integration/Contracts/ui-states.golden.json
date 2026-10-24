@@ -90,7 +90,9 @@
             "title": "Title",
             "icon": "Icon",
             "installed": true,
-            "input": "Input"
+            "input": "Input",
+            "publisher": "Publisher",
+            "release": "Release"
           }
         }
       ],

@@ -651,7 +651,7 @@
     "IntoChat.OS.Flutter.Chat.ChatAction": "ui.chat-action; Id=0, Label=1, Payload=2, Enabled=3",
     "IntoChat.OS.Flutter.Chat.ChatActionActivated": "ui.chat-action-activated; Name=0, Source=1, Generation=2, ActionId=3, Payload=4, RequestId=5",
     "IntoChat.OS.Flutter.Chat.ChatActivity": "ui.chat-activity; Id=0, Title=1, Input=2, Result=3, Error=4",
-    "IntoChat.OS.Flutter.Chat.ChatAppCard": "ui.chat-app-card; App=0, Title=1, Icon=2, Installed=3, Input=4",
+    "IntoChat.OS.Flutter.Chat.ChatAppCard": "ui.chat-app-card; App=0, Title=1, Icon=2, Installed=3, Input=4, Publisher=5, Release=6",
     "IntoChat.OS.Flutter.Chat.ChatChanged": "ui.chat-changed; Name=0, Revision=1",
     "IntoChat.OS.Flutter.Chat.ChatEntry": "ui.chat-entry; Id=0, Role=1, Text=2, Status=3, Error=4, Activities=5, Model=6, App=7",
     "IntoChat.OS.Flutter.Chat.ChatIndexChanged": "ui.chat-index-changed; Name=0, Revision=1",

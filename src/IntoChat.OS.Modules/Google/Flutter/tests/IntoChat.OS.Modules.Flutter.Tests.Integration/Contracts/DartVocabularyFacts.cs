@@ -74,7 +74,7 @@ public sealed partial class DartVocabularyFacts
     {
         string[] referenced = ["viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas",
             "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "expander",
-            "surface", "layout", "collection", "card", "tabs", "view"];
+            "surface", "layout", "collection", "card", "tabs", "view", "entrycontrol", "preference"];
         Assert.Empty(referenced.Except(NodeContracts().Select(entry => entry.Kind)));
     }
 
