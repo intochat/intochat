@@ -79,7 +79,7 @@ public static class WindowOps
         var window = s.Windows.FirstOrDefault(w => w.Id == windowId);
         var tab = window?.Tabs.FirstOrDefault(t => t.Id == window.ActiveTabId);
         if (tab is null) { return NoOp; }
-        var favourite = IsApp(tab) ? new WorkspaceViewRef(appName(tab.App), tab.App, "", "") : new WorkspaceViewRef("v-" + tab.Id, tab.App, tab.Variant, tab.Context);
+        var favourite = IsApp(tab) ? new WorkspaceViewRef("", tab.App, "", "") : new WorkspaceViewRef("", tab.App, tab.Variant, tab.Context);
         WorkspaceViewRef[] favourites;
         if (s.Favourites.Any(f => Same(f, favourite)))
         {
@@ -91,19 +91,26 @@ public static class WindowOps
             var count = s.Favourites.Count(f => isApp ? f.Variant == "" : f.Variant != "");
             if (isApp && count >= MaxFavouriteApps) { return new(null, AppsRefusal); }
             if (!isApp && count >= MaxFavouriteViews) { return new(null, ViewsRefusal); }
-            favourites = [.. s.Favourites, favourite];
+            var name = appName(tab.App);
+            var id = isApp ? (string.IsNullOrWhiteSpace(name) ? tab.App : name) : "v-" + tab.Id;
+            favourites = [.. s.Favourites, favourite with { Id = Unique(id, s.Favourites.Select(f => f.Id)) }];
         }
         return new(Update(s, s.Windows, s.FocusedViewId) with { Favourites = favourites }, null);
     }
 
     // The name if no tab holds it, else name-2, name-3, ... unique across every window.
-    public static string TabId(WorkspaceState s, string name)
+    public static string TabId(WorkspaceState s, string name) => Unique(name, s.Windows.SelectMany(window => window.Tabs).Select(tab => tab.Id));
+
+    // The server holds view ids to 128 chars: the base is cut so that it plus its -n suffix fits.
+    private const int MaxId = 128;
+
+    private static string Unique(string name, IEnumerable<string> ids)
     {
-        var taken = s.Windows.SelectMany(window => window.Tabs).Select(tab => tab.Id).ToHashSet(StringComparer.Ordinal);
-        if (!taken.Contains(name)) { return name; }
-        for (var n = 2; ; n++)
+        var taken = ids.ToHashSet(StringComparer.Ordinal);
+        for (var n = 1; ; n++)
         {
-            var id = name + "-" + n;
+            var suffix = n == 1 ? "" : "-" + n;
+            var id = name[..Math.Min(name.Length, MaxId - suffix.Length)] + suffix;
             if (!taken.Contains(id)) { return id; }
         }
     }

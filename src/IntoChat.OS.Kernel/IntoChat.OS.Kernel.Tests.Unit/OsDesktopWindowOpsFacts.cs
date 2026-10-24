@@ -25,6 +25,12 @@ public sealed class OsDesktopWindowOpsFacts
         var update = Assert.IsType<WorkspaceUpdate>(change.Update);
         Assert.NotNull(update.Windows);
         Assert.Equal(update.Windows.SelectMany(window => window.Tabs), update.OpenViews);
+        // The server's CheckViews and CheckFavourites rules: non-blank, at most 128 chars, unique.
+        foreach (var views in new[] { update.OpenViews, update.Favourites ?? [] })
+        {
+            Assert.All(views, view => Assert.False(string.IsNullOrWhiteSpace(view.Id) || view.Id.Length > 128, view.Id));
+            Assert.Equal(views.Length, views.Select(view => view.Id).Distinct(StringComparer.Ordinal).Count());
+        }
         return update;
     }
 
@@ -192,5 +198,57 @@ public sealed class OsDesktopWindowOpsFacts
         var views = Enumerable.Range(1, 5).Select(i => new WorkspaceViewRef("v" + i, "ino", "thread", "x" + i)).ToArray();
         var full = S("tab", W("w-1", "tab", V("tab", "ino", "thread", "t1"))) with { Favourites = views };
         Assert.Equal("Favourites hold at most 5 views.", WindowOps.ToggleFavourite(full, "w-1", Name).Refusal);
+    }
+
+    [Fact]
+    public void FavouritingAReopenedTabWithADifferentContextGetsAFreshId()
+    {
+        var kept = new WorkspaceViewRef("v-ino", "ino", "thread", "t1");
+        var s = S("ino", W("w-1", "ino", V("ino", "ino", "thread", "t2"))) with { Favourites = [kept] };
+        var u = Ok(WindowOps.ToggleFavourite(s, "w-1", Name));
+        Assert.Equal([kept, new WorkspaceViewRef("v-ino-2", "ino", "thread", "t2")], u.Favourites!);
+    }
+
+    [Fact]
+    public void ALongTabIdGivesAFavouriteIdOfAtMost128Chars()
+    {
+        var id = new string('x', 128);
+        var s = S(id, W("w-1", id, V(id, "ino", "thread", "t1")));
+        var u = Ok(WindowOps.ToggleFavourite(s, "w-1", Name));
+        Assert.Equal(128, Assert.Single(u.Favourites!).Id.Length);
+        var taken = s with { Favourites = [new WorkspaceViewRef(("v-" + id)[..128], "ino", "thread", "other")] };
+        Ok(WindowOps.ToggleFavourite(taken, "w-1", Name));
+    }
+
+    [Fact]
+    public void AnAppFavouriteWhoseNameCollidesGetsASuffix()
+    {
+        var s = S("notes", W("w-1", "notes", V("notes", "notes"))) with { Favourites = [new WorkspaceViewRef("Notes", "ino", "thread", "t1")] };
+        var u = Ok(WindowOps.ToggleFavourite(s, "w-1", _ => "Notes"));
+        Assert.Equal(new WorkspaceViewRef("Notes-2", "notes", "", ""), u.Favourites![1]);
+    }
+
+    [Fact]
+    public void ABlankAppNameFallsBackToTheAppKey()
+    {
+        var s = S("notes", W("w-1", "notes", V("notes", "apps/notes")));
+        Assert.Equal("apps/notes", Ok(WindowOps.ToggleFavourite(s, "w-1", _ => "  ")).Favourites![0].Id);
+    }
+
+    [Fact]
+    public void UnknownWindowsAreNoOps()
+    {
+        var s = S("ino", W("w-1", "ino", V("ino", "ino")));
+        Assert.Equal(new WindowChange(null, null), WindowOps.Focus(s, "w-9"));
+        // An explicit window that no longer exists is a stale action: nothing opens anywhere.
+        Assert.Equal(new WindowChange(null, null), WindowOps.NewTab(s, "w-9", "notes", V("notes", "notes")));
+    }
+
+    [Fact]
+    public void ClosingATabInAnUnfocusedWindowKeepsTheFocus()
+    {
+        var s = S("notes", W("w-1", "a", V("a", "a"), V("b", "b")), W("w-2", "notes", V("notes", "notes")), W("w-3", "c", V("c", "c")));
+        Assert.Equal("notes", Ok(WindowOps.CloseTab(s, "w-1", "a")).FocusedViewId);
+        Assert.Equal("notes", Ok(WindowOps.CloseTab(s, "w-3", "c")).FocusedViewId);
     }
 }
