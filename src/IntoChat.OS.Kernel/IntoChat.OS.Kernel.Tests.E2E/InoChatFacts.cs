@@ -175,6 +175,41 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         Assert.Equal(asked, Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn));
     }
 
+    // Task 12: a pasted link to an app the brain does not have posts a card that offers Install, which hands the shell
+    // Apps' detail for the app (never a one-click install); installing there as the person is the one install path.
+    [Fact(Timeout = 360_000)]
+    public async Task InoNotInstalledCardInstallsThroughApps()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var caller = User.AsCaller();
+        using var model = Answering();
+        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        var data = await DataKey(ct);
+        await Send("new", "", ct);
+        await TestWait.UntilAsync(async _ => (await Brain.Get<IChat>(data + "/transcript").Read()).Selection,
+            current => current is not null && current.Agent.Contains("/conversations/c-", StringComparison.Ordinal), Patience, ct);
+        // Calculator is built in: remove this brain's copy so the card sees an app it does not have.
+        await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Delete();
+        Assert.Equal("", (await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Read()).Manifest.Title);
+
+        await Send("send", "#/open?application=calculator", ct);
+        var shown = await TestWait.UntilAsync(_ => Brain.Get<IChat>(data + "/transcript").Read(),
+            state => state.Projection?.Messages.Any(message => message.App?.App == "calculator") == true, Patience, ct);
+        var card = shown.Projection!.Messages.Single(message => message.App is not null).App!;
+        Assert.False(card.Installed);
+        Assert.Equal("os", card.Publisher);
+
+        // What the card's Install does in the shell: open Apps on the app's detail.
+        using (var opened = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/apps/request", new { operation = "open", input = $"app:{card.Publisher}/{card.App}" }, ct))
+        { opened.EnsureSuccessStatusCode(); }
+        var install = await TestWait.UntilAsync(_ => Brain.Get<IButton>(WorkspaceId + "/apps/apps/install").Read(), state => state.Activation is not null, Patience, ct);
+        var request = JsonDocument.Parse(install.Activation!).RootElement.GetProperty("request");
+        using var installed = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/install", request, ct);
+        installed.EnsureSuccessStatusCode();
+        Assert.Equal("calculator", (await installed.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("installedName").GetString());
+        Assert.NotEqual("", (await Brain.Get<IApp>(IApp.Key(WorkspaceId, "calculator")).Read()).Manifest.Title);
+    }
+
     // Review focus 1: conversations from 3.1.3 (agents with history, no index entries) are all listed after the
     // upgrade's first start, titled by their first message; the selection and the transcripts stay as they were.
     [Fact(Timeout = 360_000)]
@@ -331,7 +366,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
 
 // Task 5's first run on a brain with no usable model: the deployment holds no provider key and the catalog
 // lists a local model (a local desktop run) whose server is not configured, so the card offers Install
-// Ollama and Retry, IntoChat Cloud as coming soon, and Add an API key, which opens Settings on the keys tab.
+// Ollama and Retry, IntoChat Cloud as coming soon, and Add an API key, which opens the Settings window on the keys tab.
 [Collection("No model host")]
 public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
 {
@@ -362,8 +397,8 @@ public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
         Assert.Equal("Add an API key", keys.Label);
         using (var activation = JsonDocument.Parse(keys.Activation!))
         {
-            Assert.Equal("settings", activation.RootElement.GetProperty("kind").GetString());
-            Assert.Equal("keys", activation.RootElement.GetProperty("tab").GetString());
+            Assert.Equal(("workspace", "settings", "open", "keys"), (activation.RootElement.GetProperty("kind").GetString(), activation.RootElement.GetProperty("application").GetString(),
+                activation.RootElement.GetProperty("operation").GetString(), activation.RootElement.GetProperty("input").GetString()));
         }
         // The local profile lists a local model whose server is not running: Install Ollama and Retry, no "On this computer".
         Assert.DoesNotContain(inCard, node => node.Action == "setup-local");

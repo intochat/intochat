@@ -75,12 +75,15 @@ public sealed class AgentChatSourceFacts
         Assert.Equal(("vlad", "1.2.3"), (card.Publisher, card.Release));
         Assert.Null(new ChatAppCard("notes", "notes", "", false).Publisher);
         var bare = card with { Publisher = null, Release = null };
-        static IntoChat.OS.Apps.GalleryEntry Entry(string publisher, string kind = "app") => new("others", publisher, "notes", "Notes", "", null, false, false, null, kind);
+        static (string, string) Entry(string publisher) => (publisher, "notes");
         Assert.Equal("os", AgentChatSource.Published(bare, Store(Entry("vlad"), Entry("os"))).Publisher);
         Assert.Equal("vlad", AgentChatSource.Published(bare, Store(Entry("vlad"))).Publisher);
-        Assert.Null(AgentChatSource.Published(bare, Store(Entry("vlad", "connection"))).Publisher);
+        // Without an os listing the listing's own order decides among other publishers.
+        Assert.Equal("vlad", AgentChatSource.Published(bare, Store(Entry("vlad"), Entry("zed"))).Publisher);
+        Assert.Equal("zed", AgentChatSource.Published(bare, Store(Entry("zed"), Entry("vlad"))).Publisher);
+        Assert.Null(AgentChatSource.Published(bare, Store(("vlad", "other"))).Publisher);
         Assert.Null(AgentChatSource.Published(bare, Store()).Publisher);
     }
 
-    private static IReadOnlyList<IntoChat.OS.Apps.GalleryEntry> Store(params IntoChat.OS.Apps.GalleryEntry[] entries) => entries;
+    private static IReadOnlyList<(string Publisher, string Name)> Store(params (string Publisher, string Name)[] entries) => entries;
 }

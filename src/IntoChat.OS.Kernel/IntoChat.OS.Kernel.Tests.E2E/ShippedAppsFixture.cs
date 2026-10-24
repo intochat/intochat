@@ -215,6 +215,11 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             if (IApp.NameOf(Scope, instance.Key) is { } name && name is not ("workspace" or "desktop")) { names.Add(name); }
         }
         foreach (var name in names) { await App(name).Delete().WaitAsync(ct); }
+        // The desktop root keeps "greeted" (set once a start finds the greeting in Ino's selected chat) and Ino's chat
+        // keeps its selection (a case that clicked New chat leaves an empty chat selected) after Ino itself is removed.
+        // Together they made the next case's reinstalled Ino start with no greeting anywhere: a case starts with only
+        // the roots, so the root's first-run memory is cleared too and the next start greets the chat Ino then shows.
+        await Brain.Get<IText>(IApp.Key(Scope, "desktop") + "/greeted").Set("").WaitAsync(ct);
         Console.WriteLine($"[app-e2e] removed {names.Count} apps: {watch.Elapsed.TotalSeconds:F2}s");
     }
 
