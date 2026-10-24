@@ -311,6 +311,14 @@ public sealed class OsDesktopAppFacts
     }
 
     [Fact]
+    public void GetAtTheWindowCapLeavesOnlyTheCapToast()
+    {
+        // The cap's toast already says why the window did not open; the gallery adds nothing.
+        Assert.Equal("", Desktop.GetNotice(new(true, "echo", null), opened: false, refused: true));
+        Assert.Equal("Already have it.", Desktop.GetNotice(new(false, null, "Already have it."), opened: false, refused: true));
+    }
+
+    [Fact]
     public async Task AGalleryThatCannotLoadStillRendersWithANotice()
     {
         var (entries, notice) = await Desktop.LoadGallery(() => throw new InvalidOperationException("store down"), null);

@@ -14,10 +14,10 @@ await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Desktop.View
     {
         var outcome = slash <= 0 ? new InstallOutcome(false, null, "That app is not in the gallery.")
             : await brain.Get<IAppStore>(IAppStore.Key(Desktop.Scope(brain))).Get(listing[..slash], listing[(slash + 1)..]);
-        var opened = false;
-        try { opened = outcome is { Ok: true, InstalledName: { } name } && await Desktop.Open(brain, clicked.RequestId, name); }
+        var (opened, refused) = (false, false);
+        try { if (outcome is { Ok: true, InstalledName: { } name }) { (opened, refused) = await Desktop.Open(brain, clicked.RequestId, name); } }
         catch (Exception error) when (error is not OperationCanceledException) { Console.Error.WriteLine("Desktop could not open " + listing + ": " + error.Message); }
-        await Desktop.Notice(brain).Set(Desktop.GetNotice(outcome, opened));
+        await Desktop.Notice(brain).Set(Desktop.GetNotice(outcome, opened, refused));
         await Desktop.Show(brain);
     }
     catch (Exception error) when (error is not OperationCanceledException)

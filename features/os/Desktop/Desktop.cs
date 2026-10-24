@@ -173,9 +173,10 @@ public static class Desktop
     }
 
     // What the gallery says after Get: the refusal, or that the install worked but the window did not open.
-    public static string GetNotice(InstallOutcome outcome, bool opened)
+    // A window cap's refusal already shows its toast, so the gallery adds nothing for it.
+    public static string GetNotice(InstallOutcome outcome, bool opened, bool refused = false)
         => !outcome.Ok ? outcome.Message ?? "That app could not be installed."
-            : opened ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
+            : opened || refused ? "" : "Installed " + outcome.InstalledName + ", but it could not be opened.";
 
     // What a Connect button hands the shell: open its connection window for this connector in this brain.
     public static string ConnectActivation(string brainId, string connectorId)
@@ -207,19 +208,20 @@ public static class Desktop
         }
     }
 
-    // Opens the installed app in a window beside the others (or focuses its window); false if it cannot.
-    public static async Task<bool> Open(IntoChatOSConnection brain, Guid request, string name)
+    // Opens the installed app in a window beside the others (or focuses its window). Not opened if it
+    // cannot; Refused when a cap stopped it (its toast then shows why).
+    public static async Task<(bool Opened, bool Refused)> Open(IntoChatOSConnection brain, Guid request, string name)
     {
-        var opened = false;
+        var (opened, refused) = (false, false);
         var view = await AppView(brain, name);
-        if (view is null) { return false; }
+        if (view is null) { return (false, false); }
         await Change(brain, request, state =>
         {
             var next = WindowOps.OpenApp(state, name, view);
-            opened = next.Update is not null;
+            (opened, refused) = (next.Update is not null, next.Refusal is not null);
             return Task.FromResult(next);
         });
-        return opened;
+        return (opened, refused);
     }
 
     // Window verbs change the durable workspace; restore.cs re-renders on the resulting WorkspaceChanged.

@@ -7,7 +7,7 @@ using IntoChat.OS.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
-// On the real script runtime: the desktop's open/focus/close synapses change the durable
+// On the real script runtime: the desktop's open/focus/close synapses (windows w-<n>, tabs by index) change the durable
 // workspace, restore.cs re-renders, and a restarted desktop brings the same windows back.
 [Collection("Reference host")]
 public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(host)
@@ -35,33 +35,43 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await ClickAction(desktop, "open:calculator", ct);
         await ClickAction(desktop, "open:" + other, ct);
         await Click(desktop, "gallery-close", "gallery", ct);
-        var both = await Until(desktop, nodes => Has(nodes, "calculator") && Has(nodes, other), ct);
-        Assert.Equal([UIVocabulary.ViewportType], both.Where(node => node.Key == "content-calculator" || node.Key == "content-" + other).Select(node => node.Reference!.Kind).Distinct());
-        var target = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/calculator").Read(),
+        // Each app opens in its own single-tab window w-<n>; the tab id is the app's name.
+        var opened = await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, "calculator") is not null && WindowOf(state, other) is not null, Patience, ct);
+        var (calculator, second) = (WindowOf(opened, "calculator")!, WindowOf(opened, other)!);
+        Assert.NotEqual(calculator, second);
+        Assert.All([calculator, second], id => Assert.StartsWith("w-", id, StringComparison.Ordinal));
+        var both = await Until(desktop, nodes => Has(nodes, calculator) && Has(nodes, second), ct);
+        Assert.Equal([UIVocabulary.ViewportType], both.Where(node => node.Key == "content-" + calculator || node.Key == "content-" + second).Select(node => node.Reference!.Kind).Distinct());
+        var target = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + calculator).Read(),
             state => state.Target is not null, Patience, ct);
         Assert.Equal(WorkspaceId + "/apps/calculator", target.Target!.App);
-        var second = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + other).Read(),
+        var shown = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + second).Read(),
             state => state.Target is not null, Patience, ct);
-        Assert.Equal(WorkspaceId + "/apps/" + other, second.Target!.App);
+        Assert.Equal(WorkspaceId + "/apps/" + other, shown.Target!.App);
         Assert.Equal(other, (await workspace.Read()).FocusedViewId);
 
-        await Click(desktop, "focus-calculator", "focus:calculator", ct);
+        await Click(desktop, "focus-" + calculator, "focus:" + calculator, ct);
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.FocusedViewId == "calculator", Patience, ct);
 
-        await Click(desktop, "close-" + other, "close:" + other, ct);
-        await Until(desktop, nodes => Has(nodes, "calculator") && !Has(nodes, other), ct);
-        await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + other).Read(), state => state.Target is null, Patience, ct);
+        // The window's only tab: closing it closes the window and clears its viewport.
+        await Click(desktop, "close-" + second, "close:" + second + "/0", ct);
+        await Until(desktop, nodes => Has(nodes, calculator) && !Has(nodes, second), ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + second).Read(), state => state.Target is null, Patience, ct);
+        Assert.Null(WindowOf(await workspace.Read(), other));
 
         // Restart: a new program generation re-runs start.cs, which reads the durable workspace.
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
         await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
-        await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
+        // Not AppRuntimeReadiness: the gallery's other app may be a program that never reports ready;
+        // the new view generation below is the desktop's own readiness.
         await Connect(ct);
         var restored = await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(),
-            view => view!.Generation > before && Has([.. Flatten(view.Root)], "calculator"), Patience, ct);
-        Assert.DoesNotContain(Flatten(restored!.Root), node => node.Key == "content-" + other);
-        Assert.Equal("calculator", (await workspace.Read()).FocusedViewId);
+            view => view!.Generation > before && Has([.. Flatten(view.Root)], calculator), Patience, ct);
+        Assert.DoesNotContain(Flatten(restored!.Root), node => node.Key == "content-" + second);
+        var after = await workspace.Read();
+        Assert.Equal("calculator", after.FocusedViewId);
+        Assert.Equal(calculator, WindowOf(after, "calculator"));
     }
 
     [Fact(Timeout = 360_000)]
@@ -79,12 +89,14 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         await ClickAction(desktop, "open:calculator", ct);
         await Click(desktop, "gallery-close", "gallery", ct);
 
-        await Click(desktop, "pin-calculator", "pin:calculator", ct);
+        var window = WindowOf(await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, "calculator") is not null, Patience, ct), "calculator")!;
+
+        await Click(desktop, "pin-" + window, "pin:calculator", ct);
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.Any(view => view.Id == "calculator"), Patience, ct);
-        var dock = await Until(desktop, nodes => nodes.Any(node => node.Key == "unpin-calculator"), ct);
+        var dock = await Until(desktop, nodes => nodes.Any(node => node.Key == "unpin-" + window), ct);
         Assert.Equal("dock-ino", dock.First(node => node.Key.StartsWith("dock-", StringComparison.Ordinal)).Key);
 
-        await Click(desktop, "unpin-calculator", "unpin:calculator", ct);
+        await Click(desktop, "unpin-" + window, "unpin:calculator", ct);
         await TestWait.UntilAsync(_ => workspace.Read(), state => state.Pins.All(view => view.Id != "calculator"), Patience, ct);
     }
 
@@ -119,7 +131,8 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.Equal(("Get", true), (get.Text, get.Action!.StartsWith("get:", StringComparison.Ordinal)));
 
         await ClickAction(desktop, get.Action, ct);
-        var window = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + name).Read(), state => state.Target is not null, Patience, ct);
+        var placed = WindowOf(await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => WindowOf(state, name) is not null, Patience, ct), name)!;
+        var window = await TestWait.UntilAsync(_ => Brain.Get<IViewport>(desktop + "/window/" + placed).Read(), state => state.Target is not null, Patience, ct);
         Assert.Equal(WorkspaceId + "/apps/" + name, window.Target!.App);
         Assert.Equal(name, (await Brain.Get<IWorkspace>(WorkspaceId).Read()).FocusedViewId);
         // The entry now offers Open.
@@ -181,6 +194,9 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
     }
 
     private static bool Has(UiNode[] nodes, string window) => nodes.Any(node => node.Key == "content-" + window);
+
+    // The id of the window holding the tab, or null.
+    private static string? WindowOf(WorkspaceState state, string tab) => state.Windows.FirstOrDefault(window => window.Tabs.Any(view => view.Id == tab))?.Id;
 
     private static IEnumerable<UiNode> Flatten(UiNode root)
     {
