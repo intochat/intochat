@@ -110,7 +110,10 @@ class _UiKitFieldState extends State<UiKitField> {
         : _hover && widget.enabled
         ? c.muted
         : c.inputBorder;
-    final name = widget.label.isNotEmpty ? widget.label : widget.placeholder;
+    final placeholder = widget.placeholder;
+    final style = type.body.copyWith(color: c.strong);
+    final hintStyle = type.body.copyWith(color: c.subtle);
+    final name = widget.label.isNotEmpty ? widget.label : placeholder;
     final textField = TextField(
       key: widget.fieldKey,
       controller: widget.controller,
@@ -124,15 +127,28 @@ class _UiKitFieldState extends State<UiKitField> {
       autofocus: widget.autofocus,
       autocorrect: widget.autocorrect,
       enableSuggestions: widget.autocorrect,
-      style: type.body.copyWith(color: c.strong),
+      style: style,
       cursorColor: c.accent,
       // The box above draws the border; clear every theme border and fill
       // so the app's InputDecorationTheme does not draw a second one inside.
       decoration:
           InputDecoration.collapsed(
-            hintText: widget.placeholder,
-            hintStyle: type.body.copyWith(color: c.subtle),
+            hintText: null,
+            hintStyle: hintStyle,
           ).copyWith(
+            // The placeholder is visual only: the field's name below already
+            // carries it, and a semantic hint would repeat it in the name.
+            hint: placeholder == null
+                ? null
+                : ExcludeSemantics(
+                    // Resolved as the decorator resolves a hintText style.
+                    child: Text(
+                      placeholder,
+                      style: Theme.of(context).textTheme.bodyLarge!
+                          .merge(style)
+                          .merge(hintStyle),
+                    ),
+                  ),
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
             disabledBorder: InputBorder.none,
@@ -144,8 +160,13 @@ class _UiKitFieldState extends State<UiKitField> {
       onSubmitted: widget.onSubmitted,
     );
     // The visible label sits outside the TextField, so name the field for
-    // assistive technology explicitly.
-    final input = Semantics(label: name, textField: true, child: textField);
+    // assistive technology explicitly. Merge the name into the TextField's
+    // own node: a separate text-field node would render on the web as a
+    // second, disabled input, and the real input would lose its name once
+    // typing hides the placeholder.
+    final input = MergeSemantics(
+      child: Semantics(label: name, child: textField),
+    );
     final box = DecoratedBox(
       key: const ValueKey('ui_kit_field_box'),
       decoration: BoxDecoration(
