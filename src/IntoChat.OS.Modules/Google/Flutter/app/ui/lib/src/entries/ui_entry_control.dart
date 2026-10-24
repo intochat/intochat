@@ -57,13 +57,26 @@ class UiEntryControl extends StatefulWidget {
 
 class _UiEntryControlState extends State<UiEntryControl> {
   List<EntrySummary> _rows = const [];
-  bool _loading = true;
+  bool _loading = true, _forbidden = false;
   String? _error;
 
   bool get _keyMode => widget.mode == EntryControlMode.key;
   String get _ownerOnly => _keyMode ? _ownerOnlyKeys : _ownerOnlyVariables;
   String _failure(Object error) =>
       error is SettingsForbidden ? _ownerOnly : _failed;
+
+  /// Key mode names its provider from the known list, never from the
+  /// app-written label, so an app cannot mislabel a key field.
+  String get _label {
+    if (!_keyMode) return widget.label;
+    for (final (id, name) in keyProviders) {
+      if (widget.entryName == '$providerEntryPrefix$id') return name;
+    }
+    return widget.entryName ?? '';
+  }
+
+  bool get _locked =>
+      _loading || _forbidden || !widget.enabled || widget.entries == null;
 
   @override
   void initState() {
@@ -74,7 +87,8 @@ class _UiEntryControlState extends State<UiEntryControl> {
   @override
   void didUpdateWidget(UiEntryControl old) {
     super.didUpdateWidget(old);
-    if (old.entries != widget.entries ||
+    // NeuronView calls the client factory on every rebuild; only a new brain reloads.
+    if (old.entries?.brainId != widget.entries?.brainId ||
         old.entryName != widget.entryName ||
         old.mode != widget.mode) {
       _load();
@@ -105,7 +119,12 @@ class _UiEntryControlState extends State<UiEntryControl> {
         _error = null;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = _failure(error));
+      if (mounted) {
+        setState(() {
+          _error = _failure(error);
+          if (error is SettingsForbidden) _forbidden = true;
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -119,8 +138,12 @@ class _UiEntryControlState extends State<UiEntryControl> {
     try {
       await write(entries);
     } catch (error) {
-      if (mounted) showKitToast(context, _failed, tone: UiTone.error);
-      return _failure(error);
+      final copy = _failure(error);
+      if (mounted) {
+        if (error is SettingsForbidden) setState(() => _forbidden = true);
+        showKitToast(context, copy, tone: UiTone.error);
+      }
+      return copy;
     }
     if (!mounted) return null;
     showKitToast(context, 'Saved.', tone: UiTone.done);
@@ -139,7 +162,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
     await showDialog<void>(
       context: context,
       builder: (_) => _KeyDialog(
-        title: '${replace ? 'Replace' : 'Add'} ${widget.label} key',
+        title: '${replace ? 'Replace' : 'Add'} $_label key',
         save: (value) =>
             _write((entries) => entries.put(name, EntryKind.secret, value)),
       ),
@@ -206,7 +229,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
         : entry.tail == null
         ? 'Set'
         : 'Set ••••${entry.tail}';
-    final busy = _loading || !widget.enabled || widget.entries == null;
+    final busy = _locked;
     return _box(
       const Key('entry-key-row'),
       Wrap(
@@ -219,7 +242,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                widget.label,
+                _label,
                 style: type.body.copyWith(
                   color: c.strong,
                   fontWeight: FontWeight.w600,
@@ -250,8 +273,8 @@ class _UiEntryControlState extends State<UiEntryControl> {
                       ? null
                       : () => _remove(
                           entry.name,
-                          'Remove the ${widget.label} key?',
-                          'Models from ${widget.label} stop working in this brain until you add a key again.',
+                          'Remove the $_label key?',
+                          'Models from $_label stop working in this brain until you add a key again.',
                         ),
                 ),
               ],
@@ -294,7 +317,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
             label: 'Remove',
             style: UiKitButtonStyle.ghost,
             compact: true,
-            onPressed: _loading || !widget.enabled
+            onPressed: _locked
                 ? null
                 : () => _remove(
                     entry.name,
@@ -330,9 +353,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
               key: const Key('entry-add'),
               label: 'Add',
               style: UiKitButtonStyle.secondary,
-              onPressed: _loading || !widget.enabled || widget.entries == null
-                  ? null
-                  : _addEntry,
+              onPressed: _locked ? null : _addEntry,
             ),
           ),
         ],
@@ -425,6 +446,8 @@ class _KeyDialogState extends State<_KeyDialog> {
       _field.clear();
       Navigator.pop(context);
     } else {
+      // The person retypes: a failed value never lingers in the field.
+      _field.clear();
       setState(() {
         _saving = false;
         _error = failure;
@@ -514,6 +537,7 @@ class _EntryDialogState extends State<_EntryDialog> {
       _value.clear();
       Navigator.pop(context);
     } else {
+      _value.clear();
       setState(() {
         _saving = false;
         _error = failure;

@@ -17,9 +17,11 @@ final class _FakeEntries extends EntriesClient {
   Object? failure;
   final puts = <(String, EntryKind, String)>[];
   final removed = <String>[];
+  static int lists = 0;
 
   @override
   Future<List<EntrySummary>> list() async {
+    lists++;
     if (failure case final error?) throw error;
     return entries;
   }
@@ -42,10 +44,10 @@ final class _FakeEntries extends EntriesClient {
   }
 }
 
-Map<String, dynamic> _key(String name) => {
+Map<String, dynamic> _key(String name, [String label = 'OpenAI']) => {
   'name': name,
   'version': 1,
-  'spec': {'mode': 0, 'label': 'OpenAI', 'entryName': 'provider:openai'},
+  'spec': {'mode': 0, 'label': label, 'entryName': 'provider:openai'},
 };
 
 Map<String, dynamic> _collection(String name) => {
@@ -59,6 +61,8 @@ Future<List<String>> _pump(
   _FakeEntries entries, {
   bool collection = false,
   List<String>? brains,
+  String label = 'OpenAI',
+  _FakeEntries Function()? fresh,
 }) async {
   final calls = <String>[];
   final name = collection
@@ -73,12 +77,12 @@ Future<List<String>> _pump(
           name: name,
           load: (kind, n) async {
             calls.add(jsonEncode({'load': kind, 'name': n}));
-            return collection ? _collection(n) : _key(n);
+            return collection ? _collection(n) : _key(n, label);
           },
           onAction: (event) async => calls.add(jsonEncode(event)),
           entries: (brain) {
             brains?.add(brain);
-            return entries;
+            return fresh?.call() ?? entries;
           },
         ),
       ),
@@ -243,5 +247,123 @@ void main() {
     expect(find.textContaining('internal detail'), findsNothing);
     expect(find.textContaining('500'), findsNothing);
     await tester.pumpAndSettle();
+  });
+
+  String fieldText(WidgetTester tester, Key key) => tester
+      .widget<EditableText>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(EditableText),
+        ),
+      )
+      .controller
+      .text;
+
+  testWidgets('entry_control_key_dialog_clears_the_secret_on_failure', (
+    tester,
+  ) async {
+    final entries = _FakeEntries([]);
+    await _pump(tester, entries);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    entries.failure = UiRequestException('PUT', '/x', 500, '');
+    await tester.enterText(find.byType(EditableText).last, _value);
+    await tester.tap(find.text('Save key'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not save that change.'), findsWidgets);
+    expect(fieldText(tester, const Key('entry-key-field')), isEmpty);
+  });
+
+  testWidgets('entry_control_collection_dialog_clears_the_value_on_failure', (
+    tester,
+  ) async {
+    final entries = _FakeEntries([]);
+    await _pump(tester, entries, collection: true);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    entries.failure = UiRequestException('PUT', '/x', 500, '');
+    await tester.enterText(find.byType(EditableText).first, 'TOKEN');
+    await tester.tap(find.text('Secret').last);
+    await tester.pump();
+    await tester.enterText(find.byType(EditableText).last, _value);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(fieldText(tester, const Key('entry-value-field')), isEmpty);
+    expect(fieldText(tester, const Key('entry-name-field')), 'TOKEN');
+  });
+
+  testWidgets('entry_control_never_dispatches_the_value_across_failures', (
+    tester,
+  ) async {
+    final entries = _FakeEntries([]);
+    final calls = await _pump(tester, entries);
+    void clean() {
+      expect(calls.where((c) => c.contains(_value)), isEmpty);
+      expect(find.textContaining(_value), findsNothing);
+    }
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    entries.failure = UiRequestException('PUT', '/x', 500, _value);
+    await tester.enterText(find.byType(EditableText).last, _value);
+    await tester.tap(find.text('Save key'));
+    await tester.pumpAndSettle();
+    clean();
+    entries.failure = null;
+    await tester.enterText(find.byType(EditableText).last, _value);
+    await tester.tap(find.text('Save key'));
+    await tester.pumpAndSettle();
+    clean();
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+    expect(entries.removed, ['provider:openai']);
+    clean();
+
+    final variables = _FakeEntries([]);
+    final more = await _pump(tester, variables, collection: true);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    variables.failure = const SettingsForbidden();
+    await tester.enterText(find.byType(EditableText).first, 'TOKEN');
+    await tester.tap(find.text('Secret').last);
+    await tester.pump();
+    await tester.enterText(find.byType(EditableText).last, _value);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Only the brain owner can change variables and secrets.'),
+      findsNWidgets(2),
+    );
+    expect(find.text('Could not save that change.'), findsNothing);
+    calls.addAll(more);
+    clean();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    final add = tester.widget<UiKitButton>(find.byKey(const Key('entry-add')));
+    expect(add.onPressed, isNull);
+  });
+
+  testWidgets('entry_control_rebuild_with_an_equal_client_does_not_refetch', (
+    tester,
+  ) async {
+    final shared = _FakeEntries([]);
+    _FakeEntries.lists = 0;
+    await _pump(tester, shared, fresh: () => _FakeEntries(shared.entries));
+    final first = _FakeEntries.lists;
+    expect(first, 1);
+    await _pump(tester, shared, fresh: () => _FakeEntries(shared.entries));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(_FakeEntries.lists, first);
+  });
+
+  testWidgets('entry_control_key_label_comes_from_the_known_providers', (
+    tester,
+  ) async {
+    await _pump(tester, _FakeEntries([]), label: 'Your bank password');
+    expect(find.text('OpenAI'), findsOneWidget);
+    expect(find.text('Your bank password'), findsNothing);
   });
 }
