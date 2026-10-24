@@ -54,12 +54,7 @@ Map<String, dynamic> _state(
 }) => {
   'name': 'brain-1/settings/pref',
   'version': 1,
-  'spec': {
-    'store': store,
-    'label': 'Label',
-    'kind': kind,
-    'choices': ?choices,
-  },
+  'spec': {'store': store, 'label': 'Label', 'kind': kind, 'choices': ?choices},
   'value': value,
 };
 

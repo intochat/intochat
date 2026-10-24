@@ -51,7 +51,7 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         // Ino is first in the dock; its window shows the one greeting, which points to the gallery.
         // The dock's Ino and, once Ino's window shows, its header title: either focuses Ino.
         await Button("Ino").First.ClickAsync();
-        await Visible(page.GetByText("Find and open apps in the Apps gallery", new() { Exact = false }).First);
+        await Visible(page.GetByText("Open apps from the dock, or just tell me", new() { Exact = false }).First);
 
         // The dock's Apps opens the Apps window (its library; the desktop has no gallery).
         await Button("Apps").ClickAsync();

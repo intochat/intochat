@@ -22,7 +22,9 @@ public sealed record ChatAppCard(
     [property: Id(1)] string Title,
     [property: Id(2)] string Icon,
     [property: Id(3)] bool Installed,
-    [property: Id(4)] string Input = "")
+    [property: Id(4)] string Input = "",
+    [property: Id(5)] string? Publisher = null,
+    [property: Id(6)] string? Release = null)
 {
     public const int MaxInput = 2048;
     private const string LinkPrefix = "link-";

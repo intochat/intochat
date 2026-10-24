@@ -46,6 +46,7 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
     {
         var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : IntoChat.OS.Framework.BrainKey.BrainOf(key);
         var manifests = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
+        IReadOnlyList<GalleryEntry>? listed = null;
         for (var i = 0; i < entries.Length; i++)
         {
             if (entries[i].App is not { } card) { continue; }
@@ -55,7 +56,15 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }
-            entries[i] = entries[i] with { App = Named(card, manifest) };
+            var named = Named(card, manifest);
+            // An app that is not installed names its publisher from the store so the card can offer Install.
+            if (!named.Installed && named.Publisher is null)
+            {
+                try { listed ??= await grains.GetGrain<IAppStore>(IAppStore.Key(scope)).List(); }
+                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App store unreadable"); listed = []; }
+                named = Published(named, listed);
+            }
+            entries[i] = entries[i] with { App = named };
         }
         return entries;
     }
@@ -64,6 +73,14 @@ internal sealed class AgentChatSource(IGrainFactory grains) : IChatAgentSource
         => manifest is { Title.Length: > 0 }
             ? card with { Title = manifest.Title, Icon = manifest.Icon ?? "", Installed = true }
             : card with { Title = card.App, Installed = false };
+
+    // The store entry for an app (the os publisher first) gives an uninstalled card its publisher.
+    internal static ChatAppCard Published(ChatAppCard card, IReadOnlyList<GalleryEntry> gallery)
+    {
+        var apps = gallery.Where(entry => entry.Kind == "app" && entry.Name == card.App).ToList();
+        return (apps.FirstOrDefault(entry => entry.Publisher == "os") ?? apps.FirstOrDefault()) is { } found
+            ? card with { Publisher = found.Publisher } : card;
+    }
 
     // The app a completed IApp.Request("open") or IWorkspace.Show tool call opened, else null.
     internal static ChatAppCard? Opened(AgentToolCall call)

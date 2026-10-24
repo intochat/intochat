@@ -74,7 +74,8 @@ Retry, which reads the catalog again. "IntoChat Cloud" is shown as coming soon. 
 
 A message that is a whole workspace link (`#/open?application=calculator`) is posted as an "Open Calculator"
 card with an Open button and reaches neither Jev nor the model. An app that is not installed says
-"Not installed" and offers no install.
+"Not installed". With a known publisher it also offers Install, which opens that app's Apps detail, where the
+person reviews what it asks for and consents; chat never installs. Without a publisher there is no button.
 
 ## Scenario: Upgrading from 3.1.3 keeps every conversation
 

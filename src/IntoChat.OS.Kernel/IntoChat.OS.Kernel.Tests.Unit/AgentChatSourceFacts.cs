@@ -67,4 +67,20 @@ public sealed class AgentChatSourceFacts
         Assert.Equal(card with { Title = "notes", Installed = false },
             AgentChatSource.Named(card, new IntoChat.OS.Apps.AppManifest("", "", [], [], [])));
     }
+
+    [Fact]
+    public void CardsCarryPublisherAndRelease()
+    {
+        var card = new ChatAppCard("notes", "notes", "", false, "", "vlad", "1.2.3");
+        Assert.Equal(("vlad", "1.2.3"), (card.Publisher, card.Release));
+        Assert.Null(new ChatAppCard("notes", "notes", "", false).Publisher);
+        var bare = card with { Publisher = null, Release = null };
+        static IntoChat.OS.Apps.GalleryEntry Entry(string publisher, string kind = "app") => new("others", publisher, "notes", "Notes", "", null, false, false, null, kind);
+        Assert.Equal("os", AgentChatSource.Published(bare, Store(Entry("vlad"), Entry("os"))).Publisher);
+        Assert.Equal("vlad", AgentChatSource.Published(bare, Store(Entry("vlad"))).Publisher);
+        Assert.Null(AgentChatSource.Published(bare, Store(Entry("vlad", "connection"))).Publisher);
+        Assert.Null(AgentChatSource.Published(bare, Store()).Publisher);
+    }
+
+    private static IReadOnlyList<IntoChat.OS.Apps.GalleryEntry> Store(params IntoChat.OS.Apps.GalleryEntry[] entries) => entries;
 }

@@ -12,7 +12,8 @@ import 'chat_copy.dart';
 
 /// An app in the transcript (Figma `.file-card` shape): icon, title, Open.
 /// Open dispatches the shell's workspace action with the card's opaque input.
-/// An app that is not installed shows a badge and no button (install is R5).
+/// An app that is not installed shows a badge, and Install when its publisher is known: Install only opens the
+/// Apps detail, where the person consents (chat never installs).
 final class ChatAppCard extends StatelessWidget {
   const ChatAppCard({super.key, required this.card, this.onOpen});
 
@@ -27,6 +28,20 @@ final class ChatAppCard extends StatelessWidget {
     'input': '${card['input'] ?? ''}',
   };
 
+  /// Opens the app's Apps detail (the one consented install path); null without a publisher.
+  static Map<String, dynamic>? installAction(Map card) {
+    final publisher = '${card['publisher'] ?? ''}';
+    final app = '${card['app'] ?? ''}';
+    if (publisher.isEmpty || app.isEmpty) return null;
+    final release = '${card['release'] ?? ''}';
+    return {
+      'kind': 'workspace',
+      'application': 'apps',
+      'operation': 'open',
+      'input': 'app:$publisher/$app${release.isEmpty ? '' : '@$release'}',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
@@ -34,6 +49,26 @@ final class ChatAppCard extends StatelessWidget {
     final app = '${card['app'] ?? ''}';
     final title = '${card['title'] ?? ''}'.trim();
     final installed = card['installed'] != false;
+    final install = installed ? null : installAction(card);
+    Widget notInstalled() {
+      const badge = ViewBadge(text: ChatCopy.notInstalled, tone: 0);
+      if (install == null) return badge;
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          badge,
+          UiKitButton(
+            label: ChatCopy.install,
+            compact: true,
+            style: UiKitButtonStyle.primary,
+            onPressed: onOpen == null ? null : () => onOpen!(install),
+          ),
+        ],
+      );
+    }
+
     final glyph = uiIcon('${card['icon'] ?? ''}') ?? uiIcon('grid');
     return Container(
       padding: const EdgeInsets.all(14),
@@ -87,7 +122,7 @@ final class ChatAppCard extends StatelessWidget {
                       ? null
                       : () => onOpen!(openAction(card)),
                 )
-              : const ViewBadge(text: ChatCopy.notInstalled, tone: 0);
+              : notInstalled();
           if (narrow) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,

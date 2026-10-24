@@ -229,6 +229,8 @@ public sealed class OsInoLinkFacts
         Assert.Contains("empty = '" + InoCopy.EmptyTranscript + "';", dart, StringComparison.Ordinal);
         Assert.Contains("failed = \"" + InoCopy.TurnFailed + "\";", dart, StringComparison.Ordinal);
         Assert.Contains("notInstalled = '" + InoCopy.AppNotInstalled + "';", dart, StringComparison.Ordinal);
+        Assert.Contains("install = '" + InoCopy.AppInstall + "';", dart, StringComparison.Ordinal);
+        Assert.DoesNotContain("gallery", InoCopy.Greeting, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("stepFailed = \"" + InoCopy.StepFailed + "\";", dart, StringComparison.Ordinal);
     }
 
