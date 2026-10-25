@@ -1,4 +1,14 @@
 #nullable enable
+DigitalBrain.Access.AccessAttribute
+DigitalBrain.Access.AccessAttribute.AccessAttribute() -> void
+DigitalBrain.Access.InternalAttribute
+DigitalBrain.Access.InternalAttribute.InternalAttribute() -> void
+DigitalBrain.Access.PerAccountAttribute
+DigitalBrain.Access.PerAccountAttribute.PerAccountAttribute() -> void
+DigitalBrain.Access.PublicAttribute
+DigitalBrain.Access.PublicAttribute.PublicAttribute() -> void
+DigitalBrain.Access.SharedAttribute
+DigitalBrain.Access.SharedAttribute.SharedAttribute() -> void
 DigitalBrain.App
 DigitalBrain.App.App() -> void
 DigitalBrain.AppAttribute
@@ -48,6 +58,17 @@ DigitalBrain.CapabilityAttribute
 DigitalBrain.CapabilityAttribute.CapabilityAttribute(string! name, int version) -> void
 DigitalBrain.CapabilityAttribute.Name.get -> string!
 DigitalBrain.CapabilityAttribute.Version.get -> int
+DigitalBrain.Contracts.DefaultNeuronTypeAttribute
+DigitalBrain.Contracts.DefaultNeuronTypeAttribute.DefaultNeuronTypeAttribute(string! type) -> void
+DigitalBrain.Contracts.DefaultNeuronTypeAttribute.Type.get -> string!
+DigitalBrain.Contracts.FieldAttribute
+DigitalBrain.Contracts.FieldAttribute.FieldAttribute(uint id) -> void
+DigitalBrain.Contracts.FieldAttribute.Id.get -> uint
+DigitalBrain.Contracts.NeuronAliasAttribute
+DigitalBrain.Contracts.NeuronAliasAttribute.Alias.get -> string!
+DigitalBrain.Contracts.NeuronAliasAttribute.NeuronAliasAttribute(string! alias) -> void
+DigitalBrain.Contracts.NeuronContractAttribute
+DigitalBrain.Contracts.NeuronContractAttribute.NeuronContractAttribute() -> void
 DigitalBrain.DeactivationCause
 DigitalBrain.DeactivationCause.Failed = 3 -> DigitalBrain.DeactivationCause
 DigitalBrain.DeactivationCause.Idle = 1 -> DigitalBrain.DeactivationCause
@@ -143,6 +164,10 @@ DigitalBrain.Signal.Signal(DigitalBrain.Signal! original) -> void
 DigitalBrain.SignalAttribute
 DigitalBrain.SignalAttribute.Alias.get -> string!
 DigitalBrain.SignalAttribute.SignalAttribute(string! alias) -> void
+DigitalBrain.Spi.ICallerContextCarrier
+DigitalBrain.Spi.ICallerContextCarrier.Suppress() -> System.IDisposable!
+DigitalBrain.Spi.IDeactivatingNeuron
+DigitalBrain.Spi.IDeactivatingNeuron.OnDeactivating(DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.INeuronContext
 DigitalBrain.Spi.INeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Spi.INeuronContext.Id.get -> DigitalBrain.NeuronId
@@ -160,13 +185,20 @@ DigitalBrain.Spi.INeuronState
 DigitalBrain.Spi.INeuronState.Clear() -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.INeuronState.Load<T>() -> System.Threading.Tasks.Task<T?>!
 DigitalBrain.Spi.INeuronState.Save<T>(T state) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.INeuronTimers
+DigitalBrain.Spi.INeuronTimers.Forget(string! name) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.INeuronTimers.Remind(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.INeuronTimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! tick, bool interleave = false, bool keepAlive = false) -> System.IDisposable!
 DigitalBrain.Spi.IOperations
 DigitalBrain.Spi.IOperations.Begin(string! kind, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 DigitalBrain.Spi.IOperations.Complete(string! id, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IRemindedNeuron
+DigitalBrain.Spi.IRemindedNeuron.OnReminder(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.IReminders
 DigitalBrain.Spi.IReminders.Names() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 DigitalBrain.Spi.IReminders.Start(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.IReminders.Stop(string! name) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IRuntimeEndpoint
 DigitalBrain.Spi.ISynapses
 DigitalBrain.Spi.ISynapses.Connect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.ISynapses.Disconnect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
@@ -174,6 +206,30 @@ DigitalBrain.Spi.ISynapses.Of(DigitalBrain.NeuronId from) -> System.Threading.Ta
 DigitalBrain.Spi.ITimers
 DigitalBrain.Spi.ITimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
 DigitalBrain.Spi.ITimers.Stop(string! name) -> void
+DigitalBrain.State.ExportableStateAttribute
+DigitalBrain.State.ExportableStateAttribute.ExportableStateAttribute() -> void
+DigitalBrain.State.IStateCodec
+DigitalBrain.State.IStateCodec.CodecId.get -> byte
+DigitalBrain.State.IStateCodec.Deserialize<T>(System.ReadOnlySpan<byte> bytes) -> T
+DigitalBrain.State.IStateCodec.Serialize<T>(T value) -> byte[]!
+DigitalBrain.State.StoredRecord
+DigitalBrain.State.StoredRecord.<Clone>$() -> DigitalBrain.State.StoredRecord!
+DigitalBrain.State.StoredRecord.Deconstruct(out System.ReadOnlyMemory<byte> Record, out long ETag) -> void
+DigitalBrain.State.StoredRecord.ETag.get -> long
+DigitalBrain.State.StoredRecord.ETag.init -> void
+DigitalBrain.State.StoredRecord.Equals(DigitalBrain.State.StoredRecord? other) -> bool
+DigitalBrain.State.StoredRecord.Record.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.State.StoredRecord.Record.init -> void
+DigitalBrain.State.StoredRecord.StoredRecord(System.ReadOnlyMemory<byte> Record, long ETag) -> void
+DigitalBrain.State.WriteResult
+DigitalBrain.State.WriteResult.<Clone>$() -> DigitalBrain.State.WriteResult!
+DigitalBrain.State.WriteResult.Deconstruct(out long ETag, out long? Sequence) -> void
+DigitalBrain.State.WriteResult.ETag.get -> long
+DigitalBrain.State.WriteResult.ETag.init -> void
+DigitalBrain.State.WriteResult.Equals(DigitalBrain.State.WriteResult? other) -> bool
+DigitalBrain.State.WriteResult.Sequence.get -> long?
+DigitalBrain.State.WriteResult.Sequence.init -> void
+DigitalBrain.State.WriteResult.WriteResult(long ETag, long? Sequence) -> void
 DigitalBrain.Synapse
 DigitalBrain.Synapse.<Clone>$() -> DigitalBrain.Synapse!
 DigitalBrain.Synapse.Deconstruct(out DigitalBrain.NeuronId From, out System.Type! Signal, out DigitalBrain.NeuronId To) -> void
@@ -213,6 +269,12 @@ override DigitalBrain.Setting.ToString() -> string!
 override DigitalBrain.Signal.Equals(object? obj) -> bool
 override DigitalBrain.Signal.GetHashCode() -> int
 override DigitalBrain.Signal.ToString() -> string!
+override DigitalBrain.State.StoredRecord.Equals(object? obj) -> bool
+override DigitalBrain.State.StoredRecord.GetHashCode() -> int
+override DigitalBrain.State.StoredRecord.ToString() -> string!
+override DigitalBrain.State.WriteResult.Equals(object? obj) -> bool
+override DigitalBrain.State.WriteResult.GetHashCode() -> int
+override DigitalBrain.State.WriteResult.ToString() -> string!
 override DigitalBrain.Synapse.Equals(object? obj) -> bool
 override DigitalBrain.Synapse.GetHashCode() -> int
 override DigitalBrain.Synapse.ToString() -> string!
@@ -253,6 +315,10 @@ static DigitalBrain.Setting.operator !=(DigitalBrain.Setting? left, DigitalBrain
 static DigitalBrain.Setting.operator ==(DigitalBrain.Setting? left, DigitalBrain.Setting? right) -> bool
 static DigitalBrain.Signal.operator !=(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
 static DigitalBrain.Signal.operator ==(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
+static DigitalBrain.State.StoredRecord.operator !=(DigitalBrain.State.StoredRecord? left, DigitalBrain.State.StoredRecord? right) -> bool
+static DigitalBrain.State.StoredRecord.operator ==(DigitalBrain.State.StoredRecord? left, DigitalBrain.State.StoredRecord? right) -> bool
+static DigitalBrain.State.WriteResult.operator !=(DigitalBrain.State.WriteResult? left, DigitalBrain.State.WriteResult? right) -> bool
+static DigitalBrain.State.WriteResult.operator ==(DigitalBrain.State.WriteResult? left, DigitalBrain.State.WriteResult? right) -> bool
 static DigitalBrain.Synapse.operator !=(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
 static DigitalBrain.Synapse.operator ==(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
 virtual DigitalBrain.Neuron.OnActivate(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
