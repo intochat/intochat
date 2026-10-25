@@ -2,7 +2,7 @@ name: release
 
 # Agents: do not run this workflow, and do not push the tag yourself.
 # The owner creates a GitHub release whose tag is v<VERSION> (the VERSION file); publishing it starts this workflow.
-# It packs the ten DigitalBrain packages without a suffix and pushes them to nuget.org via Trusted Publishing.
+# It packs the eleven DigitalBrain packages without a suffix and pushes them to nuget.org via Trusted Publishing.
 # No tests: ci.yml owns them.
 on:
   release:

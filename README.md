@@ -40,6 +40,7 @@ See [docs/getting-started.md](docs/getting-started.md).
 | `DigitalBrain.Templates` | `dotnet new intochat-app` and `dotnet new intochat-module`. |
 | `DigitalBrain.Runtime.Orleans` | The Orleans runtime with the `local` and `local+cloud` topologies. |
 | `DigitalBrain.Runtime.Orleans.Azure` | The `cloud` topology on Azure Storage and Key Vault. |
+| `DigitalBrain.Runtime.Http` | The ASP.NET Core edge seam for module routes and session cookies. No Orleans. |
 
 TestOS arrives in a later DigitalBrain release.
 

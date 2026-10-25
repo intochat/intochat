@@ -6,5 +6,6 @@
     <ProjectReference Include="../../src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
     <ProjectReference Include="../../src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
     <ProjectReference Include="../../src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
   </ItemGroup>
 </Project>
