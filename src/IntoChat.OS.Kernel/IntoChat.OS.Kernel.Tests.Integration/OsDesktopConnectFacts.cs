@@ -111,7 +111,8 @@ public sealed class OsDesktopConnectFacts
     public async Task ConnectTimeUpdaterNeverWidens()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Boot(ct);
+        // Files requires storage@1; this brain is treated as having a storage connection.
+        await using var brain = await Boot(ct, new StorageConnected());
         using var person = await brain.PersonAsync("ada", ct);
         using var caller = person.AsCaller();
         var provider = brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>();
@@ -122,7 +123,7 @@ public sealed class OsDesktopConnectFacts
         Assert.Equal(InstallStatus.Ok, (await installer.Install(new(new("os", "files"), AppConsent.Of(asked.Requires), Guid.Empty), ct)).Status);
         var files = brain.Get<IApp>(IApp.Key(person.BrainId, "files"));
         var installed = (await files.Read()).Origin!;
-        Assert.NotEmpty(installed.Consented!.Connectors!);
+        Assert.NotEmpty(installed.Consented!.Capabilities!);
         // An older copy that was accepted asking for nothing: the shipped release now asks for connections.
         await files.RecordOrigin(installed with { Version = "0.0.1", Consented = new() });
 
@@ -132,15 +133,21 @@ public sealed class OsDesktopConnectFacts
         Assert.Equal(InstallStatus.NeedsConsent, (await installer.Update(new("files"), ct)).Status);
     }
 
-    private static Task<ITestBrain> Boot(CancellationToken ct) => TestBrain.Create()
+    private static Task<ITestBrain> Boot(CancellationToken ct, ICapabilitySatisfaction? capabilities = null) => TestBrain.Create()
         .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
         .ConfigureServices(services =>
         {
             services.RemoveAll<IAppRuntime>();
             services.AddSingleton<IAppRuntime, IdleRuntime>();
+            if (capabilities is not null) { services.AddSingleton(capabilities); }
             services.AddOperatingSystemApps();
         })
         .StartAsync(ct);
+
+    private sealed class StorageConnected : ICapabilitySatisfaction
+    {
+        public Task<bool> Satisfied(string brain, string capability, CancellationToken ct) => Task.FromResult(capability == "storage@1");
+    }
 
     private sealed class IdleRuntime : IAppRuntime
     {

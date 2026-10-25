@@ -28,6 +28,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton(FeatureCatalog.From);
         silo.Services.TryAddSingleton<FeatureLoader>();
         silo.Services.TryAddSingleton<MarketplaceView>();
+        silo.Services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         silo.Services.TryAddSingleton<AppInstaller>();
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();

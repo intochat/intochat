@@ -14,8 +14,10 @@ namespace IntoChat.OS.Modules.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null, IOptions<AuthOptions>? auth = null)
+    IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, IIdentityClient? identity = null,
+    IOptions<AuthOptions>? auth = null)
 {
+
     public const string OwnerOnly = "Only the brain owner can install apps that read your data.";
     public const string ReviewInApps = "Open Apps to review what this app needs.";
 
@@ -50,6 +52,8 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
             bundle = await grains.GetGrain<IApp>(IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
             if (bundle.Version != reference.Version || AppPublicationDigest.Of(bundle) != reference.Digest)
             { throw new InvalidDataException("The published content does not match the selected release."); }
+            // The publication (fork) path: refused before loader.Create makes the copy.
+            await CheckCapabilities(scope, bundle.Manifest, ct);
             var publication = new AppPublicationRef(reference.Publisher, published, reference.App, reference.Version!, reference.Digest!);
             receipt = new AppInstallReceipt(request.OperationId, publication, name, caller.AccountId);
             origin = new(reference.Publisher, published, reference.App, reference.Version!, reference.Digest, caller.AccountId);
@@ -64,6 +68,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
             { throw new InvalidOperationException($"You already have an app named {name}."); }
             bundle = await Bundle(listing.Source, listing.Publisher, reference.App, ct);
             origin = new(listing.Publisher, listing.Source, reference.App, bundle.Version);
+            await CheckCapabilities(scope, bundle.Manifest, ct);
         }
 
         var requires = bundle.Manifest.Requires ?? new AppRequirements();
@@ -94,6 +99,17 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         return InstallOutcome.Installed(name);
     }
 
+    // Every capability the app requires must be provided by a connected connection in this brain, before any state is
+    // created. A requirement is a need, never a grant: this only reads connections and grants nothing.
+    private async Task CheckCapabilities(string scope, AppManifest manifest, CancellationToken ct)
+    {
+        foreach (var capability in manifest.Requires?.Capabilities ?? [])
+        {
+            if (!await capabilities.Satisfied(scope, capability, ct))
+            { throw new InvalidOperationException($"{manifest.Title} needs {capability}, which no connection in this brain provides."); }
+        }
+    }
+
     // An app that asks for nothing records no consent, as every copy installed before consent was asked does.
     private static AppRequirements? Recorded(AppRequirements requires) => AppConsent.IsEmpty(requires) ? null : requires;
 
@@ -106,8 +122,9 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         {
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)
             { return $"This app has no connection named {slotName}."; }
-            if (!connections.Any(connection => connection.Id == id && connection.Kind == slot.Connector && connection.Status == "connected"))
-            { return $"Choose a {slot.Connector} connection for {slot.Name}."; }
+            if (!connections.Any(connection => connection.Id == id && connection.Status == "connected"
+                && (slot.Capability is { } capability ? AppCapabilities.Satisfies(connection.Capabilities, capability) : connection.Kind == slot.Connector)))
+            { return $"Choose a {slot.Binds} connection for {slot.Name}."; }
         }
         return null;
     }
@@ -175,6 +192,8 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
         if (!migrating && AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return InstallOutcome.Installed(name); }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
+        // The installed version stays when the new one needs a capability this brain has no connection for.
+        await CheckCapabilities(scope, bundle.Manifest, ct);
         var requires = bundle.Manifest.Requires ?? new AppRequirements();
         var added = AppConsent.Added(origin.Consented ?? current.Manifest.Requires, requires);
         var next = origin with { PublicationDigest = null };
