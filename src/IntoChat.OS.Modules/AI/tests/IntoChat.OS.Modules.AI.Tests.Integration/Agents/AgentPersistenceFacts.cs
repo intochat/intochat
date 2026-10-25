@@ -23,8 +23,8 @@ public sealed class AgentPersistenceFacts
             .ConfigureServices(services =>
             {
                 var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
-                    && Equals(service.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (services, key) =>
+                    && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
+                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
                     new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
             }).StartAsync(ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("posting"));
@@ -64,8 +64,8 @@ public sealed class AgentPersistenceFacts
             .ConfigureServices(services =>
             {
                 var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
-                    && Equals(service.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (services, key) =>
+                    && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
+                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
                     new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
             }).StartAsync(ct);
         var source = AgentFacts.Key("committed");

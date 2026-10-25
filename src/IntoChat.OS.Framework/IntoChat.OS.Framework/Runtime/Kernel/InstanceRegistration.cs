@@ -51,25 +51,33 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
         return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, grainId.Type.ToString()!));
     }
 
-    // Replaces the keyed cluster storage registration with this decorator around it. False when no
-    // cluster storage is registered yet: MS DI cannot decorate a registration that comes later. A
+    // The store legacy neurons persist through: the transitional legacy key where a host registered it (06-02), else the cluster store.
+    public static string StorageKey(IServiceCollection services)
+        => services.Any(descriptor => descriptor.ServiceType == typeof(IGrainStorage) && Equals(descriptor.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage))
+            ? IntoChatOSNames.LegacyClusterGrainStorage
+            : IntoChatOSNames.ClusterGrainStorage;
+
+    // Replaces the keyed legacy-neuron storage registration with this decorator around it. False when no
+    // such storage is registered yet: MS DI cannot decorate a registration that comes later. A
     // registration that is already the decorator stays as it is, so decorating twice wraps once.
     public static bool TryDecorate(IServiceCollection services)
     {
+        var key = StorageKey(services);
         var original = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-            && Equals(descriptor.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
+            && Equals(descriptor.ServiceKey, key));
         if (original is null) { return false; }
         if (original.KeyedImplementationFactory?.Target is Decorated) { return true; }
         services.Remove(original);
-        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, new Decorated(original).Create);
+        services.AddKeyedSingleton<IGrainStorage>(key, new Decorated(original).Create);
         return true;
     }
 
     // Puts back the descriptor TryDecorate wrapped, for a host that recomposes the cluster storage afterwards.
     public static bool TryUndecorate(IServiceCollection services)
     {
+        var key = StorageKey(services);
         var wrapped = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-            && Equals(descriptor.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
+            && Equals(descriptor.ServiceKey, key));
         if (wrapped?.KeyedImplementationFactory?.Target is not Decorated decorated) { return false; }
         services[services.IndexOf(wrapped)] = decorated.Original;
         return true;

@@ -29,9 +29,9 @@ public sealed class GmailFaultControl
     public void Configure(IServiceCollection services)
     {
         var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-            && Equals(descriptor.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
+            && Equals(descriptor.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
         services.Remove(storage);
-        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (provider, key) => new FaultingStorage(
+        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (provider, key) => new FaultingStorage(
             (IGrainStorage)(storage.KeyedImplementationInstance ?? storage.KeyedImplementationFactory?.Invoke(provider, key)
                 ?? ActivatorUtilities.CreateInstance(provider, storage.KeyedImplementationType!)), this));
         var journal = services.Last(descriptor => descriptor.ServiceType == typeof(ISignalJournal));

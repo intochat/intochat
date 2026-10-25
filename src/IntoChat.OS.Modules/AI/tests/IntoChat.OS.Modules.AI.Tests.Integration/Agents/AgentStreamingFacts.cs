@@ -55,7 +55,7 @@ public sealed class AgentStreamingFacts
             Assert.Equal(before.Revision, streaming.Revision);
             streamingVersion = streaming.Version;
             var persisted = new GrainState<AgentStorage>();
-            var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+            var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
             await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("abandoned")), persisted);
             Assert.Equal("partial", persisted.State?.ActiveRun?.Reply);
             Assert.Equal(streaming.Version, persisted.State?.Version);

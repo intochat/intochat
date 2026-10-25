@@ -83,6 +83,7 @@ public static class BrainHosting
     public static bool HasKernelRegistration(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.ClusterGrainStorage) is InstanceRegistration;
+        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage) is InstanceRegistration
+            || services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.ClusterGrainStorage) is InstanceRegistration;
     }
 }

@@ -4,7 +4,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using IntoChat.OS.Framework.Modules;
@@ -16,7 +15,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
-using ClusterStoreHosting = DigitalBrain.Runtime.Orleans.ClusterStoreHosting;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
 namespace IntoChat.OS.Aspire.Server;
@@ -61,15 +59,19 @@ public static class ServerHostingExtensions
         builder.Services.AddHostedService<ModuleStatusLogger>();
         // IntoChatOS:Topology is the one setting that picks clustering, grain stores, streams, reminders and secrets (TOPO-01):
         // the digitalbrain topology is selected and validated before the silo exists, and a partial or unknown setting stops
-        // the host naming every issue. The cluster store stays the os BrainLog (host-bound, 03-CONTEXT R4-10); os modules carry
-        // no ModuleManifest until Phase 6, so the manifest list is empty.
-        ClusterStoreHosting.UseClusterStore(builder, static silo => silo.AddBrainStorage());
-        TopologyHosting.UseTopology(builder, [], RetiredTopologySettings,
+        // the host naming every issue. The cluster store is the runtime BrainLog over the DigitalBrain modules' assemblies
+        // (06-02, R4-09); their manifests pass through UseModuleTopology, which refuses a Need the topology does not bind.
+        // os never calls AddDigitalBrainRuntime itself: ConfigureTopologySilo does.
+        var neuronModules = definition.NeuronModules;
+        builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly).Distinct()]);
+        TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>
         {
-            // The topology first; it runs the host-bound cluster store (BrainLog) last, then the modules compose over it.
+            // The topology first; it runs the host-bound cluster store (BrainLog) last, then the legacy store and journal of
+            // the unmigrated Framework neurons compose over the same logs, then the modules.
             TopologyHosting.ConfigureTopologySilo(silo);
+            silo.AddLegacyStorage();
             // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
             // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
             silo.Services.AddSingleton<global::Orleans.Storage.IGrainStorageSerializer>(static services =>

@@ -47,7 +47,7 @@ public sealed class RedactionFacts
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(state.Runs), StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await agent.Transcript()), StringComparison.Ordinal);
         var persisted = new GrainState<AgentStorage>();
-        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
         await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("main")), persisted);
         var exported = JsonSerializer.Serialize(persisted.State);
         Assert.DoesNotContain(Canary, exported, StringComparison.Ordinal);

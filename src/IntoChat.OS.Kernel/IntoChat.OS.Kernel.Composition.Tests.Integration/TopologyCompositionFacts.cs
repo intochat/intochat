@@ -1,17 +1,16 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Azure;
-using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Storage;
 using Orleans.Streams;
-using BrainStorageHosting = IntoChat.OS.Authority.Storage.BrainStorageHosting;
+using IntoChat.OS.Kernel.Composition;
 using OsNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;
 
 // IntoChatOS:Topology alone composes clustering, grain stores, streams and reminders (TOPO-01); the cluster store is the
-// os BrainLog on every topology (host-bound, 03-CONTEXT R4-10).
+// runtime BrainLog on every topology (host-bound, 06-02 R4-09).
 public sealed class TopologyCompositionFacts
 {
     private static readonly global::Orleans.Runtime.GrainId Probe = global::Orleans.Runtime.GrainId.Create("probe", "topology");
@@ -74,10 +73,18 @@ public sealed class TopologyCompositionFacts
         Assert.Equal("devstoreaccount1", container.AccountName);
     }
 
+    // The runtime BrainLog is the cluster store (06-02, R4-09); unmigrated Framework grains reach the same logs through the
+    // legacy store, which the kernel registration wraps.
     private static void AssertBrainLogIsTheClusterStore(IServiceCollection services, IServiceProvider provider)
     {
-        Assert.True(BrainStorageHosting.IsComposed(services));
+        Assert.True(KernelStorage.IsComposed(services));
         Assert.True(ClusterStoreHosting.HasClusterStore(services));
-        Assert.IsNotType<UnregisteredClusterStorage>(provider.GetRequiredKeyedService<IGrainStorage>(OsNames.ClusterGrainStorage));
+        var cluster = provider.GetRequiredKeyedService<IGrainStorage>(OsNames.ClusterGrainStorage);
+        Assert.Equal("DigitalBrain.Runtime.Orleans.BrainGrainStorage", cluster.GetType().FullName);
+        Assert.NotNull(provider.GetRequiredService<IBrainJournalWriter>());
+        Assert.True(BrainHosting.HasKernelRegistration(provider));
+        Assert.NotNull(provider.GetRequiredKeyedService<IGrainStorage>(OsNames.LegacyClusterGrainStorage));
+        Assert.IsType<LegacyPersistentStateFactory>(provider.GetRequiredService<global::Orleans.Runtime.IPersistentStateFactory>());
+        Assert.IsType<LegacySignalJournal>(provider.GetRequiredService<global::IntoChat.OS.Framework.ISignalJournal>());
     }
 }

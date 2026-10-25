@@ -1,6 +1,5 @@
 {
   "IntoChat.OS.Authority/Neurons/NeuronsService.cs": 2,
-  "IntoChat.OS.Authority/Storage/BrainLogs.cs": 2,
   "IntoChat.OS.Authority/Workshop/WorkshopNeuron.cs": 1,
   "IntoChat.OS.Authority/Workshop/WorkshopSandbox.cs": 1,
   "IntoChat.OS.Client.Orleans/SignalSubscription.cs": 2,

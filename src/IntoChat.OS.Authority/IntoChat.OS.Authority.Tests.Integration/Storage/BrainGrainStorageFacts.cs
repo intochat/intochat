@@ -1,6 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
@@ -87,8 +86,7 @@ public sealed class BrainGrainStorageFacts
         var counter = brain.Get<IPartCounter>(Counter);
         await counter.Increment();
         await counter.Increment();
-        var storage = brain.Services.GetRequiredService<BrainLogs>();
-        var direct = new BrainGrainStorage(storage, brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+        var direct = Storage(brain, IntoChatOSNames.LegacyClusterGrainStorage);
 
         var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
 
@@ -103,7 +101,7 @@ public sealed class BrainGrainStorageFacts
         var counter = brain.Get<IPartCounter>(Counter);
         await counter.Increment();
         await counter.Increment();
-        var direct = new BrainGrainStorage(brain.Services.GetRequiredService<BrainLogs>(), brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+        var direct = Storage(brain, IntoChatOSNames.LegacyClusterGrainStorage);
         var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
         Signal[] signals = [new Signal()];
 

@@ -656,10 +656,10 @@ public sealed class RunFactsFacts
                 services.AddSingleton<ICostMeter>(meter)
                     .AddSingleton<IActivationHandler<BrainRuntimeNeuron>>(activations);
                 var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-                    && Equals(descriptor.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
+                    && Equals(descriptor.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
                 services.Remove(storage);
-                services.AddSingleton(provider => new RecordingWrites((IGrainStorage)storage.KeyedImplementationFactory!(provider, IntoChatOSNames.ClusterGrainStorage), journal));
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (provider, _) => provider.GetRequiredService<RecordingWrites>());
+                services.AddSingleton(provider => new RecordingWrites((IGrainStorage)storage.KeyedImplementationFactory!(provider, IntoChatOSNames.LegacyClusterGrainStorage), journal));
+                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (provider, _) => provider.GetRequiredService<RecordingWrites>());
             })
             .StartAsync(ct);
         try

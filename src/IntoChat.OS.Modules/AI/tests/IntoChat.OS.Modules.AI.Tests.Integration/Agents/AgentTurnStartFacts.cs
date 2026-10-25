@@ -216,8 +216,8 @@ public sealed class AgentTurnStartFacts
     private static Task<ITestBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
         => AgentFacts.Builder(client).ConfigureServices(services =>
         {
-            var original = services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
-            services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (services, key) =>
+            var original = services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
+            services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
                 new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
         }).StartAsync(ct);
 

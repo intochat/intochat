@@ -15,7 +15,7 @@ public sealed class InstanceRegistrationFacts
             .ConfigureServices(services => { InstanceRegistration.TryDecorate(services); InstanceRegistration.TryDecorate(services); })
             .StartAsync(ct);
 
-        var storage = Assert.IsType<InstanceRegistration>(host.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage));
+        var storage = Assert.IsType<InstanceRegistration>(host.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage));
 
         Assert.IsNotType<InstanceRegistration>(storage.Inner);
     }

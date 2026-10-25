@@ -238,7 +238,7 @@ public sealed class SharedConnectionFacts(CirclesHost host)
 
     private static async Task<SealedSecret[]> CopySecrets(ITestBrain machine, string copy)
     {
-        var storage = machine.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+        var storage = machine.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
         var state = new GrainState<SharedState>();
         await storage.ReadStateAsync("shared", Grains(machine).GetConnection(copy).GetGrainId(), state);
         return state.State!.Secrets;

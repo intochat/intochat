@@ -7,6 +7,8 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Storage;
 
+// A brain's data key (brain.key in its store directory), wrapped by the master key custody. The runtime BrainLog keeps its
+// segments under the same key with the same scheme (moved there in 04-05); the os still seals brain secrets with it.
 internal sealed class BrainStorageKeys(IMasterKeyCustody custody, IOptions<BrainStoreOptions> options)
 {
     private readonly Lock gate = new();
@@ -31,7 +33,11 @@ internal sealed class BrainStorageKeys(IMasterKeyCustody custody, IOptions<Brain
             { throw new CryptographicException("The brain key is missing; existing state must not be opened with a replacement key."); }
             var key = RandomNumberGenerator.GetBytes(32);
             var pending = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            BrainLog.WriteFlushed(pending, custody.Wrap(brainId, context, key));
+            using (var stream = new FileStream(pending, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(custody.Wrap(brainId, context, key));
+                stream.Flush(flushToDisk: true);
+            }
             try { File.Move(pending, path); }
             catch (IOException) when (File.Exists(path)) { File.Delete(pending); return Task.FromResult(custody.Unwrap(brainId, context, File.ReadAllBytes(path))); }
             return Task.FromResult(key);

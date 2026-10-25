@@ -1,20 +1,18 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Storage;
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Kernel.Composition;
 using Microsoft.Extensions.Hosting;
-using Orleans.Storage;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
 public sealed class OsStorageFacts
 {
+    // The kernel storage hands the runtime BrainLog to the host-bound cluster seam, and the brain keys to the os custody.
     [Fact]
-    public void LocalStorageIsRegisteredWithoutAMachineRole()
+    public void KernelStorageRegistersTheRuntimeBrainLogAsTheClusterStore()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.AddBrainStorage();
-        Assert.Contains(builder.Services, service => service.ServiceType == typeof(IGrainStorage)
-            && Equals(service.ServiceKey, IntoChatOSNames.ClusterGrainStorage));
-        Assert.Contains(builder.Services, service => service.ServiceType == typeof(ISignalJournal));
+        builder.UseKernelStorage([]);
+        Assert.True(ClusterStoreHosting.HasClusterStore(builder.Services));
+        Assert.Contains(builder.Services, service => service.ServiceType == typeof(IBrainKeyCustody));
     }
 }

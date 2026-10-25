@@ -50,6 +50,23 @@ public sealed class IntoChatOSServerBuilder
 
     public IntoChatOSServerBuilder UseOrleansDashboard() { Dashboard = true; return this; }
 
+    private readonly List<Type> _neuronModules = [];
+
+    // A DigitalBrain module (a [Module] class with a static ModuleManifest): its plain [Neuron] classes run on the runtime's
+    // host grains beside the Framework modules, and its manifest's Needs are validated against the topology at start (06-02).
+    public IntoChatOSServerBuilder AddNeuronModule(Type moduleType)
+    {
+        ArgumentNullException.ThrowIfNull(moduleType);
+        if (!typeof(DigitalBrain.Module).IsAssignableFrom(moduleType))
+        { throw new ArgumentException($"{moduleType.FullName} is not a DigitalBrain module.", nameof(moduleType)); }
+        if (!_neuronModules.Contains(moduleType)) { _neuronModules.Add(moduleType); }
+        return this;
+    }
+
+    public IntoChatOSServerBuilder AddNeuronModule<TModule>() where TModule : DigitalBrain.Module => AddNeuronModule(typeof(TModule));
+
+    internal IReadOnlyList<Type> NeuronModules => _neuronModules;
+
     // Registered modules run; configuration can only subtract (Enabled=false) — and a
     // configuration that affirms a module this server never registered is a deployment bug.
     // A module with a LicenseProduct also needs a valid licence: without one it is subtracted and

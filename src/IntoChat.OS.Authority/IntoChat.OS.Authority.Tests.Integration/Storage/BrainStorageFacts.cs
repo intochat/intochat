@@ -1,6 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;
@@ -41,7 +40,7 @@ public sealed class BrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        Assert.NotNull(brain.Services.GetService<BrainLogs>());
+        Assert.NotNull(brain.Services.GetService<DigitalBrain.Runtime.Orleans.IBrainJournalWriter>());
         using (brain.Owner.AsCaller()) { await brain.Get<ILocalCounter>("owner/apps/counter").Set(17); }
         var before = await brain.Services.GetRequiredService<ISignalJournal>().ReadSince("owner", 0, 1000);
         var changed = Assert.Single(before, item => item.Signal is LocalChanged);

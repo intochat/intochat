@@ -46,8 +46,6 @@ $archProject = Find-One 'src/**/*Architecture.Tests.Unit.csproj' 'architecture t
 $flutterProject = Find-One 'src/**/*Modules.Flutter.Tests.Integration.csproj' 'flutter integration test project'
 $archDir = Split-Path $archProject
 $flutterContracts = Join-Path (Split-Path $flutterProject) 'Contracts'
-$fixtureManifest = @(git ls-files -- 'src/**/Storage/Fixtures/*/fixture.json')
-if ($fixtureManifest.Count -ne 1) { throw "Expected exactly one storage fixture manifest, found $($fixtureManifest.Count)." }
 
 # Build switches: every *Nightly property the repository defines is turned off; code graph refresh is off.
 $props = Get-Content (Join-Path $root 'Directory.Build.props') -Raw
@@ -164,8 +162,6 @@ if ($Out) {
     New-Item -ItemType Directory -Force -Path $Out | Out-Null
     $copies = [ordered]@{}
     foreach ($name in $pins.Keys) { $copies[$name] = $pins[$name] }
-    $copies['Golden.cs'] = Join-Path $root 'src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/Storage/Golden.cs'
-    $copies['fixture.json'] = Join-Path $root $fixtureManifest[0]
     foreach ($name in $copies.Keys) {
         # Normalise line endings so snapshots compare equal on any checkout.
         $text = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($copies[$name])).Replace("`r`n", "`n")

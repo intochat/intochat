@@ -1,5 +1,7 @@
 namespace IntoChat.OS.Authority.Storage;
 
+// The os side of the brain store (06-02): where the runtime BrainLog lives and the master key custody checks. The runtime
+// owns the log, its format and its writer ownership (the cloud profile's blob lease); Ownership:* keys are no longer read here.
 public sealed class BrainStoreOptions
 {
     public const string Key = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BrainStorageConfigurationKey;
@@ -7,27 +9,4 @@ public sealed class BrainStoreOptions
     public string Directory { get; set; } = DigitalBrain.Runtime.Orleans.StateHome.Default().State;
     public IntoChat.OS.Framework.Parts.MasterKeyCustodyKind Custody { get; set; }
     public bool ConfiguredCustodyAcknowledged { get; set; }
-    // Framed everywhere (Kernel and AppHost settings agree); BrainLog.DetectFormat still reads Legacy logs.
-    public BrainLogFormat WriteFormat { get; set; } = BrainLogFormat.Framed;
-    public BrainLogOwnershipOptions Ownership { get; set; } = new();
-}
-
-// Bound by name from Ownership:Kind; deployment writes the name explicitly for either mode.
-public enum BrainLogOwnershipKind { WriterLock = 0, BlobLease = 1 }
-
-// WriterLock (the default) keeps the local writer.lock; BlobLease proves single-writer ownership across replicas sharing a file share.
-public sealed class BrainLogOwnershipOptions
-{
-    public BrainLogOwnershipKind Kind { get; set; } = BrainLogOwnershipKind.WriterLock;
-    // The lease container, reached with the host's TokenCredential (managed identity in Azure).
-    public Uri? ContainerUri { get; set; }
-    // Alternative to ContainerUri for development storage; ContainerName names the container inside it.
-    public string? ConnectionString { get; set; }
-    public string ContainerName { get; set; } = "brainlease-v1";
-    // A user-assigned managed identity's client id; AZURE_CLIENT_ID is the fallback.
-    public string? ManagedIdentityClientId { get; set; }
-    // How long one claim waits for a held lease. It stays inside the Orleans call timeout; a longer handover is the caller's retry.
-    public TimeSpan ClaimTimeout { get; set; } = TimeSpan.FromSeconds(25);
-    // The longest one journal or checkpoint write may take before the lease counts as lost; well under the 20 s fence margin.
-    public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(10);
 }

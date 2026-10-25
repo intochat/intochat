@@ -95,7 +95,7 @@ public sealed class PostgresWriteTableFacts
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IIncomingGrainCallFilter>(race);
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, race);
+                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, race);
             }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
         var table = brain.Get<ITable>("race");

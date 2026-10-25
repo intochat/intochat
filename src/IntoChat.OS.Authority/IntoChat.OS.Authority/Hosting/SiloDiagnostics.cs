@@ -106,7 +106,8 @@ public static class SiloDiagnostics
             provider.GetService<IOptions<ClusterOptions>>()?.Value.ClusterId,
             Revision(configuration),
             Environment.MachineName,
-            new SiloStorage(hosted ? "hosted" : "local", store.WriteFormat.ToString()),
+            // The runtime BrainLog writes one format (DBLG 0x02, JSON payloads) since 06-02.
+            new SiloStorage(hosted ? "hosted" : "local", "Json"),
             (provider.GetService<IBrainOwnershipCounters>() ?? new NoBrainOwnershipCounters()).Snapshot());
     }
 
