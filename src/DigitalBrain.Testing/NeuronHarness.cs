@@ -1,4 +1,4 @@
-using System.Reflection;
+using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
 
@@ -11,10 +11,10 @@ public static class NeuronHarness
     {
         var neuron = new TNeuron();
         var context = new FakeNeuronContext(id);
-        neuron.Attach(context);
+        NeuronAttachment.Attach(neuron, context);
         context.Reminders.Target = neuron;
         var harness = new NeuronHarness<TNeuron>(neuron, context);
-        await harness.Invoke("OnActivate", [cancellationToken]).ConfigureAwait(false);
+        await NeuronAttachment.Activate(neuron, cancellationToken).ConfigureAwait(false);
         return harness;
     }
 }
@@ -36,7 +36,7 @@ public sealed class NeuronHarness<TNeuron> where TNeuron : Neuron
 
     /// <summary>Runs the neuron's deactivation.</summary>
     public Task Deactivate(DeactivationCause cause = DeactivationCause.Requested, CancellationToken cancellationToken = default)
-        => Invoke("OnDeactivate", [cause, cancellationToken]);
+        => NeuronAttachment.Deactivate(Neuron, cause, cancellationToken);
 
     /// <summary>Passes when a published signal of the type matches; otherwise fails listing what was published.</summary>
     /// <exception cref="NeuronAssertionException">No published signal matches.</exception>
@@ -54,20 +54,6 @@ public sealed class NeuronHarness<TNeuron> where TNeuron : Neuron
         if (Context.Published.Count > 0)
         {
             throw new NeuronAssertionException($"Expected no signals. Published: [{string.Join(", ", Context.Published)}]");
-        }
-    }
-
-    internal Task Invoke(string method, object?[] arguments)
-    {
-        var info = typeof(Neuron).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"Neuron.{method} is missing.");
-        try
-        {
-            return (Task)info.Invoke(Neuron, arguments)!;
-        }
-        catch (TargetInvocationException error) when (error.InnerException is not null)
-        {
-            return Task.FromException(error.InnerException);
         }
     }
 }

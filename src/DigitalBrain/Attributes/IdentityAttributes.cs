@@ -6,6 +6,9 @@ public sealed class NeuronAttribute(string type) : Attribute
 {
     /// <summary>The frozen neuron type name.</summary>
     public string Type { get; } = type;
+
+    /// <summary>The frozen persisted state name, or null for the default. Set it when a class moves so stored keys never move.</summary>
+    public string? State { get; init; }
 }
 
 /// <summary>Marks a signal record. The alias is frozen: it is written into persisted payloads.</summary>

@@ -25,22 +25,35 @@ public sealed class ManualTime : TimeProvider
 /// <summary>Neuron state held in memory.</summary>
 public sealed class InMemoryNeuronState : INeuronState
 {
+    private readonly Action<IReadOnlyList<Signal>>? _saved;
+    private readonly List<Signal> _signals = [];
     private object? _value;
+
+    /// <summary>State on its own.</summary>
+    public InMemoryNeuronState() { }
+
+    internal InMemoryNeuronState(Action<IReadOnlyList<Signal>> saved) => _saved = saved;
+
+    /// <summary>Every signal saved with a state change, in order.</summary>
+    public IReadOnlyList<Signal> Signals => _signals;
 
     /// <summary>True when a value is stored.</summary>
     public bool Exists => _value is not null;
 
-    /// <summary>How many times <see cref="Save{T}(T)"/> ran.</summary>
+    /// <summary>How many times <see cref="Save{T}(T, IReadOnlyList{Signal})"/> ran.</summary>
     public int Saves { get; private set; }
 
     /// <inheritdoc />
     public Task<T?> Load<T>() => Task.FromResult(_value is T value ? value : default);
 
     /// <inheritdoc />
-    public Task Save<T>(T state)
+    public Task Save<T>(T next, IReadOnlyList<Signal> signals)
     {
-        _value = state;
+        ArgumentNullException.ThrowIfNull(signals);
+        _value = next;
         Saves++;
+        _signals.AddRange(signals);
+        _saved?.Invoke(signals);
         return Task.CompletedTask;
     }
 
@@ -228,11 +241,13 @@ public sealed class FakeCapabilityBroker : ICapabilityBroker
 public sealed class FakeNeuronContext : INeuronContext
 {
     private readonly List<Signal> _published = [];
+    private readonly List<Func<Task>> _deferred = [];
 
     /// <summary>A context for the neuron with this id.</summary>
     public FakeNeuronContext(NeuronId id, IServiceProvider? services = null)
     {
         Id = id;
+        MemoryState = new InMemoryNeuronState(_published.AddRange);
         Services = services ?? EmptyServices.Instance;
         Timers = new ManualTimers(Clock);
     }
@@ -250,7 +265,7 @@ public sealed class FakeNeuronContext : INeuronContext
     public TimeProvider Time => Clock;
 
     /// <summary>The in-memory state.</summary>
-    public InMemoryNeuronState MemoryState { get; } = new();
+    public InMemoryNeuronState MemoryState { get; }
 
     /// <inheritdoc />
     public INeuronState State => MemoryState;
@@ -278,7 +293,7 @@ public sealed class FakeNeuronContext : INeuronContext
     /// <summary>The proxies <see cref="Get{T}(NeuronId)"/> returns.</summary>
     public FakeNeuronProxies Proxies { get; } = new();
 
-    /// <summary>Every signal published, in order.</summary>
+    /// <summary>Every signal published, alone or with a state change, in order.</summary>
     public IReadOnlyList<Signal> Published => _published;
 
     /// <inheritdoc />
@@ -291,6 +306,21 @@ public sealed class FakeNeuronContext : INeuronContext
 
     /// <inheritdoc />
     public T Get<T>(NeuronId id) where T : class => Proxies.Get<T>(id);
+
+    /// <inheritdoc />
+    public void Defer(Func<Task> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        _deferred.Add(work);
+    }
+
+    /// <summary>Runs the deferred work in order, as a runtime does when a turn ends.</summary>
+    public async Task RunDeferred()
+    {
+        var work = _deferred.ToList();
+        _deferred.Clear();
+        foreach (var item in work) { await item().ConfigureAwait(false); }
+    }
 
     private sealed class EmptyServices : IServiceProvider
     {

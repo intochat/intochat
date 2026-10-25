@@ -44,7 +44,8 @@ public sealed class CoreVocabularyFacts
         var spi = typeof(Signal).Assembly.GetExportedTypes().Where(t => t.Namespace == "DigitalBrain.Spi").ToList();
 
         Assert.NotEmpty(spi);
-        Assert.All(spi, t => Assert.True(t.IsInterface, t.FullName));
+        // Interfaces, plus static entry points a runtime calls (NeuronAttachment).
+        Assert.All(spi, t => Assert.True(t.IsInterface || (t.IsAbstract && t.IsSealed), t.FullName));
     }
 
     [Fact]
@@ -62,9 +63,9 @@ public sealed class CoreVocabularyFacts
         var neuron = new Counter();
         var context = new NullContext();
 
-        neuron.Attach(context);
+        NeuronAttachment.Attach(neuron, context);
 
-        Assert.Throws<InvalidOperationException>(() => neuron.Attach(context));
+        Assert.Throws<InvalidOperationException>(() => NeuronAttachment.Attach(neuron, context));
         Assert.Equal(0, neuron.Value);
         Assert.Equal(context.Id, neuron.Identity);
     }
@@ -72,7 +73,7 @@ public sealed class CoreVocabularyFacts
     [Fact]
     public void Attach_rejects_null()
     {
-        Assert.Throws<ArgumentNullException>(() => new Counter().Attach(null!));
+        Assert.Throws<ArgumentNullException>(() => NeuronAttachment.Attach(new Counter(), null!));
     }
 
     [Fact]
@@ -110,5 +111,6 @@ public sealed class CoreVocabularyFacts
         public ISynapses Synapses => throw new NotSupportedException();
         public Task Publish(Signal signal) => Task.CompletedTask;
         public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
+        public void Defer(Func<Task> work) => throw new NotSupportedException();
     }
 }

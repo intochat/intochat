@@ -30,10 +30,8 @@ public sealed class SampleNeuron : Neuron<Counter>, IRemindedNeuron
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Load();
-        State.Count++;
-        await Save();
-        await Publish(new Pinged(State.Count));
+        var next = new Counter { Count = State.Count + 1 };
+        await Save(next, new Pinged(next.Count));
     }
 
     protected override Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken)
@@ -86,7 +84,8 @@ public sealed class TestingFacts
     public async Task State_saves_loads_and_clears()
     {
         var state = new InMemoryNeuronState();
-        await state.Save(new Counter { Count = 3 });
+        await state.Save(new Counter { Count = 3 }, [new Pinged(3)]);
+        Assert.Equal([new Pinged(3)], state.Signals);
         Assert.Equal(3, (await state.Load<Counter>())!.Count);
         await state.Clear();
         Assert.Null(await state.Load<Counter>());

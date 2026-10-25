@@ -8,7 +8,7 @@ namespace DigitalBrain;
 public sealed class InterleavesAttribute : Attribute;
 
 /// <summary>Names a static predicate on the class that decides, per call, whether the call may interleave.</summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = true)]
 public sealed class InterleavesWhenAttribute(string predicate) : Attribute
 {
     /// <summary>The name of the static predicate.</summary>
@@ -42,5 +42,9 @@ public sealed class CallTimeoutAttribute : Attribute
 }
 
 /// <summary>Opts a neuron class into reentrancy: any call may interleave with any other.</summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = true)]
 public sealed class ReentrantAttribute : Attribute;
+
+/// <summary>Marks a neuron class that keeps no state: the host may run many activations of it and route calls to any.</summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class StatelessNeuronAttribute : Attribute;

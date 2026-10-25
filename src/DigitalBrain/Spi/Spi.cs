@@ -32,8 +32,11 @@ public interface INeuronContext
     /// <summary>Publishes a signal from this neuron.</summary>
     Task Publish(Signal signal);
 
-    /// <summary>A typed proxy to another neuron.</summary>
+    /// <summary>A typed interface to another neuron of the same brain.</summary>
     T Get<T>(NeuronId id) where T : class;
+
+    /// <summary>Runs <paramref name="work"/> after the current turn ends.</summary>
+    void Defer(Func<Task> work);
 }
 
 /// <summary>A neuron's persisted state.</summary>
@@ -42,8 +45,11 @@ public interface INeuronState
     /// <summary>The stored state, or default when none exists.</summary>
     Task<T?> Load<T>();
 
-    /// <summary>Stores the state.</summary>
-    Task Save<T>(T state);
+    /// <summary>
+    /// Stores <paramref name="next"/> and journals <paramref name="signals"/>, in order, as one journal entry:
+    /// either both are durable or neither is. Signals reach subscribers only after the entry is durable.
+    /// </summary>
+    Task Save<T>(T next, IReadOnlyList<Signal> signals);
 
     /// <summary>Deletes the stored state.</summary>
     Task Clear();

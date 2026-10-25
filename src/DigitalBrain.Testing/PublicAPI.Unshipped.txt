@@ -5,6 +5,7 @@ DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! ins
 DigitalBrain.Testing.FakeCapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
 DigitalBrain.Testing.FakeNeuronContext
 DigitalBrain.Testing.FakeNeuronContext.Clock.get -> DigitalBrain.Testing.ManualTime!
+DigitalBrain.Testing.FakeNeuronContext.Defer(System.Func<System.Threading.Tasks.Task!>! work) -> void
 DigitalBrain.Testing.FakeNeuronContext.FakeNeuronContext(DigitalBrain.NeuronId id, System.IServiceProvider? services = null) -> void
 DigitalBrain.Testing.FakeNeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Testing.FakeNeuronContext.Id.get -> DigitalBrain.NeuronId
@@ -14,6 +15,7 @@ DigitalBrain.Testing.FakeNeuronContext.Proxies.get -> DigitalBrain.Testing.FakeN
 DigitalBrain.Testing.FakeNeuronContext.Publish(DigitalBrain.Signal! signal) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.FakeNeuronContext.Published.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
 DigitalBrain.Testing.FakeNeuronContext.Reminders.get -> DigitalBrain.Testing.ManualReminders!
+DigitalBrain.Testing.FakeNeuronContext.RunDeferred() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.FakeNeuronContext.Services.get -> System.IServiceProvider!
 DigitalBrain.Testing.FakeNeuronContext.State.get -> DigitalBrain.Spi.INeuronState!
 DigitalBrain.Testing.FakeNeuronContext.Synapses.get -> DigitalBrain.Testing.RecordingSynapses!
@@ -33,8 +35,9 @@ DigitalBrain.Testing.InMemoryNeuronState.Clear() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.InMemoryNeuronState.Exists.get -> bool
 DigitalBrain.Testing.InMemoryNeuronState.InMemoryNeuronState() -> void
 DigitalBrain.Testing.InMemoryNeuronState.Load<T>() -> System.Threading.Tasks.Task<T?>!
-DigitalBrain.Testing.InMemoryNeuronState.Save<T>(T state) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.InMemoryNeuronState.Save<T>(T next, System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! signals) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.InMemoryNeuronState.Saves.get -> int
+DigitalBrain.Testing.InMemoryNeuronState.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
 DigitalBrain.Testing.ManualReminders
 DigitalBrain.Testing.ManualReminders.Fire(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
