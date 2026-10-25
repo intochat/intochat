@@ -84,7 +84,55 @@ DigitalBrain.Testing.RecordingSynapses.RecordingSynapses(DigitalBrain.NeuronId s
 DigitalBrain.Testing.RecordingSynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.RecordingSynapses.Subscriber.get -> DigitalBrain.NeuronId
 DigitalBrain.Testing.SiloHost
+DigitalBrain.Testing.TestClock
+DigitalBrain.Testing.TestClock.Advance(System.TimeSpan by) -> void
+DigitalBrain.Testing.TestClock.TestClock(System.DateTimeOffset? start = null) -> void
+DigitalBrain.Testing.TestJournal
+DigitalBrain.Testing.TestJournal.Brain.get -> DigitalBrain.BrainId
+DigitalBrain.Testing.TestJournal.Floor(DigitalBrain.NeuronId publisher) -> long
+DigitalBrain.Testing.TestJournal.Last(DigitalBrain.NeuronId publisher) -> long
+DigitalBrain.Testing.TestJournal.Read(DigitalBrain.NeuronId publisher, long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
+DigitalBrain.Testing.TestJournal.Read(long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
+DigitalBrain.Testing.TestJournal.Saves.get -> int
+DigitalBrain.Testing.TestJournal.Signals(DigitalBrain.NeuronId publisher) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>!
+DigitalBrain.Testing.TestOS
+DigitalBrain.Testing.TestOS.Activate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.Clock.get -> DigitalBrain.Testing.TestClock!
+DigitalBrain.Testing.TestOS.Cursor(DigitalBrain.NeuronId subscriber, DigitalBrain.NeuronId source) -> long?
+DigitalBrain.Testing.TestOS.Deactivate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.DisposeAsync() -> System.Threading.Tasks.ValueTask
+DigitalBrain.Testing.TestOS.DuplicatesDropped.get -> long
+DigitalBrain.Testing.TestOS.Failures.get -> System.Collections.Generic.IReadOnlyCollection<System.Exception!>!
+DigitalBrain.Testing.TestOS.ForceCheckpoint(DigitalBrain.BrainId brain) -> void
+DigitalBrain.Testing.TestOS.Get<T>(DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Testing.TestOS.Idle() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.IsActive(DigitalBrain.NeuronId id) -> bool
+DigitalBrain.Testing.TestOS.Journal(DigitalBrain.BrainId brain) -> DigitalBrain.Testing.TestJournal!
+DigitalBrain.Testing.TestOS.Options.get -> DigitalBrain.Testing.TestOSOptions!
+DigitalBrain.Testing.TestOS.Register(System.Reflection.Assembly! assembly) -> DigitalBrain.Testing.TestOS!
+DigitalBrain.Testing.TestOS.Register<TNeuron>() -> DigitalBrain.Testing.TestOS!
+DigitalBrain.Testing.TestOS.Services.get -> System.IServiceProvider!
+DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
+DigitalBrain.Testing.TestOSOptions
+DigitalBrain.Testing.TestOSOptions.CallTimeout.get -> System.TimeSpan
+DigitalBrain.Testing.TestOSOptions.CallTimeout.set -> void
+DigitalBrain.Testing.TestOSOptions.DuplicateDelivery.get -> bool
+DigitalBrain.Testing.TestOSOptions.DuplicateDelivery.set -> void
+DigitalBrain.Testing.TestOSOptions.HistoryWindowAge.get -> System.TimeSpan
+DigitalBrain.Testing.TestOSOptions.HistoryWindowAge.set -> void
+DigitalBrain.Testing.TestOSOptions.HistoryWindowSignals.get -> int
+DigitalBrain.Testing.TestOSOptions.HistoryWindowSignals.set -> void
+DigitalBrain.Testing.TestOSOptions.Services.get -> System.IServiceProvider?
+DigitalBrain.Testing.TestOSOptions.Services.set -> void
+DigitalBrain.Testing.TestOSOptions.StaleCursorAfter.get -> System.TimeSpan
+DigitalBrain.Testing.TestOSOptions.StaleCursorAfter.set -> void
+DigitalBrain.Testing.TestOSOptions.Start.get -> System.DateTimeOffset?
+DigitalBrain.Testing.TestOSOptions.Start.set -> void
+DigitalBrain.Testing.TestOSOptions.TestOSOptions() -> void
 const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory, DigitalBrain.Runtime.Orleans" -> string!
 override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
+override DigitalBrain.Testing.TestClock.CreateTimer(System.Threading.TimerCallback! callback, object? state, System.TimeSpan dueTime, System.TimeSpan period) -> System.Threading.ITimer!
+override DigitalBrain.Testing.TestClock.GetUtcNow() -> System.DateTimeOffset
 static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.NeuronHarness<TNeuron!>!>!
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
+static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
