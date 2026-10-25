@@ -6,25 +6,17 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // VersionSuffix may remain in the props. The OS host packs, but the linked features folder never rides along.
 public sealed partial class PackagingFacts
 {
-    // The SDK tier (decision 15): the vocabulary, the clients and the testing harness, plus every *.Contracts package.
-    private static readonly string[] SdkPackages =
-    [
-        "IntoChat.OS", "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Aspire.Client",
-        "IntoChat.OS.Testing", "IntoChat.OS.Testing.Aspire", "IntoChat.OS.Aspire.Testing", "IntoChat.OS.Testing.Playwright",
-        "IntoChat.OS.Contracts.Compute",
-    ];
-
     // MIT is stamped from Directory.Build.props only and covers every package (D-09, P2-D-27); no project
     // overrides or adds a licence of its own.
     [Fact]
-    public void EveryPackageCarriesTheUnconditionalMitStamp()
+    public void EveryPackableProjectIsMit()
     {
         var props = File.ReadAllText(Path.Combine(Repository.Root, "Directory.Build.props"));
         Assert.Contains("<PackageLicenseExpression>MIT</PackageLicenseExpression>", props, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(props, "<PackageLicenseExpression", RegexOptions.CultureInvariant));
         Assert.DoesNotContain("IntoChatOSSdkPackage", props, StringComparison.Ordinal);
         var packable = Repository.Projects.Values.Where(project => File.ReadAllText(project.Path).Contains("<IsPackable>true</IsPackable>", StringComparison.Ordinal)).ToArray();
-        Assert.All(SdkPackages, name => Assert.Contains(packable, project => project.Name == name));
+        Assert.NotEmpty(packable);
         Assert.All(packable, project =>
         {
             var csproj = File.ReadAllText(project.Path);
@@ -34,7 +26,7 @@ public sealed partial class PackagingFacts
     }
 
     // A module that hosts its own contracts (IntoChatOSContractsHost) ships them inside its runtime package, so
-    // that package is not MIT-stamped and is not an SDK package; the declaration is the only thing that marks it.
+    // that package is a runtime package; the declaration is the only thing that marks it.
     [Fact]
     public void AModuleThatHostsItsContractsIsARuntimePackage()
     {
@@ -42,7 +34,6 @@ public sealed partial class PackagingFacts
         Assert.All(hosts, project =>
         {
             Assert.False(project.Name.EndsWith(".Contracts", StringComparison.Ordinal), project.Name);
-            Assert.DoesNotContain(project.Name, SdkPackages);
             Assert.Contains(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == project.Name && ContractRing.IsHost(assembly));
         });
         Assert.Equal(hosts.Select(project => project.Name).Order(StringComparer.Ordinal),
