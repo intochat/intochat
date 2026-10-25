@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Storage;
 
 namespace DigitalBrain.Runtime.Orleans;
 
@@ -68,6 +70,26 @@ public static class TopologyValidator
                 $"module {entry.Module.Id ?? "(unnamed)"}",
                 $"needs {entry.Need.Kind}{(entry.Need.Name is null ? string.Empty : $"({entry.Need.Name})")}, which Topology={topology.ToConfigValue()} does not bind.")));
         return issues;
+    }
+
+    /// <summary>
+    /// The PubSubStore durability rule (RT-06, 04 D-09): a missing <c>PubSubStore</c> fails every topology; a memory-backed one
+    /// fails outside <c>local</c>, because subscriptions would be lost on restart.
+    /// </summary>
+    public static IReadOnlyList<TopologyIssue> ValidatePubSubStore(Topology topology, IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        var key = $"grain store {IntoChatOSNames.PubSubStore}";
+        var store = services.GetKeyedService<IGrainStorage>(IntoChatOSNames.PubSubStore);
+        if (store is null)
+        {
+            return [new TopologyIssue(key, $"is not registered under Topology={topology.ToConfigValue()}; stream subscriptions need it.")];
+        }
+        if (store is MemoryGrainStorage && topology != Topology.Local)
+        {
+            return [new TopologyIssue(key, $"is memory-backed under Topology={topology.ToConfigValue()}; it must be durable outside local.")];
+        }
+        return [];
     }
 
     internal static (Topology? Topology, IReadOnlyList<TopologyIssue> Issues, IReadOnlyList<string> Warnings) Evaluate(

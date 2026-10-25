@@ -3,7 +3,9 @@ using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Orleans;
 using Orleans.Hosting;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans;
 
@@ -100,6 +102,7 @@ public static class TopologyHosting
         selected.ConfigureSilo(silo, context);
         // The host-bound cluster store goes last, so it replaces any cluster registration the topology made.
         foreach (var registration in ClusterStoreHosting.Registrations(silo.Services)) { registration.Register(silo); }
+        silo.Services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>>(sp => new PubSubStoreCheck(context.Topology, sp));
         return silo;
     }
 

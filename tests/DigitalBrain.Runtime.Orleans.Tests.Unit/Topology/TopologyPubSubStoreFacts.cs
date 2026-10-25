@@ -48,7 +48,7 @@ public sealed class TopologyPubSubStoreFacts
     public void Local_with_the_file_store_passes()
     {
         using var home = new TempDirectory();
-        using var services = With(new FileGrainStorage(IntoChatOSNames.PubSubStore, home.Path, "facts", null!));
+        using var services = With(new FileGrainStorage(IntoChatOSNames.PubSubStore, home.Path, "facts", new NoSerializer()));
         Assert.Empty(TopologyValidator.ValidatePubSubStore(Topology.Local, services));
     }
 
@@ -79,6 +79,13 @@ public sealed class TopologyPubSubStoreFacts
         Assert.IsType<PersistentStreamProvider>(host.Services.GetRequiredKeyedService<IStreamProvider>(IntoChatOSNames.SignalStreams));
         Assert.Contains("Memory", host.Services.GetRequiredKeyedService<IQueueAdapterFactory>(IntoChatOSNames.SignalStreams).GetType().Name, StringComparison.Ordinal);
         Assert.Empty(TopologyValidator.ValidatePubSubStore(topology, host.Services));
+    }
+
+    private sealed class NoSerializer : IGrainStorageSerializer
+    {
+        public BinaryData Serialize<T>(T? input) => throw new NotSupportedException();
+
+        public T Deserialize<T>(BinaryData input) => throw new NotSupportedException();
     }
 
     private sealed class TempDirectory : IDisposable
