@@ -96,7 +96,7 @@ internal sealed class BrainLog : IAsyncDisposable
         {
             RequireOpen();
             return records.TryGetValue(grainId, out var states) && states.TryGetValue(stateName, out var record)
-                ? new BrainRecord((byte[])record.Record.Clone(), record.ETag) : null;
+                ? record with { Record = (byte[])record.Record.Clone() } : null;
         }
         finally { gate.Release(); }
     }
@@ -117,9 +117,20 @@ internal sealed class BrainLog : IAsyncDisposable
         byte[] record, string publisher, IReadOnlyList<Signal> emitted, BrainSideWrite? side, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(emitted);
-        if (emitted.Count > 0) { ArgumentException.ThrowIfNullOrEmpty(publisher); }
         // Encoding runs before the gate: a payload that cannot be journaled never reaches the disk.
         JournaledSignalPayload[] encoded = [.. emitted.Select(payloads.EncodeSignal)];
+        return await AppendEncoded(grainId, stateName, expectedETag, change, record, null, publisher, encoded, side, ct);
+    }
+
+    /// <summary>
+    /// Appends one entry whose signals are already encoded (alias plus JSON) and whose record is opaque, optionally naming its state
+    /// type: the write path of <see cref="IBrainJournalWriter"/> (04-17), in the same format as every other entry.
+    /// </summary>
+    internal async Task<(long Sequence, long LastSignal)> AppendEncoded(string grainId, string stateName, long? expectedETag, BrainRecordChange change,
+        byte[] record, string? recordType, string publisher, JournaledSignalPayload[] encoded, BrainSideWrite? side, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(encoded);
+        if (encoded.Length > 0) { ArgumentException.ThrowIfNullOrEmpty(publisher); }
         await gate.WaitAsync(ct);
         try
         {
@@ -136,7 +147,8 @@ internal sealed class BrainLog : IAsyncDisposable
             }
             var last = encoded.Length > 0 ? marks.GetValueOrDefault(publisher).Last : 0;
             var entry = new BrainEntry(checked(sequence + 1), grainId, stateName, change, record, encoded.Length > 0 ? publisher : "", encoded,
-                checked(last + 1), checked(position + 1), time.GetUtcNow().ToUnixTimeMilliseconds(), side?.StateName, side?.Record);
+                checked(last + 1), checked(position + 1), time.GetUtcNow().ToUnixTimeMilliseconds(), side?.StateName, side?.Record,
+                change == BrainRecordChange.Write ? recordType : null);
             var plain = serializer.SerializeToArray(entry);
             if (plain.Length > MaxEntryBytes) { throw new ArgumentException("A brain change exceeds 16 MiB.", nameof(record)); }
             var bytes = SegmentSeal.Close(key, Context("log"), plain);
@@ -414,7 +426,7 @@ internal sealed class BrainLog : IAsyncDisposable
         if (entry.Change == BrainRecordChange.Write)
         {
             if (!records.TryGetValue(entry.GrainId, out var states)) { records[entry.GrainId] = states = new(StringComparer.Ordinal); }
-            states[entry.StateName] = new BrainRecord(entry.Record, entry.Sequence);
+            states[entry.StateName] = new BrainRecord(entry.Record, entry.Sequence, entry.RecordType);
         }
         else if (entry.Change == BrainRecordChange.Clear) { records.GetValueOrDefault(entry.GrainId)?.Remove(entry.StateName); }
         if (entry.SideStateName is { } side && entry.SideRecord is { } sideRecord)
@@ -424,7 +436,7 @@ internal sealed class BrainLog : IAsyncDisposable
         }
         if (entry.Signals.Length > 0)
         {
-            signals.Add(entry with { Record = [], StateName = "", GrainId = "", Change = BrainRecordChange.None, SideStateName = null, SideRecord = null });
+            signals.Add(entry with { Record = [], StateName = "", GrainId = "", Change = BrainRecordChange.None, SideStateName = null, SideRecord = null, RecordType = null });
             marks[entry.Publisher] = marks.GetValueOrDefault(entry.Publisher) with { Last = entry.FirstSignal + entry.Signals.Length - 1 };
             position = entry.FirstPosition + entry.Signals.Length - 1;
         }
