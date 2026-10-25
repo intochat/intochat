@@ -142,5 +142,8 @@
   ],
   "IntoChat.OS.Kernel.Composition": [
     "DigitalBrain.Runtime.Orleans.Azure"
+  ],
+  "IntoChat.OS.Testing.Neurons": [
+    "DigitalBrain.Runtime.Orleans"
   ]
 }

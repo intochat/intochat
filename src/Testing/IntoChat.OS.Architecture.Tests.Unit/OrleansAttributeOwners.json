@@ -699,5 +699,6 @@
   "IntoChat.OS.Kernel.Composition.Tests.Integration/TopologyHosts.cs": 1,
   "IntoChat.OS.Kernel.Composition/Cluster/ClusterNeuron.cs": 2,
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/Probes.cs": 4,
-  "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/SideBySideRuntimeFacts.cs": 1
+  "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/SideBySideRuntimeFacts.cs": 1,
+  "IntoChat.OS.Testing.Neurons/BothRuntimesFixture.cs": 2
 }

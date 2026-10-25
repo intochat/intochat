@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>Test-only: runs one fact body on TestOS and on the in-process silo host (SiloHost.Local) for migrated plain neurons.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain.Testing" />
+    <!-- SiloHost.Local finds its factory in the runtime package; the silo kind also needs the runtime's cluster store and host grains. -->
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="xunit.v3.assert" />
+  </ItemGroup>
+</Project>

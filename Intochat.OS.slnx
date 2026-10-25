@@ -32,6 +32,8 @@
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory.Tests.Unit/IntoChat.OS.Runtime.InMemory.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
   </Folder>
+  <Folder Name="/IntoChat.Cloud/" />
+  <Folder Name="/IntoChat.Cloud/Modules/" />
   <Folder Name="/IntoChat.Cloud/Modules/Circle/">
     <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Contracts.Tests.Unit/IntoChat.Cloud.Circle.Contracts.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Server.Tests.Integration/IntoChat.Cloud.Circle.Server.Tests.Integration.csproj" />
@@ -223,6 +225,7 @@
     <Project Path="src/Testing/IntoChat.OS.Testing.Aspire.Tests.Integration/IntoChat.OS.Testing.Aspire.Tests.Integration.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Aspire/IntoChat.OS.Testing.Aspire.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Playwright/IntoChat.OS.Testing.Playwright.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Tests.Integration/IntoChat.OS.Testing.Tests.Integration.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
