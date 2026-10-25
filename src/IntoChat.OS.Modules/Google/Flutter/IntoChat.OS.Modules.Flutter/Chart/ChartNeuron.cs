@@ -49,7 +49,7 @@ internal sealed class ChartNeuron
         return Save(next, new ChartChanged(FullKey, next.Version, next.Title));
     }
 
-    [ReadOnlyCall]
+    [DigitalBrain.ReadOnlyCall]
     public Task<ChartState> Read()
     {
         var state = Snapshot;

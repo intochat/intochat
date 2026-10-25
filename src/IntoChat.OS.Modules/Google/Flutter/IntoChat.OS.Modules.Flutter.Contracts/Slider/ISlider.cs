@@ -10,7 +10,7 @@ public interface ISlider
 {
     Task Configure(double min, double max, double step);
     Task SetValue(double value);
-    [ReadOnlyCall] Task<SliderState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<SliderState> Read();
 }
 
 [GenerateSerializer, Alias("ui.slider-state")]

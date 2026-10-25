@@ -33,6 +33,10 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
     // Silo-only services, applied after the topology and runtime registrations (reminder periods, clocks).
     protected virtual void ConfigureSilo(IServiceCollection services) { }
 
+    // TestOS-only services (06-05): what neuron constructors and Context.Services resolve on TestOS (TestOSOptions.Services);
+    // none by default. A fact that needs a service on both kinds registers it here and in ConfigureSilo.
+    protected virtual void ConfigureTestOS(IServiceCollection services) { }
+
     // Silo configuration values.
     protected virtual IReadOnlyDictionary<string, string?> SiloConfiguration { get; } = new Dictionary<string, string?>();
 
@@ -50,7 +54,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         if (modules.Count == 0) { throw new InvalidOperationException("A both-runtimes fixture needs at least one module."); }
         return kind switch
         {
-            NeuronRuntimeKind.TestOS => TestOSRuntime.Start(Brain, modules),
+            NeuronRuntimeKind.TestOS => TestOSRuntime.Start(Brain, modules, TestOSServices()),
             NeuronRuntimeKind.Silo => await SiloRuntime.Start(Brain, modules, services => { ConfigureSilo(services); siloServices?.Invoke(services); },
                 SiloConfiguration, home, ct).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
@@ -66,13 +70,20 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         GC.SuppressFinalize(this);
     }
 
+    private IServiceProvider? TestOSServices()
+    {
+        var services = new ServiceCollection();
+        ConfigureTestOS(services);
+        return services.Count == 0 ? null : services.BuildServiceProvider();
+    }
+
     internal static string AliasOf(Type signal) => signal.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!;
 
     private sealed class TestOSRuntime(TestOS os, BrainId brain) : INeuronRuntime
     {
-        public static TestOSRuntime Start(BrainId brain, IReadOnlyList<Type> modules)
+        public static TestOSRuntime Start(BrainId brain, IReadOnlyList<Type> modules, IServiceProvider? services = null)
         {
-            var os = TestOS.Local();
+            var os = TestOS.Local(options => options.Services = services);
             foreach (var assembly in modules.Select(module => module.Assembly).Distinct()) { os.Register(assembly); }
             return new TestOSRuntime(os, brain);
         }

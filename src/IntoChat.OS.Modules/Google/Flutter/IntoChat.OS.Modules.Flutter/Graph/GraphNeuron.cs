@@ -26,5 +26,5 @@ internal sealed class GraphNeuron
         return Save(next, new GraphChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<GraphState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<GraphState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

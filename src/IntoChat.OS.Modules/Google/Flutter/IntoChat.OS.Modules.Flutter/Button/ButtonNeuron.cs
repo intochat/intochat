@@ -154,7 +154,7 @@ internal sealed partial class ButtonNeuron
         await Dispatch(UiEvent.Of(clicked));
     }
 
-    [ReadOnlyCall] public Task<ButtonState> Read() => Task.FromResult(Named(Snapshot));
+    [DigitalBrain.ReadOnlyCall] public Task<ButtonState> Read() => Task.FromResult(Named(Snapshot));
 
     private ButtonState Named(ButtonState state) { state.Name = FullKey; return state; }
 }

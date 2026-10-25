@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Sheet;
 public interface ISheet
 {
     Task Set(string title, IReadOnlyList<SheetCell> cells);
-    [ReadOnlyCall] Task<SheetState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<SheetState> Read();
 }
 
 [GenerateSerializer, Alias("ui.sheet-cell")]

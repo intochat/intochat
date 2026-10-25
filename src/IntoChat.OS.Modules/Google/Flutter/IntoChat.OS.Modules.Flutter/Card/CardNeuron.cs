@@ -26,7 +26,7 @@ internal sealed class CardNeuron
         return Save(next, new CardChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<CardState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<CardState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }
 
 // Module-only leaf access after the viewer Space neuron authorizes the exact reference.

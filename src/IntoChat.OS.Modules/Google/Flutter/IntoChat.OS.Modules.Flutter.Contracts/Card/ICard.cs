@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Card;
 public interface ICard
 {
     Task Set(string title, string body, IReadOnlyList<UiChildRef>? children = null);
-    [ReadOnlyCall] Task<CardState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<CardState> Read();
 }
 
 [GenerateSerializer, Alias("ui.card-state")]

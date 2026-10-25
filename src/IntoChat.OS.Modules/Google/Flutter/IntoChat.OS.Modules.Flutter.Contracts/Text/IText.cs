@@ -11,7 +11,7 @@ public interface IText
     Task Set(string markdown);
     // Replaces only the version read by the caller, preserving a later writer's text.
     Task<bool> TrySet(string markdown, int expectedVersion);
-    [ReadOnlyCall] Task<TextState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<TextState> Read();
 }
 
 [GenerateSerializer, Alias("ui.text-state")]

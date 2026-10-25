@@ -38,5 +38,5 @@ internal sealed class TreeNeuron
         return Save(next, new TreeChanged(FullKey, next.Version), new TreeSelected(FullKey, id));
     }
 
-    [ReadOnlyCall] public Task<TreeState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<TreeState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

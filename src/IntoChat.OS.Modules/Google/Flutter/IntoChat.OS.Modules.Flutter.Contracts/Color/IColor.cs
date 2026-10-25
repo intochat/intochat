@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Color;
 public interface IColor
 {
     Task Set(string hex);
-    [ReadOnlyCall] Task<ColorState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ColorState> Read();
 }
 
 [GenerateSerializer, Alias("ui.color-state")]

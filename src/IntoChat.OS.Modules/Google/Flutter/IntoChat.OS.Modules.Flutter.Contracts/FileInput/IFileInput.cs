@@ -10,7 +10,7 @@ public interface IFileInput
 {
     Task Configure(string label);
     Task Capture(string name, string content);
-    [ReadOnlyCall] Task<FileInputState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<FileInputState> Read();
 }
 
 [GenerateSerializer, Alias("ui.fileinput-state")]

@@ -31,7 +31,7 @@ internal sealed class VoiceInputNeuron
         await Dispatch(UiEvent.Of(captured));
     }
 
-    [ReadOnlyCall] public Task<VoiceInputState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<VoiceInputState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
     private VoiceInputState Next()
     {

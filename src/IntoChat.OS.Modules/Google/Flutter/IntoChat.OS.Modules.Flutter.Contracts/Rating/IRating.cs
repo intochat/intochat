@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Rating;
 public interface IRating
 {
     Task Set(int max, int value);
-    [ReadOnlyCall] Task<RatingState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<RatingState> Read();
 }
 
 [GenerateSerializer, Alias("ui.rating-state")]

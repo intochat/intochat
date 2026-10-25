@@ -36,5 +36,5 @@ internal sealed class TabsNeuron
         return Save(next, new TabsChanged(FullKey, next.SelectedId));
     }
 
-    [ReadOnlyCall] public Task<TabsState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<TabsState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

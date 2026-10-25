@@ -35,5 +35,5 @@ internal sealed class SliderNeuron
         return Save(next, new SliderChanged(FullKey, next.Value));
     }
 
-    [ReadOnlyCall] public Task<SliderState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<SliderState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

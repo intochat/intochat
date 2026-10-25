@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Surface;
 public interface ISurface
 {
     Task Set(SurfaceDefinition definition, long expectedRevision);
-    [ReadOnlyCall] Task<SurfaceState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<SurfaceState> Read();
 }
 
 [GenerateSerializer, Alias("ui.surface-definition")]

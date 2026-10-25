@@ -12,7 +12,7 @@ public interface ITextField
     Task SetValue(string value);
     Task<bool> TrySetValue(string value, int expectedVersion);
     Task Input(string value);
-    [ReadOnlyCall] Task<TextFieldState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<TextFieldState> Read();
 }
 
 [GenerateSerializer, Alias("ui.textfield-state")]

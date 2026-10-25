@@ -13,7 +13,7 @@ public interface IVoiceInput
 
     Task Configure(string label);
     Task Capture(byte[] audio, string mimeType);
-    [ReadOnlyCall] Task<VoiceInputState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<VoiceInputState> Read();
 }
 
 [GenerateSerializer, Alias("ui.voiceinput-state")]

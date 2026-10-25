@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Person;
 public interface IPerson
 {
     Task Set(string displayName, string avatarUrl);
-    [ReadOnlyCall] Task<PersonState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<PersonState> Read();
 }
 
 [GenerateSerializer, Alias("ui.person-state")]

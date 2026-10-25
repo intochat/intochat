@@ -30,5 +30,5 @@ internal sealed class TextNeuron
         return true;
     }
 
-    [ReadOnlyCall] public Task<TextState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<TextState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

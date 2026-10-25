@@ -24,5 +24,5 @@ internal sealed class ProgressNeuron
         return Save(next, new ProgressChanged(FullKey, next.Value));
     }
 
-    [ReadOnlyCall] public Task<ProgressState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ProgressState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

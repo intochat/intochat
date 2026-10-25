@@ -13,7 +13,7 @@ public interface IVideo
     Task Pause();
     Task Seek(double seconds);
     Task End();
-    [ReadOnlyCall] Task<VideoState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<VideoState> Read();
 }
 
 [GenerateSerializer, Alias("ui.video-state")]

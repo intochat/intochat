@@ -25,5 +25,5 @@ internal sealed class ColorNeuron
         return Save(next, new ColorChanged(FullKey, next.Hex));
     }
 
-    [ReadOnlyCall] public Task<ColorState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ColorState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

@@ -10,7 +10,7 @@ public interface ITree
 {
     Task Set(IReadOnlyList<TreeNode> nodes);
     Task Select(string id);
-    [ReadOnlyCall] Task<TreeState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<TreeState> Read();
 }
 
 [GenerateSerializer, Alias("ui.tree-node")]

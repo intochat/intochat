@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Map;
 public interface IMap
 {
     Task Set(double lat, double lng, double zoom, IReadOnlyList<MapMarker> markers);
-    [ReadOnlyCall] Task<MapState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<MapState> Read();
 }
 
 [GenerateSerializer, Alias("ui.map-marker")]

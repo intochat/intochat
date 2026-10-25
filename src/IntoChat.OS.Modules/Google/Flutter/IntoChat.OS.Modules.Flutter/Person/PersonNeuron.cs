@@ -25,7 +25,7 @@ internal sealed class PersonNeuron
         return Save(next, new PersonChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<PersonState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<PersonState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }
 
 // Module-only leaf access after the viewer Space neuron authorizes the exact reference.

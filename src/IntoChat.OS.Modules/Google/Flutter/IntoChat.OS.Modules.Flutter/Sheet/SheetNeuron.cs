@@ -24,5 +24,5 @@ internal sealed class SheetNeuron
         return Save(next, new SheetChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<SheetState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<SheetState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

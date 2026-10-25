@@ -10,7 +10,7 @@ public interface IInfoBar
 {
     Task Show(string severity, string title, string body);
     Task Dismiss();
-    [ReadOnlyCall] Task<InfoBarState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<InfoBarState> Read();
 }
 
 [GenerateSerializer, Alias("ui.infobar-state")]

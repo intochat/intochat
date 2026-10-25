@@ -10,7 +10,7 @@ public interface IImageCanvas
 {
     Task Set(ImageCanvasDefinition definition, long expectedRevision);
     Task RequestEdit(ImageRecipe recipe, long expectedDocumentRevision, string operationId);
-    [ReadOnlyCall] Task<ImageCanvasState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ImageCanvasState> Read();
 }
 
 [GenerateSerializer, Alias("ui.imagecanvas-definition")]

@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Table;
 public interface ITable
 {
     Task Replace(string title, IReadOnlyList<TableColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows);
-    [ReadOnlyCall] Task<TableState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<TableState> Read();
 }
 
 [GenerateSerializer, Alias("ui.table-column")]

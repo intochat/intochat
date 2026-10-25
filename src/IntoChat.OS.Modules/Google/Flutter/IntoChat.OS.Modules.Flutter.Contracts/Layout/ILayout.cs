@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Layout;
 public interface ILayout
 {
     Task Set(LayoutDefinition definition, long expectedRevision);
-    [ReadOnlyCall] Task<LayoutState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<LayoutState> Read();
 }
 
 [GenerateSerializer, Alias("ui.layout-definition")]

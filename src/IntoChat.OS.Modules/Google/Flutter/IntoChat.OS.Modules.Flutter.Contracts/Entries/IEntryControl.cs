@@ -20,7 +20,7 @@ public sealed record EntryControlSpec(
 public interface IEntryControl
 {
     Task Configure(EntryControlSpec spec);
-    [ReadOnlyCall] Task<EntryControlState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<EntryControlState> Read();
     // The renderer calls this after a successful write so the app can refresh; the signal carries only the neuron name.
     Task Changed();
 }

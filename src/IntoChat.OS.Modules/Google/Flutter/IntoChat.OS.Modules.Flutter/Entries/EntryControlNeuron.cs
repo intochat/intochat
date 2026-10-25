@@ -39,7 +39,7 @@ internal sealed class EntryControlNeuron
         await Save(next, new EntryControlChanged(next.Name));
     }
 
-    [ReadOnlyCall] public Task<EntryControlState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<EntryControlState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
     public Task Changed() => Publish(new EntryControlChanged(FullKey));
 }

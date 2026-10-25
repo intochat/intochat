@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Clock;
 public interface IClock
 {
     Task Set(string label, DateTimeOffset? dueAt);
-    [ReadOnlyCall] Task<ClockState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ClockState> Read();
 }
 
 [GenerateSerializer, Alias("ui.clock-state")]

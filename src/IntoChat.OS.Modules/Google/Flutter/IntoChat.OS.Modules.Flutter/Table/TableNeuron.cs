@@ -25,7 +25,7 @@ internal sealed class TableNeuron
         return Save(next, new TableChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall]
+    [DigitalBrain.ReadOnlyCall]
     public Task<TableState> Read()
     {
         var state = Snapshot;

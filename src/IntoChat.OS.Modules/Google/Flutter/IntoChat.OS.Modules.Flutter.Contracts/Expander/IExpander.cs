@@ -10,7 +10,7 @@ public interface IExpander
 {
     Task Set(string header, bool expanded, IReadOnlyList<UiChildRef>? children = null);
     Task Toggle();
-    [ReadOnlyCall] Task<ExpanderState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ExpanderState> Read();
 }
 
 [GenerateSerializer, Alias("ui.expander-state")]

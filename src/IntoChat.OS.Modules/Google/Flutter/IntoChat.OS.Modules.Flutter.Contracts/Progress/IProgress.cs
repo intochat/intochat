@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Progress;
 public interface IProgress
 {
     Task Set(bool determinate, double value, string label);
-    [ReadOnlyCall] Task<ProgressState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ProgressState> Read();
 }
 
 [GenerateSerializer, Alias("ui.progress-state")]

@@ -17,5 +17,5 @@ internal sealed class RatingNeuron : UiNeuron<RatingState>, IRating
         return Save(next, new RatingChanged(FullKey, next.Value));
     }
 
-    [ReadOnlyCall] public Task<RatingState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<RatingState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

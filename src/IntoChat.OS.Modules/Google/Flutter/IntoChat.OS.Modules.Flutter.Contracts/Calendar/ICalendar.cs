@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Calendar;
 public interface ICalendar
 {
     Task Set(string mode, IReadOnlyList<string> selected);
-    [ReadOnlyCall] Task<CalendarState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<CalendarState> Read();
 }
 
 [GenerateSerializer, Alias("ui.calendar-state")]

@@ -11,7 +11,7 @@ public interface ICollectionView
     Task Set(CollectionDefinition definition, long expectedRevision);
     Task Select(string itemId, long expectedRevision);
     Task Activate(string itemId, long expectedRevision);
-    [ReadOnlyCall] Task<CollectionState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<CollectionState> Read();
 }
 
 [GenerateSerializer, Alias("ui.collection-definition")]

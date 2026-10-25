@@ -33,5 +33,5 @@ internal sealed class ExpanderNeuron
         return Save(next, new ExpanderChanged(FullKey, next.Expanded));
     }
 
-    [ReadOnlyCall] public Task<ExpanderState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ExpanderState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

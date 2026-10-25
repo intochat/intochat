@@ -23,5 +23,5 @@ internal sealed class ClockNeuron
         return Save(next, new ClockChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<ClockState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ClockState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

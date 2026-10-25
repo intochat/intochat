@@ -12,7 +12,7 @@ public interface ISelect
     Task Set(string label, IReadOnlyList<SelectOption> options, string? selected);
     Task SetVisual(ControlVisual visual);
     Task Choose(string value);
-    [ReadOnlyCall] Task<SelectState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<SelectState> Read();
 }
 
 [GenerateSerializer, Alias("ui.select-option")]

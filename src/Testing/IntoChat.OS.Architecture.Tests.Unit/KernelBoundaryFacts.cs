@@ -46,13 +46,13 @@ public sealed class KernelBoundaryFacts
             entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
     }
 
-    // The call filter applies access policy to INeuron contracts only, so an access attribute
-    // anywhere else is dead and reads as a guarantee it is not.
+    // The call filter applies access policy to INeuron contracts, and PlainNeuronCallFilter to plain neuron contracts
+    // ([DefaultNeuronType], 06-04), so an access attribute anywhere else is dead and reads as a guarantee it is not.
     [Fact]
     public void AccessAttributesAppearOnlyOnNeuronContracts()
     {
         var offenders = ProductionArchitecture.Types
-            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type))
+            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type) && !IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
             .SelectMany(contract => contract.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.GetCustomAttributes<AccessAttribute>().Any())
                 .Select(method => contract.FullName + "." + method.Name)

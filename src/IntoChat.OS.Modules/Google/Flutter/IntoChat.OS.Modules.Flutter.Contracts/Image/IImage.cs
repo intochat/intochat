@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Image;
 public interface IImage
 {
     Task Set(string url, string mediaType, string prompt);
-    [ReadOnlyCall] Task<ImageState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ImageState> Read();
 }
 
 [GenerateSerializer, Alias("ui.image-state")]

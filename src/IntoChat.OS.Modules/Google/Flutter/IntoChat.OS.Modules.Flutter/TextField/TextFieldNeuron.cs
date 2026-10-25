@@ -72,5 +72,5 @@ internal sealed class TextFieldNeuron
         await Dispatch(UiEvent.Of(new TextFieldChanged(FullKey, value)));
     }
 
-    [ReadOnlyCall] public Task<TextFieldState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<TextFieldState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

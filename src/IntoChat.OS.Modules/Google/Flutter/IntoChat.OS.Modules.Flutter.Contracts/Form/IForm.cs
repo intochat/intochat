@@ -14,7 +14,7 @@ public interface IForm
     Task<FormState> SetDraft(string fieldName, string value);
     Task<FormState> SetSecret(string fieldName, FormSecret reference);
     Task<FormState> Submit(FormSubmission submission);
-    [ReadOnlyCall] Task<FormState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<FormState> Read();
 }
 
 public enum FormFieldKind { PlainText, LongText, Number, Date, DateTime, Boolean, Choice, MultiChoice, Email, Url, Secret, Reference }

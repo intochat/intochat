@@ -48,7 +48,7 @@ internal sealed class PreferenceControlNeuron
         await Save(next, new PreferenceChanged(spec.Store));
     }
 
-    [ReadOnlyCall]
+    [DigitalBrain.ReadOnlyCall]
     public async Task<PreferenceControlState> Read()
     {
         var state = new PreferenceControlState { Name = FullKey, Version = Snapshot.Version, Spec = Snapshot.Spec };

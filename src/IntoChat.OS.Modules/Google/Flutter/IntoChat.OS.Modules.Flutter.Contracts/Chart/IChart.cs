@@ -10,7 +10,7 @@ public interface IChart
 {
     Task Render(string title, string kind, IReadOnlyList<ChartPoint> points);
     Task Append(ChartPoint point);
-    [ReadOnlyCall] Task<ChartState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ChartState> Read();
 }
 
 [GenerateSerializer, Alias("ui.chart-point")]

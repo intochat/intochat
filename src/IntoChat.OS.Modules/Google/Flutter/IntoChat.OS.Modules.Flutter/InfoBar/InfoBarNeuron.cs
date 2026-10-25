@@ -36,5 +36,5 @@ internal sealed class InfoBarNeuron
         return Save(next, new InfoBarChanged(FullKey, false), new InfoBarDismissed(FullKey));
     }
 
-    [ReadOnlyCall] public Task<InfoBarState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<InfoBarState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

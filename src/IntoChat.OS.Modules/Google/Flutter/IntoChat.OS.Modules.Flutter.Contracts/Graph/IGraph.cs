@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Graph;
 public interface IGraph
 {
     Task Render(string title, IReadOnlyList<GraphNode> nodes, IReadOnlyList<GraphEdge> edges);
-    [ReadOnlyCall] Task<GraphState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<GraphState> Read();
 }
 
 [GenerateSerializer, Alias("ui.graph-node")]

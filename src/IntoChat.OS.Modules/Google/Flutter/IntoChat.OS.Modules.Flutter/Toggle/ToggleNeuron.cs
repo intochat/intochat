@@ -32,5 +32,5 @@ internal sealed class ToggleNeuron
         return Save(next, new ToggleChanged(FullKey, next.On));
     }
 
-    [ReadOnlyCall] public Task<ToggleState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ToggleState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

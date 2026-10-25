@@ -26,5 +26,5 @@ internal sealed class ImageNeuron
         return Save(next, new ImageChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<ImageState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<ImageState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

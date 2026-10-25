@@ -59,7 +59,7 @@ internal sealed class VideoNeuron
         return Save(next, new VideoChanged(FullKey, false), new VideoEnded(FullKey));
     }
 
-    [ReadOnlyCall] public Task<VideoState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<VideoState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
     private VideoState RequireLoaded()
     {

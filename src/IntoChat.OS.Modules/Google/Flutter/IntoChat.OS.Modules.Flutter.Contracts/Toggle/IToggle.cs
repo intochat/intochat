@@ -10,7 +10,7 @@ public interface IToggle
 {
     Task Set(string label, bool on);
     Task Flip();
-    [ReadOnlyCall] Task<ToggleState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ToggleState> Read();
 }
 
 [GenerateSerializer, Alias("ui.toggle-state")]

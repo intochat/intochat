@@ -44,7 +44,7 @@ public interface IPreferenceControl
 {
     Task Configure(PreferenceSpec spec);
     // The spec plus the stored value; Value is null for a Local* store, which only the device holds.
-    [ReadOnlyCall] Task<PreferenceControlState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<PreferenceControlState> Read();
     // Writes a brain store as the calling person. Installed apps are refused; Local* stores are never written here.
     Task Set(string value);
 }

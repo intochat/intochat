@@ -10,7 +10,7 @@ public interface ITabs
 {
     Task Set(IReadOnlyList<TabItem> tabs, string selectedId);
     Task Select(string id);
-    [ReadOnlyCall] Task<TabsState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<TabsState> Read();
 }
 
 [GenerateSerializer, Alias("ui.tab-item")]

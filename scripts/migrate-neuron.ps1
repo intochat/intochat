@@ -74,14 +74,21 @@ begin {
         $text = [regex]::Replace($text, '(?m)^([ 	]*)\[Alias\("[^"]*"\)\]\s*(?=(?:\[[^\]]*\]\s*)*(?:Task|ValueTask|IAsyncEnumerable))', '$1')
         $text = [regex]::Replace($text, '(?m)^([ \t]*)\[Alias\(("[^"]*")\)\](?=\s*(?:\[[^\]]*\]\s*)*(?:public|internal)\s+(?:partial\s+)?interface\b)', '$1[NeuronAlias($2)]')
         $text = [regex]::Replace($text, '\[Alias\(("[^"]*")\),\s*(DefaultNeuronType\()', '[NeuronAlias($1), $2')
-        $text = $text -replace '\[AlwaysInterleave\]', '[Interleaves]'
-        $text = $text -replace '\[ReadOnly\]', '[ReadOnlyCall]'
-        $text = $text -replace '\[OneWay\]', '[OneWayCall]'
-        $text = [regex]::Replace($text, '\[MayInterleave\(', '[InterleavesWhen(')
+        # (06-05) Qualified: inside an IntoChat.OS.* namespace the unqualified names bind to the os legacy attributes of the same
+        # name (IntoChat.OS/Contracts/NeutralAttributes.cs), which the runtime does not read.
+        # (06-05) the same names inside an attribute list ([ReadOnly, AlwaysInterleave]), and a using alias of an Orleans attribute.
+        $text = [regex]::Replace($text, '(?m)^[ \t]*using\s+\w+\s*=\s*Orleans\.[\w.]+\s*;[ \t]*\r?\n', '')
+        $text = [regex]::Replace($text, '(?<=\[[^\[\]\r\n]*)(?<![\w.])AlwaysInterleave\b(?=[^\[\]\r\n]*\])', 'DigitalBrain.Interleaves')
+        $text = [regex]::Replace($text, '(?<=\[[^\[\]\r\n]*)(?<![\w.])ReadOnly\b(?=[^\[\]\r\n]*\])', 'DigitalBrain.ReadOnlyCall')
+        $text = [regex]::Replace($text, '(?<=\[[^\[\]\r\n]*)(?<![\w.])OneWay\b(?=[^\[\]\r\n]*\])', 'DigitalBrain.OneWayCall')
+        $text = $text -replace '\[AlwaysInterleave\]', '[DigitalBrain.Interleaves]'
+        $text = $text -replace '\[ReadOnly\]', '[DigitalBrain.ReadOnlyCall]'
+        $text = $text -replace '\[OneWay\]', '[DigitalBrain.OneWayCall]'
+        $text = [regex]::Replace($text, '\[MayInterleave\(', '[DigitalBrain.InterleavesWhen(')
         $text = [regex]::Replace($text, '\[ResponseTimeout\("([^"]+)"\)\]', {
                 param($m)
                 $span = [TimeSpan]::Parse($m.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
-                "[CallTimeout($([int]$span.TotalMilliseconds))]"
+                "[DigitalBrain.CallTimeout($([int]$span.TotalMilliseconds))]"
             })
 
         # Signals: [GenerateSerializer, Alias("x")] record ... : Signal -> [Signal("x")] record ... : DigitalBrain.Signal.
@@ -109,6 +116,8 @@ begin {
             })
         $text = [regex]::Replace($text, '(\)\s*:\s*|class\s+\w+\s*:\s*)(?:IntoChat\.OS\.Framework\.)?Neuron<([^>]+)>\(\w+\)', "`$1$Base<`$2>")
         $text = [regex]::Replace($text, '(\)\s*:\s*|class\s+\w+\s*:\s*)(?:IntoChat\.OS\.Framework\.)?Neuron(?=\s*[,{\r\n])', '$1DigitalBrain.Neuron')
+        # (06-05) a primary constructor left empty once its persistent-state parameter went, whatever came after it.
+        $text = [regex]::Replace($text, '(class\s+\w+)\(\s*\)(\s*:)', '$1$2')
         $text = $text -replace '\[StatelessWorker\]', '[StatelessNeuron]'
         $text = $text -replace '(?:this\.)?GetPrimaryKeyString\(\)', $KeyExpression
         $text = [regex]::Replace($text, '\bPublishAsync\(', 'Publish(')

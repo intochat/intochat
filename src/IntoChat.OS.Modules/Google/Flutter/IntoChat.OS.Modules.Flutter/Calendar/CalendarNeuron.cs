@@ -24,5 +24,5 @@ internal sealed class CalendarNeuron
         return Save(next, new CalendarChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<CalendarState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<CalendarState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

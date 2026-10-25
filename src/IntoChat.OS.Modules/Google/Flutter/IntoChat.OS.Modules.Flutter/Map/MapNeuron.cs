@@ -26,5 +26,5 @@ internal sealed class MapNeuron
         return Save(next, new MapChanged(FullKey, next.Version));
     }
 
-    [ReadOnlyCall] public Task<MapState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<MapState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

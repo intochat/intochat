@@ -13,7 +13,7 @@ public interface IButton
     Task Click();
     Task ClickCurrent(string expectedAction);
     Task SetActivation(string label, string activationJson);
-    [ReadOnlyCall] Task<ButtonState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ButtonState> Read();
 }
 
 [GenerateSerializer, Alias("ui.button-state")]
