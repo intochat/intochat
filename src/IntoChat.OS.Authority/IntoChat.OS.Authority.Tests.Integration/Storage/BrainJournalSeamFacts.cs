@@ -15,7 +15,7 @@ public sealed class BrainJournalSeamFacts
         var directory = Directory.CreateTempSubdirectory("journal-seam-").FullName;
         return await TestBrain.Create()
             .WithConfiguration(IntoChatOSNames.MasterKeyConfigurationKey, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)))
-            .WithConfiguration(BrainStoreOptions.Key + ":Directory", Path.Combine(directory, "store")).StartAsync(ct);
+            .WithConfiguration(IntoChatOSNames.HomeKey, directory).StartAsync(ct);
     }
 
     [Fact]

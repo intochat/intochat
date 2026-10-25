@@ -149,8 +149,7 @@ public sealed class SiloDiagnosticsFacts
         var builder = WebApplication.CreateBuilder();
         if (key is not null) { builder.Configuration[SiloDiagnostics.KeyConfiguration] = key; }
         if (revision is not null) { builder.Configuration[SiloDiagnostics.RevisionVariable] = revision; }
-        builder.Configuration[$"{BrainStoreOptions.Key}:{nameof(BrainStoreOptions.Directory)}"] = directory;
-        builder.Services.AddOptions<BrainStoreOptions>().BindConfiguration(BrainStoreOptions.Key);
+        builder.Services.AddOptions<BrainStoreOptions>().BindConfiguration(BrainStoreOptions.Key).Configure(options => options.Directory = directory);
         configure?.Invoke(builder.Services);
         builder.Services.AddSiloDiagnostics();
         var app = builder.Build();

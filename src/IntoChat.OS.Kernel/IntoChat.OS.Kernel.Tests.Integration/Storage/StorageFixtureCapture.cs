@@ -29,14 +29,15 @@ public sealed class StorageFixtureCapture(OsHost host)
         var output = Path.Combine(SourceDirectory(), "Fixtures", Source);
         Assert.False(Directory.Exists(output), $"Remove {output} before capturing it again.");
         var work = Path.Combine(Path.GetTempPath(), "intochat-os-fixture-" + Guid.NewGuid().ToString("N"));
-        var store = Path.Combine(work, StorageFixtures.BrainStore);
+        // work is the capture host's Home; its brain log is <Home>/state.
+        var store = Path.Combine(work, IntoChat.OS.Framework.StateHome.StateDirectoryName);
         var capture = new Capture();
         try
         {
             // Legacy and never checkpointed: the shape of every hosted brain today. Its circle brain is Legacy too.
-            await RunAsync(store, BrainLogFormat.Legacy, checkpoint: false, capture, ct);
+            await RunAsync(work, BrainLogFormat.Legacy, checkpoint: false, capture, ct);
             // Framed and checkpointed: a snapshot, then a framed segment that continues after it.
-            await RunAsync(store, BrainLogFormat.Framed, checkpoint: true, capture, ct);
+            await RunAsync(work, BrainLogFormat.Framed, checkpoint: true, capture, ct);
 
             Directory.CreateDirectory(Path.Combine(output, StorageFixtures.BrainStore));
             foreach (var brainId in capture.Brains)
@@ -80,9 +81,9 @@ public sealed class StorageFixtureCapture(OsHost host)
         }
     }
 
-    private async Task RunAsync(string store, BrainLogFormat format, bool checkpoint, Capture capture, CancellationToken ct)
+    private async Task RunAsync(string home, BrainLogFormat format, bool checkpoint, Capture capture, CancellationToken ct)
     {
-        await using var brain = await OsTestBrain.Create(host.Model, host.Tokens).WithFixtureStorage(store, format).StartAsync(ct);
+        await using var brain = await OsTestBrain.Create(host.Model, host.Tokens).WithFixtureStorage(home, format).StartAsync(ct);
         using var person = await brain.PersonAsync("fixture-" + format.ToString().ToLowerInvariant(), ct);
         capture.Brains.Add(person.BrainId);
         var step = Steps(capture, format);

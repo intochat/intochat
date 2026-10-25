@@ -25,7 +25,6 @@ public static class IntoChatOSNames
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
     public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
     public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";
-    public const string BrainStorageDirectoryConfigurationKey = BrainStorageConfigurationKey + ":Directory";
     public const string BrainStorageWriteFormatConfigurationKey = BrainStorageConfigurationKey + ":WriteFormat";
     public const string ConfiguredCustodyAcknowledgedConfigurationKey = BrainStorageConfigurationKey + ":ConfiguredCustodyAcknowledged";
     // Shared with the Windows module without a dependency on the Platform implementation.

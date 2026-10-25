@@ -76,6 +76,47 @@ public sealed class LegacyConfigurationGuardFacts
         Assert.DoesNotContain(Sentinel, exception.Message);
     }
 
+    [Theory]
+    [InlineData("key", "IntoChatOS:Hosting:PersistentStorage", "IntoChatOS:Home", "Production")]
+    [InlineData("key", "IntoChatOS:Platform:Storage:Directory", "IntoChatOS:Home", "Production")]
+    [InlineData("key", "IntoChatOS:Hosting:PersistentStorage", "IntoChatOS:Home", "Development")]
+    [InlineData("key", "IntoChatOS:Platform:Storage:Directory", "IntoChatOS:Home", "Development")]
+    [InlineData("env", "IntoChatOS__Hosting__PersistentStorage", "IntoChatOS__Home", "Production")]
+    [InlineData("env", "IntoChatOS__Platform__Storage__Directory", "IntoChatOS__Home", "Development")]
+    public void RetiredStorageSettingsFailStartupNamingHome(string kind, string name, string replacement, string environment)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => Verify(Configure(kind, name), environment, kind == "env" ? [name] : []));
+        Assert.Contains(name, exception.Message);
+        Assert.Contains(replacement, exception.Message);
+        Assert.Contains("IntoChatOS:Home", exception.Message);
+        Assert.DoesNotContain(Sentinel, exception.Message);
+    }
+
+    [Fact]
+    public void TheOtherStorageKeysAreNotRetired()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["IntoChatOS:Platform:Storage:Custody"] = "Configured",
+            ["IntoChatOS:Platform:Storage:WriteFormat"] = "Framed",
+            ["IntoChatOS:Home"] = Path.GetTempPath(),
+        }).Build();
+        Verify(configuration, Environments.Production, ["IntoChatOS__Platform__Storage__ConfiguredCustodyAcknowledged"]);
+    }
+
+    [Fact]
+    public void AnEarlierRuntimeDirectoryIsNotedOnceAndLeftInPlace()
+    {
+        var root = Directory.CreateTempSubdirectory("legacy-runtime-").FullName;
+        var runtime = Directory.CreateDirectory(Path.Combine(root, "IntoChatOS", "runtime")).FullName;
+        var logger = new CapturingLogger(LogLevel.Information);
+        LegacyConfigurationGuard.Verify(new ConfigurationBuilder().Build(), Host(Environments.Production), [], root, logger);
+        var note = Assert.Single(logger.Messages);
+        Assert.Contains("IntoChatOS:Home", note);
+        Assert.True(Directory.Exists(runtime));
+        Directory.Delete(root, recursive: true);
+    }
+
     public static IEnumerable<TheoryDataRow<string, string, string?>> Offenders()
     {
         yield return new("key", Old + ":Auth:Posture", "IntoChatOS:Auth:Posture");
@@ -101,12 +142,12 @@ public sealed class LegacyConfigurationGuardFacts
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
-    private sealed class CapturingLogger : ILogger
+    private sealed class CapturingLogger(LogLevel level = LogLevel.Warning) : ILogger
     {
         public List<string> Messages { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        { if (logLevel == LogLevel.Warning) { Messages.Add(formatter(state, exception)); } }
+        { if (logLevel == level) { Messages.Add(formatter(state, exception)); } }
     }
 }

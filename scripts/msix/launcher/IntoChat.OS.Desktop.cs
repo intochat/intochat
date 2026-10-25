@@ -26,7 +26,8 @@ var dataRoot = Environment.GetEnvironmentVariable("INTOCHATOS_DESKTOP_DATA") is 
     : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IntoChatOS", "Desktop");
 var port = int.TryParse(Environment.GetEnvironmentVariable("INTOCHATOS_DESKTOP_PORT"), out var configuredPort) ? configuredPort : 5080;
 var kernelUrl = new Uri($"http://127.0.0.1:{port}/");
-var brainStore = Path.Combine(dataRoot, "brain-store");
+// The package's data root is the OS's Home: the brain log lives in <Home>/state.
+var brainStore = Path.Combine(dataRoot, "state");
 var logs = Path.Combine(dataRoot, "logs");
 Directory.CreateDirectory(logs);
 var masterKeyPath = Path.Combine(dataRoot, "master-key.dpapi");
@@ -40,7 +41,7 @@ try
     if (!await Healthy(http, kernelUrl))
     {
         var masterKey = DesktopMasterKey.LoadOrCreate(masterKeyPath, brainStore);
-        StartKernel(Path.Combine(packageRoot, "os"), kernelUrl, brainStore, masterKey, Path.Combine(logs, "kernel.log"));
+        StartKernel(Path.Combine(packageRoot, "os"), kernelUrl, dataRoot, masterKey, Path.Combine(logs, "kernel.log"));
         var deadline = DateTime.UtcNow.AddMinutes(2);
         while (!await Healthy(http, kernelUrl))
         {
@@ -74,7 +75,7 @@ static async Task<bool> Healthy(HttpClient http, Uri kernel)
     catch (TaskCanceledException) { return false; }
 }
 
-static void StartKernel(string osDirectory, Uri url, string brainStore, string masterKey, string log)
+static void StartKernel(string osDirectory, Uri url, string home, string masterKey, string log)
 {
     var start = new ProcessStartInfo(Path.Combine(osDirectory, "IntoChat.OS.Kernel.exe"))
     {
@@ -90,7 +91,8 @@ static void StartKernel(string osDirectory, Uri url, string brainStore, string m
     // A desktop install is secured: the shell signs in; nothing is served anonymously as the owner.
     environment["IntoChatOS__Auth__Posture"] = "Secured";
     environment["IntoChatOS__MasterKey"] = masterKey;
-    environment["IntoChatOS__Platform__Storage__Directory"] = brainStore;
+    environment["IntoChatOS__Home"] = home;
+    environment["IntoChatOS__Topology"] = "local";
     environment["IntoChatOS__Modules__apps__Options__Features"] = Path.Combine(osDirectory, "features");
     // The container-backed and cloud modules the AppHost's local profile switches off (src/IntoChat.OS.AppHost/profiles/local.json).
     // The Windows module stays on: it is the device connector this package ships.

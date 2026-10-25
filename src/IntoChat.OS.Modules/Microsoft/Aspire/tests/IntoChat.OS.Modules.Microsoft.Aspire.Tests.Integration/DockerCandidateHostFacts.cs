@@ -162,7 +162,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
 
         await host.Run("abc1234", TestContext.Current.CancellationToken);
 
-        Assert.Equal("/app/brain-store", host.LastRunEnvironment[DockerCandidateHost.Env(IntoChatOSNames.BrainStorageDirectoryConfigurationKey)]);
+        Assert.Equal("/app/home", host.LastRunEnvironment[DockerCandidateHost.Env(IntoChatOSNames.HomeKey)]);
         var forbidden = live.Where(pair => pair.Key.StartsWith(IntegrationSchema.SectionName, StringComparison.Ordinal) || pair.Key.StartsWith("ConnectionStrings:", StringComparison.Ordinal))
             .Select(pair => pair.Value!).ToArray();
         foreach (var environment in new[] { host.LastRunEnvironment, host.LastMcpEnvironment })

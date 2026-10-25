@@ -7,7 +7,6 @@ public sealed record IntoChatOSHostingOptions
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
     public const string GrainStateContainerKey = IntoChat.OS.Framework.IntoChatOSNames.GrainStateContainerKey;
-    public const string PersistentStorageKey = "IntoChatOS:Hosting:PersistentStorage";
     // Whether the local profile may pass the GPU to the Ollama container (the launcher sets it from detection).
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     // The Ollama model the local profile serves instead of the default (qwen3.5:4b).
@@ -18,7 +17,6 @@ public sealed record IntoChatOSHostingOptions
     public string? ClusterId { get; init; }
     // The blob container the default grain storage opens; a revision runs in its own copy.
     public string? GrainStateContainer { get; init; }
-    public bool PersistentStorage { get; init; } = true;
     public string? DataVolume { get; init; }
     // Development or Production for every silo host; null leaves each resource's own default.
     public string? Environment { get; init; }

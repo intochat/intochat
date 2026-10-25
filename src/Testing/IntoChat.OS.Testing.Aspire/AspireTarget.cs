@@ -27,7 +27,8 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
         string[] args =
         [
             $"{IntoChat.OS.Framework.IntoChatOSNames.HomeKey}={home.Path}",
-            $"{IntoChatOSHostingOptions.PersistentStorageKey}=false",
+            // A test brain's Azurite is a throwaway container, like its Home.
+            $"{IntoChatOSConfiguration.ModuleOptionsSection("orleans")}:Azurite:PersistentStorage=false",
             $"{IntoChatOSHostingOptions.ClusterIdKey}={identity}",
             .. options.Where(pair => pair.Value is not null).Select(pair => $"{pair.Key}={pair.Value}"),
             .. plan.Execution.HostConfiguration.Where(pair => pair.Value is not null).Select(pair => $"{pair.Key}={pair.Value}"),

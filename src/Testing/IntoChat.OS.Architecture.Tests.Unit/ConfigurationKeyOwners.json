@@ -26,5 +26,6 @@
   "IntoChat.OS.Connections/Platform/Identity/AuthOptions.cs",
   "IntoChat.OS.Connections/Platform/Identity/IdentityHostOptions.cs",
   "IntoChat.OS.Connections/Platform/Identity/KernelCorsOptions.cs",
-  "IntoChat.OS.Framework/Modules/ModuleSettingsValidation.cs"
+  "IntoChat.OS.Framework/Modules/ModuleSettingsValidation.cs",
+  "IntoChat.OS.Architecture.Tests.Unit/TestHostsUseTempHomeFacts.cs"
 ]

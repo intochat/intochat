@@ -3,7 +3,8 @@ namespace IntoChat.OS.Authority.Storage;
 public sealed class BrainStoreOptions
 {
     public const string Key = IntoChat.OS.Framework.IntoChatOSNames.BrainStorageConfigurationKey;
-    public string Directory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IntoChatOS", "runtime");
+    // <Home>/state: the hosting registrations set it from IntoChatOS:Home (StateHome); it is not a configuration key.
+    public string Directory { get; set; } = IntoChat.OS.Framework.StateHome.Default().State;
     public IntoChat.OS.Framework.Parts.MasterKeyCustodyKind Custody { get; set; }
     public bool ConfiguredCustodyAcknowledged { get; set; }
     // Framed everywhere (Kernel and AppHost settings agree); BrainLog.DetectFormat still reads Legacy logs.

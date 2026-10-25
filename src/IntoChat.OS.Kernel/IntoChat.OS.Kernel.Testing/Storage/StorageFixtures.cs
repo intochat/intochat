@@ -29,13 +29,13 @@ public static class StorageFixtures
     };
 
     // A fixture host's brain storage: the test seal key as its master key (custody roots on its UTF-8 bytes, as
-    // PlatformHosting reads the configured key), the fixture's directory and the segment format it writes.
-    public static TestBrain WithFixtureStorage(this TestBrain brain, string brainStore, BrainLogFormat format)
+    // PlatformHosting reads the configured key), the fixture's Home (its brain log is <home>/state) and the segment format it writes.
+    public static TestBrain WithFixtureStorage(this TestBrain brain, string home, BrainLogFormat format)
     {
         ArgumentNullException.ThrowIfNull(brain);
         return brain
             .WithConfiguration(IntoChatOSNames.MasterKeyConfigurationKey, TestSealKey.Base64)
-            .WithConfiguration(BrainStoreOptions.Key + ":" + nameof(BrainStoreOptions.Directory), brainStore)
+            .WithConfiguration(IntoChatOSNames.HomeKey, home)
             .WithConfiguration(BrainStoreOptions.Key + ":" + nameof(BrainStoreOptions.WriteFormat), format.ToString());
     }
 

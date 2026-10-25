@@ -27,7 +27,7 @@ public interface IDockerCli
 public sealed record ResetTarget(string Kind, string Description, string Reference);
 
 /// <summary>
-/// The local-development reset: removes the run state of one checkout (workdir, runtime directory, its Aspire containers and volumes
+/// The local-development reset: removes the run state of one checkout (workdir, the Home's state directory, its Aspire containers and volumes
 /// and the shared C# cache volume). Refuses outside Development and run mode, prints everything first, and needs a typed "yes".
 /// The master key (user secrets) and the machine id stay unless asked for.
 /// </summary>
@@ -36,6 +36,7 @@ public sealed class LocalReset(
     bool isRunMode,
     string repositoryRoot,
     string localApplicationData,
+    string home,
     string appHostPathSha256,
     string? userSecretsDirectory,
     IResetFileSystem fileSystem,
@@ -48,7 +49,8 @@ public sealed class LocalReset(
 
     private string WorkDirectory => Path.GetFullPath(Path.Combine(repositoryRoot, ".intochat-os"));
     private string ProductDirectory => Path.GetFullPath(Path.Combine(localApplicationData, "IntoChatOS"));
-    private string RuntimeDirectory => Path.Combine(ProductDirectory, "runtime");
+    // <Home>/state only: the Home's secrets and anything else under it stay.
+    private string StateDirectory => Path.GetFullPath(Path.Combine(home, "state"));
     private string MachineIdFile => Path.Combine(ProductDirectory, "machine-id");
     private string Sha10 => appHostPathSha256.Length >= 10 ? appHostPathSha256[..10].ToLowerInvariant() : "";
     private string Sha8 => Sha10.Length >= 8 ? Sha10[..8] : "";
@@ -61,7 +63,7 @@ public sealed class LocalReset(
             var children = fileSystem.Children(WorkDirectory);
             plan.Add(new ResetTarget("directory", $"{WorkDirectory} ({children.Count} entries, {children.Sum(c => c.Bytes)} bytes)", WorkDirectory));
         }
-        if (fileSystem.DirectoryExists(RuntimeDirectory)) { plan.Add(new ResetTarget("directory", RuntimeDirectory, RuntimeDirectory)); }
+        if (fileSystem.DirectoryExists(StateDirectory)) { plan.Add(new ResetTarget("directory", StateDirectory, StateDirectory)); }
         if (includeMachineId && fileSystem.FileExists(MachineIdFile)) { plan.Add(new ResetTarget("file", MachineIdFile + " (machine id)", MachineIdFile)); }
         if (includeSecrets && userSecretsDirectory is { Length: > 0 } && fileSystem.DirectoryExists(userSecretsDirectory))
         { plan.Add(new ResetTarget("secrets", userSecretsDirectory + " (master key and user secrets)", userSecretsDirectory)); }
@@ -110,7 +112,7 @@ public sealed class LocalReset(
         foreach (var target in plan.Where(t => t.Kind == "volume")) { await docker.RemoveVolumeAsync(target.Reference, cancellationToken); }
         foreach (var target in plan.Where(t => t.Kind is "directory" or "file" or "secrets"))
         {
-            var roots = target.Kind == "secrets" ? new[] { Path.GetFullPath(target.Reference) } : [WorkDirectory, ProductDirectory];
+            var roots = target.Kind == "secrets" ? new[] { Path.GetFullPath(target.Reference) } : [WorkDirectory, ProductDirectory, StateDirectory];
             var full = Path.GetFullPath(target.Reference);
             if (!roots.Any(root => IsRootOrChild(root, full))) { await output.WriteLineAsync($"  skipped (outside the allowed roots): {full}", cancellationToken); continue; }
             if (fileSystem.IsReparsePoint(full)) { await output.WriteLineAsync($"  skipped (reparse point): {full}", cancellationToken); continue; }

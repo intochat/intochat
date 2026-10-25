@@ -294,7 +294,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             [IntegrationVariable(OrleansIntegration, "GrainStateContainer")] = GrainStateContainer,
             [IntoChatOSConfiguration.EnvironmentName(IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
-            [Env(IntoChatOSNames.BrainStorageDirectoryConfigurationKey)] = "/app/brain-store",
+            [Env(IntoChatOSNames.HomeKey)] = "/app/home",
             [Env(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
             // The candidate owns fresh keys and a private container filesystem.
             [IntoChatOSNames.MasterKeyEnvironmentVariable] = Secret(),

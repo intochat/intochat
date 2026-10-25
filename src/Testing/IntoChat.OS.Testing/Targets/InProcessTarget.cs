@@ -88,7 +88,6 @@ public sealed class InProcessTarget : ITestTarget
             [IntoChatOSNames.MasterKeyConfigurationKey] = session.MasterKey,
             // A temporary Home per brain: the brain log lives in <Home>/state, never in the developer's ~/.intochat.
             [IntoChatOSNames.HomeKey] = session.Home.Path,
-            [IntoChat.OS.Authority.Storage.BrainStoreOptions.Key + ":Directory"] = session.Home.State,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),

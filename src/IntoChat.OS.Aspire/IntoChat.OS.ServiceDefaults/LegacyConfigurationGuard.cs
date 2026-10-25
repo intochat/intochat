@@ -17,6 +17,14 @@ public static class LegacyConfigurationGuard
     private static readonly string Lower = "digital" + "brain";
     private static readonly string Upper = "DIGITAL" + "BRAIN";
 
+    // Settings this release retired (D-11, D-13). Each fails startup in every environment naming its replacement;
+    // unlike the product rename these are not Development warnings, because a silently ignored one moves local state.
+    public static readonly IReadOnlyList<(string Name, string Replacement)> RetiredSettings =
+    [
+        ("IntoChatOS:Hosting:PersistentStorage", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
+        ("IntoChatOS:Platform:Storage:Directory", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
+    ];
+
     public static void Verify(IConfiguration configuration, IHostEnvironment environment, ILogger? logger = null)
         => Verify(configuration, environment, EnvironmentVariableNames(), LocalApplicationData(), logger);
 
@@ -30,7 +38,21 @@ public static class LegacyConfigurationGuard
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(environmentVariableNames);
-        var offenders = Find(configuration, environmentVariableNames, localApplicationData);
+        var names = environmentVariableNames as IReadOnlyCollection<string> ?? environmentVariableNames.ToArray();
+        var retired = FindRetired(configuration, names);
+        if (retired.Count > 0)
+        {
+            throw new InvalidOperationException("Retired settings are not read: "
+                + string.Join("; ", retired.Select(offender => $"{offender.Name} -> {offender.Replacement}"))
+                + ". Local state lives under IntoChatOS:Home (<Home>/state); remove each setting, then start again.");
+        }
+        // The pre-Home state directory is not migrated (clean break): one note so an operator knows where state went.
+        if (localApplicationData is { Length: > 0 } && Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS", "runtime")))
+        {
+            logger?.LogInformation("{Directory} is from an earlier release and is not read or migrated; local state now lives in <{HomeKey}>/state.",
+                Path.Combine("%LOCALAPPDATA%", "IntoChatOS", "runtime"), IntoChat.OS.Framework.IntoChatOSNames.HomeKey);
+        }
+        var offenders = Find(configuration, names, localApplicationData);
         if (offenders.Count == 0) { return; }
         var message = "Configuration written for the previous product name is not read (no compatibility layer; see release notes 0.3.0): "
             + string.Join("; ", offenders.Select(offender => $"{offender.Name} -> {offender.Replacement}"))
@@ -72,6 +94,22 @@ public static class LegacyConfigurationGuard
             && !Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS")))
         { found.Add((Path.Combine("%LOCALAPPDATA%", Pascal), Path.Combine("%LOCALAPPDATA%", "IntoChatOS"))); }
         return found.DistinctBy(offender => offender.Name, StringComparer.Ordinal).ToArray();
+    }
+
+    // Configuration keys and environment variable names (':' or '__') of the retired settings that are set; names only.
+    public static IReadOnlyList<(string Name, string Replacement)> FindRetired(IConfiguration configuration, IEnumerable<string> environmentVariableNames)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environmentVariableNames);
+        var found = new List<(string Name, string Replacement)>();
+        foreach (var (name, replacement) in RetiredSettings)
+        {
+            if (configuration[name] is not null) { found.Add((name, replacement)); }
+            var variable = name.Replace(":", "__", StringComparison.Ordinal);
+            if (environmentVariableNames.Any(candidate => string.Equals(candidate, variable, StringComparison.OrdinalIgnoreCase)))
+            { found.Add((variable, replacement.Replace(":", "__", StringComparison.Ordinal))); }
+        }
+        return found.DistinctBy(offender => offender.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static IEnumerable<string> EnvironmentVariableNames()

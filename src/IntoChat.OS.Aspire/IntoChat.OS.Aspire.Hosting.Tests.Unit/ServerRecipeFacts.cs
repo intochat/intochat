@@ -32,7 +32,7 @@ public sealed class ServerRecipeFacts
         {
             [IntoChatOSNames.MasterKeyConfigurationKey] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [$"{BrainStoreOptions.Key}:Directory"] = Directory.CreateTempSubdirectory("recipe-").FullName,
+            [IntoChatOSNames.HomeKey] = Directory.CreateTempSubdirectory("recipe-").FullName,
         });
         builder.AddIntoChatOSServer(server => server.AddModule<OrleansModule>().AddModule<TimeModule>());
         await using var app = builder.Build();

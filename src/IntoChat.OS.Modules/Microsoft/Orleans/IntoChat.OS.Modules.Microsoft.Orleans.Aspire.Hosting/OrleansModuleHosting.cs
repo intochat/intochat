@@ -24,7 +24,7 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
         if (!options.Azurite.Enabled) { return; }
 
         var builder = brain.ApplicationBuilder;
-        var persist = options.Azurite.PersistentStorage && builder.Configuration.GetValue(IntoChatOSHostingOptions.PersistentStorageKey, true);
+        var persist = options.Azurite.PersistentStorage;
         var storage = builder.AddAzureStorage(brain.ResourceName(IntoChatOSNames.Storage))
             .RunAsEmulator(emulator =>
             {

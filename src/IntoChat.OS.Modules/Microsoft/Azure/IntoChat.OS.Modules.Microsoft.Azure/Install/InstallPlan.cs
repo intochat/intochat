@@ -206,7 +206,8 @@ public static class InstallPlan
             [Variable(IntoChatOSNames.KeyVaultUriConfigurationKey)] = $"https://{vault}.vault.azure.net/",
             ["Orleans__ClusterId"] = c.ClusterId,
             ["Orleans__ServiceId"] = c.ServiceId,
-            [Variable(IntoChatOSNames.BrainStorageDirectoryConfigurationKey)] = BrainLogDirectory(c),
+            // The mounted share is the Home; the brain log lives in <Home>/state.
+            [Variable(IntoChatOSNames.HomeKey)] = BrainLogDirectory(c),
             [Variable(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
             // https service URIs select token auth with the runtime identity.
             [Integration(OrleansIntegrationNames.Clustering)] = tables,
