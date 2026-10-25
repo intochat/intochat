@@ -1,8 +1,5 @@
-using System;
 using System.Collections.Immutable;
-using System.IO;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace DigitalBrain.Analyzers.Apps;
@@ -31,35 +28,7 @@ public sealed class SpecCommentAnalyzer : DiagnosticAnalyzer
         var type = (INamedTypeSymbol)context.Symbol;
         if (!AppRules.IsApp(type) || type.IsAbstract) { return; }
 
-        foreach (var reference in type.DeclaringSyntaxReferences)
-        {
-            var root = reference.SyntaxTree.GetRoot(context.CancellationToken);
-            foreach (var trivia in root.GetLeadingTrivia())
-            {
-                if (trivia.IsKind(SyntaxKind.MultiLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia)) { return; }
-            }
-            var declaration = reference.GetSyntax(context.CancellationToken);
-            foreach (var trivia in declaration.GetLeadingTrivia())
-            {
-                if (trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)) { return; }
-            }
-        }
-
-        foreach (var file in context.Options.AdditionalFiles)
-        {
-            var name = Path.GetFileName(file.Path);
-            if (string.Equals(name, type.Name + ".spec.md", StringComparison.OrdinalIgnoreCase)) { return; }
-            foreach (var reference in type.DeclaringSyntaxReferences)
-            {
-                var path = reference.SyntaxTree.FilePath;
-                if (string.IsNullOrEmpty(path)) { continue; }
-                if (string.Equals(name, Path.GetFileNameWithoutExtension(path) + ".spec.md", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(Path.GetDirectoryName(file.Path), Path.GetDirectoryName(path), StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-            }
-        }
+        if (SpecSource.Find(type, context.Options, context.CancellationToken) is not null) { return; }
 
         context.ReportDiagnostic(Diagnostic.Create(AppRules.MissingSpec, type.Locations[0], type.Name));
     }

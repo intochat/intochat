@@ -65,7 +65,7 @@ public sealed class AppSchedulingMemberFacts
 
 public sealed class AppRuleTimingFacts
 {
-    // T-04-07 timing criterion for the full app set: every DB rule over a generated 2 000-line app file.
+    // T-04-07 timing criterion for the full app set: every DB rule (AnalyzerSet.All, 14 analyzers) over a generated 2 000-line app file.
     [Fact]
     public async Task Full_rule_set_handles_a_2000_line_app_file()
     {
@@ -75,6 +75,7 @@ public sealed class AppRuleTimingFacts
 
             Role: Example
             Shipped: false
+            Operations: OPERATIONS
             */
             using System;
             using System.Collections.Generic;
@@ -88,8 +89,10 @@ public sealed class AppRuleTimingFacts
         source.AppendLine("    private readonly string appKey = \"big\";");
         source.AppendLine("    private string state = \"\";");
         var bad = 0;
+        var operations = new List<string>();
         for (var i = 0; source.ToString().Split('\n').Length < 2000; i++)
         {
+            operations.Add("heard" + i.ToString(CultureInfo.InvariantCulture));
             source.AppendLine(CultureInfo.InvariantCulture, $"    [On] public Task Heard{i}(Number n) => Task.CompletedTask;");
             source.AppendLine(CultureInfo.InvariantCulture, $"    public string Label{i}(string folder) => folder + \"/x{i}\";");
             source.AppendLine(CultureInfo.InvariantCulture, $"    public void Guard{i}() {{ try {{ state = \"{i}\"; }} catch (FormatException e) {{ state = e.Message; }} }}");
@@ -101,7 +104,7 @@ public sealed class AppRuleTimingFacts
             }
         }
         source.AppendLine("}");
-        var text = source.ToString();
+        var text = source.ToString().Replace("OPERATIONS", string.Join(", ", operations), StringComparison.Ordinal);
         Assert.True(text.Split('\n').Length >= 2000);
 
         var references = await Microsoft.CodeAnalysis.Testing.ReferenceAssemblies.Net.Net80
@@ -110,15 +113,10 @@ public sealed class AppRuleTimingFacts
             references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        DiagnosticAnalyzer[] analyzers =
-        [
-            new ModuleShapeAnalyzer(), new AppSchedulingAnalyzer(), new OrleansAttributeAnalyzer(),
-            new SignalLoopAnalyzer(), new ReactionShapeAnalyzer(),
-            new AppBaseAnalyzer(), new VendorRequiresAnalyzer(), new EmptyCatchAnalyzer(), new KeyCompositionAnalyzer(),
-            new SpecCommentAnalyzer(), new SuppressionAnalyzer(),
-        ];
+        var analyzers = AnalyzerSet.All;
+        Assert.Equal(14, analyzers.Length);
         var watch = Stopwatch.StartNew();
-        var diagnostics = await compilation.WithAnalyzers([.. analyzers]).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+        var diagnostics = await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
         watch.Stop();
 
         Assert.Equal(bad, diagnostics.Count(d => d.Id == "DB0023"));

@@ -785,3 +785,28 @@ static DigitalBrain.Confirmation.ConfirmationResult.operator !=(DigitalBrain.Con
 static DigitalBrain.Confirmation.ConfirmationResult.operator ==(DigitalBrain.Confirmation.ConfirmationResult? left, DigitalBrain.Confirmation.ConfirmationResult? right) -> bool
 static DigitalBrain.Confirmation.ConfirmationRules.Asks(DigitalBrain.Confirmation.ConfirmationPolicy policy, DigitalBrain.Confirmation.ConfirmationPlan! plan) -> bool
 static DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry.get -> System.TimeSpan
+DigitalBrain.Apps.AppRole
+DigitalBrain.Apps.AppRole.Default = 1 -> DigitalBrain.Apps.AppRole
+DigitalBrain.Apps.AppRole.Example = 3 -> DigitalBrain.Apps.AppRole
+DigitalBrain.Apps.AppRole.Optional = 2 -> DigitalBrain.Apps.AppRole
+DigitalBrain.Apps.AppRole.Shell = 0 -> DigitalBrain.Apps.AppRole
+DigitalBrain.Apps.SpecComment
+DigitalBrain.Apps.SpecComment.Describes(string! operation) -> bool
+DigitalBrain.Apps.SpecComment.Description.get -> string!
+DigitalBrain.Apps.SpecComment.Errors.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Apps.SpecCommentError!>!
+DigitalBrain.Apps.SpecComment.Operations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Apps.SpecComment.OperationsDeclared.get -> bool
+DigitalBrain.Apps.SpecComment.Role.get -> DigitalBrain.Apps.AppRole?
+DigitalBrain.Apps.SpecComment.Scenarios.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Apps.SpecComment.Shipped.get -> bool?
+DigitalBrain.Apps.SpecComment.Text.get -> string!
+DigitalBrain.Apps.SpecComment.Title.get -> string?
+DigitalBrain.Apps.SpecCommentError
+DigitalBrain.Apps.SpecCommentError.Line.get -> int
+DigitalBrain.Apps.SpecCommentError.Message.get -> string!
+DigitalBrain.Apps.SpecCommentError.SpecCommentError(int line, string! message) -> void
+const DigitalBrain.Apps.SpecComment.MaxLength = 65536 -> int
+override DigitalBrain.Apps.SpecCommentError.ToString() -> string!
+static DigitalBrain.Apps.SpecComment.Extract(string! source) -> string?
+static DigitalBrain.Apps.SpecComment.NormalizeOperation(string! name) -> string!
+static DigitalBrain.Apps.SpecComment.Parse(string! text) -> DigitalBrain.Apps.SpecComment!

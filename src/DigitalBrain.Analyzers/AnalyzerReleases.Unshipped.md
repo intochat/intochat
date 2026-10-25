@@ -14,8 +14,8 @@ DB0020 | DigitalBrain.Apps | Error | [App] class must derive from App
 DB0021 | DigitalBrain.Apps | Error | Requires names a module instead of a capability
 DB0022 | DigitalBrain.Apps | Error | Empty or swallow-only catch
 DB0023 | DigitalBrain.Apps | Error | Key composed from strings
-DB0024 | DigitalBrain.Apps | Warning | Spec comment and manifest disagree (08-03)
-DB0025 | DigitalBrain.Apps | Warning | Hand-written JSON (08-03)
-DB0026 | DigitalBrain.Apps | Warning | Re-implemented App base helper (08-03)
+DB0024 | DigitalBrain.Apps | Warning | Spec comment and manifest disagree
+DB0025 | DigitalBrain.Apps | Warning | Hand-written JSON
+DB0026 | DigitalBrain.Apps | Warning | Re-implemented App base helper
 DB0027 | DigitalBrain.Apps | Error | Missing spec comment
 DB0028 | DigitalBrain.Apps | Error | Suppressing a DigitalBrain rule
