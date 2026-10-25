@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Preferences;
+namespace IntoChat.OS.Modules.Flutter.Preferences;
 
 // Where a preference lives. The first block is the brain's {brain}/settings text fields, which any member may
 // change; the Local* block is this device's own choice, which the renderer reads and writes on the device.

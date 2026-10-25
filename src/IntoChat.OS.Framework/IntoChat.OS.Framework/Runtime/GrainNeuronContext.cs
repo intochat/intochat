@@ -1,6 +1,7 @@
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

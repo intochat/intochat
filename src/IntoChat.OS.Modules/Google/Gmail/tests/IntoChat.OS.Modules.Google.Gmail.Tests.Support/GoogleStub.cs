@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Google.Gmail.Testing;
+namespace IntoChat.OS.Modules.Google.Gmail.Testing;
 
 public sealed record GoogleStubRequest(string Method, string Path, IReadOnlyDictionary<string, string> Query, string Body, string? Authorization);
 public sealed record GoogleStubReply(int StatusCode, object? Body = null, TimeSpan? Delay = null, bool Abort = false,

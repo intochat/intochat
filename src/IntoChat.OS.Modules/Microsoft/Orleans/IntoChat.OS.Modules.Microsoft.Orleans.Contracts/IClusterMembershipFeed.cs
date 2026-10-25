@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 // Local module boundary over Orleans' membership stream, not a grain or a polling client.
 // A subscription delivers the current value first. Null denotes an unavailable feed;

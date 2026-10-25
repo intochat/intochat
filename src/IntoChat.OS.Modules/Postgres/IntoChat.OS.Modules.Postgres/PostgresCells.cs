@@ -4,7 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 // Read PostgreSQL's text protocol so unknown extension types and arbitrary-precision numbers
 // are never forced through lossy CLR conversions. Text filters use this same server spelling.

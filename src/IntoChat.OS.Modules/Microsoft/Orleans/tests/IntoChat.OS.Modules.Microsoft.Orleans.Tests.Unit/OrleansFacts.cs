@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Orleans;
-
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit;
 
 public sealed class OrleansFacts

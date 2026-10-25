@@ -1,8 +1,9 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Framework.Contracts;
+namespace IntoChat.OS.Connections.Contracts;
 
 // What the caller's brain can search and call: the kernel's neuron types plus the live capabilities
 // each source reports, ranked by meaning when an embedding model is composed, by words otherwise.

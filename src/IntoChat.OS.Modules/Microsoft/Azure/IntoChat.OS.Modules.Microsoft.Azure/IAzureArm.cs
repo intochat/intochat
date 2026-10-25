@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // The seam over Azure Resource Manager: the neuron and the installer talk to this, tests record against it.
 public interface IAzureArm

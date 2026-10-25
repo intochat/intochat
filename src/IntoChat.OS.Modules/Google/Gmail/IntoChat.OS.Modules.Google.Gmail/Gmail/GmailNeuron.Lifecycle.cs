@@ -1,13 +1,16 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Timers;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed partial class GmailNeuron : IRemindable
 {

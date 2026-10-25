@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // "review-reject" (input: the review row id) marks the row rejected. A row already decided is left alone, a

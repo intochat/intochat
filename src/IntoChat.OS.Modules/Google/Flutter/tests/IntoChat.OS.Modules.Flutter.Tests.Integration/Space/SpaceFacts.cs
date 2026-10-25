@@ -1,11 +1,10 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flame.Scene.Signals;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Space;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene.Signals;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -288,7 +287,7 @@ public sealed class SpaceFacts
                 s.AddSingleton<IOutgoingGrainCallFilter>(calls);
             }).StartAsync(ct);
         var app = await App(brain, "activity");
-        await using var presentations = await brain.Observe<IntoChat.OS.Apps.Signals.PresentationChanged>(app, ct);
+        await using var presentations = await brain.Observe<IntoChat.OS.Modules.Apps.Signals.PresentationChanged>(app, ct);
         await app.Progress("working", "first detail");
         var first = (await app.Read()).Presentation!;
         Assert.Equal("true", first.Blackboard["running"]);
@@ -542,7 +541,7 @@ public sealed class SpaceFacts
         var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
         await workspace.Show(key, "show", 0);
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
-        await using var presentation = await brain.Observe<IntoChat.OS.Apps.Signals.PresentationChanged>(app, ct);
+        await using var presentation = await brain.Observe<IntoChat.OS.Modules.Apps.Signals.PresentationChanged>(app, ct);
         await app.Progress("working", "reading files");
         await presentation.NextAsync(ct: ct);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);

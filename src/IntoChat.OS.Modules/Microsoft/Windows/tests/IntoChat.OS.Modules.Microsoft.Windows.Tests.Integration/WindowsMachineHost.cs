@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Windows;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.WindowsMachineHost))]
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;

@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // A fresh subscription receives retained app requests. Remember completed Up request ids, including
 // no-ops, so replay cannot navigate again from a later location. The ledger survives script restart.

@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Time.Reminders.Signals;
+
+namespace IntoChat.OS.Modules.Time.Reminders.Signals;
 
 [GenerateSerializer, Alias("time.reminder-tick")]
 public sealed record ReminderTick(

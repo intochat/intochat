@@ -3,7 +3,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
-namespace IntoChat.OS.AI.Embeddings;
+namespace IntoChat.OS.Modules.AI.Embeddings;
 
 // The caller embeds (IEmbeddingModel) and the index ranks. An empty index takes its dimensions from the next
 // write; while it holds entries, every vector it is given or asked about must have those dimensions.

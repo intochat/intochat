@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
@@ -70,7 +72,7 @@ public sealed class NotificationPreferenceFacts(FlutterHost host)
         IResult result;
         using (person.AsApp(person.Key("apps/notes")))
         {
-            result = await IntoChat.OS.Flutter.Settings.NotificationPreferenceEndpoints.Write(
+            result = await IntoChat.OS.Modules.Flutter.Settings.NotificationPreferenceEndpoints.Write(
                 new Dictionary<string, bool> { ["agent-finished"] = false }, host.Brain, Ct);
         }
         var after = await person.Http.GetFromJsonAsync<Dictionary<string, bool>>($"/brains/{person.BrainId}/preferences/notifications", Ct);

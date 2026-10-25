@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Contracts.Configuration;
 
 public static class IntoChatOSNames
 {

@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Layout;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Composition;
 

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 [Alias("microsoft.roslyn")]
 public interface IRoslyn : INeuron

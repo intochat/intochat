@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Image;
+using IntoChat.OS.Modules.Flutter.Image;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Image;

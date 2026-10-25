@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Embeddings.Signals;
+namespace IntoChat.OS.Modules.AI.Embeddings.Signals;
 
 [GenerateSerializer, Alias("ai.vector-index-changed")]
 [Description("A vector index's entries changed: its key, its new revision and how many entries it holds.")]

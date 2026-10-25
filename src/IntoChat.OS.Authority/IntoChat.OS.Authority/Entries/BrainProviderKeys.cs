@@ -1,6 +1,7 @@
 using IntoChat.OS.Authority.Integrations;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Entries;
 
 namespace IntoChat.OS.Authority.Entries;
 

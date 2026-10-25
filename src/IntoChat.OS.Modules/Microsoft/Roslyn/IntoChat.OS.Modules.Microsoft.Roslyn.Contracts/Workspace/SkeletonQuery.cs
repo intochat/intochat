@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 [GenerateSerializer]
 [Alias("coding.skeleton-query")]

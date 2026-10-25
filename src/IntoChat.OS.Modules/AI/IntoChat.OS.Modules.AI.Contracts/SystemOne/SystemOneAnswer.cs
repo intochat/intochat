@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.SystemOne;
+namespace IntoChat.OS.Modules.AI.SystemOne;
 
 // The typed answer to a System One question. Choice and Score carry a full probability
 // distribution and a confidence (how peaked that distribution is); Noul carries a truth value.

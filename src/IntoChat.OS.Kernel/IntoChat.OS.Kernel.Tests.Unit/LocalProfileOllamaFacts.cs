@@ -2,11 +2,13 @@ extern alias AppHost;
 using AppHost::IntoChat.OS.AppHost;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -39,7 +41,7 @@ public sealed class LocalProfileOllamaFacts
     public async Task TheLocalProfileStartsNoOllamaContainerAndNoKeyParameterAndProjectsTheEndpoint()
     {
         await using var host = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            [MasterKey, "--" + IntoChat.OS.Framework.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal], TestContext.Current.CancellationToken);
+            [MasterKey, "--" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal], TestContext.Current.CancellationToken);
         Assert.DoesNotContain(host.Resources, resource => resource.Name.Contains("ollama", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(host.Resources, resource => resource.Name.Contains("openwebui", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(host.Resources.OfType<ParameterResource>(), resource =>
@@ -59,7 +61,7 @@ public sealed class LocalProfileOllamaFacts
     public async Task TheModelOverrideReachesTheKernelUnderTheDefaultMarkersModelKey()
     {
         await using var host = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            [MasterKey, "--" + IntoChat.OS.Framework.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal, "--" + IntoChatOSHostingOptions.LocalModelKey + "=qwen3.5:2b"], TestContext.Current.CancellationToken);
+            [MasterKey, "--" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal, "--" + IntoChatOSHostingOptions.LocalModelKey + "=qwen3.5:2b"], TestContext.Current.CancellationToken);
         var kernel = Assert.Single(host.Resources.OfType<ProjectResource>(), resource => resource.Name == "OperatingSystem-a");
         var environment = await EnvironmentOf(host, kernel);
         Assert.Equal("qwen3.5:2b", environment[AIKeys.OllamaModels + $":{nameof(IQwen35)}:Model"]);

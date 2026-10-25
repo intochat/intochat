@@ -1,9 +1,12 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 [GenerateSerializer, Alias("circles.factory-record")]
 [ExportableState]
@@ -27,7 +30,7 @@ internal sealed class CircleFactoryNeuron(
     public Task BindPublicationButton()
     {
         Own();
-        return GrainFactory.GetGrain<IntoChat.OS.Flutter.IUiBinding>(IApp.Key(Brain, "circle") + "/fork-button")
+        return GrainFactory.GetGrain<IntoChat.OS.Modules.Flutter.IUiBinding>(IApp.Key(Brain, "circle") + "/fork-button")
             .Bind(this.AsReference<ICircleFactory>());
     }
 

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Microsoft.GitHub.Webhook;
+namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
 internal static class GitHubWebhookHandler
 {

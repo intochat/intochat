@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Text;
+namespace IntoChat.OS.Modules.Flutter.Text;
 
 [Alias("text"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TextType)]
 public interface IText : INeuron

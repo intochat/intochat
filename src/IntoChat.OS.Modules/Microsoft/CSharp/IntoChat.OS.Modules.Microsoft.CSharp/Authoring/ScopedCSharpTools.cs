@@ -1,13 +1,16 @@
 using System.ComponentModel;
 using System.Reflection;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Microsoft.CSharp.Authoring;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 [McpServerToolType]
 public sealed class ScopedCSharpTools(IIntoChatOS brain, IKernelView kernel, CSharpContractDiscovery? contracts, string scope, bool canRun)

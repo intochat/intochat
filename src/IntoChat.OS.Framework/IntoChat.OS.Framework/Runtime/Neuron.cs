@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Utilities;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

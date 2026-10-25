@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // The coordinates a connection neuron holds; Key is the connection key that owns them.
 [GenerateSerializer, Alias("github.repository-coordinates")]

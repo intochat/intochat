@@ -1,9 +1,9 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 // Startup configures every control the view references, arms its buttons and presents the view on the durable tab.
 // `open` takes a tab id (or an old section name) and shows that tab; `read` publishes the stored preferences.

@@ -1,11 +1,13 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
-using IntoChat.OS.AI.Models.FoundryLocal;
+using IntoChat.OS.Modules.AI.Models.FoundryLocal;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.AI.Aspire.Hosting;
+namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
 public static partial class AIHostingExtensions
 {
@@ -15,7 +17,7 @@ public static partial class AIHostingExtensions
     // The declaration API is the typed AIOptions extension family (WithLlm<TModel> and
     // friends): typed at the declaration site, carried by configuration — the one value
     // channel — and resolved loudly once at bind in ConfigureDeclaration.
-    private static AIHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.AI.Aspire.Hosting.AIModuleHosting> module)
+    private static AIHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Modules.AI.Aspire.Hosting.AIModuleHosting> module)
     {
         ArgumentNullException.ThrowIfNull(module);
         var state = module.GetOrAddProjection(brain => new AIHostingState(brain, module.Resource));

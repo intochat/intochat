@@ -1,11 +1,12 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chart.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chart.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Chart;
+namespace IntoChat.OS.Modules.Flutter.Chart;
 
 [GrainType(UIVocabulary.ChartType)]
 internal sealed class ChartNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ChartState> store)

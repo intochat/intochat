@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Select;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Select;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Integrations;
 
 // Durable view state ({app}/view-state): what is shown (AppsTarget's text, "" for the library), whether Remove is

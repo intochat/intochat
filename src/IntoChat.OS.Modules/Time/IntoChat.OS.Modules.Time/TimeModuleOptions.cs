@@ -1,7 +1,7 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Time;
+namespace IntoChat.OS.Modules.Time;
 
 public sealed class TimeModuleOptions : IModuleOptions
 {

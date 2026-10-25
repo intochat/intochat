@@ -1,9 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Time.Reminders.Signals;
+using IntoChat.OS.Modules.Time.Reminders.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 using Orleans.Timers;
-namespace IntoChat.OS.Time.Reminders;
+
+namespace IntoChat.OS.Modules.Time.Reminders;
 
 [GrainType("reminder")]
 internal sealed class ReminderNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time, IReminderRegistry reminders) : Neuron, IReminder, IRemindable

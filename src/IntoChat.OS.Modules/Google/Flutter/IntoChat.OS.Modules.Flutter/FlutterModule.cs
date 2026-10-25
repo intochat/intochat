@@ -1,20 +1,24 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Space;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId("flutter")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Flutter.Button.IButton).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Flutter.Button.IButton).Assembly;
 
     public override void Configure(ISiloBuilder silo)
     {

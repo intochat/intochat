@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Map.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Map.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Map;
+namespace IntoChat.OS.Modules.Flutter.Map;
 
 [GrainType(UIVocabulary.MapType)]
 internal sealed class MapNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<MapState> store)

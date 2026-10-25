@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 [Alias("postgres.table-descriptor")]
 public interface ITableDescriptor : IGrainWithStringKey

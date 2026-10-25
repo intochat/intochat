@@ -2,7 +2,7 @@ using IntoChat.OS.Integrations;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The gallery a brain's scripts read: shipped apps are built-in, the brain owner's own
 // publications are theirs, everyone else's are from others; Get installs for real or says why not.

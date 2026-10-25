@@ -1,8 +1,7 @@
 using System.Reflection;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Entries.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Entries.Signals;
 using IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 using Xunit;
 

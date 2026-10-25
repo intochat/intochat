@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.VoiceInput;
+namespace IntoChat.OS.Modules.Flutter.VoiceInput;
 
 // Captures audio from the user; whoever listens decides how to transcribe it.
 [Alias("voiceinput"), Orleans.Metadata.DefaultGrainType(UIVocabulary.VoiceInputType)]

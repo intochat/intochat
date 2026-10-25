@@ -1,6 +1,7 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework;
 

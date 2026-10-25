@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // [GenerateSerializer] so the workspace neuron can let this cross the grain boundary: without it,
 // Orleans has no codec for the type and a query made through the neuron fails with an opaque

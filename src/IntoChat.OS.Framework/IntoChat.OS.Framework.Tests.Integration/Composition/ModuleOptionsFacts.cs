@@ -1,7 +1,12 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;

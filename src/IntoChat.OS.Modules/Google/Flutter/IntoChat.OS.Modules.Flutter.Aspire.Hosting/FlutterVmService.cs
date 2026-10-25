@@ -2,7 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 internal static class FlutterVmService
 {

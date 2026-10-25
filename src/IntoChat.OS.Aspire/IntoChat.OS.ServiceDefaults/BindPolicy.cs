@@ -1,5 +1,5 @@
 using System.Net;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.ServiceDefaults;

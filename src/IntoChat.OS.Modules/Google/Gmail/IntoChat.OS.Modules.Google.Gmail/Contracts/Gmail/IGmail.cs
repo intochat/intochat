@@ -1,6 +1,6 @@
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [Alias("gmail")]
 [Orleans.Metadata.DefaultGrainType("gmail")]

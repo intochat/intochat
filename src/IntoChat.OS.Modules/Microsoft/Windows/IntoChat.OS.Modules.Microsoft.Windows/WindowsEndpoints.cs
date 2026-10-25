@@ -1,11 +1,12 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 internal sealed record WindowsRootInput(string? Path);
 

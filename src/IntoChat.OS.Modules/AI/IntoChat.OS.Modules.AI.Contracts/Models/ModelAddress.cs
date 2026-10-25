@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // Turns an LLM marker name used in configuration, such as "IGpt56Luna", into its neuron inside a brain.
 // ILLM serves every caller as its own brain, but its key still belongs to one brain like every neuron key:

@@ -37,7 +37,7 @@ def main():
 
     def call(contract, target, method, arguments, refused=False):
         result = request(endpoint, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-            "name": "neurons_call", "arguments": {"contract": contract if contract.startswith("IntoChat.OS.") else "IntoChat.OS.Microsoft.Windows." + contract,
+            "name": "neurons_call", "arguments": {"contract": contract if contract.startswith("IntoChat.OS.") else "IntoChat.OS.Modules.Microsoft.Windows." + contract,
             "key": target, "method": method, "arguments": json.dumps(arguments)}}})["result"]
         assert bool(result.get("isError")) == refused, result
         if refused:
@@ -69,7 +69,7 @@ def main():
         assert events, "FileWritten was not durably recorded"
         app = "owner/apps/" + folder.name
         app_spec = "Persist this app across a runtime restart."
-        created = call("IntoChat.OS.Apps.IApp", app, "Create", [
+        created = call("IntoChat.OS.Modules.Apps.IApp", app, "Create", [
             {"title": "Single runtime proof", "description": "Durable app state test", "operations": [], "settings": [], "slots": []}, app_spec])
         assert created["spec"] == app_spec
         args.proof.write_text(json.dumps({"device": device, "folder": str(folder), "event": events[-1], "app": app, "spec": app_spec}), encoding="utf-8")
@@ -79,7 +79,7 @@ def main():
         assert str(folder) in request(roots), "Allowed folder state did not survive restart"
         assert call("IFileSystem", key + "/files", "Read", [str(folder / "proof.txt")]) == "single runtime MCP proof"
         if "app" in proof:
-            assert call("IntoChat.OS.Apps.IApp", proof["app"], "Read", [])["spec"] == proof["spec"]
+            assert call("IntoChat.OS.Modules.Apps.IApp", proof["app"], "Read", [])["spec"] == proof["spec"]
         event = proof["event"]
         page = request(base + f'/signals?since={event["sequence"] - 1}&limit=1')
         assert page["signals"] == [event], "Signal or durable cursor changed across restart"

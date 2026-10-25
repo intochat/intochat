@@ -1,8 +1,7 @@
 using System.Net;
 using System.Text;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 

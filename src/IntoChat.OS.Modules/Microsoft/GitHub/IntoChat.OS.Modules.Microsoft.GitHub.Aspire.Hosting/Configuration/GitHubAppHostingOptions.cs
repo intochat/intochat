@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 public sealed class GitHubAppHostingOptions
 {

@@ -29,10 +29,10 @@ public sealed class IdentityHostingFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
         builder.Services.AddSingleton(brain.Platform);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.IBrainAccess>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Sdk.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -45,7 +45,7 @@ public sealed class IdentityHostingFacts
         var target = new { alice.AccountId, alice.BrainId };
         using var denied = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
-        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", IntoChat.OS.Framework.Platform.Identity.MemberRole.Member, ct);
+        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", IntoChat.OS.Sdk.Platform.Identity.MemberRole.Member, ct);
         using var selected = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         selected.EnsureSuccessStatusCode();
         using var session = JsonDocument.Parse(await client.GetStringAsync("/identity/session", ct));
@@ -80,7 +80,7 @@ public sealed class IdentityHostingFacts
     public void CookieKeysPersistInTheGrainStateStoreWheneverTheBuiltHostHasOne(bool hasStore, bool storeRegisteredAfter)
     {
         var services = new ServiceCollection();
-        void AddStore() => services.AddKeyedSingleton(IntoChat.OS.Framework.IntoChatOSNames.GrainState, (_, _) =>
+        void AddStore() => services.AddKeyedSingleton(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.GrainState, (_, _) =>
             new Azure.Storage.Blobs.BlobServiceClient("UseDevelopmentStorage=true"));
         if (hasStore && !storeRegisteredAfter) { AddStore(); }
         services.AddCookieProtection();
@@ -137,7 +137,7 @@ public sealed class IdentityHostingFacts
         builder.Configuration[KernelCors.AllowedOriginConfigurationKey] = "http://localhost:27880";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
         builder.Services.AddSingleton(brain.Platform);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
         builder.Services.AddIdentity();

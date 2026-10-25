@@ -1,5 +1,5 @@
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 

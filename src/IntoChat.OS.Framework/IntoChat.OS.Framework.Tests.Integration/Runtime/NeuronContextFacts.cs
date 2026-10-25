@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Runtime;
 

@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The share gate: what leaves a brain compiles and carries no credentials.
 public sealed class AppSharingFacts

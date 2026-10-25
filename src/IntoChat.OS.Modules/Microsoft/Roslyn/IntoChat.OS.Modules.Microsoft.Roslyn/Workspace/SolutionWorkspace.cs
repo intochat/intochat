@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 public sealed class SolutionWorkspace(ISolutionLoader loader, ILogger<SolutionWorkspace> logger) : IDisposable
 {

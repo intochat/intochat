@@ -4,14 +4,15 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.AI.Models.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
@@ -38,8 +39,8 @@ public sealed class FastPathFacts : IDisposable
     public void Dispose() => Directory.Delete(_features, recursive: true);
 
     private const string Lemons = """
-        using IntoChat.OS.Apps;
-        using IntoChat.OS.Flutter.Text;
+        using IntoChat.OS.Modules.Apps;
+        using IntoChat.OS.Modules.Flutter.Text;
 
         // Answers lemons on every request.
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
@@ -50,7 +51,7 @@ public sealed class FastPathFacts : IDisposable
 
     private const string TwoReactions = """
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var app = brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!);
+        var app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!);
         await foreach (var open in brain.On(app, "ask", brain.Stopping)) { }
         await foreach (var close in brain.On(app, "ask", brain.Stopping)) { }
         """;
@@ -1533,7 +1534,7 @@ public sealed class FastPathFacts : IDisposable
     private static string Synapse(string spec, string marker) => $$"""
         // {{spec}}
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var app = brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!);
+        var app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!);
         await foreach (var request in brain.On(app, "ask", brain.Stopping))
         { Console.WriteLine("{{marker}}"); }
         """;

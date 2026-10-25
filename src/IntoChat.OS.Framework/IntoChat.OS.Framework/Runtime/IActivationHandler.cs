@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // Runs once per activation of TNeuron, in registration order, before the first call reaches it;

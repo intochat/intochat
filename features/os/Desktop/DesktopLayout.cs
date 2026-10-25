@@ -1,5 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // Pure composition: windows side by side above the dock. Theme comes from the UI kit.
 public static class DesktopLayout

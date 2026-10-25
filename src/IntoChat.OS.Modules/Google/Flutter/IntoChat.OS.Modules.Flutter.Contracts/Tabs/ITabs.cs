@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Tabs;
+namespace IntoChat.OS.Modules.Flutter.Tabs;
 
 [Alias("tabs"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TabsType)]
 public interface ITabs : INeuron

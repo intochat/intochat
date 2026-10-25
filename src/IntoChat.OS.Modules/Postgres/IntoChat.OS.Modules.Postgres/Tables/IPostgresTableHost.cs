@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // A Connection placement's table operations, run inside the connection's own neuron so the
 // credential never leaves it. Internal: scripts reach tables only through ITable.

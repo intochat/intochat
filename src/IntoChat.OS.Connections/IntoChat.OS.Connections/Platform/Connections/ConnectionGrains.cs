@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Metadata;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Connections;
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // Every connector's neuron implements IConnection, so a contract alone names no grain type once two
 // connectors are composed. The key does: each connection neuron is [GrainType(connectorId)].

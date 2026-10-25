@@ -1,7 +1,6 @@
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using System.Net;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
 

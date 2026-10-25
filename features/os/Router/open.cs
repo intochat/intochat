@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

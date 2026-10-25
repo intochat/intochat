@@ -1,15 +1,16 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.WebBrowser;
+namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 [GrainType(UIVocabulary.WebBrowserType), Reentrant]
 internal sealed class WebBrowserNeuron(

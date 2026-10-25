@@ -1,6 +1,10 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Integrations;

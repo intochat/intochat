@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("db.github.check-requirement")]
 public sealed record GitHubCheckRequirement([property: Id(0)] string Name,

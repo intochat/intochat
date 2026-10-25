@@ -1,15 +1,16 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenRouter;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenRouter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The fast path: one sentence becomes one synapse of an app. IApp.WriteSynapse records the request and
 // enqueues this; it runs on the work queue, never inside a grain turn, and reaches the app as an outside
@@ -29,7 +30,7 @@ internal sealed class ReactionWriter(
     IEnumerable<IAppRuntime> runtimes,
     IScriptSandbox? sandbox = null)
 {
-    internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Apps.FastPath");
+    internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.FastPath");
 
     private const int MaxAttempts = 2;
     private const int MaxErrors = 20;

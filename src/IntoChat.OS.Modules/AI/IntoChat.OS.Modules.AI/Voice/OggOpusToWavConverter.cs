@@ -2,7 +2,7 @@ using Concentus;
 using Concentus.Oggfile;
 using NAudio.Wave;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Telegram-class Ogg Opus → PCM WAV (IAW AudioConverter port).
 public sealed class OggOpusToWavConverter : IAudioConverter

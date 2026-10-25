@@ -1,10 +1,10 @@
 using System.ClientModel;
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.AI.Models;
 using OpenAI;
 using OpenAI.Images;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal sealed class OpenAIImageGeneration(ImageModel model, IAiCredentials credentials) : IImageGeneration, IConditionallyAvailable
 {

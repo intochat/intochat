@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections;
 
 [GenerateSerializer, Alias("types.type-validation")]
 public sealed class TypeValidationException(

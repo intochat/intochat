@@ -6,13 +6,13 @@ namespace Fixture;
 
 partial class WebModule
 {
-    public WebModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("web")) { }
+    public WebModule() : base(new global::IntoChat.OS.Sdk.Modules.ModuleId("web")) { }
 
     public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
     {
         global::System.ArgumentNullException.ThrowIfNull(silo);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Sdk.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(global::IntoChat.OS.Sdk.Modules.IModuleServices services);
 }

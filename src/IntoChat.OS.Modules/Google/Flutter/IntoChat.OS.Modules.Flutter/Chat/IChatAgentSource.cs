@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // Composition seam: the UI runtime need not reference AI implementation/contracts.
 // Implementations resolve one authoritative agent and translate its recoverable snapshot.

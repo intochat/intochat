@@ -1,8 +1,8 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The sidebar's buttons: open a chat, rename it in a modal, archive it with Undo. Each click is handled once
 // and only changes state; view.cs republishes.

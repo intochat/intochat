@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 internal sealed class FlutterHotReloadWatch : IDisposable
 {

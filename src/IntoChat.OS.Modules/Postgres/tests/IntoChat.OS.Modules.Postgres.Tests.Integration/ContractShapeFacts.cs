@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Postgres;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration;
 
@@ -13,9 +15,9 @@ public sealed class ContractShapeFacts
         var neurons = assembly.GetExportedTypes()
             .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type))
             .Select(type => type.FullName).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(["IntoChat.OS.Postgres.IPostgresServer", "IntoChat.OS.Postgres.Tables.ITable"], neurons);
+        Assert.Equal(["IntoChat.OS.Modules.Postgres.IPostgresServer", "IntoChat.OS.Modules.Postgres.Tables.ITable"], neurons);
         var signals = assembly.GetExportedTypes().Where(type => typeof(Signal).IsAssignableFrom(type) && type != typeof(Signal))
             .Select(type => type.Namespace).Distinct().ToArray();
-        Assert.Equal(["IntoChat.OS.Postgres.Tables.Signals"], signals);
+        Assert.Equal(["IntoChat.OS.Modules.Postgres.Tables.Signals"], signals);
     }
 }

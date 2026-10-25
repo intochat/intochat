@@ -2,7 +2,7 @@ using System.ClientModel;
 using Microsoft.Extensions.AI;
 using OpenAI;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 internal abstract class OpenAICompatibleProviderFactory : ApiKeyProviderFactory
 {

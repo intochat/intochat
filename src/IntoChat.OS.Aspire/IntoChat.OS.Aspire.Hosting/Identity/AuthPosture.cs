@@ -1,8 +1,12 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Connections.Identity.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;

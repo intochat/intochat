@@ -1,9 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Embeddings.Signals;
+using IntoChat.OS.Modules.AI.Embeddings.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.Embeddings;
+namespace IntoChat.OS.Modules.AI.Embeddings;
 
 [GenerateSerializer, Alias("ai.vector-index-state")]
 [ExportableState]

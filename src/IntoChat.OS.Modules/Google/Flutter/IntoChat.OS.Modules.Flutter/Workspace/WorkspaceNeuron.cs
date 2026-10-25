@@ -2,13 +2,15 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Space;
-using IntoChat.OS.Flutter.Workspace.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [GrainType("ui.workspace")]
 internal sealed partial class WorkspaceNeuron(

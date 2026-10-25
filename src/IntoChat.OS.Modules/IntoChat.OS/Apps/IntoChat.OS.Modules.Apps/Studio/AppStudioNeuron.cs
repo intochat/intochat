@@ -1,8 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Creator, addressable: one neuron per brain wrapping the Author and Builder. Build waits for
 // the background Builder to land, so a single routed call answers with the finished app.

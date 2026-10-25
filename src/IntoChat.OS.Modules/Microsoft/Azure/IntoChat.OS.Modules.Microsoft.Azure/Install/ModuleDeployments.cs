@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.Azure.Install;
+namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 public sealed record ModuleDeploymentBinding(string ModuleId, IModuleDeployment Deployment);
 

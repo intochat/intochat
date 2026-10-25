@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Apps.Tests.Integration.AppsHost))]
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;

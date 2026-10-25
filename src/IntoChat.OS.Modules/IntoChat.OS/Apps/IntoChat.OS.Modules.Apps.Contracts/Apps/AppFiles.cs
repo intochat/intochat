@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // An app is a folder of .cs files. app.cs declares the manifest (its leading comment is the spec);
 // every other .cs file is program: a synapse when it has top-level statements, a shared class otherwise.

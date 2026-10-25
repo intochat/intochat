@@ -1,7 +1,8 @@
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Flutter.Viewport;
+namespace IntoChat.OS.Modules.Flutter.Viewport;
 
 [GrainType("viewport")]
 internal sealed class ViewportNeuron(

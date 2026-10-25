@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Sdk.Modules;
 
 public sealed class ModuleDefinition
 {

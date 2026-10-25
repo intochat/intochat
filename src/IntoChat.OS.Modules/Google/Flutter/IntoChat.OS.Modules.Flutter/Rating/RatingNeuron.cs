@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Rating.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Rating.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Rating;
+namespace IntoChat.OS.Modules.Flutter.Rating;
 
 [GrainType(UIVocabulary.RatingType)]
 internal sealed class RatingNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<RatingState> store)

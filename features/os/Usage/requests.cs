@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

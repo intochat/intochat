@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 public sealed class ChangeSetEditor(CodeFixCatalog codeFixes)
 {

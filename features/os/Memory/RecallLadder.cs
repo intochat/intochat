@@ -1,11 +1,10 @@
 using System.Globalization;
 using System.Text;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Client;
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Inference;
 
 // Shared: recall over the user's life. Facts and episodes are embedded into the brain's "life" vector index
 // (every entry carries tier and brain, and every search is limited to the brain), ranked by

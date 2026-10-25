@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // Installation, Repository and App are the delivery's routing hints; the neuron accepts only its own.
 [GenerateSerializer, Alias("github.repository-event")]

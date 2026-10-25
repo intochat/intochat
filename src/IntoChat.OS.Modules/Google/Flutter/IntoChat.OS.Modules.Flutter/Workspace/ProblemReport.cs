@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 // A "Report a problem" entry always carries the intent id it was raised from, so support can join
 // it to the intent's usage, trace and statement line.

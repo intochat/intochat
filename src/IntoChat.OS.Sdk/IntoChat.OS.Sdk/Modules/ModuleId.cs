@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Sdk.Modules;
 
 // A module's name on every channel: configuration sections, registration, hosting, deployment.
 // Valid by construction; configuration keys are case-insensitive, so equality is too.

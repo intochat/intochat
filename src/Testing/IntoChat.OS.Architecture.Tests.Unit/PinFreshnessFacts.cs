@@ -16,7 +16,6 @@ public sealed class PinFreshnessFacts
         "SynapseWordAllowlist.json",
         FrameworkHasNoVendorSdksFacts.BaselineFile,
         AppsHaveNoModuleIdsFacts.BaselineFile,
-        NamespaceSchemeFacts.BaselineFile,
     ];
 
     [Fact]
@@ -35,7 +34,6 @@ public sealed class PinFreshnessFacts
                 new SynapseWordFacts().CaptureSynapseWordAllowlist();
                 new FrameworkHasNoVendorSdksFacts().CaptureFrameworkVendorBaseline();
                 new AppsHaveNoModuleIdsFacts().CaptureAppsModuleIdBaseline();
-                new NamespaceSchemeFacts().CaptureNamespaceSchemeBaseline();
             }
             var stale = new List<string>();
             foreach (var file in Files)

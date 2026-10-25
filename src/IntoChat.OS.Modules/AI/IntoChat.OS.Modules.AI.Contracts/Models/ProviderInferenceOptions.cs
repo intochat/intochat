@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 [GenerateSerializer, Alias("ai.provider-inference-options")]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$provider")]

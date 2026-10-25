@@ -1,4 +1,8 @@
-namespace IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
+
+namespace IntoChat.OS.Connections.Compute;
 
 public interface IComputeReader
 {

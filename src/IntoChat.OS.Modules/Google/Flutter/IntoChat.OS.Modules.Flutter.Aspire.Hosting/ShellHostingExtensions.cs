@@ -2,31 +2,35 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public static class ShellHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> RunDesktopApp(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> RunDesktopApp(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
         Action<FlutterHostOptions>? configure = null)
         => ConfigureFlutterHost(module, FlutterHostKind.Window, configure);
 
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> RunWebApp(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> RunWebApp(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
         Action<FlutterHostOptions>? configure = null)
         => ConfigureFlutterHost(module, FlutterHostKind.Web, configure);
 
-    private static IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> ConfigureFlutterHost(
-        IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
+    private static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> ConfigureFlutterHost(
+        IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
         FlutterHostKind kind,
         Action<FlutterHostOptions>? configure)
     {
@@ -45,7 +49,7 @@ public static class ShellHostingExtensions
         return module;
     }
 
-    private static ShellHostingState GetOrCreateState(IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting> module)
+    private static ShellHostingState GetOrCreateState(IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> module)
     {
         var state = module.GetOrAddProjection(static brain => new ShellHostingState(brain));
 

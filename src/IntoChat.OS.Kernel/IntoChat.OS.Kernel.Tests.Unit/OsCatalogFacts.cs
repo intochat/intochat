@@ -95,7 +95,7 @@ public sealed class OsCatalogFacts
             System.Reflection.Assembly assembly;
             try { assembly = System.Reflection.Assembly.Load(name); }
             catch (FileNotFoundException) { continue; }
-            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IntoChat.OS.Framework.Modules.Module).IsAssignableFrom(type)))
+            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IntoChat.OS.Sdk.Modules.Module).IsAssignableFrom(type)))
             {
                 Assert.True(cataloged.Contains(type) || OsCatalog.IsExcluded(type), type.FullName);
             }

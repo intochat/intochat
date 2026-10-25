@@ -1,6 +1,6 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter.Chat;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

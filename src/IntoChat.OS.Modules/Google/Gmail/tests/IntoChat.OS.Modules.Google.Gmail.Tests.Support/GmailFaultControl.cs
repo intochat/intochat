@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
-namespace IntoChat.OS.Google.Gmail.Testing;
+namespace IntoChat.OS.Modules.Google.Gmail.Testing;
 
 // Faults the real stores at persistence boundaries; transport and kernel composition remain unchanged.
 public sealed class GmailFaultControl

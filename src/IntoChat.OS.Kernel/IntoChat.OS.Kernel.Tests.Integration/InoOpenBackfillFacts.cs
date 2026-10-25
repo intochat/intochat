@@ -2,13 +2,13 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 

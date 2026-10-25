@@ -1,9 +1,10 @@
 using System.ComponentModel;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // The model's only actions: the neuron surface over the contracts the app composed. Each call runs
 // as the app, marked model-originated so neurons can withhold what the model must not see.

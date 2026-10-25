@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A machine's files and console live under its connection key.
 public static class WindowsKeys

@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using global::Azure;
 
-namespace IntoChat.OS.Microsoft.Azure.Install;
+namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 // dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--dry-run] [--secrets-from file]
 // Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the

@@ -1,6 +1,6 @@
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 // The sidebar's buttons as state changes only. They never publish: each ends with a view-state write,
 // the dirty signal view.cs (the single view writer) republishes on.

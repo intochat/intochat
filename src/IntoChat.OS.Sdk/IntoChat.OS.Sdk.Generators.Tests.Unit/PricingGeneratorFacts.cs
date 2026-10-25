@@ -1,5 +1,5 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Sdk.Compute;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
@@ -12,6 +12,9 @@ public sealed class PricingGeneratorFacts
 {
     private const string Header = """
         using IntoChat.OS.Framework.Modules;
+        using IntoChat.OS.Sdk.Modules;
+        using IntoChat.OS.Connections.Compute;
+        using IntoChat.OS.Contracts.Compute;
         using IntoChat.OS.Framework.Compute;
         using IntoChat.OS.Sdk;
         namespace PricingFixture;
@@ -46,7 +49,7 @@ public sealed class PricingGeneratorFacts
         var emitted = output.Emit(bytes, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
         var assembly = Assembly.Load(bytes.ToArray());
-        var module = (IntoChat.OS.Framework.Modules.Module)Activator.CreateInstance(assembly.GetType("PricingFixture.PricedModule")!)!;
+        var module = (IntoChat.OS.Sdk.Modules.Module)Activator.CreateInstance(assembly.GetType("PricingFixture.PricedModule")!)!;
         var services = new ServiceCollection();
         module.Configure(new Silo(services));
         using var provider = services.BuildServiceProvider();

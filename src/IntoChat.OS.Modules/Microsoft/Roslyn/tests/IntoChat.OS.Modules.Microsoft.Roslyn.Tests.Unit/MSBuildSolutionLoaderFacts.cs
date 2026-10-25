@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using IntoChat.OS.Microsoft.Roslyn;
 using Microsoft.CodeAnalysis;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit;

@@ -29,7 +29,7 @@ using global::Azure.ResourceManager.Resources;
 using global::Azure.ResourceManager.Storage;
 using global::Azure.ResourceManager.Storage.Models;
 
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // The real calls: one idempotent CreateOrUpdate (a PUT) per kind, under DefaultAzureCredential.
 // HTTP transport facts cover secret and Container App repeatability without a live Azure subscription.

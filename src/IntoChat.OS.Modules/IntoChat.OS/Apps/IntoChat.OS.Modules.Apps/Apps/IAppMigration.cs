@@ -1,9 +1,9 @@
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Host infrastructure only: deliberately not an INeuron contract exposed to scripts or HTTP.
-[Alias("apps.migration"), DefaultGrainType(IntoChat.OS.Framework.AppGrainType.Name)]
+[Alias("apps.migration"), DefaultGrainType(IntoChat.OS.Connections.AppGrainType.Name)]
 public interface IAppMigration : IGrainWithStringKey
 {
     Task Pause(string migration);

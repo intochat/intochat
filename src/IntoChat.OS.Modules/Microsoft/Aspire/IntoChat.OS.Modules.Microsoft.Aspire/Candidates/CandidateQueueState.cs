@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 [GenerateSerializer, Alias("aspire.candidates.state")]
 [ExportableState]

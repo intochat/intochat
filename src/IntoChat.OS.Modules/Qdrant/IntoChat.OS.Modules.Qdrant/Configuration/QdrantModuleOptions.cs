@@ -1,7 +1,12 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-namespace IntoChat.OS.Qdrant;
+using IntoChat.OS.Sdk.Modules;
+
+namespace IntoChat.OS.Modules.Qdrant;
 
 public sealed class QdrantModuleOptions : IModuleOptions
 {

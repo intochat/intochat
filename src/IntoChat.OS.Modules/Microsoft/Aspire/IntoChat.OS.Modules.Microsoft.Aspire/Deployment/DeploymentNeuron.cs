@@ -1,18 +1,19 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.Aspire.Deployment;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 [GrainType("aspire.deployment")]
 internal sealed class DeploymentNeuron(
     [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<DeploymentState> store,
     IClusterHost host,
     ICandidateHost candidates,
-    global::IntoChat.OS.Microsoft.Orleans.IClusterMembershipFeed membership,
+    global::IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
     : Neuron<DeploymentState>(store), IDeployment, IDeploymentDriver, IRemindable, IRetainsSignals
@@ -329,7 +330,7 @@ internal sealed class DeploymentNeuron(
 
     // Membership enters on the grain scheduler only when Orleans reports a change.
     // An old callback queued during deactivation cannot overwrite the next activation.
-    public async Task MembershipChanged(Guid expectedActivation, global::IntoChat.OS.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
+    public async Task MembershipChanged(Guid expectedActivation, global::IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
     {
         if (expectedActivation != activation) { return; }
         if (membershipSnapshot is not null && membershipSnapshot.Version < membershipVersion) { return; }

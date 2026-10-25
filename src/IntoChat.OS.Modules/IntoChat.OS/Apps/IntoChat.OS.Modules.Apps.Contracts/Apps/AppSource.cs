@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Where a listed app's bundle is read from: a person's brain, or the catalog shipped in the image.
 [GenerateSerializer, Alias("apps.source")]

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Tree;
+namespace IntoChat.OS.Modules.Flutter.Tree;
 
 [Alias("tree"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TreeType)]
 public interface ITree : INeuron

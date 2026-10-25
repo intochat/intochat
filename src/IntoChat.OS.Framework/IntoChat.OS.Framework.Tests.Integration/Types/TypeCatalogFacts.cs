@@ -1,3 +1,5 @@
+using IntoChat.OS.Connections;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 

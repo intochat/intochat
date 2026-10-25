@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 // The membership is the orleans module's, read from the one in-process silo.
 public sealed class DeploymentChangedFacts

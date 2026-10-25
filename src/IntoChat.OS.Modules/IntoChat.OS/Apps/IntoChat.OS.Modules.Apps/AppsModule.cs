@@ -1,8 +1,13 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,11 +16,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Apps.IApp).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
 
     public override void Configure(ISiloBuilder silo)
     {

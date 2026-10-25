@@ -1,4 +1,3 @@
-using IntoChat.OS.Microsoft.Windows;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;

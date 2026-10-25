@@ -1,5 +1,7 @@
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Integrations;
+namespace IntoChat.OS.Connections.Platform.Integrations;
 
 public sealed record Capability(string IntegrationId, string Kind, string Id, string Display);
 

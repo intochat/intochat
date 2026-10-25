@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flutter.Graph.Signals;
+namespace IntoChat.OS.Modules.Flutter.Graph.Signals;
 
 [GenerateSerializer, Alias("ui.graph-changed")]
 public sealed record GraphChanged([property: Id(0)] string Name, [property: Id(1)] int Version) : Signal;

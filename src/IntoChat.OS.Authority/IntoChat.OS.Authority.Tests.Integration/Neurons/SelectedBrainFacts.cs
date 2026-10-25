@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Authority.Neurons.Proto;
 using IntoChat.OS.Testing.Neurons;
 using Google.Protobuf;

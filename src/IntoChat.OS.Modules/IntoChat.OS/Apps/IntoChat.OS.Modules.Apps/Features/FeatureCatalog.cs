@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The features the host loads from its features folder (IntoChatOS:Modules:apps:Options:Features):
 // code, not content anyone wrote at runtime. Loaded at boot and on first read; only Save to source
@@ -12,7 +12,7 @@ namespace IntoChat.OS.Apps;
 // every other feature still loads. A host with no folder configured has no features.
 public sealed class FeatureCatalog
 {
-    internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Apps.Features");
+    internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.Features");
 
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;

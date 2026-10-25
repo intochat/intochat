@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // One request to the agent. RunId is caller-chosen for replay (at most 200 characters) or null
 // for a fresh id. Model, Instructions and Contracts and Contexts override the definition for this turn only.

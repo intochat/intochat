@@ -1,6 +1,5 @@
-using IntoChat.OS.ClickHouse;
-using IntoChat.OS.ClickHouse.Query;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Modules.ClickHouse.Query;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Testing;
 
 namespace IntoChat.OS.Modules.ClickHouse.Tests.Integration;

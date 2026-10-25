@@ -1,7 +1,9 @@
 using System.Runtime.Serialization;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A program the brain wants loaded: its compiled synapses, settings and the identity it acts as.
 [GenerateSerializer, Alias("microsoft.csharp.program-assignment")]

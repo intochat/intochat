@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -20,7 +19,7 @@ public sealed class DesktopConnectFacts(ReferenceBrainFixture host) : BrainFact(
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         using (var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct)) { connected.EnsureSuccessStatusCode(); }

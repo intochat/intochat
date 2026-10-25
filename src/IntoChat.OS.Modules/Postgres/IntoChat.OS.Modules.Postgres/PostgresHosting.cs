@@ -1,8 +1,13 @@
 using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,11 +16,11 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 public static class PostgresHosting
 {
-    public const string DataSourceKey = "IntoChat.OS.Postgres";
+    public const string DataSourceKey = "IntoChat.OS.Modules.Postgres";
 
     public static ISiloBuilder AddPostgres(this ISiloBuilder silo)
     {
@@ -40,7 +45,7 @@ public static class PostgresHosting
         services.TryAddSingleton<ITablePlacements, TablePlacements>();
         services.TryAddSingleton<IConnectionTableStores, ConnectionTableStores>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Apps.IAppStorageHook, TableStorageHook>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, TableStorageHook>());
         return silo;
     }
 

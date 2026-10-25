@@ -1,15 +1,15 @@
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
-using IntoChat.OS.Time.Reminders;
-using IntoChat.OS.Time.Reminders.Signals;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Time.Reminders;
+using IntoChat.OS.Modules.Time.Reminders.Signals;
 
 // Consolidation turns episodes into facts, review items or nothing. "capture" restarts the reminder
 // {app}/consolidation after every episode, so it ticks once the brain has been quiet for QuietMinutes; on the tick

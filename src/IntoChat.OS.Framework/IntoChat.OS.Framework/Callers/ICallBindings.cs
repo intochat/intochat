@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // R146: whether an app call into another brain's neuron is admitted through a binding recorded when the app was

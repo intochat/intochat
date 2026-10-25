@@ -1,11 +1,11 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using System.Text.Json;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // Shared by every synapse: the app's key, its brain, the change-set shape and the list rendering.
 public static class SelfImprove

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 [GenerateSerializer, Alias("salesforce.prepare-write")]
 public sealed record PrepareSalesforceWrite(

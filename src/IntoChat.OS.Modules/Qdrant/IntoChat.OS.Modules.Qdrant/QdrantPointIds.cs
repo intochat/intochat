@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 internal static class QdrantPointIds
 {

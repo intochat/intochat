@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
@@ -110,7 +112,7 @@ public sealed class SessionCharacterizationFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
         builder.Services.AddSingleton(brain.Platform);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IBrainAccess>());

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Compute;
+namespace IntoChat.OS.Contracts.Compute;
 
 [GenerateSerializer, Alias("compute.external-call-request")]
 public sealed record ExternalCallRequest

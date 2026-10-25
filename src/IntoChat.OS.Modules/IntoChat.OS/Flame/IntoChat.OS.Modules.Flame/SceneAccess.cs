@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 // A brain owns its derived space; app scenes also admit their owning app.
 internal static class SceneAccess

@@ -2,16 +2,17 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 // GET /brains/{brainId}/brain/events: the whole brain as `brain-snapshot` server-sent events. The first
 // snapshot lists every neuron the kernel knows; another follows each time one is created or retired.
@@ -27,7 +28,7 @@ internal static class BrainEventsEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), logs.CreateLogger("IntoChat.OS.Flutter.BrainEvents"), ct))
+        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), logs.CreateLogger("IntoChat.OS.Modules.Flutter.BrainEvents"), ct))
         {
             await http.Response.WriteAsync("event: brain-snapshot\ndata: " + snapshot + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);

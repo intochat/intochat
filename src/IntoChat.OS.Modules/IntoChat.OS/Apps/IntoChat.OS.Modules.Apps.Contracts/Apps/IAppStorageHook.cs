@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // A module that gives apps durable storage (Postgres tables today) registers one of these.
 // On uninstall it retires everything the app owned. The app grain never knows which storage

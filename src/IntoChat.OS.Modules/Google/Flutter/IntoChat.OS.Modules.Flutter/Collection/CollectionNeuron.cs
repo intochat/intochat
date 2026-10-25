@@ -1,8 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Collection;
+namespace IntoChat.OS.Modules.Flutter.Collection;
 
 [GrainType(UIVocabulary.CollectionType)]
 internal sealed class CollectionNeuron(

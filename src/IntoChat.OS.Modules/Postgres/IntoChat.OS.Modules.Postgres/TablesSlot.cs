@@ -1,4 +1,4 @@
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 namespace IntoChat.OS.Modules.Postgres;
 

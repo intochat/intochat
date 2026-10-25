@@ -6,15 +6,15 @@ namespace Fixture;
 
 partial class VendorModule
 {
-    public VendorModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("vendor")) { }
+    public VendorModule() : base(new global::IntoChat.OS.Sdk.Modules.ModuleId("vendor")) { }
 
-    public static global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema.For("vendor", "Vendor \"Cloud\"").RequiresSecret("ApiKey").OffersSecret("Token").RequiresSetting("Endpoint");
+    public static global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema.For("vendor", "Vendor \"Cloud\"").RequiresSecret("ApiKey").OffersSecret("Token").RequiresSetting("Endpoint");
 
     public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
     {
         global::System.ArgumentNullException.ThrowIfNull(silo);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Sdk.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(global::IntoChat.OS.Sdk.Modules.IModuleServices services);
 }

@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 public sealed class InferenceService(ModelCatalog catalog)
 {

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 internal interface IMachineIdentity
 {

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // Value generators for SecretSpec.Generator: "base64:<bytes>" is that many random bytes, base64 encoded;
 // "p256-pkcs8" is a fresh ECDSA P-256 private key (PKCS#8, base64) for signing.

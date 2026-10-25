@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // A verified candidate is promoted: the cluster restarts on its build and the new silos find
 // CandidatePromoted in the candidate's history. Each candidate is followed only until it is past Verified,

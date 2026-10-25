@@ -1,5 +1,4 @@
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration.Tables;

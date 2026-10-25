@@ -132,7 +132,7 @@ internal static class ModuleParser
         }
         else if (prices.Length == 1)
         {
-            var contract = context.SemanticModel.Compilation.GetTypeByMetadataName("IntoChat.OS.Framework.Compute.IPriceList");
+            var contract = context.SemanticModel.Compilation.GetTypeByMetadataName("IntoChat.OS.Contracts.Compute.IPriceList");
             if (Arg(prices[0], 0) is not INamedTypeSymbol priceType || priceType.TypeKind != TypeKind.Class || priceType.IsAbstract
                 || priceType.IsUnboundGenericType || HasTypeParameters(priceType)
                 || !context.SemanticModel.Compilation.IsSymbolAccessibleWithin(priceType, symbol)
@@ -235,7 +235,7 @@ internal static class ModuleParser
     {
         for (var type = symbol.BaseType; type is not null; type = type.BaseType)
         {
-            if (type.OriginalDefinition.Name == "Module" && type.ContainingNamespace.ToDisplayString().StartsWith("IntoChat.OS", StringComparison.Ordinal))
+            if (type.OriginalDefinition.Name == "Module" && type.ContainingNamespace.ToDisplayString() == "IntoChat.OS.Sdk.Modules")
             {
                 return true;
             }

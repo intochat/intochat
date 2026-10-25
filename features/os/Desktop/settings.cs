@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // More's Settings is a button whose activation (Desktop.SettingsActivation) hands the shell
 // {kind: workspace, application: settings, operation: open, input: <tab>}: the Settings app's window opens on that tab.

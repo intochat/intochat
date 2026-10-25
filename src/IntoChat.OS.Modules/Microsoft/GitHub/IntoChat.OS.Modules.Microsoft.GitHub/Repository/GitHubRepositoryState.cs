@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("github.repository-state")]
 internal sealed class GitHubRepositoryState : ConnectionState

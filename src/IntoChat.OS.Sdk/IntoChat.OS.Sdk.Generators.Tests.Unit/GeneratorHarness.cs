@@ -16,7 +16,7 @@ internal static class GeneratorHarness
         {
             typeof(IntoChat.OS.Sdk.ModuleAttribute).Assembly.Location,
             typeof(IntoChat.OS.Sdk.Http.HttpProblems).Assembly.Location,
-            typeof(IntoChat.OS.Framework.Modules.Module).Assembly.Location,
+            typeof(IntoChat.OS.Sdk.Modules.Module).Assembly.Location,
             typeof(Orleans.Hosting.ISiloBuilder).Assembly.Location,
             typeof(IntoChat.OS.Aspire.Hosting.IIntoChatOSModuleHosting).Assembly.Location,
         };

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Image;
+namespace IntoChat.OS.Modules.Flutter.Image;
 
 [Alias("image"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ImageType)]
 public interface IImage : INeuron

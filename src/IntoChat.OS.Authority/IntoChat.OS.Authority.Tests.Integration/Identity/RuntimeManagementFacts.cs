@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;

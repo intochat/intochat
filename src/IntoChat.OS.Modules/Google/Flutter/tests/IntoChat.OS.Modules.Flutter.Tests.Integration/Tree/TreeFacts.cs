@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Tree;
+using IntoChat.OS.Modules.Flutter.Tree;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Tree;

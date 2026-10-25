@@ -1,14 +1,15 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Entries.Signals;
-using IntoChat.OS.Flutter.Settings;
+using IntoChat.OS.Modules.Flutter.Entries.Signals;
+using IntoChat.OS.Modules.Flutter.Settings;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Entries;
+namespace IntoChat.OS.Modules.Flutter.Entries;
 
 [GrainType(UIVocabulary.EntryControlType)]
 internal sealed class EntryControlNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<EntryControlState> store)

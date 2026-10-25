@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Card;
+namespace IntoChat.OS.Modules.Flutter.Card;
 
 [Alias("card"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CardType)]
 public interface ICard : INeuron

@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 internal static class TablePolicy
 {

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 [GenerateSerializer]
 [Alias("db.postgres.query")]

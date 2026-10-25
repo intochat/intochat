@@ -1,5 +1,5 @@
 {
-  "IntoChat.OS.Flutter.AppUiEndpoints+UiEvent": {
+  "IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent": {
     "kind": "Kind",
     "name": "Name",
     "action": "Action",
@@ -17,7 +17,7 @@
     },
     "selectionRevision": 17000
   },
-  "IntoChat.OS.Flutter.Button.ButtonState": {
+  "IntoChat.OS.Modules.Flutter.Button.ButtonState": {
     "name": "Name",
     "version": 7,
     "label": "Label",
@@ -36,7 +36,7 @@
       "tone": "Tone"
     }
   },
-  "IntoChat.OS.Flutter.Calendar.CalendarState": {
+  "IntoChat.OS.Modules.Flutter.Calendar.CalendarState": {
     "name": "Name",
     "version": 7,
     "mode": "Mode",
@@ -44,7 +44,7 @@
       "Selected"
     ]
   },
-  "IntoChat.OS.Flutter.Card.CardState": {
+  "IntoChat.OS.Modules.Flutter.Card.CardState": {
     "name": "Name",
     "version": 7,
     "title": "Title",
@@ -56,7 +56,7 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Chart.ChartState": {
+  "IntoChat.OS.Modules.Flutter.Chart.ChartState": {
     "name": "Name",
     "version": 7,
     "title": "Title",
@@ -69,7 +69,7 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Chat.ChatState": {
+  "IntoChat.OS.Modules.Flutter.Chat.ChatState": {
     "name": "Name",
     "revision": 8000,
     "projection": {
@@ -138,7 +138,7 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Chat.ComposerState": {
+  "IntoChat.OS.Modules.Flutter.Chat.ComposerState": {
     "name": "Name",
     "revision": 8000,
     "context": "Context",
@@ -167,13 +167,13 @@
     },
     "followedChat": "FollowedChat"
   },
-  "IntoChat.OS.Flutter.Clock.ClockState": {
+  "IntoChat.OS.Modules.Flutter.Clock.ClockState": {
     "name": "Name",
     "version": 7,
     "label": "Label",
     "dueAt": "2026-10-18T00:05:00+00:00"
   },
-  "IntoChat.OS.Flutter.Collection.CollectionState": {
+  "IntoChat.OS.Modules.Flutter.Collection.CollectionState": {
     "name": "Name",
     "revision": 8000,
     "definition": {
@@ -203,12 +203,12 @@
       ]
     }
   },
-  "IntoChat.OS.Flutter.Color.ColorState": {
+  "IntoChat.OS.Modules.Flutter.Color.ColorState": {
     "name": "Name",
     "version": 7,
     "hex": "Hex"
   },
-  "IntoChat.OS.Flutter.Compute.ComputeState": {
+  "IntoChat.OS.Modules.Flutter.Compute.ComputeState": {
     "spentMicros": 11000,
     "since": "2026-10-18T00:05:00+00:00",
     "rows": [
@@ -219,7 +219,7 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Entries.EntryControlState": {
+  "IntoChat.OS.Modules.Flutter.Entries.EntryControlState": {
     "name": "Name",
     "version": 7,
     "spec": {
@@ -228,7 +228,7 @@
       "entryName": "EntryName"
     }
   },
-  "IntoChat.OS.Flutter.Expander.ExpanderState": {
+  "IntoChat.OS.Modules.Flutter.Expander.ExpanderState": {
     "name": "Name",
     "version": 7,
     "header": "Header",
@@ -240,12 +240,12 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.FileInput.FileInputState": {
+  "IntoChat.OS.Modules.Flutter.FileInput.FileInputState": {
     "name": "Name",
     "revision": 8000,
     "label": "Label"
   },
-  "IntoChat.OS.Flutter.Form.FormState": {
+  "IntoChat.OS.Modules.Flutter.Form.FormState": {
     "formId": "FormId",
     "title": "Title",
     "revision": 8,
@@ -268,7 +268,7 @@
     ],
     "submitted": true
   },
-  "IntoChat.OS.Flutter.Graph.GraphState": {
+  "IntoChat.OS.Modules.Flutter.Graph.GraphState": {
     "name": "Name",
     "version": 7,
     "title": "Title",
@@ -285,14 +285,14 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Image.ImageState": {
+  "IntoChat.OS.Modules.Flutter.Image.ImageState": {
     "name": "Name",
     "version": 7,
     "prompt": "Prompt",
     "mediaType": "MediaType",
     "url": "Url"
   },
-  "IntoChat.OS.Flutter.ImageCanvas.ImageCanvasState": {
+  "IntoChat.OS.Modules.Flutter.ImageCanvas.ImageCanvasState": {
     "name": "Name",
     "revision": 8000,
     "definition": {
@@ -311,7 +311,7 @@
       "documentRevision": 16000
     }
   },
-  "IntoChat.OS.Flutter.InfoBar.InfoBarState": {
+  "IntoChat.OS.Modules.Flutter.InfoBar.InfoBarState": {
     "name": "Name",
     "version": 7,
     "severity": "Severity",
@@ -319,7 +319,7 @@
     "body": "Body",
     "visible": true
   },
-  "IntoChat.OS.Flutter.Layout.LayoutState": {
+  "IntoChat.OS.Modules.Flutter.Layout.LayoutState": {
     "name": "Name",
     "revision": 8000,
     "definition": {
@@ -339,7 +339,7 @@
       "padding": 7.5
     }
   },
-  "IntoChat.OS.Flutter.Map.MapState": {
+  "IntoChat.OS.Modules.Flutter.Map.MapState": {
     "name": "Name",
     "version": 7,
     "lat": 3.5,
@@ -354,13 +354,13 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Person.PersonState": {
+  "IntoChat.OS.Modules.Flutter.Person.PersonState": {
     "name": "Name",
     "version": 7,
     "displayName": "DisplayName",
     "avatarUrl": "AvatarUrl"
   },
-  "IntoChat.OS.Flutter.Preferences.PreferenceControlState": {
+  "IntoChat.OS.Modules.Flutter.Preferences.PreferenceControlState": {
     "name": "Name",
     "version": 7,
     "spec": {
@@ -378,20 +378,20 @@
     },
     "value": "Value"
   },
-  "IntoChat.OS.Flutter.Progress.ProgressState": {
+  "IntoChat.OS.Modules.Flutter.Progress.ProgressState": {
     "name": "Name",
     "version": 7,
     "determinate": true,
     "value": 5.5,
     "label": "Label"
   },
-  "IntoChat.OS.Flutter.Rating.RatingState": {
+  "IntoChat.OS.Modules.Flutter.Rating.RatingState": {
     "name": "Name",
     "version": 7,
     "max": 3,
     "value": 5
   },
-  "IntoChat.OS.Flutter.Select.SelectState": {
+  "IntoChat.OS.Modules.Flutter.Select.SelectState": {
     "name": "Name",
     "revision": 8000,
     "label": "Label",
@@ -424,7 +424,7 @@
       "tone": "Tone"
     }
   },
-  "IntoChat.OS.Flutter.Sheet.SheetState": {
+  "IntoChat.OS.Modules.Flutter.Sheet.SheetState": {
     "name": "Name",
     "version": 7,
     "title": "Title",
@@ -436,7 +436,7 @@
       }
     ]
   },
-  "IntoChat.OS.Flutter.Slider.SliderState": {
+  "IntoChat.OS.Modules.Flutter.Slider.SliderState": {
     "name": "Name",
     "version": 7,
     "min": 3.5,
@@ -444,7 +444,7 @@
     "step": 4.5,
     "value": 5.5
   },
-  "IntoChat.OS.Flutter.Surface.SurfaceState": {
+  "IntoChat.OS.Modules.Flutter.Surface.SurfaceState": {
     "name": "Name",
     "revision": 8000,
     "definition": {
@@ -457,7 +457,7 @@
       ]
     }
   },
-  "IntoChat.OS.Flutter.Table.TableState": {
+  "IntoChat.OS.Modules.Flutter.Table.TableState": {
     "name": "Name",
     "version": 7,
     "title": "Title",
@@ -473,7 +473,7 @@
       ]
     ]
   },
-  "IntoChat.OS.Flutter.Tabs.TabsState": {
+  "IntoChat.OS.Modules.Flutter.Tabs.TabsState": {
     "name": "Name",
     "version": 7,
     "tabs": [
@@ -488,12 +488,12 @@
     ],
     "selectedId": "SelectedId"
   },
-  "IntoChat.OS.Flutter.Text.TextState": {
+  "IntoChat.OS.Modules.Flutter.Text.TextState": {
     "name": "Name",
     "version": 7,
     "markdown": "Markdown"
   },
-  "IntoChat.OS.Flutter.TextField.TextFieldState": {
+  "IntoChat.OS.Modules.Flutter.TextField.TextFieldState": {
     "name": "Name",
     "version": 7,
     "label": "Label",
@@ -501,13 +501,13 @@
     "value": "Value",
     "submitButton": "SubmitButton"
   },
-  "IntoChat.OS.Flutter.Toggle.ToggleState": {
+  "IntoChat.OS.Modules.Flutter.Toggle.ToggleState": {
     "name": "Name",
     "version": 7,
     "label": "Label",
     "on": true
   },
-  "IntoChat.OS.Flutter.Tree.TreeState": {
+  "IntoChat.OS.Modules.Flutter.Tree.TreeState": {
     "name": "Name",
     "version": 7,
     "nodes": [
@@ -519,7 +519,7 @@
     ],
     "selectedId": "SelectedId"
   },
-  "IntoChat.OS.Flutter.Video.VideoState": {
+  "IntoChat.OS.Modules.Flutter.Video.VideoState": {
     "name": "Name",
     "version": 7,
     "url": "Url",
@@ -527,7 +527,7 @@
     "position": 8.5,
     "duration": 8.5
   },
-  "IntoChat.OS.Flutter.Viewport.ViewportState": {
+  "IntoChat.OS.Modules.Flutter.Viewport.ViewportState": {
     "name": "Name",
     "revision": 8000,
     "target": {
@@ -537,7 +537,7 @@
       "context": "Context"
     }
   },
-  "IntoChat.OS.Flutter.Views.UiNode": {
+  "IntoChat.OS.Modules.Flutter.Views.UiNode": {
     "kind": 13,
     "key": "Key",
     "text": "Text",
@@ -578,7 +578,7 @@
     "style": 4,
     "tone": 3
   },
-  "IntoChat.OS.Flutter.Views.UiView": {
+  "IntoChat.OS.Modules.Flutter.Views.UiView": {
     "generation": 10000,
     "version": 7000,
     "root": {
@@ -623,13 +623,13 @@
       "tone": 3
     }
   },
-  "IntoChat.OS.Flutter.VoiceInput.VoiceInputState": {
+  "IntoChat.OS.Modules.Flutter.VoiceInput.VoiceInputState": {
     "name": "Name",
     "revision": 8000,
     "label": "Label",
     "captures": 8
   },
-  "IntoChat.OS.Flutter.WebBrowser.WebBrowserView": {
+  "IntoChat.OS.Modules.Flutter.WebBrowser.WebBrowserView": {
     "name": "Name",
     "version": 7,
     "uri": "Uri",
@@ -638,7 +638,7 @@
     "error": "Error",
     "actualUrl": "ActualUrl"
   },
-  "IntoChat.OS.Flutter.Workspace.WorkspaceState": {
+  "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState": {
     "revision": 8000,
     "path": [
       "Path"

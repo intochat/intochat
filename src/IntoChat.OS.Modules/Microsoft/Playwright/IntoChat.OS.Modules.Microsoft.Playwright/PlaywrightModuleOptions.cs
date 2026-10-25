@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Origins of apps the deployment itself serves (e.g. ArtCraft web builds on loopback). Pages on these
 // origins load directly instead of through the public-only proxy, and only they accept Evaluate.

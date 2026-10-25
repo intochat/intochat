@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ClickHouse.Aspire.Hosting;
+namespace IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 
 public sealed class ClickHouseHostingOptions
 {

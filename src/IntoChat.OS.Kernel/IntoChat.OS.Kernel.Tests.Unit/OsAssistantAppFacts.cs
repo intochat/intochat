@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
 public sealed class OsAssistantAppFacts

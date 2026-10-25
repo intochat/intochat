@@ -1,4 +1,3 @@
-using IntoChat.OS.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;

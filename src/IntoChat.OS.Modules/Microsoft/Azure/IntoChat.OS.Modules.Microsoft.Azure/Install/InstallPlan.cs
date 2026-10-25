@@ -1,8 +1,11 @@
 using System.Globalization;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.Microsoft.Azure.Install;
+namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 // The ordered specs of the OS foundation (the OS silo, its storage, vault and identity):
 // resource group, identity, logs, storage, vault, environment, grants, secret, then the OS app.

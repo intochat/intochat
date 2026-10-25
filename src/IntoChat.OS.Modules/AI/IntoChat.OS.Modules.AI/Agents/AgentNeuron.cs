@@ -1,15 +1,16 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // Every message held here is built from concrete arrays: the storage serializer cannot bring
 // collection-expression wrappers back on reactivation.

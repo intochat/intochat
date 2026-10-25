@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.InfoBar.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.InfoBar.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.InfoBar;
+namespace IntoChat.OS.Modules.Flutter.InfoBar;
 
 [GrainType(UIVocabulary.InfoBarType)]
 internal sealed class InfoBarNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<InfoBarState> store)

@@ -1,18 +1,20 @@
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flame;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The app: the only durable thing in the module. Manifest, spec, files, connections,
 // semver history, status and activity all live here; the Builder is a cache that writes
 // its results back in.
-[GrainType(IntoChat.OS.Framework.AppGrainType.Name)]
+[GrainType(IntoChat.OS.Connections.AppGrainType.Name)]
 internal sealed partial class AppNeuron(
     [PersistentState("app2", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
@@ -783,7 +785,7 @@ internal sealed partial class AppNeuron(
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
         return values;
     }
 

@@ -1,8 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.FileInput;
+namespace IntoChat.OS.Modules.Flutter.FileInput;
 
 [GrainType(UIVocabulary.FileInputType)]
 internal sealed class FileInputNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FileInputState> store)

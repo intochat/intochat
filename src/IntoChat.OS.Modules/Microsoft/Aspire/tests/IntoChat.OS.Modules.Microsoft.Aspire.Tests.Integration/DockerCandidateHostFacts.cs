@@ -1,12 +1,15 @@
 using System.Xml.Linq;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class DockerCandidateHostFacts : IDisposable
 {

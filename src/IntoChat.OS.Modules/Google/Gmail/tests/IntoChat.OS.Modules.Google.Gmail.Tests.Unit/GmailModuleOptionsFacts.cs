@@ -1,4 +1,3 @@
-using IntoChat.OS.Google.Gmail;
 using IntoChat.OS.Sdk.Validation;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;

@@ -1,10 +1,9 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Creator services run outside any grain, so their model calls hop through this worker:
 // grain-to-grain calls carry the kernel's trusted stamp, and no service ever mints one. The call

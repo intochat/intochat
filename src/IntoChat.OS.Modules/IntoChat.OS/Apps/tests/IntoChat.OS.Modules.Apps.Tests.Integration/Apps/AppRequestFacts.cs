@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Testing;
 
 using IntoChat.OS.Modules.Apps.Tests.Integration;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // A request is a published signal and nothing waits for it: the app's synapses react and the answer
 // is neuron state. An operation the manifest does not declare is refused before anything is published.

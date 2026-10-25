@@ -1,17 +1,23 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"))
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Microsoft.Aspire.IDeployment).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Aspire.IDeployment).Assembly;
 
     // Candidate builds receive model credentials and their own fresh stores.
     public const string WorkdirField = "Workdir";

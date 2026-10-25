@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 namespace IntoChat.OS.Kernel.Testing;
 

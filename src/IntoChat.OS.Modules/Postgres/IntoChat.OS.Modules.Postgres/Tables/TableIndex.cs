@@ -1,8 +1,9 @@
-
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // One index per TableOwner: which tables the app defined, and whether its storage is retired.
 [Alias("postgres.table-index")]

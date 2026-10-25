@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The one load path for a feature bundle into a brain, whatever the source: the features folder,
 // a person's Marketplace listing, or an app the Creator published. A new app is imported, an

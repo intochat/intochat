@@ -1,6 +1,6 @@
-[assembly: AssemblyFixture(typeof(IntoChat.OS.Microsoft.Aspire.Tests.AspireHost))]
+[assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Microsoft.Aspire.Tests.AspireHost))]
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 // The shared host composes Aspire, Mcp and Tools over an idle fake cluster: the candidate verifier facts drive the
 // verifier service as the host's owner against their own scripted MCP server, in sequence within their class. Facts

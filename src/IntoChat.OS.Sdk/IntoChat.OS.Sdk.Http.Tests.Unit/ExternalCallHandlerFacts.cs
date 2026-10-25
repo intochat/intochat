@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Sdk.Compute;
 using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,11 +1,13 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 // Circles: a circle is a brain of its own (T26-1) whose members are accounts; it holds a conversation, the apps
 // shared into it and a share of its creator's compute. A member's own brain creates and lists its circles.

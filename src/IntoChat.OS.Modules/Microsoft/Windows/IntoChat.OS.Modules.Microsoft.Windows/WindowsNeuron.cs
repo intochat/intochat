@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 [GenerateSerializer, Alias("windows.connection-state")]
 internal sealed class WindowsConnectionState : ConnectionState

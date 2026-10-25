@@ -1,3 +1,4 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +30,7 @@ public sealed class BrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
         var person = await brain.PersonAsync("local-user", ct);
         Assert.NotNull(person);
         Assert.NotNull(await identity.ReadAccount("owner"));

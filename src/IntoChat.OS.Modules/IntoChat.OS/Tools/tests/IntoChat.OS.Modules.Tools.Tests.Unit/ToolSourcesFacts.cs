@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Tools.Tests.Unit;
+namespace IntoChat.OS.Modules.Tools.Tests.Unit;
 
 public sealed class ToolSourcesFacts
 {

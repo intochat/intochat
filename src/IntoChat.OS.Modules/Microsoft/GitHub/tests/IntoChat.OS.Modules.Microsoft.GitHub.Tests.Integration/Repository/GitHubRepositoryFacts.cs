@@ -1,9 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Connections.Signals;
-using IntoChat.OS.Microsoft.GitHub;
-using IntoChat.OS.Microsoft.GitHub.Signals;
-using IntoChat.OS.Microsoft.GitHub.Webhook;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
+using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 

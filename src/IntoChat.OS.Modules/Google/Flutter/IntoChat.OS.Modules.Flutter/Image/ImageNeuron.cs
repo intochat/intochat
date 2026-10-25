@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Image.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Image.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Image;
+namespace IntoChat.OS.Modules.Flutter.Image;
 
 [GrainType(UIVocabulary.ImageType)]
 internal sealed class ImageNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ImageState> store)

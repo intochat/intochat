@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Each browser action owns a fresh budget; earlier in-flight responses retain their old budget.
 internal sealed class BrowserActivityBudget

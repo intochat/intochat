@@ -7,7 +7,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed class KernelBoundaryFacts
 {
     // The connection's user face is the one platform contract a brain member calls.
-    private static readonly string[] PlatformNeurons = ["IntoChat.OS.Framework.Platform.Connections.IConnection"];
+    private static readonly string[] PlatformNeurons = ["IntoChat.OS.Connections.Platform.Connections.IConnection"];
 
     [Fact]
     public void NoKernelOrPlatformGrainInterfaceDerivesINeuron()

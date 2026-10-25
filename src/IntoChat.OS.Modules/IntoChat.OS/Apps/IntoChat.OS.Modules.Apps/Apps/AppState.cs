@@ -1,7 +1,9 @@
 using System.Runtime.Serialization;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.state2")]
 [ExportableState]

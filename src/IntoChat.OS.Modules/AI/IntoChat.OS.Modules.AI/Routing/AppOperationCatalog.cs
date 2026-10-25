@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 internal sealed record MenuOperation(string App, string Name, string? Description);
 

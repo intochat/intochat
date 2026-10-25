@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var chat = brain.Get<IChat>(Ino.DataKey(brain) + "/transcript");

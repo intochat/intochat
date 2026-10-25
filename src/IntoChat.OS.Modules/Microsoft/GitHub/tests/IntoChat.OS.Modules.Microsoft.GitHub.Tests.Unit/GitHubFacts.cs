@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.GitHub;
-
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit;
 
 public sealed class GitHubFacts

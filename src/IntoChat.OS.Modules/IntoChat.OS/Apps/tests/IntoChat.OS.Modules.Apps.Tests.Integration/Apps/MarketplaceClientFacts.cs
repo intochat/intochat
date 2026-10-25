@@ -1,7 +1,7 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The Marketplace catalog lives in the trust cluster (R14): the neuron holds no state and reaches it, like its
 // write guard, only through the platform's client.

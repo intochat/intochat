@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Authority.Compute;
 using Microsoft.Extensions.DependencyInjection;

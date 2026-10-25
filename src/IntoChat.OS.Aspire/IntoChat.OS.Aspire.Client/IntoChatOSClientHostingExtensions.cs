@@ -1,6 +1,7 @@
 using IntoChat.OS;
 using IntoChat.OS.Client;
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;

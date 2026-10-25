@@ -1,8 +1,12 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 public sealed class PostgresModuleOptions : IModuleOptions
 {

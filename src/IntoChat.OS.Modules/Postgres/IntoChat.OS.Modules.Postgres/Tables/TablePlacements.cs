@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 internal interface ITablePlacements
 {

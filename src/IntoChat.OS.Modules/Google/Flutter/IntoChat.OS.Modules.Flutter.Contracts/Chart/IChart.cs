@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Chart;
+namespace IntoChat.OS.Modules.Flutter.Chart;
 
 [Alias("chart"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChartType)]
 public interface IChart : INeuron

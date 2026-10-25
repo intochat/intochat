@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 internal interface ISalesforceProvider
 {

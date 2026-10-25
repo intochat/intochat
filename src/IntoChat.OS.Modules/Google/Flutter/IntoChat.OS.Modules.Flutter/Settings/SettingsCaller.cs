@@ -1,7 +1,9 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Flutter.Settings;
+namespace IntoChat.OS.Modules.Flutter.Settings;
 
 // The Settings app the OS ships, running in this brain: the only caller that may configure the controls its
 // view shows, so no other app (or an edited Settings) can put a misleading label on a person's preference or entry.

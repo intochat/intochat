@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Orleans.Concurrency;
 
 namespace IntoChat.OS.Authority.Compute;

@@ -1,10 +1,12 @@
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework;
 
@@ -22,6 +24,8 @@ public static class BrainHosting
         foreach (var module in selected) { ModuleOptionsBinding.Add(silo.Services, module); }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
+        // Stored pre-alias bytes still name pre-0.7.0 namespaces.
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

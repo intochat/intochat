@@ -1,6 +1,8 @@
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Secrets;
+namespace IntoChat.OS.Connections.Platform.Secrets;
 
 [Orleans.Metadata.DefaultGrainType("vault")]
 [Alias("vault")]

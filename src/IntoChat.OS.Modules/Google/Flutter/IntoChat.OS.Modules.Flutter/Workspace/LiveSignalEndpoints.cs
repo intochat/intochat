@@ -2,20 +2,21 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Circles.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Circles.Signals;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Diagnostics;
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Orleans;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 // One server-sent stream of the signals a shell screen renders live: GET /brains/{id}/live?type=A&type=B.
 // Each event is {"type","publisher","payload"}. A source's last retained signal of the type is sent first,
@@ -101,7 +102,7 @@ internal static class LiveSignalEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Flutter.Live"), ct))
+        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Modules.Flutter.Live"), ct))
         {
             await http.Response.WriteAsync("data: " + envelope + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);

@@ -1,7 +1,11 @@
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Xunit;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 

@@ -1,5 +1,7 @@
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Framework.Modules;
 

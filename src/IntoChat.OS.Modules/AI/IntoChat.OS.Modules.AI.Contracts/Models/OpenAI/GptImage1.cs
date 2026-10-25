@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 
-namespace IntoChat.OS.AI.Models.OpenAI;
+namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class GptImage1 : ImageModel<IGptImage1>
 {

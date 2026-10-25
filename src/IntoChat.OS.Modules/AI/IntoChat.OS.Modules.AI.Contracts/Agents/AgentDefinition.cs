@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // Contracts are full type names of the neuron contracts the model may act on.
 // Contexts are IAgentContext neuron keys the agent reads at the start of every turn.

@@ -1,11 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Playwright;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -91,7 +90,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             // The app's tab id is its name; its window (w-<n>) has the one viewport.
             var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
             var window = placed.Windows.First(window => window.Tabs.Any(tab => tab.Id == name)).Id;
-            await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + window).Read(),
+            await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Modules.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + window).Read(),
                 viewport => viewport.Target is not null, Patience, ct);
         }
         await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.FocusedViewId == name, TimeSpan.FromSeconds(15), ct);

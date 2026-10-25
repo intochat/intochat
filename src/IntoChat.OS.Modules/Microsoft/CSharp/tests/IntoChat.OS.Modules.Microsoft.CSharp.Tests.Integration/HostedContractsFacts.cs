@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -12,7 +12,7 @@ public sealed class HostedContractsFacts
         Assert.Contains("IntoChat.OS.Modules.Time", references);
         Assert.DoesNotContain("IntoChat.OS.Framework", references);
         Assert.DoesNotContain("Microsoft.Orleans.Reminders", references);
-        Assert.True(IntoChat.OS.Client.Runtime.ContractsHost.Declares(typeof(IntoChat.OS.Time.Timers.ITimer).Assembly));
-        Assert.Contains(typeof(IntoChat.OS.Time.Timers.ITimer), IntoChat.OS.Client.Runtime.ContractsHost.ContractTypes(typeof(IntoChat.OS.Time.Timers.ITimer).Assembly));
+        Assert.True(IntoChat.OS.Client.Runtime.ContractsHost.Declares(typeof(IntoChat.OS.Modules.Time.Timers.ITimer).Assembly));
+        Assert.Contains(typeof(IntoChat.OS.Modules.Time.Timers.ITimer), IntoChat.OS.Client.Runtime.ContractsHost.ContractTypes(typeof(IntoChat.OS.Modules.Time.Timers.ITimer).Assembly));
     }
 }

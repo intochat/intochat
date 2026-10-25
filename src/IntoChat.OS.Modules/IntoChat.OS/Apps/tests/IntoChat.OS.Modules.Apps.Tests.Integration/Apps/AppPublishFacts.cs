@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // Publish lists one version in the Marketplace; the listing belongs to the app that published it,
 // and the published bundle stays that version while the publisher keeps editing.

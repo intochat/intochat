@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.AI.Media;
+namespace IntoChat.OS.Modules.AI.Media;
 
 internal sealed class UnavailableSpeechSynthesis : ISpeechSynthesisTransport
 {

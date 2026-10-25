@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 internal sealed class Git(IProcessRunner processes, string repository)
 {

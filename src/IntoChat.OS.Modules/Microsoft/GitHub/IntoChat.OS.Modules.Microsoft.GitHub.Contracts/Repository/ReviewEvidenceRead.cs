@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("db.github.review-evidence-read")]
 public sealed record ReviewEvidenceRead(

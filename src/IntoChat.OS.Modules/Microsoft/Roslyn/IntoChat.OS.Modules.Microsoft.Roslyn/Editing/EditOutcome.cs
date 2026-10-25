@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 public sealed record EditOutcome(
     Solution Changed,

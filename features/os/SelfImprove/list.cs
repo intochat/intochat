@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // The candidates list follows every stage: rebuilt from scratch when this synapse starts and whenever a
 // candidate moves. The set is every candidate the kernel knows, re-selected when the index proposes or

@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 using System.Reflection;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Authority.Storage;
 

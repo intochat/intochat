@@ -1,7 +1,8 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // Keyed installation/{installationId}: the connection keys a webhook for that installation reaches.
 [Alias("github.repository-index"), Orleans.Metadata.DefaultGrainType("github.repository-index")]

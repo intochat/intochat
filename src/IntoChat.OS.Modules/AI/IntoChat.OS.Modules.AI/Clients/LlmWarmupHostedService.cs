@@ -1,12 +1,12 @@
 using System.Diagnostics;
-using IntoChat.OS.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal sealed class LlmWarmupHostedService(
     IServiceProvider services,

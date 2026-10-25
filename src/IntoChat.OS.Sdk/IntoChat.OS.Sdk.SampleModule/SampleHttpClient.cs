@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Sdk.Http.Compute;
 
 namespace IntoChat.OS.Sdk.SampleModule;

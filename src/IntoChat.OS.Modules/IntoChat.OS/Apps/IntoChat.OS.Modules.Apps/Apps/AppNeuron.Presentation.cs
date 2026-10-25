@@ -1,10 +1,12 @@
 using System.Text.Json;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 internal sealed partial class AppNeuron
 {

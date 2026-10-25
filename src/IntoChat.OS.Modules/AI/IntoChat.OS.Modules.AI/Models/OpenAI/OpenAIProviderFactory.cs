@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.OpenAI;
+namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 internal sealed class OpenAIProviderFactory : OpenAICompatibleProviderFactory
 {

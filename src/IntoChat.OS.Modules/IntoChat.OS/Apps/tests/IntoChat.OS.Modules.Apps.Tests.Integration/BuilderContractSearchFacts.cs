@@ -1,8 +1,10 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Testing;
-using IntoChat.OS.Time;
+using IntoChat.OS.Modules.Time;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,7 +22,7 @@ public sealed class BuilderContractSearchFacts
             .ConfigureServices(services => services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new TimerEmbeddings()))
             .StartAsync(ct);
         var result = await BuilderTools.Search(brain.Services.GetRequiredService<NeuronTypeSearch>(), "schedule a timer", ct);
-        Assert.Equal(new BuilderTools.ContractHit("time", "IntoChat.OS.Time.Timers.ITimer", "Timer"), result[0]);
+        Assert.Equal(new BuilderTools.ContractHit("time", "IntoChat.OS.Modules.Time.Timers.ITimer", "Timer"), result[0]);
     }
 
     private sealed class TimerEmbeddings : IEmbeddingGenerator<string, Embedding<float>>

@@ -1,12 +1,15 @@
 using System.ComponentModel;
 using System.Reflection;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Microsoft.CSharp.Authoring;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 // The contract discovery is registered by CSharpModule, so its absence means this host cannot run C# files.
 public sealed class CSharpToolService(IIntoChatOS brain, IKernelView kernel, CSharpContractDiscovery? contracts = null, CSharpScriptCheck? check = null)

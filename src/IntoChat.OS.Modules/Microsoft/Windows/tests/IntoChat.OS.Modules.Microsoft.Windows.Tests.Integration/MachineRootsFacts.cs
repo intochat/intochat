@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Windows;
-
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 
 // Runs on every OS: root containment follows the host's path case rules.

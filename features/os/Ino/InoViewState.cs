@@ -1,6 +1,6 @@
 using System.Text.Json;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The sidebar's durable view state at {DataKey}/view-state, so a reconnect shows the same sidebar.
 // Writes are compare-and-set on the text's version, so concurrent scripts never lose each other's change.

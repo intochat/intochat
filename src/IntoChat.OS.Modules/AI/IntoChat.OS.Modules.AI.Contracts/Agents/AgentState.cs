@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 public enum AgentRunStatus { Running, Completed, Failed, Cancelled, Interrupted }
 

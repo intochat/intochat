@@ -1,7 +1,7 @@
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Modules.Mcp;
 
 // One MCP server reached over Streamable HTTP, keyed {brain}/mcp/{name}. Connect lists its tools and
 // registers them with the brain's tool sources; Run calls one. Credentials never live here.

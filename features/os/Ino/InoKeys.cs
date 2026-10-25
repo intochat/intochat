@@ -1,4 +1,4 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Client;
 
 public static partial class Ino

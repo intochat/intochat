@@ -1,15 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The whole apps surface: create is synchronous, implement answers 202 and finishes in the
 // background, sharing rides export/import, and everything lives under the brain route.

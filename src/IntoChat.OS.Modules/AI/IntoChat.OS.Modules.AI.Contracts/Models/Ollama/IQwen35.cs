@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Ollama;
+namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
 public sealed class Qwen35 : LLMModel<IQwen35>
 {

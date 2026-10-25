@@ -1,9 +1,9 @@
 using System.Net;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 public sealed class CircleInvitationHttpFacts(CirclesHost host)
 {

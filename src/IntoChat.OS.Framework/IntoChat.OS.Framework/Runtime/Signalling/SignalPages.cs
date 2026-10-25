@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // One page shape for every reader of a publisher's journalled signals: oldest first, at most `limit`,

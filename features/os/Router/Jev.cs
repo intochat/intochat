@@ -1,10 +1,10 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Workspace;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.Windows;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.Windows;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 // Shared by every synapse of the router: the app's key and brain, its neuron names, and the
 // capabilities Jev routes over. A synapse is one reaction; this is the vocabulary they speak.

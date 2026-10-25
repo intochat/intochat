@@ -2,12 +2,12 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Talks the TypeSafe System One wire shape: POST /v1/systemone with a bearer key. The endpoint is the
 // integration's Endpoint setting when set, else the deployment default; so the hosted API and a local

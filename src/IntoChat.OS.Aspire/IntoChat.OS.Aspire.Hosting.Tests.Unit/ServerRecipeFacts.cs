@@ -1,11 +1,12 @@
 using System.Net;
 using System.Security.Cryptography;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Storage;
-using IntoChat.OS.Time;
+using IntoChat.OS.Modules.Time;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

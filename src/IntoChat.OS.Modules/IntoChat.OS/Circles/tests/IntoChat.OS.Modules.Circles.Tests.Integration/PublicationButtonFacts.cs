@@ -1,15 +1,15 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 public sealed class PublicationButtonFacts
 {
@@ -92,7 +92,7 @@ public sealed class PublicationButtonFacts
         Assert.StartsWith("Installed my-research", message);
         Assert.Equal(needsSetup, message.Contains("Needs setup", StringComparison.Ordinal));
         Assert.Empty((await brain.Get<IApp>(IApp.Key(reader.BrainId, "my-research")).Read()).Connections);
-        var card = await brain.Get<IntoChat.OS.Flutter.Card.ICard>(app + "/installed").Read();
+        var card = await brain.Get<IntoChat.OS.Modules.Flutter.Card.ICard>(app + "/installed").Read();
         Assert.Equal(needsSetup, card.Body.Contains("Needs setup", StringComparison.Ordinal));
     }
 

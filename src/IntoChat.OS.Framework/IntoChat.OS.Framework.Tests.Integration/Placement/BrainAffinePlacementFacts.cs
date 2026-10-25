@@ -2,6 +2,8 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Metadata;
 using Orleans.Runtime.Placement;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Placement;
 

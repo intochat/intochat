@@ -1,16 +1,17 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button.Signals;
-using IntoChat.OS.Flutter.Settings;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button.Signals;
+using IntoChat.OS.Modules.Flutter.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Button;
+namespace IntoChat.OS.Modules.Flutter.Button;
 
 [GrainType(UIVocabulary.ButtonType)]
 internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)

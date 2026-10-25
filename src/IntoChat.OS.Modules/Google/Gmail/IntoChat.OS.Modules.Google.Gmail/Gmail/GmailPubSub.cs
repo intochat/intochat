@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Sdk.Validation;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed record GmailPubSubPush(GmailPubSubMessage? Message, string? Subscription);
 internal sealed record GmailPubSubMessage(string? Data, string? MessageId);

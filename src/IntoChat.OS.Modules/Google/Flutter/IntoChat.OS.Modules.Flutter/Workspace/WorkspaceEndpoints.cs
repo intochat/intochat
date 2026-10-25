@@ -1,9 +1,10 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 internal static class WorkspaceEndpoints
 {

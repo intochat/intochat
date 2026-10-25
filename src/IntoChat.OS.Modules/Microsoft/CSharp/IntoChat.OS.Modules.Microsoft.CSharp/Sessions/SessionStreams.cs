@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sessions;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 
 // The open stream of each connected session on this silo, so a brain runtime can push events to its
 // host. Not grain state: a session reconnects to whichever silo serves it and is resent what is pending.

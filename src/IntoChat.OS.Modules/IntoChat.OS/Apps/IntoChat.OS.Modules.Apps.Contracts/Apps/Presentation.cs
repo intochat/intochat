@@ -1,7 +1,7 @@
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flutter;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.sphere")]
 public sealed record Sphere([property: Id(0)] string Icon, [property: Id(1)] string[] BlackboardKeys, [property: Id(2)] BehaviorTree? Tree = null);

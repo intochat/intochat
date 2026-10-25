@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.publication-ref")]
 public sealed record AppPublicationRef(

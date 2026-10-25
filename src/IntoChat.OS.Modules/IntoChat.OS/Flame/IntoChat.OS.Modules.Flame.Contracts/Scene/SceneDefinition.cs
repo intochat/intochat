@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flame.Scene;
+namespace IntoChat.OS.Modules.Flame.Scene;
 
 [GenerateSerializer, Alias("flame.transform")]
 public sealed record Transform([property: Id(0)] double X = 0, [property: Id(1)] double Y = 0, [property: Id(2)] double Z = 0,

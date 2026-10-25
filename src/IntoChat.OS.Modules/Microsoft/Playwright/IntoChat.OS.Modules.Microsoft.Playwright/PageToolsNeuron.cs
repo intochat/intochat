@@ -1,9 +1,10 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 [GenerateSerializer, Alias("playwright.page-tools-store")]
 [ExportableState]

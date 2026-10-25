@@ -17,7 +17,7 @@ public sealed class SandboxSessionFacts
         var edge = new FakeBrainEdge();
         var compiled = BehaviorLoaderFacts.Compile(Idle);
         edge.Serve(compiled);
-        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+        var sessions = new Sandbox.Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
         try
         {
             await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "old-token", FakeBrainEdge.Edge), ct);
@@ -42,7 +42,7 @@ public sealed class SandboxSessionFacts
         var edge = new FakeBrainEdge { HoldReports = true, RequiredToken = "new-token" };
         var compiled = BehaviorLoaderFacts.Compile(Idle);
         edge.Serve(compiled);
-        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+        var sessions = new Sandbox.Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
         try
         {
             await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "old-token", FakeBrainEdge.Edge), ct);
@@ -129,7 +129,7 @@ public sealed class SandboxSessionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var edge = new FakeBrainEdge { HoldReports = true };
-        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+        var sessions = new Sandbox.Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
 
         await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "token", FakeBrainEdge.Edge), ct);
 

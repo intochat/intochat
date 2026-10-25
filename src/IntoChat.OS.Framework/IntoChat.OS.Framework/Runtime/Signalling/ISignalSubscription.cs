@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 public interface ISignalSubscription<T> : IAsyncDisposable where T : Signal

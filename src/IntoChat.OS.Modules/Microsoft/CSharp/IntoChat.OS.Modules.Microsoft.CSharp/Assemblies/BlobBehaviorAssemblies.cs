@@ -1,9 +1,9 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
-namespace IntoChat.OS.Microsoft.CSharp.Assemblies;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 
 // Content addressed: the blob name is the assembly's SHA-256, so a thousand installs of one app share one blob.
 internal sealed class BlobBehaviorAssemblies(BlobServiceClient storage) : IBehaviorAssemblies

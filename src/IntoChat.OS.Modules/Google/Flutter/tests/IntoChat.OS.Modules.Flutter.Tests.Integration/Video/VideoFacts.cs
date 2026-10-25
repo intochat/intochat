@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Video;
+using IntoChat.OS.Modules.Flutter.Video;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Video;

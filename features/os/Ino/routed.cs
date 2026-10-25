@@ -1,8 +1,8 @@
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.AI.Routing.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 // Jev's answer to a request send.cs asked. A confident, direct route is carried out: opening the app
 // the message names (the route Jev decided, never decided again), or a pure read through the router.

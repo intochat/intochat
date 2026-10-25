@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 
@@ -19,7 +21,7 @@ public sealed class CompiledTypes
     // Without a module composition an assembly names itself and no connectors are declared.
     public CompiledTypes(IEnumerable<Assembly> assemblies) : this(assemblies, assembly => assembly.GetName().Name!, [], []) { }
 
-    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Framework.Modules.Module> modules,
+    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Sdk.Modules.Module> modules,
         IEnumerable<IModuleTypeSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);

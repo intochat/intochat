@@ -2,6 +2,7 @@ using IntoChat.OS.Sdk.Identity;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;

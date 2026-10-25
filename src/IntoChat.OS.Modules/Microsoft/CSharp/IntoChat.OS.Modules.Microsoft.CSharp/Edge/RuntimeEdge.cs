@@ -4,13 +4,14 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Microsoft.CSharp.Edge;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 
 // Everything a sandbox session does to its brain passes here: the token must speak for this brain and
 // for the session its runtime currently records, only neuron contracts from installed contract

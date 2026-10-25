@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The share format: a published version's content. No connections, settings as defaults only.
 [GenerateSerializer, Alias("apps.bundle")]

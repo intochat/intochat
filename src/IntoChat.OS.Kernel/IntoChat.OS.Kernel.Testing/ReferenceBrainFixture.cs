@@ -1,6 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Testing.Aspire.Diagnostics;
 using IntoChat.OS.Testing.Model;
 
@@ -33,7 +33,7 @@ public class ReferenceBrainFixture : SharedAspireBrain, IAsyncLifetime
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
             // The baked-bundle container: concurrent fixtures must not share flutter's mutable
             // build directory, which the dev web server does.
-            .WithHostConfiguration(Flutter.Aspire.Hosting.FlutterHostOptions.WebContainerKey, "true")
+            .WithHostConfiguration(Modules.Flutter.Aspire.Hosting.FlutterHostOptions.WebContainerKey, "true")
             // A warm boot serves the content-tagged shell image in seconds; fifteen minutes
             // covers a cold runner's one-time in-docker Flutter compile and container pulls.
             // A boot that needs longer is starved or broken - fail it and say so.

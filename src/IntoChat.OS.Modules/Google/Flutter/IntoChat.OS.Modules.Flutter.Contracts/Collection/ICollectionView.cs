@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Collection;
+namespace IntoChat.OS.Modules.Flutter.Collection;
 
 [Alias("collection"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CollectionType)]
 public interface ICollectionView : INeuron

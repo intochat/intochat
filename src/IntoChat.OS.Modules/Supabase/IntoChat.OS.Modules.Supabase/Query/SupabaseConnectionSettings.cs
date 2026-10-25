@@ -1,7 +1,7 @@
 using System.Globalization;
 using Npgsql;
 
-namespace IntoChat.OS.Supabase;
+namespace IntoChat.OS.Modules.Supabase;
 
 internal static class SupabaseConnectionSettings
 {

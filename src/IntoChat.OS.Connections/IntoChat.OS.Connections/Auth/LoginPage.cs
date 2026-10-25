@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Connections;
 
 public static class LoginPage
 {

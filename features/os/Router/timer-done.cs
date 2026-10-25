@@ -1,7 +1,7 @@
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Time.Timers.Signals;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Time.Timers.Signals;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 // A tick from a timer the router started is recorded in the timer-rang neuron and the "Timer" text part
 // is rebuilt (Timers decides which timer a tick belongs to). The subscription follows the keys in the

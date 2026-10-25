@@ -1,11 +1,14 @@
 using System.Text.Json.Serialization;
 using IntoChat.OS;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public sealed class AIOptions : IModuleOptions
 {

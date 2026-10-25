@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 // One window, tab or favourite operation: an update to store, a refusal toast, or neither (a no-op).
 public sealed record WindowChange(WorkspaceUpdate? Update, string? Refusal);

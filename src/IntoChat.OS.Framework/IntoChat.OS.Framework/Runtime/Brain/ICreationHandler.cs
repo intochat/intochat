@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // Runs when a brain is created and is awaited by IBrain.Create, so a new brain is complete when

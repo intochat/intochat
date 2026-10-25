@@ -2,11 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
-using static IntoChat.OS.Apps.Tests.Apps.UnifiedInstallFacts;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
+using static IntoChat.OS.Modules.Apps.Tests.Apps.UnifiedInstallFacts;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // An update that asks for more grants only what it added, and the update route answers what that is.
 public sealed class UpdateConsentFacts

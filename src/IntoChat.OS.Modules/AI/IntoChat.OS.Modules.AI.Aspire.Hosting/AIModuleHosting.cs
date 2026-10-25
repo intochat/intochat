@@ -1,13 +1,15 @@
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.AI.Aspire.Hosting;
+namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
-public sealed class AIModuleHosting : ModuleHosting<IntoChat.OS.AI.AIModule>
+public sealed class AIModuleHosting : ModuleHosting<IntoChat.OS.Modules.AI.AIModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
         => AIHostingExtensions.ConfigureDeclaration(brain,
@@ -18,7 +20,7 @@ public static partial class AIHostingExtensions
 {
     internal static void ConfigureDeclaration(IntoChatOSBuilder brain, AIOptions options)
     {
-        var module = new IntoChatOSModuleBuilder<IntoChat.OS.AI.Aspire.Hosting.AIModuleHosting>(brain);
+        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Modules.AI.Aspire.Hosting.AIModuleHosting>(brain);
         var state = State(module);
         state.EnableSensitiveData = options.Telemetry.EnableSensitiveData ?? false;
         foreach (var name in options.Hosting.Llms)

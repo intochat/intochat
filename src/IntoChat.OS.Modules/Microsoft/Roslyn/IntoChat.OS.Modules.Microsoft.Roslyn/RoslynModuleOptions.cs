@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 public sealed class RoslynModuleOptions : IModuleOptions
 {

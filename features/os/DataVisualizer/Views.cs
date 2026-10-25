@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -6,13 +6,13 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using IntoChat.OS;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Time.Reminders;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Time.Reminders;
 
 // A view is a durable definition the synapses share: what to query, which columns are filters and
 // how often to run. Every layout is derived from the registry, so composing is idempotent.

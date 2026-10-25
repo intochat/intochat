@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Compute;
+namespace IntoChat.OS.Contracts.Compute;
 
 public sealed class BudgetExhaustedException(string traceId)
     : Exception($"Trace {traceId} has no budget left.")

@@ -6,7 +6,7 @@ public sealed record IntoChatOSHostingOptions
 {
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
-    public const string GrainStateContainerKey = IntoChat.OS.Framework.IntoChatOSNames.GrainStateContainerKey;
+    public const string GrainStateContainerKey = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.GrainStateContainerKey;
     // Whether the local profile may pass the GPU to the Ollama container (the launcher sets it from detection).
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     // The Ollama model the local profile serves instead of the default (qwen3.5:4b).
@@ -32,7 +32,7 @@ public sealed record IntoChatOSHostingOptions
         {
             ServiceId = configuration[ServiceIdKey] ?? defaultIdentity,
             ClusterId = configuration[ClusterIdKey],
-            GrainStateContainer = configuration[IntoChat.OS.Framework.IntoChatOSNames.GrainStateContainerKey] ?? IntoChat.OS.Framework.IntoChatOSNames.GrainStateContainer,
+            GrainStateContainer = configuration[IntoChat.OS.Contracts.Configuration.IntoChatOSNames.GrainStateContainerKey] ?? IntoChat.OS.Contracts.Configuration.IntoChatOSNames.GrainStateContainer,
         };
     }
 }

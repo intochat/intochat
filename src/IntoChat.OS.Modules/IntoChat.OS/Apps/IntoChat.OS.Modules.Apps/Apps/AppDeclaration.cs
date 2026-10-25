@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 public sealed record AppDeclarationContent(string Name, string Version, AppManifest Manifest, string Spec);
 
@@ -13,7 +13,7 @@ public sealed record AppDeclarationContent(string Name, string Version, AppManif
 // with the app's other files, so the type system checks it like any other program file:
 //
 //   /* spec */
-//   using IntoChat.OS.Apps;
+//   using IntoChat.OS.Modules.Apps;
 //   static class App
 //   {
 //       public const string Name = "calculator";
@@ -58,7 +58,7 @@ public static class AppDeclaration
             else { text.Append("/*\n").Append(spec).Append("\n*/\n"); }
             text.Append('\n');
         }
-        text.Append("using IntoChat.OS.Apps;\n\n");
+        text.Append("using IntoChat.OS.Modules.Apps;\n\n");
         text.Append("static class ").Append(Class).Append("\n{\n");
         text.Append("    public const string Name = ").Append(Literal(content.Name)).Append(";\n");
         text.Append("    public const string Version = ").Append(Literal(content.Version)).Append(";\n\n");

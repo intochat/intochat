@@ -1,10 +1,11 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
@@ -367,9 +368,9 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal("host.docker.internal", assignment.Symbols.Host);
     }
 
-    private sealed class LoopbackAssemblies : IntoChat.OS.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    private sealed class LoopbackAssemblies : IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
     {
-        public Task Put(IntoChat.OS.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Put(IntoChat.OS.Modules.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(true);
         public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
             => Task.FromResult(new Uri("http://127.0.0.1:10000/devstoreaccount1/behaviors/" + name + "?sig=x"));
@@ -518,7 +519,7 @@ public sealed class BrainRuntimeNeuronFacts
         await changes.NextAsync(ct: ct);
         // Queued behind the arrival's turn: once it answers, the arrival's own push (to no stream) is over.
         Assert.Single(await Edge(brain).PendingBatches(session));
-        var stream = brain.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
 
@@ -636,7 +637,7 @@ public sealed class BrainRuntimeNeuronFacts
         await Edge(brain).Heartbeat(session);
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
-        var stream = brain.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         Assert.True(stream.Reader.TryRead(out var pushed));
@@ -867,14 +868,14 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // Stores assemblies, and holds every store once a fact arms it, so the fact sees what goes on meanwhile.
-    private sealed class HeldAssemblies : IntoChat.OS.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    private sealed class HeldAssemblies : IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
     {
         public TaskCompletionSource? Hold { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _puts;
         public int Puts => Volatile.Read(ref _puts);
 
-        public async Task Put(IntoChat.OS.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
+        public async Task Put(IntoChat.OS.Modules.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _puts);
             if (Hold is not { } hold) { return; }

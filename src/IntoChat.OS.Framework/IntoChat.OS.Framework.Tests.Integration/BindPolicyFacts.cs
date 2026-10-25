@@ -2,6 +2,7 @@ using System.Net;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal static class StreamingUsageChatClientExtensions
 {

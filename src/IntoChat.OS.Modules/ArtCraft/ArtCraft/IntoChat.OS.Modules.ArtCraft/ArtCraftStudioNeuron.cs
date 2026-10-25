@@ -1,9 +1,10 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Modules.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.ArtCraft;
+namespace IntoChat.OS.Modules.ArtCraft;
 
 [GrainType("artcraft.studio")]
 internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : Neuron, IArtCraftStudio

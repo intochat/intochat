@@ -20,7 +20,7 @@ void main() {
         await watch.cancel();
         expect(link.brain, 'alice');
         expect(link.source!.key, 'alice/space');
-        expect(link.source!.contract, 'IntoChat.OS.Flame.Scene.IScene');
+        expect(link.source!.contract, 'IntoChat.OS.Modules.Flame.Scene.IScene');
         expect(link.source!.types, ['SceneChanged']);
       }
     },

@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sessions;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 
 internal sealed record SessionClaims(string Brain, string Session, DateTimeOffset Expires);
 

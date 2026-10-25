@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
 
 // `layout` (desktop or classic) chooses the root the shell's next connect shows; open views stay as they are.

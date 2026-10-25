@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Connections.Tests.Unit;

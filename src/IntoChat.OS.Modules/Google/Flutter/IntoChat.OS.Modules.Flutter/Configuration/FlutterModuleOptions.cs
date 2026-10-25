@@ -1,9 +1,11 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 // Preserve serialized values; 1 belonged to the removed Dart console host.
 public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }

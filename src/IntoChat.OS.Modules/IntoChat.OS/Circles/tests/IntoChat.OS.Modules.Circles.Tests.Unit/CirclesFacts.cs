@@ -1,5 +1,4 @@
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flutter.Button.Signals;
+using IntoChat.OS.Modules.Flutter.Button.Signals;
 
 namespace IntoChat.OS.Modules.Circles.Tests.Unit;
 

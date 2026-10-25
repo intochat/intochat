@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 public static class OrleansModuleOptionsExtensions
 {

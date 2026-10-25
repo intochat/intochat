@@ -1,7 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Signals;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 

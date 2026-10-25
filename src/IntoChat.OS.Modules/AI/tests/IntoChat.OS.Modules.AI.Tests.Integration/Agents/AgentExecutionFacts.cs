@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

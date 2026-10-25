@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
 

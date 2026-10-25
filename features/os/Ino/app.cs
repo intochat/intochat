@@ -247,7 +247,7 @@ completed after an answer, and attention on failure. Each of those writes publis
 same activity call. No second script watches AppActivity.
 
 */
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

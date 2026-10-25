@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.VoiceInput;
-using IntoChat.OS.Flutter.VoiceInput.Signals;
+using IntoChat.OS.Modules.Flutter.VoiceInput;
+using IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.VoiceInput;

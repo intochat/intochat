@@ -1,5 +1,3 @@
-using IntoChat.OS.Flutter;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Flutter.Tests.Integration.FlutterHost))]
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration;

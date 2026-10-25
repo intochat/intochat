@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // One published app as everyone sees it. Publisher is the publishing account's username; Source
 // addresses the bundle Install reads. Requires is what installing it asks consent for.

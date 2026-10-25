@@ -1,6 +1,6 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Entries.Signals;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Entries.Signals;
 
 // A key saved or removed on a key control can change which models are available: show the models again
 // (Show reconfigures the default-model choices). The signal carries the control's name only, never a value.

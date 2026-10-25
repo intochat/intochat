@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp.Files;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // The one grammar for an ICSharpFile key. The brain scope leads, so the framework's access check
 // finds the owning brain from the key alone; "catalog" is the catalog neuron's segment, not a file.

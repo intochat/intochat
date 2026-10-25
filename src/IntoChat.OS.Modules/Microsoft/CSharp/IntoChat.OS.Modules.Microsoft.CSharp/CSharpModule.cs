@@ -2,20 +2,25 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Caching;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Caching;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Authoring;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Edge;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Files.Signals;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Edge;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,11 +29,11 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Microsoft.CSharp;
+namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Microsoft.CSharp.Files.ICSharpFile).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
@@ -49,7 +54,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         var options = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp");
         var authoring = options.Authoring;
         builder.Services.TryAddSingleton<CSharpToolService>();
-        builder.Services.TryAddSingleton<IntoChat.OS.Apps.IScriptSandbox, CSharpScriptSandbox>();
+        builder.Services.TryAddSingleton<IntoChat.OS.Modules.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<SessionTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
@@ -73,7 +78,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         builder.AddIncomingGrainCallFilter<BrainRunsGuard>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Framework.Platform.Identity.ISignInHandler, RuntimeSignIn>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Sdk.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)
         {
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));

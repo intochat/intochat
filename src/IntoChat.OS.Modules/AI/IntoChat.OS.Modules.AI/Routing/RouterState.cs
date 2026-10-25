@@ -1,7 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // One decision the router made, kept so the next request is judged against what came before it.
 [GenerateSerializer, Alias("ai.router.record")]

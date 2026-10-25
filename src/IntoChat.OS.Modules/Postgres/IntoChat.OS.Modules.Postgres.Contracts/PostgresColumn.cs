@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 // TableType is the UI column domain; PostgreSqlType preserves the server's database type.
 [GenerateSerializer]

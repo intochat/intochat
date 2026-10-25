@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Tools;
+namespace IntoChat.OS.Modules.Tools;
 
 // InputSchema is the tool's JSON schema for Run's arguments object.
 [GenerateSerializer, Alias("tools.descriptor")]

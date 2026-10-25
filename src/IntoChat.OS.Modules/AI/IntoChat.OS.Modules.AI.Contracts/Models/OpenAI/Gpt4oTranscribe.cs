@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Voice;
 
-namespace IntoChat.OS.AI.Models.OpenAI;
+namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class Gpt4oTranscribe : TranscriptionModel<IGpt4oTranscribe>
 {

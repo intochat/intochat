@@ -1,15 +1,19 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Pricing;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,11 +22,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.AI.Agents.Context.IAgentContext).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.AI.Agents.Context.IAgentContext).Assembly;
 
     public static IntegrationSchema[] Integrations => AiIntegrations.All;
     public static IntegrationSchema OpenAIIntegration => AiIntegrations.OpenAI;

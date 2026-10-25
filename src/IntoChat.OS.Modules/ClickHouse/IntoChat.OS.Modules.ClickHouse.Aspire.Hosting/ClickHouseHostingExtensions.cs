@@ -2,14 +2,14 @@ using System.Globalization;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.ClickHouse.Aspire.Hosting;
+namespace IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 
 public static class ClickHouseHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> WithClickHouse(
-        this IntoChatOSModuleBuilder<IntoChat.OS.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> WithClickHouse(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> module,
         Action<ClickHouseHostingOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(module);
@@ -20,7 +20,7 @@ public static class ClickHouseHostingExtensions
         return module;
     }
 
-    private static ClickHouseHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> module)
+    private static ClickHouseHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> module)
     {
         var state = module.GetOrAddProjection(static brain => new ClickHouseHostingState(brain));
 
@@ -90,7 +90,7 @@ public static class ClickHouseHostingExtensions
 
             // Waiting on the database resource covers server health and the CREATE DATABASE step.
             builder
-                .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("clickhouse", "ConnectionString")), _database.Resource.ConnectionStringExpression)
+                .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("clickhouse", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
         }
     }

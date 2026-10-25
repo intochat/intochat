@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Marketplace as a person browses it: the features folder, then what people published.
 // The IMarketplace grain holds only the people's listings.

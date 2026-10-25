@@ -1,9 +1,14 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Every AI key is derived from the one configuration grammar; no private roots.
 public static class AIKeys

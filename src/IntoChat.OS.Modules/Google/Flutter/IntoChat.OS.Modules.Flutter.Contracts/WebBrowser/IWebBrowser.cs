@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.WebBrowser;
+namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 [Alias("webbrowser"), Orleans.Metadata.DefaultGrainType(UIVocabulary.WebBrowserType)]
 public interface IWebBrowser : INeuron

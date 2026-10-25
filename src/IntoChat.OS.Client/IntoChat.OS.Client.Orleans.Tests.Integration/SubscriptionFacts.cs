@@ -1,5 +1,8 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Xunit;
 
 namespace IntoChat.OS.Client.Orleans.Tests.Integration;

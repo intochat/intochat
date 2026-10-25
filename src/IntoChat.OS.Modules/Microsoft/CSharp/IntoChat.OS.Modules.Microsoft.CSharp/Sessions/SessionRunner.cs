@@ -6,7 +6,7 @@ using Azure.Core;
 using IntoChat.OS.Client.Runtime.V1;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sessions;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 
 // Where sessions live: the always-on sandbox container locally, or the Azure Container Apps session pool.
 // Same host API behind both; the pool adds a bearer token, routes by the identifier query and manages

@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flame.Scene.Signals;
+namespace IntoChat.OS.Modules.Flame.Scene.Signals;
 
 [GenerateSerializer, Alias("flame.scene-changed")]
 public sealed record SceneChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;

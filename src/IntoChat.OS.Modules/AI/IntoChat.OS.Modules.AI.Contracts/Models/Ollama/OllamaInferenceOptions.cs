@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Ollama;
+namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
 [GenerateSerializer, Alias("ai.ollama-inference-options")]
 public sealed record OllamaInferenceOptions(

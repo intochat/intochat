@@ -1,4 +1,4 @@
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Google.Gmail.Tests.Integration.GmailHost))]
 

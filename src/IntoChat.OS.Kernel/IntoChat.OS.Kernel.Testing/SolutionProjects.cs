@@ -20,8 +20,8 @@ public static class SolutionProjects
     // The AppHost hands the OS the repository's features folder (AppHost.cs): {owner}/{App}/app.cs.
     public static string Features => Path.Combine(Root, "features");
 
-    public static IReadOnlyList<IntoChat.OS.Apps.AppBundle> FeaturesOf(string owner)
-        => [.. new IntoChat.OS.Apps.FeatureDirectory(Features).Load().Where(feature => feature.Owner == owner).Select(feature => feature.Bundle)];
+    public static IReadOnlyList<IntoChat.OS.Modules.Apps.AppBundle> FeaturesOf(string owner)
+        => [.. new IntoChat.OS.Modules.Apps.FeatureDirectory(Features).Load().Where(feature => feature.Owner == owner).Select(feature => feature.Bundle)];
 
     private static string FindRoot()
     {

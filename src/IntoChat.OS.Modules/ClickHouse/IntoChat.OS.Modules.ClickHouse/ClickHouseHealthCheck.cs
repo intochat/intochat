@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 internal sealed class ClickHouseHealthCheck(IClickHouseProvider provider) : IHealthCheck
 {

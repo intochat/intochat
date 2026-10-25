@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // Flags rather than a record of booleans: an undeclared flag means "not claimed
 // here", not "proven absent". Adding a capability to a model is then additive

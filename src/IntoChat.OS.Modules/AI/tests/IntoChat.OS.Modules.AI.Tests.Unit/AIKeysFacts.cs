@@ -1,5 +1,3 @@
-using IntoChat.OS.AI;
-
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
 public sealed class AIKeysFacts

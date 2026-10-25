@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 internal sealed class AppAuthoringPolicy(IScriptSandbox? sandbox = null)
 {

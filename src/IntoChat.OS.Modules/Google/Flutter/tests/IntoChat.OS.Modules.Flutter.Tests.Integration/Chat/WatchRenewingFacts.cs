@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Button;
+namespace IntoChat.OS.Modules.Flutter.Button;
 
 [Alias("button"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ButtonType)]
 public interface IButton : INeuron

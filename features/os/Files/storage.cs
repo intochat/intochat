@@ -1,10 +1,10 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Microsoft.Windows;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 // Every connection whose connector declares the storage capability, browsed through IStorage on the
 // connection key. Locations are opaque per storage; breadcrumbs come from the storage's own Ancestors.

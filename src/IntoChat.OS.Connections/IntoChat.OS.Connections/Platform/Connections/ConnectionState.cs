@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 [GenerateSerializer, Alias("sealed-secret")]
 public sealed record SealedSecret(

@@ -4,14 +4,14 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Web;
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Authority.Storage;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Kernel.Testing.Storage;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
-using IntoChat.OS.Time.Timers.Signals;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Storage;
 

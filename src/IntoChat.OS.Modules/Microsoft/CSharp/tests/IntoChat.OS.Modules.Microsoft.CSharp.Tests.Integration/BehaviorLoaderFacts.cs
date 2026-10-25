@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

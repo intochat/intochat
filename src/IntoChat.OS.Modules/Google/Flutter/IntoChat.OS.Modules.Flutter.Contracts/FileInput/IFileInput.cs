@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.FileInput;
+namespace IntoChat.OS.Modules.Flutter.FileInput;
 
 [Alias("fileinput"), Orleans.Metadata.DefaultGrainType(UIVocabulary.FileInputType)]
 public interface IFileInput : INeuron

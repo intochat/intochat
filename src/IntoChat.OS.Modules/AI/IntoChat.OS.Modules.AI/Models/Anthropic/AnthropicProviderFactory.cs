@@ -1,7 +1,7 @@
 using Anthropic;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI.Models.Anthropic;
+namespace IntoChat.OS.Modules.AI.Models.Anthropic;
 
 internal sealed class AnthropicProviderFactory : ApiKeyProviderFactory
 {

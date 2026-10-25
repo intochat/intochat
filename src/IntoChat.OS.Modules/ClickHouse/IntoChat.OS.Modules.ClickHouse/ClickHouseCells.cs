@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // Turns driver values into the JSON scalars the ui table understands. Numbers obey TablePolicy's
 // rule (at most 15 significant digits, magnitude at most 2^53 - 1) or fall back to text; dates

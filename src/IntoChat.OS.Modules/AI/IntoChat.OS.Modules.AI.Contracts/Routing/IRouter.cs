@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // A router picks a capability and method from the deployed contract catalog for unstructured
 // state, using a System One model, then dispatches the call. It decides; it never generates prose.

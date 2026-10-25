@@ -1,6 +1,6 @@
 [
   {
-    "type": "IntoChat.OS.AI.Metering.IntentUsageStorage",
+    "type": "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage",
     "state": "intent-usage",
     "reason": "billing/usage, not customer data"
   },
@@ -90,42 +90,42 @@
     "reason": "identity/secret: hard-denied name"
   },
   {
-    "type": "IntoChat.OS.ClickHouse.Query.ClickHouseConnectionState",
+    "type": "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnectionState",
     "state": "clickhouse",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Google.Gmail.DriveState",
+    "type": "IntoChat.OS.Modules.Google.Gmail.DriveState",
     "state": "google-drive",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Google.Gmail.GmailState",
+    "type": "IntoChat.OS.Modules.Google.Gmail.GmailState",
     "state": "gmail",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.Azure.AzureConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Azure.AzureConnectionState",
     "state": "azure",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryState",
+    "type": "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryState",
     "state": "github",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.Windows.WindowsConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Windows.WindowsConnectionState",
     "state": "windows",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Postgres.PostgresConnectionState",
+    "type": "IntoChat.OS.Modules.Postgres.PostgresConnectionState",
     "state": "postgres",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Salesforce.SalesforceState",
+    "type": "IntoChat.OS.Modules.Salesforce.SalesforceState",
     "state": "salesforce",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   }

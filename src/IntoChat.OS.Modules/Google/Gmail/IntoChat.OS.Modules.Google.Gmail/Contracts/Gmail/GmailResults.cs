@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GenerateSerializer, Alias("gmail.inbox-result")]
 public sealed record GmailInboxResult

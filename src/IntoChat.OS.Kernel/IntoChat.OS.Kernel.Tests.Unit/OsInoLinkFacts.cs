@@ -1,7 +1,7 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -248,7 +248,7 @@ public sealed class OsInoLinkFacts
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null,
             Active ? new AgentRun("run", AgentRunStatus.Running, "q", DateTimeOffset.UtcNow) : null,
             [.. Posts.Select(post => new AgentRun("post/" + post.Id, AgentRunStatus.Completed, "", DateTimeOffset.UtcNow, Reply: post.Text) { Posted = true })]));
-        public Task<IntoChat.OS.AI.Inference.AiMessage[]> Transcript() => throw new NotSupportedException();
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => throw new NotSupportedException();
         public Task Clear() => throw new NotSupportedException();
         public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
         public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
-namespace IntoChat.OS.Microsoft.CSharp.Assemblies;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 
 // For hosts without durable storage (unit and in-memory hosts): they compile and record behaviors
 // but run no sandbox, so a read URL names the hash without serving it.

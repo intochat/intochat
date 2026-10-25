@@ -1,3 +1,4 @@
+using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Framework.Compute;
 
 namespace IntoChat.OS.Authority.Tests.Integration;

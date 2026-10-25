@@ -5,14 +5,16 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Edge;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +24,7 @@ using Orleans.Concurrency;
 using Orleans.Metadata;
 using Orleans.Timers;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A brain's programs, their durable subscriptions and the one sandbox session that runs them. Every
 // change goes through the same rules: a session is wanted while anything is assigned; the host is told
@@ -74,7 +76,7 @@ internal sealed class BrainRuntimeNeuron(
     private readonly Dictionary<string, RunCounts> _runs = new(StringComparer.Ordinal);
     // This turn's run facts: handed to the brain's runs neuron in one call, once the turn's write succeeded.
     private readonly List<RunFact> _facts = [];
-    private static readonly ActivitySource Telemetry = new("IntoChat.OS.Microsoft.CSharp.Runtime");
+    private static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Microsoft.CSharp.Runtime");
     private ICostMeter? _meter;
     private IWatchRenewal? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.

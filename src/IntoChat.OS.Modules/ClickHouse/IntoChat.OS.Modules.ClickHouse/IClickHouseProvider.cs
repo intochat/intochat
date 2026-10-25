@@ -1,6 +1,6 @@
-using IntoChat.OS.ClickHouse.Query;
+using IntoChat.OS.Modules.ClickHouse.Query;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // The interface between the neurons and a ClickHouse server.
 internal interface IClickHouseProvider

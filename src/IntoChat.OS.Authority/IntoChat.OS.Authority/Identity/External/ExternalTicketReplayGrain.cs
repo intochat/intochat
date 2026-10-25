@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Authority.Identity.External;
 

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Owns one transient page connection; replacements invalidate all older work.
 public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsyncDisposable

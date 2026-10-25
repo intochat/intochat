@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 // What Apps opens on: the library, one listed app (a release pinned or the latest), or an installed app by name.
 public sealed record AppsTarget(string? Publisher = null, string? App = null, string? Version = null, string? Installed = null)

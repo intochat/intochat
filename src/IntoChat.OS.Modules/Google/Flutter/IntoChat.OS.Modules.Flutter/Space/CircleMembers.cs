@@ -1,12 +1,15 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Person;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Connections.Identity;
 
-namespace IntoChat.OS.Flutter.Space;
+namespace IntoChat.OS.Modules.Flutter.Space;
 
 internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identity)
 {

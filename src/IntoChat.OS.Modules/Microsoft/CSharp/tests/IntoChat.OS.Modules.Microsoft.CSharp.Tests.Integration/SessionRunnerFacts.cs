@@ -1,5 +1,4 @@
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

@@ -1,14 +1,17 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 // An org connection is the Salesforce neuron's own sealed state; the Platform runs its browser login,
 // the code exchange and the refresh through the OAuth method below.

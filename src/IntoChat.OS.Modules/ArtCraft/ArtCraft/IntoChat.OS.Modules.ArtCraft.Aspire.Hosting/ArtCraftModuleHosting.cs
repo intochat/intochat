@@ -1,9 +1,11 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.ArtCraft.Aspire.Hosting;
+namespace IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 
 // Each app runs twice: its headless CLI as an MCP server, and its wasm build behind nginx. Images build
 // from src/IntoChat.OS.Modules/ArtCraft/docker at a pinned upstream commit, on the fixed ports the

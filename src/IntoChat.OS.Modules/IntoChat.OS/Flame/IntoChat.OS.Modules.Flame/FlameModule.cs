@@ -1,9 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Routing;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 // Flame: scenes are edge neurons whose external system is a person; the Flutter shell draws them with Flame.
 // Apps write scenes and fire events; the shell reports gestures.

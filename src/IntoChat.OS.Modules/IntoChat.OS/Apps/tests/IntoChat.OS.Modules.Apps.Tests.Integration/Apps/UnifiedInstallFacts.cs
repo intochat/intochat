@@ -1,14 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // One install path for the store, an exact release and the Marketplace route: nothing lands or is granted unless the
 // consent is the digest of what the release asks for now, every binding names a connection of its slot's kind, and

@@ -1,4 +1,4 @@
-using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

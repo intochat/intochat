@@ -1,5 +1,8 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;

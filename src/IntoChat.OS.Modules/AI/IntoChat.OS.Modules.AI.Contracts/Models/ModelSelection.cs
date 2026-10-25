@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // Model is a marker name ("IFable5") or a configured profile name; null is the
 // deployment default. Reasoning and MaxOutputTokens override what the model or profile pins.

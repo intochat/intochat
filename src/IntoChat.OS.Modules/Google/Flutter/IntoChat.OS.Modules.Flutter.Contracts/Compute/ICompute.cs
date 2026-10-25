@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Compute;
+namespace IntoChat.OS.Modules.Flutter.Compute;
 
 [Alias("compute"), Orleans.Metadata.DefaultGrainType("ui.compute")]
 public interface ICompute : INeuron

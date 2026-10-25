@@ -1,11 +1,11 @@
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal static class VoiceToTextHosting
 {

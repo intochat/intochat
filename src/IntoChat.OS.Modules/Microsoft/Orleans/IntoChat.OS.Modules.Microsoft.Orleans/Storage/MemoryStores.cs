@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 // The memory-backed grain-state stores of one process family, one per store name. Localhost clustering
 // keeps no membership table here. A host that registers one instance before the module configures keeps

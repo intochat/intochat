@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Clock;
+namespace IntoChat.OS.Modules.Flutter.Clock;
 
 [Alias("clock"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ClockType)]
 public interface IClock : INeuron

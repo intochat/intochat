@@ -1,5 +1,5 @@
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Sdk.Validation;
 using Microsoft.Extensions.Configuration;
 using Orleans.Hosting;

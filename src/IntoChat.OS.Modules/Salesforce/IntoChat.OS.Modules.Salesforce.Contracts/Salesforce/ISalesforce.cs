@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 // One Salesforce org connection, keyed {brain}/connection/salesforce/{id}. Connecting, probing and
 // disconnecting it are IConnection's; reads may refresh the token and persist it, so none is read-only.

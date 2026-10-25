@@ -1,17 +1,21 @@
 using System.Reflection;
 using System.Runtime.Versioning;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Framework.Parts;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Windows.Signals;
+using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A Windows PC as an edge: the machine, its files and its console, served only by a silo on that PC.
 public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windows")), IHttpModule

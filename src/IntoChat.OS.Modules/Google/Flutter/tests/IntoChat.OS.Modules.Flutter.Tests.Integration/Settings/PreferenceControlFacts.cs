@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Preferences;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Preferences;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 

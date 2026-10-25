@@ -1,5 +1,3 @@
-using IntoChat.OS.Google.Gmail;
-
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;
 
 public sealed class GmailValidationFacts

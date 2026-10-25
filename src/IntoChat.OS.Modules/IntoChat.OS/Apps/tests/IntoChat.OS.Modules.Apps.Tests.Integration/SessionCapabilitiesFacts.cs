@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 

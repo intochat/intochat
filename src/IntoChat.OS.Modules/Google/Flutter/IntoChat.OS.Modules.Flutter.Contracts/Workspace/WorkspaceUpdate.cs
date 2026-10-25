@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [GenerateSerializer, Alias("ui.workspace-view-ref")]
 public sealed record WorkspaceViewRef([property: Id(0)] string Id, [property: Id(1)] string App,

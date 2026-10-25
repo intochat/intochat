@@ -1,10 +1,11 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Browse, inspect and install published apps from inside one brain.
 internal static class MarketplaceEndpoints

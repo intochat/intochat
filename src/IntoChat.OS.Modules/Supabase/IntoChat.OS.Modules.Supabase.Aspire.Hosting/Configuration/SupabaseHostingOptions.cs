@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Supabase.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;
 
 public sealed class SupabaseHostingOptions
 {

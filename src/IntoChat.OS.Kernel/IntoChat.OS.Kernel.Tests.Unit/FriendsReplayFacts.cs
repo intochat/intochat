@@ -1,10 +1,10 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Collection;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

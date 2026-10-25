@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Toggle;
+namespace IntoChat.OS.Modules.Flutter.Toggle;
 
 [Alias("toggle"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ToggleType)]
 public interface IToggle : INeuron

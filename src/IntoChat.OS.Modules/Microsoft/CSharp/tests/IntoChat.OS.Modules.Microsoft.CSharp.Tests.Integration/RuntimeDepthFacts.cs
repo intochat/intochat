@@ -1,9 +1,10 @@
 using System.Net;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

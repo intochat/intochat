@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Pricing;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Sheet;
+namespace IntoChat.OS.Modules.Flutter.Sheet;
 
 [Alias("sheet"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SheetType)]
 public interface ISheet : INeuron

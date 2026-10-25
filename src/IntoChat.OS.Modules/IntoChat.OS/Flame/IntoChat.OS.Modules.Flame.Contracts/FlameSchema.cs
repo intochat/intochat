@@ -1,7 +1,7 @@
 using IntoChat.OS;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 public enum FlameParamKind { Text, Number, Color, Json, Choice, Boolean }
 

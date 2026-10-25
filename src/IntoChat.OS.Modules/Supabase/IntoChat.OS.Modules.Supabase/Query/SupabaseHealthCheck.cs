@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Supabase;
+namespace IntoChat.OS.Modules.Supabase;
 
 internal sealed class SupabaseHealthCheck(ISupabaseBackingStore provider, IOptions<SupabaseModuleOptions> options) : IHealthCheck
 {

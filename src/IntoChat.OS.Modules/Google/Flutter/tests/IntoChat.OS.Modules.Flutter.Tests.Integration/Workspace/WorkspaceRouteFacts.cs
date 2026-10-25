@@ -1,6 +1,8 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

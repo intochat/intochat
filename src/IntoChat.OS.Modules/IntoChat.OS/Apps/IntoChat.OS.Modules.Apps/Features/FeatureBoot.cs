@@ -1,9 +1,11 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Loads the features folder at boot (the feature.load spans), then watches the brain's lifecycle the
 // way OsDefaults installs on it: every activation (the kernel's Activated signal) brings the brain's

@@ -1,10 +1,10 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Button.Signals;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Button.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The two preference buttons post the request their action names; Save carries the draft and baseline.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

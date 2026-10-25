@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flutter.Form.Signals;
+namespace IntoChat.OS.Modules.Flutter.Form.Signals;
 
 [GenerateSerializer, Alias("ui.form-changed")]
 public sealed record FormChanged(

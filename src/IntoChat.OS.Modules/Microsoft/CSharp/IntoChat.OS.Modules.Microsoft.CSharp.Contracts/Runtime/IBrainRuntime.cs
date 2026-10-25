@@ -2,7 +2,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One per brain: the behaviors it wants running, their durable subscriptions, and the one sandbox
 // session that runs them all.

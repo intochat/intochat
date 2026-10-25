@@ -1,5 +1,4 @@
-
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 public interface ITableStore
 {

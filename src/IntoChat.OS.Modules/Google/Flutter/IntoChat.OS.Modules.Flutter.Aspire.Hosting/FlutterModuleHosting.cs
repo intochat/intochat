@@ -1,15 +1,17 @@
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
-public sealed class FlutterModuleHosting : ModuleHosting<IntoChat.OS.Flutter.FlutterModule>
+public sealed class FlutterModuleHosting : ModuleHosting<IntoChat.OS.Modules.Flutter.FlutterModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {
         var options = brain.GetModuleConfiguration("flutter").GetModuleOptions<FlutterModuleOptions>("flutter").Hosting;
-        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Flutter.Aspire.Hosting.FlutterModuleHosting>(brain);
+        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting>(brain);
         switch (options.Kind)
         {
             case FlutterHostKind.None: break;

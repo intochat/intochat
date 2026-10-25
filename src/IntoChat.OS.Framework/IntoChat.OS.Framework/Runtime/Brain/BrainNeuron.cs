@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

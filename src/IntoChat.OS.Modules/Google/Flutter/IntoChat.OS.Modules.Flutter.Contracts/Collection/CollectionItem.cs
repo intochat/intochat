@@ -1,5 +1,5 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Flutter.Collection;
+namespace IntoChat.OS.Modules.Flutter.Collection;
 
 [GenerateSerializer, Alias("ui.collection-item")]
 public sealed record CollectionItem(

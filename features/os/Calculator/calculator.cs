@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The calculator keypad: each button click grows or evaluates the expression. State is the keypad
 // neuron (Keypad.Press), so a restarted behavior resumes from it and a resent click is pressed once.

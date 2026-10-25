@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Ollama;
+namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
 public sealed class Gemma4 : LLMModel<IGemma4>
 {

@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Scenarios;
 

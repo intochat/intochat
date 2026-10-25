@@ -1,6 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

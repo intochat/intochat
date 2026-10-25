@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Sdk;
 
 public enum CallerKind
 {

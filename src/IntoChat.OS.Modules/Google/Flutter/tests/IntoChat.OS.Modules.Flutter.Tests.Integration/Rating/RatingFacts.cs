@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Rating;
+using IntoChat.OS.Modules.Flutter.Rating;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Rating;

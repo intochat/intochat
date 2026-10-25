@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // A resource the installer or a neuron asks Azure for. Env and Owner become the env and owner tags;
 // Tags are merged over managed-by, env and owner by AzureTags.Merge.

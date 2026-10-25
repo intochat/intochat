@@ -4,7 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 internal sealed class PostgresProvider([FromKeyedServices(PostgresHosting.DataSourceKey)] NpgsqlDataSource source) : IPostgresProvider
 {

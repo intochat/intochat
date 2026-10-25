@@ -1,8 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -59,12 +60,12 @@ public sealed class LiveSignalFacts
 
     // A host whose circles are brains (T26-1): the Apps module over the features folder gives a circle brain its room.
     private static Task<ITestBrain> CirclesBrain(CancellationToken ct) => TestBrain.Create()
-        .WithModule<IntoChat.OS.Apps.AppsModule, IntoChat.OS.Apps.AppsOptions>(options => options.Features = Features)
+        .WithModule<IntoChat.OS.Modules.Apps.AppsModule, IntoChat.OS.Modules.Apps.AppsOptions>(options => options.Features = Features)
         .WithModule<CirclesModule>()
         .ConfigureServices(services =>
         {
-            global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<IntoChat.OS.Apps.IAppRuntime>(services);
-            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<IntoChat.OS.Apps.IAppRuntime, NoRuntime>(services);
+            global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<IntoChat.OS.Modules.Apps.IAppRuntime>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<IntoChat.OS.Modules.Apps.IAppRuntime, NoRuntime>(services);
         })
         .StartAsync(ct);
 
@@ -77,7 +78,7 @@ public sealed class LiveSignalFacts
         return directory?.FullName ?? throw new InvalidOperationException("Intochat.OS.slnx was not found.");
     }
 
-    private sealed class NoRuntime : IntoChat.OS.Apps.IAppRuntime
+    private sealed class NoRuntime : IntoChat.OS.Modules.Apps.IAppRuntime
     {
         public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());

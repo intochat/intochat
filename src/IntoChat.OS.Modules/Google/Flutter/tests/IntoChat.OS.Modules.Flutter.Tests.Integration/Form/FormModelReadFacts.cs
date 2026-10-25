@@ -1,7 +1,8 @@
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Form;
 

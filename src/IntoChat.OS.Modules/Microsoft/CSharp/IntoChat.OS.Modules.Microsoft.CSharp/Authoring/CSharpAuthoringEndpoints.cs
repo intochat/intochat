@@ -1,9 +1,11 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Microsoft.CSharp.Authoring;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 internal static class CSharpAuthoringEndpoints
 {

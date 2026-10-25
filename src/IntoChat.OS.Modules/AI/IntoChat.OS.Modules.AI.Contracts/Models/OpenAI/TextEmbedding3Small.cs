@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Embeddings;
 
-namespace IntoChat.OS.AI.Models.OpenAI;
+namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class TextEmbedding3Small : EmbeddingModel<ITextEmbedding3Small>
 {

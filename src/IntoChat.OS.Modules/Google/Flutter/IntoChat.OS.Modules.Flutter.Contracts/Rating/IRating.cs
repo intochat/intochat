@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Rating;
+namespace IntoChat.OS.Modules.Flutter.Rating;
 
 [Alias("rating"), Orleans.Metadata.DefaultGrainType(UIVocabulary.RatingType)]
 public interface IRating : INeuron

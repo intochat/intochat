@@ -1,9 +1,9 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The composer path: each pending submission starts a turn in its conversation under the submission id
 // and is settled, so a redelivered submission never runs twice. It speaks the same contracts as "send".

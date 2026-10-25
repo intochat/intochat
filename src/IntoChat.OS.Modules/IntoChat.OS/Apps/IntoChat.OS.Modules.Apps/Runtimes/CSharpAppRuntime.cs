@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Runs a csharp app as one program of its brain's runtime. The app key's brain scope names the runtime.
 internal sealed class CSharpAppRuntime(IGrainFactory grains) : IAppRuntime

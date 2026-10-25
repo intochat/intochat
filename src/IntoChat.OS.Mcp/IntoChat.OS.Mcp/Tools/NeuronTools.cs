@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 

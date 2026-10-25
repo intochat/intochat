@@ -1,12 +1,12 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed class GmailApi(IHttpClientFactory clients, GmailModuleOptions options, TimeProvider clock, ILogger<GmailApi>? logger = null) : IGmailApi
 {

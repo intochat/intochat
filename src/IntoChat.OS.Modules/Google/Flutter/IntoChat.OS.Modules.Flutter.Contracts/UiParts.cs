@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 // A part names a piece of an app's UI; for a key it becomes the neuron "{key}/{part}".
 public static class UiParts

@@ -1,8 +1,8 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Button;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Select;
+namespace IntoChat.OS.Modules.Flutter.Select;
 
 [Alias("select"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SelectType)]
 public interface ISelect : INeuron

@@ -1,6 +1,6 @@
 using PlaywrightSdk = global::Microsoft.Playwright;
 
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 public sealed partial class PlaywrightSessionProvider
 {

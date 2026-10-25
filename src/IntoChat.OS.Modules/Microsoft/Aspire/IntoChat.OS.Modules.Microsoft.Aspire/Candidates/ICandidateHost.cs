@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 internal sealed record PreparedCandidate(string Sha, string Worktree);
 internal sealed record RunningCandidate(string Sha, CandidateEndpoints Endpoints, string Container);

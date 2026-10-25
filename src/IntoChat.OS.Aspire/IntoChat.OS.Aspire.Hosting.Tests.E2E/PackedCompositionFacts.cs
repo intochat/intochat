@@ -102,7 +102,7 @@ public sealed class PackedCompositionFacts
         File.Copy(Path.Combine(root, "global.json"), Path.Combine(consumer, "global.json"));
         foreach (var (id, source) in new[]
         {
-            ("IntoChat.OS.Modules.AI.Contracts", "_ = typeof(IntoChat.OS.AI.Models.ILLM);"),
+            ("IntoChat.OS.Modules.AI.Contracts", "_ = typeof(IntoChat.OS.Modules.AI.Models.ILLM);"),
             ("IntoChat.OS.Client", "_ = typeof(IntoChat.OS.Client.IntoChatOSClient);"),
             ("IntoChat.OS.Testing", "await using var brain = await IntoChat.OS.Testing.TestBrain.Create().StartAsync();"),
             ("IntoChat.OS.Aspire.Server", "var builder = global::Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); IntoChat.OS.Aspire.Server.ServerHostingExtensions.AddIntoChatOSServer(builder, _ => { });"),

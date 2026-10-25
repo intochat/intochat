@@ -1,4 +1,5 @@
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Orleans.Hosting;

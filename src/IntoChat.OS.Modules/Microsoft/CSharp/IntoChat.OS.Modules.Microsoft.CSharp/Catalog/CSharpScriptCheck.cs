@@ -1,13 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
-using IntoChat.OS.Framework.Caching;
+using IntoChat.OS.Connections.Caching;
 using IntoChat.OS.Client.Runtime;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
-namespace IntoChat.OS.Microsoft.CSharp.Catalog;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 public sealed record ScriptDiagnostic(string File, string Id, int Line, string Message);
 

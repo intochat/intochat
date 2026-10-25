@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.InfoBar;
+using IntoChat.OS.Modules.Flutter.InfoBar;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.InfoBar;

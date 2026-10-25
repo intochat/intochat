@@ -1,5 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
@@ -26,10 +26,10 @@ public sealed class OsSettingsViewHostFacts
     public async Task TheTreePassesViewValidation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Modules.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
         var person = await brain.PersonAsync("settings", ct);
         using var caller = person.AsCaller();
-        var app = IntoChat.OS.Apps.IApp.Key(person.BrainId, "settings");
+        var app = IntoChat.OS.Modules.Apps.IApp.Key(person.BrainId, "settings");
         var view = brain.Get<IView>(app + "/view");
         var publisher = new ViewPublisher(view, 1);
         foreach (var (tab, _) in SettingsTabs.All)
@@ -44,10 +44,10 @@ public sealed class OsSettingsViewHostFacts
     public async Task LongListsAreCappedAndKeyedByRow()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Modules.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
         var person = await brain.PersonAsync("settings-long", ct);
         using var caller = person.AsCaller();
-        var app = IntoChat.OS.Apps.IApp.Key(person.BrainId, "settings");
+        var app = IntoChat.OS.Modules.Apps.IApp.Key(person.BrainId, "settings");
         var publisher = new ViewPublisher(brain.Get<IView>(app + "/view"), 1);
 
         var archived = SettingsView.Render(Model("archived", archived: 150, total: 150) with { AppKey = app }, Now);

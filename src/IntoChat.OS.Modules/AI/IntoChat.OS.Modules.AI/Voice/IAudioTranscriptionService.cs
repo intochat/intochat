@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public interface IAudioTranscriptionService
 {

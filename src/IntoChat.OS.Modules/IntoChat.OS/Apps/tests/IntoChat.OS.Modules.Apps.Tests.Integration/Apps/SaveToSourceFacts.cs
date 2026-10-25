@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // In development an edited copy of a shipped app writes back into the vendor's folder as the next
 // version, and the copy is the vendor's again. Nowhere else, and never for a person's own app.
@@ -28,7 +28,7 @@ public sealed class SaveToSourceFacts : IDisposable
         .WithModule<AppsModule, AppsOptions>(options => options.Features = _root)
         .WithFakeAppRuntime(new())
         // This production-mode fixture deliberately uses its isolated test key, not a machine TPM.
-        .WithConfiguration(IntoChat.OS.Framework.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
+        .WithConfiguration(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
         // The test host runs as "Testing"; save-to-source and a writable features folder are development-only.
         .ConfigureServices(services => services.AddSingleton<IHostEnvironment>(new Environment(environment)))
         .StartAsync(Ct);

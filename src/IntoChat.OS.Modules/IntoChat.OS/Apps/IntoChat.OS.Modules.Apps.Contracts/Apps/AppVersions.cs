@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Versions are major.minor.patch and compare numerically, so 1.10.0 follows 1.9.0.
 public static class AppVersions

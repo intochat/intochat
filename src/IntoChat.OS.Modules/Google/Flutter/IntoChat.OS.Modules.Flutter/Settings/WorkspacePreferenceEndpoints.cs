@@ -1,9 +1,10 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flutter.Settings;
+namespace IntoChat.OS.Modules.Flutter.Settings;
 
 // Per-brain workspace preferences. Today that is the app a new tab opens, stored under {brain}/settings/workspace
 // as a text field holding the app name. Any member may read and change it.

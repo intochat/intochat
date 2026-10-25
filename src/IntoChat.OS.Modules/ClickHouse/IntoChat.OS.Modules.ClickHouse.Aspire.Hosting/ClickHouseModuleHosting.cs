@@ -1,17 +1,19 @@
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.ClickHouse.Aspire.Hosting;
+namespace IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 
-public sealed class ClickHouseModuleHosting : ModuleHosting<IntoChat.OS.ClickHouse.ClickHouseModule>
+public sealed class ClickHouseModuleHosting : ModuleHosting<IntoChat.OS.Modules.ClickHouse.ClickHouseModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {
         var options = brain.GetModuleConfiguration("clickhouse").GetModuleOptions<ClickHouseModuleOptions>("clickhouse");
         if (options.Hosting.Enabled)
         {
-            new IntoChatOSModuleBuilder<IntoChat.OS.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting>(brain).WithClickHouse(o =>
+            new IntoChatOSModuleBuilder<IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting>(brain).WithClickHouse(o =>
             {
                 o.DatabaseName = options.DatabaseName;
                 o.PersistentStorage = options.Hosting.PersistentStorage;

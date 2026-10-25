@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Mcp.Tests.Integration.McpHost))]
 

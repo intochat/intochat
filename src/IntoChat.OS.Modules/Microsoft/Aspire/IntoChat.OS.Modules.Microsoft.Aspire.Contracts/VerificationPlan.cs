@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 [GenerateSerializer, Alias("aspire.expectation")]
 public sealed record NeuronExpectation(

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Routing;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 using Microsoft.Extensions.DependencyInjection;

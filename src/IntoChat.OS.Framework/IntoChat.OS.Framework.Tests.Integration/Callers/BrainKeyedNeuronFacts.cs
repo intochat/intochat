@@ -1,3 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework.Tests.Integration.Enforcement;
 
 // A neuron keyed by the brain id itself (the workspace, the app index) belongs to that brain

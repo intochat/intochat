@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MimeKit;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed class GoogleInvalidResponseException : Exception;
 

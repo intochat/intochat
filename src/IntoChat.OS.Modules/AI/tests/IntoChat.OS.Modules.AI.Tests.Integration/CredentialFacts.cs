@@ -2,11 +2,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -210,8 +209,8 @@ public sealed class CredentialFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithProvider("OpenAI", apiKey: "deployment-only").WithModule<AIModule>().StartAsync(ct);
         var credentials = brain.Services.GetRequiredService<IAiCredentials>();
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IntoChat.OS.Framework.Platform.Entries.IBrainEntries>("credential-brain")
-            .Put("provider:openai", IntoChat.OS.Framework.Platform.Entries.EntryKind.Secret, Canary);
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IntoChat.OS.Connections.Platform.Entries.IBrainEntries>("credential-brain")
+            .Put("provider:openai", IntoChat.OS.Connections.Platform.Entries.EntryKind.Secret, Canary);
 
         Assert.Equal(Canary, await credentials.BrainKey("credential-brain", AiProvider.OpenAI, ct));
         Assert.Null(await credentials.BrainKey("credential-other", AiProvider.OpenAI, ct));

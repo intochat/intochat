@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Viewport;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Viewport;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -22,7 +22,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
@@ -57,7 +57,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
 
         // Restart: a new program generation re-runs start.cs, which reads the durable workspace.
         var before = (await Brain.Get<IView>(desktop + "/view").Read())!.Generation;
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         // Not AppRuntimeReadiness here: it never settles after Ino's greeting, on master too (b784ae493). Inspect shows
         // apps/memory/capture.cs holding one undelivered TurnCompleted from apps/memory/agents/capture, while every
@@ -78,7 +78,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var workspace = Brain.Get<IWorkspace>(WorkspaceId);
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
@@ -115,7 +115,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         using var caller = User.AsCaller();
         var publisher = (await TestWait.UntilAsync(_ => Brain.Get<IAppStore>(IAppStore.Key(WorkspaceId)).List(),
             entries => entries.Any(entry => entry.Name == name), Patience, ct)).First(entry => entry.Name == name).Publisher;
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
@@ -141,11 +141,11 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
-        var settings = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Button.IButton>(desktop + "/settings").Read(),
+        var settings = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Modules.Flutter.Button.IButton>(desktop + "/settings").Read(),
             button => button.Activation?.Contains("\"workspace\"", StringComparison.Ordinal) == true, Patience, ct);
         var activation = System.Text.Json.JsonDocument.Parse(settings.Activation!).RootElement;
         Assert.Equal(("workspace", WorkspaceId, "settings", "open", "general"), (activation.GetProperty("kind").GetString(), activation.GetProperty("brainId").GetString(),
@@ -162,7 +162,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
 
     // A minimal real synapse: it answers "ask" requests by doing nothing.
     private const string Echo = """
-        using IntoChat.OS.Apps;
+        using IntoChat.OS.Modules.Apps;
         using IntoChat.OS.Client;
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
         await foreach (var request in brain.On(brain.Get<IApp>(brain.Setting("App")!), "ask", brain.Stopping)) { }
@@ -187,7 +187,7 @@ public sealed class DesktopWindowFacts(ReferenceBrainFixture host) : BrainFact(h
             try { await TestWait.UntilAsync(_ => workspace.Read(), state => WindowOf(state, name) is not null, TimeSpan.FromSeconds(10), ct); return; }
             catch (TimeoutException) { }
         }
-        throw new TimeoutException("No window opened for " + name + ": " + (await Brain.Get<IntoChat.OS.Flutter.Text.IText>(WorkspaceId + "/apps/workspace/navigation-error").Read()).Markdown);
+        throw new TimeoutException("No window opened for " + name + ": " + (await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(WorkspaceId + "/apps/workspace/navigation-error").Read()).Markdown);
     }
 
     private async Task Connect(CancellationToken ct)

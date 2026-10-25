@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Agents.Signals;
+namespace IntoChat.OS.Modules.AI.Agents.Signals;
 
 [GenerateSerializer, Alias("agent.configured")]
 public sealed record AgentConfigured([property: Id(0)] string AgentId, [property: Id(1)] long Revision) : Signal;

@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Sdk.Tests.Unit;
 

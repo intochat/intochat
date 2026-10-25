@@ -1,6 +1,6 @@
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The platform-wide list of published apps. Everyone signed in reads it; only the app neuron
 // that owns a listing writes it. The apps themselves stay in their publishers' brains.

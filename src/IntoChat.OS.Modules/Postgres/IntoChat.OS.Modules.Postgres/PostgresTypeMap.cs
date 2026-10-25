@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Npgsql;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 internal static class PostgresTypeMap
 {

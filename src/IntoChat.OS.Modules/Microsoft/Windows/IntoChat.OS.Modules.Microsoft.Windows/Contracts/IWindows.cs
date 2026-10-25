@@ -2,7 +2,7 @@ using System.ComponentModel;
 using Orleans.Concurrency;
 using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // One Windows PC, keyed {brain}/connection/windows/{machineId}. Served only by a silo running on that PC.
 [Alias("windows"), Orleans.Metadata.DefaultGrainType("windows")]

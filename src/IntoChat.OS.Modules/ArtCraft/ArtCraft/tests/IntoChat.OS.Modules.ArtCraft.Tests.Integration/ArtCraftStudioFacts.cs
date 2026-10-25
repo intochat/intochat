@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.ArtCraft.Tests;
+namespace IntoChat.OS.Modules.ArtCraft.Tests;
 
 public sealed class ArtCraftStudioFacts(ArtCraftHost host)
 {

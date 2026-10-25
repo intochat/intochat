@@ -1,6 +1,8 @@
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
 namespace IntoChat.OS.Testing.Aspire;
 
@@ -26,7 +28,7 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
         // builder.Configuration afterwards would miss hosting-layer binds.
         string[] args =
         [
-            $"{IntoChat.OS.Framework.IntoChatOSNames.HomeKey}={home.Path}",
+            $"{IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey}={home.Path}",
             // A test brain's Azurite is a throwaway container, like its Home.
             $"{IntoChatOSConfiguration.ModuleOptionsSection("orleans")}:Azurite:PersistentStorage=false",
             $"{IntoChatOSHostingOptions.ClusterIdKey}={identity}",

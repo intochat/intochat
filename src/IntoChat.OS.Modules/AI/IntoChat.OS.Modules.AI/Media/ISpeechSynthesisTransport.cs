@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.AI.Media;
+namespace IntoChat.OS.Modules.AI.Media;
 
 // Host-only transport; no SDK types cross the neuron boundary.
 public interface ISpeechSynthesisTransport

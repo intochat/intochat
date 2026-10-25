@@ -1,13 +1,15 @@
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 public static class GitHubConfigurationHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> WithConfiguredGitHubApp(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> module, IConfiguration configuration)
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> WithConfiguredGitHubApp(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> module, IConfiguration configuration)
     {
         var options = configuration.GetModuleOptions<GitHubModuleOptions>("github");
         if (options.AppId != 0)

@@ -1,22 +1,22 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.AI.Routing.Signals;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.AI.SystemOne.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing.Signals;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.AI.SystemOne.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Time.Timers;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Time.Timers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Orleans;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -95,7 +95,7 @@ public sealed class SystemOneRouterFacts
 
         var route = await host.Get<IRouter>(scope).Route("show me the image", null, ct);
 
-        Assert.Equal(("IntoChat.OS.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview"), (route.Contract, route.Method, route.Key, route.Tool));
+        Assert.Equal(("IntoChat.OS.Modules.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview"), (route.Contract, route.Method, route.Key, route.Tool));
         Assert.Contains("Render the document", (await reply).Body, StringComparison.Ordinal);
     }
 
@@ -105,7 +105,7 @@ public sealed class SystemOneRouterFacts
         public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<NeuronType>>(
                 [new($"tool:{brainId}/mcp/photocraft/render_preview", "tools", "PhotoCraft: Render preview", "Render the document as a PNG.",
-                    ["Task<ToolResult> Run(\"render_preview\", arguments)"], "IntoChat.OS.Mcp.IMcpServer", brainId + "/mcp/photocraft", "render_preview")]);
+                    ["Task<ToolResult> Run(\"render_preview\", arguments)"], "IntoChat.OS.Modules.Mcp.IMcpServer", brainId + "/mcp/photocraft", "render_preview")]);
     }
 
     [Trait("host", "own")]
@@ -163,7 +163,7 @@ public sealed class SystemOneRouterFacts
         var route = await host.Get<IRouter>(scope).Route("open calculator", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
 
         Assert.Null(route.App);
-        Assert.Equal(typeof(IntoChat.OS.Time.Timers.ITimer).FullName, route.Contract);
+        Assert.Equal(typeof(IntoChat.OS.Modules.Time.Timers.ITimer).FullName, route.Contract);
         Assert.Equal("Start", route.Method);
         // The app tier is how apps are routed: the second tier never offers the raw app contract.
         Assert.DoesNotContain("apps.app2", (await replies[1]).Body, StringComparison.Ordinal);
@@ -266,7 +266,7 @@ public sealed class SystemOneRouterFacts
 
         var route = await host.Get<IRouter>(scope).Route("make a 512x512 image with a blue-to-orange gradient", null, ct);
 
-        Assert.Equal(("IntoChat.OS.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview", 0.85), (route.Contract, route.Method, route.Key, route.Tool, route.Confidence));
+        Assert.Equal(("IntoChat.OS.Modules.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview", 0.85), (route.Contract, route.Method, route.Key, route.Tool, route.Confidence));
         await Task.WhenAll(replies);
     }
 
@@ -662,9 +662,9 @@ public sealed class SystemOneRouterFacts
             .WithIntegration(AIModule.TypeSafeIntegration, "ApiKey", "test-key")
             .WithIntegration(AIModule.TypeSafeIntegration, "Endpoint", endpoint)
             .WithModule<AIModule>()
-            .WithModule<IntoChat.OS.Apps.AppsModule>()
-            .WithModule<IntoChat.OS.Flutter.FlutterModule>()
-            .WithModule<IntoChat.OS.Time.TimeModule>()
+            .WithModule<IntoChat.OS.Modules.Apps.AppsModule>()
+            .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
+            .WithModule<IntoChat.OS.Modules.Time.TimeModule>()
             .WithChatModel(model);
         return (services is null ? brain : brain.ConfigureServices(services)).StartAsync(ct);
     }

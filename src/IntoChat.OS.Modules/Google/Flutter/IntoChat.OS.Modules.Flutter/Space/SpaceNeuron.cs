@@ -1,14 +1,15 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.Person;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Space;
+namespace IntoChat.OS.Modules.Flutter.Space;
 
 [GrainType("ui.space")]
 internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends) : Neuron, ISpace
@@ -168,7 +169,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
             var focus = workspace.Path[^1];
             if (fullRefresh || sourcesStale || !_friendsFresh || focus != _friendFocus)
             {
-                _friendEntries = types.Any(type => type.Name == typeof(IntoChat.OS.Circles.ICircle).FullName)
+                _friendEntries = types.Any(type => type.Name == typeof(IntoChat.OS.Modules.Circles.ICircle).FullName)
                     ? await friends.Entries(brain, focus) : [];
                 _friendFocus = focus;
                 _friendsFresh = true;

@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Calendar;
+using IntoChat.OS.Modules.Flutter.Calendar;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Calendar;

@@ -2,8 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

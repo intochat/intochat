@@ -1,8 +1,8 @@
 using System.Globalization;
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // "reindex" rebuilds the index from scratch as a new generation: every row of the installed apps is written
 // under it, the rows' meaning vectors replace the vector index in one call, and only then does the

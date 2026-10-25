@@ -2,11 +2,13 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Supabase;
-using IntoChat.OS.Supabase.Aspire.Hosting;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Supabase.Aspire.Hosting;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
 namespace IntoChat.OS.Modules.Supabase.Tests.Hosting;

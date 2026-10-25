@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Card.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Card;
+namespace IntoChat.OS.Modules.Flutter.Card;
 
 [GrainType(UIVocabulary.CardType)]
 internal sealed class CardNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CardState> store)

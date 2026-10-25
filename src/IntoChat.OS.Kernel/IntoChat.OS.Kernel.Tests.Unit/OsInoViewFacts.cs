@@ -1,6 +1,6 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Views;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

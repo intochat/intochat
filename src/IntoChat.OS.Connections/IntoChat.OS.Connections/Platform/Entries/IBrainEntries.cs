@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Entries;
+namespace IntoChat.OS.Connections.Platform.Entries;
 
 // A variable's value is readable; a secret is write-only and leaves only through Release.
 [JsonConverter(typeof(EntryKindJson))]

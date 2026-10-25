@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
-namespace IntoChat.OS.Supabase;
+namespace IntoChat.OS.Modules.Supabase;
 
 internal sealed record SupabaseConnection(bool Connected, string Database, string? ServerVersion);
 

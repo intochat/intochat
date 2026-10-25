@@ -1,5 +1,5 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
 namespace IntoChat.OS.Authority.Integrations;
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

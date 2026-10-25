@@ -1,16 +1,17 @@
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Routing.Signals;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Routing.Signals;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // The Jev router. It reads the deployed contract catalog, asks a System One model which contract
 // and method fit the request, gates on confidence, then fills the call and invokes it. The catalog

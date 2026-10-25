@@ -1,8 +1,7 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.AI.Models.Signals;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Xunit;
 

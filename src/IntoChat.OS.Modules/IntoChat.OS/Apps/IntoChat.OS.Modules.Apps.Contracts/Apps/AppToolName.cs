@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The assistant-tool name of an app operation: stable, lowercase, underscore-separated.
 public static class AppToolName

@@ -1,3 +1,4 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Authority.Storage;

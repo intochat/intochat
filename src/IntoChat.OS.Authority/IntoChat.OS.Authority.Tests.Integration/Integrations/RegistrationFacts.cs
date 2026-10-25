@@ -1,9 +1,12 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Authority.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -416,7 +419,7 @@ public sealed class RegistrationFacts
 
     // The one Framework platform contract a brain member calls directly is the connection's user face;
     // the vault, registrations, indexes and the OAuth inbound are kernel grains, not neurons.
-    private static readonly Type UserFaceOfAConnection = typeof(IntoChat.OS.Framework.Platform.Connections.IConnection);
+    private static readonly Type UserFaceOfAConnection = typeof(IntoChat.OS.Connections.Platform.Connections.IConnection);
 
     [Fact]
     public void NoPlatformContractIsANeuronButTheConnectionsUserFace()

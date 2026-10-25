@@ -1,10 +1,11 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Builder's grounding: search the shared catalog for neuron contracts, read a module's contracts in
 // full, and compile-check C# before answering. Framework owns the catalog; nothing here reflects.

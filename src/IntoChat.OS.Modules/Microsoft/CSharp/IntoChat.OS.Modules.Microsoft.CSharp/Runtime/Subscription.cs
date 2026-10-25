@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One durable subscription a behavior declared through its session. Pending[i] is signal number
 // Delivered + 1 + i: delivery is at-least-once, so a batch stays here until it is acknowledged and an

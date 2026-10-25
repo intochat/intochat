@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Azure;
-
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 
 internal sealed class RecordingAzure : IAzureArm

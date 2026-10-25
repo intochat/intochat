@@ -1,9 +1,11 @@
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 [GenerateSerializer, Alias("microsoft.csharp.session-authorization")]
 internal sealed record SessionAuthorization([property: Id(0)] bool Active, [property: Id(1)] string Brain);

@@ -1,8 +1,10 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // Reached only by the webhook ingress, after it verified the delivery's signature. The connection
 // neuron's grain type is its connector id, so the default grain type is "github".

@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Authority.Enforcement;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

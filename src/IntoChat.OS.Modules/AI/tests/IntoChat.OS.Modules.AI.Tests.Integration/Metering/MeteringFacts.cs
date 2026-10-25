@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using IntoChat.OS;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Metering;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Metering;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.AI;
 using Xunit;

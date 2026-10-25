@@ -1,6 +1,10 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Authority.Compute;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;

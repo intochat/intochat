@@ -1,10 +1,13 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Marketplace for a brain's scripts: the gallery grouped Built-in / Mine / From others, and
 // Get, which installs through AppInstaller and answers a refusal as a message instead of throwing.

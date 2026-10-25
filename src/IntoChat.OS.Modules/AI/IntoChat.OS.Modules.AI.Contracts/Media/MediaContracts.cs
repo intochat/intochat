@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.Media;
+namespace IntoChat.OS.Modules.AI.Media;
 
 public enum MediaOperation { ImageGeneration, Embedding, SpeechRecognition, SpeechSynthesis }
 

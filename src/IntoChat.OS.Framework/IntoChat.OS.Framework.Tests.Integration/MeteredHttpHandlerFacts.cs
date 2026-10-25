@@ -1,9 +1,12 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 

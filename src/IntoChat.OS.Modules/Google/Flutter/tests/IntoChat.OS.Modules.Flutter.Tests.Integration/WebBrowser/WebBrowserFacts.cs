@@ -1,11 +1,12 @@
 using IntoChat.OS.Testing.Fakes;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.WebBrowser;
-using IntoChat.OS.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.WebBrowser;
+using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.WebBrowser;

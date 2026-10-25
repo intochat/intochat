@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents.Intents;
 

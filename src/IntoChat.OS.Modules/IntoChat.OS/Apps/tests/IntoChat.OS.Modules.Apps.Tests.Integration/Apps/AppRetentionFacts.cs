@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Testing;
 
 using IntoChat.OS.Modules.Apps.Tests.Integration;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // A request is retained by its app for synapses that subscribe later: the app answers IRetainsSignals
 // with the bounded backlog, newest last, so the brain runtime can seed a late subscription.

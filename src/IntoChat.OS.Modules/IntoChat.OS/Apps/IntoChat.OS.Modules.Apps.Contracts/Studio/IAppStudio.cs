@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Builds an app from a description in one call: the Author writes the spec, the Builder writes the
 // behaviors, and the call answers the app once it is Live or Failed. A single call so a router can

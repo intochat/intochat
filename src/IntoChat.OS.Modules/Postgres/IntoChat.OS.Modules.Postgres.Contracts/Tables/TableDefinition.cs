@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 [GenerateSerializer, Alias("postgres.table.column")]
 public sealed record TableColumn([property: Id(0)] string Name, [property: Id(1)] string Type);

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Expander;
+namespace IntoChat.OS.Modules.Flutter.Expander;
 
 [Alias("expander"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ExpanderType)]
 public interface IExpander : INeuron

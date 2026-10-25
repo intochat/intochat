@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Where an installed copy came from: the publisher's name, the source its bundle is read from,
 // its name for the app, and the published version the copy was taken at. Consented is what the

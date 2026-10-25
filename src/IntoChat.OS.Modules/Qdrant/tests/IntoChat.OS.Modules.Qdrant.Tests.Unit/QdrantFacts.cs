@@ -1,4 +1,3 @@
-using IntoChat.OS.Qdrant;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Qdrant.Tests.Unit;

@@ -1,11 +1,12 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Files.Signals;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using Orleans;
 
-namespace IntoChat.OS.Microsoft.CSharp.Files;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // A file is one standalone program of its brain's runtime: its source compiles to a single behavior whose
 // id is the file's own key. Running it, its subscriptions and its restarts belong to the runtime's one

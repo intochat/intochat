@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [Alias("ui.workspace"), Orleans.Metadata.DefaultGrainType("ui.workspace")]
 public interface IWorkspace : INeuron

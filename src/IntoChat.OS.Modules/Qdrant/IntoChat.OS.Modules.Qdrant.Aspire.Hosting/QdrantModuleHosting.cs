@@ -1,19 +1,21 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Qdrant.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Qdrant.Aspire.Hosting;
 
-public sealed class QdrantModuleHosting : ModuleHosting<IntoChat.OS.Qdrant.QdrantModule>
+public sealed class QdrantModuleHosting : ModuleHosting<IntoChat.OS.Modules.Qdrant.QdrantModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var options = brain.GetModuleConfiguration("qdrant").GetModuleOptions<QdrantModuleOptions>("qdrant");
         if (!options.Host) { return; }
-        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Qdrant.Aspire.Hosting.QdrantModuleHosting>(brain);
+        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Modules.Qdrant.Aspire.Hosting.QdrantModuleHosting>(brain);
         var qdrant = brain.ApplicationBuilder.AddQdrant(brain.ResourceName("qdrant-server"))
             .WithParentRelationship(module.Resource)
             .WithDataVolume()

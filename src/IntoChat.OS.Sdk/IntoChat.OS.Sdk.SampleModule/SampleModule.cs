@@ -1,5 +1,5 @@
 using System;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Sdk.Http.Compute;
 using IntoChat.OS.Sdk.Validation;
 using Microsoft.AspNetCore.Builder;
@@ -17,7 +17,7 @@ namespace IntoChat.OS.Sdk.SampleModule;
 [ModulePriceList(typeof(SamplePriceList))]
 [ExternalOperation("sample.read", "sample-api", "request")]
 [ExternalOperation("sample.refresh", "sample-api", "request")]
-public sealed partial class SampleModule : Module<SampleOptions>, IntoChat.OS.Framework.IHttpModule
+public sealed partial class SampleModule : Module<SampleOptions>, IntoChat.OS.Sdk.IHttpModule
 {
     partial void OnConfigure(IModuleServices services)
     {

@@ -50,7 +50,7 @@ public sealed class ContractManifestFacts
     {
         var manifest = ContractManifest.Load(ContractManifest.BaselinePath);
 
-        Assert.StartsWith("time.timer-tick; ", manifest.Contracts["IntoChat.OS.Time.Timers.Signals.TimerTick"], StringComparison.Ordinal);
+        Assert.StartsWith("time.timer-tick; ", manifest.Contracts["IntoChat.OS.Modules.Time.Timers.Signals.TimerTick"], StringComparison.Ordinal);
         Assert.Equal("Signal", manifest.Signals["IntoChat.OS.Signal"]);
         // A neuron without [GrainType] gets its grain type from the class name; it is pinned all the same.
         Assert.Contains(manifest.Grains, grain => grain.Key.EndsWith(".ImageGeneratorNeuron", StringComparison.Ordinal));

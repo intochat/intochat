@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.Azure;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Microsoft.CSharp;
+namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 // Behaviors run in a custom-container session pool: one Hyper-V session per brain running the Sandbox
 // image, every behavior of that brain loaded into it. The pool has its own network, environment and

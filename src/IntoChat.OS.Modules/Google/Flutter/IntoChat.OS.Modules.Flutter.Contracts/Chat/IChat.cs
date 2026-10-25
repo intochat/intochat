@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // A recoverable UI projection. The source neuron owns the conversation and runs its turns.
 [Alias("chat"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChatType)]

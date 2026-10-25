@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Progress;
+using IntoChat.OS.Modules.Flutter.Progress;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Progress;

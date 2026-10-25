@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Sdk;
 
 public interface IHttpModule
 {

@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // Follows the fast path's outcome on every target app: whenever a target app changes (CompleteSynapse
 // publishes AppChanged beside SynapseWritten or SynapseRejected), every request still Writing is matched

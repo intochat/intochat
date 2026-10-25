@@ -1,7 +1,7 @@
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.DataKey(brain);

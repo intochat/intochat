@@ -1,9 +1,8 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 

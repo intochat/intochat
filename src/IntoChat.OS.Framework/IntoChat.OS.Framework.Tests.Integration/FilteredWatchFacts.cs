@@ -1,5 +1,8 @@
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework.Tests.Integration;
 
 // The source nudges a watcher only for the signals it selected; each observer here records the signal at the

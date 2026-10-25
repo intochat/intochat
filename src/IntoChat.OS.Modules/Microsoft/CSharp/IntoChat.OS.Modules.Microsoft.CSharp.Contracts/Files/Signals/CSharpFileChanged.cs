@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.CSharp.Files.Signals;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files.Signals;
 
 // Published on every durable change of a file: source, settings, run, trigger or subscriptions.
 [GenerateSerializer, Alias("microsoft.csharp.file-changed")]

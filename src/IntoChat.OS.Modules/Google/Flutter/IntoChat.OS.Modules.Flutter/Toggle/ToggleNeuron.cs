@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Toggle.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Toggle.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Toggle;
+namespace IntoChat.OS.Modules.Flutter.Toggle;
 
 [GrainType(UIVocabulary.ToggleType)]
 internal sealed class ToggleNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ToggleState> store)

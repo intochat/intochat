@@ -1,11 +1,12 @@
 using System.Text;
 using IntoChat.OS;
-using IntoChat.OS.AI.GroupChat.Signals;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.GroupChat.Signals;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.GroupChat;
+namespace IntoChat.OS.Modules.AI.GroupChat;
 
 [GrainType("ai.group-chat")]
 internal sealed class GroupChatNeuron(

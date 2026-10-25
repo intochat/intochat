@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // The host-side seam behind IIntoChatOS: a silo or a client opens the brain a caller is in.

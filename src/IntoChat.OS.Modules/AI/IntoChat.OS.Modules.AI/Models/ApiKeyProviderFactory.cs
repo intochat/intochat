@@ -1,7 +1,7 @@
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 internal abstract class ApiKeyProviderFactory : ILlmProviderFactory
 {

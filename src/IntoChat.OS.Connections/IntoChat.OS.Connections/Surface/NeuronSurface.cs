@@ -1,8 +1,9 @@
 using System.Reflection;
 using System.Text.Json;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Framework.Surface;
+namespace IntoChat.OS.Connections.Surface;
 
 // One set of names and descriptions for the neuron tools, so the assistant and intochat-os-mcp cannot drift.
 public static class NeuronSurfaceTools

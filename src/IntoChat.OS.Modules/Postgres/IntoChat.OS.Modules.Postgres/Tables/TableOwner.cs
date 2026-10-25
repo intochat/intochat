@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // The identity every app table and table index is keyed by: one brain, one installed app.
 // The key is the grain key, {brain}/tables/{escaped app key}; it is parsed back wherever a guard

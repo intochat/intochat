@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps.Signals;
+namespace IntoChat.OS.Modules.Apps.Signals;
 
 // What an app is doing right now, for whoever renders its presence. State is one of States.
 [GenerateSerializer, Alias("apps.app-activity")]

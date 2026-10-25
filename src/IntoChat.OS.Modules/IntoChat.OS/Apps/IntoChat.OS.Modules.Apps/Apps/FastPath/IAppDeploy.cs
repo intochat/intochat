@@ -1,7 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The fast-path writer's side of an app, plumbing no edge can address (not an INeuron contract): the writer
 // deploys outside the app's turn, so the app hands it the program to run and the principal it runs as.

@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.Inference;
+namespace IntoChat.OS.Modules.AI.Inference;
 
 [GenerateSerializer, Alias("ai.message")]
 public sealed record AiMessage([property: Id(0)] string Role, IReadOnlyList<AiContent> Content)

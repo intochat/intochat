@@ -1,5 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

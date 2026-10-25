@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 
 namespace IntoChat.OS.Testing.Fakes;
 

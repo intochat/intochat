@@ -2,10 +2,9 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.AppHost;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Aspire.Hosting;
-using IntoChat.OS.Microsoft.Aspire;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +14,7 @@ using Microsoft.Extensions.Configuration.UserSecrets;
 // (the apps module's Features option, under IntoChatOSConfiguration.ModuleOptionsSection).
 const string UiPortKey = "IntoChatOS:Http:UiPort";
 const string McpPortKey = "IntoChatOS:Http:McpPort";
-var featuresKey = IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
+var featuresKey = IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
 // Legacy product-name settings stop the app host outside Development (the app host has no AddServiceDefaults).
@@ -36,13 +35,13 @@ if (args.Length > 0 && args[0] == "reset")
 // whose module defaults sit above the shipped appsettings and below environment and command line, so an explicit
 // IntoChatOS:Modules:<id>:Enabled still wins. Azurite and the cloud keys exist only for Topology=cloud.
 var topology = RunProfile.Topology(builder.Configuration);
-var cloud = topology == IntoChat.OS.Framework.IntoChatOSNames.TopologyCloud;
+var cloud = topology == IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyCloud;
 var defaultsAt = builder.Configuration.Sources.ToList()
     .FindLastIndex(source => source is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource) + 1;
 builder.Configuration.Sources.Insert(defaultsAt,
     new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = RunProfile.ModuleDefaults(topology) });
 var brainProfile = RunProfile.ForTopology(topology, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]);
-if (cloud) { IntoChat.OS.Microsoft.Orleans.OrleansModuleOptionsExtensions.WithAzurite(brainProfile.Orleans); }
+if (cloud) { IntoChat.OS.Modules.Microsoft.Orleans.OrleansModuleOptionsExtensions.WithAzurite(brainProfile.Orleans); }
 if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
@@ -68,7 +67,7 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
         ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Kernel>(name))
-            .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(featuresKey), features))).ToArray();
+            .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
 
 // The front keeps a stable TLS endpoint across a single-runtime restart.
@@ -86,20 +85,20 @@ return 0;
 // A live build is an executable the proxy reaches through a bare port (ASPNETCORE_HTTP_PORTS), which binds every interface; the
 // loopback-only rule for Open posture cannot be met there, so the opt-in is explicit (live builds are the candidate pipeline's).
 IResourceBuilder<T> AllowLiveBuildOnNetwork<T>(IResourceBuilder<T> live) where T : IResourceWithEnvironment
-    => live.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(
+    => live.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(
         IntoChat.OS.Connections.Identity.Configuration.AuthOptions.Key(nameof(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.AllowOpenOnNetwork))), "true");
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
-        .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.IntoChatOSNames.HomeKey), home)
+        .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey), home)
         .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
     if (cookieProtection is not null) { silo.WaitFor(cookieProtection); }
-    foreach (var key in new[] { IntoChat.OS.Framework.IntoChatOSNames.CustodyConfigurationKey,
-        IntoChat.OS.Framework.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey,
-        IntoChat.OS.Framework.IntoChatOSNames.BrainStorageWriteFormatConfigurationKey })
+    foreach (var key in new[] { IntoChat.OS.Contracts.Configuration.IntoChatOSNames.CustodyConfigurationKey,
+        IntoChat.OS.Contracts.Configuration.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey,
+        IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BrainStorageWriteFormatConfigurationKey })
     {
         if (builder.Configuration[key] is { Length: > 0 } value)
         { silo.WithEnvironment(key.Replace(":", "__"), value); }

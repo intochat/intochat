@@ -1,7 +1,7 @@
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // A deployment app page's agent API (window.<Api>, e.g. window.filmcraft) as a tool source, keyed
 // {brain}/pages/{name}. It runs through the IPlaywright neuron at Driver, which must be attached to the

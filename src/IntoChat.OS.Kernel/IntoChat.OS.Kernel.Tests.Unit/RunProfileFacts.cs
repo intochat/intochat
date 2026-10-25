@@ -1,11 +1,13 @@
 extern alias AppHost;
 using AppHost::IntoChat.OS.AppHost;
 using Aspire.Hosting.Testing;
-using IntoChat.OS.AI;
+using IntoChat.OS.Modules.AI;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Facts.Signals;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The one writer of facts into the life index: whoever asserts a fact (consolidation, an accepted review item, the
 // model through IFacts), FactAsserted indexes it as "fact:<id>" (subject and text, its kind, validity start and

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Deployment;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 // The live AppHost, reached through the `aspire` CLI.
 internal interface IClusterHost

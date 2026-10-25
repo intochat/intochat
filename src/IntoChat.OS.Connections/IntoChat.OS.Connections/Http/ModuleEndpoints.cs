@@ -1,7 +1,10 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-namespace IntoChat.OS.Framework;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections;
 
 public static class ModuleEndpoints
 {

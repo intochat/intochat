@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Secrets;
+namespace IntoChat.OS.Connections.Platform.Secrets;
 
 // Resolves the values at redaction time and keeps them only in locals: nothing is cached or logged.
 internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedactor

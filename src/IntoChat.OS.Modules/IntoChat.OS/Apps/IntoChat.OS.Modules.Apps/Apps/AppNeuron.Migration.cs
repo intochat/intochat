@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 internal sealed partial class AppNeuron
 {

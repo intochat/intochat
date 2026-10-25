@@ -6,10 +6,10 @@ using IntoChat.OS.Authority.Identity.Authority;
 using External = IntoChat.OS.Authority.Identity.External;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Marketplace;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 
 namespace IntoChat.OS.Authority;
 
@@ -38,7 +38,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extension
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
     public IConnectionIndex Connections(string brainId) => Resolve<IConnectionIndex>(brainId);
-    public IntoChat.OS.Framework.Platform.Entries.IBrainEntries Entries(string brainId) => Resolve<IntoChat.OS.Framework.Platform.Entries.IBrainEntries>(brainId);
+    public IntoChat.OS.Connections.Platform.Entries.IBrainEntries Entries(string brainId) => Resolve<IntoChat.OS.Connections.Platform.Entries.IBrainEntries>(brainId);
     public IntoChat.OS.Integrations.IConnectionRequests ConnectionRequests(string brainId) => Resolve<IntoChat.OS.Integrations.IConnectionRequests>(brainId);
     public ISecrets Secrets(string owner) => Resolve<ISecrets>(owner);
     public IntoChat.OS.Authority.Secrets.ISecretVaultValues SecretValues(string owner) => Resolve<IntoChat.OS.Authority.Secrets.ISecretVaultValues>(owner);

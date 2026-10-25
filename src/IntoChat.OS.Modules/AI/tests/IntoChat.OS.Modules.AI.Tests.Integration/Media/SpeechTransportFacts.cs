@@ -1,6 +1,5 @@
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;

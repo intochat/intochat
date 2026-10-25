@@ -1,11 +1,13 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
 {

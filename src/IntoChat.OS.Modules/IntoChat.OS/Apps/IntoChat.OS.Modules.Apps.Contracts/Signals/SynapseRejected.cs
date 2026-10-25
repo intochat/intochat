@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps.Signals;
+namespace IntoChat.OS.Modules.Apps.Signals;
 
 // A sentence the fast path could not turn into a synapse that has the shape and compiles; nothing was deployed.
 [GenerateSerializer, Alias("apps.synapse-rejected")]

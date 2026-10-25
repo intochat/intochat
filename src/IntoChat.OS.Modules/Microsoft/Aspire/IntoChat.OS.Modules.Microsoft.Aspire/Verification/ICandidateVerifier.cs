@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Verification;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 
 internal interface ICandidateVerifier
 {

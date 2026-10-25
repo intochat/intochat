@@ -1,16 +1,18 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // Everything one turn needs, settled by the agent before the loop starts.
 internal sealed record TurnPlan(string ScopeId, string Conversation, string RunId, AiMessage[] Transcript, string? Summary, AiMessage Input, string Instructions,

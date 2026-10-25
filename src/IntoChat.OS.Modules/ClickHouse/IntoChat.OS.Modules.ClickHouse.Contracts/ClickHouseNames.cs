@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // The module's addressable neuron vocabulary.
 public static class ClickHouseNames

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework;
 

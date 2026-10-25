@@ -4,7 +4,7 @@ Usage (from any directory):
   python docs/superpowers/loop/mcp.py tools
   python docs/superpowers/loop/mcp.py neurons_context
   python docs/superpowers/loop/mcp.py neurons_search '{"query": "calculator"}'
-  python docs/superpowers/loop/mcp.py neurons_call '{"contract": "IntoChat.OS.Apps.IApp", "key": "owner/apps/calculator", "method": "Request", "arguments": "[\"add\", \"2+3\"]"}'
+  python docs/superpowers/loop/mcp.py neurons_call '{"contract": "IntoChat.OS.Modules.Apps.IApp", "key": "owner/apps/calculator", "method": "Request", "arguments": "[\"add\", \"2+3\"]"}'
   python docs/superpowers/loop/mcp.py --brain owner neurons_list '{}'
 
 Each call runs initialize -> notifications/initialized -> the request on one session and prints the

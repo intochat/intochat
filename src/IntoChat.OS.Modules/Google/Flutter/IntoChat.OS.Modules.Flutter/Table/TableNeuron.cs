@@ -1,11 +1,12 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Table.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Table.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Table;
+namespace IntoChat.OS.Modules.Flutter.Table;
 
 [GrainType(UIVocabulary.TableType)]
 internal sealed class TableNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TableState> store)

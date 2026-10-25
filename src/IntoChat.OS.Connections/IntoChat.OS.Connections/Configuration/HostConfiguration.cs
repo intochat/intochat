@@ -1,8 +1,12 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.Framework.Configuration;
+namespace IntoChat.OS.Connections.Configuration;
 
 // The one place module code reads configuration that is not a module option. Module options bind through
 // GetModuleOptions<T>; everything else the host owns (Aspire parameters, OTLP, integration values, the

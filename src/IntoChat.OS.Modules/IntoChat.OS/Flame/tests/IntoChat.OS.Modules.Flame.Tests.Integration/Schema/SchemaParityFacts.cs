@@ -1,6 +1,5 @@
 using System.Text.Json;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flame.Tests.Integration.Schema;

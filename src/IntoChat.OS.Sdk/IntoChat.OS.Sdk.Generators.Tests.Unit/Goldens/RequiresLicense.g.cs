@@ -6,7 +6,7 @@ namespace Fixture;
 
 partial class LicensedModule
 {
-    public LicensedModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("licensed")) { }
+    public LicensedModule() : base(new global::IntoChat.OS.Sdk.Modules.ModuleId("licensed")) { }
 
     public override global::System.Reflection.Assembly? Contracts => typeof(global::Fixture.IContract).Assembly;
 
@@ -15,8 +15,8 @@ partial class LicensedModule
     public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
     {
         global::System.ArgumentNullException.ThrowIfNull(silo);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Sdk.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(global::IntoChat.OS.Sdk.Modules.IModuleServices services);
 }

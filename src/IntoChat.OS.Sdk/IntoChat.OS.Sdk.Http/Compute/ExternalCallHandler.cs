@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Sdk.Compute;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

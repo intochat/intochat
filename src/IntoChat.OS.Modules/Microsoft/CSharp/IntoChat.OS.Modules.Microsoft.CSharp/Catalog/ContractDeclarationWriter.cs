@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Microsoft.CSharp.Catalog;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 // These are authoring declarations, not generated source. Each group is self-contained so consumers
 // can drop a whole method and its schema without leaving an apparently callable, incomplete method.

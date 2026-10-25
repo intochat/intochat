@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections;
 
 public enum FieldKind
 {

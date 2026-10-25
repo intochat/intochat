@@ -4,16 +4,17 @@ using System.Net.ServerSentEvents;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Client.Runtime;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Edge;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp.Edge;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -49,7 +50,7 @@ public sealed class RuntimeEdgeFacts
             }
         }
         const string source = """
-            using IntoChat.OS.Google.Gmail;
+            using IntoChat.OS.Modules.Google.Gmail;
             await using var brain = await IntoChatOSClient.ConnectAsync(args);
             var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
             var ct = brain.Stopping;
@@ -111,7 +112,7 @@ public sealed class RuntimeEdgeFacts
         var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
         {
             ["gmail-reactive.cs"] = """
-                using IntoChat.OS.Google.Gmail;
+                using IntoChat.OS.Modules.Google.Gmail;
                 await using var brain = await IntoChatOSClient.ConnectAsync(args);
                 var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
                 using var stop = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
@@ -166,7 +167,7 @@ public sealed class RuntimeEdgeFacts
         var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
         {
             ["query.cs"] = """
-                using IntoChat.OS.Postgres;
+                using IntoChat.OS.Modules.Postgres;
                 await using var brain = await IntoChatOSClient.ConnectAsync(args);
                 var result = await brain.Get<IPostgresServer>("acc-brain/database").Query(
                     new PostgresQuery("select $1", 7, [new PostgresParameter("message", "typed request")]));
@@ -335,7 +336,7 @@ public sealed class RuntimeEdgeFacts
         var neuron = RuntimeBrain.Runtime(brain, "acc-brain");
         var pinger = brain.Get<IPinger>("acknowledged");
         var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
-        await using var changes = await brain.Observe<IntoChat.OS.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
+        await using var changes = await brain.Observe<IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
         await pinger.Ping(1); await changes.NextAsync(ct: ct);
         using var ambiguous = await Report(brain, session, new RuntimeReport(
             Acknowledge: new(subscription, 1), Acknowledgements: [new(subscription, 1)]), ct);
@@ -498,7 +499,7 @@ public sealed class RuntimeEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
-        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IntoChat.OS.Framework.Platform.Connections.IConnectionIndex).FullName!, "acc-brain", "List", []);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IntoChat.OS.Connections.Platform.Connections.IConnectionIndex).FullName!, "acc-brain", "List", []);
 
         using var invoked = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Invoke, session.Token, invoke), ct);
 
@@ -567,7 +568,7 @@ public sealed class RuntimeEdgeFacts
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
         using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct);
-        await using var changes = await brain.Observe<IntoChat.OS.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, "acc-brain"), ct);
+        await using var changes = await brain.Observe<IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, "acc-brain"), ct);
         await brain.Get<IPinger>("pinger").Ping(3);
         await changes.NextAsync(ct: ct);
 
@@ -626,11 +627,11 @@ public sealed class RuntimeEdgeFacts
         var forged = JsonSerializer.SerializeToElement(new { principalId = "x", accountId = "x", brainId = "x", kind = "Platform", stampedBy = "Platform", appId = "x" });
 
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("attacker"),
-            new("", typeof(IntoChat.OS.Framework.Platform.Integrations.IIntegration).FullName!, "integration/openai", "Release", [forged]), ct)).StatusCode);
+            new("", typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration).FullName!, "integration/openai", "Release", [forged]), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("attacker"),
-            new("", typeof(IntoChat.OS.Framework.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct)).StatusCode);
+            new("", typeof(IntoChat.OS.Connections.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct)).StatusCode);
         using var subscribe = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
-            new RuntimeReport(Subscribe: new(Key("attacker"), typeof(IntoChat.OS.Framework.Platform.Connections.IConnectionIndex).FullName!, "x", "Pinged"))), ct);
+            new RuntimeReport(Subscribe: new(Key("attacker"), typeof(IntoChat.OS.Connections.Platform.Connections.IConnectionIndex).FullName!, "x", "Pinged"))), ct);
         Assert.Equal(HttpStatusCode.BadRequest, subscribe.StatusCode);
     }
 

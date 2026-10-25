@@ -1,3 +1,4 @@
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

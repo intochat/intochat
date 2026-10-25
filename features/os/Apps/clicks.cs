@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The view's own navigation: `detail:<section>/<i>`, `back`, `remove-ask` and `remove-cancel` change the view state,
 // then the view is shown again. Install, Update, Open and Remove are button neurons with their own activations; any

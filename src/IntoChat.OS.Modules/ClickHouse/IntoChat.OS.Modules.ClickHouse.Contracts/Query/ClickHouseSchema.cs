@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ClickHouse.Query;
+namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 [GenerateSerializer]
 [Alias("db.clickhouse.table-info")]

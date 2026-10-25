@@ -1,9 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Microsoft.GitHub.Signals;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
 // access once; installation tokens minted from the App key do the ongoing work.

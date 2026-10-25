@@ -1,8 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 [GenerateSerializer, Alias("ui.binding-state")]
 [ExportableState]

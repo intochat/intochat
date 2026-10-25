@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Table;
+namespace IntoChat.OS.Modules.Flutter.Table;
 
 [Alias("table"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TableType)]
 public interface ITable : INeuron

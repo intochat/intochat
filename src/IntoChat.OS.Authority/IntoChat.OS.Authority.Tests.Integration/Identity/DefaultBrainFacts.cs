@@ -69,7 +69,7 @@ public sealed class DefaultBrainFacts
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddSingleton<IIntoChatOS>(brain);
         builder.Services.AddSingleton(brain.Platform);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
         builder.Services.AddIdentity();

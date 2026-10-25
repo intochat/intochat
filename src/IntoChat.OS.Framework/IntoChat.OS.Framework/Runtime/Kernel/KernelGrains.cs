@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework;
 

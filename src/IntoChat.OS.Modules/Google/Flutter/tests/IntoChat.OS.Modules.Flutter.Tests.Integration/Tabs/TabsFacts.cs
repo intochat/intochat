@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Tabs;
+using IntoChat.OS.Modules.Flutter.Tabs;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Tabs;

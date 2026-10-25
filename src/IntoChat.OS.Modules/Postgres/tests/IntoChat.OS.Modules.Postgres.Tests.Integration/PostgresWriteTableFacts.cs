@@ -1,8 +1,9 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
-using IntoChat.OS.Postgres.Tables.Signals;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Postgres.Tables.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orleans;
@@ -537,7 +538,7 @@ public interface IPostgresLifecycleTestApp : IntoChat.OS.INeuron
     Task Reinstall(string appId);
 }
 
-[GrainType(IntoChat.OS.Framework.AppGrainType.Name)]
+[GrainType(IntoChat.OS.Connections.AppGrainType.Name)]
 public sealed class PostgresLifecycleTestApp : IntoChat.OS.Framework.Neuron, IPostgresLifecycleTestApp
 {
     public Task Uninstall(string appId)

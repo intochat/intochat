@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Color;
+namespace IntoChat.OS.Modules.Flutter.Color;
 
 [Alias("color"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ColorType)]
 public interface IColor : INeuron

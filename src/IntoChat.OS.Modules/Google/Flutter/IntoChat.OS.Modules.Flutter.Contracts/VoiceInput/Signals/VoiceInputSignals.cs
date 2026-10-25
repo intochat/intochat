@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flutter.VoiceInput.Signals;
+namespace IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
 
 [GenerateSerializer, Alias("ui.voiceinput-changed")]
 public sealed record VoiceInputChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;

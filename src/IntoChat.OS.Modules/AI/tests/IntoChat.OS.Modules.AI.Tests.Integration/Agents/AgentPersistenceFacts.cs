@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
@@ -115,7 +116,7 @@ public sealed class AgentPersistenceFacts
 
     private static ChatProjection Projection(string source, AgentState state)
         => new(source, 0, state.Version, [.. state.Runs.Concat(state.ActiveRun is { } active ? [active] : Array.Empty<AgentRun>())
-            .Select(run => new ChatEntry(run.RunId, IntoChat.OS.Flutter.Chat.ChatRole.Assistant, run.Reply ?? "")
+            .Select(run => new ChatEntry(run.RunId, IntoChat.OS.Modules.Flutter.Chat.ChatRole.Assistant, run.Reply ?? "")
             { Status = run.Status.ToString().ToLowerInvariant() })]);
 
     private sealed class HeldWrite(string phase, bool fail)

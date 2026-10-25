@@ -1,8 +1,8 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // The shown app was installed, updated or removed: show the view again, so its status and actions follow.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

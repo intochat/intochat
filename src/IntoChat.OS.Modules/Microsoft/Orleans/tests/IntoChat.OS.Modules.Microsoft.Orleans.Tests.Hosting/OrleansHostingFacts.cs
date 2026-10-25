@@ -2,8 +2,9 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Sdk.Configuration;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting;
@@ -61,7 +62,7 @@ public sealed class OrleansHostingFacts
         var client = builder.AddExecutable("mcp", "unused", ".").WithReference(brain.AsClient());
         var environment = await EnvironmentOf(builder, client.Resource, TestContext.Current.CancellationToken);
         Assert.Equal("AzureTableStorage", environment["Orleans__Clustering__ProviderType"]);
-        Assert.Equal(IntoChat.OS.Framework.IntoChatOSNames.Clustering, environment["Orleans__Clustering__ServiceKey"]);
+        Assert.Equal(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.Clustering, environment["Orleans__Clustering__ServiceKey"]);
     }
 
     private static void AssertNoProviderKeys(Dictionary<string, object> environment)

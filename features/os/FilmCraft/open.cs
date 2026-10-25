@@ -1,11 +1,11 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.ArtCraft;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.WebBrowser;
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.WebBrowser;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Open: connect the app's MCP server (its tools join the brain's search), then show the app's own web
 // build in the shell's browser. Plain grain calls, safe to re-run.

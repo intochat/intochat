@@ -1,7 +1,7 @@
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A whole program of one owner: every synapse of an app (or a standalone file's one program). The brain
 // runtime compiles, stores and assigns it in one call, so a write that does not compile never reaches a

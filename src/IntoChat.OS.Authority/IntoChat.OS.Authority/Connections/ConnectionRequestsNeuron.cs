@@ -1,7 +1,9 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Authority.Integrations;
 using Orleans.Concurrency;

@@ -11,7 +11,7 @@ The script renders one immutable view tree from the history snapshot.
 
 Startup and "open" publish /view with the app sphere. The run subscriber owns its rendered content.
 */
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

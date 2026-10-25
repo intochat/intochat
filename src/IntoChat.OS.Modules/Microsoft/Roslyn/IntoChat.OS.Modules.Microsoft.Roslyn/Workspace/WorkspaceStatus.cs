@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 public sealed record WorkspaceStatus(WorkspacePhase Phase, string? SolutionPath, int ProjectCount, int DocumentCount, string? Detail, bool ReloadNeeded = false)
 {

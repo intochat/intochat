@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // One request posted through IRouter.Ask. The poster picks the id; the answer arrives as Routed with
 // the same id and stays readable through IRouter.Pending.

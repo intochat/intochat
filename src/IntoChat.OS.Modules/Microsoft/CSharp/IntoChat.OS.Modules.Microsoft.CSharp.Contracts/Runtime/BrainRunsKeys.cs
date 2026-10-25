@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // The brain scope leads, so the framework's access check finds the owning brain from the key alone.
 public static class BrainRunsKeys

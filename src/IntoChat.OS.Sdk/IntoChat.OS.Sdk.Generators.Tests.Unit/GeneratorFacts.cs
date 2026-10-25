@@ -6,6 +6,7 @@ public sealed class GeneratorFacts
 {
     private const string Header = """
         using IntoChat.OS.Framework.Modules;
+        using IntoChat.OS.Sdk.Modules;
         using IntoChat.OS.Sdk;
         namespace Fixture;
         """;
@@ -79,7 +80,7 @@ public sealed class GeneratorFacts
     [Fact]
     public void HttpModule() => Verify("HttpModule", """
         [Module("web")]
-        public sealed partial class WebModule : Module, IntoChat.OS.Framework.IHttpModule
+        public sealed partial class WebModule : Module, IntoChat.OS.Sdk.IHttpModule
         {
             public void Configure(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) { }
         }

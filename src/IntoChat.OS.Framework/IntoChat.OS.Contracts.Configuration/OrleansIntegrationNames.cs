@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Contracts.Configuration;
 
 // The Orleans integration's id and fields: OrleansModule offers them, a deployment writes them.
 public static class OrleansIntegrationNames

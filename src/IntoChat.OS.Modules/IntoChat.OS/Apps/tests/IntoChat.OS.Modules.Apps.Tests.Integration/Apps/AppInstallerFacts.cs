@@ -2,7 +2,7 @@ using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // Install copies a published version into the caller's brain and remembers where it came from;
 // Update replaces the program and keeps what the person chose, until the person edits it.
@@ -78,15 +78,15 @@ public sealed class AppInstallerFacts
         await using var brain = await Start();
         await Published(brain);
         var alice = await brain.PersonAsync("alice", Ct);
-        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
-        var principal = IntoChat.OS.Framework.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+        var principal = IntoChat.OS.Sdk.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
 
         using var _ = alice.AsCaller();
         await brain.InstallLatest("intochat", "echo", Ct);
 
         var member = await identity.Membership(alice.BrainId, principal);
         Assert.NotNull(member);
-        Assert.Equal(IntoChat.OS.Framework.Platform.Identity.MemberRole.App, member.Role);
+        Assert.Equal(IntoChat.OS.Sdk.Platform.Identity.MemberRole.App, member.Role);
         Assert.Equal(alice.AccountId, member.AccountId);
 
         await Mine(brain, alice).Delete();
@@ -117,7 +117,7 @@ public sealed class AppInstallerFacts
         using var _ = alice.AsCaller();
         await brain.InstallLatest("intochat", "echo", Ct);
 
-        var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
+        var identity = brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
         var grant = Assert.Single(await identity.ListGrants(alice.BrainId), grant => grant.SemanticTypeId == "person.email");
         Assert.Equal((IApp.Key(alice.BrainId, "echo"), IntoChat.OS.Connections.Identity.GrantMode.Always), (grant.AppId, grant.Mode));
     }

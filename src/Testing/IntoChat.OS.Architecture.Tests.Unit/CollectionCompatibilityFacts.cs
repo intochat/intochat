@@ -36,9 +36,9 @@ public sealed partial class CollectionCompatibilityFacts
             Path.Combine(AppContext.BaseDirectory, "CollectionCompatibilitySamples.json")))!;
         string[] migrated =
         [
-            "IntoChat.OS.Apps.AppState", "IntoChat.OS.Apps.AppVersionRecord", "IntoChat.OS.Flutter.Workspace.ProblemReportsState",
-            "IntoChat.OS.Microsoft.CSharp.Files.CSharpFileState", "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeState",
-            "IntoChat.OS.Microsoft.CSharp.Runtime.ProgramAssignment",
+            "IntoChat.OS.Modules.Apps.AppState", "IntoChat.OS.Modules.Apps.AppVersionRecord", "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsState",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileState", "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramAssignment",
         ];
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
@@ -65,7 +65,7 @@ public sealed partial class CollectionCompatibilityFacts
     [Fact]
     public void AnEntryArrayWinsOverTheOlderDictionary()
     {
-        var state = new IntoChat.OS.Apps.AppState
+        var state = new IntoChat.OS.Modules.Apps.AppState
         {
             LegacyFiles = new() { ["a"] = "old", ["b"] = "old" },
             FileEntries = [new("a", "new")],

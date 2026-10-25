@@ -1,10 +1,10 @@
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using System.Text.Json;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using IntoChat.OS.ServiceDefaults;
 
-namespace IntoChat.OS.Microsoft.Aspire.Deployment;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 // The live AppHost through the `aspire` CLI (13.6 has no `aspire mcp start`): `describe`, `resource restart`, `otel spans`.
 // The AppHost project is found from the repository, Workdir's parent.

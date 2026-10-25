@@ -1,8 +1,8 @@
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal static class AiIntegrations
 {

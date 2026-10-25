@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis.CodeFixes;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // The C# code fixers ship as MEF exports in Microsoft.CodeAnalysis.CSharp.Features. This host has no MEF
 // composition for them, so the ones with a parameterless constructor are built by reflection; fixers that

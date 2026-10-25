@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 // A mailbox-change wake-up: reconcile current state; this does not identify a fetched message.
 [GenerateSerializer, Alias("gmail.mail-received")]

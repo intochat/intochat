@@ -1,6 +1,9 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

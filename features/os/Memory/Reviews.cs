@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Intents;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // Shared by "review", "review-accept", "review-reject" and "consolidate": what a user's decision on a review row
 // means, how it is applied, and the count of rows still waiting.

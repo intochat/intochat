@@ -1,6 +1,7 @@
 using IntoChat.OS;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Modules.Apps.Tests.Integration;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 
-namespace IntoChat.OS.Apps.Tests.Features;
+namespace IntoChat.OS.Modules.Apps.Tests.Features;
 
 // Every brain activation brings the brain's unedited features to the features folder's version; a copy the
 // person edited, or that came from a person's brain, stays exactly as it is.

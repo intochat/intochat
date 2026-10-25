@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // The observer only queues this non-neuron turn, so a chat publishing its selection
 // never waits for the composer to call back into it.

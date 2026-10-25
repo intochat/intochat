@@ -1,6 +1,6 @@
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The app: manifest, spec, files, connections,
 // semver history, status and activity — the only durable thing in the Apps module.

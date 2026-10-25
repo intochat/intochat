@@ -1,7 +1,7 @@
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Viewport;
+namespace IntoChat.OS.Modules.Flutter.Viewport;
 
 [Alias("viewport"), Orleans.Metadata.DefaultGrainType("viewport")]
 public interface IViewport : INeuron

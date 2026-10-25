@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.AI.Foundry.Local;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -7,7 +7,7 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Local Whisper via Microsoft Foundry Local (IAW port). Owned by the AI module.
 public sealed class FoundryLocalTranscriptionService :

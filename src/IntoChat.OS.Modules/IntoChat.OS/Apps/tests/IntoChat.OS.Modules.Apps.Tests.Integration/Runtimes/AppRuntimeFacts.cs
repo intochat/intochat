@@ -1,5 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

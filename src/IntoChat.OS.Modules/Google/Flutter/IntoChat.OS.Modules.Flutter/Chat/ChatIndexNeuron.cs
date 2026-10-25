@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 [GenerateSerializer, Alias("ui.chat-index-state")]
 [ExportableState]

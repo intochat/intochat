@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ClickHouse.Query;
+namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 // Carries the server's own error text so the agent can correct a wrong column or function name.
 [GenerateSerializer, Alias("db.clickhouse.query-failed")]

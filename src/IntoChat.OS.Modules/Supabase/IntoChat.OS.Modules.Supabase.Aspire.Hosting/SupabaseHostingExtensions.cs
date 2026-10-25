@@ -1,16 +1,18 @@
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Supabase.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;
 
 public static class SupabaseHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Supabase.Aspire.Hosting.SupabaseModuleHosting> WithSupabase(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Supabase.Aspire.Hosting.SupabaseModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Supabase.Aspire.Hosting.SupabaseModuleHosting> WithSupabase(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Supabase.Aspire.Hosting.SupabaseModuleHosting> module,
         Action<SupabaseHostingOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(module);
@@ -22,7 +24,7 @@ public static class SupabaseHostingExtensions
         return module;
     }
 
-    private static SupabaseHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Supabase.Aspire.Hosting.SupabaseModuleHosting> module)
+    private static SupabaseHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Modules.Supabase.Aspire.Hosting.SupabaseModuleHosting> module)
     {
         var state = module.GetOrAddProjection(brain => new SupabaseHostingState(brain, module.Resource));
 
@@ -59,8 +61,8 @@ public static class SupabaseHostingExtensions
                 return;
             }
 
-            builder.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
+            builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
         }
     }
 }

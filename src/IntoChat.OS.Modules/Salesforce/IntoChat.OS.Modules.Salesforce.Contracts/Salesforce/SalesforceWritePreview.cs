@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 [GenerateSerializer, Alias("salesforce.write-preview")]
 public sealed record SalesforceWritePreview(

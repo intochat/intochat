@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
-namespace IntoChat.OS.Microsoft.Playwright;
+
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 [GrainType("playwright"), Reentrant]
 internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuron, IPlaywright

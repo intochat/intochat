@@ -1,3 +1,5 @@
+using IntoChat.OS.Contracts.Configuration;
+
 namespace IntoChat.OS.Framework.Tests.Integration;
 
 [GenerateSerializer, Alias("test.tally-state")]

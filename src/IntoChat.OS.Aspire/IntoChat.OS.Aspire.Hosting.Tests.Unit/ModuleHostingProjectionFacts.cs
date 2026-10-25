@@ -2,12 +2,15 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Salesforce;
-using IntoChat.OS.Salesforce.Aspire.Hosting;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Google.Gmail;
+using IntoChat.OS.Modules.Salesforce;
+using IntoChat.OS.Modules.Salesforce.Aspire.Hosting;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 

@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Orleans.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 [GrainType(UIVocabulary.ChatType)]
 internal sealed partial class ChatNeuron(

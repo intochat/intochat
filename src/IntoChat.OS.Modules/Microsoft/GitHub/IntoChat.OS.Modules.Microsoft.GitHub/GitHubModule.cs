@@ -1,16 +1,20 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.GitHub.Webhook;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Microsoft.GitHub.IRepository).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).Assembly;
 
     // ClientId sits beside ClientSecret so the Platform's OAuth flow reads both from one release.
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("github", "GitHub")

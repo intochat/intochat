@@ -6,23 +6,23 @@ namespace IntoChat.OS.Sdk.SampleModule;
 
 partial class SampleModule
 {
-    public SampleModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("sample")) { }
+    public SampleModule() : base(new global::IntoChat.OS.Sdk.Modules.ModuleId("sample")) { }
 
-    public static global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema.For("sample-api", "Sample API").RequiresSecret("ApiKey");
+    public static global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema.For("sample-api", "Sample API").RequiresSecret("ApiKey");
 
-    public static global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
-        global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema.For("sample-events", "Sample events").RequiresSetting("Audience"),
+    public static global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
+        global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema.For("sample-events", "Sample events").RequiresSetting("Audience"),
     ];
 
     public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
     {
         global::System.ArgumentNullException.ThrowIfNull(silo);
         global::IntoChat.OS.Sdk.Compute.ModulePriceLists.AddModulePriceList<global::IntoChat.OS.Sdk.SampleModule.SamplePriceList>(silo.Services, "sample", [
-            new global::IntoChat.OS.Framework.Compute.ExternalOperationDescriptor("sample.read", "sample-api", "request"),
-            new global::IntoChat.OS.Framework.Compute.ExternalOperationDescriptor("sample.refresh", "sample-api", "request"),
+            new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.read", "sample-api", "request"),
+            new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.refresh", "sample-api", "request"),
         ]);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Sdk.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(global::IntoChat.OS.Sdk.Modules.IModuleServices services);
 }

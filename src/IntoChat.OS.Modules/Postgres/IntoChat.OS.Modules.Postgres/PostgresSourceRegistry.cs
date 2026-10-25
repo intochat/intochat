@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 public interface IPostgresSourceRegistry
 {

@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // Retires an app's tables on uninstall and reopens its storage when the app is created again. The Apps module drives this through IAppStorageHook
 // without knowing Postgres exists.

@@ -1,8 +1,10 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
-using IntoChat.OS.Time.Timers.Signals;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
-namespace IntoChat.OS.Time.Timers;
+
+namespace IntoChat.OS.Modules.Time.Timers;
 
 [GrainType("timer")]
 internal sealed class TimerNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time) : Neuron, ITimer, IDeactivatingNeuron

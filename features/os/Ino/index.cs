@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 // Any chat index change (a first message, a back-fill, Settings' Unarchive) marks Ino's view dirty for view.cs.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

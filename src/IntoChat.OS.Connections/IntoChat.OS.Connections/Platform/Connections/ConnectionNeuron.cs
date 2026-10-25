@@ -1,8 +1,10 @@
-using IntoChat.OS.Framework.Platform.Connections.Signals;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Connections;
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // Every connector's connection neuron derives from this. The credential is sealed state; the hooks
 // receive it opened for one provider call inside the grain turn and never return it.

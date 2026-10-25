@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 [Alias("postgres"), Orleans.Metadata.DefaultGrainType("postgres")]
 public interface IPostgresServer : INeuron

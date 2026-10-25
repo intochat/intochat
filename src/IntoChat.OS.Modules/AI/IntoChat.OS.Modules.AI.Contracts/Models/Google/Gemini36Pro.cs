@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Google;
+namespace IntoChat.OS.Modules.AI.Models.Google;
 
 public sealed class Gemini36Pro : LLMModel<IGemini36Pro>
 {

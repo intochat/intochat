@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
-namespace IntoChat.OS.Microsoft.CSharp.Assemblies;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 
 // Compiled behaviors by content hash; the symbols live beside each assembly as "{hash}.pdb".
 public interface IBehaviorAssemblies

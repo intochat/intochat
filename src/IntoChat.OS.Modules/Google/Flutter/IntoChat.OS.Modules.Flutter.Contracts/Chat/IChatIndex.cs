@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // One entry per conversation of an assistant, at `{DataKey}/chats`. Each conversation stays an agent at
 // `{DataKey}/conversations/{Id}`; the index only names, orders and archives them.

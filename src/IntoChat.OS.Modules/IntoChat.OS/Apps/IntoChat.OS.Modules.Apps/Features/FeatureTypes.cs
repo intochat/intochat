@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The types a feature brings, read from syntax: public records and classes deriving from Signal in
 // its shared files. Neurons a script defines are not types yet (a deferred fork of the kernel design).

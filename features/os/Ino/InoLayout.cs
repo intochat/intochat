@@ -1,5 +1,5 @@
 using System.Text;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 // Pure sidebar rules: sizes, ordering, search and where the selection goes when a chat is archived.
 public static class InoLayout

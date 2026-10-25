@@ -3,7 +3,7 @@ using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Testing;
-using IntoChat.OS.Time.Timers.Signals;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 

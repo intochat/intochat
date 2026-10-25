@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Sheet;
+using IntoChat.OS.Modules.Flutter.Sheet;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Sheet;

@@ -3,7 +3,7 @@ using Google.Protobuf.Collections;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 internal sealed class QdrantStore(QdrantClient client) : IVectorStore
 {

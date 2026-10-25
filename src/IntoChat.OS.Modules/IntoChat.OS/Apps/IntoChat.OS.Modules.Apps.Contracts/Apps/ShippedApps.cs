@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Whether an installed app is the program the OS ships under that name: shipped from a trusted
 // publisher, recorded under the same name, and not edited since. An app that only bears the name

@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Postgres;
 using Npgsql;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 internal sealed class ConnectionPostgresProviderFactory : IConnectionPostgresProviderFactory
 {

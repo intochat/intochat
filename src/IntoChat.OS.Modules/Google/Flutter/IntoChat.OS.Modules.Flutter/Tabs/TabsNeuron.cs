@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Tabs.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Tabs.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Tabs;
+namespace IntoChat.OS.Modules.Flutter.Tabs;
 
 [GrainType(UIVocabulary.TabsType)]
 internal sealed class TabsNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TabsState> store)

@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Identity;

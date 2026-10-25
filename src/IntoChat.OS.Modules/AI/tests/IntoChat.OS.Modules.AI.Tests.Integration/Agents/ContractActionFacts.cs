@@ -1,9 +1,10 @@
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,7 +41,7 @@ public sealed class ContractActionFacts
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(NeuronSurfaceTools.CallName, new()
         {
-            ["contract"] = "IntoChat.OS.Postgres.IPostgresServer",
+            ["contract"] = "IntoChat.OS.Modules.Postgres.IPostgresServer",
             ["key"] = "b/connection/postgres/x",
             ["method"] = "ReadConnection",
             ["arguments"] = "[]"
@@ -92,9 +93,9 @@ public sealed class ContractActionFacts
     public void ThereIsNoToolVocabulary()
     {
         var contracts = typeof(AgentTurn).Assembly;
-        Assert.Null(contracts.GetType("IntoChat.OS.AI.Tools.IAgentToolFactory"));
-        Assert.Null(contracts.GetType("IntoChat.OS.AI.Tools.IAgentToolSource"));
-        Assert.Null(contracts.GetType("IntoChat.OS.AI.Tools.NativeTools"));
+        Assert.Null(contracts.GetType("IntoChat.OS.Modules.AI.Tools.IAgentToolFactory"));
+        Assert.Null(contracts.GetType("IntoChat.OS.Modules.AI.Tools.IAgentToolSource"));
+        Assert.Null(contracts.GetType("IntoChat.OS.Modules.AI.Tools.NativeTools"));
         Assert.Null(typeof(AgentTurn).GetProperty("Tools"));
     }
 

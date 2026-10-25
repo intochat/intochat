@@ -1,5 +1,8 @@
-using IntoChat.OS.Framework.Contracts;
-namespace IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // One per brain, keyed by the brain scope id: the keys of its connection neurons, nothing else.
 [Alias("connection.index"), Orleans.Metadata.DefaultGrainType("connection.index")]

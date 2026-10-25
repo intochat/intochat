@@ -1,4 +1,4 @@
-using IntoChat.OS.ArtCraft.Aspire.Hosting;
+using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 

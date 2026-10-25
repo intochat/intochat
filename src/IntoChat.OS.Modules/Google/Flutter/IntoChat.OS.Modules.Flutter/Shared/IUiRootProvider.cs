@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 // A distribution selects its app-authored root and navigation receiver.
 public interface IUiRootProvider

@@ -1,4 +1,3 @@
-using IntoChat.OS.Apps;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 

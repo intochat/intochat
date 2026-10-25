@@ -1,12 +1,16 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
 {

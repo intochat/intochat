@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // A unified-style diff of the lines that differ, computed from the common prefix and suffix; enough for a
 // card and for the model to see what changed, without a full LCS.

@@ -1,8 +1,9 @@
 using System.Net;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Authoring;
-using IntoChat.OS.Microsoft.CSharp.Edge;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -24,18 +25,18 @@ public sealed class AuthoringCompositionFacts
         Assert.Equal(HttpStatusCode.NotFound, unavailable.StatusCode);
         // What the Apps publish gate and the runtime edge need stays composed.
         Assert.True(off.Services.GetRequiredService<CSharpToolService>().CanRun);
-        Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Apps.IScriptSandbox>());
-        Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Edge.RuntimeEdge>());
+        Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Modules.Apps.IScriptSandbox>());
+        Assert.NotNull(off.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge>());
         Assert.Contains(CSharpToolService.Tools, tool => tool.Name == "csharp_contract_detail");
         using (on.Owner.AsCaller())
         {
             var detail = await on.Services.GetRequiredService<CSharpToolService>().ForScope(on.Owner.BrainId).ContractDetail(
-                "csharp", typeof(IntoChat.OS.Microsoft.CSharp.Files.ICSharpFile).FullName!, "Inspect", ct);
+                "csharp", typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).FullName!, "Inspect", ct);
             Assert.Contains("CSharpFileSnapshot(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
         }
     }
 
     [Fact]
     public void CSharpModuleIsTheOnlyCSharpModule()
-        => Assert.Null(typeof(CSharpModule).Assembly.GetType("IntoChat.OS.Microsoft.CSharp.CSharpAuthoringModule"));
+        => Assert.Null(typeof(CSharpModule).Assembly.GetType("IntoChat.OS.Modules.Microsoft.CSharp.CSharpAuthoringModule"));
 }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 using OllamaSharp;
 using OpenAI;
 
-namespace IntoChat.OS.AI.Models.Ollama;
+namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
 internal sealed class OllamaProviderFactory : ILlmProviderFactory
 {

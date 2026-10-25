@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

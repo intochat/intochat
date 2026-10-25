@@ -1,6 +1,8 @@
-using IntoChat.OS.AI;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;

@@ -1,8 +1,8 @@
-using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Sdk.Modules;
 
 // Constructed by the generated Module.Configure shell (moves to the Sdk assembly in 09-07).
 public sealed class ModuleServices(IServiceCollection services, IConfiguration configuration, ModuleId module) : IModuleServices

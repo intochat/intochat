@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal sealed class RebuildingChatClient(Func<CancellationToken, Task<IChatClient>> create, Func<CancellationToken, Task<long>> generation) : IChatClient
 {

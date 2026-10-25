@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // The speaking session and the assigned programs, published after the runtime's state is durable.
 // An invocation reads it instead of asking the runtime grain. A miss, a refused session, or a session

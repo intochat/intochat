@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.install-receipt")]
 public sealed record AppInstallReceipt(

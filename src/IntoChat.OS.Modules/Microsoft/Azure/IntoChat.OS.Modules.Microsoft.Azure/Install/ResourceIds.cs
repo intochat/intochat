@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Azure.Install;
+namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 // The ARM id a resource gets, computed from its names so a dry run and the foundation refs need no Azure.
 public static class ResourceIds

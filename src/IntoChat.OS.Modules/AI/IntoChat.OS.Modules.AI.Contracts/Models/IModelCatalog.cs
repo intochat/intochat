@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // The deployment's model list as a neuron, so other modules and the shell read it without
 // referencing the AI module. Never carries endpoints or secrets.

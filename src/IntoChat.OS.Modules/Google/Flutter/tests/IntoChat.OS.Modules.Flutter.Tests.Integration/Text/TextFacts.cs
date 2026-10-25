@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Text;

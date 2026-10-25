@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Calendar.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Calendar.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Calendar;
+namespace IntoChat.OS.Modules.Flutter.Calendar;
 
 [GrainType(UIVocabulary.CalendarType)]
 internal sealed class CalendarNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CalendarState> store)

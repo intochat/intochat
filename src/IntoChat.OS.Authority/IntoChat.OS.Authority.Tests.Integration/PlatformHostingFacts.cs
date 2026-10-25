@@ -1,7 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Authority;

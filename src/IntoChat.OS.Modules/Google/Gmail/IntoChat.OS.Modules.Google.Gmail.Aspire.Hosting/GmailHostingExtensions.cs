@@ -2,14 +2,16 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 public static partial class GmailHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> WithGmail(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> module, Action<GmailHostingOptions> configure)
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Google.Gmail.GmailModuleHosting> WithGmail(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Google.Gmail.GmailModuleHosting> module, Action<GmailHostingOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(configure);
@@ -19,8 +21,8 @@ public static partial class GmailHostingExtensions
     }
 
     // The public origin defaults to the kernel's own http endpoint; pass one explicitly when a reverse proxy fronts the callback.
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> WithGmail(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Google.Gmail.GmailModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Google.Gmail.GmailModuleHosting> WithGmail(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Google.Gmail.GmailModuleHosting> module,
         Uri? publicOrigin = null)
     {
         ArgumentNullException.ThrowIfNull(module);

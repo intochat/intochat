@@ -1,5 +1,3 @@
-using IntoChat.OS.Supabase;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Supabase.Tests.Integration.SupabaseHost))]
 
 namespace IntoChat.OS.Modules.Supabase.Tests.Integration;

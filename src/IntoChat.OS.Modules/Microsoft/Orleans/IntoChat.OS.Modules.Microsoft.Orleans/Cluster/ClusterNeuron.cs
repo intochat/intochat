@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using global::Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.Orleans.Cluster;
+namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
 
 [GrainType("orleans.cluster")]
 internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron, ICluster, IRetainsSignals, IClusterMembershipReceiver

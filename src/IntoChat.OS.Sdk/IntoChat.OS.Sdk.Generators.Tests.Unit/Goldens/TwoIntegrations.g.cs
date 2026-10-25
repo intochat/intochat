@@ -6,19 +6,19 @@ namespace Fixture;
 
 partial class MailModule
 {
-    public MailModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("gmail")) { }
+    public MailModule() : base(new global::IntoChat.OS.Sdk.Modules.ModuleId("gmail")) { }
 
-    public static global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
+    public static global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
 
-    public static global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
-        global::IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema.For("google-pubsub", "Google Pub/Sub push").RequiresSetting("Audience").RequiresSetting("ServiceAccountEmail"),
+    public static global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
+        global::IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema.For("google-pubsub", "Google Pub/Sub push").RequiresSetting("Audience").RequiresSetting("ServiceAccountEmail"),
     ];
 
     public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
     {
         global::System.ArgumentNullException.ThrowIfNull(silo);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Sdk.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(global::IntoChat.OS.Sdk.Modules.IModuleServices services);
 }

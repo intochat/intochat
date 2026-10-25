@@ -1,12 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Preferences;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Preferences;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Modules.Circles;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -40,7 +39,7 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
         using var caller = User.AsCaller();
         await StartDesktop(ct);
         // More, then Settings: its window opens on General.
-        var more = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Button.IButton>(Desktop + "/settings").Read(),
+        var more = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Modules.Flutter.Button.IButton>(Desktop + "/settings").Read(),
             button => button.Activation?.Contains("\"workspace\"", StringComparison.Ordinal) == true, Patience, ct);
         await Activate(more.Activation!, ct);
         var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "settings", Patience, ct);
@@ -182,7 +181,7 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
 
     private async Task StartDesktop(CancellationToken ct)
     {
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(Desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);

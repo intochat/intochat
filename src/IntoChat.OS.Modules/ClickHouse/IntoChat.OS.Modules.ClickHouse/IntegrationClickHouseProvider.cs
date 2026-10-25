@@ -1,8 +1,8 @@
 using ClickHouse.Driver;
-using IntoChat.OS.ClickHouse.Query;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.ClickHouse.Query;
+using IntoChat.OS.Connections.Platform.Integrations;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 internal sealed class IntegrationClickHouseProvider(IModuleIntegrations<ClickHouseModule> integrations, IHttpClientFactory clients) : IClickHouseProvider, IIntegrationStartup
 {

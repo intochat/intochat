@@ -2,13 +2,16 @@ using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 // Candidates are git worktrees under {Workdir}/worktrees, published to {Workdir}/builds/{sha}/{os,mcp}
 // and run on a private network beside their own Azurite, Postgres and ClickHouse and their own

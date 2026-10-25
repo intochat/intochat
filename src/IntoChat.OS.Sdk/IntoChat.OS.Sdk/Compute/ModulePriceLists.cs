@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

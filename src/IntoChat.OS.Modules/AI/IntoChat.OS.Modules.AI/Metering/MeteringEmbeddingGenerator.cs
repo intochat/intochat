@@ -1,9 +1,9 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.AI.Metering;
+namespace IntoChat.OS.Modules.AI.Metering;
 
 // Prices the provider's reported input tokens for embedding calls through the kernel's cost meter.
 // Embeddings are their own row: the item carries the embedding model id, not a chat model's.

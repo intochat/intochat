@@ -1,8 +1,9 @@
 using System.Text.Json;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Contracts.Configuration;
 
-namespace IntoChat.OS.Framework.Configuration;
+namespace IntoChat.OS.Sdk.Configuration;
 
 // Configuration is the system's one value channel, and this is its grammar: a key path is
 // ':'-separated, its environment form swaps ':' for '__', and an options object flattens to

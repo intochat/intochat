@@ -3,7 +3,7 @@ using System.Net;
 using System.Text.Json;
 using PlaywrightSdk = global::Microsoft.Playwright;
 
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.
 public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable

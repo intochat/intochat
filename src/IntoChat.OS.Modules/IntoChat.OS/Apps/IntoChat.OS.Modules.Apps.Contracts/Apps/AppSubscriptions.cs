@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // An app's operations arrive as AppRequested; a synapse for one operation watches only that one.
 public static class AppSubscriptions

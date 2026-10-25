@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // How the brain runtime hands a turn's run facts to its brain's runs neuron: one call per turn. Not a neuron
 // contract, so no edge, script or MCP caller can resolve it; BrainRunsGuard admits only that brain's runtime.

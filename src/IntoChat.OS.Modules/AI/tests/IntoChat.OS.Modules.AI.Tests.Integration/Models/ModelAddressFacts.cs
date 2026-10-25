@@ -1,8 +1,8 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.AI.Models.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;

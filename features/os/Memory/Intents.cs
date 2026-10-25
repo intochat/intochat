@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Intents;
 
 // Shared by "intend": where Memory's rephrasing agent and its answers live, how the ask and the model's
 // reply are read, and how the active intents are rendered for the rephrase prompt.

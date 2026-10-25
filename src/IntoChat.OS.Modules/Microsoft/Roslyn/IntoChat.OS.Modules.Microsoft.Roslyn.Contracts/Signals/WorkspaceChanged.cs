@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 [GenerateSerializer, Alias("coding.workspace-changed")]
 public sealed record WorkspaceChanged(

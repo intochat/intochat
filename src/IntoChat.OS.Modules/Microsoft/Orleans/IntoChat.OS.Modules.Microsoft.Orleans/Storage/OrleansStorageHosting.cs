@@ -1,9 +1,12 @@
-using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Azure.Core;
 using Azure.Data.Tables;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using global::Orleans.Configuration;
 using global::Orleans.Hosting;
 using global::Orleans.Storage;
@@ -12,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 public static class OrleansStorageHosting
 {

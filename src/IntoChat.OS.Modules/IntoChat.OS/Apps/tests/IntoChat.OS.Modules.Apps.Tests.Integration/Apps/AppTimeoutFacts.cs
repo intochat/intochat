@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // Deploying a behavior runs it in the sandbox, which outlasts Orleans' 30-second default; an
 // operation that deploys without a longer timeout fails its caller while the work still finishes.

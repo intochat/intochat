@@ -1,5 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.AI;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

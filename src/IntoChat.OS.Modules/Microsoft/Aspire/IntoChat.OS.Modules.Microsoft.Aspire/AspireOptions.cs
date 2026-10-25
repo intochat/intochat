@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 public sealed class AspireOptions : IModuleOptions
 {

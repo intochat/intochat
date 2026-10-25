@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

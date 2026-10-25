@@ -1,3 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework.Tests.Integration.Callers;
 
 public sealed class BrainKeyFacts

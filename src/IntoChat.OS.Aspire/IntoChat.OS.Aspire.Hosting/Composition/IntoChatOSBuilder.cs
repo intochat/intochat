@@ -3,9 +3,14 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 using Aspire.Hosting.Orleans;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -33,7 +38,7 @@ public sealed class IntoChatOSBuilder
         => WithHosting(new THosting());
 
     public IntoChatOSBuilder WithHosting<THosting, TOptions>(Action<TOptions>? configure = null)
-        where THosting : IIntoChatOSModuleHosting, new() where TOptions : class, IntoChat.OS.Framework.Modules.IModuleOptions, new()
+        where THosting : IIntoChatOSModuleHosting, new() where TOptions : class, IntoChat.OS.Sdk.Modules.IModuleOptions, new()
     {
         var hosting = new THosting();
         var options = new TOptions();
@@ -44,7 +49,7 @@ public sealed class IntoChatOSBuilder
 
     public IntoChatOSBuilder WithHosting<THosting, TOptions>(TOptions options)
         where THosting : IIntoChatOSModuleHosting, new()
-        where TOptions : class, IntoChat.OS.Framework.Modules.IModuleOptions, new()
+        where TOptions : class, IntoChat.OS.Sdk.Modules.IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(options);
         var hosting = new THosting();

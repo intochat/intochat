@@ -1,5 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Authority.Compute;
 

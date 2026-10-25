@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp.Files;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 [GenerateSerializer, Alias("microsoft.csharp.file-status")]
 public enum CSharpFileStatus { Stopped, Starting, Running, Exited }

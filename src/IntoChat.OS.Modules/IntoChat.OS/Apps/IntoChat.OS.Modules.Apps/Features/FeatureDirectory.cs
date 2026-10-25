@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // A feature as it sits in a features folder: {owner}/{AppFolder}/app.cs plus its other files.
 public sealed record ShippedFeature(string Owner, AppBundle Bundle, string Folder);

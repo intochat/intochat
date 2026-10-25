@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Agents.Facts.Signals;
+namespace IntoChat.OS.Modules.AI.Agents.Facts.Signals;
 
 [GenerateSerializer, Alias("facts.asserted")]
 public sealed record FactAsserted([property: Id(0)] string FactsId, [property: Id(1)] Guid FactId, [property: Id(2)] string DedupKey) : Signal;

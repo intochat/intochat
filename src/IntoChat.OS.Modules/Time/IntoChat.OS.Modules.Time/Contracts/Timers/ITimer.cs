@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Time.Timers;
+
+namespace IntoChat.OS.Modules.Time.Timers;
 
 [Alias("timer")]
 [Orleans.Metadata.DefaultGrainType("timer")]

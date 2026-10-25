@@ -1,6 +1,6 @@
 using ModelContextProtocol.Client;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 internal static class McpHttpSession
 {

@@ -58,7 +58,7 @@ idempotent when redelivered.
 Actions the view does not own (copy: actions and older clients' actions) are ignored.
 */
 
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

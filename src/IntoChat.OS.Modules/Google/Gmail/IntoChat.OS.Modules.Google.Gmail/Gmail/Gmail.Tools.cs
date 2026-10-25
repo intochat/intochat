@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed partial class GmailNeuron
 {

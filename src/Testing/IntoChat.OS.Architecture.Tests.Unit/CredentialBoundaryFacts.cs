@@ -1,9 +1,12 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -87,7 +90,7 @@ public sealed class CredentialBoundaryFacts
             !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal)
             // Substrate providers must exist before the silo builds, before any integration grain exists.
-            && m.DeclaringType?.FullName != "IntoChat.OS.Microsoft.Orleans.OrleansStorageHosting")
+            && m.DeclaringType?.FullName != "IntoChat.OS.Modules.Microsoft.Orleans.OrleansStorageHosting")
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
                 || (c.IsGenericMethod && c.GetGenericArguments().Contains(typeof(IIntegration)))
                 || (c.DeclaringType == typeof(IntegrationSchema) && c.Name == nameof(IntegrationSchema.Key))))

@@ -1,10 +1,12 @@
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 // The shell's HTTP edge to Flame under /brains/{brainId}/ui. A scene's {name} is its full key, URL-encoded.
 // The neurons decide access.

@@ -1,8 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -28,7 +30,7 @@ public interface IPinger : INeuron
     Task RefuseStale();
 
     // The caller the first Unwatch carried, as Caller() reports one, once one came: unwatches run off the runtime's turn.
-    [Orleans.Concurrency.AlwaysInterleave] Task<string> Unwatched();
+    [global::Orleans.Concurrency.AlwaysInterleave] Task<string> Unwatched();
 }
 
 [GenerateSerializer, Alias("tests.csharp.pinged")]

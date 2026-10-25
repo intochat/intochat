@@ -1,9 +1,12 @@
 using System.Text.Json;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Microsoft.CSharp.Catalog;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 public sealed record CSharpContractModule(string Id);
 
@@ -17,8 +20,8 @@ public sealed class CSharpContractDiscovery(IKernelView kernel, ModuleInventory 
     public const string Example = """
         // Plain C#: every installed contract is referenced; name the ones you use with usings.
         // System, collections, LINQ, tasks, IntoChat.OS and IntoChat.OS.Client are imported.
-        using ITimer = IntoChat.OS.Time.Timers.ITimer;
-        using IntoChat.OS.Time.Timers.Signals;
+        using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+        using IntoChat.OS.Modules.Time.Timers.Signals;
 
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
         var timer = brain.Get<ITimer>(brain.Setting("TimerId") ?? "tea");

@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Playwright;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

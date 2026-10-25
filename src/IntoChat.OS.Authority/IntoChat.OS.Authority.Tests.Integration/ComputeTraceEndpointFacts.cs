@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Authority.Compute;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -2,7 +2,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 [GenerateSerializer, Alias("aspire.candidate.stage")]
 public enum CandidateStage { Proposed, Queued, Building, Starting, Healthy, Verifying, Verified, Promoting, Promoted, Discarded, Failed }

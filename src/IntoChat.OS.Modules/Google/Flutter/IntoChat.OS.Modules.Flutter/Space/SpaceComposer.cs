@@ -1,10 +1,10 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
-namespace IntoChat.OS.Flutter.Space;
+namespace IntoChat.OS.Modules.Flutter.Space;
 
 internal static class SpaceComposer
 {

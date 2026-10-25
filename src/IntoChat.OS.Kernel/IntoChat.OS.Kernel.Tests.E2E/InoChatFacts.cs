@@ -1,14 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -175,7 +174,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
 
         // The menu lists the catalog: Auto first, then each model; pick an available one other than the default.
         var choices = await Brain.Get<IModelCatalog>(IModelCatalog.Key(WorkspaceId)).List();
-        var defaultModel = LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id;
+        var defaultModel = LLMModel.FindByMarker(typeof(IntoChat.OS.Modules.AI.Models.OpenAI.IGpt56Luna))!.Id;
         var chosen = choices.Models.Where(choice => choice.Available).OrderBy(choice => choice.Model == defaultModel ? 1 : 0).First();
         Assert.NotEqual(defaultModel, chosen.Model);
         var menu = await Until(view => view.Any(node => node.Kind == UiNodeKind.Menu && node.Key == "model"), ct);
@@ -203,7 +202,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         await Send("new", "", ct);
         var agentKey = (await TestWait.UntilAsync(async _ => (await Brain.Get<IChat>(data + "/transcript").Read()).Selection,
             current => current is not null && current.Agent.Contains("/conversations/c-", StringComparison.Ordinal), Patience, ct))!.Agent;
-        var asked = Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn);
+        var asked = Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.Modules.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn);
 
         await Send("send", "#/open?application=calculator", ct);
         var shown = await TestWait.UntilAsync(_ => Brain.Get<IChat>(data + "/transcript").Read(),
@@ -213,7 +212,7 @@ public sealed class InoChatFacts(RouterHostFixture host) : BrainFact(host)
         var posted = Assert.Single(state.Runs);
         Assert.True(posted.Posted);
         Assert.DoesNotContain("application=", posted.RunId, StringComparison.Ordinal);
-        Assert.Equal(asked, Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn));
+        Assert.Equal(asked, Host.Model.Requests(LLMModel.FindByMarker(typeof(IntoChat.OS.Modules.AI.Models.OpenAI.IGpt56Luna))!.Id).Count(IsInoTurn));
     }
 
     // Task 12: a pasted link to an app the brain does not have posts a card that offers Install, which hands the shell
@@ -459,7 +458,7 @@ public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
         // Retry marks the view dirty (view-state), so view.cs republishes from a fresh catalog read; still with
         // nothing usable, the card stays.
         var view = Brain.Get<IView>(InoKey + "/view");
-        var viewState = Brain.Get<IntoChat.OS.Flutter.Text.IText>(data + "/view-state");
+        var viewState = Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(data + "/view-state");
         var dirty = (await viewState.Read()).Version;
         var published = (await view.Read())!;
         var retry = InoChatFacts.Flatten(published.Root).First(node => node.Action == "setup-retry");
@@ -480,7 +479,7 @@ public sealed class InoFirstRunFacts(NoModelHostFixture host) : BrainFact(host)
         {
             var last = await view.Read();
             var app = await Brain.Get<IApp>(InoKey).Read();
-            var runtime = await Brain.Get<IntoChat.OS.Microsoft.CSharp.Runtime.IBrainRuntime>(IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeKeys.For(WorkspaceId)).Inspect(ct);
+            var runtime = await Brain.Get<IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntime>(IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeKeys.For(WorkspaceId)).Inspect(ct);
             var behaviors = string.Join(" || ", runtime.Behaviors.Where(behavior => behavior.Id.Contains("ino", StringComparison.OrdinalIgnoreCase))
                 .Select(behavior => $"{behavior.Id} [{behavior.Status}] {behavior.Error} runs {behavior.Runs}"));
             throw new TimeoutException($"{behaviors} || Ino {app.Version} {app.Status} error {app.Presentation?.Error} activity {string.Join(" | ", app.Activity.TakeLast(8))} showed: " + string.Join(", ", last is null ? [] : InoChatFacts.Flatten(last.Root).Select(node => node.Key + "=" + node.Action + "/" + node.Text)));

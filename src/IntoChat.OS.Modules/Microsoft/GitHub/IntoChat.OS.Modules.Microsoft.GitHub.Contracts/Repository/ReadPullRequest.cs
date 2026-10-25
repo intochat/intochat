@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("db.github.read-pull-request")]
 public sealed record ReadPullRequest(

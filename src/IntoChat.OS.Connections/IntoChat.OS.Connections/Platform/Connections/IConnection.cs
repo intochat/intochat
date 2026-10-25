@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
-using IntoChat.OS.Framework.Contracts;
 using Orleans.Concurrency;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Connections;
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // The shell reads the status by name.
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionStatus>))]

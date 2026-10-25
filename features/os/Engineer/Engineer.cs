@@ -2,13 +2,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // Shared by every synapse: the app's keys, the request record and its neurons, the input rules, the
 // classifier call and the list rendering.

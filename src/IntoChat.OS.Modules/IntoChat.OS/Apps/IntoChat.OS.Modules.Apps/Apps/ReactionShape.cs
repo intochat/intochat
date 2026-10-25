@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The reaction shape (L0), read from syntax only: a reaction file has exactly one top-level signal loop, either one
 // `await foreach` over `….On<T>(…)` (any overload, the operation overload `brain.On(app, "op", ct)` included)

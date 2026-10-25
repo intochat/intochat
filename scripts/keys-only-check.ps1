@@ -37,7 +37,9 @@ foreach ($vendor in 'AI', 'Apps', 'ArtCraft', 'Circles', 'ClickHouse', 'Flame', 
     $renames["IntoChat.OS.$vendor"] = "IntoChat.OS.Modules.$vendor"
 }
 # IntoChat.OS.Mcp stays the namespace of the IntoChat.OS.Mcp host; only the module's types move.
-$renames['IntoChat.OS.Mcp.IMcpServer'] = 'IntoChat.OS.Modules.Mcp.IMcpServer'
+foreach ($type in 'IMcpServer', 'McpModule', 'McpServerNeuron', 'McpServerSpec', 'McpServerState', 'McpServerStore', 'McpToolRan') {
+    $renames["IntoChat.OS.Mcp.$type"] = "IntoChat.OS.Modules.Mcp.$type"
+}
 $renames['IntoChat.OS.Framework.Platform.Connections'] = 'IntoChat.OS.Connections.Platform.Connections'
 $renames['IntoChat.OS.Framework.Platform.Entries'] = 'IntoChat.OS.Connections.Platform.Entries'
 $renames['IntoChat.OS.Framework.Platform.Marketplace'] = 'IntoChat.OS.Connections.Platform.Marketplace'

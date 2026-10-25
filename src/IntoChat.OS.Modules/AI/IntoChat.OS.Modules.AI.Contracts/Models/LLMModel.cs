@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 public abstract class LLMModel : AiModel
 {

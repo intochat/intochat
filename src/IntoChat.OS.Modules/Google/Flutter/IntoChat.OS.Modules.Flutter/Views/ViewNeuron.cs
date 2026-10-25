@@ -1,10 +1,12 @@
 using System.Buffers;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Views;
+namespace IntoChat.OS.Modules.Flutter.Views;
 
 [GrainType(UIVocabulary.ViewType)]
 internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ViewState> store)

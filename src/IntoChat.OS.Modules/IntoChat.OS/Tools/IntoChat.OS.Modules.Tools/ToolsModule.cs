@@ -1,9 +1,9 @@
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Tools;
+namespace IntoChat.OS.Modules.Tools;
 
 // The per-brain registry of tool sources, and the capability source that lets search and Jev see them.
 public sealed class ToolsModule() : Module(new ModuleId("tools"))

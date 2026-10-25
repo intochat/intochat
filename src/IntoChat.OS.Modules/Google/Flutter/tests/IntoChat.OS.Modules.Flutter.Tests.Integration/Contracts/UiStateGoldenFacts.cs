@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

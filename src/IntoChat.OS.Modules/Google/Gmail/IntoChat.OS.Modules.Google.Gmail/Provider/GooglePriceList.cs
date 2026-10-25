@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed class GooglePriceList : IPriceList
 {

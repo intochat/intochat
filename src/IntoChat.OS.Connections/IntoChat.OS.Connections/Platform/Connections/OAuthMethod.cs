@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // One browser-authorized method of a connector. The client id and secret live in the named
 // Integration; the Platform owns the redirect, the callback, the code exchange and refresh.

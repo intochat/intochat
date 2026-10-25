@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // What a person accepted, as a digest of the requirements they were shown: install and update compare it with the
 // bundle's requirements at the moment they apply, so a release that changed in between installs nothing.

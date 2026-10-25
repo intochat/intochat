@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Person;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Person;

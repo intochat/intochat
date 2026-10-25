@@ -1,4 +1,4 @@
-using IntoChat.OS.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -10,12 +10,12 @@ public sealed class RouteResultFacts
     [Fact]
     public void HintListsTheChosenRouteThenTheNextLikelyCapabilities()
     {
-        var route = new RouteResult("IntoChat.OS.Time.Timers.ITimer", "Start", 0.62,
+        var route = new RouteResult("IntoChat.OS.Modules.Time.Timers.ITimer", "Start", 0.62,
             new() { ["timer"] = 0.62, ["apps.app2"] = 0.25, ["ui.text"] = 0.10, ["windows.console"] = 0.03 });
 
         var hint = route.Hint();
 
-        Assert.StartsWith("Likely capabilities (Jev):\n- IntoChat.OS.Time.Timers.ITimer.Start (0.62)", hint, StringComparison.Ordinal);
+        Assert.StartsWith("Likely capabilities (Jev):\n- IntoChat.OS.Modules.Time.Timers.ITimer.Start (0.62)", hint, StringComparison.Ordinal);
         Assert.Contains("- apps.app2 (0.25)", hint, StringComparison.Ordinal);
         Assert.Contains("- ui.text (0.10)", hint, StringComparison.Ordinal);
         Assert.DoesNotContain("windows.console", hint, StringComparison.Ordinal);
@@ -25,7 +25,7 @@ public sealed class RouteResultFacts
     [Fact]
     public void AnAppRouteIsDirectWithNoContractToFill()
     {
-        var route = new RouteResult(typeof(IntoChat.OS.Apps.IApp).FullName!, nameof(IntoChat.OS.Apps.IApp.Request), 0.95, new(), App: "calculator", Operation: "open");
+        var route = new RouteResult(typeof(IntoChat.OS.Modules.Apps.IApp).FullName!, nameof(IntoChat.OS.Modules.Apps.IApp.Request), 0.95, new(), App: "calculator", Operation: "open");
 
         Assert.True(route.IsDirect);
     }

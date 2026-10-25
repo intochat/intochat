@@ -1,4 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
 namespace IntoChat.OS.Testing.Tests.Integration;
 

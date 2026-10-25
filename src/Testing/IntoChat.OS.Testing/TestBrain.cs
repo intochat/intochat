@@ -1,11 +1,13 @@
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
-using ModuleContract = IntoChat.OS.Framework.Modules.Module;
+using ModuleContract = IntoChat.OS.Sdk.Modules.Module;
 
 namespace IntoChat.OS.Testing;
 

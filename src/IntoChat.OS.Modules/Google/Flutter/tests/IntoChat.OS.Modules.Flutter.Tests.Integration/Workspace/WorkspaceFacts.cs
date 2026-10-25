@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 

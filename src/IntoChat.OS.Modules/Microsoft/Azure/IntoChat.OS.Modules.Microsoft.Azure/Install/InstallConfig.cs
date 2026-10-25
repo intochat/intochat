@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Microsoft.Azure.Install;
+namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 // deployment/<env>.json: what the OS foundation needs that the code cannot know.
 public sealed record InstallConfig

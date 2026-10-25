@@ -1,10 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Tests.Integration.Connections;
 using IntoChat.OS.Integrations;

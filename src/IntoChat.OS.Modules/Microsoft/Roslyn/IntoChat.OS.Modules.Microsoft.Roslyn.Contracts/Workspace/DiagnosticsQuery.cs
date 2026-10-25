@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // Exactly one of Path or Project names the scope; both null means the whole solution.
 [GenerateSerializer]

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Video;
+namespace IntoChat.OS.Modules.Flutter.Video;
 
 [Alias("video"), Orleans.Metadata.DefaultGrainType(UIVocabulary.VideoType)]
 public interface IVideo : INeuron

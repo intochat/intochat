@@ -1,9 +1,9 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using CommunityToolkit.Aspire.Hosting.Ollama;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Aspire.Hosting;
-using IntoChat.OS.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Aspire.Hosting;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;

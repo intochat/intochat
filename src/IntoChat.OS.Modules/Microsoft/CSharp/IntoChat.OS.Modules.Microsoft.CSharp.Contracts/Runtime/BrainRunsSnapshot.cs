@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // Recent is the latest 200 entries after excluding a whole owner, ordered oldest first.
 [GenerateSerializer, Alias("microsoft.csharp.runs-snapshot")]

@@ -1,5 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;

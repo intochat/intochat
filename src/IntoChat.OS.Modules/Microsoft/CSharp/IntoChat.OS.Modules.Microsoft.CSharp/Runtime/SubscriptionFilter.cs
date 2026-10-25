@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A subscription selector names one AppRequested operation. Any other signal, and a subscription
 // with no selector, is delivered whole. Matching uses the signal itself, so the runtime does not

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // A module's cloud needs, claiming its module through the generic parameter. The installer finds every
 // deployment of the composed modules and runs it against the foundation; Module is checked against the

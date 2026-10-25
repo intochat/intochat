@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -18,7 +18,7 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
 
@@ -41,7 +41,7 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         using var caller = User.AsCaller();
         var desktop = WorkspaceId + "/apps/desktop";
         var transcript = Brain.Get<IChat>(WorkspaceId + "/apps/ino/transcript");
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
@@ -61,7 +61,7 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         // Second start: a new program generation re-runs start.cs; the durable flag keeps it to one greeting.
         // Ino's greeting can land before start.cs publishes the desktop: wait for the first view.
         var before = (await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(), view => view is not null, TimeSpan.FromSeconds(90), ct))!.Generation;
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(desktop).Configure(new(), []);
         // Not AppRuntimeReadiness here: it never settles after Ino's greeting, on master too (b784ae493). Inspect shows
         // apps/memory/capture.cs holding one undelivered TurnCompleted from apps/memory/agents/capture, while every
@@ -70,7 +70,7 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         await TestWait.UntilAsync(_ => Brain.Get<IView>(desktop + "/view").Read(), view => view!.Generation > before, TimeSpan.FromSeconds(90), ct);
         await Task.Delay(TimeSpan.FromSeconds(5), ct);
         Assert.Single((await transcript.Read()).Projection!.Messages);
-        Assert.Equal("true", (await Brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/greeted").Read()).Markdown);
+        Assert.Equal("true", (await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/greeted").Read()).Markdown);
     }
 
     private async Task Connect(CancellationToken ct)

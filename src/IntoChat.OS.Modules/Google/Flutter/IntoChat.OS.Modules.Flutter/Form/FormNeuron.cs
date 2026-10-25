@@ -1,9 +1,11 @@
 using System.Globalization;
-using IntoChat.OS.Flutter.Form.Signals;
+using IntoChat.OS.Modules.Flutter.Form.Signals;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Form;
+namespace IntoChat.OS.Modules.Flutter.Form;
 
 [GrainType(UIVocabulary.FormType)]
 internal sealed class FormNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FormState> store)

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 // Preference persistence: save, reload and reconcile arrive as requests (the preference buttons post
 // them from preference-clicks.cs), and the outcome (saved, reloaded or conflicted) is the status neuron.

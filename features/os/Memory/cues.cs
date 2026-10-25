@@ -1,10 +1,10 @@
 using System.Reflection;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Time.Reminders;
-using IntoChat.OS.Time.Reminders.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Time.Reminders;
+using IntoChat.OS.Modules.Time.Reminders.Signals;
 
 // Cues move a Waiting intent forward. Every Waiting intent with cues is watched: a signal cue follows the
 // publisher named by its key (the neuron's contract is found through the kernel, the signal type from its

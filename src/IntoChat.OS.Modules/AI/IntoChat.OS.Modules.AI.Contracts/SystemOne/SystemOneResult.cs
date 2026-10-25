@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.SystemOne;
+namespace IntoChat.OS.Modules.AI.SystemOne;
 
 // One entry in Answers per question id from the request.
 [GenerateSerializer, Alias("ai.systemone.result")]

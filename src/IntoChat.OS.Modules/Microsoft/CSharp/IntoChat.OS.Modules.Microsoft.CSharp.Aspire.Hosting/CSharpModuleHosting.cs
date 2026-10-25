@@ -1,13 +1,15 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
-namespace IntoChat.OS.Microsoft.CSharp;
+namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 // Declares the always-on csharp-sandbox container every brain's session runs in. Its independent
 // health endpoint must be ready before the OS starts bootstrapping persistent app behaviors.
-public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Microsoft.CSharp.CSharpModule>
+public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule>
 {
     public const string ResourceName = "csharp-sandbox";
     private const string Dockerfile = "src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile";

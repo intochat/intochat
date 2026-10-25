@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Sheet.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Sheet.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Sheet;
+namespace IntoChat.OS.Modules.Flutter.Sheet;
 
 [GrainType(UIVocabulary.SheetType)]
 internal sealed class SheetNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SheetState> store)

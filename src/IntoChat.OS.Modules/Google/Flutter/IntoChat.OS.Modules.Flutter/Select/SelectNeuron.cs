@@ -1,9 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Select;
+namespace IntoChat.OS.Modules.Flutter.Select;
 
 [GrainType(UIVocabulary.SelectType)]
 internal sealed class SelectNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SelectState> store)

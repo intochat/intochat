@@ -1,7 +1,7 @@
 using global::Orleans.Runtime;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.Orleans.Cluster;
+namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
 
 // Orleans already owns one membership-update pump per silo. Enumerating its multicast
 // stream adds no management RPC, timer, or global registry of grain references.

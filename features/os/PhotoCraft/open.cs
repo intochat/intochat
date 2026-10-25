@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // Open: connect the app's MCP server (its tools join the brain's search), then show the app's own web

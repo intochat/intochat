@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Surface;
+namespace IntoChat.OS.Connections.Surface;
 
 // The CLR contract behind a kernel neuron type, from what this process references: calling a neuron
 // needs its contract; knowing it exists does not.

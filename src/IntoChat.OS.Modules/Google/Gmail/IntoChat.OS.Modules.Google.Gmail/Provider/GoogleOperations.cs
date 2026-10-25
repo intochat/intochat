@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal static class GoogleOperations
 {

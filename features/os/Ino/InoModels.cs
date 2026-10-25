@@ -1,8 +1,8 @@
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The per-chat model menu in Ino's header and the choice it stores. A chat's choice is its index entry's
 // ModelChoice: null follows the app setting Model, "auto" is Automatic, anything else is a catalog choice id.

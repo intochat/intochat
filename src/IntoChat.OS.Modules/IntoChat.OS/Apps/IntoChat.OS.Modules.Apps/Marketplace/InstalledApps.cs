@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The apps a brain holds, by name, and whether a listed copy has a newer version: what GET /apps
 // shows and what the app store groups.

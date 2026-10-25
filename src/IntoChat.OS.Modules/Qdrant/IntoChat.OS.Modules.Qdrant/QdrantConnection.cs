@@ -1,6 +1,6 @@
 using Qdrant.Client;
 
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 internal static class QdrantConnection
 {

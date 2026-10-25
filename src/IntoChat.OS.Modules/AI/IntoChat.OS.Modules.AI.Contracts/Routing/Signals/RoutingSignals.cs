@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Routing.Signals;
+namespace IntoChat.OS.Modules.AI.Routing.Signals;
 
 // The router's answer to one asked request: which contract and method, and how sure it was. Id is
 // the RouteRequest's; Contract is the full type name. Error is set when no route could be decided.

@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
 // A batch reached a running synapse: published once per subscription and watermark, by the brain's runs
 // neuron. Hash is the synapse's own assembly hash; the stamped Trace is the batch's.

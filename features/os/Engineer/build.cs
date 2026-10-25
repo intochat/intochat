@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // App builds, one at a time: whenever "ask" queues an app request, every queued one goes to the Creator (the
 // brain's app studio authors the spec and builds the behaviors) and records the app it made. A request

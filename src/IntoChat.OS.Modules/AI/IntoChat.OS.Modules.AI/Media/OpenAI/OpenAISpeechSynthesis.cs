@@ -1,10 +1,10 @@
 using System.ClientModel;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 using global::OpenAI;
 using global::OpenAI.Audio;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI.Media.OpenAI;
+namespace IntoChat.OS.Modules.AI.Media.OpenAI;
 
 internal sealed class OpenAISpeechSynthesis(string model, IAiCredentials credentials) : ISpeechSynthesisTransport
 {

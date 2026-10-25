@@ -1,5 +1,3 @@
-using IntoChat.OS.ClickHouse;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.ClickHouse.Tests.Integration.ClickHouseHost))]
 
 namespace IntoChat.OS.Modules.ClickHouse.Tests.Integration;

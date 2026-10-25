@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Calendar;
+namespace IntoChat.OS.Modules.Flutter.Calendar;
 
 [Alias("calendar"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CalendarType)]
 public interface ICalendar : INeuron

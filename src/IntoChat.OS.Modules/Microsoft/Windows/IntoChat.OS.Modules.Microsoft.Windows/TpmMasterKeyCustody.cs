@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Framework.Parts;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // R35: each account's master key is a non-exportable RSA-2048 key in the TPM (Microsoft Platform Crypto Provider).
 // A secret is sealed with a fresh AES-256-GCM data key (associated data = context) and that data key is wrapped by

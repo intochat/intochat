@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Configuration;
+namespace IntoChat.OS.Contracts.Configuration;
 
 // The dependency-free half of the configuration grammar: a ':'-separated key path, its '__' environment
 // form, and an integration field's key. IntoChatOSConfiguration and IntegrationSchema speak through it.

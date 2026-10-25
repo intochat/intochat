@@ -1,19 +1,23 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Time.Reminders;
-using IntoChat.OS.Time.Timers;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Modules.Time.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Time;
+namespace IntoChat.OS.Modules.Time;
 
 public sealed class TimeModule() : Module<TimeModuleOptions>(new ModuleId("time"))
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Time.Reminders.IReminder).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Time.Reminders.IReminder).Assembly;
 
     public static readonly string MinimumReminderPeriodKey =
         IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("time")) + ":MinimumReminderPeriod";

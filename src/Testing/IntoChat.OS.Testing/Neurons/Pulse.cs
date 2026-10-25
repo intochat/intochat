@@ -1,12 +1,14 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Testing.Neurons;
 
 // A kernel-known neuron that retains its last signal: what a fact subscribes to when it needs a
 // real source with retention. Start the brain with WithModule<PulseModule>(). The last pulse is
 // grain state, so it survives a restart.
-public sealed class PulseModule() : Framework.Modules.Module(new ModuleId("pulse"))
+public sealed class PulseModule() : Sdk.Modules.Module(new ModuleId("pulse"))
 {
     public override System.Reflection.Assembly? Contracts => typeof(IPulse).Assembly;
     public override void Configure(ISiloBuilder silo) { }

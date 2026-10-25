@@ -1,6 +1,9 @@
 using System.Threading.Channels;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+
 namespace IntoChat.OS.Testing;
 
 public sealed class SignalProbe<T> : IAsyncDisposable where T : Signal

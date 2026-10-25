@@ -1,19 +1,21 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Supabase.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;
 
-public sealed class SupabaseModuleHosting : ModuleHosting<IntoChat.OS.Supabase.SupabaseModule>
+public sealed class SupabaseModuleHosting : ModuleHosting<IntoChat.OS.Modules.Supabase.SupabaseModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {
         var options = brain.GetModuleConfiguration("supabase").GetModuleOptions<SupabaseModuleOptions>("supabase");
         if (!options.UseBackingStore) { return; }
-        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);
+        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Modules.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);
         if (options.Hosting.Kind == SupabaseHostKind.External)
         {
             module.WithSupabase(o => { o.ParameterName = options.ConnectionName; o.ConnectionName = options.ConnectionName; });
@@ -28,8 +30,8 @@ public sealed class SupabaseModuleHosting : ModuleHosting<IntoChat.OS.Supabase.S
         : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
+            => builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

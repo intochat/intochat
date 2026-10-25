@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Unsettled: the deploy never answered and putting the runtime back did not answer either, so what the
 // runtime runs is unknown; the request keeps its staged source.

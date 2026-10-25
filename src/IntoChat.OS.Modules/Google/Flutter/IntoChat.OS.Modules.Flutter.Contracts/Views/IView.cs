@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Views;
+namespace IntoChat.OS.Modules.Flutter.Views;
 
 [Alias("view"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ViewType)]
 public interface IView : INeuron

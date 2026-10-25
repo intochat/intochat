@@ -1,3 +1,3 @@
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 internal sealed record ProblemReportInput(string? IntentId, string? Message);

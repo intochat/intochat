@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.

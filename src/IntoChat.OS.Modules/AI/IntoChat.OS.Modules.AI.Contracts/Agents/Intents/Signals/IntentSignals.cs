@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Agents.Intents.Signals;
+namespace IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 
 [GenerateSerializer, Alias("intents.heard")]
 public sealed record IntentHeard([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId, [property: Id(2)] string RequestId) : Signal;

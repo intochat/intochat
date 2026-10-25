@@ -1,8 +1,10 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 // R125/T26-13: a circle brain is born with exactly its own app, features/os/CircleRoom, and no OS default. Its core
 // is founded with the name it was created under and the machine it is born on, the creator's (R76), contributed

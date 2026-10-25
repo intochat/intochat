@@ -1,4 +1,6 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Runtime;
 

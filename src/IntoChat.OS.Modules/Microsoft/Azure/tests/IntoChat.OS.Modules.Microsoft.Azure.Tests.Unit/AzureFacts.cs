@@ -1,6 +1,7 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.Azure;
-using IntoChat.OS.Microsoft.Azure.Install;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.Azure;
+using IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 

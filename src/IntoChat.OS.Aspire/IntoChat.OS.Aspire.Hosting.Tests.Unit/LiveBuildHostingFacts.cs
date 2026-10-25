@@ -2,8 +2,6 @@ using IntoChat.OS.Modules.Microsoft.Aspire;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Testing;
-using IntoChat.OS.Microsoft.Aspire;
-using IntoChat.OS.Microsoft.Orleans;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 

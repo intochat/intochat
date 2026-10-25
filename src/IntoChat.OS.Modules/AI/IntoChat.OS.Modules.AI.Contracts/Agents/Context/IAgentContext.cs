@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.Agents.Context;
+namespace IntoChat.OS.Modules.AI.Agents.Context;
 
 // What an agent should know before it answers, as named slices each producer owns. The agent reads
 // the latest snapshot at turn time; behaviors subscribe to the signals.

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 internal static class GitHubTelemetry
 {

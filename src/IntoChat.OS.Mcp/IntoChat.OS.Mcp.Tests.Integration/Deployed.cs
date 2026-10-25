@@ -4,6 +4,6 @@ namespace IntoChat.OS.Mcp.Tests.Integration;
 internal static class Deployed
 {
     public static FixedKernel Kernel() => new(typeof(INeuron).Assembly, typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly,
-        typeof(IntoChat.OS.Apps.IApp).Assembly, typeof(IntoChat.OS.Mcp.IMcpServer).Assembly, typeof(IntoChat.OS.Postgres.IPostgresServer).Assembly,
-        typeof(IntoChat.OS.Time.Timers.ITimer).Assembly, typeof(IntoChat.OS.Circles.ICircle).Assembly);
+        typeof(IntoChat.OS.Modules.Apps.IApp).Assembly, typeof(IntoChat.OS.Modules.Mcp.IMcpServer).Assembly, typeof(IntoChat.OS.Modules.Postgres.IPostgresServer).Assembly,
+        typeof(IntoChat.OS.Modules.Time.Timers.ITimer).Assembly, typeof(IntoChat.OS.Modules.Circles.ICircle).Assembly);
 }

@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Modules.Mcp;
 
 public sealed class McpModule() : Module(new ModuleId("mcp"))
 {

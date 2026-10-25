@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 public interface IRevisioned<TSelf> where TSelf : IRevisioned<TSelf>

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // Paths resolve against the first root when relative and must land inside some root; "C:\root2" is not inside "C:\root".
 internal static class MachineRoots

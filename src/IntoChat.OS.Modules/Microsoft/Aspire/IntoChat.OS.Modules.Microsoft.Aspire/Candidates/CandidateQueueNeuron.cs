@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 // At most one candidate is live per brain; the rest wait here in proposal order.
 [GrainType("aspire.candidates")]

@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The view's own navigation: `tab:<id>`, `archived-more`, `delete` and `delete-cancel` change the view state, then
 // the view is shown again. Unarchive is archived.cs's; any other action (copy: among them) is not ours.

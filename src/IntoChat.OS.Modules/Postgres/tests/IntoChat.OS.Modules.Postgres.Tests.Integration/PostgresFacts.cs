@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -93,7 +95,7 @@ public sealed class PostgresFacts(PostgresHost host)
     {
         await using var sources = new PostgresSourceRegistry(new Credential(connection), Options.Create(new PostgresModuleOptions()));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await sources.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken));
+            await sources.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken));
         Assert.DoesNotContain("secret-value", error.ToString(), StringComparison.Ordinal);
     }
 

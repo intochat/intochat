@@ -10,18 +10,18 @@
       "Records": 13,
       "Signals": 20,
       "SignalTypes": [
-        "IntoChat.OS.AI.Media.MediaOperationFailed",
         "IntoChat.OS.Activated",
-        "IntoChat.OS.Apps.Signals.AppActivity",
-        "IntoChat.OS.Apps.Signals.AppChanged",
-        "IntoChat.OS.Apps.Signals.PresentationChanged",
+        "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected",
         "IntoChat.OS.Created",
-        "IntoChat.OS.Flame.Scene.Signals.SceneChanged",
-        "IntoChat.OS.Flutter.Chat.ChatChanged",
-        "IntoChat.OS.Framework.Platform.Connections.Signals.ConnectionConnected",
         "IntoChat.OS.InstanceCreated",
         "IntoChat.OS.Integrations.ConnectionsChanged",
-        "IntoChat.OS.Time.Timers.Signals.TimerTick"
+        "IntoChat.OS.Modules.AI.Media.MediaOperationFailed",
+        "IntoChat.OS.Modules.Apps.Signals.AppActivity",
+        "IntoChat.OS.Modules.Apps.Signals.AppChanged",
+        "IntoChat.OS.Modules.Apps.Signals.PresentationChanged",
+        "IntoChat.OS.Modules.Flame.Scene.Signals.SceneChanged",
+        "IntoChat.OS.Modules.Flutter.Chat.ChatChanged",
+        "IntoChat.OS.Modules.Time.Timers.Signals.TimerTick"
       ]
     },
     {
@@ -32,9 +32,9 @@
       "Signals": 4,
       "SignalTypes": [
         "IntoChat.OS.Activated",
-        "IntoChat.OS.Circles.Signals.CircleChanged",
         "IntoChat.OS.Created",
-        "IntoChat.OS.InstanceCreated"
+        "IntoChat.OS.InstanceCreated",
+        "IntoChat.OS.Modules.Circles.Signals.CircleChanged"
       ]
     },
     {
@@ -44,18 +44,18 @@
       "Records": 13,
       "Signals": 24,
       "SignalTypes": [
-        "IntoChat.OS.AI.Media.MediaOperationFailed",
         "IntoChat.OS.Activated",
-        "IntoChat.OS.Apps.Signals.AppActivity",
-        "IntoChat.OS.Apps.Signals.AppChanged",
-        "IntoChat.OS.Apps.Signals.PresentationChanged",
+        "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected",
         "IntoChat.OS.Created",
-        "IntoChat.OS.Flame.Scene.Signals.SceneChanged",
-        "IntoChat.OS.Flutter.Chat.ChatChanged",
-        "IntoChat.OS.Framework.Platform.Connections.Signals.ConnectionConnected",
         "IntoChat.OS.InstanceCreated",
         "IntoChat.OS.Integrations.ConnectionsChanged",
-        "IntoChat.OS.Time.Timers.Signals.TimerTick"
+        "IntoChat.OS.Modules.AI.Media.MediaOperationFailed",
+        "IntoChat.OS.Modules.Apps.Signals.AppActivity",
+        "IntoChat.OS.Modules.Apps.Signals.AppChanged",
+        "IntoChat.OS.Modules.Apps.Signals.PresentationChanged",
+        "IntoChat.OS.Modules.Flame.Scene.Signals.SceneChanged",
+        "IntoChat.OS.Modules.Flutter.Chat.ChatChanged",
+        "IntoChat.OS.Modules.Time.Timers.Signals.TimerTick"
       ]
     },
     {
@@ -66,9 +66,9 @@
       "Signals": 4,
       "SignalTypes": [
         "IntoChat.OS.Activated",
-        "IntoChat.OS.Circles.Signals.CircleChanged",
         "IntoChat.OS.Created",
-        "IntoChat.OS.InstanceCreated"
+        "IntoChat.OS.InstanceCreated",
+        "IntoChat.OS.Modules.Circles.Signals.CircleChanged"
       ]
     }
   ],

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // ClickHouse column types collapse onto the ui table's four column types. Anything that cannot be
 // a JSON number under TablePolicy's 2^53 / 15 significant digit rule as a class (Int128 and up)

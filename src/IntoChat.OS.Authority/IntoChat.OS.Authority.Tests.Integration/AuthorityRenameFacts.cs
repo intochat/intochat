@@ -1,4 +1,5 @@
 using IntoChat.OS.Authority.Compute;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Authority.Tests.Integration;

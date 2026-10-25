@@ -1,7 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.Flutter;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

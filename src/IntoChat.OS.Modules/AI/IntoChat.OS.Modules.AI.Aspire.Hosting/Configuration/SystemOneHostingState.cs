@@ -1,13 +1,15 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.SystemOne;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Aspire.Hosting;
 
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.AI.Aspire.Hosting;
+namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
 public static partial class AIHostingExtensions
 {

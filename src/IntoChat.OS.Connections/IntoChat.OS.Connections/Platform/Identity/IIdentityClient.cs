@@ -1,6 +1,9 @@
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Identity;
 
-namespace IntoChat.OS.Framework.Platform.Identity;
+namespace IntoChat.OS.Connections.Platform.Identity;
 
 // Account, membership and grant authority inside the brain runtime.
 public interface IIdentityClient

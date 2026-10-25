@@ -1,9 +1,10 @@
 using System.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Microsoft.Windows.Signals;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 [GrainType("windows.files")]
 internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFileSystem

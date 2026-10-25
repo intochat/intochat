@@ -3,7 +3,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
-namespace IntoChat.OS.AI.Agents.Intents;
+namespace IntoChat.OS.Modules.AI.Agents.Intents;
 
 public enum IntentState { Heard, Rephrased, Confirmed, Dispatched, Waiting, Done, Abandoned }
 

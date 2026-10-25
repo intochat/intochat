@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // One goal the router worked on, and the ordered actions it took to reach it.
 [GenerateSerializer, Alias("ai.goal-run")]

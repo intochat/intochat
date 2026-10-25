@@ -1,16 +1,16 @@
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Creator's two agents on the app neuron. Author is one synchronous model call that
 // shapes the spec; the Builder loop runs on the work queue, streaming progress into the

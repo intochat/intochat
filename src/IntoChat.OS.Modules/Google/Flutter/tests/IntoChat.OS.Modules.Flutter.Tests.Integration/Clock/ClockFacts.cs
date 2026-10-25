@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Clock;
+using IntoChat.OS.Modules.Flutter.Clock;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Clock;

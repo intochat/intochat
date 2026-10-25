@@ -1,4 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;
 

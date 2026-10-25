@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 internal static class CompositionValidation
 {

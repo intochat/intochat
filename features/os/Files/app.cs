@@ -26,7 +26,7 @@ nonmatching filters and failed text previews are observable states. With no stor
 the side collection explains how to connect a Windows PC and allow a folder, or connect Google Drive.
 */
 
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

@@ -1,7 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 
-namespace IntoChat.OS.Flutter.WebBrowser;
+namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 [Alias("webbrowser.connector"), Orleans.Metadata.DefaultGrainType(UIVocabulary.WebBrowserType)]
 public interface IWebBrowserConnector : IGrainWithStringKey

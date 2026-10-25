@@ -1,6 +1,6 @@
 using IntoChat.OS.Testing;
-using IntoChat.OS.Time;
-using IntoChat.OS.Time.Timers.Signals;
+using IntoChat.OS.Modules.Time;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Time.Tests.Integration;

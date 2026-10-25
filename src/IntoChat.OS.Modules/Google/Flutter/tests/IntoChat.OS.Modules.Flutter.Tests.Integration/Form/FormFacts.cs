@@ -1,6 +1,7 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Form;
 
@@ -153,6 +154,7 @@ public sealed class FormFacts
     public void TheFormContractCarriesNoFrameworkType()
     {
         var types = typeof(IForm).Assembly.GetExportedTypes().SelectMany(t => t.GetProperties().Select(p => p.PropertyType).Concat(t.GetMethods().SelectMany(m => m.GetParameters().Select(p => p.ParameterType))));
-        Assert.DoesNotContain(types, t => t.Namespace?.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) == true || t.Namespace == "IntoChat.OS.Types");
+        Assert.DoesNotContain(types, t => t.Namespace?.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) == true
+            || t.Namespace?.StartsWith("IntoChat.OS.Connections", StringComparison.Ordinal) == true || t.Namespace == "IntoChat.OS.Types");
     }
 }

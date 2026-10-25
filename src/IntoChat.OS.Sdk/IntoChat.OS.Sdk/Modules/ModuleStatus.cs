@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Sdk.Modules;
 
 public enum ModuleState { Active, Unlicensed, Disabled }
 

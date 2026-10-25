@@ -1,5 +1,3 @@
-using IntoChat.OS.Postgres;
-
 namespace IntoChat.OS.Modules.Postgres;
 
 /// <summary>

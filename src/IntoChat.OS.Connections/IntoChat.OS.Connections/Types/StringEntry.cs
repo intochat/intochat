@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections;
 
 // One key and value of a persisted string map. Persisted state holds these as an array: a dictionary has no
 // stable shape for the serializer, and an entry array evolves like any other record array.

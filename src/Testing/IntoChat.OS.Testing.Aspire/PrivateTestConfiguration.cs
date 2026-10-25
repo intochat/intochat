@@ -1,8 +1,12 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
 namespace IntoChat.OS.Testing.Aspire;
 

@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flame.Scene;
+namespace IntoChat.OS.Modules.Flame.Scene;
 
 public static class TreeKinds
 {

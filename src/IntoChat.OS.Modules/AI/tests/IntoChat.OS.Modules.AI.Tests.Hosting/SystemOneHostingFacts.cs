@@ -1,13 +1,15 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Aspire.Hosting;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.AI.Models.TypeSafe;
+using IntoChat.OS.Modules.AI.Aspire.Hosting;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.TypeSafe;
 
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
 namespace IntoChat.OS.Modules.AI.Tests.Hosting;

@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Graph.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Graph.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Graph;
+namespace IntoChat.OS.Modules.Flutter.Graph;
 
 [GrainType(UIVocabulary.GraphType)]
 internal sealed class GraphNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<GraphState> store)

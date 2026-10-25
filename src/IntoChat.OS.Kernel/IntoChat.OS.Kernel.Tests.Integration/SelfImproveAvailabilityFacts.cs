@@ -4,15 +4,15 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Aspire;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 

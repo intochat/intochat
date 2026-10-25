@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.GroupChat.Signals;
+namespace IntoChat.OS.Modules.AI.GroupChat.Signals;
 
 [GenerateSerializer, Alias("ai.group-chat-changed")]
 public sealed record GroupChatChanged([property: Id(0)] string ChatId, [property: Id(1)] long Revision, [property: Id(2)] GroupChatStatus Status) : Signal;

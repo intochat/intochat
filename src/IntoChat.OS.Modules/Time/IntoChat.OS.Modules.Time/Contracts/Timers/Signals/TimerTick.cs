@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Time.Timers.Signals;
+
+namespace IntoChat.OS.Modules.Time.Timers.Signals;
 
 [GenerateSerializer, Alias("time.timer-tick")]
 public sealed record TimerTick(

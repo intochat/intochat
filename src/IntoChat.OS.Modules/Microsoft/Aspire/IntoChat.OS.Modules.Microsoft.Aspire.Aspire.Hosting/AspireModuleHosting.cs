@@ -2,19 +2,20 @@ using IntoChat.OS.Modules.Microsoft.Aspire;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using IntoChat.OS.ServiceDefaults;
 using global::Aspire.Hosting;
 using global::Aspire.Hosting.ApplicationModel;
 using global::Aspire.Hosting.Yarp;
 using global::Aspire.Hosting.Yarp.Transforms;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.
-public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Microsoft.Aspire.AspireModule>
+public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Microsoft.Aspire.AspireModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 internal static class FlutterHostLaunch
 {

@@ -1,8 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Brings this brain's unedited features to the features folder's version through the loader, the
 // same path AppInstaller.Update takes; a copy the person edited, or that came from a person's

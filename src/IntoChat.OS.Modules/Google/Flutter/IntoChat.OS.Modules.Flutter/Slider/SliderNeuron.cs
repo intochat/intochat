@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Slider.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Slider.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Slider;
+namespace IntoChat.OS.Modules.Flutter.Slider;
 
 [GrainType(UIVocabulary.SliderType)]
 internal sealed class SliderNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SliderState> store)

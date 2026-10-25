@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Time.Reminders;
-using IntoChat.OS.Time.Reminders.Signals;
+using IntoChat.OS.Modules.Time.Reminders;
+using IntoChat.OS.Modules.Time.Reminders.Signals;
 
 // Every view with a refresh interval owns a reminder at {app}/views/{id}/refresh; its tick refreshes that view.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

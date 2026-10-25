@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Flutter.Views;
+namespace IntoChat.OS.Modules.Flutter.Views;
 
 /// <summary>Publishes changed trees in order, continuing the current generation after a script restart.</summary>
 public sealed class ViewPublisher(IView view, long generation)

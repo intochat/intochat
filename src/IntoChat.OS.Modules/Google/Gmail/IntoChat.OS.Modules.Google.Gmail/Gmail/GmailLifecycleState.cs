@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal enum GmailWatchStatus { Unconfigured = 0, Active = 1, RetryPending = 2, Stopped = 3 }
 

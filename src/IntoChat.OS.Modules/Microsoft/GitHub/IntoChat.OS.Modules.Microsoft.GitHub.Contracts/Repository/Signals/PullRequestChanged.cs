@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.GitHub.Signals;
+namespace IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 
 [GenerateSerializer, Alias("github.pull-request-changed")]
 public sealed record PullRequestChanged(

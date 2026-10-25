@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Authority.Compute;
 
 namespace IntoChat.OS.Authority.Tests.Integration;

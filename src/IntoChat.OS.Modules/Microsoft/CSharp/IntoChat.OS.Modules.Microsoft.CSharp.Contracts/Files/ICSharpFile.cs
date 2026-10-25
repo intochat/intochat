@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Files;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // A C# behavior as a neuron: its source and settings. Start and Swap compile it and hand it to the
 // brain's runtime, which runs it in the brain's sandbox session; they return once that is recorded.

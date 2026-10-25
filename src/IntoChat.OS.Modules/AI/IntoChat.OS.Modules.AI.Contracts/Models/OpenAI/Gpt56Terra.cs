@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.OpenAI;
+namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class Gpt56Terra : LLMModel<IGpt56Terra>
 {

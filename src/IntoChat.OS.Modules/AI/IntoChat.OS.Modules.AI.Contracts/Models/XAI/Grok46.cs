@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.XAI;
+namespace IntoChat.OS.Modules.AI.Models.XAI;
 
 public sealed class Grok46 : LLMModel<IGrok46>
 {

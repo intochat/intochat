@@ -1,15 +1,15 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
-using IntoChat.OS.Postgres.Tables.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Postgres.Tables.Signals;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -172,7 +172,7 @@ public sealed class SubscriptionCallerFacts
 
         using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Retire(app); }
 
-        Assert.Equal($"{IntoChat.OS.Framework.AppPrincipal.Id(app)} App AppProxy {app} for {owner.PrincipalId}", await pinger.Unwatched());
+        Assert.Equal($"{IntoChat.OS.Sdk.AppPrincipal.Id(app)} App AppProxy {app} for {owner.PrincipalId}", await pinger.Unwatched());
     }
 
     private static Task<ITestBrain> StartWithTablesAsync(CancellationToken ct)

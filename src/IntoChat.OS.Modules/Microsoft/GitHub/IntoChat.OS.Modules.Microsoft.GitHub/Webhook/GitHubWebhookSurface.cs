@@ -1,9 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
-namespace IntoChat.OS.Microsoft.GitHub.Webhook;
+namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
 internal sealed class GitHubWebhookSurface(GitHubWebhookIngress ingress) : IHttpSurface
 {

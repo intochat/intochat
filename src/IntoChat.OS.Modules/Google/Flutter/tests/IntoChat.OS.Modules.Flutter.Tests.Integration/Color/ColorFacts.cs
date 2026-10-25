@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Color;
+using IntoChat.OS.Modules.Flutter.Color;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Color;

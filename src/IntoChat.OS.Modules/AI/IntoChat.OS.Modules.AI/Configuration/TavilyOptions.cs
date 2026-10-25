@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public sealed class TavilyOptions
 {

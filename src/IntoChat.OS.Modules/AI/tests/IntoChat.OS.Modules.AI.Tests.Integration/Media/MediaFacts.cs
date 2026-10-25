@@ -1,9 +1,8 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using IImageGenerator = IntoChat.OS.AI.Media.IImageGenerator;
-using ImageGenerationRequest = IntoChat.OS.AI.Media.ImageGenerationRequest;
+using IImageGenerator = IntoChat.OS.Modules.AI.Media.IImageGenerator;
+using ImageGenerationRequest = IntoChat.OS.Modules.AI.Media.ImageGenerationRequest;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

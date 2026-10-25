@@ -1,10 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 [GrainType("aspire.candidate")]
 internal sealed class CandidateNeuron(

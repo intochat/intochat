@@ -1,5 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 using IntoChat.OS.Authority.Identity.Authority;
 using Orleans.Concurrency;
 

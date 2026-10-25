@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 internal sealed class FakeCandidateHost : ICandidateHost
 {

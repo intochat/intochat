@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 [GenerateSerializer, Alias("ui.chat-role")]
 public enum ChatRole { User, Assistant }

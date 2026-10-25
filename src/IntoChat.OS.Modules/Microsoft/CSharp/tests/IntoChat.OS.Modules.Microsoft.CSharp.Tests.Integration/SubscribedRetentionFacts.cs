@@ -1,8 +1,9 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -27,7 +28,7 @@ public sealed class SubscribedRetentionFacts
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
         var request = await app.Request("open", "before subscription");
-        var stream = brain.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
         var subscription = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
 

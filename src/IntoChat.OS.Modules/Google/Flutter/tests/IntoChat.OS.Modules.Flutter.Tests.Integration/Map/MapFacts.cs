@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Map;
+using IntoChat.OS.Modules.Flutter.Map;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Map;

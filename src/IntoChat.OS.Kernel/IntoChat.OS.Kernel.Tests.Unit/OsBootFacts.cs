@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -38,8 +38,8 @@ public sealed class OsBootFacts
         var calculator = brain.Get<IApp>(IApp.Key(person.BrainId, "calculator"));
         await calculator.WriteBehavior("custom.cs", "public static class PersonalCode { }", Guid.NewGuid());
         var before = await calculator.Read();
-        var root = await brain.Services.GetRequiredService<IntoChat.OS.Flutter.IUiRootProvider>().Connect(ct);
-        Assert.Equal(new IntoChat.OS.Flutter.UiChildRef("view", IApp.Key(person.BrainId, "desktop") + "/view"), root);
+        var root = await brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>().Connect(ct);
+        Assert.Equal(new IntoChat.OS.Modules.Flutter.UiChildRef("view", IApp.Key(person.BrainId, "desktop") + "/view"), root);
         Assert.Equal(before.ProgramRevision, (await calculator.Read()).ProgramRevision);
         Assert.True((await calculator.Read()).Edited);
     }
@@ -62,7 +62,7 @@ public sealed class OsBootFacts
         var circle = brain.Get<IApp>(IApp.Key(person.BrainId, "circle"));
         Assert.Empty((await circle.Read()).Manifest.Title);
 
-        await brain.Services.GetRequiredService<IntoChat.OS.Flutter.IUiRootProvider>().Connect(ct);
+        await brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>().Connect(ct);
 
         var installed = await circle.Read();
         Assert.Equal(AppStatus.Live, installed.Status);
@@ -88,7 +88,7 @@ public sealed class OsBootFacts
         using var person = await brain.PersonAsync("ada", ct);
         using var caller = person.AsCaller();
 
-        await brain.Services.GetRequiredService<IntoChat.OS.Flutter.IUiRootProvider>().Connect(ct);
+        await brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>().Connect(ct);
 
         Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "not-installed-app")).Read()).Manifest.Title);
         Assert.Equal(["os", "intochat"], brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<OsAppsOptions>>().Value.TrustedPublishers);

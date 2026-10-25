@@ -1,7 +1,7 @@
 using System.Globalization;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Preferences;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Preferences;
+using IntoChat.OS.Modules.Flutter.Views;
 
 public sealed record ModelRow(string Id, string Label, bool Available);
 

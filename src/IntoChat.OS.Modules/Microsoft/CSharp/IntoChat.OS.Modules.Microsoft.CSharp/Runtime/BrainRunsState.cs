@@ -1,7 +1,8 @@
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 [GenerateSerializer, Alias("microsoft.csharp.runs-state")]
 [ExportableState]

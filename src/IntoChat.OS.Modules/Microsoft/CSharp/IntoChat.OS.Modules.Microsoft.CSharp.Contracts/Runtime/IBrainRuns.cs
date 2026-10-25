@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One per brain, keyed BrainRunsKeys.For(scope): where the brain's synapse runs become facts. It publishes
 // BehaviorStarted and BehaviorRan for the brain runtime, which cannot publish them itself because no

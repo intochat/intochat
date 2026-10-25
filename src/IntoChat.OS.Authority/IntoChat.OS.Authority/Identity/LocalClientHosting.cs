@@ -1,5 +1,5 @@
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Marketplace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

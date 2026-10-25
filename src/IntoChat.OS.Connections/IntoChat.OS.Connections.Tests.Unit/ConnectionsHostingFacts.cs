@@ -1,7 +1,9 @@
 using IntoChat.OS.Connections.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Connections.Tests.Unit;

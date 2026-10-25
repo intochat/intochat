@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Google;
+namespace IntoChat.OS.Modules.AI.Models.Google;
 
 internal sealed class GoogleProviderFactory : OpenAICompatibleProviderFactory
 {

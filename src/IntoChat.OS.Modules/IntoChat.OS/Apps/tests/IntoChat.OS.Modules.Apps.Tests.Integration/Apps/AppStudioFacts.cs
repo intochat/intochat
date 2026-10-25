@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,7 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

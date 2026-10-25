@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // A neuron queued work that will signal this brain after its caller has returned. The runtime

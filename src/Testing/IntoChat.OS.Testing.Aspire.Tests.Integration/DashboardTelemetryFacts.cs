@@ -122,7 +122,7 @@ public sealed class DashboardTelemetryFacts
             {"totalCount":1,"returnedCount":1,"data":{"resourceSpans":[{
               "resource":{"attributes":[{"key":"service.name","value":{"stringValue":"brain"}}]},
               "schemaUrl":"resource-schema","scopeSpans":[{
-                "scope":{"name":"IntoChat.OS.AI","version":"1","attributes":[{"key":"scope","value":{"boolValue":true}}]},
+                "scope":{"name":"IntoChat.OS.Modules.AI","version":"1","attributes":[{"key":"scope","value":{"boolValue":true}}]},
                 "schemaUrl":"scope-schema","spans":[{
                   "traceId":"0123456789abcdef0123456789abcdef","spanId":"0123456789abcdef",
                   "parentSpanId":"fedcba9876543210","traceState":"vendor=value","flags":257,"kind":3,

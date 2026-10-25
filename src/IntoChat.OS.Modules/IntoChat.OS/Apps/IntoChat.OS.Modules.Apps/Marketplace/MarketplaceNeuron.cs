@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // A list, not domain state, so it publishes nothing: AppPublished from the app neuron is the
 // fact. The catalog itself lives in the trust cluster (R14); this neuron holds nothing and maps

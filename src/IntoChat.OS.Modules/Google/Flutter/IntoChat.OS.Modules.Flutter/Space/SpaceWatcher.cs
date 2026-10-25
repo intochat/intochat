@@ -1,14 +1,15 @@
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Circles.Signals;
-using IntoChat.OS.Flutter.Card.Signals;
-using IntoChat.OS.Flutter.Person.Signals;
-using IntoChat.OS.Flutter.Workspace.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Circles.Signals;
+using IntoChat.OS.Modules.Flutter.Card.Signals;
+using IntoChat.OS.Modules.Flutter.Person.Signals;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Space;
+namespace IntoChat.OS.Modules.Flutter.Space;
 
 internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILogger<SpaceWatcher> logger, CircleMembers friends) : BackgroundService
 {

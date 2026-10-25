@@ -1,14 +1,16 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;
 
@@ -111,25 +113,25 @@ public sealed class NeuronSurfaceFacts(McpHost host)
     public async Task WatchIsNotCallable()
     {
         var surface = Surface();
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Apps.IApp).FullName!, "b/apps/x", "Watch", "[null]", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Apps.IApp).FullName!, "b/apps/x", "Watch", "[null]", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task MalformedArgumentsAreAnArgumentError()
     {
         var surface = Surface();
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Apps.IApp).FullName!, "b/apps/x", "Read", "{not json", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Apps.IApp).FullName!, "b/apps/x", "Read", "{not json", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task ARestrictedSurfaceRefusesAContractTheAppDidNotName()
     {
         var ct = TestContext.Current.CancellationToken;
-        var surface = await Surface().Restrict([typeof(IntoChat.OS.Apps.IApp).FullName!], ct);
-        Assert.Equal([typeof(IntoChat.OS.Apps.IApp).FullName!], await surface.Contracts(ct));
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Postgres.IPostgresServer).FullName!,
+        var surface = await Surface().Restrict([typeof(IntoChat.OS.Modules.Apps.IApp).FullName!], ct);
+        Assert.Equal([typeof(IntoChat.OS.Modules.Apps.IApp).FullName!], await surface.Contracts(ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Postgres.IPostgresServer).FullName!,
             "b/connection/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Get(typeof(IntoChat.OS.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Get(typeof(IntoChat.OS.Modules.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x", ct));
     }
 
     [Fact]

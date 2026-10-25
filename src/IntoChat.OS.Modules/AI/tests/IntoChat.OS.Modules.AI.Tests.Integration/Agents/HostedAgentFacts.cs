@@ -2,11 +2,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 

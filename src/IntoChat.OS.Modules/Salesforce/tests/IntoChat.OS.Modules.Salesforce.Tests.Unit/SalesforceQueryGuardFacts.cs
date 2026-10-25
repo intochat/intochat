@@ -1,5 +1,3 @@
-using IntoChat.OS.Salesforce;
-
 namespace IntoChat.OS.Modules.Salesforce.Tests.Unit;
 
 public sealed class SalesforceQueryGuardFacts

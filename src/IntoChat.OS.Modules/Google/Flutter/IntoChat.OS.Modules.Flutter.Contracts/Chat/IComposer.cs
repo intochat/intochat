@@ -1,6 +1,6 @@
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // Holds input awaiting a behavior's acknowledgement, never conversation history.
 [Alias("composer"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ComposerType)]

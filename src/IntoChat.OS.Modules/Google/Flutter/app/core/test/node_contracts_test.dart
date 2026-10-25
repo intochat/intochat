@@ -5,27 +5,27 @@ void main() {
   test('every app UI kind maps to its contract and change signal', () {
     expect(
       NodeContracts.of('button').contract,
-      'IntoChat.OS.Flutter.Button.IButton',
+      'IntoChat.OS.Modules.Flutter.Button.IButton',
     );
     expect(NodeContracts.of('button').changed, 'ButtonChanged');
     expect(
       NodeContracts.of('view').contract,
-      'IntoChat.OS.Flutter.Views.IView',
+      'IntoChat.OS.Modules.Flutter.Views.IView',
     );
     expect(NodeContracts.of('view').changed, 'ViewChanged');
     expect(NodeContracts.of('surface').changed, 'SurfaceChanged');
     expect(
       NodeContracts.of('scene').contract,
-      'IntoChat.OS.Flame.Scene.IScene',
+      'IntoChat.OS.Modules.Flame.Scene.IScene',
     );
     expect(NodeContracts.of('scene').changed, 'SceneChanged');
     expect(
       NodeContracts.of('collection').contract,
-      'IntoChat.OS.Flutter.Collection.ICollectionView',
+      'IntoChat.OS.Modules.Flutter.Collection.ICollectionView',
     );
     expect(
       NodeContracts.of('viewport').contract,
-      'IntoChat.OS.Flutter.Viewport.IViewport',
+      'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
     );
     expect(NodeContracts.of('viewport').changed, 'ViewportChanged');
     expect(NodeContracts.of('toggle').changed, 'ToggleChanged');

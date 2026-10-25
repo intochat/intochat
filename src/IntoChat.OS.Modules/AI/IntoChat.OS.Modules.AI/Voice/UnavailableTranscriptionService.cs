@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Stands in whenever no transcription model is usable, so a voice
 // misconfiguration answers 503 with a reason instead of refusing to boot the

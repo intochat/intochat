@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Storage;
 using Orleans.Serialization;

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [GenerateSerializer, Alias("ui.problem-reports-state")]
 [ExportableState]

@@ -1,9 +1,12 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Testing;
-using IntoChat.OS.Time;
-using IntoChat.OS.Time.Reminders;
-using IntoChat.OS.Time.Reminders.Signals;
+using IntoChat.OS.Modules.Time;
+using IntoChat.OS.Modules.Time.Reminders;
+using IntoChat.OS.Modules.Time.Reminders.Signals;
 using Orleans;
 using Xunit;
 

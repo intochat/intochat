@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Aspire.Hosting.ApplicationModel;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 // Flutter serves cached web assets while compiling. HTTP 200 alone can therefore
 // expose a previous build (including its old runtime endpoint) to browsers.

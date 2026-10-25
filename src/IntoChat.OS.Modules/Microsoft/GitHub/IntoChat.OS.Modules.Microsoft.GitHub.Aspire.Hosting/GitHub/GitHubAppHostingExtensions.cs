@@ -2,16 +2,20 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 public static class GitHubAppHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> module, Action<GitHubAppHostingOptions> configure)
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> module, Action<GitHubAppHostingOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(configure);
@@ -20,8 +24,8 @@ public static class GitHubAppHostingExtensions
         return module.WithGitHubApp(options.AppId, options.ClientId, options.PublicOrigin, options.PublicWebhookUrl);
     }
 
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Microsoft.GitHub.GitHubModuleHosting> module,
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModuleHosting> module,
         long appId, string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
     {
         ArgumentNullException.ThrowIfNull(module);

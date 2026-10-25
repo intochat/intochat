@@ -1,15 +1,17 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Serialization;
 using Orleans.Storage;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // T26-7/R134/R146/R147: a shared app's slots point either at the circle's own copy of a chosen connection, or at the
 // sharer's connection, which an app of the circle reaches only through the binding recorded on it at Share.

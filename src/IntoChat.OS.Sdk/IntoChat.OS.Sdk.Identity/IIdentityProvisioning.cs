@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Platform.Identity;
+namespace IntoChat.OS.Sdk.Platform.Identity;
 
 // The narrow slice of account and membership authority a privileged module may use to provision principals,
 // brains and members. Resolved only for module ids listed in IntoChatOS:Identity:PrivilegedModules.

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.AI.Aspire.Hosting;
+namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
 public sealed class FoundryLocalModelResource(string name, string modelId, IResource parent)
     : Resource(name), IResourceWithParent, IResourceWithWaitSupport

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 public abstract class ImageModel : AiModel
 {

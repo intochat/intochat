@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 // Carries a safe error with SQLSTATE, excluding server details and connection credentials.
 [GenerateSerializer, Alias("db.postgres.query-failed")]

@@ -5,6 +5,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
@@ -56,10 +58,10 @@ public sealed class OpenPostureLoopbackFacts
         List<(string, string?)> values = [(OpenPostureLoopback.PostureKey, "Open"), ("urls", "http://+:8080")];
         if (scope == "container")
         {
-            values.Add((Topology, IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal));
+            values.Add((Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal));
             values.Add(("DOTNET_RUNNING_IN_CONTAINER", "true"));
         }
-        else { values.Add((Topology, IntoChat.OS.Framework.IntoChatOSNames.TopologyCloud)); }
+        else { values.Add((Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyCloud)); }
         OpenPostureLoopback.Validate(Configuration(values));
     }
 
@@ -147,11 +149,11 @@ public sealed class OpenPostureLoopbackFacts
         Assert.Contains(logs.Errors, message => message.Contains(OptIn, StringComparison.Ordinal));
     }
 
-    private const string Topology = IntoChat.OS.Framework.IntoChatOSNames.TopologyKey;
-    private const string Bind = IntoChat.OS.Framework.IntoChatOSNames.BindKey;
+    private const string Topology = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey;
+    private const string Bind = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BindKey;
 
     private static (string Key, string? Value)[] Local(params (string Key, string? Value)[] extra)
-        => [(OpenPostureLoopback.PostureKey, "Open"), (Topology, IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal), .. extra];
+        => [(OpenPostureLoopback.PostureKey, "Open"), (Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal), .. extra];
 
     private static IConfiguration Configuration(IEnumerable<(string Key, string? Value)> values)
     {

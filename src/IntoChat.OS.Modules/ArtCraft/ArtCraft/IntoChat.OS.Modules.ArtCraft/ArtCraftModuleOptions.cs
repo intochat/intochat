@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.ArtCraft;
+namespace IntoChat.OS.Modules.ArtCraft;
 
 // Where each app's MCP server (Streamable HTTP) and web build are served. Hosted apps use fixed loopback
 // ports so the brain, the Playwright app origins and a person's browser all name the same URL.

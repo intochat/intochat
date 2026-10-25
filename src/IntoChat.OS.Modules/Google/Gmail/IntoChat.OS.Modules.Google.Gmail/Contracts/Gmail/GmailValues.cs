@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GenerateSerializer, Alias("gmail.field-issue")]
 public sealed record GmailFieldIssue(

@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 // The org's instance URL is the connection's Account.
 [GenerateSerializer, Alias("salesforce.state")]

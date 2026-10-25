@@ -1,4 +1,4 @@
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;

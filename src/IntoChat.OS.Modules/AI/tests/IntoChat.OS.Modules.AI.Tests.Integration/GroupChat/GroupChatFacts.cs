@@ -1,8 +1,7 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.GroupChat;
-using IntoChat.OS.AI.GroupChat.Signals;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.GroupChat;
+using IntoChat.OS.Modules.AI.GroupChat.Signals;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Testing.Model;
 using Xunit;
 

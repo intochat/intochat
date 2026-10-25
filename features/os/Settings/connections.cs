@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // Connection discovery: the refresh request shows the view again, which reads the brain's connections and the

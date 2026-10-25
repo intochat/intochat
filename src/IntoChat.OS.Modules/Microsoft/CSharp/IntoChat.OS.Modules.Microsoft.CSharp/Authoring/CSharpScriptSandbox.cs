@@ -3,17 +3,17 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.CSharp.Authoring;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemblies assemblies, IServiceProvider services, IOptions<CSharpOptions> options) : IScriptSandbox
 {
@@ -24,9 +24,9 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
                   over one `brain.On<T>(source, brain.Stopping)`, acting through neurons. Shared code is a
                   file of only type declarations. "app.cs" is the app's declaration; never write it.
                   The app's own operations arrive as `AppRequested` signals (change only the reaction):
-                    using IntoChat.OS.Apps;
-                    using IntoChat.OS.Apps.Signals;
-                    using IntoChat.OS.Flutter.Text;
+                    using IntoChat.OS.Modules.Apps;
+                    using IntoChat.OS.Modules.Apps.Signals;
+                    using IntoChat.OS.Modules.Flutter.Text;
 
                     await using var brain = await IntoChatOSClient.ConnectAsync(args);
                     var app = brain.Get<IApp>(brain.Setting("App")!);

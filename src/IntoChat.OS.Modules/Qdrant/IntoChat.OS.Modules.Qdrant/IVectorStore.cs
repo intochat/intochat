@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 // Callers write points under their own keys; the store hashes each key to a stable point id,
 // which is what Scroll hands back. Keep anything a reader needs in the payload.

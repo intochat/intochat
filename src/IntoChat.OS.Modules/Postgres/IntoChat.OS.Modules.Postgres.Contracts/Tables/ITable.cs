@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // Use a unique grain key per installed table. First Define binds it permanently to the
 // stamped brain and app; every subsequent operation requires that same caller scope.

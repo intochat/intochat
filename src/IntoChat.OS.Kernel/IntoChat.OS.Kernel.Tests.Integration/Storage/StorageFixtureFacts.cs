@@ -45,7 +45,7 @@ public sealed class StorageFixtureFacts(OsHost host)
         Assert.False(string.IsNullOrWhiteSpace(manifest.CapturedFrom), "a fixture names the exact commit it was captured from");
         Assert.Contains(manifest.Brains, brain => brain.Format == BrainLogFormat.Legacy && !brain.Snapshot);
         Assert.Contains(manifest.Brains, brain => brain.Format == BrainLogFormat.Framed && brain.Snapshot);
-        Assert.Contains(manifest.Brains, brain => brain.SignalTypes.Contains("IntoChat.OS.Time.Timers.Signals.TimerTick"));
+        Assert.Contains(manifest.Brains, brain => brain.SignalTypes.Contains("IntoChat.OS.Modules.Time.Timers.Signals.TimerTick"));
         Assert.True(manifest.Brains.Sum(brain => brain.Records) > 0);
         Assert.NotEmpty(manifest.GrainState);
         Assert.DoesNotContain(manifest.Scenarios, scenario => scenario.Contains("FAILED", StringComparison.Ordinal));

@@ -1,4 +1,4 @@
-// Mirrors IntoChat.OS.Apps.AppManifest, AppRequirements and AppToolbarEntry as the shell reads them from
+// Mirrors IntoChat.OS.Modules.Apps.AppManifest, AppRequirements and AppToolbarEntry as the shell reads them from
 // GET /brains/{brain}/apps/{name} under "manifest".
 
 enum AppToolbarKind {

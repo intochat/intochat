@@ -1,4 +1,4 @@
-using IntoChat.OS.Circles.Signals;
+using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Client;
 
 // The one reaction to a line spoken in this circle: the transcript is rebuilt from the chat.

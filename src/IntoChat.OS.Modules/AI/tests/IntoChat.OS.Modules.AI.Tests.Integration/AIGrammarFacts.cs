@@ -1,4 +1,3 @@
-using IntoChat.OS.AI;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 

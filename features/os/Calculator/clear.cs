@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The dock's Clear button presses the keypad's "C" key, so every change to the expression goes through
 // the one keypad synapse in click order. Before the first view exists, clear the durable state directly.

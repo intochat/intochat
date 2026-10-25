@@ -1,9 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Context.Signals;
+using IntoChat.OS.Modules.AI.Agents.Context.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.Agents.Context;
+namespace IntoChat.OS.Modules.AI.Agents.Context;
 
 [GenerateSerializer, Alias("agent-context.state")]
 [ExportableState]

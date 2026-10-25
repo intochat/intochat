@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 [Alias("ui.event-handler")]
 public interface IUiEventHandler : IGrainWithStringKey

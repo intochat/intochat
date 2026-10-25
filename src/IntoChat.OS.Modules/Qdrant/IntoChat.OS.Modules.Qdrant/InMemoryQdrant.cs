@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace IntoChat.OS.Qdrant;
+namespace IntoChat.OS.Modules.Qdrant;
 
 // The same contract without a server: hosts that compose no Qdrant connection, and tests.
 public sealed class InMemoryQdrant : IVectorStore

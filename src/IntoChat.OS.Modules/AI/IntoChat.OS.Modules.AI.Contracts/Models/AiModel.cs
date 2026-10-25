@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // One shape for every kind of model — chat, embedding, transcription, image. A model is a compile-time
 // fact: an Id on the wire, an AiProvider that serves it, and a marker type that identifies it

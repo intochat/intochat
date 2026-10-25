@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.operation2")]
 public sealed record AppOperation([property: Id(0)] string Name, [property: Id(1)] string Description);

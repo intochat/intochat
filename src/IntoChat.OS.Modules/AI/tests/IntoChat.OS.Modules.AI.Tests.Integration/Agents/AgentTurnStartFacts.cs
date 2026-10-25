@@ -1,8 +1,8 @@
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;

@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GenerateSerializer, Alias("db.gmail.state")]
 internal sealed class GmailState : ConnectionState

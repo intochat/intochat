@@ -1,10 +1,10 @@
 using System.ClientModel;
-using IntoChat.OS.AI.Voice;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Voice;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using OpenAI;
 using OpenAI.Audio;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Hosted speech-to-text over the provider's own audio endpoint. Deliberately not
 // an IHostedService: there is no model to download or load, which is the whole

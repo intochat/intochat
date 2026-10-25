@@ -1,6 +1,7 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 [GenerateSerializer, Alias("postgres.table-index-state")]
 [ExportableState]

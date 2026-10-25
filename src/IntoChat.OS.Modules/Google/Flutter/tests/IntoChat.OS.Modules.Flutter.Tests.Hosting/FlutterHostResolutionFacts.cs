@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Aspire.Hosting;
+using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Hosting;
 

@@ -1,8 +1,11 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Testing;
-using IntoChat.OS.Time;
-using IntoChat.OS.Time.Timers.Signals;
+using IntoChat.OS.Modules.Time;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 using Orleans;
 using Xunit;
 

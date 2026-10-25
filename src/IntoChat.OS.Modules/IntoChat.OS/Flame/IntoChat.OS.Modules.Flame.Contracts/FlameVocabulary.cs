@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 public static class FlameVocabulary
 {

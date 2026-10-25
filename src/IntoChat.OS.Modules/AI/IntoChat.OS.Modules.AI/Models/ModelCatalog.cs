@@ -1,14 +1,16 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // The one resolver from a model key to a client. A key is a marker name or a configured profile
 // name; null is the deployment default. brainId is the calling brain: its own provider keys make

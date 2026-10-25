@@ -1,6 +1,7 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // Every index and lifetime call names its owner; the guard checks the owner is this brain's and
 // the source is the one grain type allowed to make that call.
@@ -14,7 +15,7 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
             var owner = TableOwner.Parse(context.TargetId.Key.ToString()!);
             if (owner.BrainId != BrainScope.CurrentId()) { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
             var caller = CallerContextStamper.Require();
-            if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == IntoChat.OS.Framework.CallerKind.App)
+            if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == IntoChat.OS.Sdk.CallerKind.App)
             { throw new UnauthorizedAccessException("Only trusted host code may read app storage."); }
         }
         else if (contract == typeof(ITableIndex) || contract == typeof(ITableLifetime))

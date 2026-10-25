@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

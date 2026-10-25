@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 internal sealed record ProcessResult(int ExitCode, string Output, string Error);
 

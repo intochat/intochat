@@ -1,4 +1,8 @@
-namespace IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Identity;
+
+namespace IntoChat.OS.Connections.Platform.Identity;
 
 // Host-owned dispatch for an authenticated external delivery or persisted scheduled work.
 // The host resolves identity from its authority; modules supply only the target brain and causal work.

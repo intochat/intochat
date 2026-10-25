@@ -1,7 +1,8 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 // Fork and bring install the exact release the person selected through the one install path. They carry the consent
 // of no requirements: a release that asks for data, connections or secrets is refused here, and the Circle UI opens

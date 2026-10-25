@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `focus:<windowId>` focuses a window's active tab (on narrow screens the window fills the screen).
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

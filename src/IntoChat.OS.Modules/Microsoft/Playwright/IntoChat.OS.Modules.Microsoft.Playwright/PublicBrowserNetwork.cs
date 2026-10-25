@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
-namespace IntoChat.OS.Microsoft.Playwright;
+
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 internal static class PublicBrowserNetwork
 {

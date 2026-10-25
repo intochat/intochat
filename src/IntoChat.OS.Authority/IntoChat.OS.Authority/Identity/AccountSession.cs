@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

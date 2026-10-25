@@ -1,7 +1,10 @@
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.Framework.Platform.Integrations;
+namespace IntoChat.OS.Connections.Platform.Integrations;
 
 public sealed record ConnectorDefinition(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations)
 {

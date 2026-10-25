@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flame.Scene;
+namespace IntoChat.OS.Modules.Flame.Scene;
 
 [Alias("scene"), Orleans.Metadata.DefaultGrainType(FlameVocabulary.SceneType)]
 public interface IScene : INeuron

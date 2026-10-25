@@ -1,7 +1,7 @@
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // One gallery card: which group it sits in ("builtin" | "mine" | "others"), what it is
 // ("app" | "connection"), and whether this brain already has it (a connection: is connected).

@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.TextField;

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.GroupChat;
+namespace IntoChat.OS.Modules.AI.GroupChat;
 
 // Several models discuss one question in turns, building on each other, until they agree or run out of rounds.
 [Alias("ai.group-chat"), Orleans.Metadata.DefaultGrainType("ai.group-chat")]

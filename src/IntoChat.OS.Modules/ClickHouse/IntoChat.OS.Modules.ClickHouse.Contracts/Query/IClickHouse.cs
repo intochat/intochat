@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.ClickHouse.Query;
+namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 [Alias("clickhouse"), Orleans.Metadata.DefaultGrainType(ClickHouseNames.NeuronType)]
 public interface IClickHouse : INeuron

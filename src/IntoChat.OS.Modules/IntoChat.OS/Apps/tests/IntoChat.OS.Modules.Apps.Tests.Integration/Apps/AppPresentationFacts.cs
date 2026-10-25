@@ -1,11 +1,12 @@
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 public sealed class AppPresentationFacts
 {

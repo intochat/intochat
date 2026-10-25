@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // Saves from the owner's editor, dotnet format or a git checkout reach the snapshot without a reload;
 // project-file changes only flag that a reload is needed (design 4.2).

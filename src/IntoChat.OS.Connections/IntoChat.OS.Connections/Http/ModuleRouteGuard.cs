@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Http;
-namespace IntoChat.OS.Framework;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections;
 
 // The map from a module route's exceptions to HTTP; a group that throws plain neuron errors adds it once.
 public static class ModuleRouteGuard

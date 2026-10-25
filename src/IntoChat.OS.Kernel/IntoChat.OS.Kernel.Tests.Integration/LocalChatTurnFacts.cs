@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -31,7 +31,7 @@ public sealed class LocalChatTurnFacts
             .WithModule<AIModule, AIOptions>(options =>
             {
                 options.Ollama.Endpoint = ollama.Endpoint;
-                options.Default.Model = nameof(IntoChat.OS.AI.Models.Ollama.IQwen35);
+                options.Default.Model = nameof(IntoChat.OS.Modules.AI.Models.Ollama.IQwen35);
             })
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Open))
             .StartAsync(ct);

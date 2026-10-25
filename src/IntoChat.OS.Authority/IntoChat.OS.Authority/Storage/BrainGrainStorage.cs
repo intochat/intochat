@@ -1,4 +1,5 @@
 using System.Globalization;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Serialization;
 using Orleans.Storage;

@@ -1,11 +1,14 @@
 using IntoChat.OS;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Aspire.Hosting;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

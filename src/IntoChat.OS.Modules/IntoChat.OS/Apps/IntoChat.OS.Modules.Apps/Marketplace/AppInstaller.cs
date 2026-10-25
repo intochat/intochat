@@ -1,11 +1,14 @@
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The one way an app crosses brains: a listed bundle goes into the caller's brain through the
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature

@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Secrets;
 
 // Masks the calling brain's vault values in text before it is announced, stored or exported.
 public interface ISecretRedactor

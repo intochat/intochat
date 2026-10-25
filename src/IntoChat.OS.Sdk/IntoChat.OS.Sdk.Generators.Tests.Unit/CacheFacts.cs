@@ -7,6 +7,7 @@ public sealed class CacheFacts
 {
     private const string Module = """
         using IntoChat.OS.Framework.Modules;
+        using IntoChat.OS.Sdk.Modules;
         using IntoChat.OS.Sdk;
         namespace Fixture;
         [Module("cached")]
@@ -65,6 +66,9 @@ public sealed class CacheFacts
     {
         const string priced = """
             using IntoChat.OS.Framework.Modules;
+            using IntoChat.OS.Sdk.Modules;
+            using IntoChat.OS.Connections.Compute;
+            using IntoChat.OS.Contracts.Compute;
             using IntoChat.OS.Framework.Compute;
             using IntoChat.OS.Sdk;
             namespace Pricing;

@@ -1,10 +1,11 @@
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Salesforce.Signals;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Salesforce.Signals;
 
-namespace IntoChat.OS.Salesforce;
+namespace IntoChat.OS.Modules.Salesforce;
 
 [GrainType("salesforce")]
 internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce

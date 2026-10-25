@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.OpenRouter;
+namespace IntoChat.OS.Modules.AI.Models.OpenRouter;
 
 public sealed class DeepSeekV41Flash : LLMModel<IDeepSeekV41Flash>
 {

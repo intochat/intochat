@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Facts.Signals;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents.Facts;
 

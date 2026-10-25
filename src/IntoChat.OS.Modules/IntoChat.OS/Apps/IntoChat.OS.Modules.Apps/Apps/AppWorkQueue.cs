@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Runs builder jobs off the request path. The process is a cache: every job's
 // durable state (Building status, activity) lives on the app neuron, so a lost

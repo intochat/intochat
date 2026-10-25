@@ -1,8 +1,9 @@
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chart;
-using IntoChat.OS.Flutter.Table;
+using IntoChat.OS.Modules.Flutter.Chart;
+using IntoChat.OS.Modules.Flutter.Table;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

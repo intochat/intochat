@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Color.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Color.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Color;
+namespace IntoChat.OS.Modules.Flutter.Color;
 
 [GrainType(UIVocabulary.ColorType)]
 internal sealed class ColorNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ColorState> store)

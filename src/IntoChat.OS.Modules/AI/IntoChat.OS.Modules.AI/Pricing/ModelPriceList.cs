@@ -1,13 +1,13 @@
 using System.Text.Json;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 
-namespace IntoChat.OS.AI.Pricing;
+namespace IntoChat.OS.Modules.AI.Pricing;
 
 // The AI module's own list prices: per concrete model, four token classes priced per million tokens.
 // Local models are priced at zero. Micros per million tokens = usd_per_million_tokens * 1_000_000.
 internal sealed class ModelPriceList : IPriceList
 {
-    internal const string ResourceName = "IntoChat.OS.AI.Pricing.models.prices.json";
+    internal const string ResourceName = "IntoChat.OS.Modules.AI.Pricing.models.prices.json";
     private const decimal MillionTokens = 1_000_000m;
     private static readonly string[] TokenClasses = ["input", "cached", "reasoning", "output"];
     private static readonly Lazy<Dictionary<string, long>> MicrosPerMillion = new(Load);

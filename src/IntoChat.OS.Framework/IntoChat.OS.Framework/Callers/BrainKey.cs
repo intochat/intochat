@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // Every brain-owned neuron key is "{brain}" or starts with "{brain}/".

@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Microsoft.GitHub.Webhook;
+namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
 internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration)
 {

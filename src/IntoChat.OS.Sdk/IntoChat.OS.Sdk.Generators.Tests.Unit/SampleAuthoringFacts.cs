@@ -1,7 +1,8 @@
 using System.Reflection;
 using System.Text;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Sdk.Http.Compute;
 using IntoChat.OS.Sdk.Validation;
 using Microsoft.AspNetCore.Http;

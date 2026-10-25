@@ -1,8 +1,9 @@
 using System.Diagnostics;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 [GrainType("windows.console")]
 internal sealed class ConsoleNeuron(IMachineIdentity identity) : Neuron, IConsole

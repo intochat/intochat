@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
+using IntoChat.OS.Modules.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;

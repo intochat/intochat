@@ -1,7 +1,9 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Testing.Aspire;
 using IntoChat.OS.Testing.Neurons;
 

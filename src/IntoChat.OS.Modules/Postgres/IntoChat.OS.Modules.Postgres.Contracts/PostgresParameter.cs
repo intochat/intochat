@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 // Positional: the n-th parameter binds $n. Value is text; PostgreSQL casts it where the SQL says so.
 [GenerateSerializer, Alias("db.postgres.parameter")]

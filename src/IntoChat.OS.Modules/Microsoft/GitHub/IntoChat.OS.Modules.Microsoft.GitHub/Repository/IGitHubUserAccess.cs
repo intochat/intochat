@@ -1,7 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // The user's token proves the intersection of user access and App installation access, once, while
 // the grant is accepted; ongoing observation uses repository-scoped installation tokens.

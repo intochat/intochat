@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 [GrainType("ai.models"), StatelessWorker]
 internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : Neuron, IModelCatalog

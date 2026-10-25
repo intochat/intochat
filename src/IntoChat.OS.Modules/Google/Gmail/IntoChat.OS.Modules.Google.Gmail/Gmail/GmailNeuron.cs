@@ -1,12 +1,15 @@
 using IntoChat.OS.Modules.Google.Gmail;
 using System.Security.Cryptography;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GrainType("gmail")]
 internal sealed partial class GmailNeuron(

@@ -1,4 +1,5 @@
-using IntoChat.OS.Flutter.VoiceInput;
+using IntoChat.OS.Modules.Flutter.VoiceInput;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -6,7 +7,7 @@ using Orleans.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 [GenerateSerializer, Alias("ui.composer-storage")]
 [ExportableState]

@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
 // A synapse finished with what was delivered up to Watermark: Batches batches acknowledged together
 // (Succeeded), an exit while they were in flight (Failed, with Error), or Batches signals dropped past the

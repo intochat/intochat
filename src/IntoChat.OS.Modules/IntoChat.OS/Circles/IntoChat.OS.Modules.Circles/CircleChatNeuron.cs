@@ -1,10 +1,13 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Connections.Identity;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 [GenerateSerializer, Alias("circles.chat-record")]
 [ExportableState]

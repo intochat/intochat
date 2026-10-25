@@ -2,7 +2,7 @@ using System.ComponentModel;
 using Orleans.Concurrency;
 using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // Read and write files on one Windows PC, keyed {connectionKey}/files, confined to that machine's allowed roots.
 // Browsing goes through the storage capability (IStorage) on the connection itself.

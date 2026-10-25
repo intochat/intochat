@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Flutter.Workspace.Signals;
+namespace IntoChat.OS.Modules.Flutter.Workspace.Signals;
 
 [GenerateSerializer, Alias("ui.workspace-changed")]
 public sealed record WorkspaceChanged(

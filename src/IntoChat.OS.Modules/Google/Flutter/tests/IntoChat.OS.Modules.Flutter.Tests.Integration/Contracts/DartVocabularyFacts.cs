@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Flame.Scene;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 

@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // "read" shows a file's text in the content area; a .cs file is shown as C# source.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

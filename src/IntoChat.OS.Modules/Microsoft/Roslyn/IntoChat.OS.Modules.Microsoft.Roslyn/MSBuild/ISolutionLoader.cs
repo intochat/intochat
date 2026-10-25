@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // Failures are the workspace diagnostics a loader saw while opening (a project that did not evaluate,
 // a reference that did not resolve); the solution still opened, so they travel next to it.

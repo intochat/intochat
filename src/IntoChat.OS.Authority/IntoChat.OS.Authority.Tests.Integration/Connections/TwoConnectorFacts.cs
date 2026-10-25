@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;
 

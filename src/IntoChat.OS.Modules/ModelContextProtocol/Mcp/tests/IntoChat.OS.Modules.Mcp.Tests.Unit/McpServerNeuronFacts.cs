@@ -1,5 +1,4 @@
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 
 namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 

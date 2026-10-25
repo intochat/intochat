@@ -1,6 +1,5 @@
 using IntoChat.OS.Testing.Fakes;
-using IntoChat.OS.Microsoft.Playwright;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright.Tests.Integration;

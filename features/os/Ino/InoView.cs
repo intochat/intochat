@@ -1,6 +1,6 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // What the surface shows besides its durable references. Chats are the unarchived index entries.
 public sealed record InoViewModel(IReadOnlyList<ChatIndexEntry> Chats, string SelectedId, string Query,

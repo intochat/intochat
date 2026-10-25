@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 [GenerateSerializer, Alias("circles.state")]
 public sealed record CircleState(
@@ -19,9 +19,9 @@ public sealed record CircleState(
 // T26-1: a circle is a brain of kind Circle; this is its core neuron `{circle}/circle`. Members are accounts, recorded
 // as memberships of the circle brain. Invite
 // and Accept are a person's, on the /brains/{circle} route; a script is refused them (R126).
-// The alias and grain type literals must equal IntoChat.OS.Framework.CircleGrainType.Name (a Circles fact asserts it).
+// The alias and grain type literals must equal IntoChat.OS.Connections.CircleGrainType.Name (a Circles fact asserts it).
 [Alias("circles.circle"), DefaultGrainType("circles.circle")]
-public interface ICircle : INeuron, IntoChat.OS.Flutter.IUiEventHandler
+public interface ICircle : INeuron, IntoChat.OS.Modules.Flutter.IUiEventHandler
 {
     const int MaxComputeSharePercent = 25;
 
@@ -34,7 +34,7 @@ public interface ICircle : INeuron, IntoChat.OS.Flutter.IUiEventHandler
     // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
     // sharer's connection, reached only through the binding recorded on it (R134).
     Task Share(string appName, string[] connectionIds);
-    [ResponseTimeout("00:10:00")] Task<IntoChat.OS.Apps.AppSnapshot> BringPublication(IntoChat.OS.Apps.AppPublicationRef publication, string targetName, Guid operationId);
+    [ResponseTimeout("00:10:00")] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();

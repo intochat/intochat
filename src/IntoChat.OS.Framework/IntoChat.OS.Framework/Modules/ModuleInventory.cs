@@ -1,5 +1,9 @@
 using System.Reflection;
 
+using Module = IntoChat.OS.Sdk.Modules.Module;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
+
 namespace IntoChat.OS.Framework.Modules;
 
 // The modules selected for this host, available to modules without coupling hosting to their consumers.

@@ -1,4 +1,5 @@
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Testing.Aspire;

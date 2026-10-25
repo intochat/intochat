@@ -1,18 +1,19 @@
 using System.Diagnostics;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.Aspire.Verification;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 
 // The developer's loop as a neuron: the candidate's MCP answers for the same brain, its apps
 // activate from the copied state, every expectation answers as written, every span appears.
 internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost cluster, ILogger<CandidateVerifier> logger) : ICandidateVerifier
 {
-    private const string AppContract = "IntoChat.OS.Apps.IApp";
-    private const string ReconcilerContract = "IntoChat.OS.Apps.IFeatureReconciler";
+    private const string AppContract = "IntoChat.OS.Modules.Apps.IApp";
+    private const string ReconcilerContract = "IntoChat.OS.Modules.Apps.IFeatureReconciler";
 
     private sealed record Check(string Name, Func<CancellationToken, Task<(bool Passed, string Detail)>> Run);
 

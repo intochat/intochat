@@ -122,6 +122,7 @@ public sealed class InMemoryRuntime : INeuronResolver, IAsyncDisposable
             Services.AddSingleton<LocalSignalHub>();
             Services.AddSingleton<ILocalSignalHub>(provider => provider.GetRequiredService<LocalSignalHub>());
             Services.AddSerializer();
+            Services.TryAddEnumerable(ServiceDescriptor.Singleton<ITypeConverter, LegacyTypeNames>());
             Services.TryAddSingleton<IStateCodec, OrleansStateCodec>();
             Services.AddSingleton(Configuration);
         }

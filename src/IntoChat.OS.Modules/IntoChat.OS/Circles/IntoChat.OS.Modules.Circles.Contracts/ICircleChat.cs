@@ -1,6 +1,6 @@
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 [GenerateSerializer, Alias("circles.line")]
 public sealed record CircleLine(

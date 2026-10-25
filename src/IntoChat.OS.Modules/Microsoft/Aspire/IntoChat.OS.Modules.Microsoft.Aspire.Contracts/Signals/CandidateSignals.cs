@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 [GenerateSerializer, Alias("aspire.candidate.changed")] public sealed record CandidateChanged([property: Id(0)] string Sha, [property: Id(1)] CandidateStage Stage) : Signal;
 [GenerateSerializer, Alias("aspire.candidate.started")] public sealed record CandidateStarted([property: Id(0)] string Sha, [property: Id(1)] CandidateEndpoints Endpoints) : Signal;

@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // One finished turn as a caller sees it: the reply text and the messages it produced.
 [GenerateSerializer, Alias("ai.agent-reply")]

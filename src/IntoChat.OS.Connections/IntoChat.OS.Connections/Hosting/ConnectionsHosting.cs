@@ -1,10 +1,11 @@
 using IntoChat.OS.Connections.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Connections;
 
 // What the Connections assembly adds to a host the Framework composed (D-18): the identity-backed brain membership,
 // the connector type entries, secret redaction, connection bindings for the call filter and the neuron type search.

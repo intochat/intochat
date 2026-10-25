@@ -1,3 +1,5 @@
+using IntoChat.OS.Contracts.Configuration;
+
 namespace IntoChat.OS.Framework.Tests.Integration;
 
 [Alias("test.counter")]

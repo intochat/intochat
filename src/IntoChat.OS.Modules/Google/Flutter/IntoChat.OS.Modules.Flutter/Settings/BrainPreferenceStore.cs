@@ -1,8 +1,10 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Flutter.Settings;
+namespace IntoChat.OS.Modules.Flutter.Settings;
 
 // The member-writable preferences of a brain, as text fields under {brain}/settings. The HTTP preference endpoints and
 // the preference neuron both read and write through here, so they share one store and one caller rule.

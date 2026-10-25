@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Windows;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Windows;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 
@@ -96,7 +98,7 @@ public sealed class OtherStorageModule() : Module(new ModuleId("other-storage"))
     public override void Configure(ISiloBuilder silo) { }
 }
 
-[Alias("other-storage"), Orleans.Metadata.DefaultGrainType("other-storage")]
+[Alias("other-storage"), global::Orleans.Metadata.DefaultGrainType("other-storage")]
 public interface IOtherStorage : INeuron { }
 
 [GrainType("other-storage")]

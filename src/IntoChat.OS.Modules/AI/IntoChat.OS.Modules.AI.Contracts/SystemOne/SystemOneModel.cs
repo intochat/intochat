@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.SystemOne;
+namespace IntoChat.OS.Modules.AI.SystemOne;
 
 public abstract class SystemOneModel : AiModel
 {

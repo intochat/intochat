@@ -1,9 +1,11 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Modules.Google.Gmail;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

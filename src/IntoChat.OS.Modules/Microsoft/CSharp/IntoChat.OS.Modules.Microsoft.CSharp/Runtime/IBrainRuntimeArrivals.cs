@@ -1,7 +1,7 @@
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One-way so the publishing neuron never waits on this brain's runtime.
 [Alias("microsoft.csharp.runtime-arrivals"), DefaultGrainType("microsoft.csharp.runtime")]

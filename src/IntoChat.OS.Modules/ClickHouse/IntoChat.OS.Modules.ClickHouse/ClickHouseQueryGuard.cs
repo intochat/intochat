@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // Client-side defence in depth in front of the server's readonly and resource caps: one SELECT
 // (or WITH … SELECT), no comments, no second statement, no FORMAT/SETTINGS clause, no write

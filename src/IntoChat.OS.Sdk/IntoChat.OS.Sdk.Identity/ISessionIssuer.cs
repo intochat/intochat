@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Framework.Platform.Identity;
+namespace IntoChat.OS.Sdk.Platform.Identity;
 
 // Issues and ends the platform session cookie for a member another mechanism has already authenticated.
 // The principal, account, brain and role claims always come from the member; additional claims never replace them.

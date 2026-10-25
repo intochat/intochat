@@ -1,6 +1,8 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Modules.Microsoft.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

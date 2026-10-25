@@ -1,7 +1,8 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Connections;
 
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 [GenerateSerializer, Alias("azure.connection-state")]
 internal sealed class AzureConnectionState : ConnectionState

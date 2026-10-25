@@ -3,9 +3,12 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -48,9 +51,9 @@ public sealed class ProductCompositionFacts
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
-        var key = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Microsoft.CSharp.CSharpOptions.SectionName, nameof(IntoChat.OS.Microsoft.CSharp.CSharpOptions.SandboxUrl));
+        var key = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Modules.Microsoft.CSharp.CSharpOptions.SectionName, nameof(IntoChat.OS.Modules.Microsoft.CSharp.CSharpOptions.SandboxUrl));
         Assert.IsType<EndpointReference>(environment[key]);
-        var sandbox = appHost.Resources.Single(resource => resource.Name == IntoChat.OS.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
+        var sandbox = appHost.Resources.Single(resource => resource.Name == IntoChat.OS.Modules.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
         // Always on, and independently healthy before the OS bootstraps its persistent scripts.
         Assert.DoesNotContain(sandbox.Annotations, annotation => annotation.GetType().Name == "ExplicitStartupAnnotation");
         Assert.Contains(runtime.Annotations.OfType<WaitAnnotation>(), wait => ReferenceEquals(wait.Resource, sandbox)

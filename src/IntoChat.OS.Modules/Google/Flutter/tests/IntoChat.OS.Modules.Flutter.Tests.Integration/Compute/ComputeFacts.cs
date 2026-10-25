@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Compute;
+using IntoChat.OS.Modules.Flutter.Compute;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Compute;
 

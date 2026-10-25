@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 public interface IBrowserSessionProvider
 {

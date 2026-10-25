@@ -2,8 +2,12 @@ using IntoChat.OS;
 using IntoChat.OS.Aspire.Client;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Authority;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using Microsoft.AspNetCore.Builder;
@@ -34,7 +38,7 @@ internal static class CompositionHost
             return;
         }
         // The Orleans module owns clustering and providers in both Azure and local compositions.
-        builder.AddIntoChatOSServer(server => server.AddModule<IntoChat.OS.Microsoft.Orleans.OrleansModule>());
+        builder.AddIntoChatOSServer(server => server.AddModule<IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule>());
         if (mode == "memory-server")
         {
             builder.UseOrleans(silo => silo.AddIntoChatOSPlatform());

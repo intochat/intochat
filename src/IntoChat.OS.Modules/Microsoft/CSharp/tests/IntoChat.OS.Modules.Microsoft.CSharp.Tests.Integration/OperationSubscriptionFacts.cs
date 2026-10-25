@@ -1,7 +1,7 @@
 using System.Text.Json;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 

@@ -1,5 +1,3 @@
-using IntoChat.OS.Time;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Time.Tests.Integration.TimeHost))]
 
 namespace IntoChat.OS.Modules.Time.Tests.Integration;

@@ -1,11 +1,13 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flutter.Settings;
+namespace IntoChat.OS.Modules.Flutter.Settings;
 
 // Ino's chat list for Settings → Archived chats. Any member may list and unarchive. Titles are customer
 // data, so installed apps and calls through the app proxy are refused on reads as well as writes.

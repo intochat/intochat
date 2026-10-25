@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // Delivery is at-least-once, and a fresh subscription is seeded with the requests the app retains, so a
 // request synapse would otherwise carry an old request out again: reopen a window the person closed,

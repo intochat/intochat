@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // One Azure subscription, keyed {brain}/connection/azure/{subscriptionId}. Ensure is an idempotent PUT per kind.
 [Alias("azure"), Orleans.Metadata.DefaultGrainType("azure")]

@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Microsoft.Playwright;
+
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 [Alias("playwright")]
 [Orleans.Metadata.DefaultGrainType("playwright")]

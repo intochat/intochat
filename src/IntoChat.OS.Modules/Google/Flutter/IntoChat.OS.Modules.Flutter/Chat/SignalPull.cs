@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // The chat observers reconcile from state they own, so their per-source watermark lives in memory only.
 // History comes from the silo journal, so pulling never activates the source.

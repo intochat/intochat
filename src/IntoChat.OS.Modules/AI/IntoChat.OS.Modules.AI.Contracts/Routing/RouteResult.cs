@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace IntoChat.OS.AI.Routing;
+namespace IntoChat.OS.Modules.AI.Routing;
 
 // The chosen contract (full type name) and method, with the router's confidence in that choice.
 // An app route names the app and operation instead of a contract fill path; Dispatch then posts

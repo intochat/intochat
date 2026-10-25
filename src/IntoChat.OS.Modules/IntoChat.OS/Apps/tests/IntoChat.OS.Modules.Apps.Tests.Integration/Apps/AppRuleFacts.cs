@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // A rule judges the would-be request before it is a fact: a rejection publishes AppRejected and an
 // attention activity instead of AppRequested; an allowing rule, or no rules at all, changes nothing.
@@ -77,7 +77,7 @@ public sealed class AppRuleFacts
         var app = await App(brain, "unjudged", new()
         {
             ["synapses/answer.cs"] = "Console.WriteLine(1);",
-            ["rules/curfew.cs"] = "public sealed class Curfew : ILogic<IntoChat.OS.Apps.Signals.AppRequested> { public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested r) => Verdict.Allow(); }",
+            ["rules/curfew.cs"] = "public sealed class Curfew : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested> { public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested r) => Verdict.Allow(); }",
         });
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("ask", "now"));

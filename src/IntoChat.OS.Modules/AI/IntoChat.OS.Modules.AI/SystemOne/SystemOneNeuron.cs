@@ -1,8 +1,9 @@
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.AI.SystemOne.Signals;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.AI.SystemOne.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 [GrainType("ai.systemone")]
 internal sealed class SystemOneNeuron(HttpSystemOne client) : Neuron, ISystemOne

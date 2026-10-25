@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Video.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Video.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Video;
+namespace IntoChat.OS.Modules.Flutter.Video;
 
 [GrainType(UIVocabulary.VideoType)]
 internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<VideoState> store)

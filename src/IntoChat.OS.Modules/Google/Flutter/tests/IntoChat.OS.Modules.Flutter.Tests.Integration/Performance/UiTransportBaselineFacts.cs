@@ -4,10 +4,9 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Performance;

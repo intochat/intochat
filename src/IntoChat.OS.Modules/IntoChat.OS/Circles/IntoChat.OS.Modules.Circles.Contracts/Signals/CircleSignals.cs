@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Circles.Signals;
+namespace IntoChat.OS.Modules.Circles.Signals;
 
 [GenerateSerializer, Alias("circles.circle-changed")]
 public sealed record CircleChanged(

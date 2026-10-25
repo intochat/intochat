@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // A listing as one brain sees it: whether the brain has it, and whether a newer published
 // version is waiting for an unedited copy.

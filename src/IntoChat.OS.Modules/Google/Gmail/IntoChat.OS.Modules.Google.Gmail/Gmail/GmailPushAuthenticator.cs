@@ -1,10 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-namespace IntoChat.OS.Google.Gmail;
+
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal interface IGmailPushAuthenticator { Task<bool> AuthenticateAsync(HttpRequest request, CancellationToken cancellationToken); }
 internal sealed class GmailPushAuthenticator(IModuleIntegrations<GmailModule> integrations) : IGmailPushAuthenticator

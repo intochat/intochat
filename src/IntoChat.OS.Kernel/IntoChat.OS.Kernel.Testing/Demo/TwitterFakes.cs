@@ -1,6 +1,9 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -31,7 +34,7 @@ public sealed record TweetWebhook(string Account, string Text);
 public sealed class TestTwitterModule() : Module(new ModuleId("twitter")), IHttpModule
 {
     public override System.Reflection.Assembly? Contracts => typeof(ITwitterAccount).Assembly;
-    public static IntoChat.OS.Framework.Platform.Integrations.ConnectorDefinition Connector => new("twitter", "Twitter fixture", ["api-key"], []);
+    public static IntoChat.OS.Connections.Platform.Integrations.ConnectorDefinition Connector => new("twitter", "Twitter fixture", ["api-key"], []);
     public override void Configure(ISiloBuilder builder) { }
 
     public void Configure(IEndpointRouteBuilder endpoints)

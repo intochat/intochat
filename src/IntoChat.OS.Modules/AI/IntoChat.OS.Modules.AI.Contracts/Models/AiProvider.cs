@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // Who serves a model. Spans every model kind, not just chat, so a locally
 // hosted transcription model is describable in the same vocabulary as a cloud

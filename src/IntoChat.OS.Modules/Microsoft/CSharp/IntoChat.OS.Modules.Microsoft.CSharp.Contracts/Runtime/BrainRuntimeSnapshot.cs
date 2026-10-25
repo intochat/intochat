@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 [GenerateSerializer, Alias("microsoft.csharp.session-status")]
 public enum SessionStatus { None, Starting, Connected, Refused }

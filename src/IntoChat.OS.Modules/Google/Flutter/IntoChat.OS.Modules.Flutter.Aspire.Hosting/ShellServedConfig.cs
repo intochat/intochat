@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Flutter.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 // The file an AppHost writes next to the containerized web bundle: the serve-time
 // counterpart of the --dart-define values the flutter run path bakes into each compile.

@@ -3,7 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Authority.Storage;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Metadata;
 using Orleans.Runtime;
@@ -53,7 +54,7 @@ public static class StorageFixtures
         var types = new StateTypes(services);
         var objects = services.GetRequiredService<ObjectSerializer>();
         var blob = new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>());
-        var stores = services.GetRequiredService<IntoChat.OS.Microsoft.Orleans.MemoryStores>();
+        var stores = services.GetRequiredService<IntoChat.OS.Modules.Microsoft.Orleans.MemoryStores>();
         foreach (var store in new[] { IntoChatOSNames.ClusterGrainStorage, IntoChatOSNames.PlatformGrainStorage })
         {
             foreach (var (key, (state, _)) in stores.Store(store).OrderBy(entry => entry.Key, StringComparer.Ordinal))

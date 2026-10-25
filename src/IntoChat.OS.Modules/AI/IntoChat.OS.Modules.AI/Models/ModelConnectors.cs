@@ -1,8 +1,9 @@
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.AI.Models.Signals;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 internal static class ModelConnectors
 {

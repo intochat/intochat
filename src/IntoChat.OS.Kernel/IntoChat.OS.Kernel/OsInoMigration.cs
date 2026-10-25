@@ -1,6 +1,7 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Kernel;
@@ -77,8 +78,8 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         // The old Ino forwarding ids differ from the Assistant ids. Keep both sets so retained
         // completed forwarding requests cannot create a second conversation or recording.
         await old.Redirect(Migration, targetKey).WaitAsync(ct);
-        var retained = await target.AsReference<IRetainsSignals>().Retained(nameof(IntoChat.OS.Apps.Signals.AppRequested), 0).WaitAsync(ct);
-        var replayable = retained.Select(item => item.Signal).OfType<IntoChat.OS.Apps.Signals.AppRequested>().Select(request => request.RequestId).ToHashSet();
+        var retained = await target.AsReference<IRetainsSignals>().Retained(nameof(IntoChat.OS.Modules.Apps.Signals.AppRequested), 0).WaitAsync(ct);
+        var replayable = retained.Select(item => item.Signal).OfType<IntoChat.OS.Modules.Apps.Signals.AppRequested>().Select(request => request.RequestId).ToHashSet();
         await MergeLedger(scope, "apps/ino/handled/new-conversation", "apps/assistant/handled/new", replayable, ct);
         await MergeLedger(scope, "apps/ino/handled/voice", "apps/assistant/handled/voice", replayable, ct);
 

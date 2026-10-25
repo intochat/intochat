@@ -1,9 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Facts.Signals;
+using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.Agents.Facts;
+namespace IntoChat.OS.Modules.AI.Agents.Facts;
 
 [GenerateSerializer, Alias("facts.dedup")]
 public sealed record FactDedup([property: Id(0)] string Key, [property: Id(1)] Guid FactId);

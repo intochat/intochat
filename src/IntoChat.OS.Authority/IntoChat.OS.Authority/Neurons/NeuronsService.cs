@@ -1,8 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Neurons.Proto;
 using Google.Protobuf;
 using Grpc.Core;

@@ -1,6 +1,6 @@
 using Azure.Identity;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 // One Orleans store is reached either by a shared-key connection string or by a service URI that
 // authenticates with the deployment identity. The connection-string key also accepts an https

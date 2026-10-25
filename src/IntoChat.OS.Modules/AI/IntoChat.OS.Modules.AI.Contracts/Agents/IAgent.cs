@@ -1,8 +1,8 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.AI.Agents;
+namespace IntoChat.OS.Modules.AI.Agents;
 
 // The agent keeps the transcript and runs its own turn. Run streams the turn; Start answers the
 // run id at once and reports the turn as signals. Both publish the same signals.

@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Azure.Core;
 using Azure.Core.Pipeline;
-using IntoChat.OS.Microsoft.Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 

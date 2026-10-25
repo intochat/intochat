@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Map;
+namespace IntoChat.OS.Modules.Flutter.Map;
 
 [Alias("map"), Orleans.Metadata.DefaultGrainType(UIVocabulary.MapType)]
 public interface IMap : INeuron

@@ -250,7 +250,7 @@ public sealed record TelemetrySpan(DashboardResource? Resource, DashboardInstrum
     public string SpanId => Data.SpanId;
     public string? ParentSpanId => Data.ParentSpanId;
     public string Text => MetadataText + "\n" + TelemetryText.Of(new { Resource, Instrumentation, Data });
-    public bool IsGenAi => Scope.StartsWith("IntoChat.OS.AI", StringComparison.Ordinal)
+    public bool IsGenAi => Scope.StartsWith("IntoChat.OS.Modules.AI", StringComparison.Ordinal)
         || Scope.StartsWith("Microsoft.Extensions.AI", StringComparison.Ordinal)
         || Scope.StartsWith("Experimental.Microsoft.Extensions.AI", StringComparison.Ordinal);
 }

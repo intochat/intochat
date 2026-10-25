@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Marketplace;
 
 // A Marketplace listing as the trust cluster holds it: the Apps module's listing with its source brain
 // spelled out (R54). Shipped listings never reach the trust catalog (R56), so both source fields are set there.

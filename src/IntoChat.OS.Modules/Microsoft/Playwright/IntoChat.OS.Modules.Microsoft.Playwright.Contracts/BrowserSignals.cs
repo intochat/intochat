@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Microsoft.Playwright;
+
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 [GenerateSerializer, Alias("playwright.ready")]
 public sealed record BrowserReady([property: Id(0)] string SessionId) : Signal;

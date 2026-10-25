@@ -1,6 +1,5 @@
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flame.Scene.Signals;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flame.Tests.Integration.Scene;

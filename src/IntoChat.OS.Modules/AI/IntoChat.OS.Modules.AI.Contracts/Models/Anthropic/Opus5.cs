@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models.Anthropic;
+namespace IntoChat.OS.Modules.AI.Models.Anthropic;
 
 public sealed class Opus5 : LLMModel<IOpus5>
 {

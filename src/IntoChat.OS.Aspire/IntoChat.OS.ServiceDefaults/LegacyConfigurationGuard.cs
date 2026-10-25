@@ -26,8 +26,8 @@ public static class LegacyConfigurationGuard
     // unlike the product rename these are not Development warnings, because a silently ignored one moves local state.
     public static readonly IReadOnlyList<(string Name, string Replacement)> RetiredSettings =
     [
-        ("IntoChatOS:Hosting:PersistentStorage", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
-        ("IntoChatOS:Platform:Storage:Directory", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
+        ("IntoChatOS:Hosting:PersistentStorage", IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey),
+        ("IntoChatOS:Platform:Storage:Directory", IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey),
         ("IntoChatOS:Profile", CompositionReplacement),
         ("IntoChatOS:Preset", CompositionReplacement),
         // The loopback guard follows the topology (D-21); the old run-mode marker would otherwise be ignored silently.
@@ -60,7 +60,7 @@ public static class LegacyConfigurationGuard
         if (localApplicationData is { Length: > 0 } && Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS", "runtime")))
         {
             logger?.LogInformation("{Directory} is from an earlier release and is not read or migrated; local state now lives in <{HomeKey}>/state.",
-                Path.Combine("%LOCALAPPDATA%", "IntoChatOS", "runtime"), IntoChat.OS.Framework.IntoChatOSNames.HomeKey);
+                Path.Combine("%LOCALAPPDATA%", "IntoChatOS", "runtime"), IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey);
         }
         var offenders = Find(configuration, names, localApplicationData);
         if (offenders.Count == 0) { return; }

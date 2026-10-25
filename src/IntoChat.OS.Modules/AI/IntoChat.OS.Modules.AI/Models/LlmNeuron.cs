@@ -1,11 +1,12 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Serialization.Invocation;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 // A brain's model calls run concurrently: only Describe and Generate interleave, with each other.
 // ObserverManager.Notify enumerates (and prunes) the observer set across awaits, so publishes and

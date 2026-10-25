@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Toggle;
+using IntoChat.OS.Modules.Flutter.Toggle;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Toggle;

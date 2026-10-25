@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Embeddings;
 
-namespace IntoChat.OS.AI.Models.Ollama;
+namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
 public sealed class EmbeddingGemma : EmbeddingModel<IEmbeddingGemma>
 {

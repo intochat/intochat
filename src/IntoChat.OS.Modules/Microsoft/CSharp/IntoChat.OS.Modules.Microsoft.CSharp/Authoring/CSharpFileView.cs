@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
-namespace IntoChat.OS.Microsoft.CSharp.Authoring;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 // The authoring wire shape: the file's short id with its name and purpose, read from the file neuron itself.
 public sealed record CSharpDescription(string Id, string Name, string Purpose, DateTimeOffset CreatedAt);

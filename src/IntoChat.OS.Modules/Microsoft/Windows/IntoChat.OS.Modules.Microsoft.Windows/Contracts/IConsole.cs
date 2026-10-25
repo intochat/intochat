@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // cmd.exe on one Windows PC, keyed {connectionKey}/console; the working directory must be inside an allowed root.
 [Alias("windows.console"), Orleans.Metadata.DefaultGrainType("windows.console")]

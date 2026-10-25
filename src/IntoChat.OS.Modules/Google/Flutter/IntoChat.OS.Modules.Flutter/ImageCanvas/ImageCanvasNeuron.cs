@@ -1,8 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.ImageCanvas;
+namespace IntoChat.OS.Modules.Flutter.ImageCanvas;
 
 [GrainType(UIVocabulary.ImageCanvasType)]
 internal sealed class ImageCanvasNeuron(

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Voice;
 
-namespace IntoChat.OS.AI.Models.FoundryLocal;
+namespace IntoChat.OS.Modules.AI.Models.FoundryLocal;
 
 public sealed class WhisperTiny : TranscriptionModel<IWhisperTiny>
 {

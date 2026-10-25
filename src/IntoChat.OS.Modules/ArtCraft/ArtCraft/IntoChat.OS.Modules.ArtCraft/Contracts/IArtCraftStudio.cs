@@ -1,4 +1,4 @@
-namespace IntoChat.OS.ArtCraft;
+namespace IntoChat.OS.Modules.ArtCraft;
 
 // One per brain, keyed {brain}/artcraft. Open connects the brain to the app's MCP server (its tools then
 // appear in search) and answers where the app's own page is served for the shell's browser.

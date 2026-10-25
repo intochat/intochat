@@ -1,5 +1,6 @@
 using IntoChat.OS;
-namespace IntoChat.OS.Time.Reminders;
+
+namespace IntoChat.OS.Modules.Time.Reminders;
 
 [Alias("reminder")]
 [Orleans.Metadata.DefaultGrainType("reminder")]

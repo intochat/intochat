@@ -1,13 +1,18 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
-namespace IntoChat.OS.Microsoft.Playwright;
+
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 public sealed class PlaywrightModule() : Module<PlaywrightModuleOptions>(new ModuleId("playwright"))
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Microsoft.Playwright.IPlaywright).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Playwright.IPlaywright).Assembly;
 
     public override void Configure(ISiloBuilder silo) => silo.AddPlaywright();
 }

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 public static class ResourceKinds
 {

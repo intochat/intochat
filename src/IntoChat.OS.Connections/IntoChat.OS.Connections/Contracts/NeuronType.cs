@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Contracts;
 
 // A capability the brain can search and call. A kernel neuron type has no Key; a live tool (from an
 // IRuntimeCapabilitySource) is bound to one neuron Key and names its Tool, called as Run(Tool, arguments).

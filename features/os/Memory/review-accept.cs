@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // "review-accept" (input: the review row id) applies the item by its kind (Reviews.RouteOf): a profile, fact or insight

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Layout;
+namespace IntoChat.OS.Modules.Flutter.Layout;
 
 [Alias("layout"), Orleans.Metadata.DefaultGrainType(UIVocabulary.LayoutType)]
 public interface ILayout : INeuron

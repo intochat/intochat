@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace IntoChat.OS.Microsoft.Windows.Signals;
+namespace IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
 // Published by IFileSystem.Write only: a file changed on disk by anything else signals nothing.
 [GenerateSerializer, Alias("windows.file-written")]

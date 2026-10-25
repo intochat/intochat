@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("github.unavailable")]
 internal sealed class GitHubUnavailableException(string message) : InvalidOperationException(message);

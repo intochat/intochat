@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Entries;
+namespace IntoChat.OS.Modules.Flutter.Entries;
 
 [GenerateSerializer, Alias("ui.entry-control-mode")]
 public enum EntryControlMode { Key = 0, Collection = 1 }

@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.AI.Metering;
+namespace IntoChat.OS.Modules.AI.Metering;
 
 // Prices the provider's reported token classes through the kernel's cost meter, one set of rows
 // per raw provider call, immediately after the response reports usage. It sits at the innermost

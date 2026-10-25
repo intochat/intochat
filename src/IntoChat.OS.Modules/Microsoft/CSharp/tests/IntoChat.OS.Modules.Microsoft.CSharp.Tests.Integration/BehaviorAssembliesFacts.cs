@@ -1,6 +1,5 @@
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -27,7 +26,7 @@ public sealed class BehaviorAssembliesFacts(CSharpHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var store = brain.Services.GetRequiredService<IBehaviorAssemblies>();
-        var sandbox = brain.Services.GetRequiredService<IntoChat.OS.Apps.IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IntoChat.OS.Modules.Apps.IScriptSandbox>();
 
         var check = await sandbox.Compile(new Dictionary<string, string> { ["synapses/x.cs"] = "Console.WriteLine(2);\n" }, ct);
 

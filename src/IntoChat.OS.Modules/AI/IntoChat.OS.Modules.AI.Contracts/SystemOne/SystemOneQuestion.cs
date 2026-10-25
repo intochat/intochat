@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.SystemOne;
+namespace IntoChat.OS.Modules.AI.SystemOne;
 
 // A TypeSafe System One question. Choice picks one option, Score rates on a rubric, Noul asks
 // whether a statement is true. A request mixes them; they are answered in parallel and in isolation.

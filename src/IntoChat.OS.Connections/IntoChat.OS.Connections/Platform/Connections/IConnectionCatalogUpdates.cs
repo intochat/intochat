@@ -1,7 +1,8 @@
-using IntoChat.OS.Framework.Contracts;
 using Orleans.Concurrency;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Connections;
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // Internal notification port on the public catalog neuron. One-way avoids a cycle when a
 // catalog read is already awaiting the connection that has just changed.

@@ -1,10 +1,13 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // Public deployment metadata only. The App id, key, OAuth client and webhook secret are the
 // github Integration's; repository connections are per-brain neurons.

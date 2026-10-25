@@ -1,4 +1,5 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.Configuration;
 

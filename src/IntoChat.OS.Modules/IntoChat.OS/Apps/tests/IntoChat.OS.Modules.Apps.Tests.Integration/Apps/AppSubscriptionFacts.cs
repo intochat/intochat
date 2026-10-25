@@ -1,9 +1,8 @@
-using IntoChat.OS.Apps.Signals;
 using IntoChat.OS.Testing;
 
 using IntoChat.OS.Modules.Apps.Tests.Integration;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 public sealed class AppSubscriptionFacts(AppsHost host)
 {

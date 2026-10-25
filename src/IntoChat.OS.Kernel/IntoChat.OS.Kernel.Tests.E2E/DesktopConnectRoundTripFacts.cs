@@ -2,10 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Web;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -25,7 +24,7 @@ public sealed class DesktopConnectRoundTripFacts(ConnectHostFixture host) : Brai
         var brain = Brain;
         var desktop = WorkspaceId + "/apps/desktop";
         using var caller = User.AsCaller();
-        await brain.Get<IntoChat.OS.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
+        await brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(desktop + "/layout").Set("desktop");
         await brain.Get<IApp>(desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(brain, User, ct);
         using (var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct)) { connected.EnsureSuccessStatusCode(); }

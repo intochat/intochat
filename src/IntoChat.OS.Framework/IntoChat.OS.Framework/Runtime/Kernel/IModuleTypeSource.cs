@@ -1,4 +1,5 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

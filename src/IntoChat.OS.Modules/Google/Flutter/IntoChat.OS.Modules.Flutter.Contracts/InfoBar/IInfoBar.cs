@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.InfoBar;
+namespace IntoChat.OS.Modules.Flutter.InfoBar;
 
 [Alias("infobar"), Orleans.Metadata.DefaultGrainType(UIVocabulary.InfoBarType)]
 public interface IInfoBar : INeuron

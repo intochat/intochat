@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Whether a program declares rules, read by syntax alone: some shared file (no top-level statements)
 // names ILogic. Conservative on purpose: it only decides whether a host without a sandbox must refuse.

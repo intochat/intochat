@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Microsoft.CSharp.Edge;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 
 // The three routes a sandbox session speaks. The caller is the session, not a brain member, so the
 // group validates the brain id and leaves authentication to the session token.

@@ -1,7 +1,7 @@
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // Only the app neuron a listing names may write it: Upsert's listing must address the calling
 // app, and Remove may only take down the caller's own listing. A Remove of a listing that no
@@ -24,7 +24,7 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
                     ? MarketplaceNeuron.OwnerKey(MarketplaceNeuron.Listing(stored))
                     : null;
             if (owner is not null
-                && (context.SourceId is not { } source || source.Type.ToString() != IntoChat.OS.Framework.AppGrainType.Name || source.Key.ToString() != owner))
+                && (context.SourceId is not { } source || source.Type.ToString() != IntoChat.OS.Connections.AppGrainType.Name || source.Key.ToString() != owner))
             { throw new UnauthorizedAccessException("Only the app that owns a Marketplace listing may change it."); }
         }
         await context.Invoke();

@@ -1,8 +1,8 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -62,7 +62,7 @@ public sealed class BoundaryFacts
         Assert.Equal(["IntoChat.OS.Modules.Apps"], implementations);
         var circles = Assert.Single(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == "IntoChat.OS.Modules.Circles");
         Assert.Contains(circles.GetTypes(), type => type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Apps.FeatureLoader")));
+            .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Modules.Apps.FeatureLoader")));
     }
 
     [Fact]
@@ -129,14 +129,15 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Framework.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Sdk.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "IntoChat.OS.Framework.Platform.Secrets") || InNamespace(type, "IntoChat.OS.Framework.Platform.Identity")
-        || InNamespace(type, "IntoChat.OS.Framework.Platform.Integrations"));
+        InNamespace(type, "IntoChat.OS.Connections.Platform.Secrets")
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Sdk.Platform.Identity")
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Sdk.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;
@@ -158,7 +159,7 @@ public sealed class BoundaryFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Framework.Modules.Module<>))
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Sdk.Modules.Module<>))
             { return current.GetGenericArguments()[0]; }
         }
         return null;

@@ -1,8 +1,11 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Integrations;
 
-namespace IntoChat.OS.Microsoft.GitHub;
+namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 internal sealed record GitHubAppCredentials(long AppId, string PrivateKeyPem);
 

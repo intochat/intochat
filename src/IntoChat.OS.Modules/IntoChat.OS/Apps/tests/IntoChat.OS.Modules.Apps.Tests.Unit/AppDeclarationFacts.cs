@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class AppDeclarationFacts
@@ -7,7 +5,7 @@ public sealed class AppDeclarationFacts
     private const string Source = """
         /* A calculator.
            Adds numbers. */
-        using IntoChat.OS.Apps;
+        using IntoChat.OS.Modules.Apps;
 
         static class App
         {
@@ -78,7 +76,7 @@ public sealed class AppDeclarationFacts
     public void AnExpressionThatWouldHaveToRunIsRefused()
     {
         const string source = """
-            using IntoChat.OS.Apps;
+            using IntoChat.OS.Modules.Apps;
             static class App
             {
                 public const string Name = "a";

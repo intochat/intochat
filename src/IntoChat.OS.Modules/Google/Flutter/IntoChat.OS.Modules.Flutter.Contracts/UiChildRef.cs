@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 [GenerateSerializer, Alias("ui.child-ref")]
 public sealed record UiChildRef(

@@ -1,9 +1,11 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.AI.Media;
+namespace IntoChat.OS.Modules.AI.Media;
 
 public abstract class MediaNeuron : Neuron
 {

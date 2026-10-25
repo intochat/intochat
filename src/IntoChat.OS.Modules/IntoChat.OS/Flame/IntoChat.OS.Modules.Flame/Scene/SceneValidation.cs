@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 internal static class SceneValidation
 {

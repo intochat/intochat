@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // How an app's program runs. The Apps module hands over sources and configuration; a host without a
 // runtime (no csharp module) registers none and apps are data only.

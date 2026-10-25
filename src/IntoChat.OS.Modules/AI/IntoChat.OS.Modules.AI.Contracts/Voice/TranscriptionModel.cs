@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 
-namespace IntoChat.OS.AI.Voice;
+namespace IntoChat.OS.Modules.AI.Voice;
 
 // Not decoration: the gpt-4o transcribe models accept only text and json, while
 // verbose json and the subtitle formats are whisper-1's alone. Declaring it lets

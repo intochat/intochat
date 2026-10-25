@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Expander.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Expander.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Expander;
+namespace IntoChat.OS.Modules.Flutter.Expander;
 
 [GrainType(UIVocabulary.ExpanderType)]
 internal sealed class ExpanderNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ExpanderState> store)

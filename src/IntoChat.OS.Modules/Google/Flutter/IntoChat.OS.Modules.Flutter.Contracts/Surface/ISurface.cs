@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Surface;
+namespace IntoChat.OS.Modules.Flutter.Surface;
 
 [Alias("surface"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SurfaceType)]
 public interface ISurface : INeuron

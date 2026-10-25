@@ -1,6 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -9,8 +13,8 @@ public sealed class ModuleHostingScanFacts
     [Fact]
     public void An_adapter_referenced_by_the_root_is_found_under_its_module()
     {
-        var adapters = ModuleHostingScan.Resolve(typeof(IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting).Assembly);
-        Assert.IsType<IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting>(
+        var adapters = ModuleHostingScan.Resolve(typeof(IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting).Assembly);
+        Assert.IsType<IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting>(
             adapters[new ModuleId("postgres")]);
     }
 

@@ -1,7 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 
-namespace IntoChat.OS.Tools;
+namespace IntoChat.OS.Modules.Tools;
 
 // A brain's tools as capabilities: every existing instance of a kernel neuron type that is a tool
 // source, asked for its live tools, each one bound to its source's key and called as Run(tool, arguments).

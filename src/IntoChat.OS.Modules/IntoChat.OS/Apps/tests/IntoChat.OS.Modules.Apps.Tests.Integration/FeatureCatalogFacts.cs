@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 public sealed class FeatureCatalogFacts : IDisposable

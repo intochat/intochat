@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var view = brain.Get<IView>(Ino.Key(brain) + "/view");

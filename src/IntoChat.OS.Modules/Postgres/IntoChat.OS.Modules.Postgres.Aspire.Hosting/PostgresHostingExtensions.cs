@@ -1,18 +1,22 @@
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Postgres.Aspire.Hosting;
+namespace IntoChat.OS.Modules.Postgres.Aspire.Hosting;
 
 internal static class PostgresHostingExtensions
 {
-    public static IntoChatOSModuleBuilder<IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting> WithPostgres(
-        this IntoChatOSModuleBuilder<IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting> module, string connectionName, PostgresResourceOptions hosting)
+    public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting> WithPostgres(
+        this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting> module, string connectionName, PostgresResourceOptions hosting)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(hosting);
@@ -22,13 +26,13 @@ internal static class PostgresHostingExtensions
         return module;
     }
 
-    internal static void WithExternalConnection(this IntoChatOSModuleBuilder<IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting> module, string connectionName)
+    internal static void WithExternalConnection(this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting> module, string connectionName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionName);
         State(module).Enable(new(connectionName, null, false));
     }
 
-    private static PostgresHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Postgres.Aspire.Hosting.PostgresModuleHosting> module)
+    private static PostgresHostingState State(IntoChatOSModuleBuilder<IntoChat.OS.Modules.Postgres.Aspire.Hosting.PostgresModuleHosting> module)
     {
         var state = module.GetOrAddProjection(brain => new PostgresHostingState(brain, module.Resource));
         return state;
@@ -80,19 +84,19 @@ internal static class PostgresHostingExtensions
             if (_configuration is null) { return; }
             if (_database is not null)
             {
-                builder.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
+                builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                     .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
                 if (_server is not null)
                 {
-                    builder.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
+                    builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
-                        context.EnvironmentVariables[IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
+                        context.EnvironmentVariables[IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
                 }
             }
             else if (_connection is not null)
             {
-                builder.WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
+                builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
             }
         }
     }

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Platform.Identity;
+namespace IntoChat.OS.Sdk.Platform.Identity;
 
 public enum MemberRole
 {

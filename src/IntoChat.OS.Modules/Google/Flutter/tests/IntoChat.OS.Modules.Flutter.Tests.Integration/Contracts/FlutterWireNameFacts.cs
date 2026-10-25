@@ -1,14 +1,14 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.WebBrowser;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.WebBrowser;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 
-// W2 PR 0 (ui-contract 6.1, 7.1): the names the shell and stored brains carry for the IntoChat.OS.Flutter.*
+// W2 PR 0 (ui-contract 6.1, 7.1): the names the shell and stored brains carry for the IntoChat.OS.Modules.Flutter.*
 // contracts are pinned exactly, so the Ui contracts move (PR 2) and the generator (PR 3) can prove they changed
 // nothing. Per public type: contract full name, Orleans alias, default grain type, method aliases and the state Read
 // returns; signal short names (Watch selection and SignalEnvelope.type use them); enum member names. W1's
@@ -18,13 +18,15 @@ public sealed class FlutterWireNameFacts
     internal const string GoldenFile = "flutter-wire-names.golden.json";
     internal const string EnumBytesFile = "flutter-aliasless-enums.golden.json";
 
-    private static readonly Serializer Serializer = new ServiceCollection().AddSerializer().BuildServiceProvider().GetRequiredService<Serializer>();
+    // The silo's serializer: Orleans plus the legacy type names BrainHosting registers (0.7.0 namespace moves).
+    private static readonly Serializer Serializer = new ServiceCollection().AddSerializer()
+        .AddSingleton<ITypeConverter, LegacyTypeNames>().BuildServiceProvider().GetRequiredService<Serializer>();
 
     internal static SortedDictionary<string, string> Capture()
     {
         var names = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var type in typeof(UIVocabulary).Assembly.GetExportedTypes()
-                     .Where(type => type.Namespace?.StartsWith("IntoChat.OS.Flutter", StringComparison.Ordinal) == true))
+                     .Where(type => type.Namespace?.StartsWith("IntoChat.OS.Modules.Flutter", StringComparison.Ordinal) == true))
         {
             names[type.FullName!] = Describe(type);
         }
@@ -61,7 +63,7 @@ public sealed class FlutterWireNameFacts
             .Select(entry => current.TryGetValue(entry.Key, out var now) ? $"{entry.Key}: \"{entry.Value}\" -> \"{now}\"" : $"{entry.Key}: removed")
             .Concat(current.Keys.Except(golden.Keys).Select(key => $"{key}: added (review and capture)"))
             .ToArray();
-        Assert.True(changes.Length == 0, "IntoChat.OS.Flutter wire names changed; clients and stored brains still carry the old ones:\n" + string.Join('\n', changes));
+        Assert.True(changes.Length == 0, "IntoChat.OS.Modules.Flutter wire names changed; clients and stored brains still carry the old ones:\n" + string.Join('\n', changes));
     }
 
     // The capture finds what the W2 audit counted, so the fact above cannot pass vacuously.
@@ -71,9 +73,9 @@ public sealed class FlutterWireNameFacts
         var golden = UiContractFiles.Golden(GoldenFile);
 
         Assert.Equal(42, golden.Count(entry => entry.Value!.GetValue<string>().StartsWith("contract;", StringComparison.Ordinal)));
-        Assert.StartsWith("contract; alias=button; grain=button; read=IntoChat.OS.Flutter.Button.ButtonState;", golden["IntoChat.OS.Flutter.Button.IButton"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.StartsWith("contract; alias=button; grain=button; read=IntoChat.OS.Modules.Flutter.Button.ButtonState;", golden["IntoChat.OS.Modules.Flutter.Button.IButton"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.DoesNotContain(golden, entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=-; serialized=True", StringComparison.Ordinal));
-        Assert.Equal(["IntoChat.OS.Flutter.Chat.ChatRole", "IntoChat.OS.Flutter.Chat.ChatRunStatus", "IntoChat.OS.Flutter.Entries.EntryControlMode", "IntoChat.OS.Flutter.Preferences.PreferenceKind", "IntoChat.OS.Flutter.Preferences.PreferenceStore", "IntoChat.OS.Flutter.WebBrowser.BrowserConnection"],
+        Assert.Equal(["IntoChat.OS.Modules.Flutter.Chat.ChatRole", "IntoChat.OS.Modules.Flutter.Chat.ChatRunStatus", "IntoChat.OS.Modules.Flutter.Entries.EntryControlMode", "IntoChat.OS.Modules.Flutter.Preferences.PreferenceKind", "IntoChat.OS.Modules.Flutter.Preferences.PreferenceStore", "IntoChat.OS.Modules.Flutter.WebBrowser.BrowserConnection"],
             golden.Where(entry => entry.Value!.GetValue<string>().StartsWith("enum; alias=ui.", StringComparison.Ordinal) && entry.Value!.GetValue<string>().Contains("serialized=True", StringComparison.Ordinal)).Select(entry => entry.Key));
     }
 

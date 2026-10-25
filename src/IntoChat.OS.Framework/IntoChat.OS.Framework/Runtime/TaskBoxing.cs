@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Framework;
 

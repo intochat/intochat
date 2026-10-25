@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Metering;
+namespace IntoChat.OS.Modules.AI.Metering;
 
 public enum MeterKind { Chat, Embedding }
 

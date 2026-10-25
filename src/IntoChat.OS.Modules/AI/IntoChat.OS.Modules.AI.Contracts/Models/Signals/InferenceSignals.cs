@@ -1,6 +1,6 @@
 using IntoChat.OS;
 
-namespace IntoChat.OS.AI.Models.Signals;
+namespace IntoChat.OS.Modules.AI.Models.Signals;
 
 [GenerateSerializer, Alias("ai.inference-started")]
 public sealed record InferenceStarted([property: Id(0)] string NeuronId, [property: Id(1)] string OperationId) : Signal;

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 [GenerateSerializer, Alias("orleans.cluster.silo")]
 public sealed record SiloView(

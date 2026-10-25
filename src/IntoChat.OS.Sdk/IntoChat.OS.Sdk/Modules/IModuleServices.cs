@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Sdk.Modules;
 
 // What a module's OnConfigure sees of the host: services, configuration and its own bound options. It
 // is the seam that keeps module code independent of the silo builder type.

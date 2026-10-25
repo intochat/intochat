@@ -1,6 +1,6 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Modules;
-using Module = IntoChat.OS.Framework.Modules.Module;
+using IntoChat.OS.Sdk.Modules;
+using Module = IntoChat.OS.Sdk.Modules.Module;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -19,9 +19,9 @@ public sealed class SdkReferenceClosureFacts
         Assert.Equal("IntoChat.OS.Sdk", typeof(ModuleServices).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk", typeof(IModuleServices).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk", typeof(IntoChat.OS.Sdk.Validation.ValidationIssue).Assembly.GetName().Name);
-        Assert.Equal("IntoChat.OS.Contracts.Compute", typeof(IntoChat.OS.Framework.Compute.ICostMeter).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Contracts.Compute", typeof(IntoChat.OS.Contracts.Compute.ICostMeter).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Sdk.Identity", typeof(IntoChat.OS.Sdk.Identity.IPrivilegedServices).Assembly.GetName().Name);
-        Assert.Equal("IntoChat.OS.Sdk.Identity", typeof(IntoChat.OS.Framework.Platform.Identity.ISessionIssuer).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Sdk.Identity", typeof(IntoChat.OS.Sdk.Platform.Identity.ISessionIssuer).Assembly.GetName().Name);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class SdkReferenceClosureFacts
         Assert.Equal("sample", module.Id.ToString());
         var integration = sample.GetProperty("Integration", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
             ?? sample.GetField("Integration", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-        var schema = Assert.IsType<IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema>(integration);
+        var schema = Assert.IsType<IntoChat.OS.Sdk.Platform.Integrations.IntegrationSchema>(integration);
         Assert.Contains("ApiKey", schema.SecretFields);
     }
 }

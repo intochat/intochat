@@ -1,11 +1,13 @@
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Sdk.Configuration;
 using IntoChat.OS.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Google.Gmail.Testing;
+namespace IntoChat.OS.Modules.Google.Gmail.Testing;
 
 // A brain with the Gmail module whose Google is the token/profile stub.
 public static class GmailBrain

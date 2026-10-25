@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public sealed class AIModelProfileOptions
 {

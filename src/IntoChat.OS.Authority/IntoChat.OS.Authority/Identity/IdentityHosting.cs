@@ -1,5 +1,7 @@
 using IntoChat.OS.Sdk.Identity;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Identity.Directory;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -56,9 +58,9 @@ public static class IdentityHosting
                 };
             });
         // Host-only keys: modules reach these through IPrivilegedServices, which checks IdentityHostOptions.PrivilegedModules.
-        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
-        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
-            (provider, _) => (IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        services.TryAddKeyedSingleton<IntoChat.OS.Sdk.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
+        services.TryAddKeyedSingleton<IntoChat.OS.Sdk.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
+            (provider, _) => (IntoChat.OS.Sdk.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         services.TryAddSingleton<IntoChat.OS.Sdk.Identity.IPrivilegedServices, PrivilegedModuleGate>();
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
@@ -67,7 +69,7 @@ public static class IdentityHosting
     // Brain access from the directory under the configured posture. A hosted deployment wraps the directory instead.
     internal static IBrainAccess LocalBrainAccess(IServiceProvider provider)
     {
-        var directory = new DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        var directory = new DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
             ? new OpenOwnerBrainAccess(directory) : directory;
     }

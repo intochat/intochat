@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Author and Builder system prompts. They live in code, next to the loop that sends them:
 // the tools referenced here are defined in BuilderTools, and a prompt change ships like any
@@ -113,7 +113,7 @@ internal static class AgentPrompts
         Read the UI contracts before composing children. UiChildRef.Kind selects the supported renderer
         kind (for example "text"); UiChildRef.Name identifies the neuron. Put arbitrary names such as
         "alpha" and "beta" in Name, never Kind. Different text children all use kind "text".
-        Use UIVocabulary constants from IntoChat.OS.Flutter when writing C#: for example
+        Use UIVocabulary constants from IntoChat.OS.Modules.Flutter when writing C#: for example
         new UiChildRef(UIVocabulary.TextType, brain.Setting("App") + "/alpha") for a text child,
         and UIVocabulary.SurfaceType for a surface. Do not invent renderer kinds.
         Initialize or rebuild derived UI cheaply and idempotently before the one reaction; retain existing

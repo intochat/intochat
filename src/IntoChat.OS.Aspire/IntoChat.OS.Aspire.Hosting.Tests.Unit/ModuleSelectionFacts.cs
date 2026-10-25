@@ -1,8 +1,12 @@
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;

@@ -1,14 +1,14 @@
 using System.Text.Json;
 using System.Text;
 using System.Security.Cryptography;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 
 public static class PublicationUi
 {

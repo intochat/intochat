@@ -23,11 +23,11 @@ public sealed class AuthOptions
     // it owns its own brain before the brain's authority records any membership. Every owner rule asks this.
     public const string OpenOwner = "owner";
 
-    public static bool IsOpenPostureOwner(IdentityPosture? posture, IntoChat.OS.Framework.CallerContext caller)
+    public static bool IsOpenPostureOwner(IdentityPosture? posture, IntoChat.OS.Sdk.CallerContext caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return posture == IdentityPosture.Open && caller.Kind == IntoChat.OS.Framework.CallerKind.User
-            && caller.StampedBy != IntoChat.OS.Framework.TrustedEdge.AppProxy
+        return posture == IdentityPosture.Open && caller.Kind == IntoChat.OS.Sdk.CallerKind.User
+            && caller.StampedBy != IntoChat.OS.Sdk.TrustedEdge.AppProxy
             && caller.PrincipalId == OpenOwner && caller.AccountId == OpenOwner;
     }
     public string? Username { get; set; }

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Embeddings;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 public abstract class EmbeddingModel : AiModel
 {

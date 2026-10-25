@@ -1,16 +1,18 @@
 using IntoChat.OS.Modules.Google.Gmail;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Sdk;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Integrations;
 using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [Module("gmail")]
 [ModuleContracts(typeof(IGmail))]

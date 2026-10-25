@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chart;
-using IntoChat.OS.Flutter.Chart.Signals;
+using IntoChat.OS.Modules.Flutter.Chart;
+using IntoChat.OS.Modules.Flutter.Chart.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chart;

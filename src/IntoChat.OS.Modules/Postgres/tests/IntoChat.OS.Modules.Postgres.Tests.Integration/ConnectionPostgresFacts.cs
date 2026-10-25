@@ -1,6 +1,5 @@
 using IntoChat.OS.Modules.Postgres;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration;

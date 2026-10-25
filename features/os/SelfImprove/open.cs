@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

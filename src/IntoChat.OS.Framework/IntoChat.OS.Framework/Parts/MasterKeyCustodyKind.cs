@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework.Parts;
 
 // Where a machine's custody root lives (R35): a configured root (development; refused in production) or the TPM.

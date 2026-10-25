@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Playwright;
+namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 [GenerateSerializer, Alias("playwright.attachment")]
 public sealed record BrowserAttachment([property: Id(0)] int Port, [property: Id(1)] string SessionId);

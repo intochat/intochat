@@ -1,9 +1,10 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flutter.Settings;
+namespace IntoChat.OS.Modules.Flutter.Settings;
 
 // Per-brain notification preferences, stored next to the display name and theme under {brain}/settings
 // as text fields holding "on" or "off". Any member may read and change them.

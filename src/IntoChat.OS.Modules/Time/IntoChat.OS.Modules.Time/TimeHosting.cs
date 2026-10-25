@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-namespace IntoChat.OS.Time;
+
+namespace IntoChat.OS.Modules.Time;
 
 public static class TimeHosting
 {

@@ -1,6 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
-namespace IntoChat.OS.Microsoft.CSharp.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A runtime resumes its session and watches when it wakes.
 internal sealed class BrainRuntimeActivation : IActivationHandler<BrainRuntimeNeuron>

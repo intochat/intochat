@@ -1,5 +1,4 @@
-global using ITimer = IntoChat.OS.Time.Timers.ITimer;
-using IntoChat.OS.Time;
+global using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Configuration;
 using Orleans.Runtime;

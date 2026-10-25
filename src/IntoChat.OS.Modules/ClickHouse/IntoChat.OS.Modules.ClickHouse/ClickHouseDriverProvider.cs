@@ -3,10 +3,10 @@ using System.Text.Json;
 using ClickHouse.Driver;
 using ClickHouse.Driver.ADO;
 using ClickHouse.Driver.ADO.Parameters;
-using IntoChat.OS.ClickHouse.Query;
-using QueryConnection = IntoChat.OS.ClickHouse.Query.ClickHouseConnection;
+using IntoChat.OS.Modules.ClickHouse.Query;
+using QueryConnection = IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnection;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // Every statement goes through ExecuteReaderAsync with the same server-side caps: readonly=2,
 // a bounded result, a bounded scan, a memory ceiling and a 15 second execution limit.

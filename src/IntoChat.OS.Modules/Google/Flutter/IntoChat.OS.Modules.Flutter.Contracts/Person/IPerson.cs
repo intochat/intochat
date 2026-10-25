@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Person;
+namespace IntoChat.OS.Modules.Flutter.Person;
 
 [Alias("person"), Orleans.Metadata.DefaultGrainType(UIVocabulary.PersonType)]
 public interface IPerson : INeuron

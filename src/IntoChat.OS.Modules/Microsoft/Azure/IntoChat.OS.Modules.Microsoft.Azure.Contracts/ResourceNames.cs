@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Azure;
+namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // <prefix>-<env>-<kind>, so a name follows from the config alone. Storage accounts and vaults have
 // their own limits (no dashes, 24 characters) and keep the same order.

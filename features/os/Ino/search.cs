@@ -1,6 +1,6 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
 
 // The sidebar search: each change of the search field becomes the durable query; view.cs republishes.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

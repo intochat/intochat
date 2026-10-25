@@ -1,7 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Postgres;
-using IntoChat.OS.Postgres.Tables;
 using IntoChat.OS.Testing;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;

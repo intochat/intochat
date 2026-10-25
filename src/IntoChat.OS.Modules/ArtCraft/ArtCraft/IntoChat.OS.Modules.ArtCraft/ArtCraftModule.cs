@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.ArtCraft;
+namespace IntoChat.OS.Modules.ArtCraft;
 
 public sealed class ArtCraftModule() : Module<ArtCraftModuleOptions>(new ModuleId("artcraft"))
 {

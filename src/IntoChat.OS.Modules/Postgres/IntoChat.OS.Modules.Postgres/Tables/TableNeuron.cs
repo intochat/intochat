@@ -1,10 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Postgres.Tables.Signals;
+using IntoChat.OS.Modules.Postgres.Tables.Signals;
 
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 [GenerateSerializer, Alias("postgres.table-state")]
 [ExportableState]

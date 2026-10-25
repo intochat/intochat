@@ -1,15 +1,15 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Preferences;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Preferences;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Integrations;
 
 // Durable view state ({app}/view-state), so a reconnect shows the same tab. ArchivedTake is the end of the archived page shown.

@@ -1,14 +1,18 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // A host with the Apps and Circles modules over the repository's features folder and a scripted connector, and circle
 // brains born the way a circle is born (T26-1): the trust side records a brain of kind Circle, and its creator gives
@@ -82,7 +86,7 @@ internal static class CircleBrainRooms
     // A synapse in shape whose body the marker sandbox refuses to compile.
     public const string NotCompiling = """
         await using var brain = await IntoChat.OS.Client.IntoChatOSClient.ConnectAsync(args);
-        await foreach (var request in brain.On(brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!), "go", brain.Stopping)) { DoesNotCompile(); }
+        await foreach (var request in brain.On(brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!), "go", brain.Stopping)) { DoesNotCompile(); }
         """;
 
     // Compiles everything except a file that calls DoesNotCompile.

@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Flutter.Workspace;
-using IntoChat.OS.Flutter.Workspace.Signals;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

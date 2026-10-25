@@ -1,11 +1,11 @@
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Facts.Signals;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // Memory owns the agent context Ino attaches to its turns and keeps three entries current: "working-memory"
 // (the text of {app}/working, cut at 4,000 characters; removed when empty) and "active-intents" (the

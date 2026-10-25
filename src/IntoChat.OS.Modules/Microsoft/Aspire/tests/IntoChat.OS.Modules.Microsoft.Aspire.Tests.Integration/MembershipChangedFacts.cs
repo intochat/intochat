@@ -1,10 +1,10 @@
-using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
-using IntoChat.OS.Microsoft.Aspire.Verification;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class MembershipChangedFacts
 {

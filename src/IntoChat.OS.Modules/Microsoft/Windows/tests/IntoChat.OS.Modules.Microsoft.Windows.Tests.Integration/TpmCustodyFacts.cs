@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using IntoChat.OS.Microsoft.Windows;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 

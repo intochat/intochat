@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Slider;
+using IntoChat.OS.Modules.Flutter.Slider;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Slider;

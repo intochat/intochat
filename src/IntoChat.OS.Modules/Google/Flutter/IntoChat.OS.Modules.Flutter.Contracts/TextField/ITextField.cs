@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.TextField;
+namespace IntoChat.OS.Modules.Flutter.TextField;
 
 [Alias("textfield"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TextFieldType)]
 public interface ITextField : INeuron

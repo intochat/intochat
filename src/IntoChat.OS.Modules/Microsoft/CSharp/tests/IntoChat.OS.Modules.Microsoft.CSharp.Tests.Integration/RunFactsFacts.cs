@@ -2,12 +2,14 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
@@ -215,7 +217,7 @@ public sealed class RunFactsFacts
         var spans = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
         using var listener = new System.Diagnostics.ActivityListener
         {
-            ShouldListenTo = source => source.Name == "IntoChat.OS.Microsoft.CSharp.Runtime",
+            ShouldListenTo = source => source.Name == "IntoChat.OS.Modules.Microsoft.CSharp.Runtime",
             Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = spans.Enqueue,
         };

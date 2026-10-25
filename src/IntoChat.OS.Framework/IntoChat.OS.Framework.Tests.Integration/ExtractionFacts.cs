@@ -1,5 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.Integration;

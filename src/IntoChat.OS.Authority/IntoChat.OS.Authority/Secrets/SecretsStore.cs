@@ -1,5 +1,6 @@
-
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
 namespace IntoChat.OS.Authority.Secrets;
 

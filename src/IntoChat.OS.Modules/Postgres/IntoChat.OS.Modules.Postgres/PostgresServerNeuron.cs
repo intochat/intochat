@@ -1,10 +1,12 @@
 using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 [GenerateSerializer, Alias("postgres.connection-state")]
 internal sealed class PostgresConnectionState : ConnectionState { }

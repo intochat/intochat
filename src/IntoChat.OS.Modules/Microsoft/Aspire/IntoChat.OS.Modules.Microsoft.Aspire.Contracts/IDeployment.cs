@@ -2,7 +2,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 
-namespace IntoChat.OS.Microsoft.Aspire;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 [GenerateSerializer, Alias("aspire.deployment.stage")]
 public enum DeploymentStage { Steady, Restarting, Rolling, RollingBack }
@@ -25,7 +25,7 @@ public interface IDeployment : INeuron
     // with the Failure that sent it back, which Read() reports. Callers follow a roll through Read()/DeploymentChanged and never resend Roll
     // while it runs: a step holds the cluster for up to two SiloStepBudgets, and a resend queued behind it outlives
     // the default response timeout. Refused unless the calling process is one of the cluster's instances.
-    // Who is up is not this neuron's: the membership is IntoChat.OS.Microsoft.Orleans.ICluster.
+    // Who is up is not this neuron's: the membership is IntoChat.OS.Modules.Microsoft.Orleans.ICluster.
     Task<DeploymentSnapshot> Roll(string sha);
     static string Key(string brainId) => $"{brainId}/{Relative}";
     // The id inside its brain.

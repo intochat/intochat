@@ -1,10 +1,10 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Sdk;
 using IntoChat.OS.Sdk.Validation;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Framework.Configuration;
+namespace IntoChat.OS.Sdk.Configuration;
 
 public static class ModuleOptionsSerialization
 {

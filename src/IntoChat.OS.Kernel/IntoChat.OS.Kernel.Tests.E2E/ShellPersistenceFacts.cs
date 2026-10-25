@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Playwright;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

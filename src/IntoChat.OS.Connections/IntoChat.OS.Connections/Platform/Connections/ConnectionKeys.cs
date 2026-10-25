@@ -1,4 +1,6 @@
-namespace IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework;
+
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // A connection is keyed {brain}/connection/{connector}/{id}; the brain id carries no '/'.
 public static class ConnectionKeys

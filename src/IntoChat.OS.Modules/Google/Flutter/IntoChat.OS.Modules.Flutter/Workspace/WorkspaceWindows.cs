@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.Workspace;
+namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 // Derived windows always satisfy Apply's rules: ids are w-<n>, at most MaxWindows windows of at most MaxTabs
 // tabs. Tab ids are view ids, which CheckViews already bounds and makes unique, so tabs need no mapping.

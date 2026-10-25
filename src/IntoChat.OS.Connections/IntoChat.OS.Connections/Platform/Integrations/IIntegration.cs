@@ -1,8 +1,9 @@
 using System.Text;
-using IntoChat.OS.Framework.Contracts;
 using Orleans.Concurrency;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Framework.Platform.Integrations;
+namespace IntoChat.OS.Connections.Platform.Integrations;
 
 public enum IntegrationStatus
 {

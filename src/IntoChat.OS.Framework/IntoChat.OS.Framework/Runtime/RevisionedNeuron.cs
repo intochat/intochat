@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 public abstract class RevisionedNeuron<TState>(IPersistentState<TState> store) : Neuron<TState>(store)

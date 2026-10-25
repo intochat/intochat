@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Progress.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Progress.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Progress;
+namespace IntoChat.OS.Modules.Flutter.Progress;
 
 [GrainType(UIVocabulary.ProgressType)]
 internal sealed class ProgressNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ProgressState> store)

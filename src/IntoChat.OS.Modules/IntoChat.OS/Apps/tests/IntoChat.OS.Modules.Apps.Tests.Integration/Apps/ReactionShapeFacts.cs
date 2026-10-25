@@ -3,7 +3,7 @@ using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // L0: a synapse is exactly one top-level reaction. The check is syntax, and the app gates hold every
 // program to it before anything deploys, publishes or exports.
@@ -13,7 +13,7 @@ public sealed class ReactionShapeFacts
 
     private const string Connect = """
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var app = brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!);
+        var app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!);
 
         """;
 
@@ -71,7 +71,7 @@ public sealed class ReactionShapeFacts
     }
 
     [Theory]
-    [InlineData("await foreach (var request in brain.On<IntoChat.OS.Apps.Signals.AppRequested>(app, brain.Stopping)) { }")]
+    [InlineData("await foreach (var request in brain.On<IntoChat.OS.Modules.Apps.Signals.AppRequested>(app, brain.Stopping)) { }")]
     [InlineData("await foreach (var request in brain.On(app, \"open\", brain.Stopping)) { }")]
     [InlineData("await foreach (var click in brain.On<ButtonClicked>(Sources.Of(a, b), brain.Stopping)) { }")]
     [InlineData("await foreach (var request in brain.On(app, \"open\", brain.Stopping).WithCancellation(brain.Stopping)) { }")]

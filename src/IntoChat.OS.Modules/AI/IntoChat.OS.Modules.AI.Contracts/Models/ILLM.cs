@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 [Alias("ai.llm"), Orleans.Metadata.DefaultGrainType("ai.llm")]
 // One model serves every brain; each caller is metered and granted as its own brain.

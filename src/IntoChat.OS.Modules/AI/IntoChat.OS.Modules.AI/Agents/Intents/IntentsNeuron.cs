@@ -1,9 +1,10 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.AI.Agents.Intents;
+namespace IntoChat.OS.Modules.AI.Agents.Intents;
 
 [ExportableState]
 [GenerateSerializer, Alias("intents.state")]

@@ -1,10 +1,11 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.VoiceInput.Signals;
+using IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.VoiceInput;
+namespace IntoChat.OS.Modules.Flutter.VoiceInput;
 
 [GrainType(UIVocabulary.VoiceInputType)]
 internal sealed class VoiceInputNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<VoiceInputState> store)

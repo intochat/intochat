@@ -1,10 +1,10 @@
 using System.Globalization;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.TextField;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;

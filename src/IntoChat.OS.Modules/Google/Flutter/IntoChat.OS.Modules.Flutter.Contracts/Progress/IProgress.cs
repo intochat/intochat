@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Progress;
+namespace IntoChat.OS.Modules.Flutter.Progress;
 
 [Alias("progress"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ProgressType)]
 public interface IProgress : INeuron

@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Connections;
 
 // Seals a selected connection credential for its destination brain without plaintext in grain calls.
 public interface IBrainSecretSealer

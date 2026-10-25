@@ -1,4 +1,5 @@
 using System.Reflection;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans;
 

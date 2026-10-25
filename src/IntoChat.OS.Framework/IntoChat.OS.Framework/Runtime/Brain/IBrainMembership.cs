@@ -1,3 +1,5 @@
+using IntoChat.OS.Sdk;
+
 namespace IntoChat.OS.Framework;
 
 // The brains a person is a member of, read by Kernel.Brains(). The identity directory answers it (Connections);

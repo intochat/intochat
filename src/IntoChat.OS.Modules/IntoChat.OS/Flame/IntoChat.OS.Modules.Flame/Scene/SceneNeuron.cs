@@ -1,10 +1,11 @@
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flame.Scene.Signals;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flame;
+namespace IntoChat.OS.Modules.Flame;
 
 [GrainType(FlameVocabulary.SceneType)]
 internal sealed class SceneNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SceneState> store)

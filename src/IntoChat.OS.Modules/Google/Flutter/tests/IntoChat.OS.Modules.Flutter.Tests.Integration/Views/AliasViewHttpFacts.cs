@@ -1,11 +1,13 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Viewport;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Viewport;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 

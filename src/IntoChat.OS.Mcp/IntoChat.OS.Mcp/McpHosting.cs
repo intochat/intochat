@@ -1,6 +1,7 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,7 +13,7 @@ public static class McpHosting
     public static void AddIntoChatOSMcp(this IServiceCollection services)
     {
         // Types come from the silo's kernel; this client carries contracts only to call neurons.
-        services.AddSingleton<IRuntimeCapabilitySource, IntoChat.OS.Tools.ToolCapabilitySource>();
+        services.AddSingleton<IRuntimeCapabilitySource, IntoChat.OS.Modules.Tools.ToolCapabilitySource>();
         services.AddIntoChatOSConnections();
         services.AddIdentity();
         // IBrainAccess asks the trust side for memberships: the MCP composes the trust clients as a reader (R70).

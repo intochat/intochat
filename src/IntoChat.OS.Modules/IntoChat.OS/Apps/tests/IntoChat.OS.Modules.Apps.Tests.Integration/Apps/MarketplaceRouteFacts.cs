@@ -3,7 +3,7 @@ using System.Text.Json;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The Marketplace over HTTP: a publisher publishes, another brain browses, installs, sees an
 // update when the publisher publishes again, and updates — all under the brain route.

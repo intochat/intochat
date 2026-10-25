@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Connections.Signals;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Connections.Signals;
 
 [GenerateSerializer, Alias("connection.connected")]
 public sealed record ConnectionConnected([property: Id(0)] string ConnectorId, [property: Id(1)] string ConnectionId, [property: Id(2)] string AuthMethodId, [property: Id(3)] string? Account) : Signal;

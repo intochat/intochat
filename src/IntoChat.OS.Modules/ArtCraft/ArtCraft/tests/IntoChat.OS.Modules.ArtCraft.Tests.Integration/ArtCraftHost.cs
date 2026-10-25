@@ -1,9 +1,9 @@
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Tools;
 
-[assembly: AssemblyFixture(typeof(IntoChat.OS.ArtCraft.Tests.ArtCraftHost))]
+[assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.ArtCraft.Tests.ArtCraftHost))]
 
-namespace IntoChat.OS.ArtCraft.Tests;
+namespace IntoChat.OS.Modules.ArtCraft.Tests;
 
 // The shared host composes ArtCraft with hosted apps pointed at an unreachable PhotoCraft MCP endpoint. Facts that
 // script a fake PhotoCraft server keep their own TestBrain ([Trait("host", "own")]); the endpoint is host-global.

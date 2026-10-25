@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.ClickHouse.Query;
+namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 [GenerateSerializer, Alias("clickhouse.connection-state")]
 internal sealed class ClickHouseConnectionState : ConnectionState { }

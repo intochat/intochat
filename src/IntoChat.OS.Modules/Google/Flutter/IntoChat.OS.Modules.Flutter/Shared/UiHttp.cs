@@ -1,9 +1,10 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Flutter;
+namespace IntoChat.OS.Modules.Flutter;
 
 // UI-kit neurons hold per-brain window data: a route's {name} addresses the part at "{brain}/ui/{name}".
 public static class UiScope

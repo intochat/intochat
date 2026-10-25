@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Flutter.ImageCanvas;
+namespace IntoChat.OS.Modules.Flutter.ImageCanvas;
 
 [GenerateSerializer, Alias("ui.image-point")]
 public sealed record ImagePoint([property: Id(0)] double X, [property: Id(1)] double Y);

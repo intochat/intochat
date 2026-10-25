@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp;
+namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 internal static class RepositoryRoot
 {

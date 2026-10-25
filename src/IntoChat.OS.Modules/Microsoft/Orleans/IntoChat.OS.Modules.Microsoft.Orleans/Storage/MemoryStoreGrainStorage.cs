@@ -4,7 +4,7 @@ using global::Orleans.Runtime;
 using global::Orleans.Serialization;
 using global::Orleans.Storage;
 
-namespace IntoChat.OS.Microsoft.Orleans;
+namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 // Grain state over one MemoryStores store: it outlives a silo restart within one process, so a machine
 // restart does not take the sequencer, keyring or brain authorities with it.

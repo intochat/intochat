@@ -1,4 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,6 @@ public sealed class McpTrustFacts(McpHost host)
         await using var app = builder.Build();
 
         Assert.NotNull(app.Services.GetRequiredService<IBrainAccess>());
-        Assert.NotNull(app.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        Assert.NotNull(app.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
     }
 }

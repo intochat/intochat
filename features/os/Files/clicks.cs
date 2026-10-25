@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Collection;
 
 // One subscription: an activated entry is the parent (up:), a folder (it lists) or a file (it does not).
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

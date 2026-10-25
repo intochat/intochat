@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Sdk.Modules;
 
-namespace IntoChat.OS.Microsoft.Windows;
+namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // MachineIdFile empty = %LOCALAPPDATA%\IntoChat.OS\machine-id; tests point it at a temp file.
 public sealed class WindowsOptions : IModuleOptions

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.AI.Models;
+namespace IntoChat.OS.Modules.AI.Models;
 
 [GenerateSerializer, Alias("db.ai.provider-unavailable")]
 public sealed class ProviderUnavailableException : InvalidOperationException

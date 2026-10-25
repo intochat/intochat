@@ -1,9 +1,9 @@
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.AI.Voice;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.AI.Voice;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 public static class AIOptionsExtensions
 {

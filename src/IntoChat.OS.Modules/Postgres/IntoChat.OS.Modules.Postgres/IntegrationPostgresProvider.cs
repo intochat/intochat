@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 internal sealed class IntegrationPostgresProvider(IPostgresSourceRegistry sources) : IPostgresProvider
 {

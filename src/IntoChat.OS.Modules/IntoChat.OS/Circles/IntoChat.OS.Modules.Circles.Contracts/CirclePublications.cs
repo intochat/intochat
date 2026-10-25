@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Circles;
+namespace IntoChat.OS.Modules.Circles;
 
 [GenerateSerializer, Alias("circles.publication-feed")]
 public sealed record CirclePublicationFeed(

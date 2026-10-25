@@ -1,7 +1,7 @@
 using ClickHouse.Driver;
-using IntoChat.OS.ClickHouse.Query;
+using IntoChat.OS.Modules.ClickHouse.Query;
 
-namespace IntoChat.OS.ClickHouse;
+namespace IntoChat.OS.Modules.ClickHouse;
 
 // Opens a user's database from the connection string a connection neuron unsealed for one call.
 internal interface IClickHouseSourceFactory

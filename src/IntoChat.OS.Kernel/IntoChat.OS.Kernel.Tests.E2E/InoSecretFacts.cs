@@ -1,14 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

@@ -1,14 +1,17 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Sdk.Http.Compute;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GenerateSerializer, Alias("db.google-drive.state")]
 internal sealed class DriveState : ConnectionState;

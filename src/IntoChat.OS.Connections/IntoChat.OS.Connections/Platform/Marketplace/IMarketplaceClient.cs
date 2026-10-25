@@ -1,4 +1,7 @@
-namespace IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
+
+namespace IntoChat.OS.Connections.Platform.Marketplace;
 
 // The people's Marketplace catalog, held by the trust cluster. A write acts for `account`, which the
 // machine signs for; the trust side honours it only for a brain that account owns.

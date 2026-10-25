@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 public sealed class AppDeclarationFacts
@@ -50,7 +48,7 @@ public sealed class AppDeclarationFacts
     {
         var read = AppDeclaration.Read("""
             // Echoes what it hears.
-            using IntoChat.OS.Apps;
+            using IntoChat.OS.Modules.Apps;
 
             static class App
             {
@@ -73,7 +71,7 @@ public sealed class AppDeclarationFacts
     public void ADeclarationThatComputesItsManifestIsRefused()
     {
         var error = Assert.Throws<InvalidDataException>(() => AppDeclaration.Read("""
-            using IntoChat.OS.Apps;
+            using IntoChat.OS.Modules.Apps;
             static class App
             {
                 public const string Name = "echo";

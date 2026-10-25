@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // A registry change means the set of views (or their definitions) changed: refresh them all.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Modules.Mcp;
 
 [GenerateSerializer, Alias("mcp.server-store")]
 [ExportableState]

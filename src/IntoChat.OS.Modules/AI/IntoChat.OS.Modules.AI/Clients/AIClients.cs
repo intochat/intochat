@@ -1,16 +1,20 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.AI.Metering;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.Anthropic;
-using IntoChat.OS.AI.Models.Google;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.AI.Models.OpenRouter;
-using IntoChat.OS.AI.Models.XAI;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.AI.Metering;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Anthropic;
+using IntoChat.OS.Modules.AI.Models.Google;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.OpenRouter;
+using IntoChat.OS.Modules.AI.Models.XAI;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Sdk;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Sdk.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +23,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 internal static class AIClients
 {
@@ -28,7 +32,7 @@ internal static class AIClients
     internal static readonly string DefaultEmbeddingKey = AIKeys.DefaultEmbedding;
     internal static readonly string DefaultTranscriptionKey = AIKeys.DefaultTranscription;
     internal static readonly string DefaultImageKey = AIKeys.DefaultImage;
-    private const string TelemetrySource = "IntoChat.OS.AI";
+    private const string TelemetrySource = "IntoChat.OS.Modules.AI";
 
     private static readonly IReadOnlyDictionary<AiProvider, ILlmProviderFactory> Factories =
         new ILlmProviderFactory[]

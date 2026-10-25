@@ -1,7 +1,9 @@
 using System.Runtime.Serialization;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Sdk;
 
-namespace IntoChat.OS.Microsoft.CSharp.Files;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // A file's record: its name and purpose, its program, its settings and the caller who started it. The runtime speaks for that
 // caller as the owner of the file's one-behavior program.

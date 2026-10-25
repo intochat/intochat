@@ -3,8 +3,10 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Modules.Microsoft.CSharp;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -16,7 +18,7 @@ public sealed class LocalProfileCompositionFacts
 
     private static Task<IDistributedApplicationTestingBuilder> LocalAsync()
         => DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChat.OS.Framework.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal],
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal],
             TestContext.Current.CancellationToken);
 
     [Fact]

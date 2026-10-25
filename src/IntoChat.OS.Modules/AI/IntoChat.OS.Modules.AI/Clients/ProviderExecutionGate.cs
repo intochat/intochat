@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.AI;
+namespace IntoChat.OS.Modules.AI;
 
 // Shared by every provider client in one host; changing model/profile does not create another budget.
 internal sealed class ProviderExecutionGate : IDisposable

@@ -1,11 +1,10 @@
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Runtime.InMemory;
-using IntoChat.OS.Time;
-using IntoChat.OS.Time.Timers;
-using IntoChat.OS.Time.Timers.Signals;
+using IntoChat.OS.Modules.Time.Timers;
+using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 namespace IntoChat.OS.Modules.Time.Tests.Unit;
 

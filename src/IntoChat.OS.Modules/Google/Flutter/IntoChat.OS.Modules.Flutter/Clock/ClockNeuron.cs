@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Clock.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Clock.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Clock;
+namespace IntoChat.OS.Modules.Flutter.Clock;
 
 [GrainType(UIVocabulary.ClockType)]
 internal sealed class ClockNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ClockState> store)

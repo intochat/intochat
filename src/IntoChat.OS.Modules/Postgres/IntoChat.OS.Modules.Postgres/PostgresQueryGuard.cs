@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace IntoChat.OS.Postgres;
+namespace IntoChat.OS.Modules.Postgres;
 
 // Syntax restrictions improve errors; PostgreSQL READ ONLY and database role permissions enforce access.
 internal static partial class PostgresQueryGuard

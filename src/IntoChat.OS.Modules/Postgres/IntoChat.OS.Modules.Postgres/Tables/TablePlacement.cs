@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Postgres.Tables;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 public enum TablePlacementKind { Shared, BrainDatabase, Connection }
 

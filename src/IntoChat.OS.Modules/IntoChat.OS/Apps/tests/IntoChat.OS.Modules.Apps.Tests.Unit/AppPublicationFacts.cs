@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class AppPublicationFacts

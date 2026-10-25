@@ -11,7 +11,7 @@ Documentation: https://github.com/intochat/os.docs (modules).
 Scripts select a full connection key through configuration or kernel discovery. Reads return one bounded provider page; continuation tokens are mailbox-grant scoped and provider ordering is best effort. Inspect `Failure` before `Value`.
 
 ```csharp
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Modules.Google.Gmail;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection.");
 var gmail = brain.Get<IGmail>(key);
@@ -25,7 +25,7 @@ foreach (var message in result.Value!.Messages)
 `MailReceived` means reconcile the mailbox. Subscribe before the initial read; the callback below runs after subscription. Watch delivery requires configured Pub/Sub. Duplicate wake-ups are possible.
 
 ```csharp
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Modules.Google.Gmail;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
 async Task Reconcile()
@@ -40,7 +40,7 @@ await foreach (var wakeup in brain.On<MailReceived>(gmail, Reconcile, brain.Stop
 `PreviewDraft` validates and stores a local preview for ten minutes without calling Google. Review its returned recipients, subject and body, then retain its preview ID and one request ID before calling `CreateDraft`. The example consumes those retained workflow settings. Reuse the same IDs after interruption; use `GetDraftOperation` for local recovery. Unknown outcomes require review and must not trigger a new automatic creation. Receipts can expire, so `not_found` does not prove absence of a provider draft. Compose requires separate consent for the same mailbox.
 
 ```csharp
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Modules.Google.Gmail;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var gmail = brain.Get<IGmail>(brain.Setting("GmailConnection") ?? throw new InvalidOperationException("Select a Gmail connection."));
 var previewId = brain.Setting("ReviewedPreviewId") ?? throw new InvalidOperationException("Review and retain a preview first.");

@@ -1,7 +1,7 @@
 using IntoChat.OS;
 using Orleans.Concurrency;
 
-namespace IntoChat.OS.Flutter.Slider;
+namespace IntoChat.OS.Modules.Flutter.Slider;
 
 [Alias("slider"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SliderType)]
 public interface ISlider : INeuron

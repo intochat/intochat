@@ -1,7 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Framework.Compute;
 
-namespace IntoChat.OS.Flutter.Compute;
+namespace IntoChat.OS.Modules.Flutter.Compute;
 
 [GrainType("ui.compute")]
 internal sealed class ComputeNeuron(IComputeReader reader) : Neuron, ICompute

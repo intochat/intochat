@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Roslyn;
+namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // One edit against the current snapshot. Each kind reads the fields it needs:
 // ReplaceMember: SymbolId, Source. InsertMember: SymbolId (a type, or the member to insert after), Source.

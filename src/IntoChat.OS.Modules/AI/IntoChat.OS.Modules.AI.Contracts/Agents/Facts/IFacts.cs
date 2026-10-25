@@ -3,7 +3,7 @@ using IntoChat.OS;
 using Orleans.Concurrency;
 using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
-namespace IntoChat.OS.AI.Agents.Facts;
+namespace IntoChat.OS.Modules.AI.Agents.Facts;
 
 public enum FactKind { Profile, Fact, Insight }
 

@@ -1,13 +1,14 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Preferences.Signals;
-using IntoChat.OS.Flutter.Settings;
+using IntoChat.OS.Modules.Flutter.Preferences.Signals;
+using IntoChat.OS.Modules.Flutter.Settings;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Flutter.Preferences;
+namespace IntoChat.OS.Modules.Flutter.Preferences;
 
 // One preference a Settings view shows. A brain store is read and written through BrainPreferenceStore, the same
 // fields the HTTP preference endpoints use, as the calling person; a Local* store is the device's, so the
