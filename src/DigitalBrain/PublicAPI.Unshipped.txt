@@ -898,3 +898,5 @@ override DigitalBrain.PrivilegedGrant.ToString() -> string!
 static DigitalBrain.ModuleDeclarations.None.get -> DigitalBrain.ModuleDeclarations!
 static DigitalBrain.PrivilegedGrant.operator !=(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
 static DigitalBrain.PrivilegedGrant.operator ==(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
+DigitalBrain.Spi.IClusterListeners
+DigitalBrain.Spi.IClusterListeners.Listen<TSignal>(string! listener, System.Func<DigitalBrain.NeuronId, TSignal!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!

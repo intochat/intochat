@@ -55,7 +55,13 @@ public sealed partial class TestOS : IAsyncDisposable
         Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance);
         Synapses = new SynapseRegistry(this);
         Confirmations = new TestConfirmations(Clock);
+        Listeners = new TestClusterListeners(this);
     }
+
+    /// <summary>Host-level listeners on the signals of every brain of this TestOS (04-19); they survive <see cref="Restart"/>.</summary>
+    public DigitalBrain.Spi.IClusterListeners ClusterListeners => Listeners;
+
+    internal TestClusterListeners Listeners { get; }
 
     /// <summary>The confirmation gate every neuron's <c>Context.Confirm</c> asks (07 D-03); set its policy and answer as a person here.</summary>
     public TestConfirmations Confirmations { get; }

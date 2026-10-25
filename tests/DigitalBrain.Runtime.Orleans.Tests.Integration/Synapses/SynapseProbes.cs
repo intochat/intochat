@@ -122,6 +122,9 @@ public class SynapseSilo : IAsyncLifetime
 
     protected virtual IReadOnlyDictionary<string, string?> Configuration { get; } = new Dictionary<string, string?>();
 
+    /// <summary>Extra silo services, applied again on every <see cref="Restart"/>.</summary>
+    protected virtual Action<IServiceCollection>? ConfigureServices => null;
+
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Not started.")).Services;
 
     public string Home => _home.Path;
@@ -155,7 +158,7 @@ public class SynapseSilo : IAsyncLifetime
     public Task DeactivateAll() => Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0).ForceActivationCollection(TimeSpan.Zero);
 
     public async ValueTask InitializeAsync()
-        => _host = await new LocalSiloHostFactory(new Stores()).Start(
+        => _host = await new LocalSiloHostFactory(new Stores(), ConfigureServices).Start(
             new InProcessHostOptions { Home = _home.Path, Modules = [typeof(HostingModule)], Configuration = Configuration }, CancellationToken.None);
 
     public async ValueTask DisposeAsync()

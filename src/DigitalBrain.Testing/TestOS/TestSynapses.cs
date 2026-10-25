@@ -127,6 +127,7 @@ internal sealed class SynapseRegistry(TestOS os)
         {
             throw new InvalidOperationException("TestOS.FailNextPublishAfterAppend: the append is durable, no reference was sent.");
         }
+        os.Listeners.Appended(publisher, written);
         List<NeuronId> subscribers;
         lock (_gate) { subscribers = [.. _bySubscriber.Where(pair => pair.Value.ContainsKey(publisher)).Select(pair => pair.Key)]; }
         var copies = os.Options.DuplicateDelivery ? 2 : 1;

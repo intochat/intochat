@@ -628,3 +628,4 @@ override DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.GetHashCode() -
 override DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.ToString() -> string!
 static DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.operator !=(DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? left, DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? right) -> bool
 static DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.operator ==(DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? left, DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? right) -> bool
+DigitalBrain.Testing.TestOS.ClusterListeners.get -> DigitalBrain.Spi.IClusterListeners!
