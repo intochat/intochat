@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Cross-platform twin of capture-all.ps1: regenerates every pinned contract artifact, additive-only by default.
-# Usage: scripts/capture-all.sh [--allow-breaking] [--skip-sync] [--out DIR] [--help]
-# Delegates to pwsh when it is installed (flags are forwarded as -AllowBreaking/-SkipSync/-Out); otherwise runs the
+# Usage: scripts/capture-all.sh [--allow-breaking] [--keys-only] [--skip-sync] [--out DIR] [--help]
+# Delegates to pwsh when it is installed (flags are forwarded as -AllowBreaking/-KeysOnly/-SkipSync/-Out); otherwise runs the
 # same `dotnet test --explicit only` captures and compares old/new pins with jq.
 set -euo pipefail
 
-allow=0; sync=1; out=""
+allow=0; keys=0; sync=1; out=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --help|-h) sed -n '2,5p' "$0"; exit 0 ;;
     --allow-breaking) allow=1 ;;
+    --keys-only) keys=1 ;;
     --skip-sync) sync=0 ;;
     --out) out="$2"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -23,12 +24,15 @@ cd "$root"
 if command -v pwsh >/dev/null 2>&1; then
   args=()
   [ "$allow" = 1 ] && args+=(-AllowBreaking)
+  [ "$keys" = 1 ] && args+=(-KeysOnly)
   [ "$sync" = 0 ] && args+=(-SkipSync)
   [ -n "$out" ] && args+=(-Out "$out")
   exec pwsh -NoProfile -File scripts/capture-all.ps1 "${args[@]}"
 fi
 
 command -v jq >/dev/null 2>&1 || { echo "capture-all.sh needs pwsh or jq" >&2; exit 1; }
+# The keys-only check (D-23) is PowerShell; without pwsh refuse rather than skip it.
+if [ "$keys" = 1 ]; then echo "--keys-only needs pwsh (scripts/keys-only-check.ps1)" >&2; exit 1; fi
 
 arch=$(git ls-files -- 'src/**/*Architecture.Tests.Unit.csproj')
 flutter=$(git ls-files -- 'src/**/*Modules.Flutter.Tests.Integration.csproj')

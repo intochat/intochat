@@ -15,11 +15,16 @@
 .EXAMPLE
   pwsh scripts/capture-all.ps1
   pwsh scripts/capture-all.ps1 -AllowBreaking -Out /tmp/after
+  pwsh scripts/capture-all.ps1 -AllowBreaking -KeysOnly
+
+  -KeysOnly runs scripts/keys-only-check.ps1 on the snapshot and the regenerated pins: a rename may change keys,
+  never values (D-23). On failure the pins are restored and the script exits 1.
 #>
 [CmdletBinding()]
 param(
     [string]$Out,
     [switch]$AllowBreaking,
+    [switch]$KeysOnly,
     [switch]$SkipSync,
     [string]$Configuration = 'Release'
 )
@@ -129,6 +134,24 @@ if ($breaking.Count -gt 0 -and -not $AllowBreaking) {
     exit 1
 }
 if ($breaking.Count -gt 0) { Write-Host "breaking changes accepted: $($breaking.Count)" }
+
+if ($KeysOnly) {
+    $scratch = Join-Path ([IO.Path]::GetTempPath()) ("keys-only-" + [Guid]::NewGuid().ToString('N'))
+    $was = Join-Path $scratch 'before'; $now = Join-Path $scratch 'after'
+    New-Item -ItemType Directory -Force -Path $was, $now | Out-Null
+    foreach ($name in $pins.Keys) {
+        [IO.File]::WriteAllBytes((Join-Path $was $name), $before[$name])
+        if (Test-Path $pins[$name]) { Copy-Item $pins[$name] (Join-Path $now $name) }
+    }
+    & pwsh -NoProfile -File (Join-Path $root 'scripts/keys-only-check.ps1') -Before $was -After $now
+    $keysOnlyExit = $LASTEXITCODE
+    Remove-Item -Recurse -Force $scratch
+    if ($keysOnlyExit -ne 0) {
+        foreach ($name in $pins.Keys) { [IO.File]::WriteAllBytes($pins[$name], $before[$name]) }
+        Write-Host 'Pins restored: the capture changed values, not only keys.'
+        exit 1
+    }
+}
 
 if ($Out) {
     New-Item -ItemType Directory -Force -Path $Out | Out-Null
