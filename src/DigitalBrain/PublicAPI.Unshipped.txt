@@ -111,6 +111,10 @@ DigitalBrain.Invocation.BoundCall.Contract.get -> System.Type!
 DigitalBrain.Invocation.BoundCall.Kind.get -> DigitalBrain.Invocation.InvocationResultKind
 DigitalBrain.Invocation.BoundCall.Method.get -> System.Reflection.MethodInfo!
 DigitalBrain.Invocation.BoundCall.ResultType.get -> System.Type?
+DigitalBrain.Invocation.IInvocationSink
+DigitalBrain.Invocation.IInvocationSink.Invoke(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation! call, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
+DigitalBrain.Invocation.IInvocationSink.Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation! call) -> System.Threading.Tasks.Task!
+DigitalBrain.Invocation.IInvocationSink.Stream(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation! call, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Text.Json.JsonElement>!
 DigitalBrain.Invocation.InvocationEncoder
 DigitalBrain.Invocation.InvocationResultKind
 DigitalBrain.Invocation.InvocationResultKind.None = 0 -> DigitalBrain.Invocation.InvocationResultKind
@@ -123,6 +127,9 @@ DigitalBrain.Invocation.NeuronBinder.MaximumArgumentBytes.get -> int
 DigitalBrain.Invocation.NeuronBinder.Misses.get -> long
 DigitalBrain.Invocation.NeuronBinder.NeuronBinder(int maximumArgumentBytes = 1048576) -> void
 DigitalBrain.Invocation.NeuronBinder.StreamAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Text.Json.JsonElement>!
+DigitalBrain.Invocation.NeuronProxy
+DigitalBrain.Invocation.NeuronProxy.NeuronProxy() -> void
+DigitalBrain.Invocation.NeuronProxy.Target.get -> DigitalBrain.NeuronId
 DigitalBrain.Invocation.RuntimeInvocation
 DigitalBrain.Invocation.RuntimeInvocation.<Clone>$() -> DigitalBrain.Invocation.RuntimeInvocation!
 DigitalBrain.Invocation.RuntimeInvocation.Arguments.get -> System.Text.Json.JsonElement[]!
@@ -368,6 +375,10 @@ override DigitalBrain.Gap.<Clone>$() -> DigitalBrain.Gap!
 override DigitalBrain.Gap.Equals(object? obj) -> bool
 override DigitalBrain.Gap.GetHashCode() -> int
 override DigitalBrain.Gap.ToString() -> string!
+override DigitalBrain.Invocation.NeuronProxy.Equals(object? obj) -> bool
+override DigitalBrain.Invocation.NeuronProxy.GetHashCode() -> int
+override DigitalBrain.Invocation.NeuronProxy.Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args) -> object?
+override DigitalBrain.Invocation.NeuronProxy.ToString() -> string!
 override DigitalBrain.Invocation.RuntimeInvocation.Equals(object? obj) -> bool
 override DigitalBrain.Invocation.RuntimeInvocation.GetHashCode() -> int
 override DigitalBrain.Invocation.RuntimeInvocation.ToString() -> string!
@@ -421,6 +432,8 @@ static DigitalBrain.Gap.operator !=(DigitalBrain.Gap? left, DigitalBrain.Gap? ri
 static DigitalBrain.Gap.operator ==(DigitalBrain.Gap? left, DigitalBrain.Gap? right) -> bool
 static DigitalBrain.Invocation.InvocationEncoder.Encode(System.Reflection.MethodInfo! method, object?[]? args) -> System.Text.Json.JsonElement[]!
 static DigitalBrain.Invocation.InvocationEncoder.TokenOf(System.Reflection.MethodInfo! method, object?[]? args) -> System.Threading.CancellationToken
+static DigitalBrain.Invocation.NeuronProxy.ContractName(System.Type! contract) -> string!
+static DigitalBrain.Invocation.NeuronProxy.Create<T>(DigitalBrain.NeuronId id, DigitalBrain.Invocation.IInvocationSink! sink) -> T!
 static DigitalBrain.Invocation.RuntimeInvocation.operator !=(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
 static DigitalBrain.Invocation.RuntimeInvocation.operator ==(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
 static DigitalBrain.JournaledSignal.operator !=(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
