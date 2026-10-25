@@ -36,7 +36,7 @@ public sealed class MachineKeyConfigurationSource : IConfigurationSource
     public string KeyFile => Path.Combine(Home.Secrets, FileName);
 
     /// <inheritdoc />
-    public IConfigurationProvider Build(IConfigurationBuilder builder) => new Provider(this);
+    public IConfigurationProvider Build(IConfigurationBuilder builder) => new KeySource(this);
 
     /// <summary>Reads the key, minting it when none exists; null when an explicit key is configured.</summary>
     /// <exception cref="InvalidOperationException">The key file is missing while state holds data.</exception>
@@ -79,7 +79,7 @@ public sealed class MachineKeyConfigurationSource : IConfigurationSource
         }
     }
 
-    private sealed class Provider(MachineKeyConfigurationSource source) : ConfigurationProvider
+    private sealed class KeySource(MachineKeyConfigurationSource source) : ConfigurationProvider
     {
         public override void Load()
         {

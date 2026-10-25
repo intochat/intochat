@@ -13,8 +13,8 @@ public static class TopologyHosting
     /// <summary>The package that carries the cloud topology.</summary>
     public const string CloudPackage = "DigitalBrain.Runtime.Orleans.Azure";
 
-    // Filled by 03-07 (LocalProfile, LocalCloudProfile); the cloud one arrives through the Azure package.
-    private static readonly ITopologyProfile[] BuiltIn = [];
+    // The single composition entry: local and local+cloud are built in; cloud arrives through the Azure package.
+    private static readonly ITopologyProfile[] BuiltIn = [new LocalProfile(), new LocalCloudProfile()];
 
     /// <summary>
     /// Parses the topology, selects its implementation, validates settings, the implementation and every module need, and
@@ -49,7 +49,7 @@ public static class TopologyHosting
         // Select whenever the topology itself parsed, so settings and implementation issues are reported together.
         if (!settings.Issues.Any(issue => issue.Key == IntoChatOSNames.TopologyKey))
         {
-            selected = BuiltIn.Concat(additional).FirstOrDefault(candidate => candidate.Topology == settings.Topology);
+            selected = additional.Concat(BuiltIn).FirstOrDefault(candidate => candidate.Topology == settings.Topology);
             if (selected is null)
             {
                 issues.Add(new TopologyIssue(IntoChatOSNames.TopologyKey, settings.Topology == Topology.Cloud

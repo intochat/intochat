@@ -12,5 +12,6 @@
     <Project Path="tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Analyzers.Tests.Unit/DigitalBrain.Analyzers.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Runtime.Orleans.Tests.Unit/DigitalBrain.Runtime.Orleans.Tests.Unit.csproj" />
+    <Project Path="tests/DigitalBrain.Runtime.Orleans.Tests.Integration/DigitalBrain.Runtime.Orleans.Tests.Integration.csproj" />
   </Folder>
 </Solution>

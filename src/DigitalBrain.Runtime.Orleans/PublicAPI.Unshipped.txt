@@ -93,6 +93,26 @@ DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.KeyFileMachineKeyProtector() -> void
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.Protect(byte[]! key) -> byte[]!
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.Unprotect(byte[]! stored) -> byte[]!
+DigitalBrain.Runtime.Orleans.LocalCloudProfile
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.Bindings.get -> DigitalBrain.Runtime.Orleans.Bindings!
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.ConfigureConfiguration(Microsoft.Extensions.Configuration.IConfigurationBuilder! builder, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.ConfigureSilo(Orleans.Hosting.ISiloBuilder! silo, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.Defaults.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string?>!
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.LocalCloudProfile() -> void
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.Services.get -> DigitalBrain.Runtime.Orleans.Services!
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.Topology.get -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.LocalCloudProfile.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IEnumerable<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
+DigitalBrain.Runtime.Orleans.LocalProfile
+DigitalBrain.Runtime.Orleans.LocalProfile.Bindings.get -> DigitalBrain.Runtime.Orleans.Bindings!
+DigitalBrain.Runtime.Orleans.LocalProfile.ConfigureConfiguration(Microsoft.Extensions.Configuration.IConfigurationBuilder! builder, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalProfile.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalProfile.ConfigureSilo(Orleans.Hosting.ISiloBuilder! silo, DigitalBrain.Runtime.Orleans.TopologyContext! context) -> void
+DigitalBrain.Runtime.Orleans.LocalProfile.Defaults.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string?>!
+DigitalBrain.Runtime.Orleans.LocalProfile.LocalProfile() -> void
+DigitalBrain.Runtime.Orleans.LocalProfile.Services.get -> DigitalBrain.Runtime.Orleans.Services!
+DigitalBrain.Runtime.Orleans.LocalProfile.Topology.get -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.LocalProfile.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IEnumerable<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 DigitalBrain.Runtime.Orleans.MachineKeyConfigurationSource
 DigitalBrain.Runtime.Orleans.MachineKeyConfigurationSource.Build(Microsoft.Extensions.Configuration.IConfigurationBuilder! builder) -> Microsoft.Extensions.Configuration.IConfigurationProvider!
 DigitalBrain.Runtime.Orleans.MachineKeyConfigurationSource.Existing.get -> Microsoft.Extensions.Configuration.IConfiguration?
@@ -164,6 +184,10 @@ DigitalBrain.Runtime.Orleans.StreamsBinding
 DigitalBrain.Runtime.Orleans.StreamsBinding.AzureQueue = 2 -> DigitalBrain.Runtime.Orleans.StreamsBinding
 DigitalBrain.Runtime.Orleans.StreamsBinding.MemoryWithFilePubSub = 1 -> DigitalBrain.Runtime.Orleans.StreamsBinding
 DigitalBrain.Runtime.Orleans.StreamsBinding.None = 0 -> DigitalBrain.Runtime.Orleans.StreamsBinding
+DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory
+DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.LocalSiloHostFactory() -> void
+DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.LocalSiloHostFactory(DigitalBrain.Runtime.Orleans.IClusterStoreRegistration? clusterStore) -> void
+DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.Start(DigitalBrain.InProcessHostOptions! options, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 DigitalBrain.Runtime.Orleans.Topology
 DigitalBrain.Runtime.Orleans.Topology.Cloud = 2 -> DigitalBrain.Runtime.Orleans.Topology
 DigitalBrain.Runtime.Orleans.Topology.Local = 0 -> DigitalBrain.Runtime.Orleans.Topology
@@ -235,6 +259,9 @@ const DigitalBrain.Runtime.Orleans.IntoChatOSNames.PlatformGrainStorage = "platf
 const DigitalBrain.Runtime.Orleans.IntoChatOSNames.PubSubStore = "PubSubStore" -> string!
 const DigitalBrain.Runtime.Orleans.IntoChatOSNames.SignalStreams = "signals" -> string!
 const DigitalBrain.Runtime.Orleans.IntoChatOSNames.TopologyKey = "IntoChatOS:Topology" -> string!
+const DigitalBrain.Runtime.Orleans.LocalProfile.HttpPort = 5310 -> int
+const DigitalBrain.Runtime.Orleans.LocalProfile.Image = "ghcr.io/intochat/os" -> string!
+const DigitalBrain.Runtime.Orleans.LocalProfile.SandboxImage = "ghcr.io/intochat/os-sandbox" -> string!
 const DigitalBrain.Runtime.Orleans.MachineKeyConfigurationSource.FileName = "master.key" -> string!
 const DigitalBrain.Runtime.Orleans.StateHome.DefaultDirectoryName = ".intochat" -> string!
 const DigitalBrain.Runtime.Orleans.TopologyContext.DefaultGatewayPort = 30000 -> int
@@ -276,6 +303,10 @@ static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Mic
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<Orleans.Hosting.ISiloBuilder!>! register) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.FileGrainStorage.FileNameOf(string! serviceId, string! grainType, string! grainKey, string! stateName) -> string!
 static DigitalBrain.Runtime.Orleans.FileGrainStorageHosting.AddFileGrainStorage(this Orleans.Hosting.ISiloBuilder! silo, string! name, System.Action<DigitalBrain.Runtime.Orleans.FileGrainStorageOptions!>! configure) -> Orleans.Hosting.ISiloBuilder!
+static DigitalBrain.Runtime.Orleans.LocalCloudProfile.Circle.get -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Runtime.Orleans.LocalProfile.LocalBindings.get -> DigitalBrain.Runtime.Orleans.Bindings!
+static DigitalBrain.Runtime.Orleans.LocalProfile.LocalServices.get -> DigitalBrain.Runtime.Orleans.Services!
+static DigitalBrain.Runtime.Orleans.LocalProfile.StoreDirectory(DigitalBrain.Runtime.Orleans.StateHome! home, string! name) -> string!
 static DigitalBrain.Runtime.Orleans.MachineKeyProtectors.ForCurrentPlatform() -> DigitalBrain.Runtime.Orleans.IMachineKeyProtector!
 static DigitalBrain.Runtime.Orleans.RetiredSetting.operator !=(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
 static DigitalBrain.Runtime.Orleans.RetiredSetting.operator ==(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
