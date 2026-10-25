@@ -26,6 +26,9 @@
     <MSBuild Projects="../DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_DigitalBrainAnalyzerDll" />
     </MSBuild>
+    <MSBuild Projects="../DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_DigitalBrainAnalyzerDll" />
+    </MSBuild>
     <ItemGroup>
       <None Include="@(_DigitalBrainAnalyzerDll)" Pack="true" PackagePath="analyzers/dotnet/cs" />
     </ItemGroup>

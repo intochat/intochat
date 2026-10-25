@@ -20,8 +20,18 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <InternalsVisibleTo Include="DigitalBrain.Analyzers.Tests.Unit" />
+    <InternalsVisibleTo Include="DigitalBrain.Analyzers.CodeFixes" />
     <Compile Include="..\DigitalBrain\Apps\SpecComment.cs" Link="Apps\SpecComment.cs" />
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md;AnalyzerReleases.Unshipped.md" />
     <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
+  <!-- 08-03: the code fixes (Workspaces-dependent, RS1038) ship next to the analyzer dll. -->
+  <Target Name="DigitalBrainPackCodeFixes" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="../DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_DigitalBrainCodeFixesDll" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_DigitalBrainCodeFixesDll)" Pack="true" PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 </Project>

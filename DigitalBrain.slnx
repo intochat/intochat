@@ -4,6 +4,7 @@
     <Project Path="src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <Project Path="src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
+    <Project Path="src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <Project Path="src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
