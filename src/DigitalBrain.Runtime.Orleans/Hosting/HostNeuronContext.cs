@@ -1,4 +1,5 @@
 using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Operations;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,7 @@ internal interface IHostNeuronContext
 /// <summary>
 /// The context of a hosted neuron: id, services, clock, state over BrainLog with publish after append, timers and reminders as
 /// host grain turns, the brain's signal history, synapses over the activation's <see cref="SynapseEngine"/>, typed proxies, caller
-/// provenance and deferred work. Operations are not hosted yet.
+/// provenance, deferred work and operations (runtime operation entities, D-04).
 /// </summary>
 internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
 {
@@ -64,7 +65,8 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
 
     public IReminders Reminders => _timers;
 
-    public IOperations Operations => throw new NotSupportedException("INeuronContext.Operations is not hosted on the Orleans runtime yet.");
+    /// <summary>Operations started by this neuron: entities <c>brain/runtime.operation/id</c> in its own brain, origin this neuron.</summary>
+    public IOperations Operations => field ??= new RuntimeOperations(_services, Id.Brain, Id.ToString());
 
     public ISynapses Synapses { get; }
 

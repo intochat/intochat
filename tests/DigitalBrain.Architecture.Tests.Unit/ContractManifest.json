@@ -33,6 +33,7 @@
     ],
     "neurons": [
       "runtime.listener",
+      "runtime.operation",
       "runtime.session"
     ],
     "signals": [

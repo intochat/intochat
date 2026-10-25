@@ -314,3 +314,11 @@ static DigitalBrain.Capabilities.Storage.WritePlan.operator ==(DigitalBrain.Capa
 ~override DigitalBrain.Capabilities.Storage.ByteRange.Equals(object obj) -> bool
 ~override DigitalBrain.Capabilities.Storage.ByteRange.ToString() -> string
 ~override DigitalBrain.Capabilities.Storage.ItemId.Equals(object obj) -> bool
+DigitalBrain.Capabilities.Storage.StorageOwner
+DigitalBrain.Capabilities.Storage.StorageWriteResult
+DigitalBrain.Capabilities.Storage.StorageWriteRunner
+DigitalBrain.Capabilities.Storage.StorageWriteRunner.Run(DigitalBrain.Capabilities.Storage.WritePlan! plan, DigitalBrain.Spi.IOperation! operation) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Capabilities.Storage.StorageWriteRunner.StorageWriteRunner(DigitalBrain.Capabilities.Storage.StorageOwner! owner, DigitalBrain.Capabilities.Storage.StorageWriteResult! result) -> void
+static DigitalBrain.Capabilities.Storage.StorageWriteRunner.FreeName(string! name, System.Collections.Generic.IEnumerable<string!>! taken) -> string!
+virtual DigitalBrain.Capabilities.Storage.StorageOwner.Invoke(DigitalBrain.Capabilities.Storage.ItemId item, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.CapabilityConnection<DigitalBrain.Capabilities.Storage.IStorage!>!>!
+virtual DigitalBrain.Capabilities.Storage.StorageWriteResult.Invoke(DigitalBrain.Capabilities.Storage.IStorage! storage, DigitalBrain.Operations.OperationId operation, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!

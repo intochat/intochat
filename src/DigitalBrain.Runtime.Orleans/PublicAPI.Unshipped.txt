@@ -668,3 +668,42 @@ static DigitalBrain.Runtime.Orleans.TopologyValidator.Validate(Microsoft.Extensi
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain.Runtime.Orleans.Topology topology, DigitalBrain.Runtime.Orleans.Bindings! bindings, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain.Runtime.Orleans.Topology topology, DigitalBrain.Runtime.Orleans.Bindings! bindings, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules, bool clusterStoreRegistered) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidatePubSubStore(DigitalBrain.Runtime.Orleans.Topology topology, System.IServiceProvider! services) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
+DigitalBrain.Runtime.Orleans.Operations.AllowAllOperations
+DigitalBrain.Runtime.Orleans.Operations.AllowAllOperations.AllowAllOperations() -> void
+DigitalBrain.Runtime.Orleans.Operations.AllowAllOperations.Check(DigitalBrain.Runtime.Orleans.Operations.OperationRequest! request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!>!
+DigitalBrain.Runtime.Orleans.Operations.IOperationGate
+DigitalBrain.Runtime.Orleans.Operations.IOperationGate.Check(DigitalBrain.Runtime.Orleans.Operations.OperationRequest! request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!>!
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.<Clone>$() -> DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Allowed.get -> bool
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Allowed.init -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Deconstruct(out bool Allowed, out string? Reason) -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Equals(DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision? other) -> bool
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.OperationGateDecision(bool Allowed, string? Reason) -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Reason.get -> string?
+DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Reason.init -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.<Clone>$() -> DigitalBrain.Runtime.Orleans.Operations.OperationRequest!
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Brain.get -> DigitalBrain.BrainId
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Brain.init -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Deconstruct(out DigitalBrain.Operations.OperationId Id, out DigitalBrain.BrainId Brain, out string! Origin, out DigitalBrain.Operations.OperationPlan! Plan) -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Equals(DigitalBrain.Runtime.Orleans.Operations.OperationRequest? other) -> bool
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Id.get -> DigitalBrain.Operations.OperationId
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Id.init -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.OperationRequest(DigitalBrain.Operations.OperationId Id, DigitalBrain.BrainId Brain, string! Origin, DigitalBrain.Operations.OperationPlan! Plan) -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Origin.get -> string!
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Origin.init -> void
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Plan.get -> DigitalBrain.Operations.OperationPlan!
+DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Plan.init -> void
+override DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.Operations.OperationRequest.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.Operations.OperationRequest.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.Operations.OperationRequest.ToString() -> string!
+static DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Allow.get -> DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!
+static DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.Deny(string! reason) -> DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!
+static DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.operator !=(DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision? left, DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision? right) -> bool
+static DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision.operator ==(DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision? left, DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision? right) -> bool
+static DigitalBrain.Runtime.Orleans.Operations.OperationRequest.operator !=(DigitalBrain.Runtime.Orleans.Operations.OperationRequest? left, DigitalBrain.Runtime.Orleans.Operations.OperationRequest? right) -> bool
+static DigitalBrain.Runtime.Orleans.Operations.OperationRequest.operator ==(DigitalBrain.Runtime.Orleans.Operations.OperationRequest? left, DigitalBrain.Runtime.Orleans.Operations.OperationRequest? right) -> bool

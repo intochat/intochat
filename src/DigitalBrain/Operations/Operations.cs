@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DigitalBrain.Operations;
 
 /// <summary>The id of a running or finished operation.</summary>
@@ -12,7 +14,12 @@ public readonly record struct OperationId(string Value)
 /// <param name="DryRun">When true the operation only plans and completes with <see cref="OperationResult.Planned"/>.</param>
 public abstract record OperationPlan(bool DryRun);
 
-/// <summary>How an operation ended.</summary>
+/// <summary>How an operation ended. Persisted and journaled as JSON with a <c>$kind</c> discriminator.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$kind")]
+[JsonDerivedType(typeof(Succeeded), "succeeded")]
+[JsonDerivedType(typeof(Failed), "failed")]
+[JsonDerivedType(typeof(Cancelled), "cancelled")]
+[JsonDerivedType(typeof(Planned), "planned")]
 public abstract record OperationResult
 {
     private OperationResult() { }
