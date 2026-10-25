@@ -270,9 +270,11 @@ jobs:
         run: bash scripts/ci/template-smoke.sh "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/packages"
 
   # Builds intochat/cloud (platform) against this run's packages. Not in the ci gate's needs (a fork-PR skip must
-  # not fail the gate) and not continue-on-error (a real break shows as a red check). Skipped on fork PRs: no secrets.
+  # not fail the gate); a real break still shows as a red check. Skipped on fork PRs: no secrets.
+  # Report-only from os 0.7.0 Phase 2 (D-17); replaced by the digitalbrain downstream job in Phase 3.
   downstream:
     name: downstream
+    continue-on-error: true
     needs: build
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04

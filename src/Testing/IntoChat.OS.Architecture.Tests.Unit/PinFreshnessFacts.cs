@@ -14,6 +14,10 @@ public sealed class PinFreshnessFacts
         "TestTierBaseline.json",
         "CollectionCompatibilitySamples.json",
         "SynapseWordAllowlist.json",
+        FrameworkHasNoVendorSdksFacts.BaselineFile,
+        InternalsVisibleToFacts.BaselineFile,
+        AppsHaveNoModuleIdsFacts.BaselineFile,
+        NamespaceSchemeFacts.BaselineFile,
     ];
 
     [Fact]
@@ -30,6 +34,10 @@ public sealed class PinFreshnessFacts
                 new TestTierRules().CaptureTestTierBaseline();
                 new CollectionCompatibilityFacts().CaptureCollectionCompatibilitySamples();
                 new SynapseWordFacts().CaptureSynapseWordAllowlist();
+                new FrameworkHasNoVendorSdksFacts().CaptureFrameworkVendorBaseline();
+                new InternalsVisibleToFacts().CaptureInternalsVisibleToBaseline();
+                new AppsHaveNoModuleIdsFacts().CaptureAppsModuleIdBaseline();
+                new NamespaceSchemeFacts().CaptureNamespaceSchemeBaseline();
             }
             var stale = new List<string>();
             foreach (var file in Files)

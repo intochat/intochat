@@ -58,10 +58,16 @@ $pins = [ordered]@{
     'TestTierBaseline.json'               = Join-Path $archDir 'TestTierBaseline.json'
     'CollectionCompatibilitySamples.json' = Join-Path $archDir 'CollectionCompatibilitySamples.json'
     'SynapseWordAllowlist.json'           = Join-Path $archDir 'SynapseWordAllowlist.json'
+    'FrameworkVendorBaseline.json'        = Join-Path $archDir 'FrameworkVendorBaseline.json'
+    'InternalsVisibleToBaseline.json'     = Join-Path $archDir 'InternalsVisibleToBaseline.json'
+    'AppsModuleIdBaseline.json'           = Join-Path $archDir 'AppsModuleIdBaseline.json'
+    'NamespaceSchemeBaseline.json'        = Join-Path $archDir 'NamespaceSchemeBaseline.json'
     'flutter-wire-names.golden.json'      = Join-Path $flutterContracts 'flutter-wire-names.golden.json'
     'flutter-aliasless-enums.golden.json' = Join-Path $flutterContracts 'flutter-aliasless-enums.golden.json'
     'ui-states.golden.json'               = Join-Path $flutterContracts 'ui-states.golden.json'
 }
+# Shrinking ratchets: an entry going away (or a count going down) is the point, so removals there are not breaking.
+$shrinking = @('FrameworkVendorBaseline.json', 'InternalsVisibleToBaseline.json', 'AppsModuleIdBaseline.json', 'NamespaceSchemeBaseline.json')
 $before = @{}
 foreach ($name in $pins.Keys) {
     if (-not (Test-Path $pins[$name])) { throw "Pin missing: $($pins[$name])" }
@@ -83,7 +89,9 @@ function Run-Capture([string]$Project, [string]$Method) {
 $timer = [Diagnostics.Stopwatch]::StartNew()
 foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'CaptureOrleansReferenceOwners',
                     'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples',
-                    'CaptureSynapseWordAllowlist') {
+                    'CaptureSynapseWordAllowlist',
+                    'CaptureFrameworkVendorBaseline', 'CaptureInternalsVisibleToBaseline', 'CaptureAppsModuleIdBaseline',
+                    'CaptureNamespaceSchemeBaseline') {
     Run-Capture $archProject $method
 }
 foreach ($method in 'CaptureFlutterWireNames', 'CaptureUiStateGoldens') {
@@ -92,11 +100,12 @@ foreach ($method in 'CaptureFlutterWireNames', 'CaptureUiStateGoldens') {
 Write-Host ("captures took {0:n0}s" -f $timer.Elapsed.TotalSeconds)
 
 # Leaves of a JSON document as "path<TAB>value" lines: objects recurse, arrays contribute one line per element.
+# Raw text is LF-normalised: a CRLF checkout and an LF capture of the same element compare equal.
 function Get-Leaves([Text.Json.JsonElement]$Element, [string]$Path, [Collections.Generic.HashSet[string]]$Into) {
     switch ($Element.ValueKind) {
         'Object' { foreach ($p in $Element.EnumerateObject()) { Get-Leaves $p.Value "$Path/$($p.Name)" $Into } }
-        'Array'  { foreach ($e in $Element.EnumerateArray()) { [void]$Into.Add("$Path[]`t$($e.GetRawText())") } }
-        default  { [void]$Into.Add("$Path`t$($Element.GetRawText())") }
+        'Array'  { foreach ($e in $Element.EnumerateArray()) { [void]$Into.Add("$Path[]`t$($e.GetRawText().Replace("`r`n", "`n"))") } }
+        default  { [void]$Into.Add("$Path`t$($Element.GetRawText().Replace("`r`n", "`n"))") }
     }
 }
 function Get-LeafSet([byte[]]$Bytes) {
@@ -109,6 +118,7 @@ function Get-LeafSet([byte[]]$Bytes) {
 
 $breaking = @()
 foreach ($name in $pins.Keys) {
+    if ($shrinking -contains $name) { continue }
     $old = Get-LeafSet $before[$name]
     $new = Get-LeafSet ([IO.File]::ReadAllBytes($pins[$name]))
     foreach ($line in $old) { if (-not $new.Contains($line)) { $breaking += "${name}: $line" } }
