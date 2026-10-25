@@ -36,6 +36,30 @@ public sealed class JournalJsonFacts
     }
 
     [Fact]
+    public async Task An_entry_with_a_side_state_writes_both_records_at_one_sequence_or_neither()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var home = new TempHome();
+        await using var store = new BrainStore(home.Path);
+        var log = await store.Log();
+        var cursors = """{"Sources":[{"Source":"b1/chat/q","Aliases":["test.note"],"Cursor":3}]}"""u8.ToArray();
+        var (first, _) = await log.AppendEntry(PGrain, "state", null, BrainRecordChange.Write, JournalPayloads.EncodeState(new Memo("m", 1, [])),
+            BrainStore.P.ToString(), [new Note("reacted")], new BrainSideWrite("synapses", null, cursors), ct);
+
+        // A stale side ETag refuses the whole entry: neither the state nor the cursors move.
+        await Assert.ThrowsAsync<InconsistentStateException>(() => log.AppendEntry(PGrain, "state", first, BrainRecordChange.Write,
+            JournalPayloads.EncodeState(new Memo("m", 2, [])), BrainStore.P.ToString(), [new Note("again")], new BrainSideWrite("synapses", null, cursors), ct));
+
+        await store.Reopen();
+        log = await store.Log();
+        Assert.Equal(first, (await log.Read(PGrain, "state"))!.ETag);
+        var side = (await log.Read(PGrain, "synapses"))!;
+        Assert.Equal(first, side.ETag);
+        Assert.Equal(cursors, side.Record);
+        Assert.Single((await log.PublisherSignals(BrainStore.P.ToString(), 0, 10, ct)).Held);
+    }
+
+    [Fact]
     public async Task An_entry_with_two_signal_types_stores_two_json_payloads_named_by_alias()
     {
         using var home = new TempHome();

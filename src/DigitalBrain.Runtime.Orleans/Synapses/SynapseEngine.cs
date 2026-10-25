@@ -23,7 +23,8 @@ namespace DigitalBrain.Runtime.Orleans.Synapses;
 /// activation.</item>
 /// <item>A <see cref="SignalReference"/> is only a nudge: at or below the cursor it is dropped without a read; above it the engine
 /// pages the brain-checked journal from the cursor, emits <see cref="Gap"/> when the floor passed the cursor, runs each wanted
-/// signal's <c>[On]</c> reaction in sequence order and advances, persists and reports the cursor.</item>
+/// signal's <c>[On]</c> reaction in sequence order; each reaction's save carries the advanced cursor in the same journal entry (R4-09),
+/// then the cursor is reported.</item>
 /// </list>
 /// </summary>
 internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
@@ -244,21 +245,26 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
                 if (page.Floor > entry.Cursor)
                 {
                     if (!await React(neuron, new JournaledSignal(source, page.Floor, new Gap(source, entry.Cursor, page.Floor), DateTimeOffset.UtcNow), entry).ConfigureAwait(true)) { return; }
-                    await Persist().ConfigureAwait(true);
                     continue;
                 }
                 var due = page.Signals.Where(item => item.Sequence > entry.Cursor).ToList();
                 if (due.Count == 0) { return; }
+                var skipped = false;
                 foreach (var item in due)
                 {
                     if (wanted.Any(type => type.IsInstanceOfType(item.Signal)))
                     {
+                        // Signals skipped before a reaction ride in its entry: the cursor it writes is past them.
+                        skipped = false;
                         if (!await React(neuron, item, entry).ConfigureAwait(true)) { return; }
-                        await Persist().ConfigureAwait(true);
                     }
-                    else { entry.Cursor = item.Sequence; }
+                    else
+                    {
+                        entry.Cursor = item.Sequence;
+                        skipped = true;
+                    }
                 }
-                await Persist().ConfigureAwait(true);
+                if (skipped) { await Persist().ConfigureAwait(true); }
                 await Report(entry).ConfigureAwait(true);
             }
         }
@@ -269,10 +275,15 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         }
     }
 
-    // One reaction: on success the cursor moves to the signal's sequence; on failure it stays before it and the failure is logged.
+    // One reaction (R4-09): the cursor moves to the signal's sequence before it runs and every save or publish of the reaction writes
+    // it in the same journal entry; a reaction that wrote nothing gets one cursor-only entry. A failure before any write puts the cursor
+    // back and logs it; once an entry carried the cursor, the reaction counts as done, so a stop after its save never runs it twice.
     // A runtime service that is an ISignalSink takes the journaled signal itself; a module neuron runs its [On] method.
     private async Task<bool> React(Neuron neuron, JournaledSignal item, SynapseSource entry)
     {
+        var before = entry.Cursor;
+        entry.Cursor = item.Sequence;
+        using var scope = ReactionCursor.Open(_grainId, () => JournalPayloads.EncodeState(_state), _etag);
         try
         {
             if (neuron is ISignalSink sink) { await sink.Deliver(item).ConfigureAwait(true); }
@@ -283,9 +294,16 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         {
             _counters.Failure();
             LogReactionFailed(_log, error, _id.ToString(), entry.Source, item.Sequence);
+            if (scope.Cursor.Written)
+            {
+                _etag = scope.Cursor.ETag;
+                return false;
+            }
+            entry.Cursor = before;
             return false;
         }
-        entry.Cursor = item.Sequence;
+        if (scope.Cursor.Written) { _etag = scope.Cursor.ETag; }
+        else { await Persist().ConfigureAwait(true); }
         return true;
     }
 
@@ -337,7 +355,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     }
 
     [LoggerMessage(EventId = 4120, EventName = "SynapseReactionFailed", Level = LogLevel.Warning,
-        Message = "The [On] reaction of {Subscriber} to {Source} sequence {Sequence} failed; the cursor stays before it and the next reference retries.")]
+        Message = "The [On] reaction of {Subscriber} to {Source} sequence {Sequence} failed; unless a save of the reaction already carried the cursor, the cursor stays before it and the next reference retries.")]
     private static partial void LogReactionFailed(ILogger logger, Exception error, string subscriber, string source, long sequence);
 
     [LoggerMessage(EventId = 4121, EventName = "SynapseCatchUpFailed", Level = LogLevel.Warning, Message = "Catch-up of {Subscriber} on {Source} failed.")]

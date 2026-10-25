@@ -26,6 +26,8 @@ internal sealed class SynapseRegistry(TestOS os)
     private readonly Dictionary<NeuronId, Dictionary<NeuronId, Entry>> _bySubscriber = [];
     private static readonly ConcurrentDictionary<(Type Class, Type Signal), MethodInfo?> Reactions = new();
     private readonly ConcurrentDictionary<NeuronId, SemaphoreSlim> _pumps = new();
+    // The reaction running in this flow: its subscriber, synapse and the cursor its first journal write carries (R4-09).
+    private static readonly AsyncLocal<Reaction?> Reacting = new();
     private long _duplicates;
 
     public long DuplicatesDropped => Interlocked.Read(ref _duplicates);
@@ -169,7 +171,7 @@ internal sealed class SynapseRegistry(TestOS os)
             var page = await journal.Read(entry.Source, entry.Cursor, SignalPage.MaxLimit, CancellationToken.None).ConfigureAwait(false);
             if (page.Floor > entry.Cursor)
             {
-                await React(subscriber, new Gap(entry.Source, entry.Cursor, page.Floor)).ConfigureAwait(false);
+                await React(subscriber, new Gap(entry.Source, entry.Cursor, page.Floor), entry, page.Floor).ConfigureAwait(false);
                 Advance(entry, page.Floor);
                 continue;
             }
@@ -179,10 +181,17 @@ internal sealed class SynapseRegistry(TestOS os)
             {
                 bool wanted;
                 lock (_gate) { wanted = entry.Signals.Any(type => type.IsInstanceOfType(item.Signal)); }
-                if (wanted) { await React(subscriber, item.Signal).ConfigureAwait(false); }
+                if (wanted) { await React(subscriber, item.Signal, entry, item.Sequence).ConfigureAwait(false); }
                 Advance(entry, item.Sequence);
             }
         }
+    }
+
+    // A journal write of a reacting subscriber carries its cursor (R4-09): the state, the signals and the advance land in one step with
+    // no await between them, so a stop after the reaction's save never runs the reaction again.
+    public void Committed(NeuronId writer)
+    {
+        if (Reacting.Value is { } reaction && reaction.Subscriber == writer) { Advance(reaction.Entry, reaction.Cursor); }
     }
 
     private void Advance(Entry entry, long cursor)
@@ -195,11 +204,12 @@ internal sealed class SynapseRegistry(TestOS os)
     }
 
     // A reaction is a turn: the most specific [On] method whose parameter accepts the signal; none means the signal is ignored.
-    private static Task React(TestNeuronHost subscriber, Signal signal)
+    private static Task React(TestNeuronHost subscriber, Signal signal, Entry entry, long cursor)
     {
-        if (Reaction(subscriber.Class, signal.GetType()) is not { } method) { return Task.CompletedTask; }
+        if (Find(subscriber.Class, signal.GetType()) is not { } method) { return Task.CompletedTask; }
         return subscriber.Turn(interleave: false, async neuron =>
         {
+            Reacting.Value = new Reaction(subscriber.Id, entry, cursor);
             var arguments = method.GetParameters().Length == 2 ? new object?[] { signal, CancellationToken.None } : [signal];
             object? returned;
             try { returned = method.Invoke(neuron, arguments); }
@@ -214,7 +224,7 @@ internal sealed class SynapseRegistry(TestOS os)
         });
     }
 
-    private static MethodInfo? Reaction(Type neuronClass, Type signal) => Reactions.GetOrAdd((neuronClass, signal), static key =>
+    private static MethodInfo? Find(Type neuronClass, Type signal) => Reactions.GetOrAdd((neuronClass, signal), static key =>
     {
         var candidates = new List<MethodInfo>();
         for (var type = key.Class; type is not null && type != typeof(object); type = type.BaseType)
@@ -231,6 +241,8 @@ internal sealed class SynapseRegistry(TestOS os)
         for (var current = type; current is not null; current = current.BaseType) { depth++; }
         return depth;
     }
+
+    private sealed record Reaction(NeuronId Subscriber, Entry Entry, long Cursor);
 
     private sealed class Entry(NeuronId source, NeuronId subscriber)
     {

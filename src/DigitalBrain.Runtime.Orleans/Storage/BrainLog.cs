@@ -105,8 +105,16 @@ internal sealed class BrainLog : IAsyncDisposable
     /// Appends one entry: the state change of <paramref name="grainId"/> and the <paramref name="emitted"/> signals of
     /// <paramref name="publisher"/>. Returns the entry sequence (a record's ETag) and the publisher's last signal sequence.
     /// </summary>
-    public async Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change,
+    public Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change,
         byte[] record, string publisher, IReadOnlyList<Signal> emitted, CancellationToken ct)
+        => AppendEntry(grainId, stateName, expectedETag, change, record, publisher, emitted, null, ct);
+
+    /// <summary>
+    /// Appends one entry as above that also writes <paramref name="side"/>, a second state of <paramref name="grainId"/>, in the same
+    /// durable write: both or neither (R4-09).
+    /// </summary>
+    public async Task<(long Sequence, long LastSignal)> AppendEntry(string grainId, string stateName, long? expectedETag, BrainRecordChange change,
+        byte[] record, string publisher, IReadOnlyList<Signal> emitted, BrainSideWrite? side, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(emitted);
         if (emitted.Count > 0) { ArgumentException.ThrowIfNullOrEmpty(publisher); }
@@ -120,9 +128,15 @@ internal sealed class BrainLog : IAsyncDisposable
             var current = records.GetValueOrDefault(grainId)?.GetValueOrDefault(stateName);
             if (change != BrainRecordChange.None && current?.ETag != expectedETag)
             { throw new InconsistentStateException($"State {grainId}/{stateName} changed since it was read."); }
+            if (side is not null)
+            {
+                if (side.StateName == stateName && change != BrainRecordChange.None) { throw new ArgumentException("The side state must be another state of the grain.", nameof(side)); }
+                if (records.GetValueOrDefault(grainId)?.GetValueOrDefault(side.StateName)?.ETag != side.ExpectedETag)
+                { throw new InconsistentStateException($"State {grainId}/{side.StateName} changed since it was read."); }
+            }
             var last = encoded.Length > 0 ? marks.GetValueOrDefault(publisher).Last : 0;
             var entry = new BrainEntry(checked(sequence + 1), grainId, stateName, change, record, encoded.Length > 0 ? publisher : "", encoded,
-                checked(last + 1), checked(position + 1), time.GetUtcNow().ToUnixTimeMilliseconds());
+                checked(last + 1), checked(position + 1), time.GetUtcNow().ToUnixTimeMilliseconds(), side?.StateName, side?.Record);
             var plain = serializer.SerializeToArray(entry);
             if (plain.Length > MaxEntryBytes) { throw new ArgumentException("A brain change exceeds 16 MiB.", nameof(record)); }
             var bytes = SegmentSeal.Close(key, Context("log"), plain);
@@ -403,9 +417,14 @@ internal sealed class BrainLog : IAsyncDisposable
             states[entry.StateName] = new BrainRecord(entry.Record, entry.Sequence);
         }
         else if (entry.Change == BrainRecordChange.Clear) { records.GetValueOrDefault(entry.GrainId)?.Remove(entry.StateName); }
+        if (entry.SideStateName is { } side && entry.SideRecord is { } sideRecord)
+        {
+            if (!records.TryGetValue(entry.GrainId, out var held)) { records[entry.GrainId] = held = new(StringComparer.Ordinal); }
+            held[side] = new BrainRecord(sideRecord, entry.Sequence);
+        }
         if (entry.Signals.Length > 0)
         {
-            signals.Add(entry with { Record = [], StateName = "", GrainId = "", Change = BrainRecordChange.None });
+            signals.Add(entry with { Record = [], StateName = "", GrainId = "", Change = BrainRecordChange.None, SideStateName = null, SideRecord = null });
             marks[entry.Publisher] = marks.GetValueOrDefault(entry.Publisher) with { Last = entry.FirstSignal + entry.Signals.Length - 1 };
             position = entry.FirstPosition + entry.Signals.Length - 1;
         }

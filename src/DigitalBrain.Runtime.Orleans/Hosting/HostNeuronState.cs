@@ -41,7 +41,8 @@ internal sealed class HostNeuronState(NeuronId id, GrainId grainId, NeuronRegist
             _etag = state.ETag;
             return;
         }
-        var last = await journal.WriteStateAsync(registration.StateName, grainId, state, id.ToString(), signals).ConfigureAwait(true);
+        // A save inside a synapse reaction carries the subscriber's advanced cursor in the same entry (R4-09).
+        var last = await journal.WriteStateAsync(registration.StateName, grainId, state, id.ToString(), signals, ReactionCursor.For(grainId)).ConfigureAwait(true);
         _etag = state.ETag;
         await Announce(last, signals).ConfigureAwait(true);
     }
@@ -61,7 +62,7 @@ internal sealed class HostNeuronState(NeuronId id, GrainId grainId, NeuronRegist
         ArgumentNullException.ThrowIfNull(signal);
         if (Store is not BrainGrainStorage journal) { throw new InvalidOperationException($"{id} publishes, which needs BrainLog as the cluster store (BrainStorageRegistration)."); }
         IReadOnlyList<Signal> signals = [signal];
-        var last = await journal.AppendSignalsAsync(registration.StateName, grainId, id.ToString(), signals).ConfigureAwait(true);
+        var last = await journal.AppendSignalsAsync(registration.StateName, grainId, id.ToString(), signals, ReactionCursor.For(grainId)).ConfigureAwait(true);
         await Announce(last, signals).ConfigureAwait(true);
     }
 

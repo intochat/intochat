@@ -1,4 +1,5 @@
 using System.Globalization;
+using DigitalBrain.Runtime.Orleans.Synapses;
 using Orleans.Runtime;
 using Orleans.Storage;
 
@@ -23,18 +24,23 @@ internal sealed class BrainGrainStorage(BrainLogs logs, string? fixedBrainScope 
         => WriteStateAsync(stateName, grainId, grainState, "", []);
 
     /// <summary>Writes the state and the signals its publisher emitted with it as one durable entry; returns the publisher's last sequence.</summary>
-    internal async Task<long> WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState, string publisher, IReadOnlyList<Signal> signals)
+    internal Task<long> WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState, string publisher, IReadOnlyList<Signal> signals)
+        => WriteStateAsync(stateName, grainId, grainState, publisher, signals, null);
+
+    /// <summary>As above; the same entry also writes the cursors of <paramref name="cursor"/>, a reacting subscriber (R4-09).</summary>
+    internal async Task<long> WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState, string publisher, IReadOnlyList<Signal> signals,
+        ReactionCursor? cursor)
     {
         ArgumentNullException.ThrowIfNull(grainState);
-        var (seq, last) = await Append(stateName, grainId, grainState.ETag, BrainRecordChange.Write, JournalPayloads.EncodeState(grainState.State), publisher, signals);
+        var (seq, last) = await Append(stateName, grainId, grainState.ETag, BrainRecordChange.Write, JournalPayloads.EncodeState(grainState.State), publisher, signals, cursor);
         grainState.ETag = seq.ToString(CultureInfo.InvariantCulture);
         grainState.RecordExists = true;
         return last;
     }
 
     /// <summary>Appends the <paramref name="signals"/> of <paramref name="publisher"/> as one entry with no state change; returns its last sequence.</summary>
-    internal async Task<long> AppendSignalsAsync(string stateName, GrainId grainId, string publisher, IReadOnlyList<Signal> signals)
-        => (await Append(stateName, grainId, null, BrainRecordChange.None, [], publisher, signals)).Last;
+    internal async Task<long> AppendSignalsAsync(string stateName, GrainId grainId, string publisher, IReadOnlyList<Signal> signals, ReactionCursor? cursor = null)
+        => (await Append(stateName, grainId, null, BrainRecordChange.None, [], publisher, signals, cursor)).Last;
 
     /// <summary>The journal of the brain <paramref name="grainId"/> belongs to.</summary>
     internal Task<BrainLog> LogOf(GrainId grainId) => Log(grainId);
@@ -52,12 +58,16 @@ internal sealed class BrainGrainStorage(BrainLogs logs, string? fixedBrainScope 
     private Task<BrainLog> Log(GrainId grainId) => logs.For(fixedBrainScope ?? BrainStorageKeys.BrainOf(grainId.Key.ToString()!));
 
     private async Task<(long Sequence, long Last)> Append(string stateName, GrainId grainId, string? etag, BrainRecordChange change, byte[] record,
-        string publisher, IReadOnlyList<Signal> signals)
+        string publisher, IReadOnlyList<Signal> signals, ReactionCursor? cursor = null)
     {
         var log = await Log(grainId);
-        long? expected = etag is null ? null : long.TryParse(etag, CultureInfo.InvariantCulture, out var parsed) ? parsed : -1;
-        return await log.AppendEntry(grainId.ToString(), stateName, expected, change, record, publisher, signals, CancellationToken.None);
+        var side = cursor is null ? null : new BrainSideWrite(SynapseState.Name, ParseETag(cursor.ETag), cursor.Encode());
+        var result = await log.AppendEntry(grainId.ToString(), stateName, ParseETag(etag), change, record, publisher, signals, side, CancellationToken.None);
+        cursor?.Committed(result.Sequence.ToString(CultureInfo.InvariantCulture));
+        return result;
     }
+
+    private static long? ParseETag(string? etag) => etag is null ? null : long.TryParse(etag, CultureInfo.InvariantCulture, out var parsed) ? parsed : -1;
 }
 
 /// <summary>Grain storage that keeps every state of one scope in that scope's brain journal.</summary>

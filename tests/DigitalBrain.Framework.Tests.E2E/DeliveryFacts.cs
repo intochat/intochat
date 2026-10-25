@@ -98,8 +98,7 @@ public sealed class DeliveryFacts(AzuriteFixture azurite)
         for (var i = 1; i <= 5; i++)
         {
             await run.Get<ISource>(source).Emit(i);
-            // Restart once the signal was observed: a stop in the middle of a reaction is the open window recorded in 04-15-SUMMARY.
-            Assert.Equal(Facts.Numbers([.. Enumerable.Range(1, i)]), await Facts.Heard(run, listener, i, ct));
+            // Restart at once: the stop may land in the middle of the listener's reaction; its save carries its cursor (R4-09).
             await run.Restart(ct);
         }
         await run.Get<ISource>(source).Emit(6); // the resumed subscription delivers live after the last restart

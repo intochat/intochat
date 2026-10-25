@@ -39,6 +39,7 @@ internal sealed class TestNeuronContext : INeuronContext
     {
         ArgumentNullException.ThrowIfNull(signal);
         var written = _host.OS.Journal(Id.Brain).Append(Id, [signal]);
+        _host.OS.Synapses.Committed(Id);
         _host.OS.Synapses.Appended(Id, written);
         return Task.CompletedTask;
     }
@@ -63,6 +64,7 @@ internal sealed class TestNeuronContext : INeuronContext
         {
             ArgumentNullException.ThrowIfNull(signals);
             var written = host.OS.Journal(host.Id.Brain).Save(host.Id, next, signals);
+            host.OS.Synapses.Committed(host.Id);
             host.OS.Synapses.Appended(host.Id, written);
             return Task.CompletedTask;
         }

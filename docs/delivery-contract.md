@@ -15,7 +15,7 @@ The stream item is a reference only: `(publisher NeuronId, sequence)` (D-01). Si
 
 ## Ordering and dedupe
 
-The runtime keeps a per-source cursor (last delivered sequence per publisher) in the subscriber's state. Any item at or below the cursor is dropped; an item above `cursor + 1` triggers catch-up for the missing range first. `[On]` methods therefore never see duplicates or reordering (D-03). The cursor advances only after the reaction's `Save` commits.
+The runtime keeps a per-source cursor (last delivered sequence per publisher) in the subscriber's state. Any item at or below the cursor is dropped; an item above `cursor + 1` triggers catch-up for the missing range first. `[On]` methods therefore never see duplicates or reordering (D-03). The cursor advances in the same journal entry as the reaction's `Save` (or `Publish`): the subscriber's state, the signals it publishes and its advanced cursor are one durable write, so a stop in the middle of a reaction leaves either none of them or all of them, and a reaction whose save is durable never runs again. A reaction that saves nothing gets one cursor-only entry. Catch-up on activation reads the cursor from that same journal record.
 
 ## Catch-up
 
