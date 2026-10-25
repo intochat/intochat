@@ -19,7 +19,7 @@ public static class BrainHosting
         var selected = modules.ToArray();
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
-        foreach (var module in selected) { module.AddOptions(silo.Services); }
+        foreach (var module in selected) { ModuleOptionsBinding.Add(silo.Services, module); }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();

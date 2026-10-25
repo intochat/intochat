@@ -3,6 +3,8 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Sdk;
 using IntoChat.OS.Sdk.Validation;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
@@ -41,4 +43,63 @@ public sealed class ModuleOptionsBindingFacts
         var usage = (AttributeUsageAttribute)Attribute.GetCustomAttribute(typeof(SecretAttribute), typeof(AttributeUsageAttribute))!;
         Assert.Equal(AttributeTargets.Class, usage.ValidOn);
     }
+
+    private sealed class BoundModule() : Module<RequiredOptions>(new ModuleId("req"))
+    {
+        public override void Configure(ISiloBuilder silo) { }
+    }
+
+    private sealed class PlainModule() : Module(new ModuleId("plain"))
+    {
+        public override void Configure(ISiloBuilder silo) { }
+    }
+
+    private static ServiceProvider Host(Module module, params (string Key, string Value)[] pairs)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(Config(pairs));
+        ModuleOptionsBinding.Add(services, module);
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void AnOptionsModuleGetsItsOptionsBoundFromItsSection()
+    {
+        using var provider = Host(new BoundModule(), ("Endpoint", "https://x.example/"), ("Label", "a"));
+        var options = provider.GetRequiredService<IOptions<RequiredOptions>>().Value;
+        Assert.Equal(new Uri("https://x.example/"), options.Endpoint);
+        Assert.Equal("a", options.Label);
+    }
+
+    [Fact]
+    public void InvalidOptionsFailWithTheModuleValidationException()
+    {
+        using var provider = Host(new BoundModule(), ("Label", "a"));
+        Assert.Throws<ModuleValidationException>(() => provider.GetRequiredService<IOptions<RequiredOptions>>().Value);
+    }
+
+    [Fact]
+    public void InvalidOptionsAreValidatedOnStart()
+    {
+        var services = new ServiceCollection();
+        ModuleOptionsBinding.Add(services, new BoundModule());
+        Assert.Contains(services, d => d.ServiceType.ToString().Contains("StartupValidator", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void APlainModuleRegistersNoOptions()
+    {
+        var services = new ServiceCollection();
+        ModuleOptionsBinding.Add(services, new PlainModule());
+        Assert.Empty(services);
+    }
+
+    [Theory]
+    [InlineData("IntoChatOS:Modules:ai:Options:X", true)]
+    [InlineData("intochatos:modules:ai:options:X", true)]
+    [InlineData("IntoChatOS:Modules:0:Options:X", false)]
+    [InlineData("IntoChatOS:Modules:a__b:Options:X", false)]
+    [InlineData("IntoChatOS:Other:ai:Options", false)]
+    public void TheOptionsKeyPredicateMatchesOnlyAModulesOwnOptions(string key, bool expected)
+        => Assert.Equal(expected, ModuleSettingsValidation.IsOptionsKey(key));
 }

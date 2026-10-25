@@ -10,7 +10,6 @@
     <!-- Module.Configure(ISiloBuilder) moves here in 09-07 until W1 IRuntimeBuilder. -->
     <PackageReference Include="Microsoft.Orleans.Server" />
   </ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />

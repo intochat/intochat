@@ -11,7 +11,7 @@ public static class ModuleSettingsValidation
     {
         foreach (var key in modules.SelectMany(m => m.Settings.Keys))
         {
-            if (ModuleOptionsSerialization.IsOptionsKey(key)) { continue; }
+            if (IsOptionsKey(key)) { continue; }
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
@@ -22,6 +22,14 @@ public static class ModuleSettingsValidation
             { throw new ArgumentException("Credentials require private configuration transport.", nameof(modules)); }
         }
     }
+
+    // A module's own options key (IntoChatOS:Modules:{name}:Options:...), which the module may set.
+    internal static bool IsOptionsKey(string key)
+        => key.Split(':') is [var root, var modules, var name, var options, ..]
+            && root.Equals("IntoChatOS", StringComparison.OrdinalIgnoreCase)
+            && modules.Equals("Modules", StringComparison.OrdinalIgnoreCase)
+            && options.Equals("Options", StringComparison.OrdinalIgnoreCase)
+            && name.Length > 0 && !name.Contains("__", StringComparison.Ordinal) && !int.TryParse(name, out _);
 
     internal static bool IsCredentialName(string name) =>
         name.Contains("Secret", StringComparison.OrdinalIgnoreCase) || name.EndsWith("Password", StringComparison.OrdinalIgnoreCase)

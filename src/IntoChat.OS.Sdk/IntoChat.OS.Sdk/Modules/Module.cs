@@ -1,6 +1,5 @@
 using System.Reflection;
 using IntoChat.OS.Framework.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Framework.Modules;
 
@@ -24,22 +23,11 @@ public abstract class Module
     public virtual int Order => 0;
 
     public abstract void Configure(ISiloBuilder silo);
-
-    internal virtual void AddOptions(IServiceCollection services) { }
 }
 
-// A module with options gets them bound for it: IOptions<TOptions> reads IntoChatOS:Modules:{id}:Options
+// A module with options gets them bound by the host: IOptions<TOptions> reads IntoChatOS:Modules:{id}:Options
 // and validates at host startup. Configure may chain further validation on services.AddOptions<TOptions>().
 public abstract class Module<TOptions> : Module where TOptions : class, IModuleOptions, new()
 {
     protected Module(ModuleId id) : base(id) { }
-
-    internal sealed override void AddOptions(IServiceCollection services)
-        => services.AddOptions<TOptions>()
-            .BindConfiguration(IntoChatOSConfiguration.ModuleOptionsSection(Id))
-            .Validate(options =>
-            {
-                ModuleOptionsSerialization.Validate(options, Id.ToString());
-                return true;
-            }).ValidateOnStart();
 }

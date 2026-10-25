@@ -72,13 +72,5 @@ public static class ModuleOptionsSerialization
         if (issues.Count != 0) { throw new ModuleValidationException([.. issues]); }
     }
 
-    internal static bool IsOptionsKey(string key)
-        => key.Split(':') is [var root, var modules, var name, var options, ..]
-            && root.Equals("IntoChatOS", StringComparison.OrdinalIgnoreCase)
-            && modules.Equals("Modules", StringComparison.OrdinalIgnoreCase)
-            && options.Equals("Options", StringComparison.OrdinalIgnoreCase)
-            && name.Length > 0 && !name.Contains("__", StringComparison.Ordinal) && !int.TryParse(name, out _);
-
-
     public static string OptionsKey(string moduleName) => IntoChatOSConfiguration.ModuleOptionsSection(moduleName);
 }
