@@ -29,7 +29,7 @@ internal sealed class VoiceInputNeuron([PersistentState("state", IntoChatOSNames
         next.Captures++;
         var captured = new VoiceCaptured(next.Name, audio, mimeType.Trim().ToLowerInvariant());
         await Save(next, new VoiceInputChanged(next.Name, next.Revision), captured);
-        await GrainFactory.GetGrain<IUiBinding>(next.Name).Dispatch(captured);
+        await GrainFactory.GetGrain<IUiBinding>(next.Name).Dispatch(UiEvent.Of(captured));
     }
 
     [ReadOnly] public Task<VoiceInputState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }

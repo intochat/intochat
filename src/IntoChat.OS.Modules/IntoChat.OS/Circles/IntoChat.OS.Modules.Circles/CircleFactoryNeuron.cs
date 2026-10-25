@@ -32,13 +32,13 @@ internal sealed class CircleFactoryNeuron(
     {
         Own();
         return GrainFactory.GetGrain<IntoChat.OS.Modules.Flutter.IUiBinding>(IApp.Key(Brain, "circle") + "/fork-button")
-            .Bind(this.AsReference<ICircleFactory>());
+            .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(this));
     }
 
-    public Task HandleUiEvent(Signal signal)
+    public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
     {
         Own();
-        return PublicationButton.Handle(GrainFactory, Brain, "circle", "fork-button", signal, Fork);
+        return PublicationButton.Handle(GrainFactory, Brain, "circle", "fork-button", uiEvent, Fork);
     }
 
     public async Task<string> Create(string name, string? requestId = null)

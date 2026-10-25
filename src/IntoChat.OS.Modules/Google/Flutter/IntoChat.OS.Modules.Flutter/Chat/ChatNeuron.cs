@@ -79,7 +79,7 @@ internal sealed partial class ChatNeuron(
         var activated = new ChatActionActivated(this.GetPrimaryKeyString(), source, generation,
             action.Id, action.Payload, Guid.NewGuid());
         await PublishAsync(activated);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(activated);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(activated));
     }
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)

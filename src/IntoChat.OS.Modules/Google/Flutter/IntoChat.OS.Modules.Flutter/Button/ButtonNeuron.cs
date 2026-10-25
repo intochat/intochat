@@ -152,7 +152,7 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
         next.ClickCount++;
         var clicked = new ButtonClicked(this.GetPrimaryKeyString(), next.Action, Guid.NewGuid());
         await Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version), clicked);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(clicked);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(clicked));
     }
 
     [ReadOnly] public Task<ButtonState> Read() => Task.FromResult(Named(Snapshot));

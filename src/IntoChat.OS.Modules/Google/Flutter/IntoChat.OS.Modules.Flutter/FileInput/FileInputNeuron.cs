@@ -30,7 +30,7 @@ internal sealed class FileInputNeuron([PersistentState("state", IntoChatOSNames.
         next.Revision++;
         var captured = new FileCaptured(next.Name, name, content);
         await Save(next, new FileInputChanged(next.Name, next.Revision), captured);
-        await GrainFactory.GetGrain<IUiBinding>(next.Name).Dispatch(captured);
+        await GrainFactory.GetGrain<IUiBinding>(next.Name).Dispatch(UiEvent.Of(captured));
     }
     public Task<FileInputState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
 }

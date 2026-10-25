@@ -24,10 +24,10 @@ public sealed class PrimitiveBindingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        var field = brain.Get<ITextField>("field");
-        var binding = brain.Get<IUiBinding>("field");
-        await binding.Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("owner/handler");
+        var field = brain.Get<ITextField>("owner/field");
+        var binding = brain.Get<IUiBinding>("owner/field");
+        await binding.Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         await Assert.ThrowsAsync<ArgumentException>(() => field.Configure("Message", "multiline", new string('x', 513)));
         await field.Configure("Message", "multiline", "workspace/app/send");
@@ -35,12 +35,12 @@ public sealed class PrimitiveBindingFacts
         Assert.Empty(await handler.Events());
         await field.Input("first edit");
         await WaitFor(handled, 1, ct);
-        Assert.Equal(new TextFieldChanged("field", "first edit"), Assert.Single(await handler.Events()));
+        Assert.Equal(new TextFieldChanged("owner/field", "first edit"), Assert.Single(await handler.Events()));
         await brain.DeactivateAsync(binding, ct);
         await brain.DeactivateAsync(field, ct);
         await field.Input("second edit");
         await WaitFor(handled, 2, ct);
-        Assert.Equal(new TextFieldChanged("field", "second edit"), (await handler.Events())[1]);
+        Assert.Equal(new TextFieldChanged("owner/field", "second edit"), (await handler.Events())[1]);
         Assert.Equal("second edit", (await field.Read()).Value);
         Assert.Equal("workspace/app/send", (await field.Read()).SubmitButton);
     }
@@ -51,29 +51,29 @@ public sealed class PrimitiveBindingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        foreach (var key in new[] { "select", "file", "button", "voice" }) { await brain.Get<IUiBinding>(key).Bind(handler); }
+        var handler = brain.Get<IPrimitiveTestHandler>("owner/handler");
+        foreach (var key in new[] { "owner/select", "owner/file", "owner/button", "owner/voice" }) { await brain.Get<IUiBinding>(key).Bind(UiHandlers.IdOf(handler)); }
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
-        var select = brain.Get<ISelect>("select");
+        var select = brain.Get<ISelect>("owner/select");
         await select.Set("Model", [new("", "Automatic"), new("yes", "Ready"), new("no", "Unavailable", false)], "");
         await Assert.ThrowsAsync<ArgumentException>(() => select.Choose("no"));
         await Assert.ThrowsAsync<ArgumentException>(() => select.Choose("missing"));
         await select.Choose("yes");
-        var file = brain.Get<IFileInput>("file");
+        var file = brain.Get<IFileInput>("owner/file");
         await file.Configure("Attach");
         await Assert.ThrowsAsync<ArgumentException>(() => file.Capture("large.txt", new string('x', 32_001)));
         await file.Capture("notes.txt", "notes");
-        var button = brain.Get<IButton>("button");
+        var button = brain.Get<IButton>("owner/button");
         await button.Set("Send", "submit");
         await button.Click();
-        var voice = brain.Get<IVoiceInput>("voice");
+        var voice = brain.Get<IVoiceInput>("owner/voice");
         await voice.Capture([1, 2], "audio/wav");
         await WaitFor(handled, 4, ct);
         var events = await handler.Events();
-        Assert.Contains(events, signal => signal is SelectChanged { Name: "select", Value: "yes" });
-        Assert.Contains(events, signal => signal is FileCaptured { Name: "file", FileName: "notes.txt", Content: "notes" });
-        Assert.Contains(events, signal => signal is ButtonClicked { Name: "button", Action: "submit" });
-        Assert.Contains(events, signal => signal is VoiceCaptured { Name: "voice", MimeType: "audio/wav" });
+        Assert.Contains(events, signal => signal is SelectChanged { Name: "owner/select", Value: "yes" });
+        Assert.Contains(events, signal => signal is FileCaptured { Name: "owner/file", FileName: "notes.txt", Content: "notes" });
+        Assert.Contains(events, signal => signal is ButtonClicked { Name: "owner/button", Action: "submit" });
+        Assert.Contains(events, signal => signal is VoiceCaptured { Name: "owner/voice", MimeType: "audio/wav" });
         await brain.DeactivateAsync(select, ct);
         Assert.Equal("yes", (await select.Read()).Selected);
         Assert.Equal(3, (await select.Read()).Options.Length);
@@ -103,21 +103,34 @@ public sealed class PrimitiveBindingFacts
         await button.Click();
     }
 
+    // D-05 / T-06-10 (06-07b): a binding hands events to a neuron of its own brain only, named by its runtime id.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ABindingRefusesAHandlerOfAnotherBrainOrWithoutAType()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var binding = brain.Get<IUiBinding>("owner/guarded");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => binding.Bind("someone-else/test.primitive-handler/handler"));
+        await Assert.ThrowsAsync<ArgumentException>(() => binding.Bind("owner/handler"));
+        await binding.Bind(UiHandlers.IdOf(brain.Get<IPrimitiveTestHandler>("owner/handler")));
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task HandlerCanProjectAnEditWithoutRedispatchingIt()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var handler = brain.Get<IPrimitiveTestHandler>("projecting-handler");
-        var field = brain.Get<ITextField>("projection-field");
-        await handler.ProjectTo("projection-field");
-        await brain.Get<IUiBinding>("projection-field").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("owner/projecting-handler");
+        var field = brain.Get<ITextField>("owner/projection-field");
+        await handler.ProjectTo("owner/projection-field");
+        await brain.Get<IUiBinding>("owner/projection-field").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         await field.Input("edited");
         await WaitFor(handled, 1, ct);
         Assert.Equal("projected: edited", (await field.Read()).Value);
-        Assert.Equal(new TextFieldChanged("projection-field", "edited"), Assert.Single(await handler.Events()));
+        Assert.Equal(new TextFieldChanged("owner/projection-field", "edited"), Assert.Single(await handler.Events()));
         await field.SetValue("another projection");
         Assert.Single(await handler.Events());
     }
@@ -144,8 +157,14 @@ public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
     private readonly List<Signal> _events = [];
     private string? _projection;
     public Task ProjectTo(string name) { _projection = name; return Task.CompletedTask; }
-    public async Task HandleUiEvent(Signal signal)
+    // The signal types a control dispatches, by the full name a UiEvent carries.
+    private static readonly Dictionary<string, Type> Dispatched = typeof(IUiBinding).Assembly.GetTypes()
+        .Where(type => typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type))
+        .ToDictionary(type => type.FullName!, StringComparer.Ordinal);
+
+    public async Task HandleUiEvent(UiEvent uiEvent)
     {
+        var signal = (Signal)System.Text.Json.JsonSerializer.Deserialize(uiEvent.Json, Dispatched[uiEvent.Type], System.Text.Json.JsonSerializerOptions.Web)!;
         _events.Add(signal);
         if (_projection is not null && signal is TextFieldChanged changed)
         { await GrainFactory.GetGrain<ITextField>(_projection).SetValue("projected: " + changed.Value); }

@@ -96,8 +96,8 @@ public sealed class ChatFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/actions");
-        var handler = brain.Get<IPrimitiveTestHandler>("chat-action-handler");
-        await brain.Get<IUiBinding>("owner/a/apps/chat/actions").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("owner/chat-action-handler");
+        await brain.Get<IUiBinding>("owner/a/apps/chat/actions").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         var projection = new ChatProjection("first", 1, 1, [])
         { Actions = [new("run-1", "Stop", "canonical run-1")] };

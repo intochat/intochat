@@ -66,13 +66,13 @@ internal sealed class CircleNeuron(
     {
         MemberChange();
         return GrainFactory.GetGrain<IntoChat.OS.Modules.Flutter.IUiBinding>(IApp.Key(CircleBrain, "circleroom") + "/bring-button")
-            .Bind(this.AsReference<ICircle>());
+            .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(this));
     }
 
-    public Task HandleUiEvent(Signal signal)
+    public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
     {
         MemberChange();
-        return PublicationButton.Handle(GrainFactory, CircleBrain, "circleroom", "bring-button", signal, BringPublication);
+        return PublicationButton.Handle(GrainFactory, CircleBrain, "circleroom", "bring-button", uiEvent, BringPublication);
     }
 
     public async Task Found(string name)

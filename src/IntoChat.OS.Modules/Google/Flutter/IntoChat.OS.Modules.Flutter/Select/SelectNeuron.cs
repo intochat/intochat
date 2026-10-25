@@ -38,7 +38,7 @@ internal sealed class SelectNeuron([PersistentState("state", IntoChatOSNames.Clu
         next.Selected = value;
         next.Revision++;
         await Save(next, signal);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(signal);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(signal));
     }
     public Task<SelectState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
 }

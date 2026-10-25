@@ -330,7 +330,7 @@
   "IntoChat.OS.Modules.Flutter.Contracts/Form/Signals/FormChanged.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/Graph/IGraph.cs": 5,
   "IntoChat.OS.Modules.Flutter.Contracts/Graph/Signals/GraphChanged.cs": 1,
-  "IntoChat.OS.Modules.Flutter.Contracts/IUiBinding.cs": 4,
+  "IntoChat.OS.Modules.Flutter.Contracts/IUiBinding.cs": 6,
   "IntoChat.OS.Modules.Flutter.Contracts/Image/IImage.cs": 3,
   "IntoChat.OS.Modules.Flutter.Contracts/Image/Signals/ImageChanged.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/ImageCanvas/IImageCanvas.cs": 7,

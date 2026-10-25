@@ -70,7 +70,7 @@ internal sealed class TextFieldNeuron([PersistentState("state", IntoChatOSNames.
         if (value.Length > 32_000) { throw new ArgumentException("Input has at most 32000 characters.", nameof(value)); }
         await SetValue(value);
         // The binding is the only recipient of a secret value; it forwards without journalling.
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(new TextFieldChanged(this.GetPrimaryKeyString(), value));
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(new TextFieldChanged(this.GetPrimaryKeyString(), value)));
     }
 
     [ReadOnly] public Task<TextFieldState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }

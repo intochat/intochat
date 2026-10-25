@@ -142,12 +142,12 @@ internal sealed class WebBrowserNeuron(
 
     private async Task Review() =>
         await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString())
-            .Dispatch(new BrowserObservationChanged(this.GetPrimaryKeyString()));
+            .Dispatch(UiEvent.Of(new BrowserObservationChanged(this.GetPrimaryKeyString())));
 
     private async Task Announce(Signal signal)
     {
         await PublishAsync(signal);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(signal);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(signal));
     }
 
     public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -187,7 +187,7 @@ internal sealed class WebBrowserNeuron(
         var navigated = new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri);
         await Save(next, navigated);
         if (_session is not null) { await Show(next.Uri); }
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(navigated);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(navigated));
     }
 
     [ReadOnly]

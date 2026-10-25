@@ -22,14 +22,19 @@ internal static class PublicationButton
     private sealed record Command(AppPublicationRef Publication, string TargetName, Guid OperationId);
 
     public static async Task Handle(IGrainFactory grains, string brain, string application, string button,
-        Signal signal, Func<AppPublicationRef, string, Guid, Task<AppSnapshot>> install)
+        UiEvent uiEvent, Func<AppPublicationRef, string, Guid, Task<AppSnapshot>> install)
     {
+        ArgumentNullException.ThrowIfNull(uiEvent);
+        // Authority is the caller stamped on this call at a trusted edge; the event's caller must name the same person, so a
+        // dispatch that lost the stamp, or carries another one, installs nothing (06-07b).
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.User
-            || caller.StampedBy == TrustedEdge.AppProxy)
+            || caller.StampedBy == TrustedEdge.AppProxy
+            || uiEvent.Caller is not { } stamped || stamped.PrincipalId != caller.PrincipalId || stamped.AccountId != caller.AccountId
+            || stamped.BrainId != caller.BrainId)
         { throw new UnauthorizedAccessException("Use the publication button as a signed-in person."); }
         var app = IApp.Key(brain, application);
-        if (signal is not ButtonClicked click || click.Name != app + "/" + button || click.RequestId == Guid.Empty)
-        { throw new ArgumentException("This handler accepts only its publication button.", nameof(signal)); }
+        if (uiEvent.As<ButtonClicked>() is not { } click || click.Name != app + "/" + button || click.RequestId == Guid.Empty)
+        { throw new ArgumentException("This handler accepts only its publication button.", nameof(uiEvent)); }
         var status = grains.GetGrain<IText>(app + "/status");
         try
         {
