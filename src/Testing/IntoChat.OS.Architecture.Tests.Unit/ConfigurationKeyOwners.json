@@ -6,7 +6,6 @@
   "IntoChat.OS.ServiceDefaults/OpenPostureLoopback.cs",
   "IntoChat.OS.Testing/LegacyDataDirectoryIsolation.cs",
   "IntoChat.OS.Aspire.Hosting/IntoChatOSHostingOptions.cs",
-  "IntoChat.OS.Aspire.Hosting/IntoChatOSProfiles.cs",
   "IntoChat.OS.Aspire.Server/ServerHostingExtensions.cs",
   "IntoChat.OS.Framework.Tests.Integration/ModuleIdFacts.cs",
   "IntoChat.OS.Sdk/Configuration/IntoChatOSConfiguration.cs",

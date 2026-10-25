@@ -92,6 +92,22 @@ public sealed class LegacyConfigurationGuardFacts
         Assert.DoesNotContain(Sentinel, exception.Message);
     }
 
+    [Theory]
+    [InlineData("key", "IntoChatOS:Profile", "Production")]
+    [InlineData("key", "IntoChatOS:Profile", "Development")]
+    [InlineData("key", "IntoChatOS:Preset", "Production")]
+    [InlineData("key", "IntoChatOS:Preset", "Development")]
+    [InlineData("env", "IntoChatOS__Profile", "Production")]
+    [InlineData("env", "IntoChatOS__Preset", "Development")]
+    public void RetiredCompositionSettingsFailStartupNamingTopologyAndModules(string kind, string name, string environment)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => Verify(Configure(kind, name), environment, kind == "env" ? [name] : []));
+        Assert.Contains(name, exception.Message);
+        Assert.Contains("IntoChatOS:Topology", exception.Message);
+        Assert.Contains("IntoChatOS:Modules:<id>:Enabled", exception.Message);
+        Assert.DoesNotContain(Sentinel, exception.Message);
+    }
+
     [Fact]
     public void TheOtherStorageKeysAreNotRetired()
     {

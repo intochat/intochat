@@ -17,12 +17,17 @@ public static class LegacyConfigurationGuard
     private static readonly string Lower = "digital" + "brain";
     private static readonly string Upper = "DIGITAL" + "BRAIN";
 
-    // Settings this release retired (D-11, D-13). Each fails startup in every environment naming its replacement;
+    // The replacement of the retired run-composition keys: Topology is the only axis, modules switch per id.
+    public const string CompositionReplacement = "IntoChatOS:Topology and IntoChatOS:Modules:<id>:Enabled";
+
+    // Settings this release retired (D-10, D-11, D-13, R4-02). Each fails startup in every environment naming its replacement;
     // unlike the product rename these are not Development warnings, because a silently ignored one moves local state.
     public static readonly IReadOnlyList<(string Name, string Replacement)> RetiredSettings =
     [
         ("IntoChatOS:Hosting:PersistentStorage", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
         ("IntoChatOS:Platform:Storage:Directory", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
+        ("IntoChatOS:Profile", CompositionReplacement),
+        ("IntoChatOS:Preset", CompositionReplacement),
     ];
 
     public static void Verify(IConfiguration configuration, IHostEnvironment environment, ILogger? logger = null)
@@ -44,7 +49,8 @@ public static class LegacyConfigurationGuard
         {
             throw new InvalidOperationException("Retired settings are not read: "
                 + string.Join("; ", retired.Select(offender => $"{offender.Name} -> {offender.Replacement}"))
-                + ". Local state lives under IntoChatOS:Home (<Home>/state); remove each setting, then start again.");
+                + ". Local state lives under IntoChatOS:Home (<Home>/state) and the run is composed by IntoChatOS:Topology"
+                + " (local, local-cloud or cloud) plus IntoChatOS:Modules:<id>:Enabled; remove each setting, then start again.");
         }
         // The pre-Home state directory is not migrated (clean break): one note so an operator knows where state went.
         if (localApplicationData is { Length: > 0 } && Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS", "runtime")))
