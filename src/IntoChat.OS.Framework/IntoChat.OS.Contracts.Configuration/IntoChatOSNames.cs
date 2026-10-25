@@ -22,6 +22,10 @@ public static class IntoChatOSNames
     public const string TopologyLocalCloud = "local-cloud";
     // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string TopologyCloud = "cloud";
+    // Widens binding beyond loopback on local and local-cloud: a comma list of IP literals or localhost (0.0.0.0 or :: for every
+    // interface). Unset means loopback only.
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string BindKey = "IntoChatOS:Bind";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
     public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
     public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";

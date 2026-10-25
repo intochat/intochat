@@ -199,9 +199,13 @@ public sealed class AspireTestSession : IAsyncDisposable
                         context.EnvironmentVariables[ServerHostingExtensions.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
                 }
                 // The harness exposes the host on the network on purpose, so it opts in to the Open-posture network check here, where the exposure is decided.
+                // The silo binds every interface below, so the local bind policy is widened explicitly too (IntoChatOS:Bind, D-21).
                 resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                {
                     context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(
-                        AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true"));
+                        AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true";
+                    context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BindKey)] = "0.0.0.0";
+                }));
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
                 // so clear both or every session binds the same endpoint. The endpoint also stays
                 // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands
