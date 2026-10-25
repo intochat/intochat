@@ -83,7 +83,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.
     internal static string CatalogKey(CallerContext? caller)
         => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
-            ? IModelCatalog.Key(caller.BrainId) : "default";
+            ? IModelCatalog.Key(caller.BrainId) : IModelCatalog.DeploymentKey;
 }
 
 // The DigitalBrain module of AI (06-05): its assembly's [Neuron] classes run on the runtime's host grains, on TestOS and on

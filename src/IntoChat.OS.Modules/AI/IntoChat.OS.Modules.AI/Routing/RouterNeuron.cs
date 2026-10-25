@@ -103,7 +103,7 @@ internal sealed class RouterNeuron(
     public async Task<RouteResult> Route(string state, string[]? allowed, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(state);
-        var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);
+        var systemone = ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISystemOne>(ISystemOne.Key(Scope));
         var result = await Decide(state, allowed, request => systemone.Ask(request, ct), ct);
         if (result.Contract.Length > 0) { await Remember(state, result.Contract, result.Method); }
         return result;
@@ -281,7 +281,7 @@ internal sealed class RouterNeuron(
         var types = (await Menu(allowed, ct)).ToArray();
         if (types.Length == 0) { throw new InvalidOperationException("No contracts are available to route over."); }
         var byId = types.ToDictionary(type => type.Id, type => type, StringComparer.Ordinal);
-        var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);
+        var systemone = ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISystemOne>(ISystemOne.Key(Scope));
         var surface = ServiceProvider.GetRequiredService<NeuronSurface>();
         var steps = new List<GoalStep>();
         for (var index = 0; index < MaxSteps; index++)

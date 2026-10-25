@@ -1,15 +1,12 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
+using DigitalBrain;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-[GrainType("ai.models"), StatelessWorker]
-internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : Neuron, IModelCatalog
+// A brain's catalog is {brain}/ai.models/main; the deployment's view is the system brain's (R4-19).
+[Neuron("ai.models"), StatelessNeuron]
+internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : DigitalBrain.Neuron, IModelCatalog
 {
-    // The brain is the key's scope ("{brain}/default"); a bare key is the deployment's view.
-    private string? Brain => BrainKey.ScopeOf(this.GetPrimaryKeyString());
+    private string? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain.Value;
 
     public Task<ModelChoices> List(string? defaultModel = null) => catalog.List(Brain, defaultModel, CancellationToken.None);
     public Task<ModelSelection?> Select(string? id, string? defaultModel = null) => catalog.Select(Brain, id, defaultModel, CancellationToken.None);

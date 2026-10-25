@@ -1,22 +1,26 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
 // The deployment's model list as a neuron, so other modules and the shell read it without
 // referencing the AI module. Never carries endpoints or secrets.
-[Alias("ai.models"), Orleans.Metadata.DefaultGrainType("ai.models")]
+[NeuronAlias("ai.models"), DefaultNeuronType("ai.models")]
 [Public]
-public interface IModelCatalog : INeuron
+public interface IModelCatalog
 {
-    // A brain's catalog: its list and choices count that brain's own provider keys. A bare key
-    // ("default") is the deployment's view.
-    static string Key(string brainId) => $"{brainId}/default";
+    // A brain's catalog: its list and choices count that brain's own provider keys. The deployment's view is the
+    // catalog of the reserved system brain (R4-19: a cluster-scoped singleton lives there, keyed main).
+    static string Key(string brainId) => $"{brainId}/main";
 
-    [ReadOnly, AlwaysInterleave] Task<ModelChoices> List(string? defaultModel = null);
+    const string SystemBrain = "system";
+
+    static string DeploymentKey => Key(SystemBrain);
+
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ModelChoices> List(string? defaultModel = null);
     // Validates a choice id ("profile:<name>", "preset:<Marker>") for a tool-using turn.
-    [ReadOnly, AlwaysInterleave] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
 }
 
 [GenerateSerializer, Alias("ai.model-choices")]

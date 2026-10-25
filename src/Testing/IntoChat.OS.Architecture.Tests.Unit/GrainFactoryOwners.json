@@ -21,7 +21,7 @@
   "IntoChat.OS.Modules.AI.Tests.Integration/ProviderIntegrations.cs": 2,
   "IntoChat.OS.Modules.AI.Tests.Integration/SystemOneRouterFacts.cs": 3,
   "IntoChat.OS.Modules.AI/Routing/AppMenuHost.cs": 2,
-  "IntoChat.OS.Modules.AI/Routing/RouterNeuron.cs": 8,
+  "IntoChat.OS.Modules.AI/Routing/RouterNeuron.cs": 4,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppMigrationFacts.cs": 7,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppNeuronFacts.cs": 2,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/MarketplaceClientFacts.cs": 2,

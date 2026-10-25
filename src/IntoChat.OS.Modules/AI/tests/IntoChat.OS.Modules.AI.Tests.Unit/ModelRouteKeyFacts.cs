@@ -1,6 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
@@ -18,15 +19,15 @@ public sealed class ModelRouteKeyFacts
     };
 
     [Fact]
-    public void A_valid_brain_lists_that_brain() => Assert.Equal("brain-1/default", AIModule.CatalogKey(Caller("brain-1")));
+    public void A_valid_brain_lists_that_brain() => Assert.Equal("brain-1/main", AIModule.CatalogKey(Caller("brain-1")));
 
     [Theory]
     [InlineData("")]
     [InlineData("a/b")]
     [InlineData("a:b")]
     public void A_caller_without_a_valid_brain_gets_the_deployment_list(string brainId)
-        => Assert.Equal("default", AIModule.CatalogKey(Caller(brainId)));
+        => Assert.Equal(IModelCatalog.DeploymentKey, AIModule.CatalogKey(Caller(brainId)));
 
     [Fact]
-    public void No_caller_gets_the_deployment_list() => Assert.Equal("default", AIModule.CatalogKey(null));
+    public void No_caller_gets_the_deployment_list() => Assert.Equal(IModelCatalog.DeploymentKey, AIModule.CatalogKey(null));
 }

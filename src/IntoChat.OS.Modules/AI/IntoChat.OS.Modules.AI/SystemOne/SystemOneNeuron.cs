@@ -1,12 +1,11 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.AI.SystemOne.Signals;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.AI;
 
-[GrainType("ai.systemone")]
-internal sealed class SystemOneNeuron(HttpSystemOne client) : Neuron, ISystemOne
+[Neuron("ai.systemone")]
+internal sealed class SystemOneNeuron(HttpSystemOne client) : DigitalBrain.Neuron, ISystemOne
 {
     private const int MaxSummaryChars = 2000;
 
@@ -14,7 +13,7 @@ internal sealed class SystemOneNeuron(HttpSystemOne client) : Neuron, ISystemOne
     {
         var result = await client.Ask(request, ct);
         var summary = request.State.Length <= MaxSummaryChars ? request.State : request.State[..MaxSummaryChars];
-        await PublishAsync(new SystemOneDecided(summary, result.Answers, Confidence(result)));
+        await Publish(new SystemOneDecided(summary, result.Answers, Confidence(result)));
         return result;
     }
 

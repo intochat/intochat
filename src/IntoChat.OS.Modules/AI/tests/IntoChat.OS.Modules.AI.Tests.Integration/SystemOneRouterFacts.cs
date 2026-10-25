@@ -368,7 +368,7 @@ public sealed class SystemOneRouterFacts
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
         var scope = alice.BrainId;
-        var systemOne = host.Get<ISystemOne>(scope);
+        var systemOne = host.Get<ISystemOne>(ISystemOne.Key(scope));
         await using var decided = await host.Observe<SystemOneDecided>(systemOne, ct);
 
         await systemOne.Ask(new SystemOneRequest("the integration keeps failing",

@@ -79,7 +79,7 @@ public sealed class AgentExecutionFacts(AIHost host)
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
         Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
         Assert.Equal(AgentRunStatus.Failed, Assert.Single((await agent.Read()).Runs).Status);
-        Assert.False((await brain.Get<IModelCatalog>("default").List()).Automatic.Available);
+        Assert.False((await brain.Get<IModelCatalog>(IModelCatalog.DeploymentKey).List()).Automatic.Available);
     }
 
     // Provider-neutral sampling reaches the model on the wire.
