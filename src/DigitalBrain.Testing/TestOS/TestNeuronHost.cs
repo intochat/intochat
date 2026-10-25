@@ -20,6 +20,7 @@ internal sealed class TestNeuronHost : IDisposable
     private readonly SemaphoreSlim _activating = new(1, 1);
     private readonly Lock _gate = new();
     private readonly Dictionary<string, ITimer> _timers = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _keepAlive = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ITimer> _reminders = new(StringComparer.Ordinal);
     private Neuron? _neuron;
 
@@ -96,7 +97,13 @@ internal sealed class TestNeuronHost : IDisposable
         else { _ = _os.Track(Observe(RunDeferred([work]))); }
     }
 
-    public void StartTimer(string name, TimeSpan due, TimeSpan? period)
+    // TestOS never collects an activation on idle, so keep-alive is only recorded (04-18).
+    public bool IsKeptAlive(string name)
+    {
+        lock (_gate) { return _keepAlive.Contains(name); }
+    }
+
+    public void StartTimer(string name, TimeSpan due, TimeSpan? period, bool keepAlive = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         var timer = _os.Clock.CreateTimer(_ => Tick(name, reminder: false), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -104,6 +111,7 @@ internal sealed class TestNeuronHost : IDisposable
         {
             if (_timers.Remove(name, out var previous)) { previous.Dispose(); }
             _timers[name] = timer;
+            if (keepAlive) { _keepAlive.Add(name); } else { _keepAlive.Remove(name); }
         }
         timer.Change(due, period ?? Timeout.InfiniteTimeSpan);
     }
@@ -113,6 +121,7 @@ internal sealed class TestNeuronHost : IDisposable
         lock (_gate)
         {
             if (_timers.Remove(name, out var timer)) { timer.Dispose(); }
+            _keepAlive.Remove(name);
         }
     }
 

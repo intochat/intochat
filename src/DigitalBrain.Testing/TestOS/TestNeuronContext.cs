@@ -85,7 +85,9 @@ internal sealed class TestNeuronContext : INeuronContext
 
     private sealed class HostTimers(TestNeuronHost host) : ITimers
     {
-        public void Start(string name, TimeSpan due, TimeSpan? period) => host.StartTimer(name, due, period);
+        public void Start(string name, TimeSpan due, TimeSpan? period) => host.StartTimer(name, due, period, keepAlive: false);
+
+        public void Start(string name, TimeSpan due, TimeSpan? period, bool keepAlive) => host.StartTimer(name, due, period, keepAlive);
 
         public void Stop(string name) => host.StopTimer(name);
     }

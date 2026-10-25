@@ -377,6 +377,7 @@ DigitalBrain.Spi.ISynapses.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System
 DigitalBrain.Spi.ISynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.ITimers
 DigitalBrain.Spi.ITimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
+DigitalBrain.Spi.ITimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period, bool keepAlive) -> void
 DigitalBrain.Spi.ITimers.Stop(string! name) -> void
 DigitalBrain.Spi.NeuronAttachment
 DigitalBrain.State.ExportableStateAttribute

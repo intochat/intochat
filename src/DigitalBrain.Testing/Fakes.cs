@@ -72,6 +72,7 @@ public sealed class ManualTimers : ITimers
 {
     private readonly ManualTime _time;
     private readonly Dictionary<string, (DateTimeOffset Due, TimeSpan? Period)> _timers = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _keepAlive = new(StringComparer.Ordinal);
 
     /// <summary>Timers on the given clock.</summary>
     public ManualTimers(ManualTime time) => _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -83,14 +84,25 @@ public sealed class ManualTimers : ITimers
     public IReadOnlyCollection<string> Names => _timers.Keys;
 
     /// <inheritdoc />
-    public void Start(string name, TimeSpan due, TimeSpan? period)
+    public void Start(string name, TimeSpan due, TimeSpan? period) => Start(name, due, period, keepAlive: false);
+
+    /// <inheritdoc />
+    public void Start(string name, TimeSpan due, TimeSpan? period, bool keepAlive)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         _timers[name] = (_time.GetUtcNow() + due, period);
+        if (keepAlive) { _keepAlive.Add(name); } else { _keepAlive.Remove(name); }
     }
 
+    /// <summary>The names of the running timers started with keep-alive.</summary>
+    public IReadOnlyCollection<string> KeepAliveNames => _keepAlive;
+
     /// <inheritdoc />
-    public void Stop(string name) => _timers.Remove(name);
+    public void Stop(string name)
+    {
+        _timers.Remove(name);
+        _keepAlive.Remove(name);
+    }
 
     /// <summary>Moves the clock and fires every due timer; returns the fired names in order.</summary>
     public async Task<IReadOnlyList<string>> Advance(TimeSpan by)
@@ -103,7 +115,7 @@ public sealed class ManualTimers : ITimers
             if (next.Key is null) { break; }
             _time.Advance(next.Value.Due - _time.GetUtcNow() is var step && step > TimeSpan.Zero ? step : TimeSpan.Zero);
             if (next.Value.Period is { } period && period > TimeSpan.Zero) { _timers[next.Key] = (next.Value.Due + period, period); }
-            else { _timers.Remove(next.Key); }
+            else { _timers.Remove(next.Key); _keepAlive.Remove(next.Key); }
             fired.Add(next.Key);
             if (OnFire is not null) { await OnFire(next.Key).ConfigureAwait(false); }
         }

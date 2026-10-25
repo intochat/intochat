@@ -136,6 +136,21 @@ public sealed class TestingFacts
     }
 
     [Fact]
+    public async Task ManualTimers_record_keep_alive_until_a_one_shot_fires_or_a_timer_stops()
+    {
+        var timers = new ManualTimers(new ManualTime());
+        timers.Start("once", TimeSpan.FromSeconds(3), null, keepAlive: true);
+        timers.Start("tick", TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5), keepAlive: true);
+        timers.Start("plain", TimeSpan.FromSeconds(5), null);
+
+        Assert.Equal(["once", "tick"], timers.KeepAliveNames.Order(StringComparer.Ordinal));
+        await timers.Advance(TimeSpan.FromSeconds(4));
+        Assert.Equal(["tick"], timers.KeepAliveNames);
+        timers.Stop("tick");
+        Assert.Empty(timers.KeepAliveNames);
+    }
+
+    [Fact]
     public void Proxies_return_registered_instances()
     {
         var other = new NeuronId(new BrainId("alice"), "greeter", "g");

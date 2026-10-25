@@ -19,6 +19,8 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, ISynapseHost, IStreamSubscriptionObserver, IRemindable, IHostTicks
 {
     private readonly Dictionary<string, IGrainTimer> _timers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TimeSpan?> _keepAliveTimers = new(StringComparer.Ordinal);
+    private static readonly TimeSpan KeepAliveMargin = TimeSpan.FromSeconds(5);
     /// <summary>The binder every host grain dispatches through; its cache also serves the interleaving predicate.</summary>
     internal static readonly NeuronBinder Binder = new();
 
@@ -125,11 +127,18 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     /// <inheritdoc />
     public Task ReceiveReminder(string reminderName, TickStatus status) => Tick(reminderName, CancellationToken.None);
 
-    void IHostTicks.StartTimer(string name, TimeSpan due, TimeSpan? period)
+    void IHostTicks.StartTimer(string name, TimeSpan due, TimeSpan? period, bool keepAlive)
     {
         if (_timers.Remove(name, out var existing)) { existing.Dispose(); }
-        _timers[name] = this.RegisterGrainTimer(static (state, ct) => state.Grain.Tick(state.Name, ct), (Grain: this, Name: name),
-            new GrainTimerCreationOptions(due, period ?? Timeout.InfiniteTimeSpan) { Interleave = false });
+        _timers[name] = this.RegisterGrainTimer(static (state, ct) => state.Grain.TimerTick(state.Name, ct), (Grain: this, Name: name),
+            new GrainTimerCreationOptions(due, period ?? Timeout.InfiniteTimeSpan) { Interleave = false, KeepAlive = keepAlive });
+        if (keepAlive)
+        {
+            // Opt-in keep-alive (04-18): hold the activation past its idle window until the first tick; renewed per tick.
+            _keepAliveTimers[name] = period;
+            this.DelayDeactivation(due + KeepAliveMargin);
+        }
+        else { ReleaseKeepAlive(name); }
     }
 
     void IHostTicks.Deactivate() => this.DeactivateOnIdle();
@@ -137,6 +146,24 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     void IHostTicks.StopTimer(string name)
     {
         if (_timers.Remove(name, out var existing)) { existing.Dispose(); }
+        ReleaseKeepAlive(name);
+    }
+
+    // A timer tick: renews a periodic keep-alive, or releases a one-shot one, before the turn runs.
+    private Task TimerTick(string name, CancellationToken cancellationToken)
+    {
+        if (_keepAliveTimers.TryGetValue(name, out var period))
+        {
+            if (period is { } every && every > TimeSpan.Zero && every != Timeout.InfiniteTimeSpan) { this.DelayDeactivation(every + KeepAliveMargin); }
+            else { ReleaseKeepAlive(name); }
+        }
+        return Tick(name, cancellationToken);
+    }
+
+    // Normal idle collection resumes once no keep-alive timer remains.
+    private void ReleaseKeepAlive(string name)
+    {
+        if (_keepAliveTimers.Remove(name) && _keepAliveTimers.Count == 0) { this.DelayDeactivation(TimeSpan.Zero); }
     }
 
     async Task IHostTicks.StartReminder(string name, TimeSpan due, TimeSpan period)

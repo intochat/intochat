@@ -5,7 +5,7 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// <summary>What the host grain gives its context for ticks: activation timers and durable reminders. Every tick is a turn on the grain.</summary>
 internal interface IHostTicks
 {
-    void StartTimer(string name, TimeSpan due, TimeSpan? period);
+    void StartTimer(string name, TimeSpan due, TimeSpan? period, bool keepAlive);
 
     void StopTimer(string name);
 
@@ -25,10 +25,12 @@ internal interface IHostTicks
 /// </summary>
 internal sealed class HostTimers(IHostTicks ticks, NeuronRegistration registration) : ITimers, IReminders
 {
-    public void Start(string name, TimeSpan due, TimeSpan? period)
+    public void Start(string name, TimeSpan due, TimeSpan? period) => Start(name, due, period, keepAlive: false);
+
+    public void Start(string name, TimeSpan due, TimeSpan? period, bool keepAlive)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ticks.StartTimer(name, due, period);
+        ticks.StartTimer(name, due, period, keepAlive);
     }
 
     public void Stop(string name)

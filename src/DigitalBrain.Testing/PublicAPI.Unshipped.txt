@@ -320,7 +320,9 @@ DigitalBrain.Testing.ManualTimers.ManualTimers(DigitalBrain.Testing.ManualTime! 
 DigitalBrain.Testing.ManualTimers.Names.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 DigitalBrain.Testing.ManualTimers.OnFire.get -> System.Func<string!, System.Threading.Tasks.Task!>?
 DigitalBrain.Testing.ManualTimers.OnFire.set -> void
+DigitalBrain.Testing.ManualTimers.KeepAliveNames.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 DigitalBrain.Testing.ManualTimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
+DigitalBrain.Testing.ManualTimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period, bool keepAlive) -> void
 DigitalBrain.Testing.ManualTimers.Stop(string! name) -> void
 DigitalBrain.Testing.NeuronAssertionException
 DigitalBrain.Testing.NeuronAssertionException.NeuronAssertionException() -> void
