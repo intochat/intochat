@@ -74,7 +74,8 @@ public sealed class BlobLeaseBrainLogOwnership : IBrainLogOwnership, IBrainOwner
     public BlobLeaseBrainLogOwnership(BlobContainerClient container, TimeProvider time, ILoggerFactory loggers, TimeSpan claimTimeout, TimeSpan writeTimeout)
         : this(new AzureBrainLeaseClient(container ?? throw new ArgumentNullException(nameof(container)),
                 (loggers ?? throw new ArgumentNullException(nameof(loggers))).CreateLogger<AzureBrainLeaseClient>()),
-            time, loggers.CreateLogger<BlobLeaseBrainLogOwnership>(), claimTimeout, writeTimeout) { }
+            time, loggers.CreateLogger<BlobLeaseBrainLogOwnership>(), claimTimeout, writeTimeout)
+    { }
 
     internal BlobLeaseBrainLogOwnership(IBrainLeaseClient client, TimeProvider time, ILogger<BlobLeaseBrainLogOwnership> logger, TimeSpan claimTimeout, TimeSpan writeTimeout)
     {
