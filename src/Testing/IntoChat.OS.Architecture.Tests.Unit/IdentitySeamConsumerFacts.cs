@@ -5,8 +5,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // The privileged identity seams (session issuance, principal provisioning) live in the transitional Framework under
 // IntoChat.OS.Framework.Modules.Identity since the Sdk deletion (Phase 3 R4-07). They no longer have an assembly of
 // their own, so the fence is on the namespace: only the pinned production projects may use it; widening the list is a
-// reviewed change to SdkIdentityConsumers.json. The Framework hosts the seams and tests are exempt.
-public sealed class SdkIdentityConsumerFacts
+// reviewed change to IdentitySeamConsumers.json. The Framework hosts the seams and tests are exempt.
+public sealed class IdentitySeamConsumerFacts
 {
     private const string Namespace = "IntoChat.OS.Framework.Modules.Identity";
 
@@ -16,7 +16,7 @@ public sealed class SdkIdentityConsumerFacts
     public void OnlyThePinnedProjectsUseThePrivilegedIdentitySeams()
     {
         var pinned = JsonSerializer.Deserialize<Consumer[]>(
-            File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "SdkIdentityConsumers.json")),
+            File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "IdentitySeamConsumers.json")),
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.All(pinned, consumer => Assert.False(string.IsNullOrWhiteSpace(consumer.Reason), consumer.Project + " needs a reason"));
 
