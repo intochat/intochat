@@ -77,3 +77,21 @@ A module providing storage@1 proves it in its `tests/` project with a sealed sub
 `InMemoryStorage` (with `InMemoryOperations`) is the reference implementation that passes the kit. `FakeStorage` is the same
 storage plus a `Calls` record; bind it with `os.WithStorage("drive", new FakeStorage("Work Drive"))` or
 `os.WithStorage("c", label: "C:", configure: fake => fake.AddFile(fake.Root, "a.txt", bytes))`.
+
+## Secrets and identity: conformance kits and fakes
+
+secrets@1 and identity@1 take no caller parameter; the implementation reads the caller the runtime stamped. Both kits
+switch that caller through a `CallerScope` the subclass supplies (`As(KitCaller)` stamps a caller until disposed);
+`AmbientCallerScope` is the `AsyncLocal` scope the in-memory subjects read.
+
+- `SecretsConformance<TSecrets>`: `Connect(ct)` returns `SecretsSubject(secrets, callers, capturedLogs)`. Facts cover
+  round-trip, redacted references, not-found after remove, cross-brain denied, overwrite, last-writer-wins concurrent
+  sets, a 256 KiB value, value-free errors and value-free logs. Override `Owner`/`Stranger` if your callers need
+  provisioned ids.
+- `IdentityConformance<TIdentity>`: `Connect(ct)` returns `IdentitySubject(identity, grants, callers, signIn?)`. Facts
+  cover accounts, brains, idempotent provisioning, registration, membership, owner protection, grants (owner-only grant,
+  authorize, revoke, ThisChat `Grant.Covers`) and, when `signIn` is given, the sign-in member.
+
+`InMemorySecrets` and `InMemoryIdentity` are the reference implementations. `FakeSecrets` and `FakeIdentity` add a
+`Calls` record; bind them with `os.WithSecrets("vault")`, `os.WithSecrets("vault", fake => fake.Put("owner", "key", "Key", "value"))`,
+`os.WithIdentity("identity")` (both halves under one name) or `os.WithIdentity(name, identity, grants)`.

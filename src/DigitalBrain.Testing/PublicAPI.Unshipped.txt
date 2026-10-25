@@ -23,6 +23,111 @@ DigitalBrain.Testing.CapabilityNotBoundException
 DigitalBrain.Testing.CapabilityNotBoundException.Capability.get -> DigitalBrain.Capabilities.CapabilityId
 DigitalBrain.Testing.CapabilityNotBoundException.CapabilityNotBoundException(DigitalBrain.Capabilities.CapabilityId capability, string? name, string? requiredBy = null) -> void
 DigitalBrain.Testing.CapabilityNotBoundException.Name.get -> string?
+DigitalBrain.Testing.Conformance.AmbientCallerScope
+DigitalBrain.Testing.Conformance.AmbientCallerScope.AmbientCallerScope(DigitalBrain.Testing.Conformance.KitCaller? fallback = null) -> void
+DigitalBrain.Testing.Conformance.AmbientCallerScope.Current.get -> DigitalBrain.Testing.Conformance.KitCaller!
+DigitalBrain.Testing.Conformance.CallerScope
+DigitalBrain.Testing.Conformance.CallerScope.CallerScope() -> void
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.AuthorizeWithoutGrantDenies() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.BrainsOfListsCreatedBrain() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.CreateBrainIsIdempotentPerOperation() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.CreateBrainThenOwnerOfBrainIsCreator() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.EnsureAccountIsIdempotent() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.EnsureMemberThenMembershipContainsIt() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.GrantAsOwnerByNonOwnerThrowsUnauthorized() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.GrantThenAuthorizeAllows() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.IdentityConformance() -> void
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.KindOfUnknownIsPersonal() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.OwnerCannotBeRemoved() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.ProvisionOwnerThenEnsureBrainIsIdempotent() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.RegisterPrincipalIsIdempotent() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.RemovePrincipalMemberRemovesIt() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.RemovePrincipalMemberUnknownIsNoOp() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.RevokeThenAuthorizeDenies() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.SignInYieldsTheOwnerMember() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.ThisChatGrantCoversOnlyItsConversation() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.<Clone>$() -> DigitalBrain.Testing.Conformance.Identity.IdentitySubject!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Callers.get -> DigitalBrain.Testing.Conformance.CallerScope!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Callers.init -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Deconstruct(out DigitalBrain.Capabilities.Identity.IIdentity! Identity, out DigitalBrain.Capabilities.Identity.IGrants! Grants, out DigitalBrain.Testing.Conformance.CallerScope! Callers, out System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member!>!>? SignIn) -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Equals(DigitalBrain.Testing.Conformance.Identity.IdentitySubject? other) -> bool
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Grants.get -> DigitalBrain.Capabilities.Identity.IGrants!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Grants.init -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Identity.get -> DigitalBrain.Capabilities.Identity.IIdentity!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Identity.init -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.IdentitySubject(DigitalBrain.Capabilities.Identity.IIdentity! Identity, DigitalBrain.Capabilities.Identity.IGrants! Grants, DigitalBrain.Testing.Conformance.CallerScope! Callers, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member!>!>? SignIn = null) -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.SignIn.get -> System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member!>!>?
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.SignIn.init -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.AddSignInHandler(DigitalBrain.Capabilities.Identity.ISignInHandler! handler) -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Authorize(DigitalBrain.Capabilities.Identity.CallRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.CallDecision?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.BrainExists(string! brainScopeId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.BrainsOf(string! principalId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Identity.BrainEntry!>!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.CompleteRegistration(string! principalId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainProvision?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.CreateBrain(string! accountId, string! principalId, string! operationId, string! displayName, DigitalBrain.Capabilities.Identity.BrainKind kind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainProvision!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.EnsureAccount(DigitalBrain.Capabilities.Identity.Account! account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.EnsureBrain(DigitalBrain.Capabilities.Identity.Member! owner, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainProvision!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.EnsureMember(DigitalBrain.Capabilities.Identity.Member! member, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.GrantAsOwner(DigitalBrain.Capabilities.Identity.Grant! grant, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Grant!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.InMemoryIdentity(DigitalBrain.Testing.Conformance.AmbientCallerScope? callers = null, System.TimeProvider? time = null) -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.IsRegistered(string! principalId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.KindOf(string! brainScopeId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainKind>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.ListGrants(string! brainScopeId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Identity.Grant!>!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Membership(string! brainScopeId, string! principalId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.OwnerOfBrain(string! brainId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Account?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.ProvisionOwner(DigitalBrain.Capabilities.Identity.Member! owner, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainProvision!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.ReadAccount(string! accountId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Account?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.RegisterPrincipal(string! principalId, string! displayName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.BrainProvision!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.RemoveMember(string! brainScopeId, string! accountId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.RemovePrincipalMember(string! brainScopeId, string! principalId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.RevokeAsOwner(string! appId, string! semanticTypeId, DigitalBrain.Capabilities.Identity.GrantMode mode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.SignIn(string! principalId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member!>!
+DigitalBrain.Testing.Conformance.KitCaller
+DigitalBrain.Testing.Conformance.KitCaller.<Clone>$() -> DigitalBrain.Testing.Conformance.KitCaller!
+DigitalBrain.Testing.Conformance.KitCaller.AccountId.get -> string!
+DigitalBrain.Testing.Conformance.KitCaller.AccountId.init -> void
+DigitalBrain.Testing.Conformance.KitCaller.AppId.get -> string?
+DigitalBrain.Testing.Conformance.KitCaller.AppId.init -> void
+DigitalBrain.Testing.Conformance.KitCaller.BrainId.get -> string!
+DigitalBrain.Testing.Conformance.KitCaller.BrainId.init -> void
+DigitalBrain.Testing.Conformance.KitCaller.ConversationId.get -> string?
+DigitalBrain.Testing.Conformance.KitCaller.ConversationId.init -> void
+DigitalBrain.Testing.Conformance.KitCaller.Deconstruct(out string! PrincipalId, out string! AccountId, out string! BrainId, out string? AppId, out string? ConversationId) -> void
+DigitalBrain.Testing.Conformance.KitCaller.Equals(DigitalBrain.Testing.Conformance.KitCaller? other) -> bool
+DigitalBrain.Testing.Conformance.KitCaller.KitCaller(string! PrincipalId, string! AccountId, string! BrainId, string? AppId = null, string? ConversationId = null) -> void
+DigitalBrain.Testing.Conformance.KitCaller.PrincipalId.get -> string!
+DigitalBrain.Testing.Conformance.KitCaller.PrincipalId.init -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.InMemorySecrets(DigitalBrain.Testing.Conformance.AmbientCallerScope? callers = null) -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Log.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Put(string! brainId, string! name, string! label, string! value) -> DigitalBrain.Capabilities.Secrets.SecretRef!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Remove(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Resolve(DigitalBrain.Capabilities.Secrets.SecretRef! secret, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Set(string! name, string! label, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.ConcurrentSetsAreLastWriterWins() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.ErrorsNeverCarryTheValue() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.LargeValueRoundTrips() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.LogsNeverContainValue() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.OtherCallersSecretIsDenied() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.OverwriteKeepsLatestValue() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.RemoveThenResolveIsNotFound() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.SecretsConformance() -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.SetReturnsRefWithNameAndNoValue() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.SetThenResolveReturnsValue() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.<Clone>$() -> DigitalBrain.Testing.Conformance.Secrets.SecretsSubject!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Callers.get -> DigitalBrain.Testing.Conformance.CallerScope!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Callers.init -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.CapturedLogs.get -> System.Func<System.Collections.Generic.IReadOnlyList<string!>!>!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.CapturedLogs.init -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Deconstruct(out DigitalBrain.Capabilities.Secrets.ISecrets! Secrets, out DigitalBrain.Testing.Conformance.CallerScope! Callers, out System.Func<System.Collections.Generic.IReadOnlyList<string!>!>! CapturedLogs) -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Equals(DigitalBrain.Testing.Conformance.Secrets.SecretsSubject? other) -> bool
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Secrets.get -> DigitalBrain.Capabilities.Secrets.ISecrets!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Secrets.init -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.SecretsSubject(DigitalBrain.Capabilities.Secrets.ISecrets! Secrets, DigitalBrain.Testing.Conformance.CallerScope! Callers, System.Func<System.Collections.Generic.IReadOnlyList<string!>!>! CapturedLogs) -> void
 DigitalBrain.Testing.Conformance.Storage.IOperationsProbe
 DigitalBrain.Testing.Conformance.Storage.IOperationsProbe.WaitFor(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
 DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent
@@ -126,6 +231,9 @@ DigitalBrain.Testing.FakeCapabilityBroker.FakeCapabilityBroker() -> void
 DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance, string? connectionKey = null, string? label = null) -> DigitalBrain.Testing.FakeCapabilityBroker!
 DigitalBrain.Testing.FakeCapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
 DigitalBrain.Testing.FakeCapabilityBroker.ResolveAll<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityConnection<TCapability!>!>!>!
+DigitalBrain.Testing.FakeIdentity
+DigitalBrain.Testing.FakeIdentity.Calls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.FakeIdentity.FakeIdentity(DigitalBrain.Testing.Conformance.AmbientCallerScope? callers = null, System.TimeProvider? time = null) -> void
 DigitalBrain.Testing.FakeNeuronContext
 DigitalBrain.Testing.FakeNeuronContext.Clock.get -> DigitalBrain.Testing.ManualTime!
 DigitalBrain.Testing.FakeNeuronContext.Defer(System.Func<System.Threading.Tasks.Task!>! work) -> void
@@ -163,6 +271,9 @@ DigitalBrain.Testing.FakeOperations.All.get -> System.Collections.Generic.IReadO
 DigitalBrain.Testing.FakeOperations.Cancel(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.FakeOperations.FakeOperations() -> void
 DigitalBrain.Testing.FakeOperations.Start(DigitalBrain.Operations.OperationPlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IOperation!>!
+DigitalBrain.Testing.FakeSecrets
+DigitalBrain.Testing.FakeSecrets.Calls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.FakeSecrets.FakeSecrets(DigitalBrain.Testing.Conformance.AmbientCallerScope? callers = null) -> void
 DigitalBrain.Testing.FakeStorage
 DigitalBrain.Testing.FakeStorage.Calls.get -> System.Collections.Generic.IReadOnlyList<string!>!
 DigitalBrain.Testing.FakeStorage.FakeStorage(string! label = "Fake storage", DigitalBrain.Capabilities.Storage.Quota? quota = null, DigitalBrain.Capabilities.Storage.ItemFlags flags = DigitalBrain.Capabilities.Storage.ItemFlags.Read | DigitalBrain.Capabilities.Storage.ItemFlags.Write | DigitalBrain.Capabilities.Storage.ItemFlags.Trash | DigitalBrain.Capabilities.Storage.ItemFlags.Delete | DigitalBrain.Capabilities.Storage.ItemFlags.Move | DigitalBrain.Capabilities.Storage.ItemFlags.Copy | DigitalBrain.Capabilities.Storage.ItemFlags.Rename | DigitalBrain.Capabilities.Storage.ItemFlags.Search | DigitalBrain.Capabilities.Storage.ItemFlags.CreateFolder, System.TimeProvider? time = null) -> void
@@ -295,8 +406,14 @@ DigitalBrain.Testing.TestOSOptions.StaleCursorAfter.set -> void
 DigitalBrain.Testing.TestOSOptions.Start.get -> System.DateTimeOffset?
 DigitalBrain.Testing.TestOSOptions.Start.set -> void
 DigitalBrain.Testing.TestOSOptions.TestOSOptions() -> void
+DigitalBrain.Testing.TestOSSecretsIdentityExtensions
 DigitalBrain.Testing.TestOSStorageExtensions
+abstract DigitalBrain.Testing.Conformance.CallerScope.As(DigitalBrain.Testing.Conformance.KitCaller! caller) -> System.IDisposable!
+abstract DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.Connect(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Testing.Conformance.Identity.IdentitySubject!>!
+abstract DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Connect(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Testing.Conformance.Secrets.SecretsSubject!>!
 abstract DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.Connect(DigitalBrain.Testing.Conformance.Storage.StorageSeed! seed, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Testing.Conformance.Storage.StorageSubject!>!
+const DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.Timeout = 30000 -> int
+const DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Timeout = 30000 -> int
 const DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.AllFlags = DigitalBrain.Capabilities.Storage.ItemFlags.Read | DigitalBrain.Capabilities.Storage.ItemFlags.Write | DigitalBrain.Capabilities.Storage.ItemFlags.Trash | DigitalBrain.Capabilities.Storage.ItemFlags.Delete | DigitalBrain.Capabilities.Storage.ItemFlags.Move | DigitalBrain.Capabilities.Storage.ItemFlags.Copy | DigitalBrain.Capabilities.Storage.ItemFlags.Rename | DigitalBrain.Capabilities.Storage.ItemFlags.Search | DigitalBrain.Capabilities.Storage.ItemFlags.CreateFolder -> DigitalBrain.Capabilities.Storage.ItemFlags
 const DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.Timeout = 30000 -> int
 const DigitalBrain.Testing.Conformance.Storage.StorageSeed.LeafName = "leaf.txt" -> string!
@@ -310,6 +427,16 @@ const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orle
 override DigitalBrain.Testing.AppPresentation.Equals(object? obj) -> bool
 override DigitalBrain.Testing.AppPresentation.GetHashCode() -> int
 override DigitalBrain.Testing.AppPresentation.ToString() -> string!
+override DigitalBrain.Testing.Conformance.AmbientCallerScope.As(DigitalBrain.Testing.Conformance.KitCaller! caller) -> System.IDisposable!
+override DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Identity.IdentitySubject.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Identity.IdentitySubject.ToString() -> string!
+override DigitalBrain.Testing.Conformance.KitCaller.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.KitCaller.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.KitCaller.ToString() -> string!
+override DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.ToString() -> string!
 override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Equals(object? obj) -> bool
 override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.GetHashCode() -> int
 override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.ToString() -> string!
@@ -326,6 +453,12 @@ override DigitalBrain.Testing.TestClock.GetUtcNow() -> System.DateTimeOffset
 static DigitalBrain.Testing.AppPresentation.operator !=(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
 static DigitalBrain.Testing.AppPresentation.operator ==(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
 static DigitalBrain.Testing.CapabilityFakes.IdOf(System.Type! contract) -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Testing.Conformance.Identity.IdentitySubject.operator !=(DigitalBrain.Testing.Conformance.Identity.IdentitySubject? left, DigitalBrain.Testing.Conformance.Identity.IdentitySubject? right) -> bool
+static DigitalBrain.Testing.Conformance.Identity.IdentitySubject.operator ==(DigitalBrain.Testing.Conformance.Identity.IdentitySubject? left, DigitalBrain.Testing.Conformance.Identity.IdentitySubject? right) -> bool
+static DigitalBrain.Testing.Conformance.KitCaller.operator !=(DigitalBrain.Testing.Conformance.KitCaller? left, DigitalBrain.Testing.Conformance.KitCaller? right) -> bool
+static DigitalBrain.Testing.Conformance.KitCaller.operator ==(DigitalBrain.Testing.Conformance.KitCaller? left, DigitalBrain.Testing.Conformance.KitCaller? right) -> bool
+static DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.operator !=(DigitalBrain.Testing.Conformance.Secrets.SecretsSubject? left, DigitalBrain.Testing.Conformance.Secrets.SecretsSubject? right) -> bool
+static DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.operator ==(DigitalBrain.Testing.Conformance.Secrets.SecretsSubject? left, DigitalBrain.Testing.Conformance.Secrets.SecretsSubject? right) -> bool
 static DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.operator !=(DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? left, DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? right) -> bool
 static DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.operator ==(DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? left, DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? right) -> bool
 static DigitalBrain.Testing.Conformance.Storage.SeedEntry.operator !=(DigitalBrain.Testing.Conformance.Storage.SeedEntry? left, DigitalBrain.Testing.Conformance.Storage.SeedEntry? right) -> bool
@@ -340,8 +473,19 @@ static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId 
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOS.ManifestOf(System.Type! appType) -> DigitalBrain.AppManifest!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithIdentity(this DigitalBrain.Testing.TestOS! os, string! name) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithIdentity(this DigitalBrain.Testing.TestOS! os, string! name, DigitalBrain.Capabilities.Identity.IIdentity! identity, DigitalBrain.Capabilities.Identity.IGrants! grants) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithIdentity(this DigitalBrain.Testing.TestOS! os, string! name, System.Action<DigitalBrain.Testing.FakeIdentity!>! configure) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithSecrets(this DigitalBrain.Testing.TestOS! os, string! name) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithSecrets(this DigitalBrain.Testing.TestOS! os, string! name, DigitalBrain.Capabilities.Secrets.ISecrets! secrets) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSSecretsIdentityExtensions.WithSecrets(this DigitalBrain.Testing.TestOS! os, string! name, System.Action<DigitalBrain.Testing.FakeSecrets!>! configure) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOSStorageExtensions.WithStorage(this DigitalBrain.Testing.TestOS! os, string! name, DigitalBrain.Capabilities.Storage.IStorage! storage) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOSStorageExtensions.WithStorage(this DigitalBrain.Testing.TestOS! os, string! name, string? label = null, DigitalBrain.Capabilities.Storage.Quota? quota = null, System.Action<DigitalBrain.Testing.FakeStorage!>? configure = null) -> DigitalBrain.Testing.TestOS!
+static readonly DigitalBrain.Testing.Conformance.AmbientCallerScope.LocalOwner -> DigitalBrain.Testing.Conformance.KitCaller!
+virtual DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.OnCall(string! member) -> void
+virtual DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.OnCall(string! member) -> void
+virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Owner.get -> DigitalBrain.Testing.Conformance.KitCaller!
+virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Stranger.get -> DigitalBrain.Testing.Conformance.KitCaller!
 virtual DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.OnCall(string! member) -> void
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.MissingId() -> DigitalBrain.Capabilities.Storage.ItemId
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.SeedFolder(DigitalBrain.Capabilities.Storage.IStorage! storage, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!
