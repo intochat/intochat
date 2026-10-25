@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Layout;
 
-[Alias("layout"), Orleans.Metadata.DefaultGrainType(UIVocabulary.LayoutType)]
-public interface ILayout : INeuron
+[NeuronAlias("layout"), DefaultNeuronType(UIVocabulary.LayoutType)]
+public interface ILayout
 {
     Task Set(LayoutDefinition definition, long expectedRevision);
-    [ReadOnly] Task<LayoutState> Read();
+    [ReadOnlyCall] Task<LayoutState> Read();
 }
 
 [GenerateSerializer, Alias("ui.layout-definition")]
@@ -25,5 +26,5 @@ public sealed class LayoutState
     [Id(2)] public LayoutDefinition Definition { get; set; } = new("column", []);
 }
 
-[GenerateSerializer, Alias("ui.layout-changed")]
-public sealed record LayoutChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.layout-changed")]
+public sealed record LayoutChanged(string Name, long Revision) : DigitalBrain.Signal;

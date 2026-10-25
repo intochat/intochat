@@ -11,7 +11,12 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 internal static class SourceTypes
 {
     internal sealed record Declared(string File, string Project, string Namespace, string FullName, string Name, bool IsInterface, bool IsAbstract,
-        string[] Bases, AttributeSyntax[] Attributes, ParameterSyntax[] StateParameters);
+        string[] Bases, AttributeSyntax[] Attributes, ParameterSyntax[] StateParameters)
+    {
+        // Derives DigitalBrain.Neuron<TState> directly (a plain stateful neuron or a module base of them, 06-04); Bases drops
+        // DigitalBrain bases, so this keeps the one fact the grain-type pin needs.
+        public bool PlainStateBase { get; init; }
+    }
 
     internal static readonly string[] GrainInterfaceRoots =
         ["IGrain", "IGrainWithStringKey", "IGrainWithIntegerKey", "IGrainWithGuidKey", "IGrainWithGuidCompoundKey", "IGrainWithIntegerCompoundKey"];
@@ -106,7 +111,11 @@ internal static class SourceTypes
                 parameters = parameters.Concat(node.Members.OfType<ConstructorDeclarationSyntax>().SelectMany(constructor => constructor.ParameterList.Parameters));
                 var state = parameters.Where(parameter => parameter.AttributeLists.SelectMany(list => list.Attributes).Any(IsPersistentState)).ToArray();
                 var declared = new Declared(key, project, ns, fullName, node.Identifier.Text + (node.TypeParameterList is { } own ? "`" + own.Parameters.Count : ""),
-                    node is InterfaceDeclarationSyntax, node.Modifiers.Any(SyntaxKind.AbstractKeyword), bases, attributes, state);
+                    node is InterfaceDeclarationSyntax, node.Modifiers.Any(SyntaxKind.AbstractKeyword), bases, attributes, state)
+                {
+                    PlainStateBase = node.BaseList?.Types.Any(type => type.Type is QualifiedNameSyntax { Right: GenericNameSyntax { Identifier.Text: "Neuron" } } qualified
+                        && IsDigitalBrain(qualified.Left)) == true,
+                };
                 byName[fullName] = byName.TryGetValue(fullName, out var partial)
                     ? partial with
                     {
@@ -114,6 +123,7 @@ internal static class SourceTypes
                         Attributes = [.. partial.Attributes, .. attributes],
                         StateParameters = [.. partial.StateParameters, .. state],
                         IsAbstract = partial.IsAbstract || declared.IsAbstract,
+                        PlainStateBase = partial.PlainStateBase || declared.PlainStateBase,
                         File = partial.Bases.Length > 0 || bases.Length == 0 ? partial.File : key,
                     }
                     : declared;

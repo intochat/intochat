@@ -5,7 +5,6 @@
   "IntoChat.OS.Modules.Circles.CirclesModule",
   "IntoChat.OS.Modules.ClickHouse.ClickHouseModule",
   "IntoChat.OS.Modules.Flame.FlameModule",
-  "IntoChat.OS.Modules.Flutter.FlutterModule",
   "IntoChat.OS.Modules.Google.Auth.GoogleAuthModule",
   "IntoChat.OS.Modules.Google.Gmail.GmailModule",
   "IntoChat.OS.Modules.Mcp.McpModule",

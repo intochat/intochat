@@ -1,17 +1,16 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Image.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Image;
 
-[GrainType(UIVocabulary.ImageType)]
-internal sealed class ImageNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ImageState> store)
-    : Neuron<ImageState>(store), IImage
+[Neuron(UIVocabulary.ImageType)]
+internal sealed class ImageNeuron
+    : UiNeuron<ImageState>, IImage
 {
     public Task Set(string url, string mediaType, string prompt)
     {
@@ -19,13 +18,13 @@ internal sealed class ImageNeuron([PersistentState("state", IntoChatOSNames.Clus
         ArgumentNullException.ThrowIfNull(mediaType);
         ArgumentNullException.ThrowIfNull(prompt);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Url = url.Trim();
         next.MediaType = mediaType.Trim();
         next.Prompt = prompt;
-        return Save(next, new ImageChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new ImageChanged(FullKey, next.Version));
     }
 
-    [ReadOnly] public Task<ImageState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<ImageState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

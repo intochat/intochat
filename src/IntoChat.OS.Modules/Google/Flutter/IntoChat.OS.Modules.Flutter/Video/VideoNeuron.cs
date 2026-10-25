@@ -1,30 +1,29 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Video.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Video;
 
-[GrainType(UIVocabulary.VideoType)]
-internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<VideoState> store)
-    : Neuron<VideoState>(store), IVideo
+[Neuron(UIVocabulary.VideoType)]
+internal sealed class VideoNeuron
+    : UiNeuron<VideoState>, IVideo
 {
     public Task Load(string url, double duration)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
         if (duration < 0) { throw new ArgumentOutOfRangeException(nameof(duration)); }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Url = url.Trim();
         next.Duration = duration;
         next.Position = 0;
         next.Playing = false;
-        return Save(next, new VideoChanged(this.GetPrimaryKeyString(), false));
+        return Save(next, new VideoChanged(FullKey, false));
     }
 
     public Task Play()
@@ -32,7 +31,7 @@ internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.Clus
         var next = RequireLoaded();
         next.Version++;
         next.Playing = true;
-        return Save(next, new VideoChanged(this.GetPrimaryKeyString(), true));
+        return Save(next, new VideoChanged(FullKey, true));
     }
 
     public Task Pause()
@@ -40,7 +39,7 @@ internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.Clus
         var next = RequireLoaded();
         next.Version++;
         next.Playing = false;
-        return Save(next, new VideoChanged(this.GetPrimaryKeyString(), false));
+        return Save(next, new VideoChanged(FullKey, false));
     }
 
     public Task Seek(double seconds)
@@ -48,7 +47,7 @@ internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.Clus
         var next = RequireLoaded();
         next.Version++;
         next.Position = Math.Clamp(seconds, 0, next.Duration);
-        return Save(next, new VideoChanged(this.GetPrimaryKeyString(), next.Playing));
+        return Save(next, new VideoChanged(FullKey, next.Playing));
     }
 
     public Task End()
@@ -57,15 +56,15 @@ internal sealed class VideoNeuron([PersistentState("state", IntoChatOSNames.Clus
         next.Version++;
         next.Playing = false;
         next.Position = next.Duration;
-        return Save(next, new VideoChanged(this.GetPrimaryKeyString(), false), new VideoEnded(this.GetPrimaryKeyString()));
+        return Save(next, new VideoChanged(FullKey, false), new VideoEnded(FullKey));
     }
 
-    [ReadOnly] public Task<VideoState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<VideoState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
     private VideoState RequireLoaded()
     {
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         if (string.IsNullOrWhiteSpace(next.Url)) { throw new InvalidOperationException("Video has no source."); }
         return next;
     }

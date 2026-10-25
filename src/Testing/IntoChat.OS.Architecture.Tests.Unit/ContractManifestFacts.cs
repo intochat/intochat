@@ -50,8 +50,8 @@ public sealed class ContractManifestFacts
     {
         var manifest = ContractManifest.Load(ContractManifest.BaselinePath);
 
-        // TimerTick, the former sample, became a plain [Signal] in 06-07; a still-legacy signal stands in.
-        Assert.StartsWith("ui.text-changed; ", manifest.Contracts["IntoChat.OS.Modules.Flutter.Text.Signals.TextChanged"], StringComparison.Ordinal);
+        // TimerTick (06-07) and TextChanged (06-04) became plain [Signal] records; a family 3 signal stands in until Circles migrates.
+        Assert.StartsWith("circles.circle-changed; ", manifest.Contracts["IntoChat.OS.Modules.Circles.Signals.CircleChanged"], StringComparison.Ordinal);
         Assert.Equal("Signal", manifest.Signals["IntoChat.OS.Signal"]);
         // A neuron without [GrainType] gets its grain type from the class name; it is pinned all the same.
         Assert.Contains(manifest.Grains, grain => grain.Key.EndsWith(".ImageGeneratorNeuron", StringComparison.Ordinal));

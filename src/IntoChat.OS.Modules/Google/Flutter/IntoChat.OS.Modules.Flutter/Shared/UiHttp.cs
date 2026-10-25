@@ -15,11 +15,12 @@ public static class UiScope
 internal static class UiHttp
 {
     public static void MapGet<TNeuron, TState>(IEndpointRouteBuilder endpoints, string collection, Func<TNeuron, Task<TState>> read)
-        where TNeuron : class, IGrainWithStringKey
+        where TNeuron : class
     {
+        // The value neurons read here are plain controls (06-04), reached through the host's plain-contract seam.
         BrainRoutes.Group(endpoints, "/ui").MapGet($"/{collection}/{{name}}",
-            async Task<IResult> (string name, IGrainFactory grains, CancellationToken cancellationToken) =>
-                Results.Ok(await read(grains.GetGrain<TNeuron>(UiScope.Key(BrainScope.CurrentId(), name))).WaitAsync(cancellationToken)));
+            async Task<IResult> (string name, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken cancellationToken) =>
+                Results.Ok(await read(plain.Get<TNeuron>(UiScope.Key(BrainScope.CurrentId(), name))).WaitAsync(cancellationToken)));
     }
 
     public static void MapPost(IEndpointRouteBuilder endpoints, string template, Delegate handler)

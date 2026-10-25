@@ -12,10 +12,10 @@ public sealed class ImageFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IImage>("logo").Set("https://example.com/a.png", "image/png", "logo");
-        var state = await brain.Get<IImage>("logo").Read();
+        await brain.Get<IImage>("owner/logo").Set("https://example.com/a.png", "image/png", "owner/logo");
+        var state = await brain.Get<IImage>("owner/logo").Read();
         Assert.Equal("https://example.com/a.png", state.Url);
         Assert.Equal("image/png", state.MediaType);
-        Assert.Equal("logo", state.Prompt);
+        Assert.Equal("owner/logo", state.Prompt);
     }
 }

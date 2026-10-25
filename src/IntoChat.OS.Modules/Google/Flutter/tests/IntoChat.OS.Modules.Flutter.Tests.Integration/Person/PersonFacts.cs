@@ -12,8 +12,8 @@ public sealed class PersonFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IPerson>("ada").Set("Ada", "https://example.com/ada.png");
-        var state = await brain.Get<IPerson>("ada").Read();
+        await brain.Get<IPerson>("owner/ada").Set("Ada", "https://example.com/ada.png");
+        var state = await brain.Get<IPerson>("owner/ada").Read();
         Assert.Equal("Ada", state.DisplayName);
         Assert.Equal("https://example.com/ada.png", state.AvatarUrl);
     }

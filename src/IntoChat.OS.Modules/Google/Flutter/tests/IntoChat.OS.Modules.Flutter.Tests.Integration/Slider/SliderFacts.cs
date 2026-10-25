@@ -27,7 +27,7 @@ public sealed class SliderFacts(FlutterHost host)
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var slider = brain.Get<ISlider>("vol");
+        var slider = brain.Get<ISlider>("owner/vol");
         await slider.Configure(0, 10, 1);
         await slider.SetValue(4);
         Assert.Equal(4, (await slider.Read()).Value);

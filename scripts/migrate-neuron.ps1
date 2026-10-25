@@ -11,13 +11,20 @@
     - [AlwaysInterleave] -> [Interleaves], [ReadOnly] -> [ReadOnlyCall], [OneWay] -> [OneWayCall],
       [ResponseTimeout("hh:mm:ss")] -> [CallTimeout(milliseconds)], [MayInterleave(p)] -> [InterleavesWhen(p)].
     - A record with [GenerateSerializer, Alias("x")] deriving Signal becomes [Signal("x")] deriving DigitalBrain.Signal;
-      its [property: Id(n)] / [Id(n)] markers go (signal payloads are JSON, D-14).
+      its [property: Id(n)] markers go (signal payloads are JSON, D-14); other records in the file keep theirs.
   Classes:
     - [GrainType(x)] becomes [Neuron(x)] with the same argument (type strings never move).
     - [PersistentState("name", store)] constructor parameters go; a name other than "state" becomes State = "name" on [Neuron].
       The store stays pinned in NeuronGrainTypes.json.
     - The base becomes DigitalBrain.Neuron / DigitalBrain.Neuron<TState> (the "(store)" base argument goes).
     - this.GetPrimaryKeyString() -> Id.Key, PublishAsync( -> Publish(, [StatelessWorker] -> [StatelessNeuron].
+  Options (06-04, for a family whose classes share a module base):
+    - -Base Name: Neuron<T>(store) becomes Name<T> instead of DigitalBrain.Neuron<T> (a module-local base deriving it, e.g.
+      Flutter's UiNeuron<T> with Snapshot, FullKey and ServiceProvider).
+    - -KeyExpression Expr: this.GetPrimaryKeyString() becomes Expr instead of Id.Key (e.g. FullKey, the os key "{brain}/{key}"
+      that signals and state carry).
+  Also (06-04): an Orleans method alias ([Alias("read")] on a contract method, alone or in a list) goes, and
+  [Alias("x"), Orleans.Metadata.DefaultGrainType(Y)] in one list becomes [NeuronAlias("x"), DefaultNeuronType(Y)].
   Everywhere: "using Orleans..." lines go; DigitalBrain usings are added when needed.
 
   What the script cannot decide is left as a compile error for hand fixing, never guessed:
@@ -34,7 +41,9 @@
 param(
     [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)]
     [Alias('FullName')]
-    [string[]]$Path
+    [string[]]$Path,
+    [string]$Base = 'DigitalBrain.Neuron',
+    [string]$KeyExpression = 'Id.Key'
 )
 
 begin {
@@ -57,6 +66,11 @@ begin {
 
         # Contracts: neutral attributes.
         $text = [regex]::Replace($text, '\[(?:Orleans\.Metadata\.)?DefaultGrainType\(', '[DefaultNeuronType(')
+        $text = [regex]::Replace($text, '(\[Alias\("[^"]*"\),\s*)(?:Orleans\.Metadata\.)?DefaultGrainType\(', '$1DefaultNeuronType(')
+        # Orleans method aliases: in a list ([ReadOnly, Alias("read")]) or alone on a method line of a contract.
+        $text = [regex]::Replace($text, ',\s*Alias\("[^"]*"\)(?=[^\[\]]*\]\s*(?:Task|ValueTask|IAsyncEnumerable))', '')
+        $text = [regex]::Replace($text, '\[Alias\("[^"]*"\),\s*(?=[^\[\]]*\]\s*(?:Task|ValueTask|IAsyncEnumerable))', '[')
+        $text = [regex]::Replace($text, '(?m)^([ 	]*)\[Alias\("[^"]*"\)\]\s*(?=(?:\[[^\]]*\]\s*)*(?:Task|ValueTask|IAsyncEnumerable))', '$1')
         $text = [regex]::Replace($text, '(?m)^([ \t]*)\[Alias\(("[^"]*")\)\](?=\s*(?:\[[^\]]*\]\s*)*(?:public|internal)\s+(?:partial\s+)?interface\b)', '$1[NeuronAlias($2)]')
         $text = [regex]::Replace($text, '\[Alias\(("[^"]*")\),\s*(DefaultNeuronType\()', '[NeuronAlias($1), $2')
         $text = $text -replace '\[AlwaysInterleave\]', '[Interleaves]'
@@ -71,9 +85,12 @@ begin {
 
         # Signals: [GenerateSerializer, Alias("x")] record ... : Signal -> [Signal("x")] record ... : DigitalBrain.Signal.
         $text = [regex]::Replace($text, '\[GenerateSerializer,\s*Alias\(("[^"]*")\)\](\s*(?:public|internal)\s+(?:sealed\s+)?record\s+\w+(?:\((?:[^()]|\([^()]*\))*\))?\s*:\s*)Signal\b', '[Signal($1)]$2DigitalBrain.Signal', 'Singleline')
-        if ($text -match '\[Signal\("') {
-            $text = [regex]::Replace($text, '\[property:\s*Id\(\d+\)\]\s*', '')
-        }
+        # Only inside the [Signal] record's own declaration (06-04 fix): a state or definition record beside it in the same file
+        # keeps its serializer ids, which its stored bytes still need.
+        $text = [regex]::Replace($text, '\[Signal\("[^"]*"\)\]\s*(?:public|internal)\s+(?:sealed\s+)?record\s+\w+\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)', {
+                param($m)
+                [regex]::Replace($m.Value, '\[property:\s*Id\(\d+\)\]\s*', '')
+            }, 'Singleline')
 
         # Classes: identity and base.
         $stateName = $null
@@ -82,15 +99,17 @@ begin {
             $stateName = $persistent.Groups[1].Value
             $text = $text.Remove($persistent.Index, $persistent.Length)
             $text = [regex]::Replace($text, ',\s*\)', ')')
+            # A primary constructor left with no parameters goes (06-04).
+            $text = [regex]::Replace($text, '(class\s+\w+)\(\s*\)(\s*:)', '$1$2')
         }
         $text = [regex]::Replace($text, '\[GrainType\(([^)]*)\)', {
                 param($m)
                 if ($stateName -and $stateName -ne 'state') { "[Neuron($($m.Groups[1].Value), State = `"$stateName`")" } else { "[Neuron($($m.Groups[1].Value))" }
             })
-        $text = [regex]::Replace($text, '(\)\s*:\s*|class\s+\w+\s*:\s*)(?:IntoChat\.OS\.Framework\.)?Neuron<([^>]+)>\(\w+\)', '$1DigitalBrain.Neuron<$2>')
+        $text = [regex]::Replace($text, '(\)\s*:\s*|class\s+\w+\s*:\s*)(?:IntoChat\.OS\.Framework\.)?Neuron<([^>]+)>\(\w+\)', "`$1$Base<`$2>")
         $text = [regex]::Replace($text, '(\)\s*:\s*|class\s+\w+\s*:\s*)(?:IntoChat\.OS\.Framework\.)?Neuron(?=\s*[,{\r\n])', '$1DigitalBrain.Neuron')
         $text = $text -replace '\[StatelessWorker\]', '[StatelessNeuron]'
-        $text = $text -replace '(?:this\.)?GetPrimaryKeyString\(\)', 'Id.Key'
+        $text = $text -replace '(?:this\.)?GetPrimaryKeyString\(\)', $KeyExpression
         $text = [regex]::Replace($text, '\bPublishAsync\(', 'Publish(')
         $text = [regex]::Replace($text, '\bGrainFactory\.GetGrain<(\w+)>\(([^()]*(?:\([^()]*\))?[^()]*)\)', 'Get<$1>(new NeuronId(Id.Brain, MigrateNeuronTypeOf_$1, $2))')
 

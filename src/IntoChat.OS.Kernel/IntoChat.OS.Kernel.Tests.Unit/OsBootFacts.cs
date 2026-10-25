@@ -13,6 +13,8 @@ public sealed class OsBootFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            // The OS apps write their UI through the Flutter controls, which are plain neurons since 06-04.
+            .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
             .ConfigureServices(services =>
             {
                 // The script runtime is the sandbox seam: the idle one replaces the module's, so installs run no program.
@@ -50,6 +52,8 @@ public sealed class OsBootFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            // The OS apps write their UI through the Flutter controls, which are plain neurons since 06-04.
+            .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();
@@ -78,6 +82,8 @@ public sealed class OsBootFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+            // The OS apps write their UI through the Flutter controls, which are plain neurons since 06-04.
+            .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();

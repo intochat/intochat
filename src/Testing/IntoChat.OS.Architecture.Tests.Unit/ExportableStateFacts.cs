@@ -23,7 +23,23 @@ public sealed class ExportableStateFacts
         .Where(parameter => parameter.IsDefined(typeof(PersistentStateAttribute), false)
             && parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(IPersistentState<>))
         .Select(parameter => (parameter.ParameterType.GetGenericArguments()[0], parameter.GetCustomAttribute<PersistentStateAttribute>()!.StateName))
+        .Concat(PlainStates())
         .Distinct().ToArray();
+
+    // A plain neuron (06-04 on) persists its TState through the runtime instead of an [PersistentState] parameter; its state is
+    // decided all the same. The runtime has one state per neuron, labelled "state" here.
+    private static IEnumerable<(Type State, string Name)> PlainStates() => ProductionArchitecture.Types
+        .Where(type => !type.IsAbstract && !type.ContainsGenericParameters)
+        .Select(PlainStateOf).OfType<Type>().Select(state => (state, "state"));
+
+    private static Type? PlainStateOf(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(global::DigitalBrain.Neuron<>)) { return current.GetGenericArguments()[0]; }
+        }
+        return null;
+    }
 
     private static T[] Load<T>(string file) => JsonSerializer.Deserialize<T[]>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, file)),
         new JsonSerializerOptions(JsonSerializerDefaults.Web))!;

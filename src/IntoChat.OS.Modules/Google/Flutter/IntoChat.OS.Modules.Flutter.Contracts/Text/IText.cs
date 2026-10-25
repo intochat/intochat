@@ -1,16 +1,17 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Text;
 
-[Alias("text"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TextType)]
-public interface IText : INeuron
+[NeuronAlias("text"), DefaultNeuronType(UIVocabulary.TextType)]
+public interface IText
 {
     Task Set(string markdown);
     // Replaces only the version read by the caller, preserving a later writer's text.
     Task<bool> TrySet(string markdown, int expectedVersion);
-    [ReadOnly, Alias("read")] Task<TextState> Read();
+    [ReadOnlyCall] Task<TextState> Read();
 }
 
 [GenerateSerializer, Alias("ui.text-state")]

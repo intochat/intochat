@@ -24,7 +24,7 @@ public sealed class PublicationButtonCallerFacts
         UiEventCaller As(IntoChat.OS.Testing.Person person) => new(person.PrincipalId, person.AccountId, person.BrainId, "User", "AuthenticatedHttp", null, null);
         var installs = 0;
         Task<AppSnapshot> Install(AppPublicationRef reference, string name, Guid operation) { installs++; throw new InvalidOperationException("not reached"); }
-        Task Handle(UiEvent uiEvent) => PublicationButton.Handle(grains, vlad.BrainId, "circle", "fork-button", uiEvent, Install);
+        Task Handle(UiEvent uiEvent) => PublicationButton.Handle(grains, brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), vlad.BrainId, "circle", "fork-button", uiEvent, Install);
 
         // No stamped caller: a forged event caller does not stand in for one.
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Handle(click with { Caller = As(vlad) }));

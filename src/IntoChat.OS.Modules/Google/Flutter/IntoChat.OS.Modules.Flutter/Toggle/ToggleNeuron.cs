@@ -1,37 +1,36 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Toggle.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Toggle;
 
-[GrainType(UIVocabulary.ToggleType)]
-internal sealed class ToggleNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ToggleState> store)
-    : Neuron<ToggleState>(store), IToggle
+[Neuron(UIVocabulary.ToggleType)]
+internal sealed class ToggleNeuron
+    : UiNeuron<ToggleState>, IToggle
 {
     public Task Set(string label, bool on)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Label = label.Trim();
         next.On = on;
-        return Save(next, new ToggleChanged(this.GetPrimaryKeyString(), next.On));
+        return Save(next, new ToggleChanged(FullKey, next.On));
     }
 
     public Task Flip()
     {
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.On = !next.On;
-        return Save(next, new ToggleChanged(this.GetPrimaryKeyString(), next.On));
+        return Save(next, new ToggleChanged(FullKey, next.On));
     }
 
-    [ReadOnly] public Task<ToggleState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<ToggleState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

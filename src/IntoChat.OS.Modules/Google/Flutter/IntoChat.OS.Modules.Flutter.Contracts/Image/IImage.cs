@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Image;
 
-[Alias("image"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ImageType)]
-public interface IImage : INeuron
+[NeuronAlias("image"), DefaultNeuronType(UIVocabulary.ImageType)]
+public interface IImage
 {
     Task Set(string url, string mediaType, string prompt);
-    [ReadOnly, Alias("read")] Task<ImageState> Read();
+    [ReadOnlyCall] Task<ImageState> Read();
 }
 
 [GenerateSerializer, Alias("ui.image-state")]

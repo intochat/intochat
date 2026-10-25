@@ -37,7 +37,7 @@ public static class Views
     // The set of neurons the views name, following the registry text: a synapse watches it with
     // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to. Views sharing a
     // neuron name it once.
-    public static Sources Registry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : INeuron
+    public static Sources Registry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : class, INeuron
         => Sources.Named<IText, TextChanged>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
         {
             var text = (await registry.Read()).Markdown;

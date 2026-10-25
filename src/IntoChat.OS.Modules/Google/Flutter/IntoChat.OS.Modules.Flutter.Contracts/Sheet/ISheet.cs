@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Sheet;
 
-[Alias("sheet"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SheetType)]
-public interface ISheet : INeuron
+[NeuronAlias("sheet"), DefaultNeuronType(UIVocabulary.SheetType)]
+public interface ISheet
 {
     Task Set(string title, IReadOnlyList<SheetCell> cells);
-    [ReadOnly, Alias("read")] Task<SheetState> Read();
+    [ReadOnlyCall] Task<SheetState> Read();
 }
 
 [GenerateSerializer, Alias("ui.sheet-cell")]

@@ -12,8 +12,8 @@ public sealed class ClockFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IClock>("tea").Set("Tea", DateTimeOffset.UnixEpoch);
-        var state = await brain.Get<IClock>("tea").Read();
+        await brain.Get<IClock>("owner/tea").Set("Tea", DateTimeOffset.UnixEpoch);
+        var state = await brain.Get<IClock>("owner/tea").Read();
         Assert.Equal("Tea", state.Label);
         Assert.Equal(DateTimeOffset.UnixEpoch, state.DueAt);
     }

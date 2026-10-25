@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Tree;
 
-[Alias("tree"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TreeType)]
-public interface ITree : INeuron
+[NeuronAlias("tree"), DefaultNeuronType(UIVocabulary.TreeType)]
+public interface ITree
 {
     Task Set(IReadOnlyList<TreeNode> nodes);
     Task Select(string id);
-    [ReadOnly, Alias("read")] Task<TreeState> Read();
+    [ReadOnlyCall] Task<TreeState> Read();
 }
 
 [GenerateSerializer, Alias("ui.tree-node")]

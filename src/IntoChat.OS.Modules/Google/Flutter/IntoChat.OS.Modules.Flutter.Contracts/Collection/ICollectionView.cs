@@ -1,16 +1,17 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Collection;
 
-[Alias("collection"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CollectionType)]
-public interface ICollectionView : INeuron
+[NeuronAlias("collection"), DefaultNeuronType(UIVocabulary.CollectionType)]
+public interface ICollectionView
 {
     Task Set(CollectionDefinition definition, long expectedRevision);
     Task Select(string itemId, long expectedRevision);
     Task Activate(string itemId, long expectedRevision);
-    [ReadOnly] Task<CollectionState> Read();
+    [ReadOnlyCall] Task<CollectionState> Read();
 }
 
 [GenerateSerializer, Alias("ui.collection-definition")]
@@ -30,5 +31,5 @@ public sealed class CollectionState
     [Id(2)] public CollectionDefinition Definition { get; set; } = new([]);
 }
 
-[GenerateSerializer, Alias("ui.collection-changed")]
-public sealed record CollectionChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.collection-changed")]
+public sealed record CollectionChanged(string Name, long Revision) : DigitalBrain.Signal;

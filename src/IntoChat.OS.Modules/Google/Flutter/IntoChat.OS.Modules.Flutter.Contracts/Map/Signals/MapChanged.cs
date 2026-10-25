@@ -1,6 +1,7 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Map.Signals;
 
-[GenerateSerializer, Alias("ui.map-changed")]
-public sealed record MapChanged([property: Id(0)] string Name, [property: Id(1)] int Version) : Signal;
+[Signal("ui.map-changed")]
+public sealed record MapChanged(string Name, int Version) : DigitalBrain.Signal;

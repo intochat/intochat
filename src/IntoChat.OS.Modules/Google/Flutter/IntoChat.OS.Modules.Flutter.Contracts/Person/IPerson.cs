@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Person;
 
-[Alias("person"), Orleans.Metadata.DefaultGrainType(UIVocabulary.PersonType)]
-public interface IPerson : INeuron
+[NeuronAlias("person"), DefaultNeuronType(UIVocabulary.PersonType)]
+public interface IPerson
 {
     Task Set(string displayName, string avatarUrl);
-    [ReadOnly, Alias("read")] Task<PersonState> Read();
+    [ReadOnlyCall] Task<PersonState> Read();
 }
 
 [GenerateSerializer, Alias("ui.person-state")]

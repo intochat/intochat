@@ -1,16 +1,15 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chart.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Chart;
 
-[GrainType(UIVocabulary.ChartType)]
-internal sealed class ChartNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ChartState> store)
-    : Neuron<ChartState>(store), IChart
+[Neuron(UIVocabulary.ChartType)]
+internal sealed class ChartNeuron
+    : UiNeuron<ChartState>, IChart
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.OrdinalIgnoreCase) { "bar", "line", "pie" };
 
@@ -21,12 +20,12 @@ internal sealed class ChartNeuron([PersistentState("state", IntoChatOSNames.Clus
         ArgumentNullException.ThrowIfNull(points);
         if (!Kinds.Contains(kind)) { throw new ArgumentOutOfRangeException(nameof(kind)); }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Title = title.Trim();
         next.Kind = kind.Trim().ToLowerInvariant();
         next.Points = [.. points.TakeLast(UIVocabulary.ChartMaxPoints)];
-        return Save(next, new ChartChanged(this.GetPrimaryKeyString(), next.Version, next.Title));
+        return Save(next, new ChartChanged(FullKey, next.Version, next.Title));
     }
 
     public Task Append(ChartPoint point)
@@ -34,7 +33,7 @@ internal sealed class ChartNeuron([PersistentState("state", IntoChatOSNames.Clus
         ArgumentNullException.ThrowIfNull(point);
         ArgumentException.ThrowIfNullOrWhiteSpace(point.Label);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         if (!string.IsNullOrWhiteSpace(point.EventId) && next.Points.Exists(existing => existing.EventId == point.EventId))
         {
             return Task.CompletedTask;
@@ -47,14 +46,14 @@ internal sealed class ChartNeuron([PersistentState("state", IntoChatOSNames.Clus
             next.Points.RemoveRange(0, next.Points.Count - UIVocabulary.ChartMaxPoints);
         }
 
-        return Save(next, new ChartChanged(this.GetPrimaryKeyString(), next.Version, next.Title));
+        return Save(next, new ChartChanged(FullKey, next.Version, next.Title));
     }
 
-    [ReadOnly]
+    [ReadOnlyCall]
     public Task<ChartState> Read()
     {
         var state = Snapshot;
-        state.Name = this.GetPrimaryKeyString();
+        state.Name = FullKey;
         return Task.FromResult(state);
     }
 }

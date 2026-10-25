@@ -135,6 +135,8 @@ public sealed class OsDesktopConnectFacts
 
     private static Task<ITestBrain> Boot(CancellationToken ct, ICapabilitySatisfaction? capabilities = null) => TestBrain.Create()
         .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
+        // The desktop's layout text is a plain Flutter neuron (06-04): hosted only where the module is.
+        .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
         .ConfigureServices(services =>
         {
             services.RemoveAll<IAppRuntime>();

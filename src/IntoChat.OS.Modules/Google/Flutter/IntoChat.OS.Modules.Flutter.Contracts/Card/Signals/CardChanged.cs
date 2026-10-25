@@ -1,6 +1,7 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Card.Signals;
 
-[GenerateSerializer, Alias("ui.card-changed")]
-public sealed record CardChanged([property: Id(0)] string Name, [property: Id(1)] int Version) : Signal;
+[Signal("ui.card-changed")]
+public sealed record CardChanged(string Name, int Version) : DigitalBrain.Signal;

@@ -21,6 +21,17 @@ public static class PlainNeuronClient
         return (T)Plain(brain).GetPlain(typeof(T), id);
     }
 
+    // IIntoChatOS.Neuron for a plain contract (06-04): "{brain}/{relative}" in the client's brain.
+    /// <exception cref="InvalidOperationException">This brain is not known.</exception>
+    public static T Neuron<T>(this IIntoChatOS brain, NeuronId relative) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        var scope = Plain(brain).RelativeBrain
+            ?? (brain.Self is Orleans.Runtime.IAddressable self ? self.GetGrainId().Key.ToString() : null)
+            ?? throw new InvalidOperationException("This brain is not known.");
+        return Get<T>(brain, relative.Within(scope));
+    }
+
     public static IAsyncEnumerable<T> On<T>(this IIntoChatOS brain, object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => On<T>(brain, source, static () => Task.CompletedTask, cancellationToken);
 
@@ -39,6 +50,18 @@ public static class PlainNeuronClient
         ArgumentNullException.ThrowIfNull(sources);
         var plain = Plain(brain);
         return SourceSet.Open<T>(brain, sources, (_, member, subscribed, stop) => plain.OnPlain<T>(member, subscribed, stop), cancellationToken);
+    }
+
+    // React<T> for plain neurons (06-04): rebuild once when registered, then once per [Signal] record, coalesced.
+    public static Task React<T>(this IIntoChatOS brain, object source, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default)
+        where T : DigitalBrain.Signal
+        => React<T>(brain, Sources.Of([source]), rebuild, cancellationToken);
+
+    public static Task React<T>(this IIntoChatOS brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default)
+        where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        return Reaction.RunPlain<T>(brain, sources, rebuild, cancellationToken);
     }
 
     private static IPlainClient Plain(IIntoChatOS brain)

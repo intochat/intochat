@@ -12,8 +12,8 @@ public sealed class TextFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IText>("about").Set("hello");
-        Assert.Equal("hello", (await brain.Get<IText>("about").Read()).Markdown);
+        await brain.Get<IText>("owner/about").Set("hello");
+        Assert.Equal("hello", (await brain.Get<IText>("owner/about").Read()).Markdown);
     }
 
     [Trait("host", "own")]
@@ -22,7 +22,7 @@ public sealed class TextFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var text = brain.Get<IText>("status");
+        var text = brain.Get<IText>("owner/status");
         await text.Set("Temporary connection failure");
         var before = await text.Read();
         await text.Set("A newer warning");
@@ -44,7 +44,7 @@ public sealed class TextFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var text = brain.Get<IText>("status");
+        var text = brain.Get<IText>("owner/status");
         var before = await text.Read();
 
         var applied = await Task.WhenAll(text.TrySet("first", before.Version), text.TrySet("second", before.Version));

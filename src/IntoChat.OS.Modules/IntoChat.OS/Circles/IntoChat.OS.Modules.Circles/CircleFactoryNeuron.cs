@@ -38,7 +38,7 @@ internal sealed class CircleFactoryNeuron(
     public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
     {
         Own();
-        return PublicationButton.Handle(GrainFactory, Brain, "circle", "fork-button", uiEvent, Fork);
+        return PublicationButton.Handle(GrainFactory, ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Brain, "circle", "fork-button", uiEvent, Fork);
     }
 
     public async Task<string> Create(string name, string? requestId = null)

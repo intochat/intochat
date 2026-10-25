@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Slider;
 
-[Alias("slider"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SliderType)]
-public interface ISlider : INeuron
+[NeuronAlias("slider"), DefaultNeuronType(UIVocabulary.SliderType)]
+public interface ISlider
 {
     Task Configure(double min, double max, double step);
     Task SetValue(double value);
-    [ReadOnly, Alias("read")] Task<SliderState> Read();
+    [ReadOnlyCall] Task<SliderState> Read();
 }
 
 [GenerateSerializer, Alias("ui.slider-state")]

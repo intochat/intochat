@@ -12,7 +12,7 @@ public sealed class TreeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var tree = brain.Get<ITree>("fs");
+        var tree = brain.Get<ITree>("owner/fs");
         await tree.Set([new TreeNode("root", null, "root"), new TreeNode("child", "root", "child")]);
         await tree.Select("child");
         Assert.Equal("child", (await tree.Read()).SelectedId);

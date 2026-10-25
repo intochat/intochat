@@ -48,7 +48,7 @@ public sealed class ChatBindingFacts
         var key = "owner/apps/test/chat";
         var source = "owner/apps/test/a";
         var chat = brain.Get<IChat>(key);
-        var text = brain.Get<IText>(source);
+        var text = brain.Get<IChatSourceText>(source);
         await text.Set("answer");
         var adapter = new TestChatAgentSource(brain.Services.GetRequiredService<IGrainFactory>());
         var snapshot = await adapter.Read(source, 7);
@@ -169,7 +169,7 @@ public sealed class ChatBindingFacts
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/apps/test/failure";
         var chat = brain.Get<IChat>(key);
-        await brain.Get<IText>(key + "/a").Set("answer");
+        await brain.Get<IChatSourceText>(key + "/a").Set("answer");
         var first = await chat.SelectAgent(key + "/a", 0, Guid.NewGuid());
         var prior = await chat.Read();
         Assert.NotNull(prior.Run);
@@ -191,11 +191,11 @@ internal sealed class TestChatAgentSource(IGrainFactory grains) : IChatAgentSour
 {
     public string? FailSource { get; set; }
     public int ReadsUntilFailure { get; set; }
-    public INeuron Source(string key) => grains.GetGrain<IText>(key);
+    public INeuron Source(string key) => grains.GetGrain<IChatSourceText>(key);
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         if (key == FailSource && ReadsUntilFailure-- <= 0) { throw new InvalidOperationException("Source unavailable."); }
-        var text = await grains.GetGrain<IText>(key).Read();
+        var text = await grains.GetGrain<IChatSourceText>(key).Read();
         return new(new(key, selectionRevision, text.Version,
             text.Markdown.Length == 0 ? [] : [new("answer", ChatRole.Assistant, text.Markdown)]),
             text.Markdown.Length == 0 ? null : new(key, selectionRevision, text.Version, "answer", ChatRunStatus.Completed));

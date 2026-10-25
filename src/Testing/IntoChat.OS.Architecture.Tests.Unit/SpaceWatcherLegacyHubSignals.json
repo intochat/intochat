@@ -1,10 +1,8 @@
 {
   "AppChanged": 1,
-  "CardChanged": 1,
   "CircleChanged": 1,
   "CircleMembershipRevoked": 1,
   "CircleSpoke": 1,
-  "PersonChanged": 1,
   "PresentationChanged": 1,
   "WorkspaceChanged": 1
 }

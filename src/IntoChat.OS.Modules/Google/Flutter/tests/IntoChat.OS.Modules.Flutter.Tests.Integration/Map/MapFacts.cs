@@ -12,8 +12,8 @@ public sealed class MapFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IMap>("hq").Set(47.6, -122.3, 10, [new MapMarker("m", 47.6, -122.3, "SEA")]);
-        var state = await brain.Get<IMap>("hq").Read();
+        await brain.Get<IMap>("owner/hq").Set(47.6, -122.3, 10, [new MapMarker("m", 47.6, -122.3, "SEA")]);
+        var state = await brain.Get<IMap>("owner/hq").Read();
         Assert.Equal(47.6, state.Lat);
         Assert.Equal(-122.3, state.Lng);
         Assert.Equal(10, state.Zoom);

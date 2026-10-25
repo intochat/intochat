@@ -59,9 +59,34 @@ public sealed partial class NeuronMigrationFacts
             string? Arg(int index) => arguments.Count > index ? SourceTypes.Resolve(arguments[index].Expression, type) ?? "?" + arguments[index].Expression : null;
             return (Name: Arg(0) ?? "state", Store: Arg(1) ?? "Default");
         }).ToArray();
+        if (states.Length == 0 && PlainStateful(type))
+        {
+            // A plain stateful neuron (06-04) persists in the runtime's cluster store under [Neuron(State = ...)] or "state",
+            // the store and name its [PersistentState] grain pinned.
+            var stateName = named?.ArgumentList?.Arguments.FirstOrDefault(argument => argument.NameEquals?.Name.Identifier.Text == "State")?.Expression;
+            return new GrainTypePin(grainType, PlainStore, stateName is null ? "state" : SourceTypes.Resolve(stateName, type) ?? "?" + stateName);
+        }
         return states.Length == 0
             ? new GrainTypePin(grainType, null, null)
             : new GrainTypePin(grainType, string.Join(", ", states.Select(state => state.Store)), string.Join(", ", states.Select(state => state.Name)));
+    }
+
+    // The store plain neurons' state lives in: the runtime's cluster store (R4-09), named as the grains named theirs.
+    private const string PlainStore = "cluster";
+
+    // A class deriving DigitalBrain.Neuron<TState>, directly or through a scanned base (Flutter's UiNeuron<TState>).
+    private static bool PlainStateful(SourceTypes.Declared type)
+    {
+        var classes = SourceTypes.All.Value.Where(candidate => !candidate.IsInterface)
+            .GroupBy(candidate => candidate.Name.Split('`')[0]).ToDictionary(group => group.Key, group => group.First());
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var current = type; current is not null && seen.Add(current.FullName);)
+        {
+            if (current.PlainStateBase) { return true; }
+            var next = current.Bases.FirstOrDefault(classes.ContainsKey);
+            current = next is null ? null : classes[next];
+        }
+        return false;
     }
 
     // Orleans' convention when a grain class names no [GrainType]: the class name lower-cased, arity dropped, a "grain"
@@ -171,9 +196,23 @@ public sealed partial class NeuronMigrationFacts
             .Select(attribute => (Name: attribute.ConstructorArguments.ElementAtOrDefault(0).Value as string ?? "state",
                 Store: attribute.ConstructorArguments.ElementAtOrDefault(1).Value as string ?? "Default"))
             .ToArray();
+        if (states.Length == 0 && Stateful(type))
+        {
+            var stateName = named?.NamedArguments.FirstOrDefault(argument => argument.MemberName == "State").TypedValue.Value as string;
+            return new GrainTypePin(grainType, PlainStore, stateName ?? "state");
+        }
         return states.Length == 0
             ? new GrainTypePin(grainType, null, null)
             : new GrainTypePin(grainType, string.Join(", ", states.Select(state => state.Store)), string.Join(", ", states.Select(state => state.Name)));
+    }
+
+    private static bool Stateful(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition().FullName == "DigitalBrain.Neuron`1") { return true; }
+        }
+        return false;
     }
 
     internal static void CountsOnlyShrink(string file, Dictionary<string, int> current, string growth)

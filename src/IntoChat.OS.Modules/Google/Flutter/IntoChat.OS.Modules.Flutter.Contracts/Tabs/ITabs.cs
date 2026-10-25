@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Tabs;
 
-[Alias("tabs"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TabsType)]
-public interface ITabs : INeuron
+[NeuronAlias("tabs"), DefaultNeuronType(UIVocabulary.TabsType)]
+public interface ITabs
 {
     Task Set(IReadOnlyList<TabItem> tabs, string selectedId);
     Task Select(string id);
-    [ReadOnly, Alias("read")] Task<TabsState> Read();
+    [ReadOnlyCall] Task<TabsState> Read();
 }
 
 [GenerateSerializer, Alias("ui.tab-item")]

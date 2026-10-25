@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Calendar;
 
-[Alias("calendar"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CalendarType)]
-public interface ICalendar : INeuron
+[NeuronAlias("calendar"), DefaultNeuronType(UIVocabulary.CalendarType)]
+public interface ICalendar
 {
     Task Set(string mode, IReadOnlyList<string> selected);
-    [ReadOnly, Alias("read")] Task<CalendarState> Read();
+    [ReadOnlyCall] Task<CalendarState> Read();
 }
 
 [GenerateSerializer, Alias("ui.calendar-state")]

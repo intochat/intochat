@@ -91,7 +91,7 @@ public sealed class LegacyGrainSink(IGrainFactory grains, string caller) : IInvo
     }
 
     // A contract by its wire name: one LegacyNeuronCalls registered, else a loaded interface of that full name.
-    private static Type? ContractOf(string name)
+    internal static Type? ContractOf(string name)
     {
         if (Contracts.TryGetValue(name, out var known)) { return known; }
         var found = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic)

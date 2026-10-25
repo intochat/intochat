@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 namespace IntoChat.OS.Modules.Flutter.Collection;
 
@@ -8,5 +9,5 @@ public sealed record CollectionItem(
     [property: Id(4)] long? SizeBytes = null, [property: Id(5)] DateTimeOffset? ModifiedAt = null,
     [property: Id(6)] bool CanActivate = true, [property: Id(7)] string? TrailingText = null);
 
-[GenerateSerializer, Alias("ui.collection-activated")]
-public sealed record CollectionActivated([property: Id(0)] string Name, [property: Id(1)] string ItemId, [property: Id(2)] long Revision) : Signal;
+[Signal("ui.collection-activated")]
+public sealed record CollectionActivated(string Name, string ItemId, long Revision) : DigitalBrain.Signal;

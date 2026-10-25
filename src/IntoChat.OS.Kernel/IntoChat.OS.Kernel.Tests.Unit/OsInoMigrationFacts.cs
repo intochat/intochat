@@ -162,7 +162,7 @@ public sealed class OsInoMigrationFacts
 
     private sealed class QuietSource(IIntoChatOSBrains brains) : IChatAgentSource
     {
-        public INeuron Source(string key) => brains.Grain<IText>(key);
+        public INeuron Source(string key) => brains.Grain<IntoChat.OS.Modules.AI.Agents.IAgent>(key);
         public Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
             => Task.FromResult(new ChatAgentSnapshot(new(key, selectionRevision, 0, []), null));
     }

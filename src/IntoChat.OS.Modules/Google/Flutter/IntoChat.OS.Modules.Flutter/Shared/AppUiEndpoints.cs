@@ -215,9 +215,9 @@ internal static class AppUiEndpoints
         });
 
         UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
-        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, IGrainFactory grains, CancellationToken ct) =>
+        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
         {
-            await grains.GetGrain<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
+            await plain.Get<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
     }

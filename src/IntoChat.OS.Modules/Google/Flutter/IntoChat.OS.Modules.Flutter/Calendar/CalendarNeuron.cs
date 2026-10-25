@@ -1,29 +1,28 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Calendar.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Calendar;
 
-[GrainType(UIVocabulary.CalendarType)]
-internal sealed class CalendarNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CalendarState> store)
-    : Neuron<CalendarState>(store), ICalendar
+[Neuron(UIVocabulary.CalendarType)]
+internal sealed class CalendarNeuron
+    : UiNeuron<CalendarState>, ICalendar
 {
     public Task Set(string mode, IReadOnlyList<string> selected)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
         ArgumentNullException.ThrowIfNull(selected);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Mode = mode.Trim();
         next.Selected = [.. selected];
-        return Save(next, new CalendarChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new CalendarChanged(FullKey, next.Version));
     }
 
-    [ReadOnly] public Task<CalendarState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<CalendarState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

@@ -12,8 +12,8 @@ public sealed class ProgressFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IProgress>("load").Set(true, 0.4, "loading");
-        var state = await brain.Get<IProgress>("load").Read();
+        await brain.Get<IProgress>("owner/load").Set(true, 0.4, "loading");
+        var state = await brain.Get<IProgress>("owner/load").Read();
         Assert.True(state.Determinate);
         Assert.Equal(0.4, state.Value);
         Assert.Equal("loading", state.Label);

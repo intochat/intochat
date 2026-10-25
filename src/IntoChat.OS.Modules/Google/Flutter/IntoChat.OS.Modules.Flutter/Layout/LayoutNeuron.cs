@@ -1,15 +1,14 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Layout;
 
-[GrainType(UIVocabulary.LayoutType)]
-internal sealed class LayoutNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<LayoutState> store)
-    : Neuron, ILayout
+[Neuron(UIVocabulary.LayoutType)]
+internal sealed class LayoutNeuron
+    : UiNeuron<LayoutState>, ILayout
 {
     public async Task Set(LayoutDefinition definition, long expectedRevision)
     {
@@ -20,13 +19,11 @@ internal sealed class LayoutNeuron(
         if (definition.Surface is not (null or "panel" or "floating")) { throw new ArgumentException("Unknown surface material."); }
         if (!double.IsFinite(definition.Padding) || definition.Padding < 0 || definition.Padding > 128) { throw new ArgumentException("Padding must be between 0 and 128."); }
         CompositionValidation.Children(definition.Children);
-        if (store.State.Revision != expectedRevision) { throw new RevisionConflictException("The UI changed. Read its latest revision before retrying.", store.State.Revision); }
-        var previous = store.State;
-        store.State = new() { Name = this.GetPrimaryKeyString(), Revision = checked(previous.Revision + 1), Definition = definition };
-        try { await store.WriteStateAsync(); }
-        catch { store.State = previous; throw; }
-        await PublishAsync(new LayoutChanged(this.GetPrimaryKeyString(), store.State.Revision));
+        if (State.Revision != expectedRevision) { throw new RevisionConflictException("The UI changed. Read its latest revision before retrying.", State.Revision); }
+        // The state and its signal are one journal entry (D-02).
+        var next = new LayoutState { Name = FullKey, Revision = checked(State.Revision + 1), Definition = definition };
+        await Save(next, new LayoutChanged(FullKey, next.Revision));
     }
 
-    public Task<LayoutState> Read() => Task.FromResult(store.State);
+    public Task<LayoutState> Read() => Task.FromResult(State);
 }

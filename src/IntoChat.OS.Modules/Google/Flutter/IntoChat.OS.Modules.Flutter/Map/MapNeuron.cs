@@ -1,31 +1,30 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Map.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Map;
 
-[GrainType(UIVocabulary.MapType)]
-internal sealed class MapNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<MapState> store)
-    : Neuron<MapState>(store), IMap
+[Neuron(UIVocabulary.MapType)]
+internal sealed class MapNeuron
+    : UiNeuron<MapState>, IMap
 {
     public Task Set(double lat, double lng, double zoom, IReadOnlyList<MapMarker> markers)
     {
         ArgumentNullException.ThrowIfNull(markers);
         if (zoom <= 0) { throw new ArgumentOutOfRangeException(nameof(zoom)); }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Lat = lat;
         next.Lng = lng;
         next.Zoom = zoom;
         next.Markers = [.. markers];
-        return Save(next, new MapChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new MapChanged(FullKey, next.Version));
     }
 
-    [ReadOnly] public Task<MapState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<MapState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

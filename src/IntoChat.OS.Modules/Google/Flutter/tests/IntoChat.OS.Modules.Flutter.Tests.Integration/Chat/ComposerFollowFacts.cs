@@ -85,7 +85,7 @@ public sealed class ComposerFollowFacts
         Assert.Equal([1, 2, 3], (await composer.ReadAudio(capture))!.Bytes);
         Assert.Equal(submission, Assert.Single(adopted.Submissions).Id);
         await using var changed = await brain.Observe<ChatChanged>(chat, ct);
-        await brain.Get<IText>(source).Set("streamed token");
+        await brain.Get<IChatSourceText>(source).Set("streamed token");
         await changed.NextAsync(ct: ct);
         // Reconciliation is also idempotent when an ordinary transcript update occurred.
         await composer.Follow(chatKey);

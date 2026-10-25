@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Expander;
 
-[Alias("expander"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ExpanderType)]
-public interface IExpander : INeuron
+[NeuronAlias("expander"), DefaultNeuronType(UIVocabulary.ExpanderType)]
+public interface IExpander
 {
     Task Set(string header, bool expanded, IReadOnlyList<UiChildRef>? children = null);
     Task Toggle();
-    [ReadOnly, Alias("read")] Task<ExpanderState> Read();
+    [ReadOnlyCall] Task<ExpanderState> Read();
 }
 
 [GenerateSerializer, Alias("ui.expander-state")]

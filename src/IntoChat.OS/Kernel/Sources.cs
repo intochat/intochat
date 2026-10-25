@@ -10,11 +10,21 @@ public abstract class Sources
     public static Sources Of(params INeuron[] neurons)
     {
         ArgumentNullException.ThrowIfNull(neurons);
+        return new Fixed([.. neurons]);
+    }
+
+    // Transitional (06-04, folded back in 06-08): a fixed set of plain neurons (proxies from Get), for On<T>/React<T> of their
+    // [Signal] records.
+    public static Sources Of(params object[] neurons)
+    {
+        ArgumentNullException.ThrowIfNull(neurons);
         return new Fixed(neurons);
     }
 
+    // The registry is a grain neuron publishing an os Signal or (06-04) a plain neuron publishing a [Signal] record, such as a
+    // migrated IText and its TextChanged; TChange decides which when the set subscribes.
     public static Sources Named<TRegistry, TChange>(TRegistry registry, Func<TRegistry, CancellationToken, Task<INeuron[]>> select)
-        where TRegistry : INeuron where TChange : Signal
+        where TRegistry : class where TChange : class
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(select);
@@ -24,7 +34,7 @@ public abstract class Sources
     // Transitional (06-07, folded back into Named in 06-08): a set whose members are plain neurons (contracts that are not
     // INeuron, such as the Time timer and reminder), for On<T> of their [Signal] records through PlainNeuronClient.
     public static Sources Named<TRegistry, TChange, TMember>(TRegistry registry, Func<TRegistry, CancellationToken, Task<TMember[]>> select)
-        where TRegistry : INeuron where TChange : Signal where TMember : class
+        where TRegistry : class where TChange : class where TMember : class
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(select);
@@ -50,25 +60,44 @@ public abstract class Sources
 
     // Every element means "select again". onSubscribed runs once the change subscription is registered,
     // so a select made there cannot miss a change. Empty for a fixed set; the merge never opens it then.
-    internal abstract IAsyncEnumerable<Signal> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken);
+    internal abstract IAsyncEnumerable<object> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken);
 
     internal bool IsFixed => this is Fixed;
 
-    private sealed class Fixed(INeuron[] neurons) : Sources
+    private sealed class Fixed(object[] neurons) : Sources
     {
         internal override Task<object[]> SelectAsync(CancellationToken cancellationToken) => Task.FromResult<object[]>([.. neurons]);
-        internal override IAsyncEnumerable<Signal> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken) => Empty();
-        private static async IAsyncEnumerable<Signal> Empty() { await Task.CompletedTask; yield break; }
+        internal override IAsyncEnumerable<object> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken) => Empty();
+        private static async IAsyncEnumerable<object> Empty() { await Task.CompletedTask; yield break; }
     }
 
     private sealed class Registry<TRegistry, TChange>(TRegistry registry, Func<TRegistry, CancellationToken, Task<object[]>> select) : Sources
-        where TRegistry : INeuron where TChange : Signal
+        where TRegistry : class where TChange : class
     {
+        private const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        private static readonly System.Reflection.MethodInfo Legacy = typeof(Registry<TRegistry, TChange>).GetMethod(nameof(LegacyChanges), Private)!;
+        private static readonly System.Reflection.MethodInfo Plain = typeof(Registry<TRegistry, TChange>).GetMethod(nameof(PlainChanges), Private)!;
+
         internal override Task<object[]> SelectAsync(CancellationToken cancellationToken) => select(registry, cancellationToken);
-        internal override async IAsyncEnumerable<Signal> Changes(IIntoChatOS brain, Func<Task> onSubscribed,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+
+        internal override IAsyncEnumerable<object> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken)
         {
-            await foreach (var change in brain.On<TChange>(registry, onSubscribed, cancellationToken).ConfigureAwait(false)) { yield return change; }
+            var open = typeof(Signal).IsAssignableFrom(typeof(TChange)) && registry is INeuron ? Legacy
+                : typeof(DigitalBrain.Signal).IsAssignableFrom(typeof(TChange)) ? Plain
+                : throw new ArgumentException($"{typeof(TChange).Name} is neither a Signal of a grain registry nor a [Signal] record of a plain one.");
+            return (IAsyncEnumerable<object>)open.MakeGenericMethod(typeof(TChange)).Invoke(null, [brain, registry, onSubscribed, cancellationToken])!;
+        }
+
+        private static async IAsyncEnumerable<object> LegacyChanges<T>(IIntoChatOS brain, TRegistry registry, Func<Task> onSubscribed,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken) where T : Signal
+        {
+            await foreach (var change in brain.On<T>((INeuron)registry, onSubscribed, cancellationToken).ConfigureAwait(false)) { yield return change; }
+        }
+
+        private static async IAsyncEnumerable<object> PlainChanges<T>(IIntoChatOS brain, TRegistry registry, Func<Task> onSubscribed,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken) where T : DigitalBrain.Signal
+        {
+            await foreach (var change in PlainNeuronClient.On<T>(brain, registry, onSubscribed, cancellationToken).ConfigureAwait(false)) { yield return change; }
         }
     }
 }

@@ -30,6 +30,10 @@ public interface IPlainNeurons
     /// <exception cref="ArgumentException">contract is not a plain contract, or fullKey names no brain.</exception>
     object Get(Type contract, string fullKey);
 
+    // Get, typed (06-04: legacy grains and silo services reading a migrated control).
+    /// <exception cref="ArgumentException">T is not a plain contract, or fullKey names no brain.</exception>
+    T Get<T>(string fullKey) where T : class => (T)Get(typeof(T), fullKey);
+
     // The runtime neuron id ("brain/type/key") the os full key names for contract.
     /// <exception cref="ArgumentException">contract is not a plain contract, or fullKey names no brain.</exception>
     DigitalBrain.NeuronId IdOf(Type contract, string fullKey)

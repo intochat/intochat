@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Table;
 
-[Alias("table"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TableType)]
-public interface ITable : INeuron
+[NeuronAlias("table"), DefaultNeuronType(UIVocabulary.TableType)]
+public interface ITable
 {
     Task Replace(string title, IReadOnlyList<TableColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows);
-    [ReadOnly, Alias("read")] Task<TableState> Read();
+    [ReadOnlyCall] Task<TableState> Read();
 }
 
 [GenerateSerializer, Alias("ui.table-column")]

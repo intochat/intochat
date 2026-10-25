@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Card;
 
-[Alias("card"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CardType)]
-public interface ICard : INeuron
+[NeuronAlias("card"), DefaultNeuronType(UIVocabulary.CardType)]
+public interface ICard
 {
     Task Set(string title, string body, IReadOnlyList<UiChildRef>? children = null);
-    [ReadOnly, Alias("read")] Task<CardState> Read();
+    [ReadOnlyCall] Task<CardState> Read();
 }
 
 [GenerateSerializer, Alias("ui.card-state")]

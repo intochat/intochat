@@ -21,7 +21,7 @@ internal static class PublicationButton
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private sealed record Command(AppPublicationRef Publication, string TargetName, Guid OperationId);
 
-    public static async Task Handle(IGrainFactory grains, string brain, string application, string button,
+    public static async Task Handle(IGrainFactory grains, IntoChat.OS.Runtime.IPlainNeurons plain, string brain, string application, string button,
         UiEvent uiEvent, Func<AppPublicationRef, string, Guid, Task<AppSnapshot>> install)
     {
         ArgumentNullException.ThrowIfNull(uiEvent);
@@ -35,11 +35,11 @@ internal static class PublicationButton
         var app = IApp.Key(brain, application);
         if (uiEvent.As<ButtonClicked>() is not { } click || click.Name != app + "/" + button || click.RequestId == Guid.Empty)
         { throw new ArgumentException("This handler accepts only its publication button.", nameof(uiEvent)); }
-        var status = grains.GetGrain<IText>(app + "/status");
+        var status = plain.Get<IText>(app + "/status");
         try
         {
             // The owning neuron serializes captures. Retries keep the original name and release.
-            var capture = grains.GetGrain<IText>(app + "/commands/" + caller.AccountId + "/" + click.RequestId.ToString("N"));
+            var capture = plain.Get<IText>(app + "/commands/" + caller.AccountId + "/" + click.RequestId.ToString("N"));
             var saved = (await capture.Read()).Markdown;
             Command command;
             if (!string.IsNullOrEmpty(saved))
@@ -53,7 +53,7 @@ internal static class PublicationButton
             }
             var commandKey = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
                 JsonSerializer.Serialize(new { command.Publication, command.TargetName }, Json))));
-            var pending = grains.GetGrain<IText>(app + "/pending/" + caller.AccountId + "/" + commandKey);
+            var pending = plain.Get<IText>(app + "/pending/" + caller.AccountId + "/" + commandKey);
             var prior = (await pending.Read()).Markdown;
             if (!string.IsNullOrEmpty(prior))
             { command = JsonSerializer.Deserialize<Command>(prior, Json) ?? throw new ArgumentException("Missing pending command."); }
@@ -64,11 +64,11 @@ internal static class PublicationButton
                 && (!installed.Connections.TryGetValue(slot.Name, out var connection)
                     || string.IsNullOrWhiteSpace(connection))).Select(slot => slot.Name).ToArray();
             var state = missing.Length > 0 ? "Needs setup: " + string.Join(", ", missing) : installed.Status.ToString();
-            await grains.GetGrain<ICard>(app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
+            await plain.Get<ICard>(app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
             List<UiChildRef> controls = [new("card", app + "/installed")];
             await AddButton("configure-installed", "Configure app", "configuration");
             await AddButton("open-installed", "Open app", null);
-            var layout = grains.GetGrain<ILayout>(app + "/result");
+            var layout = plain.Get<ILayout>(app + "/result");
             await layout.Set(new("list", [.. controls]), (await layout.Read()).Revision);
             await status.Set("Installed " + installed.Name + " · " + installed.Version + " · from @" + installed.Origin?.Publisher + ". " + state + ".");
             await pending.Set("");

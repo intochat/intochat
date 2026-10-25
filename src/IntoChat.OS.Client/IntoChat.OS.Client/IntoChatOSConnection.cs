@@ -33,11 +33,19 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
 
     public string? Setting(string name) => _settings.TryGetValue(name, out var value) ? value : null;
 
-    public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name, _trace);
+    // Scripts hold this class, so Get and Neuron take grain and plain contracts alike (06-04: a migrated control is a plain
+    // interface); the session edge resolves either kind.
+    public T Get<T>(NeuronId id) where T : class => (T)NeuronProxy.Create(typeof(T), _session, _behavior, id.Name, _trace);
+
+    T IIntoChatOS.Get<T>(NeuronId id) => (T)NeuronProxy.Create(typeof(T), _session, _behavior, id.Name, _trace);
 
     // The edge resolves the wire key raw, so the relative id leaves the sandbox as "{brain}/{relative}".
-    public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brain is { Length: > 0 } brain
-        ? Get<T>(relative.Within(brain))
+    public T Neuron<T>(NeuronId relative) where T : class => Get<T>(Relative(relative));
+
+    T IIntoChatOS.Neuron<T>(NeuronId relative) => ((IIntoChatOS)this).Get<T>(Relative(relative));
+
+    private NeuronId Relative(NeuronId relative) => _session.Brain is { Length: > 0 } brain
+        ? relative.Within(brain)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IBrain Self => _session.Brain is { Length: > 0 } brain
@@ -59,8 +67,17 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
         return Watch<T>(source, onSubscribed, selector, cancellationToken);
     }
 
+    // A plain neuron's [Signal] records (06-04: scripts hold this class, so PlainNeuronClient's On does not bind here).
+    public IAsyncEnumerable<T> On<T>(object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+        => Watch<T>(source, static () => Task.CompletedTask, selector: null, cancellationToken);
+
+    public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+        => Watch<T>(source, onSubscribed, selector: null, cancellationToken);
+
     // Transitional (06-07, R4-15): a plain neuron is called and watched over the same session as any other; its [Signal] records
     // reach the behavior through the runtime's session synapse. PlainNeuronClient (brain.Get<ITimer>, brain.On<TimerTick>) lands here.
+    string? IPlainClient.RelativeBrain => _session.Brain is { Length: > 0 } brain ? brain : null;
+
     object IPlainClient.GetPlain(Type contract, NeuronId id) => NeuronProxy.Create(contract, _session, _behavior, id.Name, _trace);
 
     IAsyncEnumerable<T> IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
@@ -82,15 +99,47 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
         });
     }
 
-    // Scripts hold this class, not the interface, so the vocabulary's set and rebuild entry points are reachable here.
-    public IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : Signal
-        => Sources.Stream<T>(this, sources, cancellationToken);
+    // Scripts hold this class, not the interface, so the vocabulary's set and rebuild entry points are reachable here. A set's
+    // signal is an os Signal of grain members or (06-04) a [Signal] record of plain members, such as the migrated controls; one
+    // entry point takes both, because C# does not overload on constraints.
+    public IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : class
+        => (IAsyncEnumerable<T>)SetEntry("SetOn", typeof(T)).Invoke(null, [this, sources, cancellationToken])!;
+
+    IAsyncEnumerable<T> IIntoChatOS.On<T>(Sources sources, CancellationToken cancellationToken) => Sources.Stream<T>(this, sources, cancellationToken);
 
     public Task React<T>(INeuron neuron, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
         => Sources.React<T>(this, Sources.Of(neuron), rebuild, cancellationToken);
 
-    public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+    // React for a plain neuron's [Signal] records (06-04).
+    public Task React<T>(object source, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+        => PlainNeuronClient.React<T>(this, source, rebuild, cancellationToken);
+
+    public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : class
+        => (Task)SetEntry("SetReact", typeof(T)).Invoke(null, [this, sources, rebuild, cancellationToken])!;
+
+    Task IIntoChatOS.React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken)
         => Sources.React<T>(this, sources, rebuild, cancellationToken);
+
+    private static System.Reflection.MethodInfo SetEntry(string name, Type signal)
+    {
+        var kind = typeof(Signal).IsAssignableFrom(signal) ? "Grain"
+            : typeof(DigitalBrain.Signal).IsAssignableFrom(signal) ? "Plain"
+            : throw new ArgumentException($"{signal.Name} is neither a Signal nor a [Signal] record.");
+        return typeof(IntoChatOSConnection).GetMethod(name + kind, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .MakeGenericMethod(signal);
+    }
+
+    private static IAsyncEnumerable<T> SetOnGrain<T>(IntoChatOSConnection brain, Sources sources, CancellationToken cancellationToken) where T : Signal
+        => Sources.Stream<T>(brain, sources, cancellationToken);
+
+    private static IAsyncEnumerable<T> SetOnPlain<T>(IntoChatOSConnection brain, Sources sources, CancellationToken cancellationToken) where T : DigitalBrain.Signal
+        => PlainNeuronClient.On<T>(brain, sources, cancellationToken);
+
+    private static Task SetReactGrain<T>(IntoChatOSConnection brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : Signal
+        => Sources.React<T>(brain, sources, rebuild, cancellationToken);
+
+    private static Task SetReactPlain<T>(IntoChatOSConnection brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : DigitalBrain.Signal
+        => PlainNeuronClient.React<T>(brain, sources, rebuild, cancellationToken);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

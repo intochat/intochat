@@ -12,8 +12,8 @@ public sealed class RatingFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<IRating>("stars").Set(5, 4);
-        var state = await brain.Get<IRating>("stars").Read();
+        await brain.Get<IRating>("owner/stars").Set(5, 4);
+        var state = await brain.Get<IRating>("owner/stars").Read();
         Assert.Equal(5, state.Max);
         Assert.Equal(4, state.Value);
     }

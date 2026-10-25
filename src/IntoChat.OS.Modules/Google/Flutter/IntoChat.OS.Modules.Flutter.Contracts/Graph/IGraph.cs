@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Graph;
 
-[Alias("graph"), Orleans.Metadata.DefaultGrainType(UIVocabulary.GraphType)]
-public interface IGraph : INeuron
+[NeuronAlias("graph"), DefaultNeuronType(UIVocabulary.GraphType)]
+public interface IGraph
 {
     Task Render(string title, IReadOnlyList<GraphNode> nodes, IReadOnlyList<GraphEdge> edges);
-    [ReadOnly, Alias("read")] Task<GraphState> Read();
+    [ReadOnlyCall] Task<GraphState> Read();
 }
 
 [GenerateSerializer, Alias("ui.graph-node")]

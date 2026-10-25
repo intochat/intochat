@@ -53,6 +53,9 @@ public interface IPlainClient
 
     // The [Signal] records T that source (a proxy from GetPlain) publishes after the subscription is registered.
     IAsyncEnumerable<T> OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken) where T : DigitalBrain.Signal;
+
+    // The brain a relative id resolves in (IIntoChatOS.Neuron, 06-04), when the client knows it without its Self grain.
+    string? RelativeBrain => null;
 }
 
 public static class PlainSignalTypes

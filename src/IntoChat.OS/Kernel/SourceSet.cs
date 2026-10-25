@@ -22,8 +22,9 @@ internal static class SourceSet
     // The same merge over any member subscription: open is asked once per member. Transitional (06-07): the plain-neuron
     // entry (PlainNeuronClient) passes its session synapse subscription; 06-08 folds it back into one path.
     public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources,
-        Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken)
-        => new Stream<T>(brain, sources, open, null, coalesce: false, null, cancellationToken);
+        Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken,
+        Func<Task>? subscribed = null, bool coalesce = false)
+        => new Stream<T>(brain, sources, open, subscribed, coalesce, null, cancellationToken);
 
     private sealed class Stream<T>(IIntoChatOS brain, Sources sources, Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
         Func<Task>? subscribed, bool coalesce, Action? reselected, CancellationToken streamCancellation) : IAsyncEnumerable<T>

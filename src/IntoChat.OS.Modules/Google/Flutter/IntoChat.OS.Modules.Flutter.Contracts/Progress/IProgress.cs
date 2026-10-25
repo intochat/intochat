@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Progress;
 
-[Alias("progress"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ProgressType)]
-public interface IProgress : INeuron
+[NeuronAlias("progress"), DefaultNeuronType(UIVocabulary.ProgressType)]
+public interface IProgress
 {
     Task Set(bool determinate, double value, string label);
-    [ReadOnly, Alias("read")] Task<ProgressState> Read();
+    [ReadOnlyCall] Task<ProgressState> Read();
 }
 
 [GenerateSerializer, Alias("ui.progress-state")]

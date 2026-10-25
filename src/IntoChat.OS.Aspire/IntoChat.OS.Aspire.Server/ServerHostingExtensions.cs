@@ -65,7 +65,10 @@ public static class ServerHostingExtensions
         // A Framework module that brings plain neurons names its DigitalBrain module (Module.Neurons, 06-03); it is hosted when
         // the Framework module is selected.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>()).Distinct()];
-        builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly).Distinct()]);
+        // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both.
+        builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly)
+            .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
+            .Distinct()]);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>

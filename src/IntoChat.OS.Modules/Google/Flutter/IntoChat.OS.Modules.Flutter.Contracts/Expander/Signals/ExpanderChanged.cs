@@ -1,6 +1,7 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Expander.Signals;
 
-[GenerateSerializer, Alias("ui.expander-changed")]
-public sealed record ExpanderChanged([property: Id(0)] string Name, [property: Id(1)] bool Expanded) : Signal;
+[Signal("ui.expander-changed")]
+public sealed record ExpanderChanged(string Name, bool Expanded) : DigitalBrain.Signal;

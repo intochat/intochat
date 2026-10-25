@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Map;
 
-[Alias("map"), Orleans.Metadata.DefaultGrainType(UIVocabulary.MapType)]
-public interface IMap : INeuron
+[NeuronAlias("map"), DefaultNeuronType(UIVocabulary.MapType)]
+public interface IMap
 {
     Task Set(double lat, double lng, double zoom, IReadOnlyList<MapMarker> markers);
-    [ReadOnly, Alias("read")] Task<MapState> Read();
+    [ReadOnlyCall] Task<MapState> Read();
 }
 
 [GenerateSerializer, Alias("ui.map-marker")]

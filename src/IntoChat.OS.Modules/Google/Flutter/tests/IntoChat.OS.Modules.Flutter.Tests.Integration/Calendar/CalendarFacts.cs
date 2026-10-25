@@ -12,8 +12,8 @@ public sealed class CalendarFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<ICalendar>("cal").Set("day", ["2026-09-20"]);
-        var state = await brain.Get<ICalendar>("cal").Read();
+        await brain.Get<ICalendar>("owner/cal").Set("day", ["2026-09-20"]);
+        var state = await brain.Get<ICalendar>("owner/cal").Read();
         Assert.Equal("day", state.Mode);
         Assert.Equal(["2026-09-20"], state.Selected);
     }

@@ -1,18 +1,19 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Video;
 
-[Alias("video"), Orleans.Metadata.DefaultGrainType(UIVocabulary.VideoType)]
-public interface IVideo : INeuron
+[NeuronAlias("video"), DefaultNeuronType(UIVocabulary.VideoType)]
+public interface IVideo
 {
     Task Load(string url, double duration);
     Task Play();
     Task Pause();
     Task Seek(double seconds);
     Task End();
-    [ReadOnly, Alias("read")] Task<VideoState> Read();
+    [ReadOnlyCall] Task<VideoState> Read();
 }
 
 [GenerateSerializer, Alias("ui.video-state")]

@@ -1076,7 +1076,12 @@
   },
   "IntoChat.OS.Testing.Tests.Integration.HarnessCounter": {
     "Type": "testing.harness-counter",
-    "Store": null,
-    "StateName": null
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Tests.Integration.Chat.ChatSourceTextNeuron": {
+    "Type": "test.chat-source",
+    "Store": "cluster",
+    "StateName": "state"
   }
 }

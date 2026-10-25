@@ -16,4 +16,21 @@ internal static class Reaction
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
     }
+
+    // The same for plain neurons' [Signal] records (06-04, folded back in 06-08): members subscribe through PlainNeuronClient.
+    public static async Task RunPlain<T>(IIntoChatOS brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken)
+        where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(rebuild);
+        try
+        {
+            var set = SourceSet.Open<T>(brain, sources, OpenPlain<T>, cancellationToken, () => rebuild(cancellationToken), coalesce: true);
+            await foreach (var _ in set.WithCancellation(cancellationToken).ConfigureAwait(false)) { await rebuild(cancellationToken).ConfigureAwait(false); }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    // One member's subscription in a plain set: the session synapse subscription PlainNeuronClient opens.
+    private static IAsyncEnumerable<T> OpenPlain<T>(IIntoChatOS brain, object member, Func<Task> subscribed, CancellationToken stop) where T : DigitalBrain.Signal
+        => PlainNeuronClient.On<T>(brain, member, subscribed, stop);
 }

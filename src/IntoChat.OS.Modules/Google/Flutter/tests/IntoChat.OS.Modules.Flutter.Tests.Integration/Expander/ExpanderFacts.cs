@@ -12,7 +12,7 @@ public sealed class ExpanderFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var expander = brain.Get<IExpander>("more");
+        var expander = brain.Get<IExpander>("owner/more");
         await expander.Set("More", false, []);
         await expander.Toggle();
         Assert.True((await expander.Read()).Expanded);

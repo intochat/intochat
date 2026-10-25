@@ -1,6 +1,7 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Calendar.Signals;
 
-[GenerateSerializer, Alias("ui.calendar-changed")]
-public sealed record CalendarChanged([property: Id(0)] string Name, [property: Id(1)] int Version) : Signal;
+[Signal("ui.calendar-changed")]
+public sealed record CalendarChanged(string Name, int Version) : DigitalBrain.Signal;

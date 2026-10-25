@@ -1,26 +1,25 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Text.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Text;
 
-[GrainType(UIVocabulary.TextType)]
-internal sealed class TextNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TextState> store)
-    : Neuron<TextState>(store), IText
+[Neuron(UIVocabulary.TextType)]
+internal sealed class TextNeuron
+    : UiNeuron<TextState>, IText
 {
     public Task Set(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Markdown = markdown;
-        return Save(next, new TextChanged(this.GetPrimaryKeyString()));
+        return Save(next, new TextChanged(FullKey));
     }
 
     public async Task<bool> TrySet(string markdown, int expectedVersion)
@@ -31,5 +30,5 @@ internal sealed class TextNeuron([PersistentState("state", IntoChatOSNames.Clust
         return true;
     }
 
-    [ReadOnly] public Task<TextState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<TextState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Toggle;
 
-[Alias("toggle"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ToggleType)]
-public interface IToggle : INeuron
+[NeuronAlias("toggle"), DefaultNeuronType(UIVocabulary.ToggleType)]
+public interface IToggle
 {
     Task Set(string label, bool on);
     Task Flip();
-    [ReadOnly, Alias("read")] Task<ToggleState> Read();
+    [ReadOnlyCall] Task<ToggleState> Read();
 }
 
 [GenerateSerializer, Alias("ui.toggle-state")]

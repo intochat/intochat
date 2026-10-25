@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Rating;
 
-[Alias("rating"), Orleans.Metadata.DefaultGrainType(UIVocabulary.RatingType)]
-public interface IRating : INeuron
+[NeuronAlias("rating"), DefaultNeuronType(UIVocabulary.RatingType)]
+public interface IRating
 {
     Task Set(int max, int value);
-    [ReadOnly, Alias("read")] Task<RatingState> Read();
+    [ReadOnlyCall] Task<RatingState> Read();
 }
 
 [GenerateSerializer, Alias("ui.rating-state")]

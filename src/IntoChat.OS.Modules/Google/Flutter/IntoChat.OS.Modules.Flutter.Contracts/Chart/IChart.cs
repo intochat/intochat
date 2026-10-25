@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chart;
 
-[Alias("chart"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChartType)]
-public interface IChart : INeuron
+[NeuronAlias("chart"), DefaultNeuronType(UIVocabulary.ChartType)]
+public interface IChart
 {
     Task Render(string title, string kind, IReadOnlyList<ChartPoint> points);
     Task Append(ChartPoint point);
-    [ReadOnly, Alias("read")] Task<ChartState> Read();
+    [ReadOnlyCall] Task<ChartState> Read();
 }
 
 [GenerateSerializer, Alias("ui.chart-point")]

@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Color;
 
-[Alias("color"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ColorType)]
-public interface IColor : INeuron
+[NeuronAlias("color"), DefaultNeuronType(UIVocabulary.ColorType)]
+public interface IColor
 {
     Task Set(string hex);
-    [ReadOnly, Alias("read")] Task<ColorState> Read();
+    [ReadOnlyCall] Task<ColorState> Read();
 }
 
 [GenerateSerializer, Alias("ui.color-state")]

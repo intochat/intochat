@@ -23,7 +23,7 @@ public sealed class UiStateGoldenFacts(FlutterHost host)
     internal static Type[] Records()
     {
         var states = typeof(UIVocabulary).Assembly.GetExportedTypes()
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type))
+            .Where(type => type.IsInterface && (typeof(INeuron).IsAssignableFrom(type) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)))
             .SelectMany(contract => contract.GetMethods())
             .Where(method => method.Name == "Read" && method.GetParameters().Length == 0 && method.ReturnType.IsGenericType)
             .Select(method => method.ReturnType.GetGenericArguments()[0]);

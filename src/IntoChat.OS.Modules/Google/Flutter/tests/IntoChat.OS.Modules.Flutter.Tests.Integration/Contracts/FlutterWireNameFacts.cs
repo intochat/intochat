@@ -35,16 +35,21 @@ public sealed class FlutterWireNameFacts
 
     private static string Describe(Type type)
     {
-        var alias = type.GetCustomAttribute<AliasAttribute>(inherit: false)?.Alias ?? "-";
-        if (type.IsInterface && typeof(INeuron).IsAssignableFrom(type))
+        // A migrated contract (06-04) names its alias and type with the neutral attributes, a migrated signal with [Signal]:
+        // the strings must be the ones the grain contract carried.
+        var alias = type.GetCustomAttribute<AliasAttribute>(inherit: false)?.Alias
+            ?? type.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false)?.Alias
+            ?? type.GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? "-";
+        if (type.IsInterface && (typeof(INeuron).IsAssignableFrom(type) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)))
         {
-            var grain = type.GetCustomAttributesData().SingleOrDefault(a => a.AttributeType == typeof(Orleans.Metadata.DefaultGrainTypeAttribute))?.ConstructorArguments[0].Value as string;
+            var grain = type.GetCustomAttributesData().SingleOrDefault(a => a.AttributeType == typeof(Orleans.Metadata.DefaultGrainTypeAttribute))?.ConstructorArguments[0].Value as string
+                ?? IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(type);
             var methods = type.GetMethods().OrderBy(Signature, StringComparer.Ordinal)
                 .Select(method => Signature(method) + "=" + (method.GetCustomAttribute<AliasAttribute>()?.Alias ?? "-"));
             var read = type.GetMethod("Read", Type.EmptyTypes)?.ReturnType is { IsGenericType: true } task ? task.GetGenericArguments()[0].FullName : "-";
             return $"contract; alias={alias}; grain={grain ?? "-"}; read={read}; methods={string.Join(",", methods)}";
         }
-        if (typeof(Signal).IsAssignableFrom(type)) { return $"signal; short={type.Name}; alias={alias}"; }
+        if (typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type)) { return $"signal; short={type.Name}; alias={alias}"; }
         if (type.IsEnum) { return $"enum; alias={alias}; serialized={Serialized(type)}; members={string.Join(",", Enum.GetNames(type))}"; }
         return $"{(type.IsInterface ? "interface" : type.IsAbstract && type.IsSealed ? "static" : "type")}; alias={alias}; serialized={Serialized(type)}";
     }

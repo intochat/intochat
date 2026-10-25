@@ -56,7 +56,7 @@ public sealed class CirclesFacts
     [Fact]
     public async Task ThePublicationButtonRefusesACallWithNoSignedInCaller()
         => await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            PublicationButton.Handle(null!, "c1", "app", "publish", IntoChat.OS.Modules.Flutter.UiEvent.Of(new ButtonClicked("c1/app/publish", "{}", Guid.NewGuid())), (_, _, _) => throw new InvalidOperationException()));
+            PublicationButton.Handle(null!, null!, "c1", "app", "publish", IntoChat.OS.Modules.Flutter.UiEvent.Of(new ButtonClicked("c1/app/publish", "{}", Guid.NewGuid())), (_, _, _) => throw new InvalidOperationException()));
 
     [Fact]
     public async Task ACircleBirthRefusesANullBrain()

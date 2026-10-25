@@ -12,7 +12,7 @@ public sealed class InfoBarFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var bar = brain.Get<IInfoBar>("warn");
+        var bar = brain.Get<IInfoBar>("owner/warn");
         await bar.Show("warning", "Heads up", "disk");
         Assert.True((await bar.Read()).Visible);
         await bar.Dismiss();

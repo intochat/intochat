@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,7 +21,7 @@ internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider ser
         var state = await grains.GetGrain<IAgent>(key).Read();
         // A pasted link's app and input live in the links store beside the conversations, never in the run.
         var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _)) && ChatAppCard.LinksKey(key) is { } store
-            ? (await grains.GetGrain<IText>(store).Read()).Markdown : null;
+            ? (await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IText>(store).Read()).Markdown : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))

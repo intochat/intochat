@@ -12,13 +12,14 @@ using Orleans.Runtime;
 namespace IntoChat.OS.Modules.Flutter.Space;
 
 [GrainType("ui.space")]
-internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends) : Neuron, ISpace
+internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
+    IntoChat.OS.Runtime.IPlainNeurons plain) : Neuron, ISpace
 {
     public Task<PersonState> ReadProfile(string key) => ReadShared(async () =>
     {
         if (!key.EndsWith("/profile", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         await AuthorizeFriend(key[..^8]);
-        return await grains.GetGrain<ISharedPersonReader>(key).Read();
+        return await plain.Get<ISharedPersonReader>(key).Read();
     });
 
     public Task<CardState> ReadPost(string key) => ReadShared(async () =>
@@ -27,7 +28,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         var friend = await AuthorizeFriend(author);
         if (friend is not null && !(await friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The post is not published in a shared circle."); }
-        var card = await grains.GetGrain<ISharedCardReader>(key).Read();
+        var card = await plain.Get<ISharedCardReader>(key).Read();
         return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body };
     });
 
@@ -35,10 +36,10 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
     {
         if (!key.EndsWith("/posts", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         var friend = await AuthorizeFriend(key[..^6]);
-        if (friend is null) { return await grains.GetGrain<ICollectionView>(key).Read(); }
+        if (friend is null) { return await plain.Get<ICollectionView>(key).Read(); }
         List<CollectionItem> items = [];
         foreach (var post in await friends.Posts(friend))
-        { items.Add(new(post, (await grains.GetGrain<ISharedCardReader>(post).Read()).Title, "post")); }
+        { items.Add(new(post, (await plain.Get<ISharedCardReader>(post).Read()).Title, "post")); }
         return new CollectionState { Name = key, Revision = 1, Definition = new(items.ToArray(), FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
     });
 
@@ -219,7 +220,14 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
     }
 }
 
-internal sealed class SpaceActivation : IActivationHandler<SpaceNeuron>
+internal sealed class SpaceActivation(IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService> hosted) : IActivationHandler<SpaceNeuron>
 {
-    public Task Activated(SpaceNeuron neuron, CancellationToken cancellationToken) => neuron.Rebuild();
+    // The watcher runs as a hosted service; a host without it (a fact that removes it) follows nothing.
+    private readonly SpaceWatcher? _watcher = hosted.OfType<SpaceWatcher>().FirstOrDefault();
+
+    public async Task Activated(SpaceNeuron neuron, CancellationToken cancellationToken)
+    {
+        if (_watcher is not null) { await _watcher.Follow(neuron.GetPrimaryKeyString()); }
+        await neuron.Rebuild();
+    }
 }

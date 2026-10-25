@@ -50,7 +50,7 @@
   "IntoChat.OS.Modules.Flutter/Chat/ChatBinding.cs": 3,
   "IntoChat.OS.Modules.Flutter/Chat/ChatNeuron.cs": 1,
   "IntoChat.OS.Modules.Flutter/Chat/ComposerNeuron.cs": 4,
-  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 10,
+  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 8,
   "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/FilteredSubscriptionFacts.cs": 2,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/HangingWatchFacts.cs": 2,

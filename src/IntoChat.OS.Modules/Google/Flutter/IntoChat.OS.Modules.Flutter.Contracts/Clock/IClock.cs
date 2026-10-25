@@ -1,14 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Clock;
 
-[Alias("clock"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ClockType)]
-public interface IClock : INeuron
+[NeuronAlias("clock"), DefaultNeuronType(UIVocabulary.ClockType)]
+public interface IClock
 {
     Task Set(string label, DateTimeOffset? dueAt);
-    [ReadOnly, Alias("read")] Task<ClockState> Read();
+    [ReadOnlyCall] Task<ClockState> Read();
 }
 
 [GenerateSerializer, Alias("ui.clock-state")]

@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.ImageCanvas;
 
-[Alias("imagecanvas"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ImageCanvasType)]
-public interface IImageCanvas : INeuron
+[NeuronAlias("imagecanvas"), DefaultNeuronType(UIVocabulary.ImageCanvasType)]
+public interface IImageCanvas
 {
     Task Set(ImageCanvasDefinition definition, long expectedRevision);
     Task RequestEdit(ImageRecipe recipe, long expectedDocumentRevision, string operationId);
-    [ReadOnly] Task<ImageCanvasState> Read();
+    [ReadOnlyCall] Task<ImageCanvasState> Read();
 }
 
 [GenerateSerializer, Alias("ui.imagecanvas-definition")]
@@ -24,8 +25,8 @@ public sealed class ImageCanvasState
     [Id(2)] public ImageCanvasDefinition Definition { get; set; } = new("", 0, 0, new(), 0);
 }
 
-[GenerateSerializer, Alias("ui.imagecanvas-changed")]
-public sealed record ImageCanvasChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.imagecanvas-changed")]
+public sealed record ImageCanvasChanged(string Name, long Revision) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.imagecanvas-edit-requested")]
-public sealed record ImageCanvasEditRequested([property: Id(0)] string Name, [property: Id(1)] ImageRecipe Recipe, [property: Id(2)] long DocumentRevision, [property: Id(3)] string OperationId) : Signal;
+[Signal("ui.imagecanvas-edit-requested")]
+public sealed record ImageCanvasEditRequested(string Name, ImageRecipe Recipe, long DocumentRevision, string OperationId) : DigitalBrain.Signal;

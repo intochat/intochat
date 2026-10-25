@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.InfoBar;
 
-[Alias("infobar"), Orleans.Metadata.DefaultGrainType(UIVocabulary.InfoBarType)]
-public interface IInfoBar : INeuron
+[NeuronAlias("infobar"), DefaultNeuronType(UIVocabulary.InfoBarType)]
+public interface IInfoBar
 {
     Task Show(string severity, string title, string body);
     Task Dismiss();
-    [ReadOnly, Alias("read")] Task<InfoBarState> Read();
+    [ReadOnlyCall] Task<InfoBarState> Read();
 }
 
 [GenerateSerializer, Alias("ui.infobar-state")]

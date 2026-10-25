@@ -1,6 +1,7 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Image.Signals;
 
-[GenerateSerializer, Alias("ui.image-changed")]
-public sealed record ImageChanged([property: Id(0)] string Name, [property: Id(1)] int Version) : Signal;
+[Signal("ui.image-changed")]
+public sealed record ImageChanged(string Name, int Version) : DigitalBrain.Signal;

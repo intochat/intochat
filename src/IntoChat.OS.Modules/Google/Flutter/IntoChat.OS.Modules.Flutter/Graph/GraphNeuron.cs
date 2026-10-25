@@ -1,17 +1,16 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Graph.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Graph;
 
-[GrainType(UIVocabulary.GraphType)]
-internal sealed class GraphNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<GraphState> store)
-    : Neuron<GraphState>(store), IGraph
+[Neuron(UIVocabulary.GraphType)]
+internal sealed class GraphNeuron
+    : UiNeuron<GraphState>, IGraph
 {
     public Task Render(string title, IReadOnlyList<GraphNode> nodes, IReadOnlyList<GraphEdge> edges)
     {
@@ -19,13 +18,13 @@ internal sealed class GraphNeuron([PersistentState("state", IntoChatOSNames.Clus
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(edges);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Title = title.Trim();
         next.Nodes = [.. nodes];
         next.Edges = [.. edges];
-        return Save(next, new GraphChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new GraphChanged(FullKey, next.Version));
     }
 
-    [ReadOnly] public Task<GraphState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<GraphState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }
