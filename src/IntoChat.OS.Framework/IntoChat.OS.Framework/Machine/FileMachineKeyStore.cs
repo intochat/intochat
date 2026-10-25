@@ -25,9 +25,7 @@ public sealed class FileMachineKeyStore(string directory, IMasterKeyCustody cust
         try
         {
             var sealedKey = custody.Wrap(KeyName, KeyName, pkcs8);
-            // Another store may win the race; its key is kept.
-            try { MachineIdFile.WriteOwnerOnly(_file, sealedKey); }
-            catch (IOException) when (File.Exists(_file)) { }
+            _ = TryWrite(sealedKey);
         }
         finally { CryptographicOperations.ZeroMemory(pkcs8); }
         return ValueTask.CompletedTask;
@@ -52,6 +50,17 @@ public sealed class FileMachineKeyStore(string directory, IMasterKeyCustody cust
         cancellationToken.ThrowIfCancellationRequested();
         File.Delete(_file);
         return ValueTask.CompletedTask;
+    }
+
+    // False when another store won the race to create the file; its key is kept.
+    private bool TryWrite(byte[] sealedKey)
+    {
+        try
+        {
+            MachineIdFile.WriteOwnerOnly(_file, sealedKey);
+            return true;
+        }
+        catch (IOException) when (File.Exists(_file)) { return false; }
     }
 
     private ECDsa Load()

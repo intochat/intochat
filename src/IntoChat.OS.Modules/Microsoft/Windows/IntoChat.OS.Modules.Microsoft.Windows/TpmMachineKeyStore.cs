@@ -25,7 +25,8 @@ internal sealed class TpmMachineKeyStore(string name = TpmMachineKeyStore.Defaul
             KeyUsage = CngKeyUsages.Signing,
         };
         try { CngKey.Create(CngAlgorithm.ECDsaP256, name, parameters).Dispose(); }
-        catch (CryptographicException) when (Exists()) { }
+        // Another host may have created it first; that key is kept.
+        catch (CryptographicException) when (Exists()) { return ValueTask.CompletedTask; }
         catch (CryptographicException exception) { throw new MachineKeyUnavailableException(exception); }
         return ValueTask.CompletedTask;
     }
