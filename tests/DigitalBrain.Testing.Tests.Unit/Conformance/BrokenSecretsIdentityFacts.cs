@@ -83,6 +83,12 @@ public sealed class BrokenSecretsIdentityFacts
             fault == SecretsFault.IgnoreCaller && _byReference.TryGetValue(secret.Reference, out var value)
                 ? Task.FromResult(value)
                 : inner.Resolve(secret, cancellationToken);
+
+        public Task<SealedSecret> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken = default) => inner.Seal(context, plaintext, cancellationToken);
+
+        public Task<byte[]> Open(string context, SealedSecret sealedSecret, CancellationToken cancellationToken = default) => inner.Open(context, sealedSecret, cancellationToken);
+
+        public Task<SecretRef> Named(string name, CancellationToken cancellationToken = default) => inner.Named(name, cancellationToken);
     }
 
     private sealed class BrokenIdentityKit(IdentityFault fault) : IdentityConformance<IIdentity>

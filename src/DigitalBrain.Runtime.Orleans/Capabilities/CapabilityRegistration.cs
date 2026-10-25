@@ -15,12 +15,15 @@ namespace DigitalBrain.Runtime.Orleans.Capabilities;
 /// </summary>
 public static class CapabilityRegistration
 {
-    /// <summary>secrets@1 (<see cref="SecretsCapability"/>) over <typeparamref name="TPort"/>.</summary>
+    /// <summary>
+    /// secrets@1 (<see cref="SecretsCapability"/>) over <typeparamref name="TPort"/>; named secrets are checked against the
+    /// manifests of the modules the host composed.
+    /// </summary>
     public static IServiceCollection AddSecretsCapability<TPort>(this IServiceCollection services) where TPort : class, ISecretVaultPort
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<TPort>();
-        services.AddKeyedSingleton<ISecrets>(Capability.Secrets.V1Id, (sp, _) => new SecretsCapability(sp.GetRequiredService<TPort>(), sp.GetService<ILogger<SecretsCapability>>()));
+        services.AddKeyedSingleton<ISecrets>(Capability.Secrets.V1Id, (sp, _) => new SecretsCapability(sp.GetRequiredService<TPort>(), sp.GetService<ILogger<SecretsCapability>>()) { Declarations = TopologyHosting.ComposedDeclarations(sp) });
         return services;
     }
 

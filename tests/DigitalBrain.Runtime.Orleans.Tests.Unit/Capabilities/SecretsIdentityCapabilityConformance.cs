@@ -50,8 +50,9 @@ public sealed class SecretsCapabilityConformance : SecretsConformance<SecretsCap
         var logs = new CapturingLoggerProvider();
         var vault = new InMemorySecretVault();
         var factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
-        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>());
-        return Task.FromResult(new SecretsSubject(secrets, new RuntimeCallerScope(), () => [.. logs.Lines, .. vault.Log]));
+        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>()) { Declarations = KitDeclarations.Identity };
+        vault.Provide(KitDeclarations.NamedSecret.Name, KitDeclarations.NamedSecret.Value);
+        return Task.FromResult(new SecretsSubject(secrets, new RuntimeCallerScope(), () => [.. logs.Lines, .. vault.Log]) { Named = KitDeclarations.NamedSecret });
     }
 }
 
@@ -71,12 +72,15 @@ public sealed class IdentityCapabilityConformance : IdentityConformance<Identity
     }
 }
 
-// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members.
+// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members and
+// declaring the kit-issuer secret.
 internal static class KitDeclarations
 {
     public const string PrivilegedModule = "kit-auth";
 
-    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [])
+    public static KitNamedSecret NamedSecret { get; } = new(PrivilegedModule, "kit-issuer:SigningKey", $"v-{Guid.NewGuid():N}");
+
+    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [Secret.Named("kit-issuer")])
     {
         Id = PrivilegedModule,
         Privileged = [new(Capability.Identity.V1, "Issue"), new(Capability.Identity.V1, "End"), new(Capability.Identity.V1, "Validate")],

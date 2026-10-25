@@ -593,3 +593,36 @@ DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Validate(str
 static readonly DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.DefaultSessionLifetime -> System.TimeSpan
 DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Descriptor.get -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
 DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Descriptor.init -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Named(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Open(DigitalBrain.Capabilities.CapabilityCaller! caller, string! context, DigitalBrain.Capabilities.Secrets.SealedSecret! sealedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Provide(string! name, string! value) -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Seal(DigitalBrain.Capabilities.CapabilityCaller! caller, string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret?>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Declarations.get -> DigitalBrain.ModuleDeclarations!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Declarations.init -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Named(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Open(string! context, DigitalBrain.Capabilities.Secrets.SealedSecret! sealedSecret, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<byte[]!>!
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Provide(string! name, string! value) -> void
+DigitalBrain.Testing.Conformance.Secrets.InMemorySecrets.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.<Clone>$() -> DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret!
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Deconstruct(out string! ModuleId, out string! Name, out string! Value) -> void
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Equals(DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? other) -> bool
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.KitNamedSecret(string! ModuleId, string! Name, string! Value) -> void
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.ModuleId.get -> string!
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.ModuleId.init -> void
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Name.get -> string!
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Name.init -> void
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Value.get -> string!
+DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Value.init -> void
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.NamedDeclaredSecretResolves() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.NamedUndeclaredSecretIsDenied() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.OpenWithOtherContextIsDenied() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.SealThenOpenRoundTrips() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.SealedValueDoesNotContainPlaintext() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Named.get -> DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret?
+DigitalBrain.Testing.Conformance.Secrets.SecretsSubject.Named.init -> void
+override DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.ToString() -> string!
+static DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.operator !=(DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? left, DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? right) -> bool
+static DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.operator ==(DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? left, DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret? right) -> bool

@@ -8,7 +8,17 @@ namespace DigitalBrain.Testing.Conformance.Secrets;
 /// <param name="Secrets">The secrets connection.</param>
 /// <param name="Callers">Switches the runtime caller the implementation sees.</param>
 /// <param name="CapturedLogs">Every log line the implementation wrote so far; none may contain a secret value.</param>
-public sealed record SecretsSubject(ISecrets Secrets, CallerScope Callers, Func<IReadOnlyList<string>> CapturedLogs);
+public sealed record SecretsSubject(ISecrets Secrets, CallerScope Callers, Func<IReadOnlyList<string>> CapturedLogs)
+{
+    /// <summary>A deployment-provided secret one module declares; null skips the named-secret facts.</summary>
+    public KitNamedSecret? Named { get; init; }
+}
+
+/// <summary>A deployment-provided secret for the named-secret facts.</summary>
+/// <param name="ModuleId">A module whose manifest declares the secret (its <c>Secrets</c> list).</param>
+/// <param name="Name">The configured name, for example <c>kit-issuer:SigningKey</c>; the part before ':' is the declared secret.</param>
+/// <param name="Value">The configured value.</param>
+public sealed record KitNamedSecret(string ModuleId, string Name, string Value);
 
 /// <summary>
 /// The secrets@1 conformance kit (CAP-01). A module providing secrets subclasses it in its <c>tests/</c> project as a sealed
@@ -196,6 +206,126 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
         var lines = s.CapturedLogs();
         var leaking = lines.Count(line => Leaks(line, value));
         Assert.True(leaking == 0, $"{name}: {leaking} of {lines.Count} captured log lines contain the value");
+    }
+
+    // ----- sealed values (09-03, secrets row 1) -----
+
+    /// <summary>Seal then Open with the same context returns the plaintext (a TOTP seed).</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task SealThenOpenRoundTrips()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var seed = System.Security.Cryptography.RandomNumberGenerator.GetBytes(20);
+        var context = $"auth/totp/{NewName()}";
+        using (s.Callers.As(Owner))
+        {
+            var sealedSecret = await s.Secrets.Seal(context, seed, ct).ConfigureAwait(false);
+            Assert.Equal(seed, await s.Secrets.Open(context, sealedSecret, ct).ConfigureAwait(false));
+            Assert.Empty(await s.Secrets.Open($"{context}/empty", await s.Secrets.Seal($"{context}/empty", ReadOnlyMemory<byte>.Empty, ct).ConfigureAwait(false), ct).ConfigureAwait(false));
+        }
+    }
+
+    /// <summary>Open with another context, or of a tampered value, throws <see cref="SecretDenied"/>.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task OpenWithOtherContextIsDenied()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var context = $"auth/totp/{NewName()}";
+        using (s.Callers.As(Owner))
+        {
+            var sealedSecret = await s.Secrets.Seal(context, System.Security.Cryptography.RandomNumberGenerator.GetBytes(20), ct).ConfigureAwait(false);
+            await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Open($"auth/totp/{NewName()}", sealedSecret, ct)).ConfigureAwait(false);
+            var bytes = Convert.FromBase64String(sealedSecret.Cipher);
+            bytes[^1] ^= 0x01;
+            await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Open(context, sealedSecret with { Cipher = Convert.ToBase64String(bytes) }, ct)).ConfigureAwait(false);
+            await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Open(context, sealedSecret with { KeyId = $"{sealedSecret.KeyId}-other" }, ct)).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The sealed form (and its JSON) holds no plaintext; sealing the same value twice gives different ciphers (T-09-10).</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task SealedValueDoesNotContainPlaintext()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var plain = NewValue();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(plain);
+        var context = $"auth/totp/{NewName()}";
+        using (s.Callers.As(Owner))
+        {
+            var first = await s.Secrets.Seal(context, bytes, ct).ConfigureAwait(false);
+            var second = await s.Secrets.Seal(context, bytes, ct).ConfigureAwait(false);
+            var json = JsonSerializer.Serialize(first);
+            Assert.Contains("\"cipher\"", json, StringComparison.Ordinal);
+            Assert.Contains("\"keyId\"", json, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(first.Cipher) || string.IsNullOrWhiteSpace(first.KeyId), "the sealed value has no cipher or key id");
+            foreach (var form in new[] { plain, Convert.ToBase64String(bytes), Convert.ToHexString(bytes) })
+            {
+                Assert.False(Leaks(json, form) || Leaks(first.ToString(), form), $"{context}: the sealed value carries the plaintext");
+            }
+
+            Assert.NotEqual(first.Cipher, second.Cipher);
+        }
+
+        var leaking = s.CapturedLogs().Count(line => Leaks(line, plain));
+        Assert.True(leaking == 0, $"{context}: {leaking} captured log lines contain the plaintext");
+    }
+
+    // ----- named secrets (09-03, secrets rows 2 and 3) -----
+
+    /// <summary>A module declaring the secret gets a set reference that resolves to the configured value; an unconfigured key is unset.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task NamedDeclaredSecretResolves()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var named = RequireNamed(s);
+        using (s.Callers.As(Owner with { AppId = named.ModuleId }))
+        {
+            var secret = await s.Secrets.Named(named.Name, ct).ConfigureAwait(false);
+            Assert.True(secret.IsSet, $"{named.Name} is not reported set");
+            Assert.True(secret.IsNamed, $"{named.Name}: {secret.Reference} is not a named reference");
+            Assert.False(Leaks(secret.ToString(), named.Value) || Leaks(JsonSerializer.Serialize(secret), named.Value), $"{named.Name}: the reference carries the value");
+            Assert.True(named.Value == await s.Secrets.Resolve(secret, ct).ConfigureAwait(false), $"{named.Name} did not resolve to its value");
+            var unset = await s.Secrets.Named($"{Declared(named)}:KitUnconfigured", ct).ConfigureAwait(false);
+            Assert.False(unset.IsSet, $"{Declared(named)}:KitUnconfigured is reported set");
+            await Assert.ThrowsAsync<SecretNotFound>(() => s.Secrets.Resolve(unset, ct)).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>An undeclared name, another module, or a caller that is not a module is denied; so is resolving the reference.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task NamedUndeclaredSecretIsDenied()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var named = RequireNamed(s);
+        SecretRef secret;
+        using (s.Callers.As(Owner with { AppId = named.ModuleId }))
+        {
+            secret = await s.Secrets.Named(named.Name, ct).ConfigureAwait(false);
+            var undeclared = await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Named($"kit-undeclared-{Guid.NewGuid():N}", ct)).ConfigureAwait(false);
+            Assert.Equal("denied", undeclared.Code);
+        }
+
+        foreach (var caller in new[] { Owner with { AppId = $"kit-other-{Guid.NewGuid():N}" }, Owner })
+        {
+            using (s.Callers.As(caller))
+            {
+                await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Named(named.Name, ct)).ConfigureAwait(false);
+                var denied = await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Resolve(secret, ct)).ConfigureAwait(false);
+                Assert.False(Leaks(denied.ToString(), named.Value), $"{named.Name}: the denied error carries the value");
+            }
+        }
+    }
+
+    private static KitNamedSecret RequireNamed(SecretsSubject s)
+    {
+        Assert.SkipWhen(s.Named is null, "the subject declares no named secret");
+        return s.Named!;
+    }
+
+    private static string Declared(KitNamedSecret named)
+    {
+        var colon = named.Name.IndexOf(':', StringComparison.Ordinal);
+        return colon < 0 ? named.Name : named.Name[..colon];
     }
 
     private async Task<(SecretsSubject Subject, CancellationToken Ct)> Open()

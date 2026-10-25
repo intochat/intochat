@@ -11,8 +11,9 @@ public sealed class InMemorySecretsConformance : SecretsConformance<InMemorySecr
     protected override Task<SecretsSubject> Connect(CancellationToken ct)
     {
         var callers = new AmbientCallerScope();
-        var secrets = new InMemorySecrets(callers);
-        return Task.FromResult(new SecretsSubject(secrets, callers, () => secrets.Log));
+        var secrets = new InMemorySecrets(callers) { Declarations = KitDeclarations.Identity };
+        secrets.Provide(KitDeclarations.NamedSecret.Name, KitDeclarations.NamedSecret.Value);
+        return Task.FromResult(new SecretsSubject(secrets, callers, () => secrets.Log) { Named = KitDeclarations.NamedSecret });
     }
 }
 
@@ -22,8 +23,9 @@ public sealed class FakeSecretsConformance : SecretsConformance<FakeSecrets>
     protected override Task<SecretsSubject> Connect(CancellationToken ct)
     {
         var callers = new AmbientCallerScope();
-        var secrets = new FakeSecrets(callers);
-        return Task.FromResult(new SecretsSubject(secrets, callers, () => secrets.Log));
+        var secrets = new FakeSecrets(callers) { Declarations = KitDeclarations.Identity };
+        secrets.Provide(KitDeclarations.NamedSecret.Name, KitDeclarations.NamedSecret.Value);
+        return Task.FromResult(new SecretsSubject(secrets, callers, () => secrets.Log) { Named = KitDeclarations.NamedSecret });
     }
 }
 
@@ -59,12 +61,15 @@ public sealed class FakeIdentityConformance : IdentityConformance<FakeIdentity>
     }
 }
 
-// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members.
+// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members and
+// declaring the kit-issuer secret.
 internal static class KitDeclarations
 {
     public const string PrivilegedModule = "kit-auth";
 
-    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [])
+    public static KitNamedSecret NamedSecret { get; } = new(PrivilegedModule, "kit-issuer:SigningKey", $"v-{Guid.NewGuid():N}");
+
+    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [Secret.Named("kit-issuer")])
     {
         Id = PrivilegedModule,
         Privileged = [new(Capability.Identity.V1, "Issue"), new(Capability.Identity.V1, "End"), new(Capability.Identity.V1, "Validate")],
