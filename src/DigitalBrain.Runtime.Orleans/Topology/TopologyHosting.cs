@@ -75,6 +75,7 @@ public static class TopologyHosting
         builder.Services.AddSingleton(selected);
         builder.Services.AddSingleton(context);
         builder.Services.AddSingleton(settings);
+        builder.Services.AddHostedService<TopologyWarningLog>();
         return selected;
     }
 

@@ -86,7 +86,8 @@ public sealed class CloudProfile : ITopologyProfile
         ArgumentNullException.ThrowIfNull(modules);
         var issues = new List<TopologyIssue>();
         if (CloudStorageAccount.TryParse(configuration[IntoChatOSNames.CloudStorageKey], out var storage) is null) { issues.Add(storage!); }
-        if (KeyVault(configuration[IntoChatOSNames.CloudKeyVaultKey], out var vault) is null) { issues.Add(vault!); }
+        var vaultValue = configuration[IntoChatOSNames.CloudKeyVaultKey];
+        if (!string.IsNullOrWhiteSpace(vaultValue) && KeyVault(vaultValue, out var vault) is null) { issues.Add(vault!); }
         foreach (var module in modules)
         {
             foreach (var need in module.Needs.Where(n => n.Kind == NeedKind.GrainStore && n.Name is not null && Reserved.Contains(n.Name)))
@@ -113,11 +114,20 @@ public sealed class CloudProfile : ITopologyProfile
     }
 
     /// <inheritdoc />
-    /// <remarks>Secret <c>IntoChatOS--MasterKey</c> maps to <c>IntoChatOS:MasterKey</c>; secrets load once (no reload interval).</remarks>
+    /// <remarks>
+    /// Secret <c>IntoChatOS--MasterKey</c> maps to <c>IntoChatOS:MasterKey</c>; secrets load once (no reload interval).
+    /// Without <c>IntoChatOS:Cloud:KeyVault</c> (contributor runs on Azurite, 04-CONTEXT R4-08) secrets come from the machine key,
+    /// as on local; the topology settings carry the warning.
+    /// </remarks>
     public void ConfigureConfiguration(IConfigurationBuilder builder, TopologyContext context)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(context);
+        if (string.IsNullOrWhiteSpace(context.Configuration[IntoChatOSNames.CloudKeyVaultKey]))
+        {
+            builder.Add(new MachineKeyConfigurationSource(context.Home, context.Configuration));
+            return;
+        }
         var vault = KeyVault(context.Configuration[IntoChatOSNames.CloudKeyVaultKey], out var issue)
             ?? throw new InvalidOperationException($"{issue!.Key}: {issue.Message}");
         if (_keyVaultSource is { } replace) { replace(builder, vault); }

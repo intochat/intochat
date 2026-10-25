@@ -140,9 +140,14 @@ public static class TopologyValidator
             {
                 issues.Add(new TopologyIssue(key, "requires Topology=cloud."));
             }
-            else if (!set && topology == Topology.Cloud)
+            else if (!set && topology == Topology.Cloud && key == IntoChatOSNames.CloudStorageKey)
             {
                 issues.Add(new TopologyIssue(key, "is required when Topology=cloud."));
+            }
+            else if (!set && topology == Topology.Cloud)
+            {
+                // 04-CONTEXT R4-08: contributor runs on Azurite start without a vault; production deployments set it.
+                warnings.Add($"{key} is unset on Topology=cloud; secrets come from the machine key. Set it in production.");
             }
         }
 
