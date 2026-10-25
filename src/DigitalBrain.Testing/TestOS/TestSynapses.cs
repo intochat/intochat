@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
@@ -21,6 +24,8 @@ internal sealed class SynapseRegistry(TestOS os)
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<NeuronId, Dictionary<NeuronId, Entry>> _bySubscriber = [];
+    private static readonly ConcurrentDictionary<(Type Class, Type Signal), MethodInfo?> Reactions = new();
+    private readonly ConcurrentDictionary<NeuronId, SemaphoreSlim> _pumps = new();
     private long _duplicates;
 
     public long DuplicatesDropped => Interlocked.Read(ref _duplicates);
@@ -94,9 +99,125 @@ internal sealed class SynapseRegistry(TestOS os)
         }
     }
 
-    public void Activated(TestNeuronHost subscriber) => Interlocked.Add(ref _duplicates, subscriber is null ? 1 : 0);
+    // On every activation the subscriber catches up on each source from its cursor.
+    public void Activated(TestNeuronHost subscriber)
+    {
+        List<NeuronId> sources;
+        lock (_gate) { sources = _bySubscriber.TryGetValue(subscriber.Id, out var held) ? [.. held.Keys] : []; }
+        foreach (var source in sources) { _ = os.Track(Deliver(subscriber, source, long.MaxValue, reference: false)); }
+    }
 
-    public void Appended(NeuronId publisher, IReadOnlyList<JournaledSignal> written) => Interlocked.Add(ref _duplicates, written.Count == 0 && publisher == default ? 1 : 0);
+    // The journal entry is written: ring the doorbell of every active subscriber with one reference per signal (twice under
+    // DuplicateDelivery). An inactive subscriber is not woken; it catches up when it activates.
+    public void Appended(NeuronId publisher, IReadOnlyList<JournaledSignal> written)
+    {
+        if (written.Count == 0) { return; }
+        List<NeuronId> subscribers;
+        lock (_gate) { subscribers = [.. _bySubscriber.Where(pair => pair.Value.ContainsKey(publisher)).Select(pair => pair.Key)]; }
+        var copies = os.Options.DuplicateDelivery ? 2 : 1;
+        foreach (var subscriber in subscribers)
+        {
+            if (!os.TryHost(subscriber, out var host) || !host.IsActive) { continue; }
+            foreach (var entry in written)
+            {
+                for (var copy = 0; copy < copies; copy++) { _ = os.Track(Deliver(host, publisher, entry.Sequence, reference: true)); }
+            }
+        }
+    }
+
+    // One subscriber's references are handled one at a time: a reference at or below the cursor is a duplicate and dropped;
+    // above it, the subscriber reads the source's journal from the cursor through the reference, each signal its own turn.
+    private async Task Deliver(TestNeuronHost subscriber, NeuronId source, long through, bool reference)
+    {
+        await Task.Yield();
+        var pump = _pumps.GetOrAdd(subscriber.Id, _ => new SemaphoreSlim(1, 1));
+        await pump.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            Entry? entry;
+            lock (_gate) { entry = _bySubscriber.GetValueOrDefault(subscriber.Id)?.GetValueOrDefault(source); }
+            if (entry is null) { return; }
+            if (reference && through <= entry.Cursor)
+            {
+                Interlocked.Increment(ref _duplicates);
+                return;
+            }
+            await CatchUp(subscriber, entry, through).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException) { os.Fail(error); }
+        finally { pump.Release(); }
+    }
+
+    private async Task CatchUp(TestNeuronHost subscriber, Entry entry, long through)
+    {
+        var journal = os.Journal(entry.Source.Brain);
+        while (true)
+        {
+            var page = await journal.Read(entry.Source, entry.Cursor, SignalPage.MaxLimit, CancellationToken.None).ConfigureAwait(false);
+            if (page.Floor > entry.Cursor)
+            {
+                await React(subscriber, new Gap(entry.Source, entry.Cursor, page.Floor)).ConfigureAwait(false);
+                Advance(entry, page.Floor);
+                continue;
+            }
+            var due = page.Signals.Where(item => item.Sequence <= through).ToList();
+            if (due.Count == 0) { return; }
+            foreach (var item in due)
+            {
+                bool wanted;
+                lock (_gate) { wanted = entry.Signals.Any(type => type.IsInstanceOfType(item.Signal)); }
+                if (wanted) { await React(subscriber, item.Signal).ConfigureAwait(false); }
+                Advance(entry, item.Sequence);
+            }
+        }
+    }
+
+    private void Advance(Entry entry, long cursor)
+    {
+        lock (_gate)
+        {
+            entry.Cursor = cursor;
+            entry.CursorAt = os.Clock.GetUtcNow();
+        }
+    }
+
+    // A reaction is a turn: the most specific [On] method whose parameter accepts the signal; none means the signal is ignored.
+    private static Task React(TestNeuronHost subscriber, Signal signal)
+    {
+        if (Reaction(subscriber.Class, signal.GetType()) is not { } method) { return Task.CompletedTask; }
+        return subscriber.Turn(interleave: false, async neuron =>
+        {
+            var arguments = method.GetParameters().Length == 2 ? new object?[] { signal, CancellationToken.None } : [signal];
+            object? returned;
+            try { returned = method.Invoke(neuron, arguments); }
+            catch (TargetInvocationException error) when (error.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+                throw;
+            }
+            if (returned is Task task) { await task.ConfigureAwait(false); }
+            else if (returned is ValueTask valueTask) { await valueTask.ConfigureAwait(false); }
+            return 0;
+        });
+    }
+
+    private static MethodInfo? Reaction(Type neuronClass, Type signal) => Reactions.GetOrAdd((neuronClass, signal), static key =>
+    {
+        var candidates = new List<MethodInfo>();
+        for (var type = key.Class; type is not null && type != typeof(object); type = type.BaseType)
+        {
+            candidates.AddRange(type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(method => method.IsDefined(typeof(OnAttribute), false) && method.GetParameters() is [var first, ..] && first.ParameterType.IsAssignableFrom(key.Signal)));
+        }
+        return candidates.OrderByDescending(method => Depth(method.GetParameters()[0].ParameterType)).FirstOrDefault();
+    });
+
+    private static int Depth(Type type)
+    {
+        var depth = 0;
+        for (var current = type; current is not null; current = current.BaseType) { depth++; }
+        return depth;
+    }
 
     private sealed class Entry(NeuronId source, NeuronId subscriber)
     {
