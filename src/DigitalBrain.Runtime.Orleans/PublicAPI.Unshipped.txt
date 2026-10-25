@@ -26,6 +26,10 @@ DigitalBrain.Runtime.Orleans.Bindings.Streams.get -> DigitalBrain.Runtime.Orlean
 DigitalBrain.Runtime.Orleans.Bindings.Streams.init -> void
 DigitalBrain.Runtime.Orleans.Bindings.Ui.get -> DigitalBrain.Runtime.Orleans.UiBinding
 DigitalBrain.Runtime.Orleans.Bindings.Ui.init -> void
+DigitalBrain.Runtime.Orleans.BrainLogFormatException
+DigitalBrain.Runtime.Orleans.BrainLogFormatException.BrainLogFormatException() -> void
+DigitalBrain.Runtime.Orleans.BrainLogFormatException.BrainLogFormatException(string! message) -> void
+DigitalBrain.Runtime.Orleans.BrainLogFormatException.BrainLogFormatException(string! message, System.Exception! inner) -> void
 DigitalBrain.Runtime.Orleans.BrainNotOwnedException
 DigitalBrain.Runtime.Orleans.BrainNotOwnedException.BrainId.get -> string!
 DigitalBrain.Runtime.Orleans.BrainNotOwnedException.BrainNotOwnedException(string! brainId, System.Exception? inner = null) -> void
@@ -48,6 +52,14 @@ DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Released.get -> long
 DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Released.init -> void
 DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.get -> long
 DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.init -> void
+DigitalBrain.Runtime.Orleans.BrainStorageHosting
+DigitalBrain.Runtime.Orleans.BrainStorageRegistration
+DigitalBrain.Runtime.Orleans.BrainStorageRegistration.BrainStorageRegistration(params System.Reflection.Assembly![]! signalAssemblies) -> void
+DigitalBrain.Runtime.Orleans.BrainStorageRegistration.Register(Orleans.Hosting.ISiloBuilder! silo) -> void
+DigitalBrain.Runtime.Orleans.BrainStoreOptions
+DigitalBrain.Runtime.Orleans.BrainStoreOptions.BrainStoreOptions() -> void
+DigitalBrain.Runtime.Orleans.BrainStoreOptions.Directory.get -> string!
+DigitalBrain.Runtime.Orleans.BrainStoreOptions.Directory.set -> void
 DigitalBrain.Runtime.Orleans.ClusterStoreBinding
 DigitalBrain.Runtime.Orleans.ClusterStoreBinding.HostBound = 1 -> DigitalBrain.Runtime.Orleans.ClusterStoreBinding
 DigitalBrain.Runtime.Orleans.ClusterStoreBinding.None = 0 -> DigitalBrain.Runtime.Orleans.ClusterStoreBinding
@@ -100,6 +112,9 @@ DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.Stream(DigitalBrain.Invocation.
 DigitalBrain.Runtime.Orleans.HttpBinding
 DigitalBrain.Runtime.Orleans.HttpBinding.Direct = 1 -> DigitalBrain.Runtime.Orleans.HttpBinding
 DigitalBrain.Runtime.Orleans.HttpBinding.None = 0 -> DigitalBrain.Runtime.Orleans.HttpBinding
+DigitalBrain.Runtime.Orleans.IBrainKeyCustody
+DigitalBrain.Runtime.Orleans.IBrainKeyCustody.Unwrap(string! accountId, string! context, byte[]! wrapped) -> byte[]!
+DigitalBrain.Runtime.Orleans.IBrainKeyCustody.Wrap(string! accountId, string! context, byte[]! secret) -> byte[]!
 DigitalBrain.Runtime.Orleans.IBrainLogLease
 DigitalBrain.Runtime.Orleans.IBrainLogLease.BeginWrite() -> long
 DigitalBrain.Runtime.Orleans.IBrainLogLease.EndWrite(long started) -> void
@@ -124,6 +139,10 @@ DigitalBrain.Runtime.Orleans.ITopologyProfile.Topology.get -> DigitalBrain.Runti
 DigitalBrain.Runtime.Orleans.ITopologyProfile.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IEnumerable<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 DigitalBrain.Runtime.Orleans.IntoChatOSNames
 DigitalBrain.Runtime.Orleans.IntoChatOSNames.Signalling
+DigitalBrain.Runtime.Orleans.JournalPayloadException
+DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException() -> void
+DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException(string! message) -> void
+DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException(string! message, System.Exception! inner) -> void
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.KeyFileMachineKeyProtector() -> void
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.Protect(byte[]! key) -> byte[]!
@@ -160,6 +179,7 @@ DigitalBrain.Runtime.Orleans.MachineKeyProtectors
 DigitalBrain.Runtime.Orleans.ModelBinding
 DigitalBrain.Runtime.Orleans.ModelBinding.ConfiguredEndpoint = 1 -> DigitalBrain.Runtime.Orleans.ModelBinding
 DigitalBrain.Runtime.Orleans.ModelBinding.None = 0 -> DigitalBrain.Runtime.Orleans.ModelBinding
+DigitalBrain.Runtime.Orleans.PlatformGrainStorage
 DigitalBrain.Runtime.Orleans.RemindersBinding
 DigitalBrain.Runtime.Orleans.RemindersBinding.AzureTable = 2 -> DigitalBrain.Runtime.Orleans.RemindersBinding
 DigitalBrain.Runtime.Orleans.RemindersBinding.File = 1 -> DigitalBrain.Runtime.Orleans.RemindersBinding
@@ -350,6 +370,8 @@ static DigitalBrain.Runtime.Orleans.Bindings.operator !=(DigitalBrain.Runtime.Or
 static DigitalBrain.Runtime.Orleans.Bindings.operator ==(DigitalBrain.Runtime.Orleans.Bindings? left, DigitalBrain.Runtime.Orleans.Bindings? right) -> bool
 static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator !=(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
 static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator ==(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
+static DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddBrainStorage(this Orleans.Hosting.ISiloBuilder! silo, params System.Reflection.Assembly![]! signalAssemblies) -> Orleans.Hosting.ISiloBuilder!
+static DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.HasClusterStore(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, DigitalBrain.Runtime.Orleans.IClusterStoreRegistration! registration) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<Orleans.Hosting.ISiloBuilder!>! register) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
@@ -360,6 +382,7 @@ static DigitalBrain.Runtime.Orleans.LocalProfile.LocalBindings.get -> DigitalBra
 static DigitalBrain.Runtime.Orleans.LocalProfile.LocalServices.get -> DigitalBrain.Runtime.Orleans.Services!
 static DigitalBrain.Runtime.Orleans.LocalProfile.StoreDirectory(DigitalBrain.Runtime.Orleans.StateHome! home, string! name) -> string!
 static DigitalBrain.Runtime.Orleans.MachineKeyProtectors.ForCurrentPlatform() -> DigitalBrain.Runtime.Orleans.IMachineKeyProtector!
+static DigitalBrain.Runtime.Orleans.PlatformGrainStorage.ForScope(System.IServiceProvider! services, string! scope) -> Orleans.Storage.IGrainStorage!
 static DigitalBrain.Runtime.Orleans.RetiredSetting.operator !=(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
 static DigitalBrain.Runtime.Orleans.RetiredSetting.operator ==(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
 static DigitalBrain.Runtime.Orleans.ServiceProcess.operator !=(DigitalBrain.Runtime.Orleans.ServiceProcess? left, DigitalBrain.Runtime.Orleans.ServiceProcess? right) -> bool

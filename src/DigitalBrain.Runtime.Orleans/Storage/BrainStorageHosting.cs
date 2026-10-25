@@ -1,0 +1,78 @@
+using System.Reflection;
+using DigitalBrain.Runtime.Orleans.Synapses;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Orleans.Hosting;
+using Orleans.Storage;
+
+namespace DigitalBrain.Runtime.Orleans;
+
+/// <summary>
+/// Registers BrainLog as the <c>cluster</c> grain store (moved from os Authority in 04-05). Reached through the host-bound
+/// seam: <c>builder.UseClusterStore(new BrainStorageRegistration(moduleAssemblies))</c>, so profiles never register
+/// <c>cluster</c> themselves.
+/// </summary>
+public static class BrainStorageHosting
+{
+    /// <summary>
+    /// Registers BrainLog under <c>&lt;Home&gt;/state</c>, its JSON payloads for the <c>[Signal]</c> records of
+    /// <paramref name="signalAssemblies"/>, and replaces any earlier keyed <c>cluster</c> store with it.
+    /// </summary>
+    public static ISiloBuilder AddBrainStorage(this ISiloBuilder silo, params Assembly[] signalAssemblies)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        AddBrainStorageServices(silo.Services, signalAssemblies);
+        return silo;
+    }
+
+    /// <summary>
+    /// Adds the assemblies whose <c>[Signal]</c> records the journal encodes and decodes (the composed module assemblies).
+    /// May be called more than once; <see cref="Gap"/> is always included.
+    /// </summary>
+    public static IServiceCollection AddJournalPayloads(this IServiceCollection services, params Assembly[] assemblies)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(assemblies);
+        services.AddSingleton(new SignalAssemblies(assemblies));
+        services.TryAddSingleton(provider => new SignalTypeMap(provider.GetServices<SignalAssemblies>().SelectMany(item => item.Assemblies)));
+        services.TryAddSingleton<JournalPayloads>();
+        services.TryAddSingleton<BrainSignalHistories>();
+        return services;
+    }
+
+    internal static IServiceCollection AddBrainStorageServices(IServiceCollection services, Assembly[] signalAssemblies)
+    {
+        services.AddOptions<BrainStoreOptions>()
+            .PostConfigure<IConfiguration>((options, configuration) => options.Directory = StateHome.Resolve(configuration).State)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Directory), "Brain storage needs a directory.");
+        services.AddJournalPayloads(signalAssemblies);
+        SynapseRetentionHosting.AddRetentionOptions(services);
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IRetentionPolicy, DefaultRetentionPolicy>();
+        services.TryAddSingleton<IBrainKeyCustody, ConfiguredBrainKeyCustody>();
+        services.TryAddSingleton<IBrainLogOwnership>(FileLockBrainLogOwnership.Instance);
+        services.TryAddSingleton<IBrainOwnershipCounters, BrainLogOwnershipCounters>();
+        services.TryAddSingleton<BrainStorageKeys>();
+        services.TryAddSingleton(provider => new BrainLogs(provider.GetRequiredService<BrainStorageKeys>(),
+            provider.GetRequiredService<global::Orleans.Serialization.Serializer>(), provider.GetRequiredService<JournalPayloads>(),
+            provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<IRetentionPolicy>(),
+            provider.GetRequiredService<IOptions<BrainStoreOptions>>(), provider.GetRequiredService<IBrainLogOwnership>()));
+        foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, IntoChatOSNames.ClusterGrainStorage)).ToArray())
+        { services.Remove(descriptor); }
+        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (provider, _) => new BrainGrainStorage(provider.GetRequiredService<BrainLogs>()));
+        return services;
+    }
+}
+
+/// <summary>
+/// The runtime's <see cref="IClusterStoreRegistration"/>: BrainLog as the <c>cluster</c> store. os passes it to
+/// <c>UseClusterStore</c> (06-02) instead of its own Authority registration.
+/// </summary>
+/// <param name="signalAssemblies">The assemblies whose <c>[Signal]</c> records are journaled.</param>
+public sealed class BrainStorageRegistration(params Assembly[] signalAssemblies) : IClusterStoreRegistration
+{
+    /// <inheritdoc />
+    public void Register(ISiloBuilder silo) => silo.AddBrainStorage(signalAssemblies);
+}
