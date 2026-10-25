@@ -5,7 +5,7 @@
     <RootNamespace>IntoChat.Cloud.Circle</RootNamespace>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
-  <!-- DigitalBrain and the BCL only: no Orleans, ASP.NET Core, os internals or vendor SDKs. -->
+  <!-- DigitalBrain and the BCL only: no host runtime, web framework, os internals or vendor SDKs. -->
   <ItemGroup>
     <PackageReference Include="DigitalBrain" />
   </ItemGroup>
