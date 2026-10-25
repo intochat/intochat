@@ -12,6 +12,11 @@
     <ProjectReference Include="../../../../IntoChat.OS/Circles/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
     <None Include="Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.Flutter.Tests.Unit/ControlNeuronFacts.cs" Link="Neurons/ControlNeuronFacts.cs" />
   </ItemGroup>
 </Project>

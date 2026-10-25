@@ -71,7 +71,6 @@ internal sealed partial class ButtonNeuron
         // Switching the account, reconnecting to a new root, or signing an existing connection in again acts on the
         // person's session in one click: only the shipped apps that own that control may set one, for this brain.
         var own = FullKey.Split('/')[0];
-        var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
         var owners = SessionOwners(kind);
         var ownBrain = brainId == own || (brainId is null && !brainNamed && string.Equals(kind, "account", StringComparison.OrdinalIgnoreCase));
         var connecting = string.Equals(kind, "connections", StringComparison.OrdinalIgnoreCase);
@@ -88,6 +87,7 @@ internal sealed partial class ButtonNeuron
         if (owners is not null)
         {
             var shipped = false;
+            var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
             foreach (var owner in owners) { shipped = shipped || await SettingsCaller.IsShipped(os, own, owner); }
             if (!ownBrain || !shipped) { throw new UnauthorizedAccessException("Only the app that owns this control sets a session activation."); }
         }

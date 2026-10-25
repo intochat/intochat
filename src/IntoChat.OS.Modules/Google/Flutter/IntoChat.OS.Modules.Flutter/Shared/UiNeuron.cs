@@ -17,6 +17,8 @@ internal abstract class UiNeuron<TState> : DigitalBrain.Neuron<TState> where TSt
 
     // Sends a UI event to the handler bound to this control. The binding is reached through ILegacyNeurons, so it sees this
     // control as the caller, and the os caller stamp of the call that raised the event flows on to the handler (UiEvent.Caller).
+    // A host without the legacy path (TestOS, a bare runtime silo) has no bindings, so there is no handler to tell.
     protected Task Dispatch(UiEvent uiEvent)
-        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IUiBinding>(Context, new DigitalBrain.NeuronId(Id.Brain, BindingType, Id.Key)).Dispatch(uiEvent);
+        => Context.Services.GetService(typeof(IntoChat.OS.Runtime.ILegacyNeurons)) is null ? Task.CompletedTask
+            : IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IUiBinding>(Context, new DigitalBrain.NeuronId(Id.Brain, BindingType, Id.Key)).Dispatch(uiEvent);
 }
