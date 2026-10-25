@@ -110,6 +110,31 @@ public sealed class DeliveryFacts(AzuriteFixture azurite)
 
     [Theory]
     [MemberData(nameof(Targets))]
+    public async Task StopMidReaction_a_reaction_whose_save_is_durable_never_runs_again(string target)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = Facts.Brain();
+        NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
+        await using var run = await FrameworkTarget.For(target, azurite).StartHost(new FrameworkHostOptions(), ct);
+
+        await run.Get<IListener>(listener).Follow(source.ToString());
+        // The listener's own reaction save is durable, then its turn dies before anything after the save runs (R4-09): the stop
+        // between the reaction's state save and a separate cursor write.
+        run.FailNextPublishAfterAppend(listener);
+        await run.Get<ISource>(source).Emit(1);
+        await Facts.Until(run, async () =>
+        {
+            await run.Deactivate(listener); // reload the durable state the faulted save left behind
+            return (await run.Get<IListener>(listener).Heard()).Length >= 1;
+        }, ct);
+        await run.Restart(ct);
+        await run.Get<ISource>(source).Emit(2);
+
+        Assert.Equal(Facts.Numbers(1, 2), await Facts.Heard(run, listener, 2, ct));
+    }
+
+    [Theory]
+    [MemberData(nameof(Targets))]
     public async Task KillBetweenWriteAndPublish_loses_nothing_after_resume(string target)
     {
         var ct = TestContext.Current.CancellationToken;
