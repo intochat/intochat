@@ -4,15 +4,15 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace IntoChat.OS.Apps;
 
-// The synapse shape (L0), read from syntax only: a synapse has exactly one top-level reaction, either one
+// The reaction shape (L0), read from syntax only: a reaction file has exactly one top-level signal loop, either one
 // `await foreach` over `….On<T>(…)` (any overload, the operation overload `brain.On(app, "op", ct)` included)
 // or one `await ….React<T>(…)`. Setup statements and local functions around it are free, its body may
-// loop, and a reaction inside a local function or a block does not count. A file without top-level
+// loop, and a loop inside a local function or a block does not count. A file without top-level
 // statements is shared code and has no shape. The compiler is the type gate; this is the gate in front of it.
-public static class SynapseShape
+public static class ReactionShape
 {
-    public const string NoReaction = "SYN0001";
-    public const string SecondReaction = "SYN0002";
+    public const string NoReaction = "RXN0001";
+    public const string SecondReaction = "RXN0002";
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
     private static readonly string[] Wrappers = ["ConfigureAwait", "WithCancellation"];

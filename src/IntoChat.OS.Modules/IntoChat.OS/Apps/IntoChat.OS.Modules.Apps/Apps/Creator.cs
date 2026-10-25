@@ -258,7 +258,7 @@ internal sealed class Creator(
     private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
         var compiled = await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
-        var shape = SynapseShape.Check(files);
+        var shape = ReactionShape.Check(files);
         return shape.Length == 0 ? compiled : compiled with { Success = false, Errors = [.. compiled.Errors, .. shape] };
     }
 

@@ -100,7 +100,7 @@ public sealed class AppRuleFacts
     public void TheBuilderWritesRulesBeforeSynapses()
     {
         var rules = AgentPrompts.Builder.IndexOf("rules/", StringComparison.Ordinal);
-        Assert.InRange(rules, 0, AgentPrompts.Builder.IndexOf("Keep each synapse", StringComparison.Ordinal));
+        Assert.InRange(rules, 0, AgentPrompts.Builder.IndexOf("Keep each reaction", StringComparison.Ordinal));
         Assert.Contains("ILogic<", AgentPrompts.Builder, StringComparison.Ordinal);
     }
 

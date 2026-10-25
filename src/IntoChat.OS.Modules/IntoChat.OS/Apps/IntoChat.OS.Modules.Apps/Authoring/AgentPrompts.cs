@@ -60,7 +60,7 @@ internal static class AgentPrompts
         - check_csharp compiles and stores your C# files without running them. Always check every behavior
           before answering, and fix every error it reports; a file that does not compile cannot be published.
 
-        Write the domain rules first, then the synapses. A rule is what must never happen, whoever asks
+        Write the domain rules first, then the reactions. A rule is what must never happen, whoever asks
         ("no booking in the past", "at most 3 per day"): a shared class in "rules/<name>.cs" implementing
         ILogic<TSignal>, pure and without I/O, that judges a signal instead of acting on it:
             public sealed class NoEmptyAsk : ILogic<AppRequested>
@@ -68,14 +68,14 @@ internal static class AgentPrompts
                 public Verdict Validate(AppRequested request)
                     => request.Input.Trim().Length > 0 ? Verdict.Allow() : Verdict.Reject("say what you need");
             }
-        A rejected request is refused before any synapse sees it, so synapses never re-check a rule.
+        A rejected request is refused before any reaction sees it, so reactions never re-check a rule.
         Rules compile with the app like every other file.
 
-        Keep each synapse a screen or less and exactly one reaction: one `await foreach` over one
+        Keep each reaction a screen or less with exactly one signal loop: one `await foreach` over one
         `brain.On<T>(source, brain.Stopping)`, or one `brain.React<T>(source, rebuild, brain.Stopping)`
-        when any signal means "rebuild from state". A synapse is a file with top-level statements;
-        shared code is a file of only type declarations, compiled into every synapse. The app's own
-        operations arrive as `AppRequested` signals; a synapse for one operation watches only it:
+        when any signal means "rebuild from state". A reaction is a file with top-level statements;
+        shared code is a file of only type declarations, compiled into every reaction. The app's own
+        operations arrive as `AppRequested` signals; a reaction for one operation watches only it:
             await foreach (var request in brain.On(app, "open", brain.Stopping))
             { /* compose the UI through neurons */ }
         The operation-filtered overload is non-generic: brain.On(app, "ask", brain.Stopping).
@@ -83,7 +83,7 @@ internal static class AgentPrompts
         A set of neurons is one source: `Sources.Of(a, b)` for a fixed set, or
         `Sources.Named<IText, TextChanged>(registry, async (r, ct) => …)` when a neuron's state names
         the members; `signal.Publisher` says which member spoke. Never write a while loop, a
-        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource in a synapse.
+        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource in a reaction.
         Never answer a request: a result is neuron state (a text, a card, a table) the caller reads.
 
         Build a visual app as a layout class plus small handlers, like the Calculator and Desktop examples:
@@ -92,11 +92,11 @@ internal static class AgentPrompts
           Ui.Button). It is pure: the model in, a UiNode out. No colours or styling in it; the theme comes from the UI kit.
         - Publish the view with `ViewPublisher` to the neuron "<app>/view" and present it Main with
           "full" at UIVocabulary.ViewType. The entry is that view.
-        - One synapse per behaviour. A control is a `Ui.Button` with a `ViewAction` key written
-          `verb:<arg>` (for example "add:milk"); the synapse watches `ViewAction`, handles its verb,
-          updates neuron state, and republishes the view. Each synapse file is at most 40 lines.
+        - One reaction per behaviour. A control is a `Ui.Button` with a `ViewAction` key written
+          `verb:<arg>` (for example "add:milk"); the reaction watches `ViewAction`, handles its verb,
+          updates neuron state, and republishes the view. Each reaction file is at most 40 lines.
         - Never encode a command as JSON inside a string; the `ViewAction` key carries the verb and its argument.
-        Other UI signals (ButtonClicked, ComposerSubmitted) still get their own synapse each. Files of an installed app
+        Other UI signals (ButtonClicked, ComposerSubmitted) still get their own reaction each. Files of an installed app
         share its host-verified identity and storage ownership. Never derive authority from a setting.
         The app under construction is named by brain.Setting("App"). Where a behavior calls a model, read
         the model name from a setting; never hard-code one.
@@ -128,25 +128,25 @@ internal static class AgentPrompts
          "files": {"notify.cs": "..."}}
         """;
 
-    // The fast path's writer: one sentence in, exactly one synapse out, in one call (at most one repair).
-    public const string Synapse = """
-        You write one synapse from one sentence. A brain is made of four things: neurons (stateful grains
+    // The fast path's writer: one sentence in, exactly one reaction out, in one call (at most one repair).
+    public const string Reaction = """
+        You write one reaction from one sentence. A brain is made of four things: neurons (stateful grains
         addressed by key; all state lives in them), signals (typed facts a neuron publishes), behaviors (C# the
-        brain compiles and runs; a synapse is one) and connectors (bridges from neurons to outside systems,
+        brain compiles and runs; a reaction is one) and modules (code that links neurons to outside systems,
         the person's screen included: a button or a text box is a neuron).
 
-        A synapse is one C# file with top-level statements and exactly one reaction at its top level: one
+        A reaction is one C# file with top-level statements and exactly one signal loop at its top level: one
         `await foreach` over one `brain.On<T>(source, brain.Stopping)`, or one
         `await brain.React<T>(source, rebuild, brain.Stopping)` when any signal means "rebuild from state".
-        The app's own operations arrive as `AppRequested`; a synapse for one operation watches only it:
+        The app's own operations arrive as `AppRequested`; a reaction for one operation watches only it:
             await foreach (var request in brain.On(app, "open", brain.Stopping))
             { /* act through neurons */ }
         A fixed set of neurons is one source: `Sources.Of(a, b)`; `signal.Publisher` says which one spoke.
-        The reaction's body may loop. Never write a second reaction, a while loop around the reaction, a
+        The loop's body may loop. Never write a second signal loop, a while loop around the reaction, a
         Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource.
 
         Delivery is at least once, and the script can be stopped and re-run from the top at any time: keep the
-        setup before the reaction cheap and idempotent, keep state in neurons (never only in variables), dedupe
+        setup before the loop cheap and idempotent, keep state in neurons (never only in variables), dedupe
         through neuron state (for example the last handled id kept in a neuron), and rebuild derived state from
         scratch instead of patching it. Never answer a request: a result is neuron state the person reads.
         For a user-facing operation, persist the result where the person can see it; in a visual app it
@@ -155,9 +155,9 @@ internal static class AgentPrompts
 
         The app is brain.Setting("App") and the brain is brain.Setting("Brain"). Use only the contracts and
         the examples given to you, named with plain usings; never invent a type, method or signal. When a base
-        synapse is given, edit it into the requested synapse and keep what still applies. Never write "app.cs".
+        reaction is given, edit it into the requested reaction and keep what still applies. Never write "app.cs".
 
-        Every neuron key a synapse creates or reads starts with the app key or the brain scope: the app's own
+        Every neuron key a reaction creates or reads starts with the app key or the brain scope: the app's own
         neurons are `app.GetPrimaryKeyString() + "/alert"` (or brain.Setting("App") + "/alert"), and a key
         from focus or from a contract is used exactly as given. Never a bare or invented global key such as
         "reminder/owner" or "prices/btc": the brain refuses a key outside it. Never read a neuron that nothing

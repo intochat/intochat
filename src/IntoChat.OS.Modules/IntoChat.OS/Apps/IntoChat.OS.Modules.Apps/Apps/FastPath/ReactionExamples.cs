@@ -13,7 +13,7 @@ namespace IntoChat.OS.Apps;
 // One synapse the caller can see, as the fast path shows it to the model: where it lives, its spec (the
 // comments that say what it does) and its code. BehaviorId is set for this brain's own apps, which run.
 // Similarity is its closeness to the sentence, History its run record's nudge; Score ranks by both.
-internal sealed record SynapseExample(string Origin, string Path, string Spec, string Source, string? BehaviorId, double Similarity = 0, double History = 0)
+internal sealed record ReactionExample(string Origin, string Path, string Spec, string Source, string? BehaviorId, double Similarity = 0, double History = 0)
 {
     public string Name => Origin + "/" + Path;
     public double Score => Similarity + History;
@@ -21,21 +21,21 @@ internal sealed record SynapseExample(string Origin, string Path, string Spec, s
 
 // The best few synapses for a sentence, best first, and the one to fork when one is close enough.
 // Layouts are at most two reference examples of how a view is composed (shipped Calculator and Desktop first); never forked.
-internal sealed record SynapseRanking(SynapseExample[] Examples, SynapseExample? Base, SynapseExample[]? LayoutExamples = null)
+internal sealed record ReactionRanking(ReactionExample[] Examples, ReactionExample? Base, ReactionExample[]? LayoutExamples = null)
 {
-    public SynapseExample[] Layouts => LayoutExamples ?? [];
+    public ReactionExample[] Layouts => LayoutExamples ?? [];
 }
 
 // Few-shot retrieval for the fast path. The corpus is what the caller can see: this brain's apps and the
 // features folder. Ranking is by meaning when an embedding model is composed (the same unkeyed generator
 // NeuronTypeSearch uses), by words otherwise, then nudged by each synapse's run history in this brain.
-internal sealed class SynapseExamples(
+internal sealed class ReactionExamples(
     IGrainFactory grains,
     IKernel kernel,
     FeatureCatalog catalog,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
-    ILogger<SynapseExamples> log,
-    int vectorCapacity = SynapseExamples.DefaultVectorCapacity)
+    ILogger<ReactionExamples> log,
+    int vectorCapacity = ReactionExamples.DefaultVectorCapacity)
 {
     public const int Take = 3;
     // A best match at or above its scale's threshold is close enough to fork: the model edits it instead of
@@ -51,14 +51,14 @@ internal sealed class SynapseExamples(
     internal const int DefaultVectorCapacity = 4096;
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
-    private static readonly EventId SyntaxBoundary = new(0, "SynapseSyntaxBoundary");
+    private static readonly EventId SyntaxBoundary = new(0, "ReactionSyntaxBoundary");
     private static long _nextInvocation;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
-    public static SynapseExamples Create(IServiceProvider services) => new(
+    public static ReactionExamples Create(IServiceProvider services) => new(
         services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
-        Embeddings(services), services.GetRequiredService<ILogger<SynapseExamples>>());
+        Embeddings(services), services.GetRequiredService<ILogger<ReactionExamples>>());
 
     // The sentence embedded once, for every ranking of it; null ranks by words (no model, or the model failed).
     public async Task<float[]?> Embed(string sentence, CancellationToken cancellationToken)
@@ -73,7 +73,7 @@ internal sealed class SynapseExamples(
     }
 
     // query is the sentence's embedding from Embed when the caller already started it; without one Rank embeds the sentence itself.
-    public async Task<SynapseRanking> Rank(string brain, string sentence, CancellationToken cancellationToken, Task<float[]?>? query = null)
+    public async Task<ReactionRanking> Rank(string brain, string sentence, CancellationToken cancellationToken, Task<float[]?>? query = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
@@ -81,13 +81,13 @@ internal sealed class SynapseExamples(
         var behaviorsRead = Behaviors(brain, cancellationToken);
         var entries = await Corpus(brain, cancellationToken, invocation);
         if (entries.Length == 0) { return new([], null); }
-        SynapseExample[] layouts;
+        ReactionExample[] layouts;
         using (var observation = Observe(invocation, "layouts"))
         {
             layouts = Layouts(entries);
             observation?.Complete();
         }
-        SynapseExample[] corpus;
+        ReactionExample[] corpus;
         using (var observation = Observe(invocation, "shared-filter"))
         {
             corpus = [.. entries.Where(entry => !entry.Shared).Select(entry => entry.Example)];
@@ -96,8 +96,8 @@ internal sealed class SynapseExamples(
         if (corpus.Length == 0) { return new([], null, layouts); }
         var (scores, forkThreshold) = await Scores(corpus, sentence, query ?? Embed(sentence, cancellationToken), cancellationToken);
         var behaviors = await behaviorsRead;
-        BehaviorView? Behavior(SynapseExample example) => example.BehaviorId is { } id ? behaviors.GetValueOrDefault(id) : null;
-        SynapseExample[] scored = [.. corpus
+        BehaviorView? Behavior(ReactionExample example) => example.BehaviorId is { } id ? behaviors.GetValueOrDefault(id) : null;
+        ReactionExample[] scored = [.. corpus
             .Select((example, index) => example with { Similarity = scores[index], History = RunHistory(Behavior(example)) })
             .OrderByDescending(example => example.Score).ThenBy(example => example.Name, StringComparer.Ordinal)];
         // Fork-first: the base is the best scored synapse whose meaning alone is close enough to fork, so among
@@ -110,7 +110,7 @@ internal sealed class SynapseExamples(
     private static readonly HashSet<string> Shipped = new(["features/os/calculator", "features/os/desktop"], StringComparer.OrdinalIgnoreCase);
 
     // The shipped Calculator and Desktop layouts first, then the rest by name.
-    private static SynapseExample[] Layouts(CorpusEntry[] corpus) => [.. corpus.Where(entry => entry.Layout).Select(entry => entry.Example)
+    private static ReactionExample[] Layouts(CorpusEntry[] corpus) => [.. corpus.Where(entry => entry.Layout).Select(entry => entry.Example)
         .OrderBy(example => Shipped.Contains(example.Origin) ? 0 : 1).ThenBy(example => example.Name, StringComparer.Ordinal).Take(LayoutTake)];
 
     // A synapse's run history from the runtime's counters for its current code:
@@ -140,7 +140,7 @@ internal sealed class SynapseExamples(
         return runs - 2 * Math.Clamp(behavior.Failures, 0, runs);
     }
 
-    private sealed record CorpusEntry(SynapseExample Example, bool Shared, bool Layout);
+    private sealed record CorpusEntry(ReactionExample Example, bool Shared, bool Layout);
 
     private async Task<CorpusEntry[]> Corpus(string brain, CancellationToken cancellationToken, long invocation)
     {
@@ -180,8 +180,8 @@ internal sealed class SynapseExamples(
             {
                 if (!AppFiles.IsProgram(path) || source is null) { continue; }
                 var root = CSharpSyntaxTree.ParseText(source, Parse).GetCompilationUnitRoot();
-                var shared = SynapseShape.Shared(root);
-                var layout = SynapseShape.Layout(root);
+                var shared = ReactionShape.Shared(root);
+                var layout = ReactionShape.Layout(root);
                 if ((shared && !layout) || !seen.Add(source)) { continue; }
                 examples.Add(new(new(origin, path, Spec(manifest, path, root), source, behavior(path)), shared, layout));
             }
@@ -194,14 +194,14 @@ internal sealed class SynapseExamples(
     // These scopes contain no await: allocation deltas belong to the same executing thread.
     private sealed class SyntaxObservation : IDisposable
     {
-        private readonly ILogger<SynapseExamples> _log;
+        private readonly ILogger<ReactionExamples> _log;
         private readonly long _invocation;
         private readonly string _stage;
         private readonly long _started;
         private readonly long _allocated;
         private bool _finished;
 
-        public SyntaxObservation(ILogger<SynapseExamples> log, long invocation, string stage)
+        public SyntaxObservation(ILogger<ReactionExamples> log, long invocation, string stage)
         {
             _log = log;
             _invocation = invocation;
@@ -249,7 +249,7 @@ internal sealed class SynapseExamples(
     }
 
     // Each synapse's score and the fork threshold of the scale it was scored on.
-    private async Task<(double[] Scores, double ForkThreshold)> Scores(SynapseExample[] corpus, string sentence, Task<float[]?> embedded, CancellationToken cancellationToken)
+    private async Task<(double[] Scores, double ForkThreshold)> Scores(ReactionExample[] corpus, string sentence, Task<float[]?> embedded, CancellationToken cancellationToken)
     {
         if (embeddings is null) { return (ByWords(corpus, sentence), WordForkThreshold); }
         try
@@ -267,7 +267,7 @@ internal sealed class SynapseExamples(
 
     // The answer is built from the cache and the newly embedded specs; the cache only remembers. Past its
     // capacity it starts over with this corpus, the likeliest to be asked for next.
-    private async Task<float[][]> Vectors(SynapseExample[] corpus, CancellationToken cancellationToken)
+    private async Task<float[][]> Vectors(ReactionExample[] corpus, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -290,10 +290,10 @@ internal sealed class SynapseExamples(
         finally { _gate.Release(); }
     }
 
-    private static string Key(SynapseExample example) => example.Name + "\n" + example.Spec;
+    private static string Key(ReactionExample example) => example.Name + "\n" + example.Spec;
 
     // The share of the sentence's words (three letters or more) that the synapse's spec mentions.
-    private static double[] ByWords(SynapseExample[] corpus, string sentence)
+    private static double[] ByWords(ReactionExample[] corpus, string sentence)
     {
         var terms = sentence.Split([' ', ',', '.', ';', ':', '!', '?', '"', '\''], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(term => term.Length > 2).Select(term => term.ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToArray();

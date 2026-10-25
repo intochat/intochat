@@ -597,7 +597,7 @@ internal sealed partial class AppNeuron(
             new AppSynapse(operationId, sentence.Trim(), keys, SynapseStatus.Requested, clock.GetUtcNow(), [])];
         await Persist(next);
         // The writer runs on the work queue, outside this turn, and calls back as an outside caller.
-        ServiceProvider.GetRequiredService<SynapseWriter>().Enqueue(this.GetPrimaryKeyString(), operationId, sentence.Trim(), keys);
+        ServiceProvider.GetRequiredService<ReactionWriter>().Enqueue(this.GetPrimaryKeyString(), operationId, sentence.Trim(), keys);
         return Describe(Snapshot);
     }
 
@@ -760,8 +760,8 @@ internal sealed partial class AppNeuron(
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
     private static void RequireShape(IReadOnlyDictionary<string, string> sources)
     {
-        if (SynapseShape.Check(sources) is { Length: > 0 } errors)
-        { throw new InvalidOperationException("The program is not shaped as synapses: " + SynapseShape.Describe(errors)); }
+        if (ReactionShape.Check(sources) is { Length: > 0 } errors)
+        { throw new InvalidOperationException("The program is not shaped as reactions: " + ReactionShape.Describe(errors)); }
     }
 
     // Every program assignment lands in the kernel as this brain's feature, whatever its source:
@@ -822,8 +822,8 @@ internal sealed partial class AppNeuron(
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0) { return; }
         // The shape is syntax, so it is checked even where no compiler is.
-        if (SynapseShape.Check(scripts) is { Length: > 0 } shape)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} is not shaped as synapses: " + SynapseShape.Describe(shape)); }
+        if (ReactionShape.Check(scripts) is { Length: > 0 } shape)
+        { throw new InvalidOperationException($"Version {Snapshot.Version} is not shaped as reactions: " + ReactionShape.Describe(shape)); }
         // The declaration compiles with the program it describes.
         scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), state.Version, state.Manifest!, state.Spec));
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();

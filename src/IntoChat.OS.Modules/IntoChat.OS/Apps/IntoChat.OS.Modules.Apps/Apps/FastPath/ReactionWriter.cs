@@ -17,15 +17,15 @@ namespace IntoChat.OS.Apps;
 // best few synapses the caller can see (a close one is the base to fork, a proven one first); the shape and
 // the compiler gate it, with at most one repair; WriteBehavior makes it live and CompleteSynapse records
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
-internal sealed class SynapseWriter(
+internal sealed class ReactionWriter(
     IGrainFactory grains,
     IKernel kernel,
-    SynapseExamples examples,
+    ReactionExamples examples,
     NeuronTypeSearch search,
     AppWorkQueue queue,
     IOptions<AppsOptions> options,
     TimeProvider clock,
-    ILogger<SynapseWriter> log,
+    ILogger<ReactionWriter> log,
     IEnumerable<IAppRuntime> runtimes,
     IScriptSandbox? sandbox = null)
 {
@@ -77,7 +77,7 @@ internal sealed class SynapseWriter(
 
     private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path, string? Hash = null, Dictionary<string, string>? Deployed = null);
 
-    private sealed record WrittenSynapse(string? Path, string? Source);
+    private sealed record WrittenReaction(string? Path, string? Source);
 
     private async Task Write(Job job, CancellationToken cancellationToken)
     {
@@ -106,7 +106,7 @@ internal sealed class SynapseWriter(
                     return;
                 }
                 // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
-                var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200), cancellationToken);
+                var working = Report(app, "working", "Writing a reaction: " + Clip(job.Sentence, 200), cancellationToken);
                 outcome = await Run(job, deploys, snapshot, turn, span, cancellationToken);
                 await working;
             }
@@ -153,7 +153,7 @@ internal sealed class SynapseWriter(
             span?.SetStatus(ActivityStatusCode.Error, Clip(recorded.Errors[0], 500));
             log.LogError("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
                 job.AppKey, job.OperationId, "unsettled", recorded.Errors[0], elapsed, turn.DeployMs, outcome.Attempts);
-            await Report(app, "attention", "The synapse's deploy never answered; what runs is unknown: " + Clip(recorded.Errors[0], 300), cancellationToken);
+            await Report(app, "attention", "The reaction's deploy never answered; what runs is unknown: " + Clip(recorded.Errors[0], 300), cancellationToken);
         }
         else if (recorded is { Status: SynapseStatus.Written })
         {
@@ -161,7 +161,7 @@ internal sealed class SynapseWriter(
             span?.SetTag("apps.fastpath.path", recorded.Path);
             log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {Path} {ElapsedMs} {DeployMs} {Attempts} {Base}",
                 job.AppKey, job.OperationId, "written", "", recorded.Path, elapsed, turn.DeployMs, outcome.Attempts, outcome.Base);
-            await Report(app, "completed", $"Wrote the synapse {recorded.Path}", cancellationToken);
+            await Report(app, "completed", $"Wrote the reaction {recorded.Path}", cancellationToken);
         }
         else
         {
@@ -171,7 +171,7 @@ internal sealed class SynapseWriter(
             span?.SetStatus(ActivityStatusCode.Error, Clip(reason, 500));
             log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
                 job.AppKey, job.OperationId, "rejected", reason, elapsed, turn.DeployMs, outcome.Attempts);
-            await Report(app, "attention", "Could not write the synapse: " + Clip(errors.FirstOrDefault() ?? reason, 300), cancellationToken);
+            await Report(app, "attention", "Could not write the reaction: " + Clip(errors.FirstOrDefault() ?? reason, 300), cancellationToken);
         }
     }
 
@@ -190,8 +190,8 @@ internal sealed class SynapseWriter(
         var (ranked, basis, layouts) = await ranking;
         span?.SetTag("apps.fastpath.examples", string.Join(",", ranked.Select(example => example.Name)));
         var prompt = Prompt(job, snapshot, ranked, basis, layouts ?? [], await focus, await matches);
-        var system = AgentPrompts.Synapse + (sandbox is null ? "" : "\n\n" + sandbox.AuthoringDescription);
-        WrittenSynapse? written = null;
+        var system = AgentPrompts.Reaction + (sandbox is null ? "" : "\n\n" + sandbox.AuthoringDescription);
+        WrittenReaction? written = null;
         string[] errors = [];
         var attempts = 0;
         while (attempts < MaxAttempts)
@@ -312,22 +312,22 @@ internal sealed class SynapseWriter(
     }
 
     // The reply's one file, held to the shape first and then to the compiler with the app's shared classes.
-    private async Task<(WrittenSynapse? Written, string[] Errors)> Gate(string reply, AppSnapshot snapshot, CancellationToken cancellationToken)
+    private async Task<(WrittenReaction? Written, string[] Errors)> Gate(string reply, AppSnapshot snapshot, CancellationToken cancellationToken)
     {
-        WrittenSynapse written;
-        try { written = Creator.Parse<WrittenSynapse>(reply); }
+        WrittenReaction written;
+        try { written = Creator.Parse<WrittenReaction>(reply); }
         catch (Exception error) when (error is JsonException or InvalidDataException)
         { return (null, [$"The reply was not the JSON object {{\"path\": \"name.cs\", \"source\": \"...\"}}: {error.Message}"]); }
         if (PathError(written.Path) is { } wrongPath) { return (written, [wrongPath]); }
         if (string.IsNullOrWhiteSpace(written.Source)) { return (written, ["The reply's source is empty."]); }
-        if (SynapseShape.Check(written.Path!, written.Source) is { Length: > 0 } shape) { return (written, Format(shape)); }
+        if (ReactionShape.Check(written.Path!, written.Source) is { Length: > 0 } shape) { return (written, Format(shape)); }
         if (sandbox is null) { return (written, [AppAuthoringPolicy.SandboxMissing]); }
         var files = Shared(snapshot).ToDictionary(StringComparer.Ordinal);
         files[written.Path!] = written.Source;
         try
         {
             var check = await sandbox.Compile(files, cancellationToken);
-            return check.Success ? (written, []) : (written, check.Errors.Count > 0 ? Format(check.Errors) : ["The synapse does not compile."]);
+            return check.Success ? (written, []) : (written, check.Errors.Count > 0 ? Format(check.Errors) : ["The reaction does not compile."]);
         }
         catch (Exception error) when (error is InvalidOperationException or ArgumentException)
         { return (written, [error.Message]); }
@@ -345,17 +345,17 @@ internal sealed class SynapseWriter(
     private static string? PathError(string? path) => path switch
     {
         null or "" => "The reply names no path.",
-        AppFiles.DeclarationPath => "app.cs is the app's declaration, never a synapse: name a new .cs file.",
-        _ when !AppFiles.IsProgram(path) => "A synapse is a .cs file.",
+        AppFiles.DeclarationPath => "app.cs is the app's declaration, never a reaction: name a new .cs file.",
+        _ when !AppFiles.IsProgram(path) => "A reaction is a .cs file.",
         _ when path.Contains("..", StringComparison.Ordinal) || path.StartsWith('/') || path.Contains('\\', StringComparison.Ordinal)
-            => "A synapse path is a file name inside the app.",
+            => "A reaction path is a file name inside the app.",
         _ => null,
     };
 
     private static string[] Format(IEnumerable<ScriptCompilationDiagnostic> errors)
         => [.. errors.Take(MaxErrors).Select(error => $"{error.File}:{error.Line} {error.Id} {error.Message}")];
 
-    private static string Repair(string prompt, WrittenSynapse? written, string[] errors)
+    private static string Repair(string prompt, WrittenReaction? written, string[] errors)
     {
         var text = new StringBuilder(prompt).AppendLine().AppendLine();
         if (written is { Source.Length: > 0 }) { text.AppendLine("Your previous reply:").AppendLine($"--- {written.Path} ---").AppendLine(written.Source).AppendLine(); }
@@ -370,7 +370,7 @@ internal sealed class SynapseWriter(
     private async Task<string[]> MatchesOf(string sentence, Task<TypeEntry[]> types, Task<float[]?> query, CancellationToken cancellationToken)
         => await Matches(sentence, await types, await query, cancellationToken);
 
-    private string Prompt(Job job, AppSnapshot app, SynapseExample[] ranked, SynapseExample? basis, SynapseExample[] layouts,
+    private string Prompt(Job job, AppSnapshot app, ReactionExample[] ranked, ReactionExample? basis, ReactionExample[] layouts,
         (string[] Focused, string[] Contracts) focus, string[] matching)
     {
         var manifest = app.Manifest;
@@ -394,7 +394,7 @@ internal sealed class SynapseWriter(
         var shared = Shared(app).ToArray();
         if (shared.Length > 0)
         {
-            text.AppendLine().AppendLine("The app's shared classes, compiled into every synapse (use them, do not repeat them):");
+            text.AppendLine().AppendLine("The app's shared classes, compiled into every reaction (use them, do not repeat them):");
             var budget = MaxSharedLength;
             foreach (var (path, source) in shared)
             {
@@ -426,23 +426,23 @@ internal sealed class SynapseWriter(
         var shown = ranked.Where(example => example != basis).ToArray();
         if (shown.Length > 0)
         {
-            text.AppendLine().AppendLine("Synapses this brain can see, as examples of the shape and the usings:");
+            text.AppendLine().AppendLine("Reactions this brain can see, as examples of the shape and the usings:");
             foreach (var example in shown) { AppendExample(text, example); }
         }
         if (layouts.Length > 0)
         {
-            text.AppendLine().AppendLine("Layout examples (reference only: shared layout class, not a synapse; never edit or return one as the synapse):");
+            text.AppendLine().AppendLine("Layout examples (reference only: shared layout class, not a reaction; never edit or return one as the reaction):");
             foreach (var example in layouts) { AppendExample(text, example); }
         }
         if (basis is not null)
         {
-            text.AppendLine().AppendLine("The base synapse to fork: edit it into the requested synapse.");
+            text.AppendLine().AppendLine("The base reaction to fork: edit it into the requested reaction.");
             AppendExample(text, basis);
         }
         return text.AppendLine().AppendLine("The person said:").AppendLine(job.Sentence).ToString();
     }
 
-    private static void AppendExample(StringBuilder text, SynapseExample example)
+    private static void AppendExample(StringBuilder text, ReactionExample example)
         => text.AppendLine($"--- {example.Name} ---").AppendLine("// " + example.Spec.Replace("\n", "\n// ", StringComparison.Ordinal)).AppendLine(example.Source);
 
     // Focus keys still come from the kernel; callable material comes only from complete discovery detail.
@@ -511,7 +511,7 @@ internal sealed class SynapseWriter(
     }
 
     private static IEnumerable<KeyValuePair<string, string>> Shared(AppSnapshot app)
-        => app.Files.Where(file => AppFiles.IsProgram(file.Key) && SynapseShape.IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal);
+        => app.Files.Where(file => AppFiles.IsProgram(file.Key) && ReactionShape.IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal);
 
     private async Task Report(IApp app, string state, string detail, CancellationToken cancellationToken)
     {

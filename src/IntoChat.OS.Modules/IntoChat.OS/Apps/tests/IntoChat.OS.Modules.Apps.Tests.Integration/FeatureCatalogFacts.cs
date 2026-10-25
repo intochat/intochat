@@ -116,7 +116,7 @@ public sealed class FeatureCatalogFacts : IDisposable
         Assert.Equal([("os", "greeter")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
         var failure = Assert.Single(await catalog.Failures());
         Assert.Equal(("intochat", "echo"), (failure.Owner, failure.Name));
-        Assert.Contains("intochat/echo 2.0.0 is not shaped as synapses", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains("intochat/echo 2.0.0 is not shaped as reactions", failure.Reason, StringComparison.Ordinal);
         Assert.Contains("echo.cs:1", failure.Reason, StringComparison.Ordinal);
     }
 

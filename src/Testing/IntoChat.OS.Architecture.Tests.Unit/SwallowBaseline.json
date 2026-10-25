@@ -21,7 +21,7 @@
   "IntoChat.OS.Modules.AI/Models/ModelCatalog.cs": 1,
   "IntoChat.OS.Modules.AI/Routing/RouterNeuron.cs": 6,
   "IntoChat.OS.Modules.Apps/Apps/Creator.cs": 3,
-  "IntoChat.OS.Modules.Apps/Apps/FastPath/SynapseWriter.cs": 6,
+  "IntoChat.OS.Modules.Apps/Apps/FastPath/ReactionWriter.cs": 6,
   "IntoChat.OS.Modules.Apps/AppsEndpoints.cs": 1,
   "IntoChat.OS.Modules.Circles/CircleFactoryNeuron.cs": 1,
   "IntoChat.OS.Modules.Circles/CirclesModule.cs": 1,

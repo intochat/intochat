@@ -221,8 +221,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.Contains(runtime.Deployed, deployed => deployed.Sources.GetValueOrDefault("lemons.cs") == Lemons);
         var prompt = Prompt(model);
         Assert.Contains("when asked, answer lemons", prompt, StringComparison.Ordinal);
-        Assert.Contains("exactly one reaction", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("base synapse to fork", prompt, StringComparison.Ordinal);
+        Assert.Contains("exactly one signal loop", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("base reaction to fork", prompt, StringComparison.Ordinal);
     }
 
     [Trait("host", "own")]
@@ -310,8 +310,8 @@ public sealed class FastPathFacts : IDisposable
         await app.WriteSynapse("when asked, answer twice", [], Guid.NewGuid());
 
         var signal = await rejected.NextAsync(ct: ct);
-        Assert.Contains(signal.Errors, error => error.Contains(SynapseShape.SecondReaction, StringComparison.Ordinal));
-        Assert.Contains(SynapseShape.SecondReaction, Prompt(model, 1), StringComparison.Ordinal);
+        Assert.Contains(signal.Errors, error => error.Contains(ReactionShape.SecondReaction, StringComparison.Ordinal));
+        Assert.Contains(ReactionShape.SecondReaction, Prompt(model, 1), StringComparison.Ordinal);
         // The shape is checked before the compiler, and nothing that failed it reaches the runtime.
         Assert.DoesNotContain(sandbox.Compiled, files => files.ContainsKey("twice.cs"));
         Assert.Empty(runtime.Deployed);
@@ -353,7 +353,7 @@ public sealed class FastPathFacts : IDisposable
         await app.WriteSynapse("when BTC drops 5 %, notify me", [], Guid.NewGuid());
 
         var reason = Assert.Single((await rejected.NextAsync(ct: ct)).Errors);
-        Assert.Equal(SynapseWriter.NoContract + "no contract publishes BTC prices", reason);
+        Assert.Equal(ReactionWriter.NoContract + "no contract publishes BTC prices", reason);
         var live = await app.Read();
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal((SynapseStatus.Rejected, 1, reason), (entry.Status, entry.Attempts, Assert.Single(entry.Errors)));
@@ -370,7 +370,7 @@ public sealed class FastPathFacts : IDisposable
     [InlineData("REFUSE:", "the model did not say what is missing")]
     [InlineData("{\"path\": \"a.cs\", \"source\": \"// REFUSE: not a refusal\"}", null)]
     public void OnlyALeadingMarkerLineIsARefusal(string reply, string? missing)
-        => Assert.Equal(missing, SynapseWriter.Refusal(reply));
+        => Assert.Equal(missing, ReactionWriter.Refusal(reply));
 
     [Trait("host", "own")]
     [Fact]
@@ -387,7 +387,7 @@ public sealed class FastPathFacts : IDisposable
 
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
-        Assert.Contains("Every neuron key a synapse creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
+        Assert.Contains("Every neuron key a reaction creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
         Assert.Contains("app.GetPrimaryKeyString() + \"/alert\"", prompt, StringComparison.Ordinal);
         Assert.Contains("A sentence that needs a missing contract is refused, never faked", prompt, StringComparison.Ordinal);
         Assert.Contains(AgentPrompts.Refusal + " <what is missing", prompt, StringComparison.Ordinal);
@@ -478,13 +478,13 @@ public sealed class FastPathFacts : IDisposable
             string.Concat(Enumerable.Repeat("Console.WriteLine(\"setup\");\n", 4096)) + "await foreach", StringComparison.Ordinal).ReplaceLineEndings("\n");
         Assert.DoesNotContain(CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: ct).GetDiagnostics(ct),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-        Assert.Empty(SynapseShape.Check("count.cs", source));
+        Assert.Empty(ReactionShape.Check("count.cs", source));
         WriteFeature("os", "Orchard", "orchard", "count.cs", source);
         var boundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, double DurationMs, long AllocatedBytes)>();
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features, configure: services =>
-            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
-                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(), () => "resource-ranking",
+            services.AddSingleton<ILogger<ReactionExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<ReactionExamples>(), () => "resource-ranking",
                 (invocation, stage, state, _, durationMs, allocatedBytes) => boundaries.Enqueue((invocation, stage, state, durationMs, allocatedBytes)))));
         var examples = Examples(brain, embeddings: null);
         await examples.Rank(Brain, "count lemons", ct);
@@ -662,8 +662,8 @@ public sealed class FastPathFacts : IDisposable
             services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
                 () => Volatile.Read(ref kernelPhase), RecordKernel));
             services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
-            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
-                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(),
+            services.AddSingleton<ILogger<ReactionExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<ReactionExamples>(),
                 () => Volatile.Read(ref kernelPhase), RecordSyntaxBoundary));
         });
         Mark("host-ready");
@@ -695,7 +695,7 @@ public sealed class FastPathFacts : IDisposable
             await written.NextAsync(ct: ct);
             Mark("written-observed");
             var prompt = Prompt(model);
-            Assert.Contains("reference only: shared layout class, not a synapse", prompt, StringComparison.Ordinal);
+            Assert.Contains("reference only: shared layout class, not a reaction", prompt, StringComparison.Ordinal);
             Assert.Contains("static UiNode Render", prompt, StringComparison.Ordinal);
         }
         finally
@@ -761,7 +761,7 @@ public sealed class FastPathFacts : IDisposable
 
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
-        var fork = prompt.IndexOf("base synapse to fork", StringComparison.Ordinal);
+        var fork = prompt.IndexOf("base reaction to fork", StringComparison.Ordinal);
         Assert.True(fork >= 0, "The prompt names no base synapse.");
         Assert.Contains("BASE-LEMONS", prompt[fork..], StringComparison.Ordinal);
         Assert.Equal(IApp.Key(Brain, "pantry") + "/count.cs", Assert.Single((await app.Read()).Synapses!).Base);
@@ -1117,7 +1117,7 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal(SynapseStatus.Rejected, entry.Status);
         Assert.False(live.Files.ContainsKey("stuck.cs"));
-        Assert.Equal(SynapseWriter.MaxDeployCalls, runtime.TimedOutCalls);
+        Assert.Equal(ReactionWriter.MaxDeployCalls, runtime.TimedOutCalls);
         // The runtime was brought back to the app's files: whatever it holds for the app has no stuck.cs.
         Assert.False(runtime.Current(app.GetPrimaryKeyString())?.ContainsKey("stuck.cs") ?? false);
         Assert.Contains(app.GetPrimaryKeyString(), runtime.Retired);
@@ -1169,7 +1169,7 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal((SynapseStatus.Unsettled, "stuck.cs", Lemons), (entry.Status, entry.Path, entry.Source));
         Assert.False(live.Files.ContainsKey("stuck.cs"));
-        Assert.Equal(2 * SynapseWriter.MaxDeployCalls, runtime.TimedOutCalls);
+        Assert.Equal(2 * ReactionWriter.MaxDeployCalls, runtime.TimedOutCalls);
     }
 
     [Trait("host", "own")]
@@ -1280,8 +1280,8 @@ public sealed class FastPathFacts : IDisposable
             })
             .StartAsync(ct);
 
-    private sealed class SyntaxBoundaryLog(ILogger<SynapseExamples> inner, Func<string?> phase,
-        Action<long, string, string, string, double, long> record) : ILogger<SynapseExamples>
+    private sealed class SyntaxBoundaryLog(ILogger<ReactionExamples> inner, Func<string?> phase,
+        Action<long, string, string, string, double, long> record) : ILogger<ReactionExamples>
     {
         private readonly ConcurrentDictionary<long, string> _phases = new();
 
@@ -1291,7 +1291,7 @@ public sealed class FastPathFacts : IDisposable
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "SynapseSyntaxBoundary"
+            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "ReactionSyntaxBoundary"
                 && state is IReadOnlyList<KeyValuePair<string, object?>> fields)
             {
                 object? Field(string name) => fields.FirstOrDefault(field => field.Key == name).Value;
@@ -1403,7 +1403,7 @@ public sealed class FastPathFacts : IDisposable
         }
     }
 
-    private const int SynapseWriterCalls = 4;
+    private const int ReactionWriterCalls = 4;
     private static readonly TimeSpan CallTimeout = TimeSpan.FromMilliseconds(250);
 
     private static Task<ITestBrain> StartSlow(FakeModelServer model, SlowAppRuntime runtime, CancellationToken ct)
@@ -1539,10 +1539,10 @@ public sealed class FastPathFacts : IDisposable
         """;
 
     // The fast path's retrieval over the brain's own grains, with the embedding model and cache size the fact picks.
-    private static SynapseExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
-        int vectorCapacity = SynapseExamples.DefaultVectorCapacity)
+    private static ReactionExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
+        int vectorCapacity = ReactionExamples.DefaultVectorCapacity)
         => new(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services.GetRequiredService<IKernel>(),
-            brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<SynapseExamples>>(), vectorCapacity);
+            brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<ReactionExamples>>(), vectorCapacity);
 
     private static Task Script(ITestBrain brain, params BehaviorView[] behaviors)
         => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain)).AsReference<IScriptedRuntime>().Script(behaviors);

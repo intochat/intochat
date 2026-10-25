@@ -7,7 +7,7 @@ namespace IntoChat.OS.Apps.Tests.Apps;
 
 // L0: a synapse is exactly one top-level reaction. The check is syntax, and the app gates hold every
 // program to it before anything deploys, publishes or exports.
-public sealed class SynapseShapeFacts
+public sealed class ReactionShapeFacts
 {
     private const string Brain = "synapse-shape-facts";
 
@@ -32,15 +32,15 @@ public sealed class SynapseShapeFacts
     [Fact]
     public void ASynapseWithTwoTopLevelReactionsIsRefused()
     {
-        var error = Assert.Single(SynapseShape.Check("twice.cs", TwoReactions));
+        var error = Assert.Single(ReactionShape.Check("twice.cs", TwoReactions));
 
-        Assert.Equal((SynapseShape.SecondReaction, "twice.cs", 4), (error.Id, error.File, error.Line));
+        Assert.Equal((ReactionShape.SecondReaction, "twice.cs", 4), (error.Id, error.File, error.Line));
         Assert.Contains("line 3", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ASynapseWithoutAReactionIsRefused()
-        => Assert.Equal(SynapseShape.NoReaction, Assert.Single(SynapseShape.Check("idle.cs", NoReaction)).Id);
+        => Assert.Equal(ReactionShape.NoReaction, Assert.Single(ReactionShape.Check("idle.cs", NoReaction)).Id);
 
     [Fact]
     public void AReactionInsideALocalFunctionDoesNotCount()
@@ -52,7 +52,7 @@ public sealed class SynapseShapeFacts
             { await foreach (var request in brain.On(app, "ask", brain.Stopping)) { } }
             """;
 
-        Assert.Equal(SynapseShape.NoReaction, Assert.Single(SynapseShape.Check("loops.cs", loops)).Id);
+        Assert.Equal(ReactionShape.NoReaction, Assert.Single(ReactionShape.Check("loops.cs", loops)).Id);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class SynapseShapeFacts
             }
             """;
 
-        Assert.Empty(SynapseShape.Check("follows.cs", follows));
+        Assert.Empty(ReactionShape.Check("follows.cs", follows));
     }
 
     [Theory]
@@ -77,7 +77,7 @@ public sealed class SynapseShapeFacts
     [InlineData("await foreach (var request in brain.On(app, \"open\", brain.Stopping).WithCancellation(brain.Stopping)) { }")]
     [InlineData("await brain.React<TextChanged>(source, Rebuild, brain.Stopping);")]
     public void EveryFormOfReactionIsOneReaction(string reaction)
-        => Assert.Empty(SynapseShape.Check("react.cs", Connect + reaction + "\n"));
+        => Assert.Empty(ReactionShape.Check("react.cs", Connect + reaction + "\n"));
 
     [Fact]
     public void SharedCodeAndDataHaveNoShape()
@@ -90,17 +90,17 @@ public sealed class SynapseShapeFacts
             ["ask.cs"] = OneReaction,
         };
 
-        Assert.Empty(SynapseShape.Check(files));
-        Assert.True(SynapseShape.IsShared(files["shared.cs"]));
-        Assert.False(SynapseShape.IsShared(OneReaction));
+        Assert.Empty(ReactionShape.Check(files));
+        Assert.True(ReactionShape.IsShared(files["shared.cs"]));
+        Assert.False(ReactionShape.IsShared(OneReaction));
     }
 
     [Fact]
     public void ALayoutClassIsSharedCodeWithAStaticRenderReturningAUiNode()
     {
-        Assert.True(SynapseShape.IsLayout("public static class L { public static UiNode Render(int m) => null; }"));
-        Assert.False(SynapseShape.IsLayout("public static class Text { public static string Upper(string t) => t; }"));
-        Assert.False(SynapseShape.IsLayout(OneReaction));
+        Assert.True(ReactionShape.IsLayout("public static class L { public static UiNode Render(int m) => null; }"));
+        Assert.False(ReactionShape.IsLayout("public static class Text { public static string Upper(string t) => t; }"));
+        Assert.False(ReactionShape.IsLayout(OneReaction));
     }
 
     [Theory]
@@ -115,11 +115,11 @@ public sealed class SynapseShapeFacts
     [InlineData("{ await brain.React(source); }", false, false)]
     [InlineData("Console.WriteLine(1); public static class L { public static UiNode Render() => null; }", false, false)]
     public void SharedAndLayoutRolesRespectTopLevelStatementsAndRenderReturnTypes(string source, bool shared, bool layout)
-        => Assert.Equal((shared, layout), (SynapseShape.IsShared(source), SynapseShape.IsLayout(source)));
+        => Assert.Equal((shared, layout), (ReactionShape.IsShared(source), ReactionShape.IsLayout(source)));
 
     [Fact]
     public void NullLiteralClassificationKeepsEmptySourceSemantics()
-        => Assert.Equal((true, false), (SynapseShape.IsShared(null!), SynapseShape.IsLayout(null!)));
+        => Assert.Equal((true, false), (ReactionShape.IsShared(null!), ReactionShape.IsLayout(null!)));
 
     [Trait("host", "own")]
     [Fact]
@@ -168,7 +168,7 @@ public sealed class SynapseShapeFacts
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
 
-        Assert.Contains("not shaped as synapses", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("not shaped as reactions", refused.Message, StringComparison.Ordinal);
         Assert.Contains("idle.cs:", refused.Message, StringComparison.Ordinal);
     }
 

@@ -51,8 +51,8 @@ public sealed class FeatureCompileFacts
         foreach (var feature in new FeatureDirectory(SolutionProjects.Features).Load())
         {
             var bundle = feature.Bundle;
-            synapses += bundle.Files.Count(file => AppFiles.IsProgram(file.Key) && !SynapseShape.IsShared(file.Value));
-            errors.AddRange(SynapseShape.Check(bundle.Files).Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}"));
+            synapses += bundle.Files.Count(file => AppFiles.IsProgram(file.Key) && !ReactionShape.IsShared(file.Value));
+            errors.AddRange(ReactionShape.Check(bundle.Files).Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}"));
         }
 
         Assert.True(synapses > 0, "no synapse was found under " + SolutionProjects.Features);

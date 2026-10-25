@@ -306,7 +306,7 @@ public sealed class AppCreatorFacts
 
         await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         // The compiler accepted the file; the check still answers the shape the gates will refuse.
-        Assert.Contains(SynapseShape.SecondReaction, model.Requests(Builder)[1].ToString(), StringComparison.Ordinal);
+        Assert.Contains(ReactionShape.SecondReaction, model.Requests(Builder)[1].ToString(), StringComparison.Ordinal);
     }
 
     [Trait("host", "own")]
@@ -402,7 +402,7 @@ public sealed class AppCreatorFacts
     public void AuthoringPromptsRequireObservableResultsWithoutBanningHeadlessOperations()
     {
         Assert.Contains("observable outcome", AgentPrompts.Author, StringComparison.Ordinal);
-        foreach (var prompt in new[] { AgentPrompts.Author, AgentPrompts.Builder, AgentPrompts.Synapse })
+        foreach (var prompt in new[] { AgentPrompts.Author, AgentPrompts.Builder, AgentPrompts.Reaction })
         {
             Assert.Contains("declared entry", prompt, StringComparison.Ordinal);
             Assert.Contains("diagnostics, never the person's", prompt, StringComparison.Ordinal);

@@ -29,8 +29,8 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.TryAddSingleton<Creator>();
-        silo.Services.TryAddSingleton(SynapseExamples.Create);
-        silo.Services.TryAddSingleton<SynapseWriter>();
+        silo.Services.TryAddSingleton(ReactionExamples.Create);
+        silo.Services.TryAddSingleton<ReactionWriter>();
         silo.AddStartupTask<FeatureBoot>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AppNeuron>, AppActivation>());
