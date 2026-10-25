@@ -62,7 +62,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     }
 
     [Fact]
-    public async Task Post_and_Stream_are_scheduled_by_the_same_rules()
+    public async Task Post_is_scheduled_by_the_same_rules_and_a_Stream_interleaves_as_in_TestOS()
     {
         var ct = TestContext.Current.CancellationToken;
         Assert.True(await RunsDuringHold("b1/turn/post", async probe =>
@@ -76,6 +76,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
             await ProbeLog.Until(() => TurnLog.Noted.ContainsKey("later"), ct);
         }));
         Assert.True(await RunsDuringHold("b1/turn/stream", async probe => Assert.Equal([6], await probe.ItemsNow().ToListAsync(ct))));
-        Assert.False(await RunsDuringHold("b1/turn/stream", async probe => Assert.Equal([6], await probe.Items().ToListAsync(ct))));
+        // Orleans enumerates a stream through its grain extension, outside the turn: like TestOS, every stream interleaves.
+        Assert.True(await RunsDuringHold("b1/turn/stream", async probe => Assert.Equal([6], await probe.Items().ToListAsync(ct))));
     }
 }

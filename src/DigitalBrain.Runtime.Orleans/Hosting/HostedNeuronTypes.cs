@@ -44,6 +44,7 @@ internal sealed class HostedNeuronTypes
             {
                 throw new InvalidOperationException($"Neuron type '{neuron.Type}' is claimed by {other.FullName} and {type.FullName}.");
             }
+            _ = NeutralCallMapping.PredicateOf(type); // a misnamed predicate fails at registration, not on a call
             _types[neuron.Type] = type;
             Process[neuron.Type] = type;
         }
