@@ -68,9 +68,9 @@ public sealed class LauncherCommandFacts
     }
 
     [Theory]
-    [InlineData(true, true, new[] { "--IntoChatOS:Profile=local", "--IntoChatOS:Local:Gpu=true" })]
-    [InlineData(false, true, new[] { "--IntoChatOS:Profile=local", "--IntoChatOS:Local:Gpu=false" })]
-    [InlineData(true, false, new[] { "--IntoChatOS:Profile=local", "--IntoChatOS:Local:Gpu=true", "--IntoChatOS:Shell:Enabled=false" })]
+    [InlineData(true, true, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=true" })]
+    [InlineData(false, true, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=false" })]
+    [InlineData(true, false, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=true", "--IntoChatOS:Shell:Enabled=false" })]
     public void LocalAppHostArgumentsCarryGpuAndShell(bool gpu, bool shell, string[] expected)
         => Assert.Equal(expected, LauncherCommand.Parse(["local"]).LocalAppHostArguments(gpu, shell));
 

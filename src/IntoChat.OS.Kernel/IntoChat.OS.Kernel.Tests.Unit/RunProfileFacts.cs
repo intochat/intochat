@@ -2,7 +2,11 @@ extern alias AppHost;
 using AppHost::IntoChat.OS.AppHost;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.AI;
+using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Azure;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Framework;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -28,18 +32,52 @@ public sealed class RunProfileFacts
     }
 
     [Theory]
-    [InlineData("local", true)]
-    [InlineData("dev+local", true)]
-    [InlineData("local+dev", true)]
-    [InlineData("LOCAL", true)]
-    [InlineData("dev", false)]
-    [InlineData("", false)]
-    public void TheProfileNamesSelectTheLeanBrainOrTheCloudBrain(string profile, bool lean)
+    [InlineData(null, "local")]
+    [InlineData("", "local")]
+    [InlineData("local", "local")]
+    [InlineData("LOCAL", "local")]
+    [InlineData("local-cloud", "local-cloud")]
+    [InlineData("cloud", "cloud")]
+    public void TheTopologySelectsTheLeanBrainOrTheCloudBrain(string? topology, string expected)
     {
-        var selected = RunProfile.ForName(IntoChatOSProfiles.Parse(profile));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [IntoChatOSNames.TopologyKey] = topology }).Build();
+        var resolved = RunProfile.Topology(configuration);
+        Assert.Equal(expected, resolved);
+        var selected = RunProfile.ForTopology(resolved);
+        var lean = expected != IntoChatOSNames.TopologyCloud;
         Assert.Equal(lean, selected.Lean);
         Assert.Equal(lean ? "IQwen35" : "IDeepSeekV41Flash", selected.Ai.Default.Model);
+        Assert.False(selected.Orleans.Azurite.Enabled);
     }
+
+    [Fact]
+    public void AnUnknownTopologyStopsTheRunWithoutEchoingTheValue()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [IntoChatOSNames.TopologyKey] = "secret-ish-value" }).Build();
+        var error = Assert.Throws<InvalidOperationException>(() => RunProfile.Topology(configuration));
+        Assert.Contains(IntoChatOSNames.TopologyKey, error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-ish-value", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnsetTopologyStartsNoAzurite()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
+            [MasterKey], TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(appHost.Resources, IsAzurite);
+    }
+
+    [Fact]
+    public async Task TheCloudTopologyStartsAzurite()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
+            [MasterKey, "--" + IntoChatOSNames.TopologyKey + "=" + IntoChatOSNames.TopologyCloud], TestContext.Current.CancellationToken);
+        Assert.Contains(appHost.Resources, IsAzurite);
+    }
+
+    private const string MasterKey = "Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars";
+
+    private static bool IsAzurite(IResource resource) => resource is AzureStorageResource;
 
     [Fact]
     public void ALeanBrainSkipsEveryHostingTheLocalRunDoesNotNeed()
@@ -53,7 +91,7 @@ public sealed class RunProfileFacts
     public async Task TheProductEntryPointAppliesCloudAndKeepsTheMasterKey()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+            [MasterKey, "--" + IntoChatOSNames.TopologyKey + "=" + IntoChatOSNames.TopologyCloud], TestContext.Current.CancellationToken);
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-intochat-os-master-key");
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("gmail-client", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(appHost.Resources, resource => resource.Name.Contains("salesforce-consumer", StringComparison.OrdinalIgnoreCase));

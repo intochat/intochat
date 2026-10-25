@@ -32,17 +32,26 @@ if (args.Length > 0 && args[0] == "reset")
         secretsDirectory, new RealResetFileSystem(), new RealDockerCli(), Console.In, Console.Out, !Console.IsInputRedirected)
         .RunAsync(args[1..], CancellationToken.None);
 }
-// IntoChatOS:Profile selects the brain ('+' composes presets): 'local' is the lean host-Ollama run, anything else the Cloud brain.
-var profiles = IntoChatOSProfiles.Parse(builder.Configuration[IntoChatOSProfiles.ProfileKey] ?? IntoChatOSProfiles.DefaultProfile);
-builder.Configuration.AddIntoChatOSProfiles(builder.AppHostDirectory);
+// IntoChatOS:Topology (unset = local) is the only axis: it picks the module and model composition from code (RunProfile),
+// whose module defaults sit above the shipped appsettings and below environment and command line, so an explicit
+// IntoChatOS:Modules:<id>:Enabled still wins. Azurite and the cloud keys exist only for Topology=cloud.
+var topology = RunProfile.Topology(builder.Configuration);
+var cloud = topology == IntoChat.OS.Framework.IntoChatOSNames.TopologyCloud;
+var defaultsAt = builder.Configuration.Sources.ToList()
+    .FindLastIndex(source => source is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource) + 1;
+builder.Configuration.Sources.Insert(defaultsAt,
+    new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = RunProfile.ModuleDefaults(topology) });
+var brainProfile = RunProfile.ForTopology(topology, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]);
+if (cloud) { IntoChat.OS.Microsoft.Orleans.OrleansModuleOptionsExtensions.WithAzurite(brainProfile.Orleans); }
 if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
-var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", RunProfile.ForName(profiles, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]), IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
+var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", brainProfile, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 
-var cookieProtection = intoChatOS.AddBlobContainer(intoChatOS.Identity!.ProtectionContainerName);
+// Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
+var cookieProtection = cloud ? intoChatOS.AddBlobContainer(intoChatOS.Identity!.ProtectionContainerName) : null;
 
 // The repository's ./features: os apps, loaded by the OS at boot.
 var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
@@ -86,8 +95,8 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     silo.WithReference(intoChatOS)
         .WithEnvironment(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.IntoChatOSNames.HomeKey), home)
         .WithDisabledModules(builder.Configuration)
-        .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
+    if (cookieProtection is not null) { silo.WaitFor(cookieProtection); }
     foreach (var key in new[] { IntoChat.OS.Framework.IntoChatOSNames.CustodyConfigurationKey,
         IntoChat.OS.Framework.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey,
         IntoChat.OS.Framework.IntoChatOSNames.BrainStorageWriteFormatConfigurationKey })

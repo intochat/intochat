@@ -1,5 +1,6 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.AI;
@@ -46,7 +47,7 @@ public static class RunProfile
     public static string DefaultLocalModel => new Qwen35().Id;
 
     // The lean local run: Ollama runs on the host (endpoint only, no container), the default model is qwen3.5:4b unless
-    // the launcher passed IntoChatOS:Local:Model, and the C# sandbox is the one container beside Azurite.
+    // the launcher passed IntoChatOS:Local:Model, and the C# sandbox is the one container.
     public static BrainProfile LocalLean => LocalLeanWith(null);
     public static BrainProfile Cloud => Base() with { Ai = CloudAi() };
     // Only OpenAI is redirected to a local endpoint, so the default chat model must be an OpenAI one: the
@@ -83,13 +84,38 @@ public static class RunProfile
 
     public const string LocalOllamaEndpoint = "http://localhost:11434";
 
-    // The profile names (IntoChatOSProfiles.Parse) select the brain: 'local' anywhere in the composition is the lean run,
-    // anything else is the product's Cloud brain.
-    public static BrainProfile ForName(IReadOnlyList<string> profiles, string? localModel = null)
+    // The modules the local and local-cloud runs switch off by default (code, not a configuration file); an explicit
+    // IntoChatOS:Modules:<id>:Enabled from appsettings, the environment or the command line still wins.
+    public static IReadOnlyList<string> LocalDisabledModules { get; } =
+        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "windows", "salesforce", "gmail"];
+
+    // The cloud run keeps every module on by default.
+    public static IReadOnlyList<string> CloudDisabledModules { get; } = [];
+
+    public static bool IsCloud(string topology) => string.Equals(topology, IntoChatOSNames.TopologyCloud, StringComparison.OrdinalIgnoreCase);
+
+    // IntoChatOS:Topology (unset = local) selects the brain: local and local-cloud are the lean host-Ollama run, cloud is
+    // the product's Cloud brain. An unknown value stops the run, naming the key and the known values, never the value.
+    public static string Topology(IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(profiles);
-        return profiles.Contains("local", StringComparer.OrdinalIgnoreCase) ? LocalLeanWith(localModel) : Cloud;
+        ArgumentNullException.ThrowIfNull(configuration);
+        var topology = configuration[IntoChatOSNames.TopologyKey];
+        if (string.IsNullOrWhiteSpace(topology)) { return IntoChatOSNames.TopologyLocal; }
+        foreach (var known in new[] { IntoChatOSNames.TopologyLocal, IntoChatOSNames.TopologyLocalCloud, IntoChatOSNames.TopologyCloud })
+        {
+            if (string.Equals(topology.Trim(), known, StringComparison.OrdinalIgnoreCase)) { return known; }
+        }
+        throw new InvalidOperationException(
+            $"{IntoChatOSNames.TopologyKey} must be one of {IntoChatOSNames.TopologyLocal}, {IntoChatOSNames.TopologyLocalCloud} or {IntoChatOSNames.TopologyCloud}.");
     }
+
+    public static BrainProfile ForTopology(string topology, string? localModel = null)
+        => IsCloud(topology) ? Cloud : LocalLeanWith(localModel);
+
+    // The module defaults of a topology as configuration entries (IntoChatOS:Modules:<id>:Enabled=false).
+    public static IEnumerable<KeyValuePair<string, string?>> ModuleDefaults(string topology)
+        => (IsCloud(topology) ? CloudDisabledModules : LocalDisabledModules)
+            .Select(module => new KeyValuePair<string, string?>(IntoChatOSConfiguration.ModuleSection(module) + ":Enabled", "false"));
 
     public static void CopyOnto(AIOptions target, AIOptions source)
     {
@@ -136,7 +162,8 @@ public static class RunProfile
 
     private static BrainProfile Base() => new()
     {
-        Orleans = new OrleansOptions().WithAzurite(),
+        // Azurite is not part of the module selection: the AppHost adds it only for IntoChatOS:Topology=cloud.
+        Orleans = new OrleansOptions(),
         Postgres = new PostgresModuleOptions().WithPostgres(options => options.DatabaseName = "intochat_os"),
         Qdrant = new QdrantModuleOptions().WithHostedQdrant(),
         ClickHouse = new ClickHouseModuleOptions().WithClickHouse(),

@@ -94,7 +94,7 @@ static void StartKernel(string osDirectory, Uri url, string home, string masterK
     environment["IntoChatOS__Home"] = home;
     environment["IntoChatOS__Topology"] = "local";
     environment["IntoChatOS__Modules__apps__Options__Features"] = Path.Combine(osDirectory, "features");
-    // The container-backed and cloud modules the AppHost's local profile switches off (src/IntoChat.OS.AppHost/profiles/local.json).
+    // The container-backed and cloud modules the AppHost's local topology switches off (RunProfile.LocalDisabledModules).
     // The Windows module stays on: it is the device connector this package ships.
     foreach (var module in (string[])["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "salesforce", "gmail"])
     { environment[$"IntoChatOS__Modules__{module}__Enabled"] = "false"; }

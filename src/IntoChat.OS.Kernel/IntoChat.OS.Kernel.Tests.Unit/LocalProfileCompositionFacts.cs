@@ -8,7 +8,7 @@ using IntoChat.OS.Microsoft.CSharp;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
-// What the local profile starts: Azurite plus the C# sandbox, nothing else, and nothing that opens the host.
+// What the local topology starts: the C# sandbox, nothing else (no Azurite), and nothing that opens the host.
 [Collection(AppHostComposition.Collection)]
 public sealed class LocalProfileCompositionFacts
 {
@@ -16,7 +16,7 @@ public sealed class LocalProfileCompositionFacts
 
     private static Task<IDistributedApplicationTestingBuilder> LocalAsync()
         => DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChatOSProfiles.ProfileKey + "=local"],
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChat.OS.Framework.IntoChatOSNames.TopologyKey + "=" + IntoChat.OS.Framework.IntoChatOSNames.TopologyLocal],
             TestContext.Current.CancellationToken);
 
     [Fact]

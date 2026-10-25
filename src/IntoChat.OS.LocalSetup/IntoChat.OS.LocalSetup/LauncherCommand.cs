@@ -102,13 +102,13 @@ public sealed record LauncherCommand(
         _ => [],
     };
 
-    // AppHost arguments for the local profile: the host-Ollama profile, the GPU mode preflight detected, the shell
+    // AppHost arguments for the local profile: the local topology (host Ollama), the GPU mode preflight detected, the shell
     // only when the Flutter SDK is available, and the model override when one was requested.
     public IReadOnlyList<string> LocalAppHostArguments(bool gpu, bool shellAvailable)
     {
         var arguments = new List<string>
         {
-            LocalSetupKeys.Argument(LocalSetupKeys.Profile, LocalSetupKeys.LocalProfileName),
+            LocalSetupKeys.Argument(LocalSetupKeys.Topology, LocalSetupKeys.LocalTopology),
             LocalSetupKeys.Argument(LocalSetupKeys.Gpu, gpu ? "true" : "false"),
         };
         if (!shellAvailable) { arguments.Add(LocalSetupKeys.Argument(LocalSetupKeys.ShellEnabled, "false")); }

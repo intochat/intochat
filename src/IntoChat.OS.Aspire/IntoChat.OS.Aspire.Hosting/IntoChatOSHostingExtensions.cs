@@ -153,9 +153,11 @@ public static class IntoChatOSHostingExtensions
         if (client.ShareHttpIdentity)
         {
             var identity = client.Brain.Identity ?? throw new InvalidOperationException("Configure the brain HTTP identity before sharing sessions.");
-            var storage = client.Brain.GrainState ?? throw new InvalidOperationException("Shared HTTP sessions require durable key storage.");
             identity.Apply(builder);
-            builder.WithReference(storage, IntoChatOSNames.GrainState);
+            // With Azurite (Topology=cloud) the key ring is the shared blob container. A local run has no Azurite: the
+            // kernel and the client run as the same user and share the user's default data protection key ring, keyed by
+            // the same ProtectionApplicationName the identity projects.
+            if (client.Brain.GrainState is { } storage) { builder.WithReference(storage, IntoChatOSNames.GrainState); }
         }
         if (client.Brain.Clustering is { } clustering)
         {
