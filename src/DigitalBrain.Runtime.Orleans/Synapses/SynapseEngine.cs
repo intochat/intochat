@@ -240,7 +240,10 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
             var history = History;
             while (_state.Sources.Contains(entry))
             {
-                var page = await history.Read(source, entry.Cursor, SignalPage.MaxLimit, CancellationToken.None).ConfigureAwait(true);
+                // Signals of unknown type (adapter-journaled os signals, 04-17) come back as UnknownSignal: unwanted, so the cursor passes them.
+                var page = await (history is BrainSignalHistory journal
+                    ? journal.Read(source, entry.Cursor, SignalPage.MaxLimit, keepUnknown: true, CancellationToken.None)
+                    : history.Read(source, entry.Cursor, SignalPage.MaxLimit, CancellationToken.None)).ConfigureAwait(true);
                 _counters.Read();
                 if (page.Floor > entry.Cursor)
                 {

@@ -118,4 +118,26 @@ public sealed class BrainSignalHistoryFacts
             silo.AddSynapseRetention();
         }
     }
+
+    [Fact]
+    public async Task Mixed_adapter_and_runtime_entries_read_as_one_history_and_unknown_types_are_skipped_without_error()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var home = new TempHome();
+        await using var store = Store(home, new FixedCursors(null));
+        var writer = store.Services.GetRequiredService<IBrainJournalWriter>();
+        await store.Publish(BrainStore.P, 1);
+        await writer.Append("b1", new JournalStateWrite("legacy.chat/b1/p", "state", JournalStateChange.Write, null, new byte[] { 0xFF }, "Os.State"),
+            BrainStore.P.ToString(), [new("os.chat.posted", "{}"u8.ToArray()), new("test.note", """{"text":"from os"}"""u8.ToArray())], ct);
+
+        var page = await store.History().Read(BrainStore.P, 0, 10, ct);
+        var brain = await store.History().Read(0, 10, ct);
+        var engine = await store.History().Read(BrainStore.P, 0, 10, keepUnknown: true, ct);
+
+        Assert.Equal(3, page.Last);
+        Assert.Equal([1L, 3L], page.Signals.Select(s => s.Sequence));
+        Assert.Equal([new Count(1), new Note("from os")], page.Signals.Select(s => s.Signal));
+        Assert.Equal([1L, 3L], brain.Signals.Select(s => s.Sequence));
+        Assert.Equal(new UnknownSignal("os.chat.posted"), engine.Signals[1].Signal);
+    }
 }
