@@ -78,7 +78,8 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             ["IntoChat.OS.Runtime.INeuronContext", "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
-                "IntoChat.OS.Runtime.IRuntimeBuilder", "IntoChat.OS.Runtime.ISignalFanout", "IntoChat.OS.Runtime.ITraceCarrier", "IntoChat.OS.Runtime.NeuronAddress"],
+                // Transitional (06-03, R4-14; deleted in 06-08): plain contracts reached from the os surfaces.
+                "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IRuntimeBuilder", "IntoChat.OS.Runtime.ISignalFanout", "IntoChat.OS.Runtime.ITraceCarrier", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.Spi.ICallerContextCarrier", "DigitalBrain.Spi.IDeactivatingNeuron", "DigitalBrain.Spi.INeuronTimers",

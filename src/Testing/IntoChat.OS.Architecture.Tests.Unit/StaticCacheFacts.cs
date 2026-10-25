@@ -18,6 +18,7 @@ public sealed partial class StaticCacheFacts
         ["NeuronProxy.Casts"] = "Type",
         ["NeutralCallMapping.Methods"] = "MethodInfo",
         ["NeutralCallMapping.Predicates"] = "Type",
+        ["PlainNeurons.Factories"] = "Type",
         ["SignalTypes.Loaded"] = "string",
         ["TaskBoxing.Boxes"] = "Type",
     };
