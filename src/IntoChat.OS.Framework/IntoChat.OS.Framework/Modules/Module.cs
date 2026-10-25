@@ -22,6 +22,11 @@ public abstract class Module
     // Position in the catalog: lower first, ties broken by id. Orleans is negative so it comes first.
     public virtual int Order => 0;
 
+    // Transitional (06-03, until Configure leaves in 06-08): the DigitalBrain module ([Module] class with a static
+    // ModuleManifest) whose plain [Neuron] classes this module brings. The host passes it to UseModuleTopology, so its
+    // neurons run on the runtime's host grains and its Needs are checked against the topology.
+    public virtual Type? Neurons => null;
+
     public abstract void Configure(ISiloBuilder silo);
 }
 

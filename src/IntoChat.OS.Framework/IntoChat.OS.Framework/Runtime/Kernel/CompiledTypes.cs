@@ -63,13 +63,19 @@ public sealed class CompiledTypes
 
     private static string? GrainType(IGrainFactory grains, Type contract)
     {
+        if (IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) is { } plain) { return plain; }
         try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString(); }
         catch (ArgumentException) { return null; }
     }
 
-    private static bool IsNeuron(Type type) => type.IsInterface && type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type);
+    // A legacy grain contract, or a migrated plain contract that names its [Neuron] type (06-03).
+    private static bool IsNeuron(Type type)
+        => (type.IsInterface && type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type)) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type);
 
-    private static bool IsSignal(Type type) => typeof(Signal).IsAssignableFrom(type) && type != typeof(Signal) && !type.IsAbstract;
+    // An os signal, or a DigitalBrain [Signal] record a migrated neuron publishes (06-03).
+    private static bool IsSignal(Type type)
+        => !type.IsAbstract && ((typeof(Signal).IsAssignableFrom(type) && type != typeof(Signal))
+            || (typeof(global::DigitalBrain.Signal).IsAssignableFrom(type) && type.IsDefined(typeof(global::DigitalBrain.SignalAttribute), inherit: false)));
 
     private static TypeEntry Neuron(Type contract, string alias, string provider)
     {
@@ -86,7 +92,7 @@ public sealed class CompiledTypes
     }
 
     private static TypeEntry Signal(Type signal, string provider)
-        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.FullName!, TypeKind.Signal, provider,
+        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.GetCustomAttribute<global::DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
             signal.GetCustomAttribute<DescriptionAttribute>()?.Description ?? signal.Name,
             [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.DeclaringType != typeof(Signal))

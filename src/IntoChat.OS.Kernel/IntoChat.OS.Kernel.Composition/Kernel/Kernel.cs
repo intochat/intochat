@@ -91,6 +91,7 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     public string TypeOf(Type contract)
     {
         ArgumentNullException.ThrowIfNull(contract);
+        if (IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) is { } plain) { return plain; }
         try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString()!; }
         catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} has no single grain type: {error.Message}", nameof(contract), error); }
     }

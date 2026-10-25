@@ -62,7 +62,9 @@ public static class ServerHostingExtensions
         // the host naming every issue. The cluster store is the runtime BrainLog over the DigitalBrain modules' assemblies
         // (06-02, R4-09); their manifests pass through UseModuleTopology, which refuses a Need the topology does not bind.
         // os never calls AddDigitalBrainRuntime itself: ConfigureTopologySilo does.
-        var neuronModules = definition.NeuronModules;
+        // A Framework module that brings plain neurons names its DigitalBrain module (Module.Neurons, 06-03); it is hosted when
+        // the Framework module is selected.
+        IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>()).Distinct()];
         builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly).Distinct()]);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
