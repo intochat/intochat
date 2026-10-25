@@ -67,7 +67,7 @@ public readonly record struct NeuronId
     private static bool IsType([NotNullWhen(true)] string? type)
         => !string.IsNullOrEmpty(type) && !type.Any(c => char.IsControl(c) || c == '/');
 
-    private sealed class NeuronIdJsonConverter : JsonConverter<NeuronId>
+    internal sealed class NeuronIdJsonConverter : JsonConverter<NeuronId>
     {
         public override NeuronId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {

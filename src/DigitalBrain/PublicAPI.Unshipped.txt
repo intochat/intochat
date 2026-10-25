@@ -487,3 +487,4 @@ virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> 
 ~override DigitalBrain.BrainId.Equals(object obj) -> bool
 ~override DigitalBrain.Capabilities.CapabilityId.Equals(object obj) -> bool
 ~override DigitalBrain.NeuronId.Equals(object obj) -> bool
+static DigitalBrain.Invocation.RuntimeProtocol.Register(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver! resolver) -> void
