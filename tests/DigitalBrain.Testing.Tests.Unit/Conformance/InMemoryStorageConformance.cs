@@ -44,3 +44,14 @@ public sealed class FakeStorageConformance : StorageConformance<FakeStorage>
         return Task.FromResult(new StorageSubject(storage, storage.Operations, InMemoryStorageConformance.Hostile));
     }
 }
+
+// FakeStorage in its non-seekable mode (forward-only read streams) passes the kit too.
+public sealed class FakeNonSeekableStorageConformance : StorageConformance<FakeStorage>
+{
+    protected override Task<StorageSubject> Connect(StorageSeed seed, CancellationToken ct)
+    {
+        var storage = new FakeStorage("Kit fake", Quota.Known(10, 100)) { Seekable = false };
+        storage.Seed(seed);
+        return Task.FromResult(new StorageSubject(storage, storage.Operations, InMemoryStorageConformance.Hostile));
+    }
+}

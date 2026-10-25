@@ -539,3 +539,7 @@ DigitalBrain.Testing.TestConfirmations.Resolve(string! planId, bool approve, Dig
 DigitalBrain.Testing.TestConfirmations.TestConfirmations(System.TimeProvider! clock) -> void
 DigitalBrain.Testing.TestConfirmations.Waiting.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Confirmation.ConfirmationRequested!>!
 DigitalBrain.Testing.TestOS.Confirmations.get -> DigitalBrain.Testing.TestConfirmations!
+DigitalBrain.Testing.FakeStorage.MaxSingleRead.get -> int
+DigitalBrain.Testing.FakeStorage.OpenRead(DigitalBrain.Capabilities.Storage.ItemId item, DigitalBrain.Capabilities.Storage.ByteRange? range, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageReadStream!>!
+DigitalBrain.Testing.FakeStorage.Seekable.get -> bool
+DigitalBrain.Testing.FakeStorage.Seekable.set -> void
