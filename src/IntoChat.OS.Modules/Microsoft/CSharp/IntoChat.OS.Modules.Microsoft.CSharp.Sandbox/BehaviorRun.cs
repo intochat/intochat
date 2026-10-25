@@ -5,11 +5,11 @@ using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // A loaded behavior running its entry point on its own task: exit code 0 on a clean return (or when it
 // ends because it was told to stop), 1 on an unhandled exception, whose message is kept for the report.
-internal sealed class BehaviorRun : IAsyncDisposable
+public sealed class BehaviorRun : IAsyncDisposable
 {
     private static readonly TimeSpan StopGrace = TimeSpan.FromSeconds(10);
 
@@ -33,7 +33,7 @@ internal sealed class BehaviorRun : IAsyncDisposable
     public string Hash { get; }
     public Task<int> Completion { get; private set; }
     public string? Error { get; private set; }
-    internal AssemblyLoadContext? Context => _context;
+    public AssemblyLoadContext? Context => _context;
 
     public string Tail(int lines) => _log.Tail(lines);
 

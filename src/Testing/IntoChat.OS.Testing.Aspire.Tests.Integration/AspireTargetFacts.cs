@@ -5,7 +5,7 @@ using IntoChat.OS.Microsoft.Orleans;
 using IntoChat.OS.Testing.Aspire;
 using IntoChat.OS.Testing.Neurons;
 
-namespace IntoChat.OS.Testing.Tests.Integration;
+namespace IntoChat.OS.Testing.Aspire.Tests.Integration;
 
 public sealed class AspireTargetFacts
 {

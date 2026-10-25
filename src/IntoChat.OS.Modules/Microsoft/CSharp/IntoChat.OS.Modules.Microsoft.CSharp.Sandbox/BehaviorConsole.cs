@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // Console output is a behavior's log. One writer is installed for the whole process and routes each
 // line to the behavior whose code wrote it (an async-local sink); anything else goes to the real console.

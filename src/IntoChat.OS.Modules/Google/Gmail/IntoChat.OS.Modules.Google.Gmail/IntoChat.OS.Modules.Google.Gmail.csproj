@@ -11,7 +11,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Testing" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Google.Gmail.Tests.Support" />
   </ItemGroup>
   <ItemGroup>
     <None Update="README.md" Pack="true" PackagePath="/" />

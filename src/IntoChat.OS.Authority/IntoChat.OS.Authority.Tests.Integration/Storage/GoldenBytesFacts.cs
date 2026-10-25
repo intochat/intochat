@@ -7,7 +7,7 @@ using IntoChat.OS.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 
-namespace IntoChat.OS.Architecture.Tests.Unit;
+namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
 // Stored bytes are Orleans binary; these pin today's layout per contract shape, per storage envelope and per sealed
 // segment format, captured from the Orleans-attributed build (clean-core W1, section 6). A codec that moves to a

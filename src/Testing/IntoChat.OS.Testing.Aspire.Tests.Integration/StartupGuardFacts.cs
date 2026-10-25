@@ -3,7 +3,7 @@ using Aspire.Hosting.Testing;
 using IntoChat.OS.Testing.Aspire;
 using IntoChat.OS.Testing.Playwright;
 
-namespace IntoChat.OS.Testing.Tests.Integration;
+namespace IntoChat.OS.Testing.Aspire.Tests.Integration;
 
 public sealed class StartupGuardFacts
 {

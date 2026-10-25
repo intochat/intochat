@@ -47,9 +47,8 @@ public sealed class VocabularyRingFacts
     }
 
     // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
-    // adding one is a design decision, made here. The last one is class B and goes in 02-09c.
-    private static readonly string[] InternalsConsumers =
-        ["IntoChat.OS.Client.Orleans.Tests.Integration"];
+    // adding one is a design decision, made here. None remain.
+    private static readonly string[] InternalsConsumers = [];
 
     [Fact]
     public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()

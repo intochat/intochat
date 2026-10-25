@@ -1,5 +1,5 @@
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp.Sandbox;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 

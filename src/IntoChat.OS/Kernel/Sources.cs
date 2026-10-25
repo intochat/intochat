@@ -26,6 +26,13 @@ public abstract class Sources
     public static IAsyncEnumerable<T> Stream<T>(IIntoChatOS brain, Sources sources, CancellationToken cancellationToken) where T : Signal
         => SourceSet.Open<T>(brain, sources, null, coalesce: false, cancellationToken);
 
+    // The same stream, observed: subscribed runs once every first member's subscription is registered (before the
+    // first read can miss a signal), reselected after each later re-selection once joiners are subscribed and leavers
+    // released. A caller that must not race the set's membership waits on these instead of a pause.
+    public static IAsyncEnumerable<T> Stream<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, Action? reselected,
+        CancellationToken cancellationToken) where T : Signal
+        => SourceSet.Open<T>(brain, sources, subscribed, coalesce: false, cancellationToken, reselected);
+
     public static Task React<T>(IIntoChatOS brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : Signal
         => Reaction.Run<T>(brain, sources, rebuild, cancellationToken);
 

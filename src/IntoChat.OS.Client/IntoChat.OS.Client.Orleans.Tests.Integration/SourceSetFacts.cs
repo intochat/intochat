@@ -13,8 +13,8 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reselections = Channel.CreateUnbounded<bool>();
-        var stream = SourceSet.Open<Number>(brain, sources, () => { registered.TrySetResult(); return Task.CompletedTask; }, coalesce: false, ct,
-                reselected: () => reselections.Writer.TryWrite(true))
+        var stream = Sources.Stream<Number>(brain, sources, () => { registered.TrySetResult(); return Task.CompletedTask; },
+                () => reselections.Writer.TryWrite(true), ct)
             .GetAsyncEnumerator(ct);
         var watcher = new Watcher(brain, stream, stream.MoveNextAsync().AsTask(), reselections.Reader);
         await registered.Task.WaitAsync(Wait, ct);
@@ -136,7 +136,7 @@ public sealed class SourceSetFacts(ClientHost host)
             await release.Task;
         });
         var reselections = Channel.CreateUnbounded<bool>();
-        await using var stream = SourceSet.Open<Number>(brain, sources, null, coalesce: false, ct, reselected: () => reselections.Writer.TryWrite(true))
+        await using var stream = Sources.Stream<Number>(brain, sources, null, () => reselections.Writer.TryWrite(true), ct)
             .GetAsyncEnumerator(ct);
         var next = stream.MoveNextAsync().AsTask();
         await selecting.Task.WaitAsync(Wait, ct); // the first select has read [a] and is still running

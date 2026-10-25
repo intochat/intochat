@@ -1,13 +1,1 @@
-[
-  "IntoChat.OS -> IntoChat.OS.Client.Orleans.Tests.Integration",
-  "IntoChat.OS.Authority -> IntoChat.OS.Architecture.Tests.Unit",
-  "IntoChat.OS.Authority -> IntoChat.OS.Kernel.Testing",
-  "IntoChat.OS.Connections -> IntoChat.OS.Architecture.Tests.Unit",
-  "IntoChat.OS.Connections -> IntoChat.OS.Framework.Tests.Integration",
-  "IntoChat.OS.Framework -> IntoChat.OS.Architecture.Tests.Unit",
-  "IntoChat.OS.Modules.Google.Gmail -> IntoChat.OS.Modules.Google.Gmail.Testing",
-  "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox -> IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration",
-  "IntoChat.OS.Modules.Postgres -> IntoChat.OS.Modules.AI.Tests.Integration",
-  "IntoChat.OS.Modules.Postgres -> IntoChat.OS.Modules.Apps.Tests.Integration",
-  "IntoChat.OS.Testing.Aspire -> IntoChat.OS.Testing.Tests.Integration"
-]
+[]

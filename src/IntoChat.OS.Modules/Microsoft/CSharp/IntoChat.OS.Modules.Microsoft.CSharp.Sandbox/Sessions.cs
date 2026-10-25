@@ -3,7 +3,7 @@ using System.Runtime.Loader;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // The sessions this process holds: many locally (one container serves every brain), one in a pool
 // session (the pool routes by identifier). A start is accepted at once and the session dials the brain
@@ -12,7 +12,7 @@ namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
 // longer speaks for the brain. Ensuring a held session refreshes its token so a restarted brain can
 // restore credentials without replacing behaviors. A session that cannot connect is forgotten, so
 // the brain's next check finds it gone and starts it again.
-internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, HttpMessageHandler? edge = null)
+public sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, HttpMessageHandler? edge = null)
 {
     private readonly ConcurrentDictionary<string, Open> _open = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);

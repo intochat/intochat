@@ -7,7 +7,6 @@
     <Compile Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/TelemetryExportBarrier.cs" Link="TelemetryExportBarrier.cs" />
     <!-- The protocol, the session connection and the client behaviors connect through; shared, never reloaded per behavior. -->
     <ProjectReference Include="../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />

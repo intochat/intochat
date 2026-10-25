@@ -2,11 +2,9 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.Authority.Keys;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Orleans.Metadata;
 using Orleans.Runtime;
 using Orleans.Serialization;
@@ -16,7 +14,7 @@ namespace IntoChat.OS.Kernel.Testing.Storage;
 
 // Storage fixtures (clean-core W1, section 4.4): brain logs and grain-state payloads written by a reproducible build,
 // sealed under the checked-in TestSealKey, so every later build proves it still reads them. A fixture directory holds
-// It lives in this unpublished test-support project because it opens Authority internals (the brain log and its keys).
+// It lives in this unpublished test-support project and reads stores through Authority's public BrainStoreLayout.
 // fixture.json, brain-store/ (the brain directories as the host wrote them, minus their writer locks) and grain-state/.
 public static class StorageFixtures
 {
@@ -42,15 +40,11 @@ public static class StorageFixtures
     }
 
     // Writes the brain's state into a snapshot and starts a fresh segment in the host's write format.
-    public static async Task CheckpointAsync(IServiceProvider services, string brainId, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        var log = await services.GetRequiredService<BrainLogs>().For(brainId).WaitAsync(ct).ConfigureAwait(false);
-        await log.Checkpoint(ct).ConfigureAwait(false);
-    }
+    public static Task CheckpointAsync(IServiceProvider services, string brainId, CancellationToken ct)
+        => BrainStoreLayout.CheckpointAsync(services, brainId, ct);
 
     // The directory a brain's log lives in under a brain store.
-    public static string DirectoryOf(string brainStore, string brainId) => Keys(brainStore).DirectoryOf(brainId);
+    public static string DirectoryOf(string brainStore, string brainId) => BrainStoreLayout.DirectoryOf(brainStore, brainId);
 
     // The platform grain state a host keeps in memory, re-encoded the way Azure blob grain storage writes it.
     public static IEnumerable<(string Store, string GrainId, string StateName, byte[] Payload)> GrainStatePayloads(IServiceProvider services)
@@ -85,31 +79,26 @@ public static class StorageFixtures
     public static async Task<StorageFixtureRead> ReadBrainAsync(IServiceProvider services, string brainStore, string brainId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var keys = Keys(brainStore);
-        var directory = keys.DirectoryOf(brainId);
-        // GetOrCreate would mint a key for a missing brain; a fixture brain always carries its own.
-        if (!File.Exists(Path.Combine(directory, "brain.key"))) { throw new FileNotFoundException($"Fixture brain {brainId} has no brain.key.", directory); }
-        var key = await keys.GetOrCreate(brainId, ct).ConfigureAwait(false);
+        // The layout reader never mints a key: a fixture brain always carries its own.
+        var read = await BrainStoreLayout.ReadAsync(Encoding.UTF8.GetBytes(TestSealKey.Base64), brainStore, brainId, services.GetRequiredService<Serializer>(), ct)
+            .ConfigureAwait(false);
         var types = new StateTypes(services);
         var objects = services.GetRequiredService<ObjectSerializer>();
-        await using var log = new BrainLog(directory, brainId, key, services.GetRequiredService<Serializer>());
         var records = new List<StorageFixtureRecord>();
         var unreadable = new List<string>();
-        foreach (var (grainId, stateName) in (await log.RecordKeys().ConfigureAwait(false)).OrderBy(pair => pair.GrainId, StringComparer.Ordinal).ThenBy(pair => pair.StateName, StringComparer.Ordinal))
+        foreach (var (grainId, stateName, bytes) in read.Records)
         {
-            var record = (await log.Read(grainId, stateName).ConfigureAwait(false))!;
             if (types.Find(grainId, stateName) is not { } type) { unreadable.Add($"{grainId} {stateName}: no state type"); continue; }
             try
             {
-                var value = objects.Deserialize(record.Record, type);
+                var value = objects.Deserialize(bytes, type);
                 if (value is null || !type.IsInstanceOfType(value)) { unreadable.Add($"{grainId} {stateName}: read {value?.GetType().FullName ?? "null"}, not {type.FullName}"); }
                 else { records.Add(new(grainId, stateName, type)); }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             { unreadable.Add($"{grainId} {stateName}: {type.FullName}: {error.GetType().Name}: {error.Message}"); }
         }
-        var signals = await log.ReadSignals(0, int.MaxValue, null, ct).ConfigureAwait(false);
-        return new(brainId, log.Format, File.Exists(Path.Combine(directory, "current")), [.. records], [.. unreadable], [.. signals.Select(signal => signal.Signal)]);
+        return new(brainId, read.Format, read.HasSnapshot, [.. records], [.. unreadable], [.. read.Signals]);
     }
 
     // Reads one grain-state payload with its CLR type through the blob storage serializer.
@@ -126,9 +115,6 @@ public static class StorageFixtures
 
     private static BinaryData Serialize(IGrainStorageSerializer serializer, Type type, object? value)
         => (BinaryData)typeof(IGrainStorageSerializer).GetMethod(nameof(IGrainStorageSerializer.Serialize))!.MakeGenericMethod(type).Invoke(serializer, [value])!;
-
-    private static BrainStorageKeys Keys(string brainStore)
-        => new(new ConfiguredMasterKeyCustody(Encoding.UTF8.GetBytes(TestSealKey.Base64)), Options.Create(new BrainStoreOptions { Directory = brainStore }));
 
     // (grain type, state name) -> the state's CLR type, from every loaded grain class's [PersistentState] parameters and
     // the grain type the silo resolves for it (implicit names included).

@@ -15,7 +15,4 @@
     <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Connections.Tests.Unit" /></ItemGroup>
-  <!-- Class B grants, resolved in 02-09c; pinned in InternalsVisibleToBaseline.json. -->
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
 </Project>

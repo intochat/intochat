@@ -7,11 +7,11 @@ using IntoChat.OS.Client.Runtime.V1;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // Downloads a behavior's assembly by hash into a content-addressed cache, refuses bytes that do not
 // hash to their name, and runs it in its own collectible load context.
-internal sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptions> options)
+public sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptions> options)
 {
     public async Task<BehaviorRun> LoadAsync(SessionConnection session, AssignmentEvent assignment, ILogger logger, CancellationToken cancellationToken)
     {

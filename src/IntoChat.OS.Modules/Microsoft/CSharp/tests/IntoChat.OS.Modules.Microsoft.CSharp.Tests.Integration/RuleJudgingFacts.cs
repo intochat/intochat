@@ -8,7 +8,7 @@ using IntoChat.OS.Microsoft.CSharp;
 using IntoChat.OS.Microsoft.CSharp.Assemblies;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Sandbox;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using IntoChat.OS.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

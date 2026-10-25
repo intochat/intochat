@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Architecture.Tests.Unit;
+namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
 // Orleans 10.4 bytes captured from the Orleans-attributed build at bdb79fc21 (TimerTick and envelope values match the
 // W1 codegen spike's capture). Each value is the hex of one sample in GoldenBytesFacts; never edit one to make a fact pass.

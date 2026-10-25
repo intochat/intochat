@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Sandbox;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -71,7 +71,7 @@ public sealed class BehaviorLoaderFacts
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference> RunAndUnloadAsync(BehaviorLoader loader, SessionConnection session, IntoChat.OS.Client.Runtime.V1.AssignmentEvent assignment, CancellationToken ct)
     {
-        IntoChat.OS.Microsoft.CSharp.Sandbox.BehaviorRun? run = await loader.LoadAsync(session, assignment, NullLogger.Instance, ct);
+        IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.BehaviorRun? run = await loader.LoadAsync(session, assignment, NullLogger.Instance, ct);
         Assert.Equal(0, await run.Completion);
         Assert.Contains("ran", run.Tail(10), StringComparison.Ordinal);
         var context = new WeakReference(run.Context);

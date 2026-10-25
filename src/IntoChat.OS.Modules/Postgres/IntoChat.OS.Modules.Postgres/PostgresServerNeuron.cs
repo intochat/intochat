@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Postgres.Tables;

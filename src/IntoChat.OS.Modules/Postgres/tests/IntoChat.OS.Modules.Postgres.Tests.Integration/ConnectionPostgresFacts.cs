@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Postgres;
 using Microsoft.Extensions.DependencyInjection;

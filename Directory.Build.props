@@ -71,7 +71,7 @@
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
        and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->
-  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
+  <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:IntoChatOSTestTier`. -->
@@ -93,7 +93,7 @@
     <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
     <NoWarn>$(NoWarn);ORLEANSEXP005;CS1591</NoWarn>
   </PropertyGroup>
-  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
+  <ItemGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
     <Using Include="IntoChat.OS.Testing" />

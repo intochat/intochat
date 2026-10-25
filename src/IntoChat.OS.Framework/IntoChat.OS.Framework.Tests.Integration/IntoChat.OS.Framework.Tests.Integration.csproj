@@ -3,6 +3,8 @@
     <RootNamespace>IntoChat.OS.Framework.Tests.Integration</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Runtime/NeuronAddressFacts walks every neuron in the architecture project's contract manifest. -->
+    <None Include="../../Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json" Link="ContractManifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />

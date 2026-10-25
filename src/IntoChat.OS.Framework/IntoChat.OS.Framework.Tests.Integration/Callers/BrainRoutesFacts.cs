@@ -10,12 +10,10 @@ public sealed class BrainRoutesFacts(FrameworkHost host)
     [Fact]
     public async Task AnInvalidBrainIdIsRejectedBeforeAnyGrainCall()
     {
-        var http = new DefaultHttpContext();
-        http.Request.RouteValues["brainId"] = "..%2Fescape/";
+        var (status, handlerRan) = await Invoke("..%2Fescape/", authorized: false, session: true);
 
-        var result = await BrainRoutes.ValidateId(http);
-
-        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result!).StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.False(handlerRan);
     }
 
     [Fact]
@@ -53,14 +51,14 @@ public sealed class BrainRoutesFacts(FrameworkHost host)
         Assert.False(handlerRan);
     }
 
-    private static async Task<(int Status, bool HandlerRan)> Invoke(string brainId, bool authorized)
+    private static async Task<(int Status, bool HandlerRan)> Invoke(string brainId, bool authorized, bool session = false)
     {
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Services.AddSingleton<IBrainAccess, DenyEveryone>();
         IEndpointRouteBuilder app = builder.Build();
         var handlerRan = false;
-        BrainRoutes.Group(app).MapGet("/ping", () => { handlerRan = true; return Results.Ok(); });
+        (session ? BrainRoutes.SessionGroup(app) : BrainRoutes.Group(app)).MapGet("/ping", () => { handlerRan = true; return Results.Ok(); });
         var endpoint = app.DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Single();
 
         var http = new DefaultHttpContext { RequestServices = ((IApplicationBuilder)app).ApplicationServices };

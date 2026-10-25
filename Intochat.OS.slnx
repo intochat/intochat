@@ -94,9 +94,9 @@
   </Folder>
   <Folder Name="/Modules/Google/Gmail/">
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Testing/IntoChat.OS.Modules.Google.Gmail.Testing.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Integration/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Support/IntoChat.OS.Modules.Google.Gmail.Tests.Support.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Unit/IntoChat.OS.Modules.Google.Gmail.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/" />
@@ -208,6 +208,7 @@
   <Folder Name="/Testing/">
     <Project Path="src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Testing.Aspire.Tests.Integration/IntoChat.OS.Testing.Aspire.Tests.Integration.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Aspire/IntoChat.OS.Testing.Aspire.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />
     <Project Path="src/Testing/IntoChat.OS.Testing.Playwright/IntoChat.OS.Testing.Playwright.csproj" />

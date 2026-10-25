@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using IntoChat.OS.Testing.Aspire.Diagnostics;
 
-namespace IntoChat.OS.Testing.Tests.Integration;
+namespace IntoChat.OS.Testing.Aspire.Tests.Integration;
 
 public sealed class DashboardTelemetryFacts
 {

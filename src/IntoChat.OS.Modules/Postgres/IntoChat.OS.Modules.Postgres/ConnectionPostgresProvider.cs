@@ -1,11 +1,7 @@
+using IntoChat.OS.Modules.Postgres;
 using Npgsql;
 
 namespace IntoChat.OS.Postgres;
-
-internal interface IConnectionPostgresProviderFactory
-{
-    IPostgresProvider ForConnectionString(string connectionString);
-}
 
 internal sealed class ConnectionPostgresProviderFactory : IConnectionPostgresProviderFactory
 {

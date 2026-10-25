@@ -4,14 +4,14 @@ using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // One brain's connection and its loaded behaviors. The control loop follows the brain's stream: ready
 // names the desired set, an assignment loads (or swaps) one behavior, a retirement unloads it, a logs request is answered from
 // its ring buffer. Every load and every exit is reported. A behavior the brain did not retire is the
 // host's to keep alive: an exit is reported and the behavior is loaded again after a growing backoff,
 // until the brain retires it or assigns it a different hash.
-internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null, TimeProvider? time = null) : IAsyncDisposable
+public sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null, TimeProvider? time = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ReloadCap = TimeSpan.FromSeconds(60);
 

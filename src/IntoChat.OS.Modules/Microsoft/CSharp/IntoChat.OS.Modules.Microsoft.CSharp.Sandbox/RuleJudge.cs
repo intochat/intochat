@@ -4,14 +4,14 @@ using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // Runs an app's rules (ILogic<T> in its shared classes) against one signal, inside the brain's session:
 // each brain's rules load into their own context, so statics never cross brains. Anything that fails
 // while loading or running a rule is that rule's rejection; a rule never fails open. Each rule runs on a
 // dedicated thread from a small per-session budget (a hung thread cannot be stopped, only fenced in), and a
 // rule that misses its budget is quarantined until the bundle changes: it is rejected without running.
-internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> options)
+public sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> options)
 {
     private const int Capacity = 256;
     private const string Library = "rules";

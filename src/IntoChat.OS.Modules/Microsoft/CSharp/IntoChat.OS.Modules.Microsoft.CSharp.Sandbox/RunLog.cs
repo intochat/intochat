@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 internal sealed class RunLog(int capacity)
 {

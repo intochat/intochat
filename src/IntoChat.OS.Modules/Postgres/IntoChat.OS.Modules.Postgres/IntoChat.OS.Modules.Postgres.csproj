@@ -12,8 +12,6 @@
     <PackageReference Include="Npgsql" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Postgres.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Postgres.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

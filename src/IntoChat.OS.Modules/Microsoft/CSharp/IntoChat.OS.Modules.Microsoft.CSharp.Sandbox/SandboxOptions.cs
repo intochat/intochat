@@ -1,6 +1,6 @@
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
-internal sealed class SandboxOptions
+public sealed class SandboxOptions
 {
     public const string SectionName = "Sandbox";
 

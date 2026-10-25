@@ -1,6 +1,6 @@
 using IntoChat.OS.Client.Runtime.V1;
 
-namespace IntoChat.OS.Microsoft.CSharp.Sandbox;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 internal static class SandboxEndpoints
 {

@@ -135,7 +135,7 @@ if ($Out) {
     New-Item -ItemType Directory -Force -Path $Out | Out-Null
     $copies = [ordered]@{}
     foreach ($name in $pins.Keys) { $copies[$name] = $pins[$name] }
-    $copies['Golden.cs'] = Join-Path $archDir 'Golden.cs'
+    $copies['Golden.cs'] = Join-Path $root 'src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/Storage/Golden.cs'
     $copies['fixture.json'] = Join-Path $root $fixtureManifest[0]
     foreach ($name in $copies.Keys) {
         # Normalise line endings so snapshots compare equal on any checkout.

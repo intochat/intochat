@@ -7,6 +7,5 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
-    <InternalsVisibleTo Include="IntoChat.OS.Client.Orleans.Tests.Integration" />
   </ItemGroup>
 </Project>
