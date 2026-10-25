@@ -193,7 +193,7 @@ static IReadOnlyDictionary<string, Type> Load(Func<Type, bool> accept)
     var map = new Dictionary<string, Type>();
     foreach (var type in AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf).Where(accept))
     {
-        if (NeuronAliasAttribute.Of(type) is { } alias) { map.TryAdd(alias, type); }
+        if (NeuronAliases.Of(type) is { } alias) { map.TryAdd(alias, type); }
     }
     return map;
 }

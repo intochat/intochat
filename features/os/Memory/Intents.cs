@@ -23,7 +23,7 @@ internal static class Intents
     // A signal cue matches by alias alone, or by alias and one top-level property holding exactly EqualTo as a string.
     public static bool CueMatches(Cue cue, Signal signal)
     {
-        if (cue.SignalAlias != NeuronAliasAttribute.Of(signal.GetType())) { return false; }
+        if (cue.SignalAlias != NeuronAliases.Of(signal.GetType())) { return false; }
         if (cue.Field is not { Length: > 0 } field) { return true; }
         var json = JsonSerializer.SerializeToElement(signal, signal.GetType());
         if (json.ValueKind != JsonValueKind.Object) { return false; }
