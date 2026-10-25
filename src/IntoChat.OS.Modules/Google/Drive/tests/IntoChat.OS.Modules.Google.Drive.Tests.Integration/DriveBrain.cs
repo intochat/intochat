@@ -7,14 +7,14 @@ namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
 // A brain with google-auth and google-drive only (no Gmail) whose Drive is the loopback stub.
 internal static class DriveBrain
 {
-    public static TestBrain Compose(DriveStub drive) => TestBrain.Create()
+    public static TestBrain Compose(TestBrain brain, DriveStub drive) => brain
         .WithModule<GoogleAuthModule, GoogleAuthModuleOptions>()
         .WithModule<DriveModule, DriveModuleOptions>(options => options.Endpoint = drive.Endpoint)
         .WithIntegration(GoogleAuthModule.Integration, "ClientId", "integration-client")
         .WithIntegration(GoogleAuthModule.Integration, "ClientSecret", "integration-secret")
         .WithConfiguration(IntoChatOSConfiguration.ConnectionsPublicOriginKey, new Uri(drive.Endpoint, "/").AbsoluteUri);
 
-    public static Task<ITestBrain> StartAsync(DriveStub drive, CancellationToken ct) => Compose(drive).StartAsync(ct);
+    public static Task<ITestBrain> StartAsync(DriveStub drive, CancellationToken ct) => Compose(TestBrain.Create(), drive).StartAsync(ct);
 
     public static IGrainFactory Grains(this ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 }

@@ -8,22 +8,21 @@ using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
 
-// Google Drive through the storage capability, against the Drive stub.
-public sealed class DriveStorageFacts
+// Google Drive through the storage capability, against the Drive stub; each fact works in its own person's brain.
+public sealed class DriveStorageFacts(DriveHost host)
 {
-    [Trait("host", "own")]
     [Fact]
     public async Task AConnectedDriveIsDiscoveredAsStorageAndBrowsedWithItsToken()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var drive = await DriveStub.StartAsync(ct);
-        await using var brain = await DriveBrain.StartAsync(drive, ct);
-        var key = ConnectionKeys.For(brain.Owner.BrainId, DriveModule.Connector.Id, "primary");
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync("drive", ct);
+        var key = ConnectionKeys.For(person.BrainId, DriveModule.Connector.Id, "primary");
+        using var caller = person.AsCaller();
         var view = await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
         Assert.Equal("user@gmail.com", view.Account);
 
-        var connection = Assert.Single(await brain.Get<IConnectionRequests>(brain.Owner.BrainId).ListConnections(), item => item.Neuron == key);
+        var connection = Assert.Single(await brain.Get<IConnectionRequests>(person.BrainId).ListConnections(), item => item.Neuron == key);
         Assert.Contains(IStorage.Capability, connection.Capabilities);
 
         var storage = brain.Get<IStorage>(key);
@@ -34,8 +33,8 @@ public sealed class DriveStorageFacts
         Assert.Equal("hello from drive", await storage.Read(file.Location, ct));
         Assert.Equal("exported plan", await storage.Read(top[1].Location, ct));
         Assert.Equal(["My Drive", "Notes", "a.txt"], (await storage.Ancestors(file.Location, ct)).Select(entry => entry.Name));
-        Assert.Equal("Bearer drive-token", drive.LastAuthorization);
-        var page = (await brain.Owner.Http.GetFromJsonAsync<ComputeTracePage>($"/brains/{brain.Owner.BrainId}/compute/traces/{TraceContext.Current!.TraceId}", new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } }, ct))!;
+        Assert.Equal("Bearer drive-token", host.Drive.LastAuthorization);
+        var page = (await person.Http.GetFromJsonAsync<ComputeTracePage>($"/brains/{person.BrainId}/compute/traces/{TraceContext.Current!.TraceId}", new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } }, ct))!;
         Assert.Contains(page.Rows, cost => cost.Item == "google.drive.files.get.media");
         Assert.Contains(page.Rows, cost => cost.Item == "google.drive.files.export");
         Assert.Contains(page.Rows, cost => cost.Item == "google.drive.about.get");
@@ -51,15 +50,14 @@ public sealed class DriveStorageFacts
         });
     }
 
-    [Trait("host", "own")]
     [Fact]
     public async Task AFolderIsNotReadAsText()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var drive = await DriveStub.StartAsync(ct);
-        await using var brain = await DriveBrain.StartAsync(drive, ct);
-        var key = ConnectionKeys.For(brain.Owner.BrainId, DriveModule.Connector.Id, "primary");
-        using var caller = brain.Owner.AsCaller();
+        var brain = host.Brain;
+        var person = await host.PersonAsync("drive", ct);
+        var key = ConnectionKeys.For(person.BrainId, DriveModule.Connector.Id, "primary");
+        using var caller = person.AsCaller();
         await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IStorage>(key).Read("notes", ct));

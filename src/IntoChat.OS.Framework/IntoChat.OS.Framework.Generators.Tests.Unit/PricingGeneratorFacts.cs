@@ -108,6 +108,25 @@ public sealed class PricingGeneratorFacts
         public sealed partial class PricedModule : Module;
         """);
 
+    // A module that bills against another module's integration names it with [UsesIntegration]; no schema is emitted for it.
+    [Fact]
+    public void AUsedIntegrationOwnsOperationsWithoutDeclaringTheIntegration()
+    {
+        var source = Header + """
+
+        [Module("borrower")]
+        [UsesIntegration("api")]
+        [ModulePriceList(typeof(PriceList))]
+        [ExternalOperation("provider.read", "api", "request")]
+        public sealed partial class BorrowerModule : Module;
+        """;
+        var result = GeneratorHarness.CreateDriver().RunGenerators(GeneratorHarness.Compile(source), TestContext.Current.CancellationToken).GetRunResult();
+        Assert.Empty(result.Diagnostics);
+        var generated = Assert.Single(result.Results.Single().GeneratedSources).SourceText.ToString();
+        Assert.Contains("\"provider.read\", \"api\", \"request\"", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Integration { get; }", generated, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DuplicateOperationsReportIOS0008EvenWithDifferentUnits()
         => Diagnostic("IOS0008", """

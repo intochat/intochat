@@ -118,5 +118,6 @@
   "IntoChat.OS.Connections/Hosting/IdentityBrainMembership.cs": 2,
   "IntoChat.OS.Connections/Platform/Connections/ConnectionGrains.cs": 8,
   "IntoChat.OS.Connections/Platform/Connections/ConnectionNeuron.cs": 3,
-  "IntoChat.OS.Modules.Google.Gmail.Tests.Support/GmailBrain.cs": 2
+  "IntoChat.OS.Modules.Google.Gmail.Tests.Support/GmailBrain.cs": 2,
+  "IntoChat.OS.Modules.Google.Drive.Tests.Integration/DriveBrain.cs": 2
 }
