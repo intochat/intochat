@@ -16,6 +16,10 @@ public sealed class PinFreshnessFacts
         "SynapseWordAllowlist.json",
         FrameworkHasNoVendorSdksFacts.BaselineFile,
         AppsHaveNoModuleIdsFacts.BaselineFile,
+        "NeuronsStillGrains.json",
+        "OrleansAttributeOwners.json",
+        "GrainInterfaceOwners.json",
+        "NeuronGrainTypes.json",
     ];
 
     [Fact]
@@ -34,6 +38,10 @@ public sealed class PinFreshnessFacts
                 new SynapseWordFacts().CaptureSynapseWordAllowlist();
                 new FrameworkHasNoVendorSdksFacts().CaptureFrameworkVendorBaseline();
                 new AppsHaveNoModuleIdsFacts().CaptureAppsModuleIdBaseline();
+                new NeuronMigrationFacts().CaptureNeuronsStillGrains();
+                new NeuronMigrationFacts().CaptureOrleansAttributeOwners();
+                new NeuronMigrationFacts().CaptureGrainInterfaceOwners();
+                new NeuronMigrationFacts().CaptureNeuronGrainTypes();
             }
             var stale = new List<string>();
             foreach (var file in Files)

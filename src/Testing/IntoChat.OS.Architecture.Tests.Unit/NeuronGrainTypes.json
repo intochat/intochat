@@ -1,0 +1,1092 @@
+{
+  "IntoChat.Cloud.Circle.Server.MachineCredentialNeuron": {
+    "Type": "circle-server.machine-credential",
+    "Store": "cluster",
+    "StateName": "circle-server.machine-credential"
+  },
+  "IntoChat.OS.Architecture.Tests.Unit.PersistedStateRulesFacts+DirectStateGrain": {
+    "Type": "directstate",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Architecture.Tests.Unit.PersistedStateRulesFacts+InheritedStateGrain": {
+    "Type": "inheritedstate",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Authority.Compute.BrainComputeGrain": {
+    "Type": "brain-compute",
+    "Store": "platform",
+    "StateName": "brain-compute"
+  },
+  "IntoChat.OS.Authority.Compute.CircleShareGrain": {
+    "Type": "circle-share",
+    "Store": "platform",
+    "StateName": "circle-share"
+  },
+  "IntoChat.OS.Authority.Compute.LedgerGrain": {
+    "Type": "ledger",
+    "Store": "platform",
+    "StateName": "ledger"
+  },
+  "IntoChat.OS.Authority.Compute.TraceBudgetGrain": {
+    "Type": "trace-budget",
+    "Store": "platform",
+    "StateName": "trace-budget"
+  },
+  "IntoChat.OS.Authority.Compute.TraceJournalGrain": {
+    "Type": "compute-trace-journal",
+    "Store": "platform",
+    "StateName": "compute-trace-journal"
+  },
+  "IntoChat.OS.Authority.Compute.UsageGrain": {
+    "Type": "usage",
+    "Store": "platform",
+    "StateName": "usage"
+  },
+  "IntoChat.OS.Authority.Connections.ConnectionIndexNeuron": {
+    "Type": "connection.index",
+    "Store": "platform",
+    "StateName": "connections"
+  },
+  "IntoChat.OS.Authority.Connections.ConnectionRequestsNeuron": {
+    "Type": "integrations.accounts",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": {
+    "Type": "brain.entries",
+    "Store": "platform",
+    "StateName": "entries"
+  },
+  "IntoChat.OS.Authority.Identity.Authority.AccountGrain": {
+    "Type": "identity.account.v2",
+    "Store": "platform",
+    "StateName": "account"
+  },
+  "IntoChat.OS.Authority.Identity.Authority.BrainAuthorityGrain": {
+    "Type": "identity.brain-access.v2",
+    "Store": "platform",
+    "StateName": "access"
+  },
+  "IntoChat.OS.Authority.Identity.Authority.PrincipalGrain": {
+    "Type": "identity.principal.v2",
+    "Store": "platform",
+    "StateName": "principal"
+  },
+  "IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron": {
+    "Type": "identity-directory",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": {
+    "Type": "identity.external-ticket-replay",
+    "Store": "platform",
+    "StateName": "external-ticket-replay"
+  },
+  "IntoChat.OS.Authority.Identity.PrincipalCredentialGrain": {
+    "Type": "identity.principal-credential",
+    "Store": "platform",
+    "StateName": "credential"
+  },
+  "IntoChat.OS.Authority.Integrations.IntegrationNeuron": {
+    "Type": "integration.registration",
+    "Store": "platform",
+    "StateName": "registration"
+  },
+  "IntoChat.OS.Authority.Marketplace.MarketplaceGrain": {
+    "Type": "platform.marketplace",
+    "Store": "platform",
+    "StateName": "marketplace"
+  },
+  "IntoChat.OS.Authority.Secrets.SecretsNeuron": {
+    "Type": "vault",
+    "Store": "platform",
+    "StateName": "vault"
+  },
+  "IntoChat.OS.Authority.Tests.Integration.Connections.ExampleConnectionNeuron": {
+    "Type": "example",
+    "Store": "cluster",
+    "StateName": "example"
+  },
+  "IntoChat.OS.Authority.Tests.Integration.Connections.SampleConnectionNeuron": {
+    "Type": "sample",
+    "Store": "cluster",
+    "StateName": "sample"
+  },
+  "IntoChat.OS.Authority.Tests.Integration.ShareProbeGrain": {
+    "Type": "shareprobe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Authority.Tests.Integration.Storage.LocalCounter": {
+    "Type": "test.local-counter",
+    "Store": "cluster",
+    "StateName": "s"
+  },
+  "IntoChat.OS.Authority.Tests.Integration.Storage.OutsideCounterGrain": {
+    "Type": "test.outside-counter",
+    "Store": "cluster",
+    "StateName": "counter"
+  },
+  "IntoChat.OS.Authority.Tests.Integration.Storage.PartCounterNeuron": {
+    "Type": "test.part-counter",
+    "Store": "cluster",
+    "StateName": "counter"
+  },
+  "IntoChat.OS.Authority.Workshop.WorkshopNeuron": {
+    "Type": "platform.workshop",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.EagerEmitter": {
+    "Type": "test-eager-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.FlakyEmitter": {
+    "Type": "test-flaky-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.OtherEmitter": {
+    "Type": "other-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.SiloBrainListener": {
+    "Type": "silo-brain-listener",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.TestEmitter": {
+    "Type": "test-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Client.Orleans.Tests.Integration.TestRegistry": {
+    "Type": "test-registry",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.BrainNeuron": {
+    "Type": "brain",
+    "Store": "cluster",
+    "StateName": "brain"
+  },
+  "IntoChat.OS.Framework.BrainSignalReaderGrain": {
+    "Type": "brain.signal-reader",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.CompiledTypeTableGrain": {
+    "Type": "kernel.compiledtypes",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.InstanceDirectoryGrain": {
+    "Type": "kernel.instances",
+    "Store": "cluster",
+    "StateName": "instances"
+  },
+  "IntoChat.OS.Framework.InstanceTypesGrain": {
+    "Type": "kernel.types",
+    "Store": "cluster",
+    "StateName": "types"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.ChattySource": {
+    "Type": "test-chatty-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.CounterNeuron": {
+    "Type": "test-counter",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.CycleSource": {
+    "Type": "test-cycle-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.CycleSubscriber": {
+    "Type": "test-cycle-subscriber",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.DeliveryObserver": {
+    "Type": "test-delivery-observer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.DeliverySource": {
+    "Type": "test-delivery-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.FilteredObserver": {
+    "Type": "test-filtered-observer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.FilteredSource": {
+    "Type": "test-filtered-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Kernel.LedgerNeuron": {
+    "Type": "test-ledger",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Kernel.PlainGrain": {
+    "Type": "test-plain",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.ManyObserver": {
+    "Type": "test-many-observer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.ManySource": {
+    "Type": "test-many-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.OtherEmitter": {
+    "Type": "other-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.ProbeNeuron": {
+    "Type": "test-probe",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.RelayObserver": {
+    "Type": "test-relay-observer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.ContextProbe": {
+    "Type": "contextprobe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingPinger": {
+    "Type": "hangingpinger",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingWatchSource": {
+    "Type": "hangingwatchsource",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingWatcher": {
+    "Type": "hangingwatcher",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.MarkedNeuron": {
+    "Type": "markedneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.Runtime.SkippingProbe": {
+    "Type": "skippingprobe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.SiloBrainListener": {
+    "Type": "silo-brain-listener",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.TallyNeuron": {
+    "Type": "test-tally",
+    "Store": "cluster",
+    "StateName": "tally"
+  },
+  "IntoChat.OS.Framework.Tests.Integration.TestEmitter": {
+    "Type": "test-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.TraceObserver": {
+    "Type": "test-trace-observer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.Tests.Integration.TraceSource": {
+    "Type": "test-trace-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Framework.TypeTableGrain": {
+    "Type": "kernel.typetable",
+    "Store": "cluster",
+    "StateName": "features"
+  },
+  "IntoChat.OS.Kernel.Testing.Demo.Bitcoin": {
+    "Type": "bitcoin",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Kernel.Testing.Demo.TwitterAccount": {
+    "Type": "twitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Agents.AgentNeuron": {
+    "Type": "agent",
+    "Store": "cluster",
+    "StateName": "agent"
+  },
+  "IntoChat.OS.Modules.AI.Agents.Context.AgentContextNeuron": {
+    "Type": "agent-context",
+    "Store": "cluster",
+    "StateName": "agent-context"
+  },
+  "IntoChat.OS.Modules.AI.Agents.Facts.FactsNeuron": {
+    "Type": "facts",
+    "Store": "cluster",
+    "StateName": "facts"
+  },
+  "IntoChat.OS.Modules.AI.Agents.Intents.IntentsNeuron": {
+    "Type": "intents",
+    "Store": "cluster",
+    "StateName": "intents"
+  },
+  "IntoChat.OS.Modules.AI.Embeddings.VectorIndexNeuron": {
+    "Type": "ai.vector-index",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.AI.GroupChat.GroupChatNeuron": {
+    "Type": "ai.group-chat",
+    "Store": "cluster",
+    "StateName": "ai.group-chat"
+  },
+  "IntoChat.OS.Modules.AI.Media.EmbeddingNeuron": {
+    "Type": "embeddingneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Media.ImageGeneratorNeuron": {
+    "Type": "imagegeneratorneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Media.SpeechRecognizerNeuron": {
+    "Type": "speechrecognizerneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Media.SpeechSynthesizerNeuron": {
+    "Type": "speechsynthesizerneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Metering.IntentUsageNeuron": {
+    "Type": "ai-intent-usage",
+    "Store": "cluster",
+    "StateName": "intent-usage"
+  },
+  "IntoChat.OS.Modules.AI.Models.Anthropic.Fable5Neuron": {
+    "Type": "ai.llm.fable5",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Anthropic.Haiku45Neuron": {
+    "Type": "ai.llm.haiku45",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Anthropic.Opus5Neuron": {
+    "Type": "ai.llm.opus5",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Anthropic.Sonnet5Neuron": {
+    "Type": "ai.llm.sonnet5",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Google.Gemini31ProNeuron": {
+    "Type": "ai.llm.gemini31pro",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Google.Gemini36FlashNeuron": {
+    "Type": "ai.llm.gemini36flash",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Google.Gemini36ProNeuron": {
+    "Type": "ai.llm.gemini36pro",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.LlmNeuron": {
+    "Type": "ai.llm",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.ModelCatalogNeuron": {
+    "Type": "ai.models",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Ollama.Gemma4Neuron": {
+    "Type": "ai.llm.gemma4",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.Ollama.Qwen35Neuron": {
+    "Type": "ai.llm.qwen35",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt54MiniNeuron": {
+    "Type": "ai.llm.gpt54mini",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt54NanoNeuron": {
+    "Type": "ai.llm.gpt54nano",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt54Neuron": {
+    "Type": "ai.llm.gpt54",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt56LunaNeuron": {
+    "Type": "ai.llm.gpt56luna",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt56SolNeuron": {
+    "Type": "ai.llm.gpt56sol",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenAI.Gpt56TerraNeuron": {
+    "Type": "ai.llm.gpt56terra",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.OpenRouter.DeepSeekV41FlashNeuron": {
+    "Type": "ai.llm.deepseek-v41-flash",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Models.XAI.Grok46Neuron": {
+    "Type": "ai.llm.grok46",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Routing.RouterNeuron": {
+    "Type": "ai.router",
+    "Store": "cluster",
+    "StateName": "router"
+  },
+  "IntoChat.OS.Modules.AI.SystemOneNeuron": {
+    "Type": "ai.systemone",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.AI.Tests.Integration.Agents.LoopProbe": {
+    "Type": "test-loop-probe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.AppNeuron": {
+    "Type": "apps.app2",
+    "Store": "cluster",
+    "StateName": "app2"
+  },
+  "IntoChat.OS.Modules.Apps.AppStoreNeuron": {
+    "Type": "apps.store",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.AppStudioNeuron": {
+    "Type": "apps.studio",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.CreatorModelWorker": {
+    "Type": "apps.creator-model",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.FeatureReconciler": {
+    "Type": "apps.reconciler",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.MarketplaceNeuron": {
+    "Type": "apps.marketplace",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Apps.Tests.FixtureDriveNeuron": {
+    "Type": "drive",
+    "Store": "cluster",
+    "StateName": "drive"
+  },
+  "IntoChat.OS.Modules.Apps.Tests.FixtureMailboxNeuron": {
+    "Type": "mailbox",
+    "Store": "cluster",
+    "StateName": "mailbox"
+  },
+  "IntoChat.OS.Modules.Apps.Tests.Integration.ScriptedRuntime": {
+    "Type": "microsoft.csharp.runtime",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.ArtCraft.ArtCraftStudioNeuron": {
+    "Type": "artcraft.studio",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Circles.CircleChatNeuron": {
+    "Type": "circles.chat",
+    "Store": "cluster",
+    "StateName": "circles.chat"
+  },
+  "IntoChat.OS.Modules.Circles.CircleFactoryNeuron": {
+    "Type": "circles.factory",
+    "Store": "cluster",
+    "StateName": "circles.factory"
+  },
+  "IntoChat.OS.Modules.Circles.CircleInvitesNeuron": {
+    "Type": "circles.invites",
+    "Store": "cluster",
+    "StateName": "circles.invites"
+  },
+  "IntoChat.OS.Modules.Circles.CircleNeuron": {
+    "Type": "circles.circle",
+    "Store": "cluster",
+    "StateName": "circles.circle"
+  },
+  "IntoChat.OS.Modules.Circles.InviteCodeNeuron": {
+    "Type": "circles.invite-code",
+    "Store": "cluster",
+    "StateName": "circles.invite-code"
+  },
+  "IntoChat.OS.Modules.Circles.InviteKeyNeuron": {
+    "Type": "circles.invite-key",
+    "Store": "cluster",
+    "StateName": "circles.invite-key"
+  },
+  "IntoChat.OS.Modules.Circles.Tests.SharedConnectionNeuron": {
+    "Type": "shared",
+    "Store": "cluster",
+    "StateName": "shared"
+  },
+  "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseNeuron": {
+    "Type": "clickhouse",
+    "Store": "cluster",
+    "StateName": "clickhouse"
+  },
+  "IntoChat.OS.Modules.Flame.SceneNeuron": {
+    "Type": "scene",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Button.ButtonNeuron": {
+    "Type": "button",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Calendar.CalendarNeuron": {
+    "Type": "calendar",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Card.CardNeuron": {
+    "Type": "card",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Chart.ChartNeuron": {
+    "Type": "chart",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Chat.ChatIndexNeuron": {
+    "Type": "chat-index",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Chat.ChatNeuron": {
+    "Type": "chat",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Chat.ComposerNeuron": {
+    "Type": "composer",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Clock.ClockNeuron": {
+    "Type": "clock",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Collection.CollectionNeuron": {
+    "Type": "collection",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Color.ColorNeuron": {
+    "Type": "color",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Compute.ComputeNeuron": {
+    "Type": "ui.compute",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Entries.EntryControlNeuron": {
+    "Type": "entrycontrol",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Expander.ExpanderNeuron": {
+    "Type": "expander",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.FileInput.FileInputNeuron": {
+    "Type": "fileinput",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Form.FormNeuron": {
+    "Type": "form",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Graph.GraphNeuron": {
+    "Type": "graph",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Image.ImageNeuron": {
+    "Type": "image",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.ImageCanvas.ImageCanvasNeuron": {
+    "Type": "imagecanvas",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.InfoBar.InfoBarNeuron": {
+    "Type": "infobar",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Layout.LayoutNeuron": {
+    "Type": "layout",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Map.MapNeuron": {
+    "Type": "map",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Person.PersonNeuron": {
+    "Type": "person",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Preferences.PreferenceControlNeuron": {
+    "Type": "preference",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Progress.ProgressNeuron": {
+    "Type": "progress",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Rating.RatingNeuron": {
+    "Type": "rating",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Select.SelectNeuron": {
+    "Type": "select",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Sheet.SheetNeuron": {
+    "Type": "sheet",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Slider.SliderNeuron": {
+    "Type": "slider",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Space.SpaceNeuron": {
+    "Type": "ui.space",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Surface.SurfaceNeuron": {
+    "Type": "surface",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Table.TableNeuron": {
+    "Type": "table",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Tabs.TabsNeuron": {
+    "Type": "tabs",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Tests.Integration.PrimitiveTestHandler": {
+    "Type": "test.primitive-handler",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace.Beater": {
+    "Type": "test.beater",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace.StubRuntime": {
+    "Type": "microsoft.csharp.runtime",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Text.TextNeuron": {
+    "Type": "text",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.TextField.TextFieldNeuron": {
+    "Type": "textfield",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Toggle.ToggleNeuron": {
+    "Type": "toggle",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Tree.TreeNeuron": {
+    "Type": "tree",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.UiBindingNeuron": {
+    "Type": "ui.binding",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Video.VideoNeuron": {
+    "Type": "video",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Viewport.ViewportNeuron": {
+    "Type": "viewport",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Views.ViewNeuron": {
+    "Type": "view",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.VoiceInput.VoiceInputNeuron": {
+    "Type": "voiceinput",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.WebBrowser.WebBrowserNeuron": {
+    "Type": "webbrowser",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsNeuron": {
+    "Type": "ui.problem-reports",
+    "Store": "cluster",
+    "StateName": "problem-reports"
+  },
+  "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceNeuron": {
+    "Type": "ui.workspace",
+    "Store": "cluster",
+    "StateName": "workspace"
+  },
+  "IntoChat.OS.Modules.Google.Drive.DriveNeuron": {
+    "Type": "google-drive",
+    "Store": "cluster",
+    "StateName": "google-drive"
+  },
+  "IntoChat.OS.Modules.Google.Gmail.GmailNeuron": {
+    "Type": "gmail",
+    "Store": "cluster",
+    "StateName": "gmail"
+  },
+  "IntoChat.OS.Modules.Mcp.McpServerNeuron": {
+    "Type": "mcp.server",
+    "Store": "cluster",
+    "StateName": "mcp.server"
+  },
+  "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateNeuron": {
+    "Type": "aspire.candidate",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateQueueNeuron": {
+    "Type": "aspire.candidates",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentNeuron": {
+    "Type": "aspire.deployment",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.Azure.AzureNeuron": {
+    "Type": "azure",
+    "Store": "cluster",
+    "StateName": "azure"
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileNeuron": {
+    "Type": "microsoft.csharp.file",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron": {
+    "Type": "microsoft.csharp.runs",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron": {
+    "Type": "microsoft.csharp.runtime",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.ConnectionProbe": {
+    "Type": "connectionprobe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.DeepWireProbe": {
+    "Type": "deepwireprobe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.ExpansionSource": {
+    "Type": "test-expansion-source",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.HangingSource": {
+    "Type": "hangingsource",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.HeldRetainer": {
+    "Type": "heldretainer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.Pinger": {
+    "Type": "pinger",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.RetainingSource": {
+    "Type": "retainingsource",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.SlowRetainer": {
+    "Type": "slowretainer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryIndex": {
+    "Type": "github.repository-index",
+    "Store": "cluster",
+    "StateName": "github-repository-index"
+  },
+  "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryNeuron": {
+    "Type": "github",
+    "Store": "cluster",
+    "StateName": "github"
+  },
+  "IntoChat.OS.Modules.Microsoft.Orleans.Cluster.ClusterNeuron": {
+    "Type": "orleans.cluster",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.Playwright.PageToolsNeuron": {
+    "Type": "playwright.page-tools",
+    "Store": "cluster",
+    "StateName": "playwright.page-tools"
+  },
+  "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightNeuron": {
+    "Type": "playwright",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.Roslyn.RoslynNeuron": {
+    "Type": "microsoft.roslyn",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Microsoft.Windows.ConsoleNeuron": {
+    "Type": "windows.console",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.Windows.FileSystemNeuron": {
+    "Type": "windows.files",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.OtherStorageNeuron": {
+    "Type": "other-storage",
+    "Store": "cluster",
+    "StateName": "other-storage"
+  },
+  "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.TpmCounterNeuron": {
+    "Type": "test.tpm-counter",
+    "Store": "cluster",
+    "StateName": "counter"
+  },
+  "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron": {
+    "Type": "windows",
+    "Store": "cluster",
+    "StateName": "windows"
+  },
+  "IntoChat.OS.Modules.Postgres.PostgresServerNeuron": {
+    "Type": "postgres",
+    "Store": "cluster",
+    "StateName": "postgres"
+  },
+  "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron": {
+    "Type": "postgres.tables",
+    "Store": "cluster",
+    "StateName": "tables"
+  },
+  "IntoChat.OS.Modules.Postgres.Tables.TableNeuron": {
+    "Type": "postgres.table",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Postgres.Tests.Integration.PostgresLifecycleTestApp": {
+    "Type": "apps.app2",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": {
+    "Type": "salesforce",
+    "Store": "cluster",
+    "StateName": "salesforce"
+  },
+  "IntoChat.OS.Modules.Time.Reminders.ReminderNeuron": {
+    "Type": "reminder",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Time.Timers.TimerNeuron": {
+    "Type": "timer",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.CounterNeuron": {
+    "Type": "counterneuron",
+    "Store": "unused",
+    "StateName": "counter"
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.FailingDeactivation": {
+    "Type": "failingdeactivation",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.HangingSource": {
+    "Type": "hangingsource",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.LeaseHolder": {
+    "Type": "leaseholder",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.LeaseSource": {
+    "Type": "leasesource",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.NeuronAttachFacts+Probe": {
+    "Type": "probe",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.OrleansPredicateNeuron": {
+    "Type": "orleanspredicateneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.Pinger": {
+    "Type": "pinger",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.SourceWatcher": {
+    "Type": "sourcewatcher",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.TickerNeuron": {
+    "Type": "tickerneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Runtime.InMemory.Tests.Unit.WorkerNeuron": {
+    "Type": "workerneuron",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Testing.Neurons.PulseNeuron": {
+    "Type": "testing.pulse",
+    "Store": "cluster",
+    "StateName": "pulse"
+  },
+  "IntoChat.OS.Testing.Tests.Integration.OtherEmitter": {
+    "Type": "other-emitter",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Testing.Tests.Integration.SiloBrainListener": {
+    "Type": "silo-brain-listener",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Testing.Tests.Integration.TestEmitter": {
+    "Type": "test-emitter",
+    "Store": null,
+    "StateName": null
+  }
+}

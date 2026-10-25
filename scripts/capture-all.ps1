@@ -65,12 +65,17 @@ $pins = [ordered]@{
     'SynapseWordAllowlist.json'           = Join-Path $archDir 'SynapseWordAllowlist.json'
     'FrameworkVendorBaseline.json'        = Join-Path $archDir 'FrameworkVendorBaseline.json'
     'AppsModuleIdBaseline.json'           = Join-Path $archDir 'AppsModuleIdBaseline.json'
+    'NeuronsStillGrains.json'             = Join-Path $archDir 'NeuronsStillGrains.json'
+    'OrleansAttributeOwners.json'         = Join-Path $archDir 'OrleansAttributeOwners.json'
+    'GrainInterfaceOwners.json'           = Join-Path $archDir 'GrainInterfaceOwners.json'
+    'NeuronGrainTypes.json'               = Join-Path $archDir 'NeuronGrainTypes.json'
     'flutter-wire-names.golden.json'      = Join-Path $flutterContracts 'flutter-wire-names.golden.json'
     'flutter-aliasless-enums.golden.json' = Join-Path $flutterContracts 'flutter-aliasless-enums.golden.json'
     'ui-states.golden.json'               = Join-Path $flutterContracts 'ui-states.golden.json'
 }
 # Shrinking ratchets: an entry going away (or a count going down) is the point, so removals there are not breaking.
-$shrinking = @('FrameworkVendorBaseline.json', 'AppsModuleIdBaseline.json')
+$shrinking = @('FrameworkVendorBaseline.json', 'AppsModuleIdBaseline.json', 'NeuronsStillGrains.json', 'OrleansAttributeOwners.json',
+                'GrainInterfaceOwners.json')
 $before = @{}
 foreach ($name in $pins.Keys) {
     if (-not (Test-Path $pins[$name])) { throw "Pin missing: $($pins[$name])" }
@@ -93,7 +98,8 @@ $timer = [Diagnostics.Stopwatch]::StartNew()
 foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'CaptureOrleansReferenceOwners',
                     'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples',
                     'CaptureSynapseWordAllowlist',
-                    'CaptureFrameworkVendorBaseline', 'CaptureAppsModuleIdBaseline') {
+                    'CaptureFrameworkVendorBaseline', 'CaptureAppsModuleIdBaseline',
+                    'CaptureNeuronsStillGrains', 'CaptureOrleansAttributeOwners', 'CaptureGrainInterfaceOwners', 'CaptureNeuronGrainTypes') {
     Run-Capture $archProject $method
 }
 foreach ($method in 'CaptureFlutterWireNames', 'CaptureUiStateGoldens') {

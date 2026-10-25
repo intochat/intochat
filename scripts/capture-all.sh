@@ -43,10 +43,11 @@ pins=(
   "$archdir/ContractManifest.json" "$archdir/GrainFactoryOwners.json" "$archdir/OrleansReferenceOwners.json"
   "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json" "$archdir/SynapseWordAllowlist.json"
   "$archdir/FrameworkVendorBaseline.json" "$archdir/AppsModuleIdBaseline.json"
+  "$archdir/NeuronsStillGrains.json" "$archdir/OrleansAttributeOwners.json" "$archdir/GrainInterfaceOwners.json" "$archdir/NeuronGrainTypes.json"
   "$contracts/flutter-wire-names.golden.json" "$contracts/flutter-aliasless-enums.golden.json" "$contracts/ui-states.golden.json"
 )
 # Shrinking ratchets: removals there are the point, so they are not breaking.
-shrinking=" FrameworkVendorBaseline.json AppsModuleIdBaseline.json "
+shrinking=" FrameworkVendorBaseline.json AppsModuleIdBaseline.json NeuronsStillGrains.json OrleansAttributeOwners.json GrainInterfaceOwners.json "
 snap=$(mktemp -d); trap 'rm -rf "$snap"' EXIT
 for pin in "${pins[@]}"; do mkdir -p "$snap/$(dirname "$pin")"; cp "$pin" "$snap/$pin"; done
 
@@ -58,7 +59,7 @@ capture() {
   dotnet test --project "$1" -c Release -p:CodeGraphRefresh=false $nightly --filter-method "*$2" --explicit only --nologo
 }
 for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples CaptureSynapseWordAllowlist \
-         CaptureFrameworkVendorBaseline CaptureAppsModuleIdBaseline; do capture "$arch" "$m"; done
+         CaptureFrameworkVendorBaseline CaptureAppsModuleIdBaseline          CaptureNeuronsStillGrains CaptureOrleansAttributeOwners CaptureGrainInterfaceOwners CaptureNeuronGrainTypes; do capture "$arch" "$m"; done
 for m in CaptureFlutterWireNames CaptureUiStateGoldens; do capture "$flutter" "$m"; done
 
 # Leaves as "path<TAB>value": objects recurse, arrays contribute one line per element (same rule as the ps1).

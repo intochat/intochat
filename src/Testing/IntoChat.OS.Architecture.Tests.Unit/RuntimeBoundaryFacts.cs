@@ -14,10 +14,12 @@ public sealed partial class RuntimeBoundaryFacts
     internal static Dictionary<string, int> CurrentGrainFactoryUse()
         => Repository.ProjectFiles("*.cs")
             .Select(path => (Key: Repository.ProjectKey(path), Count: GrainFactoryUse().Count(File.ReadAllText(path))))
-            .Where(file => file.Count > 0)
+            .Where(file => file.Count > 0 && !NeuronMigrationFacts.InKernelCompositionFile(file.Key))
             .ToDictionary(file => file.Key, file => file.Count, StringComparer.Ordinal);
 
-    // R-A1: grain-factory use per file, tests included. A file may lose uses, never gain them.
+    // R-A1: grain-factory use per file, tests included. A file may lose uses, never gain them. The kernel composition
+    // (NeuronMigrationFacts.KernelCompositionPrefix, D-04, R4-07) is the one permitted owner and is not counted; every
+    // other entry is debt the family plans shrink to zero.
     [Fact]
     public void GrainFactoryUseOnlyShrinks()
     {
