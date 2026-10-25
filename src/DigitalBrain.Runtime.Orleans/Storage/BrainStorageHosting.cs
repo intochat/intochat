@@ -11,7 +11,7 @@ namespace DigitalBrain.Runtime.Orleans;
 
 /// <summary>
 /// Registers BrainLog as the <c>cluster</c> grain store (moved from os Authority in 04-05). Reached through the host-bound
-/// seam: <c>builder.UseClusterStore(new BrainStorageRegistration(moduleAssemblies))</c>, so profiles never register
+/// seam: <c>builder.UseClusterStore(new BrainStorageRegistration(moduleAssemblies))</c>, so topologies never register
 /// <c>cluster</c> themselves.
 /// </summary>
 public static class BrainStorageHosting
@@ -36,7 +36,7 @@ public static class BrainStorageHosting
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(assemblies);
         services.AddSingleton(new SignalAssemblies(assemblies));
-        services.TryAddSingleton(provider => new SignalTypeMap(provider.GetServices<SignalAssemblies>().SelectMany(item => item.Assemblies)));
+        services.TryAddSingleton(sp => new SignalTypeMap(sp.GetServices<SignalAssemblies>().SelectMany(item => item.Assemblies)));
         services.TryAddSingleton<JournalPayloads>();
         services.TryAddSingleton<BrainSignalHistories>();
         return services;
@@ -55,13 +55,13 @@ public static class BrainStorageHosting
         services.TryAddSingleton<IBrainLogOwnership>(FileLockBrainLogOwnership.Instance);
         services.TryAddSingleton<IBrainOwnershipCounters, BrainLogOwnershipCounters>();
         services.TryAddSingleton<BrainStorageKeys>();
-        services.TryAddSingleton(provider => new BrainLogs(provider.GetRequiredService<BrainStorageKeys>(),
-            provider.GetRequiredService<global::Orleans.Serialization.Serializer>(), provider.GetRequiredService<JournalPayloads>(),
-            provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<IRetentionPolicy>(),
-            provider.GetRequiredService<IOptions<BrainStoreOptions>>(), provider.GetRequiredService<IBrainLogOwnership>()));
+        services.TryAddSingleton(sp => new BrainLogs(sp.GetRequiredService<BrainStorageKeys>(),
+            sp.GetRequiredService<global::Orleans.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IRetentionPolicy>(),
+            sp.GetRequiredService<IOptions<BrainStoreOptions>>(), sp.GetRequiredService<IBrainLogOwnership>()));
         foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, IntoChatOSNames.ClusterGrainStorage)).ToArray())
         { services.Remove(descriptor); }
-        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (provider, _) => new BrainGrainStorage(provider.GetRequiredService<BrainLogs>()));
+        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (sp, _) => new BrainGrainStorage(sp.GetRequiredService<BrainLogs>()));
         return services;
     }
 }
