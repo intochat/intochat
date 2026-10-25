@@ -41,4 +41,11 @@ public static class IntoChatOSNames
 
     /// <summary>The grain state container.</summary>
     public const string GrainStateContainer = "os-state";
+
+    /// <summary>Signalling configuration sections.</summary>
+    public static class Signalling
+    {
+        /// <summary>The retention section (04 D-11).</summary>
+        public const string Retention = "IntoChatOS:Signalling:Retention";
+    }
 }

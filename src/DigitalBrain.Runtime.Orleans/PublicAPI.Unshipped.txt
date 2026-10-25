@@ -372,3 +372,16 @@ override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.GetHashCode() -> int
 override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.ToString() -> string!
 static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator !=(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
 static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator ==(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
+DigitalBrain.Runtime.Orleans.IntoChatOSNames.Signalling
+DigitalBrain.Runtime.Orleans.Synapses.IRetentionPolicy
+DigitalBrain.Runtime.Orleans.Synapses.IRetentionPolicy.FloorFor(string! brainKey, DigitalBrain.NeuronId publisher, long last, System.Func<System.TimeSpan, long>! countNewerThan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<long>
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.HistoryWindowAge.get -> System.TimeSpan
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.HistoryWindowAge.set -> void
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.HistoryWindowSignals.get -> int
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.HistoryWindowSignals.set -> void
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.RetentionOptions() -> void
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.StaleCursorAfter.get -> System.TimeSpan
+DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.StaleCursorAfter.set -> void
+DigitalBrain.Runtime.Orleans.Synapses.SynapseRetentionHosting
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.Signalling.Retention = "IntoChatOS:Signalling:Retention" -> string!
