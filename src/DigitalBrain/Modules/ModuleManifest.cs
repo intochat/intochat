@@ -19,6 +19,12 @@ public sealed record ModuleManifest(
     /// <summary>The module id from <see cref="ModuleAttribute"/>; filled by <see cref="Of(Type)"/>.</summary>
     public string? Id { get; init; }
 
+    /// <summary>
+    /// The privileged capability members the module may call (for example identity@1 <c>Issue</c>). Every module that does not
+    /// list a member here is refused it (fail closed). Empty by default.
+    /// </summary>
+    public IReadOnlyList<PrivilegedGrant> Privileged { get; init; } = [];
+
     /// <summary>Reads the <c>[Module]</c> id and the public static <c>Manifest</c> property of a module class.</summary>
     /// <exception cref="InvalidDataException">Provides or Requires lists a capability twice.</exception>
     /// <exception cref="InvalidOperationException">The type is not a module, has no <c>[Module]</c> or no static <c>Manifest</c>.</exception>

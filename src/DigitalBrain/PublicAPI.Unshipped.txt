@@ -870,3 +870,30 @@ static DigitalBrain.AppKey.operator /(DigitalBrain.AppKey key, long part) -> Dig
 static DigitalBrain.AppKey.operator /(DigitalBrain.AppKey key, string! part) -> DigitalBrain.AppKey
 static DigitalBrain.AppKey.operator ==(DigitalBrain.AppKey left, DigitalBrain.AppKey right) -> bool
 ~override DigitalBrain.AppKey.Equals(object obj) -> bool
+DigitalBrain.ModuleDeclarations
+DigitalBrain.ModuleDeclarations.DeclaresSecret(string? moduleId, string! name) -> bool
+DigitalBrain.ModuleDeclarations.IsPrivileged(string? moduleId, DigitalBrain.Capabilities.CapabilityId capability, string! member) -> bool
+DigitalBrain.ModuleDeclarations.ModuleDeclarations(System.Collections.Generic.IEnumerable<DigitalBrain.ModuleManifest!>! manifests) -> void
+DigitalBrain.ModuleDeclarations.RequirePrivileged(string? moduleId, DigitalBrain.Capabilities.CapabilityId capability, string! member) -> void
+DigitalBrain.ModuleManifest.Privileged.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.PrivilegedGrant!>!
+DigitalBrain.ModuleManifest.Privileged.init -> void
+DigitalBrain.PrivilegeDenied
+DigitalBrain.PrivilegeDenied.Capability.get -> DigitalBrain.Capabilities.CapabilityId
+DigitalBrain.PrivilegeDenied.Member.get -> string!
+DigitalBrain.PrivilegeDenied.ModuleId.get -> string?
+DigitalBrain.PrivilegeDenied.PrivilegeDenied(string? moduleId, DigitalBrain.Capabilities.CapabilityId capability, string! member) -> void
+DigitalBrain.PrivilegedGrant
+DigitalBrain.PrivilegedGrant.<Clone>$() -> DigitalBrain.PrivilegedGrant!
+DigitalBrain.PrivilegedGrant.Capability.get -> DigitalBrain.Capabilities.CapabilityId
+DigitalBrain.PrivilegedGrant.Capability.init -> void
+DigitalBrain.PrivilegedGrant.Deconstruct(out DigitalBrain.Capabilities.CapabilityId Capability, out string! Member) -> void
+DigitalBrain.PrivilegedGrant.Equals(DigitalBrain.PrivilegedGrant? other) -> bool
+DigitalBrain.PrivilegedGrant.Member.get -> string!
+DigitalBrain.PrivilegedGrant.Member.init -> void
+DigitalBrain.PrivilegedGrant.PrivilegedGrant(DigitalBrain.Capabilities.CapabilityId Capability, string! Member) -> void
+override DigitalBrain.PrivilegedGrant.Equals(object? obj) -> bool
+override DigitalBrain.PrivilegedGrant.GetHashCode() -> int
+override DigitalBrain.PrivilegedGrant.ToString() -> string!
+static DigitalBrain.ModuleDeclarations.None.get -> DigitalBrain.ModuleDeclarations!
+static DigitalBrain.PrivilegedGrant.operator !=(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
+static DigitalBrain.PrivilegedGrant.operator ==(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
