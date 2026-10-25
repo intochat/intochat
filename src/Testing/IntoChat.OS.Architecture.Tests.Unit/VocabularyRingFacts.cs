@@ -34,6 +34,7 @@ public sealed class VocabularyRingFacts
         [typeof(WatchStream<>)] = "Transitional runtime SPI (deleted Phase 4/6): the one stream behind brain.On<T> both clients build.",
         [typeof(SignalDeliveries)] = "Transitional runtime SPI (deleted Phase 4/6): skip bookkeeping for app filters; EditorBrowsable(Never).",
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
+        [typeof(PlainNeuronClient)] = "Transitional (06-07, R4-15; folded into IIntoChatOS in 06-08): Get and On for plain neuron contracts and their [Signal] records.",
         [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IIntoChatOS keep that filter.",
     };
 
@@ -79,7 +80,10 @@ public sealed class VocabularyRingFacts
         Assert.Equal(
             ["IntoChat.OS.Runtime.INeuronContext", "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
                 // Transitional (06-03, R4-14; deleted in 06-08): plain contracts reached from the os surfaces.
-                "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IRuntimeBuilder", "IntoChat.OS.Runtime.ISignalFanout", "IntoChat.OS.Runtime.ITraceCarrier", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts"],
+                // Transitional (06-07, R4-15; deleted in 06-08): the os clients' calls and session synapse subscriptions to plain neurons.
+                "IntoChat.OS.Runtime.IPlainClient", "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IPlainSession", "IntoChat.OS.Runtime.IPlainSignals",
+                "IntoChat.OS.Runtime.IRuntimeBuilder", "IntoChat.OS.Runtime.ISignalFanout", "IntoChat.OS.Runtime.ITraceCarrier", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts",
+                "IntoChat.OS.Runtime.PlainSignalBatch", "IntoChat.OS.Runtime.PlainSignalEntry", "IntoChat.OS.Runtime.PlainSignalPage", "IntoChat.OS.Runtime.PlainSignalTypes"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.Spi.ICallerContextCarrier", "DigitalBrain.Spi.IDeactivatingNeuron", "DigitalBrain.Spi.INeuronTimers",

@@ -3,7 +3,7 @@ using System.Threading.Channels;
 namespace IntoChat.OS;
 
 // The merge behind IIntoChatOS.On<T>(Sources): one pump per member, each a durable On<T>(neuron)
-// subscription, all writing to one channel. A registry change re-selects: members that left are
+// subscription (or, for a plain neuron member, the session synapse subscription PlainNeuronClient opens), all writing to one channel. A registry change re-selects: members that left are
 // cancelled, members that joined are pumped from their current position, members that stayed
 // keep their subscription (and so their watermark). Any pump or select failure ends the stream
 // with that error. Disposal ends it quietly; cancelling the token throws OperationCanceledException
@@ -16,22 +16,30 @@ internal static class SourceSet
     // have registered their subscriptions and the members that left are released. Nothing in the product passes it.
     public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
         CancellationToken cancellationToken, Action? reselected = null) where T : Signal
-        => new Stream<T>(brain, sources, subscribed, coalesce, reselected, cancellationToken);
+        => new Stream<T>(brain, sources, static (brain, member, onSubscribed, stop) => brain.On<T>((INeuron)member, onSubscribed, stop),
+            subscribed, coalesce, reselected, cancellationToken);
 
-    private sealed class Stream<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        Action? reselected, CancellationToken streamCancellation) : IAsyncEnumerable<T> where T : Signal
+    // The same merge over any member subscription: open is asked once per member. Transitional (06-07): the plain-neuron
+    // entry (PlainNeuronClient) passes its session synapse subscription; 06-08 folds it back into one path.
+    public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources,
+        Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken)
+        => new Stream<T>(brain, sources, open, null, coalesce: false, null, cancellationToken);
+
+    private sealed class Stream<T>(IIntoChatOS brain, Sources sources, Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
+        Func<Task>? subscribed, bool coalesce, Action? reselected, CancellationToken streamCancellation) : IAsyncEnumerable<T>
     {
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-            => new Enumerator<T>(brain, sources, subscribed, coalesce, reselected, streamCancellation, cancellationToken);
+            => new Enumerator<T>(brain, sources, open, subscribed, coalesce, reselected, streamCancellation, cancellationToken);
     }
 
-    private sealed class Enumerator<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        Action? reselected, CancellationToken streamCancellation, CancellationToken enumeratorCancellation) : IAsyncEnumerator<T> where T : Signal
+    private sealed class Enumerator<T>(IIntoChatOS brain, Sources sources, Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
+        Func<Task>? subscribed, bool coalesce, Action? reselected, CancellationToken streamCancellation, CancellationToken enumeratorCancellation) : IAsyncEnumerator<T>
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(streamCancellation, enumeratorCancellation);
         private readonly Channel<T> _channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true });
-        // Members are keyed by the neuron itself: a grain reference equates by grain id, a script's neuron by its key.
-        private readonly Dictionary<INeuron, (Task Pump, CancellationTokenSource Stop)> _members = [];
+        // Members are keyed by the neuron itself: a grain reference equates by grain id, a script's neuron by its key, a plain
+        // neuron's proxy by its target.
+        private readonly Dictionary<object, (Task Pump, CancellationTokenSource Stop)> _members = [];
         private readonly TaskCompletionSource _registered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _follow;
         private T? _current;
@@ -88,12 +96,12 @@ internal static class SourceSet
             }
         }
 
-        private async Task Pump(INeuron neuron, Func<Task> onSubscribed, CancellationToken stop)
+        private async Task Pump(object neuron, Func<Task> onSubscribed, CancellationToken stop)
         {
             using var nested = (brain as IInitialSignalWait)?.SuppressInitialWait();
             try
             {
-                await foreach (var signal in brain.On<T>(neuron, onSubscribed, stop).WithCancellation(stop).ConfigureAwait(false))
+                await foreach (var signal in open(brain, neuron, onSubscribed, stop).WithCancellation(stop).ConfigureAwait(false))
                 { await _channel.Writer.WriteAsync(signal, stop).ConfigureAwait(false); }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { }

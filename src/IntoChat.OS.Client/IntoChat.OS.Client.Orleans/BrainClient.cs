@@ -9,8 +9,8 @@ namespace IntoChat.OS.Client.Orleans;
 // The cluster as a whole: opens brains, resolves raw grains for hosts and harnesses, and owns
 // every subscription so disposal releases them all.
 internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionOptions> options, ILogger<BrainClient> logger, ILocalSignalHub? hub = null,
-    IKernelView? kernel = null)
-    : IIntoChatOSBrains, IBrainSubscriptions, IAsyncDisposable
+    IKernelView? kernel = null, IntoChat.OS.Runtime.IPlainNeurons? plainNeurons = null, IntoChat.OS.Runtime.IPlainSignals? plainSignals = null)
+    : IIntoChatOSBrains, IBrainSubscriptions, IntoChat.OS.Runtime.IPlainClient, IAsyncDisposable
 {
     private readonly Lock _gate = new();
     private readonly HashSet<IAsyncDisposable> _subscriptions = [];
@@ -32,6 +32,20 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
     public IKernelView Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: a silo registers it, and AddIntoChatOSClient does for a cluster client.");
 
     public T Grain<T>(string key) where T : INeuron => cluster.GetNeuronGrain<T>(cluster.ServiceProvider, key);
+
+    // Transitional (06-07, R4-15): plain neurons are reached through the kernel composition's seam, which a silo registers.
+    public object Plain(Type contract, string key)
+        => (plainNeurons ?? throw new NotSupportedException("This host does not reach plain neurons: the kernel composition registers them.")).Get(contract, key);
+
+    object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => Plain(contract, id.Name);
+
+    public IAsyncEnumerable<T> OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken) where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(onSubscribed);
+        lock (_gate) { ObjectDisposedException.ThrowIf(_disposed, this); }
+        return PlainSubscription.Open<T>(plainSignals ?? throw new NotSupportedException("This host does not reach plain neurons' signals: the kernel composition registers them."),
+            source, logger, onSubscribed, cancellationToken);
+    }
 
     // Either token ends the watch: the one given here, or the enumerator's. See WatchStream for
     // why the stream is hand-written.

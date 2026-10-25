@@ -18,7 +18,17 @@ public abstract class Sources
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(select);
-        return new Registry<TRegistry, TChange>(registry, select);
+        return new Registry<TRegistry, TChange>(registry, async (named, ct) => await select(named, ct).ConfigureAwait(false));
+    }
+
+    // Transitional (06-07, folded back into Named in 06-08): a set whose members are plain neurons (contracts that are not
+    // INeuron, such as the Time timer and reminder), for On<T> of their [Signal] records through PlainNeuronClient.
+    public static Sources Named<TRegistry, TChange, TMember>(TRegistry registry, Func<TRegistry, CancellationToken, Task<TMember[]>> select)
+        where TRegistry : INeuron where TChange : Signal where TMember : class
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(select);
+        return new Registry<TRegistry, TChange>(registry, async (named, ct) => [.. await select(named, ct).ConfigureAwait(false)]);
     }
 
     // The entry points behind IIntoChatOS.On<T>(Sources) and React<T>: one body in the vocabulary,
@@ -36,7 +46,7 @@ public abstract class Sources
     public static Task React<T>(IIntoChatOS brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : Signal
         => Reaction.Run<T>(brain, sources, rebuild, cancellationToken);
 
-    internal abstract Task<INeuron[]> SelectAsync(CancellationToken cancellationToken);
+    internal abstract Task<object[]> SelectAsync(CancellationToken cancellationToken);
 
     // Every element means "select again". onSubscribed runs once the change subscription is registered,
     // so a select made there cannot miss a change. Empty for a fixed set; the merge never opens it then.
@@ -46,15 +56,15 @@ public abstract class Sources
 
     private sealed class Fixed(INeuron[] neurons) : Sources
     {
-        internal override Task<INeuron[]> SelectAsync(CancellationToken cancellationToken) => Task.FromResult(neurons);
+        internal override Task<object[]> SelectAsync(CancellationToken cancellationToken) => Task.FromResult<object[]>([.. neurons]);
         internal override IAsyncEnumerable<Signal> Changes(IIntoChatOS brain, Func<Task> onSubscribed, CancellationToken cancellationToken) => Empty();
         private static async IAsyncEnumerable<Signal> Empty() { await Task.CompletedTask; yield break; }
     }
 
-    private sealed class Registry<TRegistry, TChange>(TRegistry registry, Func<TRegistry, CancellationToken, Task<INeuron[]>> select) : Sources
+    private sealed class Registry<TRegistry, TChange>(TRegistry registry, Func<TRegistry, CancellationToken, Task<object[]>> select) : Sources
         where TRegistry : INeuron where TChange : Signal
     {
-        internal override Task<INeuron[]> SelectAsync(CancellationToken cancellationToken) => select(registry, cancellationToken);
+        internal override Task<object[]> SelectAsync(CancellationToken cancellationToken) => select(registry, cancellationToken);
         internal override async IAsyncEnumerable<Signal> Changes(IIntoChatOS brain, Func<Task> onSubscribed,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
