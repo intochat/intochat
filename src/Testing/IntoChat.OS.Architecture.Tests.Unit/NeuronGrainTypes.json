@@ -1063,5 +1063,15 @@
     "Type": "test-emitter",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide.LegacyProbeSource": {
+    "Type": "probe.legacy",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide.PlainProbe": {
+    "Type": "probe.plain",
+    "Store": null,
+    "StateName": null
   }
 }

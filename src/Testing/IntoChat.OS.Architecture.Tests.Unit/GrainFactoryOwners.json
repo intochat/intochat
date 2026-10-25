@@ -122,5 +122,8 @@
   "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs": 4,
   "IntoChat.Cloud.Circle.Server/EnrollmentEndpoints.cs": 4,
   "IntoChat.Cloud.Circle.Server/MachineAuthenticationHandler.cs": 4,
-  "IntoChat.OS.Aspire.Client/IntoChatOSClientHostingExtensions.cs": 1
+  "IntoChat.OS.Aspire.Client/IntoChatOSClientHostingExtensions.cs": 1,
+  "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/BrainGrains.cs": 2,
+  "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/LegacyCallFacts.cs": 2,
+  "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/SideBySideRuntimeFacts.cs": 6
 }

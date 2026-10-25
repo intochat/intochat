@@ -17,6 +17,7 @@ public sealed class TestBrain
     private Action<IServiceCollection>? _services;
     private TestExecutionOptions _execution = new();
     private ILicenseCheck? _licenseCheck;
+    private readonly List<Type> _neuronModules = [];
     private ITestTarget _target = new InProcessTarget();
     private bool _started;
 
@@ -45,6 +46,14 @@ public sealed class TestBrain
     {
         EnsureMutable();
         _composition.RequireModules(modules);
+        return this;
+    }
+
+    // A DigitalBrain module (06-02): its plain [Neuron] classes run on the runtime host grains beside the Framework modules.
+    public TestBrain WithNeuronModule<TModule>() where TModule : global::DigitalBrain.Module
+    {
+        EnsureMutable();
+        if (!_neuronModules.Contains(typeof(TModule))) { _neuronModules.Add(typeof(TModule)); }
         return this;
     }
 
@@ -184,7 +193,7 @@ public sealed class TestBrain
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck, NeuronModules: [.. _neuronModules]);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);

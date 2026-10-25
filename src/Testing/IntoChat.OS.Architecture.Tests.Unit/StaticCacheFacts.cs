@@ -12,6 +12,8 @@ public sealed partial class StaticCacheFacts
         ["CallMarkers.Methods"] = "MethodInfo",
         ["LoadedContracts.Found"] = "string",
         ["Neuron.OneWayTargets"] = "MethodInfo",
+        ["LegacyGrainSink.Contracts"] = "string",
+        ["LegacyGrainSink.HostTypes"] = "string",
         ["NeuronCallFilter.Policies"] = "(Type",
         ["NeuronProxy.Casts"] = "Type",
         ["NeutralCallMapping.Methods"] = "MethodInfo",

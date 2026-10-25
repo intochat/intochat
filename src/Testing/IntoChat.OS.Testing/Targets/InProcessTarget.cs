@@ -105,6 +105,7 @@ public sealed class InProcessTarget : ITestTarget
             if (plan.LicenseCheck is { } check) { server.UseLicenseCheck(check); }
             server.AddModule<OrleansModule>();
             foreach (var module in plan.Modules.Where(module => module.Module is not OrleansModule)) { server.AddModule(module.Module); }
+            foreach (var module in plan.NeuronModules ?? []) { server.AddNeuronModule(module); }
         });
         if (plan.Services is { } services)
         {

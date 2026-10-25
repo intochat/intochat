@@ -17,6 +17,7 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
         if (plan.Services is not null) { throw new NotSupportedException("ConfigureServices is in-process only; put a fake behind WithIntegration."); }
         if (plan.LicenseCheck is not null) { throw new NotSupportedException("WithLicenseCheck is supported only by the in-process target"); }
         if (plan.Client is not null) { throw new NotSupportedException("An Aspire brain's client belongs to the AppHost."); }
+        if (plan.NeuronModules is { Count: > 0 }) { throw new NotSupportedException("The AppHost owns composition; neuron modules are in-process only."); }
         var integration = IntegrationSchema.SectionName + ":";
         if (plan.Execution.HostConfiguration.Keys.FirstOrDefault(key => key.StartsWith(integration, StringComparison.OrdinalIgnoreCase)) is { } leaked)
         { throw new ArgumentException($"Host configuration reaches the AppHost's command line; set '{leaked}' with WithIntegration so it travels in the private file."); }

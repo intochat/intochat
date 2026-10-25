@@ -10,4 +10,5 @@ public interface ITestTarget
 }
 
 public sealed record TestBrainPlan(IReadOnlyList<ModuleDefinition> Modules, IReadOnlyDictionary<string, string?> Configuration,
-    Action<IServiceCollection>? Services, TestExecutionOptions Execution, Action<IClientBuilder>? Client, ILicenseCheck? LicenseCheck = null);
+    Action<IServiceCollection>? Services, TestExecutionOptions Execution, Action<IClientBuilder>? Client, ILicenseCheck? LicenseCheck = null,
+    IReadOnlyList<Type>? NeuronModules = null);
