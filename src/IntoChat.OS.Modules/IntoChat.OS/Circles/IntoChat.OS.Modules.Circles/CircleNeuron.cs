@@ -279,6 +279,9 @@ internal sealed class CircleNeuron(
         foreach (var slot in shared.Manifest.Slots)
         {
             if (!shared.Connections.TryGetValue(slot.Name, out var id) || id.Length == 0) { continue; }
+            // A circle copies a connection by its module id; a capability-bound slot has none to copy yet.
+            if (slot.Capability is not null)
+            { throw new InvalidOperationException($"Slot '{slot.Name}' binds capability '{slot.Capability}'; a circle cannot share a capability-bound connection yet."); }
             var owned = ConnectionKeys.For(source, slot.Connector, id);
             if (connectionIds.Contains(id, StringComparer.Ordinal))
             {

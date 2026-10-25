@@ -154,10 +154,10 @@ public static class Apps
         for (var i = 0; i < slots.Length; i++)
         {
             var slot = slots[i];
-            var provider = kinds.FirstOrDefault(kind => kind.Id == slot.Connector)?.DisplayName ?? slot.Connector;
+            var provider = kinds.FirstOrDefault(kind => kind.Id == slot.Connector)?.DisplayName ?? slot.Binds;
             SelectOption[] options =
             [
-                .. connected.Where(item => item.Kind == slot.Connector).OrderBy(item => item.Id, StringComparer.Ordinal)
+                .. connected.Where(item => slot.Capability is { } capability ? AppCapabilities.Satisfies(item.Capabilities, capability) : item.Kind == slot.Connector).OrderBy(item => item.Id, StringComparer.Ordinal)
                     .Select(item => new SelectOption(item.Id, provider + " · " + (item.Account is { Length: > 0 } account ? account : item.Id))),
                 new(AppsView.NewChoice, AppsCopy.NewConnection(provider)),
             ];

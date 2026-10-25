@@ -60,4 +60,19 @@ public sealed class FeatureCompileFacts
         Assert.True(synapses > 0, "no synapse was found under " + SolutionProjects.Features);
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+
+    // RXN0003 over the features folder: a shipped app asks for capabilities and names only the modules that provide none yet.
+    [Fact]
+    public void TheShippedAppsNameNoModuleThatHasACapability()
+    {
+        var errors = new List<string>();
+        var declarations = Directory.GetFiles(SolutionProjects.Features, AppFiles.DeclarationPath, SearchOption.AllDirectories);
+        foreach (var path in declarations)
+        {
+            errors.AddRange(ReactionShape.CheckRequires(Path.GetRelativePath(SolutionProjects.Features, path), File.ReadAllText(path))
+                .Select(error => $"{error.File}:{error.Line} {error.Id} {error.Message}"));
+        }
+        Assert.True(declarations.Length > 0, "no app.cs was found under " + SolutionProjects.Features);
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
 }

@@ -42,10 +42,14 @@ class AppRequirements {
     this.semanticTypes = const [],
     this.connectors = const [],
     this.secrets = const [],
+    this.capabilities = const [],
   });
-  final List<String> semanticTypes, connectors, secrets;
+  final List<String> semanticTypes, connectors, secrets, capabilities;
   bool get isEmpty =>
-      semanticTypes.isEmpty && connectors.isEmpty && secrets.isEmpty;
+      semanticTypes.isEmpty &&
+      connectors.isEmpty &&
+      secrets.isEmpty &&
+      capabilities.isEmpty;
   static List<String> _ids(Object? json) => [
     for (final id in json as List? ?? const []) id as String,
   ];
@@ -54,6 +58,7 @@ class AppRequirements {
         semanticTypes: _ids(json['semanticTypes']),
         connectors: _ids(json['connectors']),
         secrets: _ids(json['secrets']),
+        capabilities: _ids(json['capabilities']),
       );
   static AppRequirements? read(Object? json) => json is Map
       ? AppRequirements.fromJson(Map<String, dynamic>.from(json))

@@ -18,4 +18,6 @@ public sealed record MarketplaceRecord(
     // Phase F: the listing's AppRequirements, spelled out (Framework does not know the Apps contracts). Additive.
     [property: Id(8)] string[]? RequiresSemanticTypes = null,
     [property: Id(9)] string[]? RequiresConnectors = null,
-    [property: Id(10)] string[]? RequiresSecrets = null);
+    [property: Id(10)] string[]? RequiresSecrets = null,
+    // 0.7.0: the capability ids ("storage@1") the listing requires. Additive.
+    [property: Id(11)] string[]? RequiresCapabilities = null);

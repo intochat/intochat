@@ -64,7 +64,7 @@ public static class PublicationUi
             await Card(brain, "preview", "About this app", publication.Preview ?? publication.Manifest.Description),
             await Card(brain, "connections", "Your own workspace",
                 "Fork creates your own editable copy. Your connections and research stay in your brain." +
-                (publication.Manifest.Slots.Length == 0 ? "" : "\nAvailable connections: " + string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Connector + ")")))),
+                (publication.Manifest.Slots.Length == 0 ? "" : "\nAvailable connections: " + string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Binds + ")")))),
             new("form", FormKey(brain, reference)), new("button", Key(brain) + "/" + command)
         ];
     }

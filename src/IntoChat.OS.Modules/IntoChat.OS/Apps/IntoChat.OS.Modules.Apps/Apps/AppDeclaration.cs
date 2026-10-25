@@ -69,7 +69,7 @@ public static class AppDeclaration
             "Description: " + Literal(manifest.Description),
             "Operations: " + List(manifest.Operations.Select(operation => $"new({Literal(operation.Name)}, {Literal(operation.Description)})")),
             "Settings: " + List(manifest.Settings.Select(setting => $"new({Literal(setting.Name)}, {Literal(setting.Description)}, {Literal(setting.Default)})")),
-            "Slots: " + List(manifest.Slots.Select(slot => $"new({Literal(slot.Name)}, {Literal(slot.Connector)})")),
+            "Slots: " + List(manifest.Slots.Select(Slot)),
         ];
         if (manifest.Icon is not null) { arguments.Add("Icon: " + Literal(manifest.Icon)); }
         if (manifest.Toolbar is not null) { arguments.Add("Toolbar: " + List(manifest.Toolbar.Select(Entry))); }
@@ -89,12 +89,17 @@ public static class AppDeclaration
         return $"new({string.Join(", ", parts)})";
     }
 
+    private static string Slot(AppSlot slot) => slot.Capability is { } capability
+        ? $"new({Literal(slot.Name)}, Capability: {Literal(capability)})"
+        : $"new({Literal(slot.Name)}, {Literal(slot.Connector)})";
+
     private static string Requirements(AppRequirements requires)
     {
         List<string> parts = [];
         if (requires.SemanticTypes is { } types) { parts.Add("SemanticTypes: " + Inline(types)); }
         if (requires.Connectors is { } connectors) { parts.Add("Connectors: " + Inline(connectors)); }
         if (requires.Secrets is { } secrets) { parts.Add("Secrets: " + Inline(secrets)); }
+        if (requires.Capabilities is { } capabilities) { parts.Add("Capabilities: " + Inline(capabilities)); }
         return $"new({string.Join(", ", parts)})";
     }
 

@@ -100,7 +100,9 @@ public sealed class AppDeclarationFacts
 
         var features = Features();
         var files = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Files", "app.cs"))).Manifest.Requires!;
-        Assert.Equal(["windows", "google-drive"], files.Connectors!);
+        // 05-10: Files asks for the storage capability and names no module.
+        Assert.Equal(["storage@1"], files.Capabilities!);
+        Assert.Null(files.Connectors);
         var memory = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Memory", "app.cs"))).Manifest.Requires!;
         Assert.Equal(["postgres"], memory.Connectors!);
     }
@@ -115,6 +117,63 @@ public sealed class AppDeclarationFacts
         Assert.Throws<InvalidDataException>(() => (Player with { Requires = new(Connectors: ["gmail"]) }).Validated());
         Assert.NotNull((Player with { Requires = new(Connectors: ["postgres"]) }).Validated());
         Assert.Null(Player.Validated().Requires);
+    }
+
+    [Fact]
+    public void CapabilityIdsAreValidatedByTheirOwnGrammar()
+    {
+        Assert.NotNull(new AppRequirements(Capabilities: ["storage@1"]).Validated());
+        foreach (var bad in new[] { "storage@x", "Storage@1", "storage", "storage@0", "" })
+        {
+            var error = Assert.Throws<InvalidDataException>(() => new AppRequirements(Capabilities: [bad]).Validated());
+            Assert.Contains($"'{bad}'", error.Message, StringComparison.Ordinal);
+        }
+        Assert.Throws<InvalidDataException>(() => new AppRequirements(Capabilities: ["storage@1", "storage@1"]).Validated());
+    }
+
+    [Fact]
+    public void ACapabilitySlotMustBeRequired()
+    {
+        AppManifest browser = new("Browser", "", [], [], [new("drive", Capability: "storage@1")]);
+        var missing = Assert.Throws<InvalidDataException>(browser.Validated);
+        Assert.Contains("storage@1", missing.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => (browser with { Requires = new(Capabilities: ["secrets@1"]) }).Validated());
+        Assert.NotNull((browser with { Requires = new(Capabilities: ["storage@1"]) }).Validated());
+        Assert.Throws<InvalidDataException>(() => new AppManifest("Both", "", [], [], [new("x", "postgres", "storage@1")],
+            Requires: new(Connectors: ["postgres"], Capabilities: ["storage@1"])).Validated());
+    }
+
+    [Fact]
+    public void CapabilitiesAndCapabilitySlotsReadBackIdentically()
+    {
+        AppManifest browser = new("Browser", "Browses.", [new("open", "Open")], [],
+            [new("drive", Capability: "storage@1"), new("tables", "postgres")],
+            Requires: new(Connectors: ["postgres"], Capabilities: ["storage@1", "secrets@1"]));
+        var written = AppDeclaration.Write(new("browser", "1.0.0", browser, ""));
+        Assert.Contains("Capability: \"storage@1\"", written, StringComparison.Ordinal);
+        var read = AppDeclaration.Read(written).Manifest;
+        Assert.Equal(browser.Slots, read.Slots);
+        Assert.Equal(browser.Requires, read.Requires);
+        Assert.Equal(["storage@1", "secrets@1"], read.Requires!.Capabilities!);
+        Assert.Equal(written, AppDeclaration.Write(new("browser", "1.0.0", read, "")));
+    }
+
+    [Fact]
+    public void TheFilesManifestNamesNoModule()
+    {
+        var source = File.ReadAllText(Path.Combine(Features(), "os", "Files", "app.cs"));
+        Assert.DoesNotContain("windows", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("google-drive", source, StringComparison.Ordinal);
+        Assert.Contains("storage@1", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsentCoversCapabilitiesWithoutChangingOlderDigests()
+    {
+        Assert.NotEqual(AppConsent.Of(new()), AppConsent.Of(new(Capabilities: ["storage@1"])));
+        Assert.Equal(AppConsent.Of(new()), AppConsent.Of(new(Capabilities: [])));
+        Assert.False(AppConsent.IsEmpty(new(Capabilities: ["storage@1"])));
+        Assert.Equal(["storage@1"], AppConsent.Added(new(), new(Capabilities: ["storage@1"])).Capabilities!);
     }
 
     private static string Features()

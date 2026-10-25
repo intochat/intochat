@@ -50,7 +50,7 @@ public static class PublicationUi
         return [
             await Card(brain, "publication", publication.Manifest.Title,
                 "@" + reference.Publisher + " · " + reference.Name + " · " + reference.Version + "\nPublished " + publication.PublishedAt.ToString("u") + "\nRead-only preview · " + reference.Digest + "\n\n" + publication.Manifest.Description + "\nRequired connections: " +
-                (publication.Manifest.Slots.Length == 0 ? "none" : string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Connector + ")")))),
+                (publication.Manifest.Slots.Length == 0 ? "none" : string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Binds + ")")))),
             await Card(brain, "preview", "Sample preview", publication.Preview ?? "No sample preview published."),
             new("form", FormKey(brain, reference)), new("button", Key(brain) + "/" + command)
         ];

@@ -6,9 +6,15 @@ public sealed record AppOperation([property: Id(0)] string Name, [property: Id(1
 [GenerateSerializer, Alias("apps.setting2")]
 public sealed record AppSetting([property: Id(0)] string Name, [property: Id(1)] string Description, [property: Id(2)] string Default);
 
-// A named credential slot ("gmail"); the bound connection id is per-brain state, never shared.
+// A named connection slot; the bound connection id is per-brain state, never shared. A slot binds either a capability
+// ("storage@1", any connection whose module provides it) or, for a module with no capability yet, one module id
+// ("google-sheets"). Exactly one of the two is set.
 [GenerateSerializer, Alias("apps.slot")]
-public sealed record AppSlot([property: Id(0)] string Name, [property: Id(1)] string Connector);
+public sealed record AppSlot([property: Id(0)] string Name, [property: Id(1)] string Connector = "", [property: Id(2)] string? Capability = null)
+{
+    // What the slot binds, for display: its capability id, else its module id.
+    public string Binds => Capability ?? Connector;
+}
 
 public static class AppToolbarKinds
 {
@@ -31,17 +37,20 @@ public sealed record AppToolbarEntry(
     [property: Id(5)] double? Max = null);
 
 // What an app needs before it is useful, declared so install asks once and review can gate on it: the semantic types
-// it reads (each a grant scope, e.g. "person.birthDate"), the connector kinds its slots bind, and the secret names
-// it reads. Declaring a need grants nothing; the install consent does.
+// it reads (each a grant scope, e.g. "person.birthDate"), the module ids its slots bind (only modules that provide no
+// capability yet), the secret names it reads, and the capabilities ("storage@1") some connection in the brain must
+// provide. Declaring a need grants nothing; the install consent does.
 [GenerateSerializer, Alias("apps.requirements")]
 public sealed record AppRequirements(
     [property: Id(0)] string[]? SemanticTypes = null,
     [property: Id(1)] string[]? Connectors = null,
-    [property: Id(2)] string[]? Secrets = null)
+    [property: Id(2)] string[]? Secrets = null,
+    [property: Id(3)] string[]? Capabilities = null)
 {
     // By value, so an origin read back from storage equals the one that was written; null and empty lists are the same need.
     public bool Equals(AppRequirements? other)
-        => other is not null && Same(SemanticTypes, other.SemanticTypes) && Same(Connectors, other.Connectors) && Same(Secrets, other.Secrets);
+        => other is not null && Same(SemanticTypes, other.SemanticTypes) && Same(Connectors, other.Connectors) && Same(Secrets, other.Secrets)
+            && Same(Capabilities, other.Capabilities);
 
     public override int GetHashCode() => AppConsent.Of(this).GetHashCode(StringComparison.Ordinal);
 
@@ -52,7 +61,20 @@ public sealed record AppRequirements(
         Check("semantic type", SemanticTypes);
         Check("connector", Connectors);
         Check("secret", Secrets);
+        CheckCapabilities(Capabilities);
         return this;
+    }
+
+    // A capability id is name@major (DigitalBrain CapabilityId grammar); the module-id grammar above would refuse the '@'.
+    private static void CheckCapabilities(string[]? ids)
+    {
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (var id in ids ?? [])
+        {
+            if (!DigitalBrain.Capabilities.CapabilityId.TryParse(id, out var parsed) || parsed.ToString() != id)
+            { throw new InvalidDataException($"Required capability '{id}' is not a capability id: a lowercase name, '@', then a major version such as storage@1."); }
+            if (!seen.Add(id)) { throw new InvalidDataException($"Required capability '{id}' is listed twice."); }
+        }
     }
 
     private static void Check(string kind, string[]? ids)
@@ -94,14 +116,20 @@ public sealed record AppManifest(
             if (entry.Kind == AppToolbarKinds.Slider && !(entry.Min < entry.Max))
             { throw new InvalidDataException($"Toolbar slider '{entry.Operation}' needs min below max."); }
         }
-        if (Requires is { } requires)
+        Requires?.Validated();
+        foreach (var slot in Slots)
         {
-            requires.Validated();
-            foreach (var slot in Slots)
+            if (slot.Capability is { } capability)
             {
-                if (!(requires.Connectors ?? []).Contains(slot.Connector, StringComparer.Ordinal))
-                { throw new InvalidDataException($"Slot '{slot.Name}' binds connector '{slot.Connector}', which Requires does not list."); }
+                if (slot.Connector.Length > 0)
+                { throw new InvalidDataException($"Slot '{slot.Name}' binds both capability '{capability}' and module '{slot.Connector}'; bind one."); }
+                if (!(Requires?.Capabilities ?? []).Contains(capability, StringComparer.Ordinal))
+                { throw new InvalidDataException($"Slot '{slot.Name}' binds capability '{capability}', which Requires.Capabilities does not list."); }
             }
+            else if (slot.Connector.Length == 0)
+            { throw new InvalidDataException($"Slot '{slot.Name}' binds nothing; give it a capability such as storage@1."); }
+            else if (Requires is { } requires && !(requires.Connectors ?? []).Contains(slot.Connector, StringComparer.Ordinal))
+            { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{slot.Connector}', which Requires does not list."); }
         }
         return this;
     }

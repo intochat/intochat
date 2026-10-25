@@ -53,9 +53,13 @@ internal sealed class Creator(
             var manifest = new AppManifest(authored.Title, authored.Description,
                 authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? [],
                 Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar,
-                // A revision keeps what the app declared it requires, plus any connector a new slot binds.
+                // A revision keeps what the app declared it requires, plus the capability or module id a new slot binds.
                 Requires: existing?.Manifest.Requires is { } requires
-                    ? requires with { Connectors = [.. (requires.Connectors ?? []).Concat((authored.Slots ?? []).Select(slot => slot.Connector)).Distinct(StringComparer.Ordinal)] }
+                    ? requires with
+                    {
+                        Connectors = Merged(requires.Connectors, (authored.Slots ?? []).Where(slot => slot.Capability is null).Select(slot => slot.Connector)),
+                        Capabilities = Merged(requires.Capabilities, (authored.Slots ?? []).Select(slot => slot.Capability).OfType<string>()),
+                    }
                     : null);
             var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
             if (name is null)
@@ -276,6 +280,13 @@ internal sealed class Creator(
         var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(reply[start..]));
         using var document = JsonDocument.ParseValue(ref reader);
         return document.Deserialize<T>(Json) ?? throw new InvalidDataException("The reply's JSON object is empty.");
+    }
+
+    // A declared list plus what new slots bind; a list that was absent and gains nothing stays absent.
+    private static string[]? Merged(string[]? declared, IEnumerable<string> bound)
+    {
+        var added = bound.ToArray();
+        return declared is null && added.Length == 0 ? null : [.. (declared ?? []).Concat(added).Distinct(StringComparer.Ordinal)];
     }
 
     private sealed record AuthoredApp(string Name, string Title, string Description, string Spec,

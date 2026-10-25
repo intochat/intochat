@@ -178,4 +178,50 @@ public sealed class ReactionShapeFacts
         await app.Create(new(name, "shape facts", [new("ask", "ask it"), new("open", "open it"), new("close", "close it")], [], []), "spec");
         return app;
     }
+
+    private static readonly Dictionary<string, string[]> Provides = new(StringComparer.Ordinal)
+    {
+        ["google-drive"] = ["storage@1"],
+        ["windows"] = ["storage@1"],
+        ["postgres"] = [],
+    };
+
+    private static string Declaring(string requires, string slots = "[]") => $$"""
+        static class App
+        {
+            public const string Name = "files";
+            public const string Version = "1.0.0";
+            public static readonly AppManifest Manifest = new("Files", "", [], [], {{slots}}, Requires: {{requires}});
+        }
+        """;
+
+    [Fact]
+    public void AModuleIdThatProvidesACapabilityIsRxn0003()
+    {
+        var error = Assert.Single(ReactionShape.CheckRequires("app.cs", Declaring("""new(Connectors: ["google-drive"])"""), Provides));
+        Assert.Equal(ReactionShape.ModuleIdRequired, error.Id);
+        Assert.Equal("RXN0003", error.Id);
+        Assert.StartsWith("google-drive provides storage@1; require the capability instead", error.Message, StringComparison.Ordinal);
+
+        var slot = Assert.Single(ReactionShape.CheckRequires("app.cs",
+            Declaring("""new(Capabilities: ["storage@1"])""", """[new("pc", "windows")]"""), Provides));
+        Assert.Equal("RXN0003", slot.Id);
+        Assert.StartsWith("windows provides storage@1", slot.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CapabilitiesAndAllowedModulesAreNotRxn0003()
+    {
+        Assert.Empty(ReactionShape.CheckRequires("app.cs", Declaring("""new(Connectors: ["postgres"])"""), Provides));
+        Assert.Empty(ReactionShape.CheckRequires("app.cs", Declaring("""new(Capabilities: ["storage@1"])""", """[new("drive", Capability: "storage@1")]"""), Provides));
+        // A module id outside the allow-list is a vendor id even when its module is unknown here.
+        Assert.Equal("RXN0003", Assert.Single(ReactionShape.CheckRequires("app.cs", Declaring("""new(Connectors: ["mailbox"])"""))).Id);
+    }
+}
+
+// The modules an app may still name directly: only those that provide no capability yet (05-10).
+public sealed class VendorIdAllowListFacts
+{
+    [Fact]
+    public void OnlyPostgresMayBeNamed() => Assert.Equal(["postgres"], RequiredModuleIds.Allowed);
 }

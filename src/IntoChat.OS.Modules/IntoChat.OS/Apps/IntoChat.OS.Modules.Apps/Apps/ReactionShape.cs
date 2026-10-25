@@ -13,6 +13,7 @@ public static class ReactionShape
 {
     public const string NoReaction = "RXN0001";
     public const string SecondReaction = "RXN0002";
+    public const string ModuleIdRequired = "RXN0003";
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
     private static readonly string[] Wrappers = ["ConfigureAwait", "WithCancellation"];
@@ -68,6 +69,64 @@ public static class ReactionShape
             $"A synapse is one reaction, and this is another top-level reaction (the first is on line {first}). Move it into its own synapse file."))];
     }
 
+    // RXN0003, read from the app.cs syntax: an app asks for capabilities, not modules (D-05). A module id in
+    // `Requires: new(Connectors: [...])` or a module-bound slot (`new("name", "module")`) is an error when that module
+    // provides a capability (`provides` maps module id to its capability ids), and also when it is not one of the
+    // modules that provide none yet (RequiredModuleIds.Allowed).
+    public static ScriptCompilationDiagnostic[] CheckRequires(string path, string source, IReadOnlyDictionary<string, string[]>? provides = null)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var root = CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot();
+        List<ScriptCompilationDiagnostic> errors = [];
+        foreach (var argument in root.DescendantNodes().OfType<ArgumentSyntax>())
+        {
+            var named = argument.NameColon?.Name.Identifier.ValueText;
+            IEnumerable<LiteralExpressionSyntax> ids = named switch
+            {
+                "Connectors" when Within(argument, "Requires") => Strings(argument.Expression),
+                _ when named == "Slots" || IsPositionalSlots(argument) => argument.Expression.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>()
+                    .SelectMany(slot => SlotModule(slot) is { } module ? [module] : Array.Empty<LiteralExpressionSyntax>()),
+                _ => [],
+            };
+            foreach (var literal in ids)
+            {
+                var id = literal.Token.ValueText;
+                if (provides is not null && provides.TryGetValue(id, out var capabilities) && capabilities.Length > 0)
+                {
+                    errors.Add(new(path, ModuleIdRequired, Line(literal),
+                        $"{id} provides {string.Join(", ", capabilities)}; require the capability instead (Requires: new(Capabilities: [\"{capabilities[0]}\"])).") );
+                }
+                else if (!RequiredModuleIds.Allowed.Contains(id, StringComparer.Ordinal))
+                {
+                    errors.Add(new(path, ModuleIdRequired, Line(literal),
+                        $"'{id}' is a module id; declare a capability in Requires.Capabilities instead (such as storage@1)."));
+                }
+            }
+        }
+        return [.. errors];
+    }
+
+    // The fifth positional argument of the `Manifest = new(...)` initializer is AppManifest.Slots.
+    private static bool IsPositionalSlots(ArgumentSyntax argument)
+        => argument.NameColon is null && argument.Parent is ArgumentListSyntax list && list.Arguments.IndexOf(argument) == 4
+            && list.Parent is BaseObjectCreationExpressionSyntax { Parent: EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator } }
+            && declarator.Identifier.ValueText == "Manifest";
+
+    private static bool Within(SyntaxNode node, string argumentName)
+        => node.Ancestors().OfType<ArgumentSyntax>().FirstOrDefault()?.NameColon?.Name.Identifier.ValueText == argumentName;
+
+    private static IEnumerable<LiteralExpressionSyntax> Strings(ExpressionSyntax expression)
+        => expression.DescendantNodesAndSelf().OfType<LiteralExpressionSyntax>().Where(literal => literal.IsKind(SyntaxKind.StringLiteralExpression));
+
+    // A slot's module id: its second positional argument or a `Connector:` argument, when that is a string literal.
+    private static LiteralExpressionSyntax? SlotModule(BaseObjectCreationExpressionSyntax slot)
+    {
+        var arguments = slot.ArgumentList?.Arguments.ToArray() ?? [];
+        var module = arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "Connector")
+            ?? (arguments.Length > 1 && arguments[1].NameColon is null ? arguments[1] : null);
+        return module?.Expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression) ? literal : null;
+    }
+
     // The refusal the gates throw, in the compile gate's "file:line message" format.
     public static string Describe(IEnumerable<ScriptCompilationDiagnostic> errors)
         => string.Join("; ", errors.Select(error => $"{error.File}:{error.Line} {error.Message}"));
@@ -99,4 +158,11 @@ public static class ReactionShape
     }
 
     private static int Line(SyntaxNode node) => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+}
+
+// Module ids an app may still name in Requires.Connectors or a module-bound slot: modules that provide no 0.7.0
+// capability. postgres stays until the data capability lands (data capability deferred, 05-CONTEXT deferred ideas).
+public static class RequiredModuleIds
+{
+    public static readonly IReadOnlyList<string> Allowed = ["postgres"];
 }

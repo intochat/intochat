@@ -37,13 +37,13 @@ internal sealed class MarketplaceNeuron(IMarketplaceClient catalog) : Neuron, IM
     {
         var source = listing.Source as AppSource.Brain;
         return new(listing.Publisher, source?.AccountId, source?.BrainId, listing.Name, listing.Title, listing.Description, listing.Version, listing.Icon,
-            listing.Requires?.SemanticTypes, listing.Requires?.Connectors, listing.Requires?.Secrets);
+            listing.Requires?.SemanticTypes, listing.Requires?.Connectors, listing.Requires?.Secrets, listing.Requires?.Capabilities);
     }
 
     internal static MarketplaceListing Listing(MarketplaceRecord record)
         => new(record.Publisher,
             record is { SourceAccount: { } account, SourceBrain: { } brain } ? new AppSource.Brain(account, brain) : new AppSource.Shipped(),
             record.Name, record.Title, record.Description, record.Version, record.Icon,
-            record is { RequiresSemanticTypes: null, RequiresConnectors: null, RequiresSecrets: null } ? null
-                : new AppRequirements(record.RequiresSemanticTypes, record.RequiresConnectors, record.RequiresSecrets));
+            record is { RequiresSemanticTypes: null, RequiresConnectors: null, RequiresSecrets: null, RequiresCapabilities: null } ? null
+                : new AppRequirements(record.RequiresSemanticTypes, record.RequiresConnectors, record.RequiresSecrets, record.RequiresCapabilities));
 }
