@@ -14,16 +14,18 @@ public sealed class OrleansHostingFacts
     private static readonly string IntegrationPrefix = IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", "");
 
     [Fact]
-    public async Task WithAzuriteProjectsTheThreeConnectionsIntoTheOrleansIntegration()
+    public async Task WithAzuriteTheSiloRunsTheCloudTopologyOverTheEmulatorAccount()
     {
         var builder = CreateBuilder();
         var brain = builder.AddIntoChatOS("Modules", new())
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
-        Assert.Contains(IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.ClusteringField), environment.Keys);
-        Assert.Contains(IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField), environment.Keys);
-        Assert.Contains(IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.RemindersField), environment.Keys);
+        Assert.Equal(IntoChatOSNames.TopologyCloud, environment[IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey)]);
+        Assert.Contains(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), environment.Keys);
+        // No Key Vault emulator: none is projected unless the AppHost configuration names one.
+        Assert.DoesNotContain(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey), environment.Keys);
+        Assert.DoesNotContain(environment.Keys, key => key.StartsWith(IntegrationPrefix, StringComparison.Ordinal));
         AssertNoProviderKeys(environment);
         Assert.Contains("Orleans__ClusterId", environment.Keys);
         Assert.Single(builder.Resources.OfType<AzureStorageResource>());
@@ -31,13 +33,28 @@ public sealed class OrleansHostingFacts
     }
 
     [Fact]
-    public async Task WithoutAzuriteTheSiloGetsNoOrleansIntegration()
+    public async Task WithAzuriteAConfiguredVaultIsPassedThrough()
+    {
+        var builder = CreateBuilder();
+        builder.Configuration[IntoChatOSNames.CloudKeyVaultConfigurationKey] = "https://dev-vault.vault.azure.net/";
+        var brain = builder.AddIntoChatOS("Modules", new())
+            .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
+        var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
+        Assert.Equal("https://dev-vault.vault.azure.net/", environment[IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey)]);
+    }
+
+    [Fact]
+    public async Task WithoutAzuriteTheSiloGetsNoCloudKeys()
     {
         var builder = CreateBuilder();
         var brain = builder.AddIntoChatOS("Modules").WithHosting<OrleansModuleHosting, OrleansOptions>(_ => { });
         var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
         Assert.DoesNotContain(environment.Keys, key => key.StartsWith(IntegrationPrefix, StringComparison.Ordinal));
+        Assert.DoesNotContain(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), environment.Keys);
+        Assert.DoesNotContain(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey), environment.Keys);
+        Assert.NotEqual(IntoChatOSNames.TopologyCloud, environment.GetValueOrDefault(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey)));
         AssertNoProviderKeys(environment);
         Assert.Empty(builder.Resources.OfType<AzureStorageResource>());
     }

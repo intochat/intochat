@@ -87,9 +87,7 @@ public sealed class CredentialBoundaryFacts
     {
         var offenders = ModuleMethods().Where(m =>
             !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
-            && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal)
-            // Substrate providers must exist before the silo builds, before any integration grain exists.
-            && m.DeclaringType?.FullName != "IntoChat.OS.Modules.Microsoft.Orleans.OrleansStorageHosting")
+            && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
                 || (c.IsGenericMethod && c.GetGenericArguments().Contains(typeof(IIntegration)))
                 || (c.DeclaringType == typeof(IntegrationSchema) && c.Name == nameof(IntegrationSchema.Key))))

@@ -23,8 +23,8 @@ using Orleans.Runtime;
 namespace IntoChat.OS.Testing;
 
 // The product recipe in the test process: AddIntoChatOSServer + MapIntoChatOSServer on a loopback
-// port, the orleans integration absent (localhost clustering, memory reminders) and grain state in a
-// harness-owned MemoryStores that a restart builds over again.
+// port, on Topology=local (localhost clustering, file grain stores and reminders) over a temporary Home
+// that a restart builds over again, so grain state outlives the restart.
 public sealed class InProcessTarget : ITestTarget
 {
     private const int StartAttempts = 3;
@@ -45,7 +45,6 @@ public sealed class InProcessTarget : ITestTarget
             using var reservation = _ports();
             var (siloPort, gatewayPort) = (reservation.Ports[0], reservation.Ports[1]);
             var session = new InProcessSession(
-                new MemoryStores(),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Path.Combine(Path.GetTempPath(), $"intochat-os-machine-{Guid.NewGuid():N}"),
@@ -92,15 +91,13 @@ public sealed class InProcessTarget : ITestTarget
             [IntoChatOSNames.HomeKey] = session.Home.Path,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
-            [OrleansStorageHosting.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
+            [global::DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
+            [global::DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
             // The AppHost's Orleans resource turns grain-call tracing on for every silo; the test host does when the fact collects diagnostics.
             ["Orleans:EnableDistributedTracing"] = plan.Execution.Diagnostics is null ? "false" : "true",
         });
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);
-        // Before the orleans module configures: its TryAddSingleton keeps this instance.
-        builder.Services.AddSingleton(session.Stores);
         builder.Services.AddSingleton<ActivationIndex>();
         builder.Services.AddSingleton<IActivationWorkingSetObserver>(services => services.GetRequiredService<ActivationIndex>());
         builder.AddIntoChatOSServer(server =>
@@ -149,7 +146,7 @@ public sealed class InProcessTarget : ITestTarget
     }
 }
 
-internal sealed record InProcessSession(MemoryStores Stores, string MasterKey, string RunTokenKey, string MachineDirectory, TestHome Home, int SiloPort, int GatewayPort);
+internal sealed record InProcessSession(string MasterKey, string RunTokenKey, string MachineDirectory, TestHome Home, int SiloPort, int GatewayPort);
 
 // The silo's live activations by grain id, so a fact can deactivate one and wait for it to finish.
 internal sealed class ActivationIndex : IActivationWorkingSetObserver

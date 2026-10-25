@@ -336,8 +336,8 @@ public sealed class AspireTestSession : IAsyncDisposable
             {
                 if (connection is not null)
                 {
-                    var settings = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = OrleansStorageHosting.ClusteringClient(settings, connection));
+                    // The silo's cloud topology clusters on the tables of the Azurite account the AppHost projected.
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = new global::Azure.Data.Tables.TableServiceClient(connection));
                 }
                 else
                 {

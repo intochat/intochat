@@ -60,8 +60,11 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         Assert.NotNull(await brain.Platform.BrainAuthority(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
-    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
+    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
     {
+        // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
+        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, GrainId), BinaryData> _data = new();
         private int _armed;
         public void Arm() => Interlocked.Exchange(ref _armed, 1);

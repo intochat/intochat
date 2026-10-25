@@ -40,7 +40,7 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
         var reminders = storage.AddTables(brain.ResourceName(IntoChatOSNames.Reminders));
         var grainState = storage.AddBlobs(brain.ResourceName(IntoChatOSNames.GrainState));
         // The Aspire Orleans resource keeps development clustering: storage on it would project
-        // Orleans__* provider keys into the silo, which reads the orleans integration instead.
+        // Orleans__* provider keys into the silo, whose clustering the cloud topology configures instead.
         // Orleans clients find the tables through the builder's Clustering (WithReference(client)).
         brain.Storage = storage;
         brain.GrainState = grainState;
@@ -49,10 +49,10 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
         brain.ClusteringResourceName = clustering.Resource.Name;
         foreach (var resource in new IResource[] { storage.Resource, clustering.Resource, reminders.Resource, grainState.Resource })
         { brain.RequireHealthyBeforeStart(resource); }
-        brain.AddProjection(new Connections(
-            (OrleansStorageHosting.ClusteringField, clustering.Resource),
-            (OrleansStorageHosting.GrainStateField, grainState.Resource),
-            (OrleansStorageHosting.RemindersField, reminders.Resource)));
+        // Azurite is the cloud topology's storage account: the silo runs Topology=cloud over it (03-12), and the emulator
+        // connection string names its blob, queue and table endpoints. There is no Key Vault emulator, so a vault the AppHost
+        // configuration names is passed through; without one the silo stops naming IntoChatOS:Cloud:KeyVault.
+        brain.AddProjection(new CloudTopology(grainState.Resource, HostConfiguration.HostKey(builder.Configuration, IntoChatOSNames.CloudKeyVaultConfigurationKey)));
     }
 
     private sealed class GrainStateContainer(string container) : IntoChatOSModuleProjection
@@ -61,12 +61,14 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
             => builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(GrainStateContainerKey), container);
     }
 
-    private sealed class Connections(params (string Field, IResourceWithConnectionString Source)[] fields) : IntoChatOSModuleProjection
+    private sealed class CloudTopology(IResourceWithConnectionString account, string? keyVault) : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
-            foreach (var (field, source) in fields)
-            { builder.WithEnvironment(IntoChatOSConfiguration.IntegrationEnvironmentName(OrleansModule.Integration.Id, field), source.ConnectionStringExpression); }
+            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyCloud);
+            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), account.ConnectionStringExpression);
+            if (!string.IsNullOrWhiteSpace(keyVault))
+            { builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey), keyVault); }
         }
     }
 }

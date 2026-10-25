@@ -26,6 +26,10 @@ public static class IntoChatOSNames
     // interface). Unset means loopback only.
     // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string BindKey = "IntoChatOS:Bind";
+    // Topology=cloud: the one storage account (tables, blobs, queues) and the Key Vault the cloud topology reads
+    // (the same strings as DigitalBrain.Runtime.Orleans IntoChatOSNames.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
+    public const string CloudStorageConfigurationKey = "IntoChatOS:Cloud:Storage";
+    public const string CloudKeyVaultConfigurationKey = "IntoChatOS:Cloud:KeyVault";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
     public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
     public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";

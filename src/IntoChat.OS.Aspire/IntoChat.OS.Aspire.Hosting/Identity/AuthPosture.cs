@@ -44,7 +44,12 @@ internal static class AuthPosture
             builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(Key), posture);
             // The server has no Aspire execution context. An Aspire run starts its processes on this host, so they get the local
             // topology, where Open posture may listen on loopback only and IntoChatOS:Bind widens binding (BindPolicy, D-21).
-            if (runMode) { builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyLocal); }
+            // A run on Azurite declares Topology=cloud itself (the orleans module projection); that one is kept.
+            if (runMode)
+            {
+                builder.WithEnvironment(context => context.EnvironmentVariables.TryAdd(
+                    IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyLocal));
+            }
             if (password is not null)
             {
                 builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username);

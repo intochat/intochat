@@ -10,14 +10,16 @@ public static class VendorRule
     public enum Verdict { Allowed, Denied, Unclassified }
 
     private static readonly string[] DenyPrefixes = ["Azure.", "Microsoft.AspNetCore", "Microsoft.Extensions.AI", "Google.", "Grpc."];
-    private static readonly string[] DenyExact = ["MimeKit"];
+    // The cloud runtime carries the Azure SDKs; the core and the Orleans runtime are Azure-free (digitalbrain RuntimeHasNoAzureFacts).
+    private static readonly string[] DenyExact = ["MimeKit", "DigitalBrain.Runtime.Orleans.Azure"];
+    private static readonly string[] AllowExact = ["DigitalBrain", "DigitalBrain.Runtime.Orleans"];
     private static readonly string[] AllowPrefixes = ["Microsoft.Orleans.", "Microsoft.Extensions.", "System."];
 
     internal const string RuntimeFramework = "Microsoft.NETCore.App";
 
     internal static Verdict Classify(string package)
         => DenyExact.Contains(package, StringComparer.Ordinal) || DenyPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal)) ? Verdict.Denied
-            : AllowPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal)) ? Verdict.Allowed
+            : AllowExact.Contains(package, StringComparer.Ordinal) || AllowPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal)) ? Verdict.Allowed
             : Verdict.Unclassified;
 }
 
@@ -62,6 +64,8 @@ public sealed class FrameworkHasNoVendorSdksFacts
     [InlineData("Google.Protobuf", VendorRule.Verdict.Denied)]
     [InlineData("Grpc.Net.Client", VendorRule.Verdict.Denied)]
     [InlineData("MimeKit", VendorRule.Verdict.Denied)]
+    [InlineData("DigitalBrain.Runtime.Orleans.Azure", VendorRule.Verdict.Denied)]
+    [InlineData("DigitalBrain.Runtime.Orleans", VendorRule.Verdict.Allowed)]
     [InlineData("Microsoft.Orleans.Streaming", VendorRule.Verdict.Allowed)]
     [InlineData("Microsoft.Extensions.Hosting", VendorRule.Verdict.Allowed)]
     [InlineData("System.Security.Cryptography.ProtectedData", VendorRule.Verdict.Allowed)]

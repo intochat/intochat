@@ -40,9 +40,9 @@ public sealed class DeploymentIdentityFacts
             Assert.Equal("custom.session", values[IntoChatOSConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))]);
             Assert.Equal("IntoChat.v1", values[IntoChatOSConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName)))]);
             Assert.Equal("intochat-protection-v1", values[IntoChatOSConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)))]);
-            // The silo shares the client's cookie key store through the orleans integration; the client by reference.
+            // The silo shares the client's cookie key store through the cloud topology's account; the client by reference.
             Assert.Contains(resource == server.Resource
-                ? IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField)
+                ? IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey)
                 : "ConnectionStrings__" + IntoChatOSNames.GrainState, values.Keys);
         }
     }
@@ -159,7 +159,7 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
-    public async Task TheSiloReadsTheOrleansIntegrationAndClientsAStableClusteringServiceKey()
+    public async Task TheSiloReadsTheCloudTopologyAndClientsAStableClusteringServiceKey()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddIntoChatOS("renamed", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
@@ -175,8 +175,9 @@ public sealed class DeploymentIdentityFacts
             {
                 Assert.DoesNotContain(keys.Keys, key => key.StartsWith("Orleans__", StringComparison.Ordinal));
                 var environment = await IntoChat.OS.Aspire.Testing.AspireCompositionTest.EnvironmentOf(builder, resource, TestContext.Current.CancellationToken);
-                foreach (var field in new[] { OrleansStorageHosting.ClusteringField, OrleansStorageHosting.GrainStateField, OrleansStorageHosting.RemindersField })
-                { Assert.Contains(IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", field), environment.Keys); }
+                Assert.Equal(IntoChatOSNames.TopologyCloud, environment[IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey)]);
+                Assert.Contains(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), environment.Keys);
+                Assert.DoesNotContain(environment.Keys, key => key.StartsWith(IntoChatOSConfiguration.IntegrationEnvironmentName("orleans", ""), StringComparison.Ordinal));
             }
             else { Assert.Equal(IntoChatOSNames.Clustering, keys["Orleans__Clustering__ServiceKey"]); }
         }

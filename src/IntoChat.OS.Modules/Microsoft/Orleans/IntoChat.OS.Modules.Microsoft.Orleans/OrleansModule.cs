@@ -10,21 +10,14 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
-public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(OrleansIntegrationNames.Id))
+public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(OrleansIntegrationNames.Id)), ITopologyModule
 {
     public override int Order => -1;
 
     public override System.Reflection.Assembly? Contracts => typeof(ICluster).Assembly;
 
-    public static IntegrationSchema Integration { get; } = IntegrationSchema.For(OrleansIntegrationNames.Id, "Orleans")
-        .OffersSecret(OrleansStorageHosting.ClusteringField)
-        .OffersSecret(OrleansStorageHosting.GrainStateField)
-        .OffersSecret(OrleansStorageHosting.RemindersField)
-        .OffersSetting(OrleansStorageHosting.ClusteringField + StorageEndpoint.UriSuffix)
-        .OffersSetting(OrleansStorageHosting.GrainStateField + StorageEndpoint.UriSuffix)
-        .OffersSetting(OrleansStorageHosting.RemindersField + StorageEndpoint.UriSuffix)
-        .OffersSetting(StorageEndpoint.ManagedIdentityClientIdField)
-        .OffersSetting(OrleansStorageHosting.GrainStateContainerField);
+    // Clustering, grain state and reminders are no longer integration fields: IntoChatOS:Topology selects them (03-12).
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For(OrleansIntegrationNames.Id, "Orleans");
 
     public static ConnectorDefinition Connector => new("orleans", "Orleans", ["deployment"], ["orleans"])
     {
@@ -32,10 +25,15 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(Orlean
         Signals = [typeof(ClusterChanged)],
     };
 
+    // The cloud topology comes from DigitalBrain.Runtime.Orleans.Azure, which only this module references. The production
+    // path never replaces the Key Vault source (T-03-59).
+    public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles { get; } =
+        [DigitalBrain.Runtime.Orleans.Azure.CloudTopologyExtensions.AddCloudTopology()];
+
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.AddOrleansStorage(silo.Configuration);
+        if (CloudStorage.IsCloud(silo.Services)) { CloudStorage.Configure(silo); }
         silo.Services.TryAddSingleton<IClusterMembershipFeed, Cluster.ClusterMembershipFeed>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterActivation>());
     }

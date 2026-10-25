@@ -41,6 +41,7 @@
     "Microsoft.Orleans.Sdk"
   ],
   "IntoChat.OS.Framework": [
+    "DigitalBrain.Runtime.Orleans",
     "Microsoft.Orleans.Server"
   ],
   "IntoChat.OS.Framework.Tests.E2E": [
@@ -93,10 +94,7 @@
     "Microsoft.Orleans.Sdk"
   ],
   "IntoChat.OS.Modules.Microsoft.Orleans": [
-    "Microsoft.Orleans.Clustering.AzureStorage",
-    "Microsoft.Orleans.Persistence.AzureStorage",
-    "Microsoft.Orleans.Reminders",
-    "Microsoft.Orleans.Reminders.AzureStorage"
+    "DigitalBrain.Runtime.Orleans.Azure"
   ],
   "IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting": [
     "Aspire.Hosting.Orleans"

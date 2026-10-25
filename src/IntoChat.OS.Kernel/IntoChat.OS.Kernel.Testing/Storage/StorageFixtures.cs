@@ -37,6 +37,7 @@ public static class StorageFixtures
         return brain
             .WithConfiguration(IntoChatOSNames.MasterKeyConfigurationKey, TestSealKey.Base64)
             .WithConfiguration(IntoChatOSNames.HomeKey, home)
+            .ConfigureServices(RecordPlatformState)
             .WithConfiguration(BrainStoreOptions.Key + ":" + nameof(BrainStoreOptions.WriteFormat), format.ToString());
     }
 
@@ -47,25 +48,49 @@ public static class StorageFixtures
     // The directory a brain's log lives in under a brain store.
     public static string DirectoryOf(string brainStore, string brainId) => BrainStoreLayout.DirectoryOf(brainStore, brainId);
 
-    // The platform grain state a host keeps in memory, re-encoded the way Azure blob grain storage writes it.
+    // The platform grain state a host wrote, in the bytes Azure blob grain storage writes (the topology's file store keeps
+    // the same OrleansGrainStorageSerializer bytes, but under hashed file names, so WithFixtureStorage records the writes).
     public static IEnumerable<(string Store, string GrainId, string StateName, byte[] Payload)> GrainStatePayloads(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var types = new StateTypes(services);
-        var objects = services.GetRequiredService<ObjectSerializer>();
-        var blob = new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>());
-        var stores = services.GetRequiredService<IntoChat.OS.Modules.Microsoft.Orleans.MemoryStores>();
-        foreach (var store in new[] { IntoChatOSNames.ClusterGrainStorage, IntoChatOSNames.PlatformGrainStorage })
+        var recorder = services.GetRequiredService<PlatformStateRecorder>();
+        foreach (var ((grainId, stateName), payload) in recorder.Records.OrderBy(entry => entry.Key.GrainId + "|" + entry.Key.StateName, StringComparer.Ordinal))
+        { yield return (IntoChatOSNames.PlatformGrainStorage, grainId, stateName, payload); }
+    }
+
+    // Records every write to the platform store: one entry per (grain, state), the latest payload.
+    public sealed class PlatformStateRecorder
+    {
+        public System.Collections.Concurrent.ConcurrentDictionary<(string GrainId, string StateName), byte[]> Records { get; } = new();
+    }
+
+    private static void RecordPlatformState(IServiceCollection services)
+    {
+        services.AddSingleton<PlatformStateRecorder>();
+        var original = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage) && Equals(descriptor.ServiceKey, IntoChatOSNames.PlatformGrainStorage));
+        services.Remove(original);
+        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.PlatformGrainStorage, (provider, key) => new RecordingStorage(
+            original.KeyedImplementationFactory is { } factory ? (IGrainStorage)factory(provider, key) : (IGrainStorage)original.KeyedImplementationInstance!,
+            provider.GetRequiredService<PlatformStateRecorder>(), new OrleansGrainStorageSerializer(provider.GetRequiredService<Serializer>())));
+    }
+
+    private sealed class RecordingStorage(IGrainStorage inner, PlatformStateRecorder recorder, IGrainStorageSerializer blob) : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
+    {
+        public Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => inner.ReadStateAsync(stateName, grainId, grainState);
+
+        public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
         {
-            foreach (var (key, (state, _)) in stores.Store(store).OrderBy(entry => entry.Key, StringComparer.Ordinal))
-            {
-                var split = key.LastIndexOf('|');
-                var (grainId, stateName) = (key[..split], key[(split + 1)..]);
-                if (types.Find(grainId, stateName) is not { } type) { continue; }
-                var value = objects.Deserialize(state, type);
-                yield return (store, grainId, stateName, Serialize(blob, type, value).ToArray());
-            }
+            await inner.WriteStateAsync(stateName, grainId, grainState).ConfigureAwait(false);
+            recorder.Records[(grainId.ToString(), stateName)] = blob.Serialize(grainState.State).ToArray();
         }
+
+        public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+        {
+            await inner.ClearStateAsync(stateName, grainId, grainState).ConfigureAwait(false);
+            recorder.Records.TryRemove((grainId.ToString(), stateName), out _);
+        }
+
+        public void Participate(ISiloLifecycle lifecycle) { if (inner is ILifecycleParticipant<ISiloLifecycle> participant) { participant.Participate(lifecycle); } }
     }
 
     public static void WriteManifest(string directory, StorageFixtureManifest manifest)

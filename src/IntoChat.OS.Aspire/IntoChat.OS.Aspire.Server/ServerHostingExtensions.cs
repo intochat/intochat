@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
+using ClusterStoreHosting = DigitalBrain.Runtime.Orleans.ClusterStoreHosting;
+using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
 namespace IntoChat.OS.Aspire.Server;
 
@@ -56,8 +58,21 @@ public static class ServerHostingExtensions
             builder.Services.AddHealthChecks().AddCheck("module-" + status.Module, () => HealthCheckResult.Degraded(status.Reason));
         }
         builder.Services.AddHostedService<ModuleStatusLogger>();
+        // IntoChatOS:Topology is the one setting that picks clustering, grain stores, streams, reminders and secrets (TOPO-01):
+        // the digitalbrain topology is selected and validated before the silo exists, and a partial or unknown setting stops
+        // the host naming every issue. The cluster store stays the os BrainLog (host-bound, 03-CONTEXT R4-10); os modules carry
+        // no ModuleManifest until Phase 6, so the manifest list is empty.
+        ClusterStoreHosting.UseClusterStore(builder, static silo => silo.AddBrainStorage());
+        TopologyHosting.UseTopology(builder, [], RetiredTopologySettings,
+            [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>
         {
+            // The topology first; it runs the host-bound cluster store (BrainLog) last, then the modules compose over it.
+            TopologyHosting.ConfigureTopologySilo(silo);
+            // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
+            // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
+            silo.Services.AddSingleton<global::Orleans.Storage.IGrainStorageSerializer>(static services =>
+                new global::Orleans.Storage.OrleansGrainStorageSerializer(services.GetRequiredService<global::Orleans.Serialization.Serializer>()));
             // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
             // within minutes, not the default week. Startup connectivity validation stays on; machine silos beat often enough that their own stale rows are skipped (R105).
             if (builder.Environment.IsDevelopment())
@@ -85,12 +100,14 @@ public static class ServerHostingExtensions
             // server whose storage was never wrapped, so no instance registration is silently lost.
             silo.TryAddKernelRegistration();
         });
-        // Storage, clustering and reminders are the orleans module's; the platform and the machine part
-        // log compose over whatever it registered.
+        // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
-        builder.AddBrainStorage();
         return builder;
     }
+
+    // The retired settings LegacyConfigurationGuard refuses, handed to the topology validator as well (P2-D-11).
+    private static readonly DigitalBrain.Runtime.Orleans.RetiredSetting[] RetiredTopologySettings =
+        [.. LegacyConfigurationGuard.RetiredSettings.Select(static row => new DigitalBrain.Runtime.Orleans.RetiredSetting(row.Name, row.Replacement))];
 
     public static WebApplication MapIntoChatOSServer(this WebApplication app)
     {
