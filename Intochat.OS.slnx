@@ -34,9 +34,14 @@
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Circle/">
     <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Contracts.Tests.Unit/IntoChat.Cloud.Circle.Contracts.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Server.Tests.Integration/IntoChat.Cloud.Circle.Server.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Server.Tests.Unit/IntoChat.Cloud.Circle.Server.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Circle/Contracts/">
     <Project Path="src/IntoChat.Cloud/Modules/Circle/Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Circle/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
   </Folder>
   <Folder Name="/LocalSetup/">
     <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/IntoChat.OS.LocalSetup.Tests.Unit.csproj" />
