@@ -9,10 +9,14 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 public sealed class VocabularyRingFacts
 {
     // 05-02 (D-15): a capability contract package references the core only.
-    [Fact]
-    public void Storage_contract_references_only_the_core()
+    // 05-03: secrets@1 and identity@1 follow the same rule.
+    [Theory]
+    [InlineData("DigitalBrain.Capabilities.Storage")]
+    [InlineData("DigitalBrain.Capabilities.Secrets")]
+    [InlineData("DigitalBrain.Capabilities.Identity")]
+    public void Capability_contract_references_only_the_core(string name)
     {
-        var project = Repository.ProjectNamed("DigitalBrain.Capabilities.Storage").Path;
+        var project = Repository.ProjectNamed(name).Path;
         Assert.Equal(["DigitalBrain"], Repository.ProjectReferences(project));
         Assert.Equal(["Microsoft.CodeAnalysis.PublicApiAnalyzers"], Repository.PackageReferences(project));
     }
@@ -42,7 +46,7 @@ public sealed class VocabularyRingFacts
 // V-02: no Orleans library anywhere in the restore graph of the core-side projects.
 public sealed class CoreHasNoOrleansFacts
 {
-    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing", "DigitalBrain.Analyzers", "DigitalBrain.Capabilities.Storage" };
+    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing", "DigitalBrain.Analyzers", "DigitalBrain.Capabilities.Storage", "DigitalBrain.Capabilities.Secrets", "DigitalBrain.Capabilities.Identity" };
 
     [Theory]
     [MemberData(nameof(CoreProjects))]
@@ -62,7 +66,7 @@ public sealed class CoreHasNoOrleansFacts
     }
 
     // 04-03 (CORE-01, T-04-08): the built core assemblies reference no Orleans assembly and declare no Orleans namespace.
-    public static readonly TheoryData<string> CoreAssemblies = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing", "DigitalBrain.Capabilities.Storage" };
+    public static readonly TheoryData<string> CoreAssemblies = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing", "DigitalBrain.Capabilities.Storage", "DigitalBrain.Capabilities.Secrets", "DigitalBrain.Capabilities.Identity" };
 
     private static Assembly Anchor(string name) => name switch
     {
@@ -70,6 +74,8 @@ public sealed class CoreHasNoOrleansFacts
         "DigitalBrain.UI" => typeof(DigitalBrain.UI.View).Assembly,
         "DigitalBrain.Testing" => typeof(DigitalBrain.Testing.ManualTime).Assembly,
         "DigitalBrain.Capabilities.Storage" => typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly, // 05-02, D-15
+        "DigitalBrain.Capabilities.Secrets" => typeof(DigitalBrain.Capabilities.Secrets.ISecrets).Assembly, // 05-03, D-15
+        "DigitalBrain.Capabilities.Identity" => typeof(DigitalBrain.Capabilities.Identity.IIdentity).Assembly, // 05-03, D-15
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 
@@ -101,7 +107,7 @@ public sealed class ReferenceClosureFacts
     public void Core_closure_is_clean()
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var pending = new Stack<Assembly>([typeof(Signal).Assembly, typeof(DigitalBrain.UI.View).Assembly, typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly]);
+        var pending = new Stack<Assembly>([typeof(Signal).Assembly, typeof(DigitalBrain.UI.View).Assembly, typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly, typeof(DigitalBrain.Capabilities.Secrets.ISecrets).Assembly, typeof(DigitalBrain.Capabilities.Identity.IIdentity).Assembly]);
         while (pending.TryPop(out var assembly))
         {
             foreach (var reference in assembly.GetReferencedAssemblies())
@@ -126,7 +132,7 @@ public sealed class PackageIdAllowlistFacts
 {
     private static readonly string[] Folders = ["src", "templates"];
 
-    private const int Floor = 8; // 05-02: + DigitalBrain.Capabilities.Storage (capability contract packages join the set).
+    private const int Floor = 10; // 05-02: + DigitalBrain.Capabilities.Storage; 05-03: + .Secrets, .Identity (capability contract packages join the set).
 
     [Fact]
     public void Packable_ids_are_digitalbrain()

@@ -36,14 +36,14 @@ public sealed class SecretsCapabilityFacts
     public async Task Resolve_returns_the_value_set_and_remove_makes_it_not_found()
     {
         ISecrets secrets = new MemorySecrets();
-        var reference = await secrets.Set("github", "GitHub token", "s3cr3t-value");
+        var reference = await secrets.Set("github", "GitHub token", "s3cr3t-value", TestContext.Current.CancellationToken);
         Assert.True(reference.IsSet);
         Assert.DoesNotContain("s3cr3t-value", reference.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("s3cr3t-value", JsonSerializer.Serialize(reference), StringComparison.Ordinal);
-        Assert.Equal("s3cr3t-value", await secrets.Resolve(reference));
+        Assert.Equal("s3cr3t-value", await secrets.Resolve(reference, TestContext.Current.CancellationToken));
 
-        await secrets.Remove("github");
-        var error = await Assert.ThrowsAsync<SecretNotFound>(() => secrets.Resolve(reference));
+        await secrets.Remove("github", TestContext.Current.CancellationToken);
+        var error = await Assert.ThrowsAsync<SecretNotFound>(() => secrets.Resolve(reference, TestContext.Current.CancellationToken));
         Assert.Equal("github", error.Name);
     }
 
@@ -51,7 +51,7 @@ public sealed class SecretsCapabilityFacts
     public async Task Resolving_an_unset_reference_is_not_found()
     {
         ISecrets secrets = new MemorySecrets();
-        await Assert.ThrowsAsync<SecretNotFound>(() => secrets.Resolve(SecretRef.Unset("github", "GitHub token")));
+        await Assert.ThrowsAsync<SecretNotFound>(() => secrets.Resolve(SecretRef.Unset("github", "GitHub token"), TestContext.Current.CancellationToken));
     }
 
     private sealed class MemorySecrets : ISecrets

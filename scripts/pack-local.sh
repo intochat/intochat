@@ -13,7 +13,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 version="$(tr -d '[:space:]' < "$root/VERSION")-preview.$n"
 
 mkdir -p "$feed"
-for id in DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Templates DigitalBrain.Runtime.Orleans DigitalBrain.Runtime.Orleans.Azure DigitalBrain.Capabilities.Storage; do
+for id in DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Templates DigitalBrain.Runtime.Orleans DigitalBrain.Runtime.Orleans.Azure DigitalBrain.Capabilities.Storage DigitalBrain.Capabilities.Secrets DigitalBrain.Capabilities.Identity; do
   if [ -e "$feed/$id.$version.nupkg" ]; then
     echo "$feed/$id.$version.nupkg exists; bump the preview number" >&2
     exit 1
