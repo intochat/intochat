@@ -14,6 +14,8 @@ internal static class RuntimeServicesHosting
         silo.Services.AddOptions<SessionSynapseOptions>().BindConfiguration(IntoChatOSNames.Signalling.Section);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.AddSingleton<RuntimeClock>();
+        silo.Services.AddSingleton<BrainListeners>();
+        silo.Services.AddSingleton<IBrainListeners>(sp => sp.GetRequiredService<BrainListeners>());
         return silo;
     }
 }

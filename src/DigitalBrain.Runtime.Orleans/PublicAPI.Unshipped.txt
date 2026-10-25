@@ -226,6 +226,8 @@ DigitalBrain.Runtime.Orleans.Services.Equals(DigitalBrain.Runtime.Orleans.Servic
 DigitalBrain.Runtime.Orleans.Services.Processes.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.ServiceProcess!>!
 DigitalBrain.Runtime.Orleans.Services.Processes.init -> void
 DigitalBrain.Runtime.Orleans.Services.Services(System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.ServiceProcess!>! Processes, System.Collections.Generic.IReadOnlyList<string!>! AzureResourceKinds) -> void
+DigitalBrain.Runtime.Orleans.Signalling.IBrainListeners
+DigitalBrain.Runtime.Orleans.Signalling.IBrainListeners.Listen<TSignal>(DigitalBrain.BrainId brain, System.Func<TSignal!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.End() -> System.Threading.Tasks.Task!
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.Next(long acked, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Signalling.SessionBatch?>!
