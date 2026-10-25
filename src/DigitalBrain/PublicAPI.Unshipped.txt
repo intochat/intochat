@@ -1,8 +1,31 @@
 #nullable enable
-abstract DigitalBrain.Signal.<Clone>$() -> DigitalBrain.Signal!
+DigitalBrain.App
+DigitalBrain.App.App() -> void
 DigitalBrain.AppAttribute
 DigitalBrain.AppAttribute.AppAttribute(string! id) -> void
 DigitalBrain.AppAttribute.Id.get -> string!
+DigitalBrain.AppManifest
+DigitalBrain.AppManifest.<Clone>$() -> DigitalBrain.AppManifest!
+DigitalBrain.AppManifest.AppManifest(string! Id, string! Name, string! Version, System.Collections.Generic.IReadOnlyList<System.Type!>! Neurons, DigitalBrain.AppRequirements! Requires) -> void
+DigitalBrain.AppManifest.Deconstruct(out string! Id, out string! Name, out string! Version, out System.Collections.Generic.IReadOnlyList<System.Type!>! Neurons, out DigitalBrain.AppRequirements! Requires) -> void
+DigitalBrain.AppManifest.Equals(DigitalBrain.AppManifest? other) -> bool
+DigitalBrain.AppManifest.Id.get -> string!
+DigitalBrain.AppManifest.Id.init -> void
+DigitalBrain.AppManifest.Name.get -> string!
+DigitalBrain.AppManifest.Name.init -> void
+DigitalBrain.AppManifest.Neurons.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+DigitalBrain.AppManifest.Neurons.init -> void
+DigitalBrain.AppManifest.Requires.get -> DigitalBrain.AppRequirements!
+DigitalBrain.AppManifest.Requires.init -> void
+DigitalBrain.AppManifest.Version.get -> string!
+DigitalBrain.AppManifest.Version.init -> void
+DigitalBrain.AppRequirements
+DigitalBrain.AppRequirements.<Clone>$() -> DigitalBrain.AppRequirements!
+DigitalBrain.AppRequirements.AppRequirements(System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Capabilities) -> void
+DigitalBrain.AppRequirements.Capabilities.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>!
+DigitalBrain.AppRequirements.Capabilities.init -> void
+DigitalBrain.AppRequirements.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Capabilities) -> void
+DigitalBrain.AppRequirements.Equals(DigitalBrain.AppRequirements? other) -> bool
 DigitalBrain.BrainId
 DigitalBrain.BrainId.BrainId() -> void
 DigitalBrain.BrainId.BrainId(string! value) -> void
@@ -13,6 +36,14 @@ DigitalBrain.CallTimeoutAttribute
 DigitalBrain.CallTimeoutAttribute.CallTimeoutAttribute(int milliseconds) -> void
 DigitalBrain.CallTimeoutAttribute.Milliseconds.get -> int
 DigitalBrain.CallTimeoutAttribute.Timeout.get -> System.TimeSpan
+DigitalBrain.Capabilities.CapabilityId
+DigitalBrain.Capabilities.CapabilityId.CapabilityId() -> void
+DigitalBrain.Capabilities.CapabilityId.CapabilityId(string! name, int major) -> void
+DigitalBrain.Capabilities.CapabilityId.Equals(DigitalBrain.Capabilities.CapabilityId other) -> bool
+DigitalBrain.Capabilities.CapabilityId.Major.get -> int
+DigitalBrain.Capabilities.CapabilityId.Name.get -> string!
+DigitalBrain.Capabilities.ICapabilityBroker
+DigitalBrain.Capabilities.ICapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
 DigitalBrain.CapabilityAttribute
 DigitalBrain.CapabilityAttribute.CapabilityAttribute(string! name, int version) -> void
 DigitalBrain.CapabilityAttribute.Name.get -> string!
@@ -27,6 +58,41 @@ DigitalBrain.InterleavesAttribute.InterleavesAttribute() -> void
 DigitalBrain.InterleavesWhenAttribute
 DigitalBrain.InterleavesWhenAttribute.InterleavesWhenAttribute(string! predicate) -> void
 DigitalBrain.InterleavesWhenAttribute.Predicate.get -> string!
+DigitalBrain.Module
+DigitalBrain.Module.Module() -> void
+DigitalBrain.ModuleAttribute
+DigitalBrain.ModuleAttribute.Id.get -> string!
+DigitalBrain.ModuleAttribute.ModuleAttribute(string! id) -> void
+DigitalBrain.ModuleManifest
+DigitalBrain.ModuleManifest.<Clone>$() -> DigitalBrain.ModuleManifest!
+DigitalBrain.ModuleManifest.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Provides, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Requires, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Need!>! Needs, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Setting!>! Settings, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Secret!>! Secrets) -> void
+DigitalBrain.ModuleManifest.Equals(DigitalBrain.ModuleManifest? other) -> bool
+DigitalBrain.ModuleManifest.Id.get -> string?
+DigitalBrain.ModuleManifest.Id.init -> void
+DigitalBrain.ModuleManifest.ModuleManifest(System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Provides, System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>! Requires, System.Collections.Generic.IReadOnlyList<DigitalBrain.Need!>! Needs, System.Collections.Generic.IReadOnlyList<DigitalBrain.Setting!>! Settings, System.Collections.Generic.IReadOnlyList<DigitalBrain.Secret!>! Secrets) -> void
+DigitalBrain.ModuleManifest.Needs.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Need!>!
+DigitalBrain.ModuleManifest.Needs.init -> void
+DigitalBrain.ModuleManifest.Provides.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>!
+DigitalBrain.ModuleManifest.Provides.init -> void
+DigitalBrain.ModuleManifest.Requires.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>!
+DigitalBrain.ModuleManifest.Requires.init -> void
+DigitalBrain.ModuleManifest.Secrets.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Secret!>!
+DigitalBrain.ModuleManifest.Secrets.init -> void
+DigitalBrain.ModuleManifest.Settings.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Setting!>!
+DigitalBrain.ModuleManifest.Settings.init -> void
+DigitalBrain.Need
+DigitalBrain.Need.<Clone>$() -> DigitalBrain.Need!
+DigitalBrain.Need.Equals(DigitalBrain.Need? other) -> bool
+DigitalBrain.Need.Kind.get -> DigitalBrain.NeedKind
+DigitalBrain.Need.Name.get -> string?
+DigitalBrain.NeedKind
+DigitalBrain.NeedKind.GrainStore = 0 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Http = 4 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Model = 6 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Reminders = 2 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Sandbox = 5 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Secrets = 3 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Streams = 1 -> DigitalBrain.NeedKind
 DigitalBrain.Neuron
 DigitalBrain.Neuron.Attach(DigitalBrain.Spi.INeuronContext! context) -> void
 DigitalBrain.Neuron.Context.get -> DigitalBrain.Spi.INeuronContext!
@@ -58,6 +124,19 @@ DigitalBrain.ReadOnlyCallAttribute
 DigitalBrain.ReadOnlyCallAttribute.ReadOnlyCallAttribute() -> void
 DigitalBrain.ReentrantAttribute
 DigitalBrain.ReentrantAttribute.ReentrantAttribute() -> void
+DigitalBrain.Secret
+DigitalBrain.Secret.<Clone>$() -> DigitalBrain.Secret!
+DigitalBrain.Secret.Equals(DigitalBrain.Secret? other) -> bool
+DigitalBrain.Secret.Name.get -> string!
+DigitalBrain.Setting
+DigitalBrain.Setting.<Clone>$() -> DigitalBrain.Setting!
+DigitalBrain.Setting.Deconstruct(out System.Type! OptionsType, out string! Section) -> void
+DigitalBrain.Setting.Equals(DigitalBrain.Setting? other) -> bool
+DigitalBrain.Setting.OptionsType.get -> System.Type!
+DigitalBrain.Setting.OptionsType.init -> void
+DigitalBrain.Setting.Section.get -> string!
+DigitalBrain.Setting.Section.init -> void
+DigitalBrain.Setting.Setting(System.Type! OptionsType, string! Section) -> void
 DigitalBrain.Signal
 DigitalBrain.Signal.Signal() -> void
 DigitalBrain.Signal.Signal(DigitalBrain.Signal! original) -> void
@@ -106,25 +185,72 @@ DigitalBrain.Synapse.Signal.init -> void
 DigitalBrain.Synapse.Synapse(DigitalBrain.NeuronId From, System.Type! Signal, DigitalBrain.NeuronId To) -> void
 DigitalBrain.Synapse.To.get -> DigitalBrain.NeuronId
 DigitalBrain.Synapse.To.init -> void
+abstract DigitalBrain.Signal.<Clone>$() -> DigitalBrain.Signal!
+override DigitalBrain.AppManifest.Equals(object? obj) -> bool
+override DigitalBrain.AppManifest.GetHashCode() -> int
+override DigitalBrain.AppManifest.ToString() -> string!
+override DigitalBrain.AppRequirements.Equals(object? obj) -> bool
+override DigitalBrain.AppRequirements.GetHashCode() -> int
+override DigitalBrain.AppRequirements.ToString() -> string!
 override DigitalBrain.BrainId.GetHashCode() -> int
 override DigitalBrain.BrainId.ToString() -> string!
+override DigitalBrain.Capabilities.CapabilityId.GetHashCode() -> int
+override DigitalBrain.Capabilities.CapabilityId.ToString() -> string!
+override DigitalBrain.ModuleManifest.Equals(object? obj) -> bool
+override DigitalBrain.ModuleManifest.GetHashCode() -> int
+override DigitalBrain.ModuleManifest.ToString() -> string!
+override DigitalBrain.Need.Equals(object? obj) -> bool
+override DigitalBrain.Need.GetHashCode() -> int
+override DigitalBrain.Need.ToString() -> string!
 override DigitalBrain.NeuronId.GetHashCode() -> int
 override DigitalBrain.NeuronId.ToString() -> string!
+override DigitalBrain.Secret.Equals(object? obj) -> bool
+override DigitalBrain.Secret.GetHashCode() -> int
+override DigitalBrain.Secret.ToString() -> string!
+override DigitalBrain.Setting.Equals(object? obj) -> bool
+override DigitalBrain.Setting.GetHashCode() -> int
+override DigitalBrain.Setting.ToString() -> string!
 override DigitalBrain.Signal.Equals(object? obj) -> bool
 override DigitalBrain.Signal.GetHashCode() -> int
 override DigitalBrain.Signal.ToString() -> string!
 override DigitalBrain.Synapse.Equals(object? obj) -> bool
 override DigitalBrain.Synapse.GetHashCode() -> int
 override DigitalBrain.Synapse.ToString() -> string!
+static DigitalBrain.AppManifest.operator !=(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
+static DigitalBrain.AppManifest.operator ==(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
+static DigitalBrain.AppRequirements.operator !=(DigitalBrain.AppRequirements? left, DigitalBrain.AppRequirements? right) -> bool
+static DigitalBrain.AppRequirements.operator ==(DigitalBrain.AppRequirements? left, DigitalBrain.AppRequirements? right) -> bool
 static DigitalBrain.BrainId.IsValid(string? value) -> bool
 static DigitalBrain.BrainId.Kernel.get -> DigitalBrain.BrainId
+static DigitalBrain.BrainId.System(string! name) -> DigitalBrain.BrainId
 static DigitalBrain.BrainId.operator !=(DigitalBrain.BrainId left, DigitalBrain.BrainId right) -> bool
 static DigitalBrain.BrainId.operator ==(DigitalBrain.BrainId left, DigitalBrain.BrainId right) -> bool
-static DigitalBrain.BrainId.System(string! name) -> DigitalBrain.BrainId
-static DigitalBrain.NeuronId.operator !=(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
-static DigitalBrain.NeuronId.operator ==(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
+static DigitalBrain.Capabilities.CapabilityId.Parse(string! text) -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Capabilities.CapabilityId.TryParse(string? text, out DigitalBrain.Capabilities.CapabilityId id) -> bool
+static DigitalBrain.Capabilities.CapabilityId.operator !=(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
+static DigitalBrain.Capabilities.CapabilityId.operator ==(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
+static DigitalBrain.ModuleManifest.Of(System.Type! moduleType) -> DigitalBrain.ModuleManifest!
+static DigitalBrain.ModuleManifest.operator !=(DigitalBrain.ModuleManifest? left, DigitalBrain.ModuleManifest? right) -> bool
+static DigitalBrain.ModuleManifest.operator ==(DigitalBrain.ModuleManifest? left, DigitalBrain.ModuleManifest? right) -> bool
+static DigitalBrain.Need.GrainStore(string! name) -> DigitalBrain.Need!
+static DigitalBrain.Need.Http.get -> DigitalBrain.Need!
+static DigitalBrain.Need.Model.get -> DigitalBrain.Need!
+static DigitalBrain.Need.Reminders.get -> DigitalBrain.Need!
+static DigitalBrain.Need.Sandbox.get -> DigitalBrain.Need!
+static DigitalBrain.Need.Secrets.get -> DigitalBrain.Need!
+static DigitalBrain.Need.Streams.get -> DigitalBrain.Need!
+static DigitalBrain.Need.operator !=(DigitalBrain.Need? left, DigitalBrain.Need? right) -> bool
+static DigitalBrain.Need.operator ==(DigitalBrain.Need? left, DigitalBrain.Need? right) -> bool
 static DigitalBrain.NeuronId.Parse(string! text) -> DigitalBrain.NeuronId
 static DigitalBrain.NeuronId.TryParse(string? text, out DigitalBrain.NeuronId id) -> bool
+static DigitalBrain.NeuronId.operator !=(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
+static DigitalBrain.NeuronId.operator ==(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
+static DigitalBrain.Secret.Named(string! name) -> DigitalBrain.Secret!
+static DigitalBrain.Secret.operator !=(DigitalBrain.Secret? left, DigitalBrain.Secret? right) -> bool
+static DigitalBrain.Secret.operator ==(DigitalBrain.Secret? left, DigitalBrain.Secret? right) -> bool
+static DigitalBrain.Setting.Of<TOptions>(string? section = null) -> DigitalBrain.Setting!
+static DigitalBrain.Setting.operator !=(DigitalBrain.Setting? left, DigitalBrain.Setting? right) -> bool
+static DigitalBrain.Setting.operator ==(DigitalBrain.Setting? left, DigitalBrain.Setting? right) -> bool
 static DigitalBrain.Signal.operator !=(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
 static DigitalBrain.Signal.operator ==(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
 static DigitalBrain.Synapse.operator !=(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
@@ -135,4 +261,5 @@ virtual DigitalBrain.Signal.EqualityContract.get -> System.Type!
 virtual DigitalBrain.Signal.Equals(DigitalBrain.Signal? other) -> bool
 virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> bool
 ~override DigitalBrain.BrainId.Equals(object obj) -> bool
+~override DigitalBrain.Capabilities.CapabilityId.Equals(object obj) -> bool
 ~override DigitalBrain.NeuronId.Equals(object obj) -> bool
