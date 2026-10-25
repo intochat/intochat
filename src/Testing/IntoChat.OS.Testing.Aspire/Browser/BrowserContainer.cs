@@ -5,7 +5,8 @@ namespace IntoChat.OS.Testing.Aspire;
 // Chromium as a resource of the test host: Playwright's own image serving `run-server`, at the
 // exact version of the Playwright driver the tests drive it with (the wire protocol requires an
 // exact match), so CI needs Docker and no browser install.
-internal static class BrowserContainer
+/// <summary>Chromium as a resource of the test host, served by Playwright's own image.</summary>
+public static class BrowserContainer
 {
     internal const string ResourceName = "e2e-browser";
     internal const string EndpointName = "ws";
@@ -33,7 +34,8 @@ internal static class BrowserContainer
 
     // Connections address the browser's own loopback through the test process, so the shell's
     // localhost endpoints load exactly as they do for a local browser.
-    internal const string ExposedNetwork = "<loopback>";
+    /// <summary>The network a container browser exposes back to the test process.</summary>
+    public const string ExposedNetwork = "<loopback>";
 
     // The assembly carries no real version; the Node driver the package copies beside the tests does,
     // and the server must speak that driver's protocol.

@@ -6,9 +6,7 @@
     <Description>One harness for every IntoChat.OS test: the TestBrain builder, targets that run the product recipe, signal probes, behavior runs, bounded waits and a fake model endpoint.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Testing.Aspire" />
     <InternalsVisibleTo Include="IntoChat.OS.Testing.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Testing" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

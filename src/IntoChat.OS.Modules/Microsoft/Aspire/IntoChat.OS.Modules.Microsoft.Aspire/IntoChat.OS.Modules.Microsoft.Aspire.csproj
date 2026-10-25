@@ -7,7 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Aspire.Tests.Integration" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Microsoft.Orleans.Reminders" />

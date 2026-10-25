@@ -122,7 +122,8 @@ public sealed class Person : IDisposable
 
     // The Open posture's synthetic owner: no cookie, account and brain "owner".
     // Without an HTTP edge, the owner's client has no address.
-    internal static Person OpenOwner(HttpClient? http) => new("owner", "owner", "owner", http ?? NoEdge, ownsHttp: false);
+    /// <summary>The Open posture's synthetic owner (account and brain "owner"); <paramref name="http"/> is the HTTP edge, if any.</summary>
+    public static Person OpenOwner(HttpClient? http) => new("owner", "owner", "owner", http ?? NoEdge, ownsHttp: false);
 
     // Registered without an HTTP edge: no cookie session, a client with no address.
     internal static Person Registered(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId, NoEdge, ownsHttp: false);

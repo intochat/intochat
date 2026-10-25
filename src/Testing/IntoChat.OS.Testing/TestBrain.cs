@@ -39,7 +39,8 @@ public sealed class TestBrain
     }
 
     // A composition named as a list (the OS catalog): modules already declared keep their configuration.
-    internal TestBrain WithModules(IEnumerable<ModuleContract> modules)
+    /// <summary>Adds a composition named as a list (the OS catalog); modules already declared keep their configuration.</summary>
+    public TestBrain WithModules(IEnumerable<ModuleContract> modules)
     {
         EnsureMutable();
         _composition.RequireModules(modules);

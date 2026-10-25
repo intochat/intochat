@@ -49,7 +49,8 @@ public sealed class IntoChatOSServerBuilder
     // configuration that affirms a module this server never registered is a deployment bug.
     // A module with a LicenseProduct also needs a valid licence: without one it is subtracted and
     // reported Unlicensed, unless IntoChatOS:Modules:{id}:Required is true, which refuses to start.
-    internal ModuleSelection SelectModules(IConfiguration configuration)
+    /// <summary>Applies configuration and licences to the registered modules: what runs, and every module's status.</summary>
+    public ModuleSelection SelectModules(IConfiguration configuration)
     {
         // Configuration keys are case-insensitive, so the ids match that way too.
         var sections = configuration.GetSection(IntoChatOSConfiguration.ModulesSectionName).GetChildren().ToArray();
@@ -89,4 +90,5 @@ public sealed class IntoChatOSServerBuilder
     }
 }
 
-internal readonly record struct ModuleSelection(Module[] Modules, ModuleStatus[] Statuses);
+/// <summary>The modules a server runs and the status of every registered module.</summary>
+public readonly record struct ModuleSelection(Module[] Modules, ModuleStatus[] Statuses);

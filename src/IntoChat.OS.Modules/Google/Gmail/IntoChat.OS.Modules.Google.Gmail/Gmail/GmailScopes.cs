@@ -1,3 +1,8 @@
 namespace IntoChat.OS.Google.Gmail;
 
-internal static class GmailScopes { internal const string Read = "https://www.googleapis.com/auth/gmail.readonly"; }
+/// <summary>OAuth scopes the Gmail module requests.</summary>
+public static class GmailScopes
+{
+    /// <summary>Read-only mailbox access.</summary>
+    public const string Read = "https://www.googleapis.com/auth/gmail.readonly";
+}

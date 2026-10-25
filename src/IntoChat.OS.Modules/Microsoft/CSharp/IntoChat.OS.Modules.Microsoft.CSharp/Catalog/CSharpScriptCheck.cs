@@ -151,7 +151,8 @@ public sealed class CSharpScriptCheck
     // contract assembly with what they depend on. Nothing else this host loads (the framework ring, the
     // platform, drivers, the compiler) is a behavior's to reach; it would compile here and fail to load there.
     // The assemblies a script compiles against, by simple name.
-    internal static IReadOnlyCollection<string> ReferenceNames()
+    /// <summary>The assembly names a script may reference; read-only, pinned by ScriptVisibilityFacts.</summary>
+    public static IReadOnlyCollection<string> ReferenceNames()
         => [.. References.Value.Select(reference => Path.GetFileNameWithoutExtension(((PortableExecutableReference)reference).FilePath)!)];
 
     private static MetadataReference[] LoadReferences()

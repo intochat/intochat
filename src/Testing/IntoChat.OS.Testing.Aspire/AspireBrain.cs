@@ -4,7 +4,8 @@ using IntoChat.OS.Framework;
 namespace IntoChat.OS.Testing.Aspire;
 
 // A brain in the AppHost's processes: HTTP through its edge, neurons through an Orleans client.
-internal sealed class AspireBrain : ITestBrain, ITrackedBrain
+/// <summary>A brain in the AppHost's processes; public so Testing.Playwright can reach its session and lifetime.</summary>
+public sealed class AspireBrain : ITestBrain, ITrackedBrain
 {
     private readonly AspireTestSession _session;
     private readonly TestSessionLifetime _lifetime;
@@ -19,10 +20,12 @@ internal sealed class AspireBrain : ITestBrain, ITrackedBrain
         _ownsSession = ownsSession;
     }
 
-    internal AspireTestSession Session => _session;
+    /// <summary>The Aspire test session hosting this brain.</summary>
+    public AspireTestSession Session => _session;
 
     // What this brain owns: the session for the booting brain, only its own observations for a lease.
-    internal TestSessionLifetime Lifetime => _lifetime;
+    /// <summary>What this brain owns: the session for the booting brain, only its own observations for a lease.</summary>
+    public TestSessionLifetime Lifetime => _lifetime;
 
     // A fact's view of a host it does not own: disposing it releases only what the fact observed.
     internal AspireBrain Lease() => new(_session, new TestSessionLifetime(_session.Options), ownsSession: false);
