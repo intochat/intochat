@@ -54,7 +54,11 @@ public sealed partial class TestOS : IAsyncDisposable
         Capabilities = new CapabilityFakes();
         Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance);
         Synapses = new SynapseRegistry(this);
+        Confirmations = new TestConfirmations(Clock);
     }
+
+    /// <summary>The confirmation gate every neuron's <c>Context.Confirm</c> asks (07 D-03); set its policy and answer as a person here.</summary>
+    public TestConfirmations Confirmations { get; }
 
     /// <summary>The options this TestOS runs with.</summary>
     public TestOSOptions Options { get; }

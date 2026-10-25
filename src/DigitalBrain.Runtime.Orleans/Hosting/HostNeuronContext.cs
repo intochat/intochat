@@ -81,6 +81,10 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
     public ISignalHistory History => (_services.GetService<BrainSignalHistories>()
         ?? throw new InvalidOperationException("Signal history needs BrainLog as the cluster store (BrainStorageRegistration).")).For(Id.Brain);
 
+    /// <summary>The host's confirmation gate (the runtime confirmations neuron, 07-06); until one is registered, asking throws.</summary>
+    public DigitalBrain.Confirmation.IConfirmations Confirmations
+        => _services.GetService<DigitalBrain.Confirmation.IConfirmations>() ?? UnavailableConfirmations.Instance;
+
     public string Caller => RequestContext.Get(CallerKey) as string ?? string.Empty;
 
     public string Silo { get; }

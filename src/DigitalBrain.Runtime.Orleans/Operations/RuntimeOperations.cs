@@ -48,11 +48,14 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
         }
         if (plan is WritePlan write)
         {
-            var runner = new StorageWriteRunner(Owner, services.GetService<StorageWriteResult>() ?? WaitForStorage);
+            var runner = Runner();
             _ = Task.Run(() => Drive(runner, write, handle), CancellationToken.None);
         }
         return handle;
     }
+
+    /// <summary>The write runner over this brain's storage connections.</summary>
+    internal StorageWriteRunner Runner() => new(Owner, services.GetService<StorageWriteResult>() ?? WaitForStorage);
 
     public async Task Cancel(OperationId id, CancellationToken ct)
     {

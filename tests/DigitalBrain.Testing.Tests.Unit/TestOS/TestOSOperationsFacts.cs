@@ -89,7 +89,11 @@ public sealed class TestOSOperationsFacts : IAsyncLifetime
     {
         var file = _a.AddFile(_a.Root, "doc.txt", "hello"u8.ToArray());
 
-        Assert.Equal("succeeded", await Writer.Run(new("move", file.Value, _b.Root.Value, null, null, ConflictPolicy.Fail, false)));
+        // 07-02: a move between connections is destructive, so the default policy asks a person first.
+        var moving = Writer.Run(new("move", file.Value, _b.Root.Value, null, null, ConflictPolicy.Fail, false));
+        while (_os.Confirmations.Waiting.Count == 0) { await Task.Delay(10, TestContext.Current.CancellationToken); }
+        await _os.Confirmations.Approve(_os.Confirmations.Waiting[0].PlanId);
+        Assert.Equal("succeeded", await moving);
 
         var moved = (await _b.List(_b.Root, new ListQuery(), TestContext.Current.CancellationToken)).Items.Single(item => item.Name == "doc.txt");
         Assert.Equal("hello", await _b.ReadText(moved.Id, TestContext.Current.CancellationToken));

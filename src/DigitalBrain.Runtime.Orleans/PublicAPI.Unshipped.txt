@@ -745,3 +745,6 @@ static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddSecre
 static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current.get -> DigitalBrain.Capabilities.CapabilityCaller?
 static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Required(string! capability) -> DigitalBrain.Capabilities.CapabilityCaller!
 static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(DigitalBrain.Capabilities.CapabilityCaller! caller) -> System.IDisposable!
+DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate
+DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate.Check(DigitalBrain.Runtime.Orleans.Operations.OperationRequest! request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!>!
+DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate.ConfirmingOperationGate(System.IServiceProvider! services) -> void

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Confirmation;
 using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
@@ -15,8 +17,12 @@ internal sealed class TestNeuronContext : INeuronContext
         Timers = new HostTimers(host);
         Reminders = new HostReminders(host);
         Synapses = new TestSynapses(host);
-        Operations = new FakeOperations(TestOSOperations.Runner(host.OS.Services, host.Id.Brain), Publish);
+        Confirmations = host.OS.Confirmations.For(ConfirmationPrincipal.App(host.Id.ToString()), Publish);
+        var runner = TestOSOperations.Runner(host.OS.Services, host.Id.Brain);
+        Operations = new FakeOperations(runner, Publish, (plan, ct) => StorageConfirmationGate.Check(runner, Confirmations, plan, ct));
     }
+
+    public IConfirmations Confirmations { get; }
 
     public NeuronId Id => _host.Id;
 

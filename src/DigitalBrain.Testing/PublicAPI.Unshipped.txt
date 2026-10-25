@@ -522,3 +522,20 @@ DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Log.get -> System.C
 DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Remove(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultStatus>!
 DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Resolve(DigitalBrain.Capabilities.CapabilityCaller! caller, DigitalBrain.Capabilities.Secrets.SecretRef! secret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
 DigitalBrain.Testing.Conformance.Secrets.InMemorySecretVault.Set(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, string! label, string! value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
+DigitalBrain.Testing.FakeNeuronContext.Confirmations.get -> DigitalBrain.Testing.TestConfirmations!
+DigitalBrain.Testing.FakeOperations.FakeOperations(DigitalBrain.Capabilities.Storage.StorageWriteRunner! runner, System.Func<DigitalBrain.Signal!, System.Threading.Tasks.Task!>! publish, System.Func<DigitalBrain.Capabilities.Storage.WritePlan!, System.Threading.CancellationToken, System.Threading.Tasks.Task<string?>!>? gate) -> void
+DigitalBrain.Testing.TestConfirmations
+DigitalBrain.Testing.TestConfirmations.Approve(string! planId) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestConfirmations.Audit.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Confirmation.ConfirmationResolved!>!
+DigitalBrain.Testing.TestConfirmations.Click(DigitalBrain.UI.Button! button) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestConfirmations.Current.get -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+DigitalBrain.Testing.TestConfirmations.Current.set -> void
+DigitalBrain.Testing.TestConfirmations.Deny(string! planId) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestConfirmations.For(DigitalBrain.Confirmation.ConfirmationPrincipal! requester, System.Func<DigitalBrain.Signal!, System.Threading.Tasks.Task!>? publish = null) -> DigitalBrain.Confirmation.IConfirmations!
+DigitalBrain.Testing.TestConfirmations.Policy.get -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Testing.TestConfirmations.Policy.set -> void
+DigitalBrain.Testing.TestConfirmations.Requested.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Confirmation.ConfirmationRequested!>!
+DigitalBrain.Testing.TestConfirmations.Resolve(string! planId, bool approve, DigitalBrain.Confirmation.ConfirmationPrincipal! approver) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestConfirmations.TestConfirmations(System.TimeProvider! clock) -> void
+DigitalBrain.Testing.TestConfirmations.Waiting.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Confirmation.ConfirmationRequested!>!
+DigitalBrain.Testing.TestOS.Confirmations.get -> DigitalBrain.Testing.TestConfirmations!

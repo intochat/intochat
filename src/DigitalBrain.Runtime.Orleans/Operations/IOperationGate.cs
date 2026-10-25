@@ -27,7 +27,7 @@ public sealed record OperationGateDecision(bool Allowed, string? Reason)
 
 /// <summary>
 /// Asked once before every operation runs (07 D-03 hook: Phase 7 puts the owner's confirmation here). The runtime registers
-/// <see cref="AllowAllOperations"/> unless the host registers its own gate. Dry runs are asked too.
+/// <see cref="ConfirmingOperationGate"/> (confirmations for storage writes) unless the host registers its own gate. Dry runs are asked too.
 /// </summary>
 public interface IOperationGate
 {

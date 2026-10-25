@@ -632,3 +632,156 @@ override DigitalBrain.Capabilities.CapabilityCaller.GetHashCode() -> int
 override DigitalBrain.Capabilities.CapabilityCaller.ToString() -> string!
 static DigitalBrain.Capabilities.CapabilityCaller.operator !=(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
 static DigitalBrain.Capabilities.CapabilityCaller.operator ==(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
+const DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey = "confirmations" -> string!
+const DigitalBrain.Confirmation.IConfirmations.ResolveOperation = "Resolve" -> string!
+DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Copy = 2 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Delete = 0 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Move = 1 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Other = 5 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Overwrite = 4 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationAction.Rename = 3 -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationDenyReason.ByPerson = 1 -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationDenyReason.Expired = 3 -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationDenyReason.None = 0 -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationDenyReason.PlanInvalid = 4 -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationDenyReason.SelfApproval = 2 -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationOutcome.Approved = 0 -> DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationOutcome.Denied = 1 -> DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationOutcome.Expired = 2 -> DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationPlan
+DigitalBrain.Confirmation.ConfirmationPlan.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationPlan!
+DigitalBrain.Confirmation.ConfirmationPlan.Action.get -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationPlan.Action.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.ApproveLabel.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.ApproveLabel.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Body.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.Body.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.ConfirmationPlan(string! Id, DigitalBrain.Confirmation.ConfirmationAction Action, bool Destructive, string! Title, string! Body, string! ApproveLabel, string! DenyLabel, string! TargetLabel) -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Deconstruct(out string! Id, out DigitalBrain.Confirmation.ConfirmationAction Action, out bool Destructive, out string! Title, out string! Body, out string! ApproveLabel, out string! DenyLabel, out string! TargetLabel) -> void
+DigitalBrain.Confirmation.ConfirmationPlan.DenyLabel.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.DenyLabel.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Destructive.get -> bool
+DigitalBrain.Confirmation.ConfirmationPlan.Destructive.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Equals(DigitalBrain.Confirmation.ConfirmationPlan? other) -> bool
+DigitalBrain.Confirmation.ConfirmationPlan.Expiry.get -> System.TimeSpan
+DigitalBrain.Confirmation.ConfirmationPlan.Expiry.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Id.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.Id.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.TargetLabel.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.TargetLabel.init -> void
+DigitalBrain.Confirmation.ConfirmationPlan.Title.get -> string!
+DigitalBrain.Confirmation.ConfirmationPlan.Title.init -> void
+DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationPolicy.Always = 1 -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationPolicy.DestructiveOnly = 0 -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationPolicy.Never = 2 -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationPrincipal
+DigitalBrain.Confirmation.ConfirmationPrincipal.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+DigitalBrain.Confirmation.ConfirmationPrincipal.ConfirmationPrincipal(string! Id, DigitalBrain.Confirmation.PrincipalKind Kind) -> void
+DigitalBrain.Confirmation.ConfirmationPrincipal.Deconstruct(out string! Id, out DigitalBrain.Confirmation.PrincipalKind Kind) -> void
+DigitalBrain.Confirmation.ConfirmationPrincipal.Equals(DigitalBrain.Confirmation.ConfirmationPrincipal? other) -> bool
+DigitalBrain.Confirmation.ConfirmationPrincipal.Id.get -> string!
+DigitalBrain.Confirmation.ConfirmationPrincipal.Id.init -> void
+DigitalBrain.Confirmation.ConfirmationPrincipal.IsHuman.get -> bool
+DigitalBrain.Confirmation.ConfirmationPrincipal.Kind.get -> DigitalBrain.Confirmation.PrincipalKind
+DigitalBrain.Confirmation.ConfirmationPrincipal.Kind.init -> void
+DigitalBrain.Confirmation.ConfirmationRequested
+DigitalBrain.Confirmation.ConfirmationRequested.ConfirmationRequested(string! PlanId, DigitalBrain.Confirmation.ConfirmationPlan! Plan, DigitalBrain.Confirmation.ConfirmationPrincipal! Requester, DigitalBrain.Confirmation.ConfirmationPolicy Policy, System.DateTimeOffset ExpiresAt) -> void
+DigitalBrain.Confirmation.ConfirmationRequested.Deconstruct(out string! PlanId, out DigitalBrain.Confirmation.ConfirmationPlan! Plan, out DigitalBrain.Confirmation.ConfirmationPrincipal! Requester, out DigitalBrain.Confirmation.ConfirmationPolicy Policy, out System.DateTimeOffset ExpiresAt) -> void
+DigitalBrain.Confirmation.ConfirmationRequested.Equals(DigitalBrain.Confirmation.ConfirmationRequested? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRequested.ExpiresAt.get -> System.DateTimeOffset
+DigitalBrain.Confirmation.ConfirmationRequested.ExpiresAt.init -> void
+DigitalBrain.Confirmation.ConfirmationRequested.Plan.get -> DigitalBrain.Confirmation.ConfirmationPlan!
+DigitalBrain.Confirmation.ConfirmationRequested.Plan.init -> void
+DigitalBrain.Confirmation.ConfirmationRequested.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationRequested.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationRequested.Policy.get -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationRequested.Policy.init -> void
+DigitalBrain.Confirmation.ConfirmationRequested.Requester.get -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+DigitalBrain.Confirmation.ConfirmationRequested.Requester.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved
+DigitalBrain.Confirmation.ConfirmationResolved.Action.get -> DigitalBrain.Confirmation.ConfirmationAction
+DigitalBrain.Confirmation.ConfirmationResolved.Action.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Approver.get -> DigitalBrain.Confirmation.ConfirmationPrincipal?
+DigitalBrain.Confirmation.ConfirmationResolved.Approver.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.At.get -> System.DateTimeOffset
+DigitalBrain.Confirmation.ConfirmationResolved.At.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.ConfirmationResolved(string! PlanId, DigitalBrain.Confirmation.ConfirmationAction Action, string! TargetLabel, DigitalBrain.Confirmation.ConfirmationPrincipal! Requester, DigitalBrain.Confirmation.ConfirmationPrincipal? Approver, DigitalBrain.Confirmation.ConfirmationPolicy Policy, DigitalBrain.Confirmation.ConfirmationOutcome Outcome, DigitalBrain.Confirmation.ConfirmationDenyReason Reason, bool Skipped, System.DateTimeOffset At) -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Deconstruct(out string! PlanId, out DigitalBrain.Confirmation.ConfirmationAction Action, out string! TargetLabel, out DigitalBrain.Confirmation.ConfirmationPrincipal! Requester, out DigitalBrain.Confirmation.ConfirmationPrincipal? Approver, out DigitalBrain.Confirmation.ConfirmationPolicy Policy, out DigitalBrain.Confirmation.ConfirmationOutcome Outcome, out DigitalBrain.Confirmation.ConfirmationDenyReason Reason, out bool Skipped, out System.DateTimeOffset At) -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Equals(DigitalBrain.Confirmation.ConfirmationResolved? other) -> bool
+DigitalBrain.Confirmation.ConfirmationResolved.Outcome.get -> DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationResolved.Outcome.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationResolved.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Policy.get -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.ConfirmationResolved.Policy.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Reason.get -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationResolved.Reason.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Requester.get -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+DigitalBrain.Confirmation.ConfirmationResolved.Requester.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.Skipped.get -> bool
+DigitalBrain.Confirmation.ConfirmationResolved.Skipped.init -> void
+DigitalBrain.Confirmation.ConfirmationResolved.TargetLabel.get -> string!
+DigitalBrain.Confirmation.ConfirmationResolved.TargetLabel.init -> void
+DigitalBrain.Confirmation.ConfirmationResult
+DigitalBrain.Confirmation.ConfirmationResult.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationResult!
+DigitalBrain.Confirmation.ConfirmationResult.Approved.get -> bool
+DigitalBrain.Confirmation.ConfirmationResult.ConfirmationResult(string! PlanId, DigitalBrain.Confirmation.ConfirmationOutcome Outcome, DigitalBrain.Confirmation.ConfirmationDenyReason Reason, bool Skipped) -> void
+DigitalBrain.Confirmation.ConfirmationResult.Deconstruct(out string! PlanId, out DigitalBrain.Confirmation.ConfirmationOutcome Outcome, out DigitalBrain.Confirmation.ConfirmationDenyReason Reason, out bool Skipped) -> void
+DigitalBrain.Confirmation.ConfirmationResult.Equals(DigitalBrain.Confirmation.ConfirmationResult? other) -> bool
+DigitalBrain.Confirmation.ConfirmationResult.Outcome.get -> DigitalBrain.Confirmation.ConfirmationOutcome
+DigitalBrain.Confirmation.ConfirmationResult.Outcome.init -> void
+DigitalBrain.Confirmation.ConfirmationResult.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationResult.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationResult.Reason.get -> DigitalBrain.Confirmation.ConfirmationDenyReason
+DigitalBrain.Confirmation.ConfirmationResult.Reason.init -> void
+DigitalBrain.Confirmation.ConfirmationResult.Skipped.get -> bool
+DigitalBrain.Confirmation.ConfirmationResult.Skipped.init -> void
+DigitalBrain.Confirmation.ConfirmationRules
+DigitalBrain.Confirmation.IConfirmations
+DigitalBrain.Confirmation.IConfirmations.Confirm(DigitalBrain.Confirmation.ConfirmationPlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Confirmation.ConfirmationResult!>!
+DigitalBrain.Confirmation.IConfirmations.Policy.get -> DigitalBrain.Confirmation.ConfirmationPolicy
+DigitalBrain.Confirmation.IConfirmations.Resolve(string! planId, bool approve, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Confirmation.PrincipalKind
+DigitalBrain.Confirmation.PrincipalKind.Agent = 2 -> DigitalBrain.Confirmation.PrincipalKind
+DigitalBrain.Confirmation.PrincipalKind.App = 1 -> DigitalBrain.Confirmation.PrincipalKind
+DigitalBrain.Confirmation.PrincipalKind.Person = 0 -> DigitalBrain.Confirmation.PrincipalKind
+DigitalBrain.Spi.INeuronContext.Confirm(DigitalBrain.Confirmation.ConfirmationPlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Confirmation.ConfirmationResult!>!
+DigitalBrain.Spi.INeuronContext.Confirmations.get -> DigitalBrain.Confirmation.IConfirmations!
+override DigitalBrain.Confirmation.ConfirmationPlan.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationPlan.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationPlan.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationPrincipal.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationPrincipal.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationPrincipal.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationRequested.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRequested!
+override DigitalBrain.Confirmation.ConfirmationRequested.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRequested.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRequested.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationResolved.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationResolved!
+override DigitalBrain.Confirmation.ConfirmationResolved.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationResolved.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationResolved.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationResult.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationResult.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationResult.ToString() -> string!
+override sealed DigitalBrain.Confirmation.ConfirmationRequested.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.Confirmation.ConfirmationResolved.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.Confirmation.ConfirmationPlan.operator !=(DigitalBrain.Confirmation.ConfirmationPlan? left, DigitalBrain.Confirmation.ConfirmationPlan? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationPlan.operator ==(DigitalBrain.Confirmation.ConfirmationPlan? left, DigitalBrain.Confirmation.ConfirmationPlan? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationPrincipal.Agent(string! id) -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+static DigitalBrain.Confirmation.ConfirmationPrincipal.App(string! id) -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+static DigitalBrain.Confirmation.ConfirmationPrincipal.operator !=(DigitalBrain.Confirmation.ConfirmationPrincipal? left, DigitalBrain.Confirmation.ConfirmationPrincipal? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationPrincipal.operator ==(DigitalBrain.Confirmation.ConfirmationPrincipal? left, DigitalBrain.Confirmation.ConfirmationPrincipal? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationPrincipal.Person(string! id) -> DigitalBrain.Confirmation.ConfirmationPrincipal!
+static DigitalBrain.Confirmation.ConfirmationRequested.operator !=(DigitalBrain.Confirmation.ConfirmationRequested? left, DigitalBrain.Confirmation.ConfirmationRequested? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRequested.operator ==(DigitalBrain.Confirmation.ConfirmationRequested? left, DigitalBrain.Confirmation.ConfirmationRequested? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationResolved.operator !=(DigitalBrain.Confirmation.ConfirmationResolved? left, DigitalBrain.Confirmation.ConfirmationResolved? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationResolved.operator ==(DigitalBrain.Confirmation.ConfirmationResolved? left, DigitalBrain.Confirmation.ConfirmationResolved? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationResult.operator !=(DigitalBrain.Confirmation.ConfirmationResult? left, DigitalBrain.Confirmation.ConfirmationResult? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationResult.operator ==(DigitalBrain.Confirmation.ConfirmationResult? left, DigitalBrain.Confirmation.ConfirmationResult? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRules.Asks(DigitalBrain.Confirmation.ConfirmationPolicy policy, DigitalBrain.Confirmation.ConfirmationPlan! plan) -> bool
+static DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry.get -> System.TimeSpan

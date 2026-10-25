@@ -40,6 +40,13 @@ public interface INeuronContext
 
     /// <summary>Runs <paramref name="work"/> after the current turn ends.</summary>
     void Defer(Func<Task> work);
+
+    /// <summary>The confirmation gate of this neuron's brain (07 D-03); this neuron is the requester.</summary>
+    DigitalBrain.Confirmation.IConfirmations Confirmations { get; }
+
+    /// <summary>Asks a person about <paramref name="plan"/> under the brain's confirmation policy; see <see cref="DigitalBrain.Confirmation.IConfirmations.Confirm"/>.</summary>
+    Task<DigitalBrain.Confirmation.ConfirmationResult> Confirm(DigitalBrain.Confirmation.ConfirmationPlan plan, CancellationToken ct = default)
+        => Confirmations.Confirm(plan, ct);
 }
 
 /// <summary>A neuron's persisted state.</summary>

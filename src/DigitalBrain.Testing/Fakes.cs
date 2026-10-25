@@ -237,6 +237,7 @@ public sealed class FakeOperations : IOperations
     private readonly ConcurrentDictionary<DigitalBrain.Operations.OperationId, FakeOperation> _operations = new();
     private readonly StorageWriteRunner? _runner;
     private readonly Func<Signal, Task>? _publish;
+    private readonly Func<WritePlan, CancellationToken, Task<string?>>? _gate;
     private int _next;
 
     /// <summary>Operations that only record: the caller drives every plan through its handle.</summary>
@@ -246,11 +247,21 @@ public sealed class FakeOperations : IOperations
 
     /// <summary>Operations that run write plans through <paramref name="runner"/> and publish operation signals with <paramref name="publish"/>.</summary>
     public FakeOperations(StorageWriteRunner runner, Func<Signal, Task> publish)
+        : this(runner, publish, null)
+    {
+    }
+
+    /// <summary>
+    /// Operations as above that first ask <paramref name="gate"/>, as the runtime asks its operation gate: a non-null answer is the
+    /// refusal reason and the operation ends <see cref="DigitalBrain.Operations.OperationResult.Failed"/> with code <c>denied</c>.
+    /// </summary>
+    public FakeOperations(StorageWriteRunner runner, Func<Signal, Task> publish, Func<WritePlan, CancellationToken, Task<string?>>? gate)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(publish);
         _runner = runner;
         _publish = publish;
+        _gate = gate;
     }
 
     /// <summary>Every started operation by id.</summary>
@@ -267,6 +278,11 @@ public sealed class FakeOperations : IOperations
         {
             // As on the runtime: inline bytes never travel in the started signal.
             await _publish(new OperationStarted(operation.Id, write with { Inline = null })).ConfigureAwait(false);
+        }
+        if (write is not null && _gate is not null && await _gate(write, ct).ConfigureAwait(false) is { } refused)
+        {
+            await operation.Complete(new DigitalBrain.Operations.OperationResult.Failed("denied", refused)).ConfigureAwait(false);
+            return operation;
         }
         if (write is not null && _runner is not null)
         {
@@ -462,6 +478,12 @@ public sealed class FakeNeuronContext : INeuronContext
     public InMemorySignalHistory History { get; } = new();
 
     ISignalHistory INeuronContext.History => History;
+
+    /// <summary>The confirmation gate on <see cref="Clock"/>; this neuron asks as an app and its signals are recorded in <see cref="Published"/>.</summary>
+    public TestConfirmations Confirmations => field ??= new TestConfirmations(Clock);
+
+    DigitalBrain.Confirmation.IConfirmations INeuronContext.Confirmations
+        => field ??= Confirmations.For(DigitalBrain.Confirmation.ConfirmationPrincipal.App(Id.ToString()), Publish);
 
     /// <summary>The proxies <see cref="Get{T}(NeuronId)"/> returns.</summary>
     public FakeNeuronProxies Proxies { get; } = new();

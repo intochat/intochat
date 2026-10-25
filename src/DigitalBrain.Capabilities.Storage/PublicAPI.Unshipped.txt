@@ -322,3 +322,9 @@ DigitalBrain.Capabilities.Storage.StorageWriteRunner.StorageWriteRunner(DigitalB
 static DigitalBrain.Capabilities.Storage.StorageWriteRunner.FreeName(string! name, System.Collections.Generic.IEnumerable<string!>! taken) -> string!
 virtual DigitalBrain.Capabilities.Storage.StorageOwner.Invoke(DigitalBrain.Capabilities.Storage.ItemId item, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.CapabilityConnection<DigitalBrain.Capabilities.Storage.IStorage!>!>!
 virtual DigitalBrain.Capabilities.Storage.StorageWriteResult.Invoke(DigitalBrain.Capabilities.Storage.IStorage! storage, DigitalBrain.Operations.OperationId operation, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Capabilities.Storage.StorageConfirmation
+DigitalBrain.Capabilities.Storage.StorageConfirmationGate
+DigitalBrain.Capabilities.Storage.StorageWriteRunner.Confirmation(DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Confirmation.ConfirmationPlan!>!
+static DigitalBrain.Capabilities.Storage.StorageConfirmation.For(string! planId, DigitalBrain.Capabilities.Storage.WritePlan! plan, bool crossConnection, string! name, string! storage, string! sourceStorage, string! folder) -> DigitalBrain.Confirmation.ConfirmationPlan!
+static DigitalBrain.Capabilities.Storage.StorageConfirmation.IsDestructive(DigitalBrain.Capabilities.Storage.WritePlan! plan, bool crossConnection) -> bool
+static DigitalBrain.Capabilities.Storage.StorageConfirmationGate.Check(DigitalBrain.Capabilities.Storage.StorageWriteRunner! runner, DigitalBrain.Confirmation.IConfirmations! confirmations, DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<string?>!

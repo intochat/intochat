@@ -69,6 +69,37 @@ public sealed class StorageWriteRunner(StorageOwner owner, StorageWriteResult re
         }
     }
 
+    /// <summary>
+    /// The confirmation question for <paramref name="plan"/> (07 D-03): resolves the owning connections to tell a move between
+    /// connections from one within a connection, and names the item, storages and folder by display name. An item the connection
+    /// cannot stat is named "this item".
+    /// </summary>
+    public async Task<DigitalBrain.Confirmation.ConfirmationPlan> Confirmation(WritePlan plan, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        var source = plan.Source is { } from ? await _owner(from, ct).ConfigureAwait(false) : null;
+        var target = plan.TargetFolder is { } into ? await _owner(into, ct).ConfigureAwait(false) : null;
+        var cross = source is not null && target is not null && !string.Equals(source.ConnectionKey, target.ConnectionKey, StringComparison.Ordinal);
+        var name = plan.Kind is WriteKind.CreateFolder or WriteKind.WriteFile ? plan.Name! : await NameOf(source, plan.Source, ct).ConfigureAwait(false);
+        var folder = target is null ? (source?.Label ?? "this storage") : await NameOf(target, plan.TargetFolder, ct).ConfigureAwait(false);
+        var storage = (plan.Kind == WriteKind.Delete ? source : target ?? source)?.Label ?? "this storage";
+        return StorageConfirmation.For("cf-" + Guid.NewGuid().ToString("N"), plan, cross, name, storage, source?.Label ?? storage, folder);
+    }
+
+    private static async Task<string> NameOf(CapabilityConnection<IStorage>? connection, ItemId? item, CancellationToken ct)
+    {
+        if (connection is null || item is not { } id) { return "this item"; }
+        try
+        {
+            var name = (await connection.Capability.Stat(id, ct).ConfigureAwait(false)).Name;
+            return string.IsNullOrWhiteSpace(name) ? connection.Label : name;
+        }
+        catch (StorageException)
+        {
+            return "this item";
+        }
+    }
+
     /// <summary>The first name of <c>stem (n).ext</c>, n from 1, that is not in <paramref name="taken"/> (case-insensitive).</summary>
     public static string FreeName(string name, IEnumerable<string> taken)
     {

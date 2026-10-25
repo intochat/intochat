@@ -19,7 +19,7 @@ internal static class RuntimeServicesHosting
         silo.Services.AddSingleton<BrainListeners>();
         silo.Services.AddSingleton<IBrainListeners>(sp => sp.GetRequiredService<BrainListeners>());
         silo.Services.AddSingleton<OperationRegistry>();
-        silo.Services.TryAddSingleton<IOperationGate, AllowAllOperations>();
+        silo.Services.TryAddSingleton<IOperationGate, ConfirmingOperationGate>();
         silo.Services.AddJournalPayloads(typeof(OperationStarted).Assembly);
         return silo;
     }
