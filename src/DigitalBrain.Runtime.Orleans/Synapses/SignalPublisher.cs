@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Streams;
 
 namespace DigitalBrain.Runtime.Orleans.Synapses;
@@ -27,19 +29,30 @@ internal sealed class AppendedSignals
 /// namespace carrying the highest appended sequence; on publisher activation, the publisher's own last sequence again.
 /// Never carries signal content.
 /// </summary>
-internal sealed class SignalPublisher(IServiceProvider services, PublishFaults faults)
+internal sealed partial class SignalPublisher(IServiceProvider services, PublishFaults faults, ILogger<SignalPublisher>? logger = null)
 {
+    private readonly ILogger _log = logger ?? (ILogger)NullLogger.Instance;
+
     private IStreamProvider Streams => services.GetRequiredKeyedService<IStreamProvider>(IntoChatOSNames.SignalStreams);
 
-    /// <summary>Announces a completed append.</summary>
-    public Task Publish(AppendedSignals appended)
+    /// <summary>
+    /// Announces a completed append. The append is already durable, so a failed send (a stopping silo, an unreachable queue) does
+    /// not fail the save: it is logged and the write-then-crash mechanisms recover it (re-announce on the publisher's activation,
+    /// reconcile on silo start). Failing the save instead would make a reaction that saves look failed and run it again.
+    /// Only the injected <see cref="PublishFaults"/> fault throws, standing in for a caller killed at this point.
+    /// </summary>
+    public async Task Publish(AppendedSignals appended)
     {
         ArgumentNullException.ThrowIfNull(appended);
-        if (faults.FailAfterAppend) { throw new InvalidOperationException("PublishFaults.FailAfterAppend: the append is durable, no reference was sent."); }
+        if (faults.ShouldFail(appended.Publisher)) { throw new InvalidOperationException("PublishFaults.FailAfterAppend: the append is durable, no reference was sent."); }
         var latest = appended.Entries
             .GroupBy(entry => StreamNames.SignalNamespace(entry.Alias), StringComparer.Ordinal)
             .Select(group => (Namespace: group.Key, Sequence: group.Max(entry => entry.Sequence)));
-        return Send(appended.Publisher, latest);
+        try { await Send(appended.Publisher, latest).ConfigureAwait(true); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            LogPublishFailed(_log, error, appended.Publisher.ToString());
+        }
     }
 
     /// <summary>Re-announces the publisher's last sequence on activation, once per namespace it publishes.</summary>
@@ -56,8 +69,13 @@ internal sealed class SignalPublisher(IServiceProvider services, PublishFaults f
         {
             var stream = streams.GetStream<SignalReference>(StreamNames.ForNamespace(publisher.Brain.Value, ns));
             await stream.OnNextAsync(new SignalReference(publisher, sequence));
+            if (faults.DuplicateEach) { await stream.OnNextAsync(new SignalReference(publisher, sequence)); }
         }
     }
+
+    [LoggerMessage(EventId = 4123, EventName = "SignalPublishFailed", Level = LogLevel.Warning,
+        Message = "The reference of {Publisher}'s durable append was not sent; re-announce and start-up reconcile deliver it.")]
+    private static partial void LogPublishFailed(ILogger logger, Exception error, string publisher);
 }
 
 /// <summary>Registration for the publisher; the runtime composition (04-11) calls it.</summary>

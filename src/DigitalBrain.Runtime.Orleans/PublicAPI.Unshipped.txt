@@ -304,6 +304,7 @@ DigitalBrain.Runtime.Orleans.Synapses.SynapseRetentionHosting
 DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory
 DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.LocalSiloHostFactory() -> void
 DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.LocalSiloHostFactory(DigitalBrain.Runtime.Orleans.IClusterStoreRegistration? clusterStore) -> void
+DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.LocalSiloHostFactory(DigitalBrain.Runtime.Orleans.IClusterStoreRegistration? clusterStore, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configureServices) -> void
 DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory.Start(DigitalBrain.InProcessHostOptions! options, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 DigitalBrain.Runtime.Orleans.Topology
 DigitalBrain.Runtime.Orleans.Topology.Cloud = 2 -> DigitalBrain.Runtime.Orleans.Topology

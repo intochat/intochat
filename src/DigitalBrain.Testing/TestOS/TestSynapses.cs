@@ -99,6 +99,15 @@ internal sealed class SynapseRegistry(TestOS os)
         }
     }
 
+    // Subscribers whose cursor on some source is below that source's last sequence.
+    public IReadOnlyList<NeuronId> Behind()
+    {
+        lock (_gate)
+        {
+            return [.. _bySubscriber.Where(pair => pair.Value.Values.Any(entry => entry.Cursor < os.Journal(entry.Source.Brain).Last(entry.Source))).Select(pair => pair.Key)];
+        }
+    }
+
     // On every activation the subscriber catches up on each source from its cursor.
     public void Activated(TestNeuronHost subscriber)
     {
@@ -112,6 +121,10 @@ internal sealed class SynapseRegistry(TestOS os)
     public void Appended(NeuronId publisher, IReadOnlyList<JournaledSignal> written)
     {
         if (written.Count == 0) { return; }
+        if (os.TakePublishFault(publisher))
+        {
+            throw new InvalidOperationException("TestOS.FailNextPublishAfterAppend: the append is durable, no reference was sent.");
+        }
         List<NeuronId> subscribers;
         lock (_gate) { subscribers = [.. _bySubscriber.Where(pair => pair.Value.ContainsKey(publisher)).Select(pair => pair.Key)]; }
         var copies = os.Options.DuplicateDelivery ? 2 : 1;

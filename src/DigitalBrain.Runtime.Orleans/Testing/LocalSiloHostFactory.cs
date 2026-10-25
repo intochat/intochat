@@ -2,23 +2,35 @@ using System.Net;
 using System.Net.Sockets;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Runtime.Orleans.Testing;
 
 /// <summary>
-/// Backs <c>SiloHost.Local()</c> from DigitalBrain.Testing: an in-process silo over the local topology on a Home folder.
+/// Backs <c>SiloHost.Local()</c> from the test kit (found by type name, no reference): an in-process silo over the local topology on a Home folder.
 /// Without a cluster store registration the <c>cluster</c> store stays <see cref="UnregisteredClusterStorage"/>.
 /// </summary>
 public sealed class LocalSiloHostFactory : IInProcessHostFactory
 {
     private readonly IClusterStoreRegistration _clusterStore;
+    private readonly Action<IServiceCollection>? _configureServices;
 
     /// <summary>A factory whose hosts leave the <c>cluster</c> store unregistered.</summary>
     public LocalSiloHostFactory() : this(null) { }
 
     /// <summary>A factory whose hosts use <paramref name="clusterStore"/> for the <c>cluster</c> store.</summary>
-    public LocalSiloHostFactory(IClusterStoreRegistration? clusterStore) => _clusterStore = clusterStore ?? new Unregistered();
+    public LocalSiloHostFactory(IClusterStoreRegistration? clusterStore) : this(clusterStore, null) { }
+
+    /// <summary>
+    /// A factory whose hosts use <paramref name="clusterStore"/> and then run <paramref name="configureServices"/> on the silo
+    /// services after every topology and runtime registration, so a fact can replace services such as <see cref="TimeProvider"/>.
+    /// </summary>
+    public LocalSiloHostFactory(IClusterStoreRegistration? clusterStore, Action<IServiceCollection>? configureServices)
+    {
+        _clusterStore = clusterStore ?? new Unregistered();
+        _configureServices = configureServices;
+    }
 
     /// <inheritdoc />
     public async Task<IInProcessHost> Start(InProcessHostOptions options, CancellationToken ct)
@@ -50,7 +62,11 @@ public sealed class LocalSiloHostFactory : IInProcessHostFactory
         builder.Configuration.AddInMemoryCollection(values);
         builder.UseClusterStore(_clusterStore);
         builder.UseModuleTopology(options.Modules, []);
-        builder.UseOrleans(silo => silo.ConfigureTopologySilo());
+        builder.UseOrleans(silo =>
+        {
+            silo.ConfigureTopologySilo();
+            _configureServices?.Invoke(silo.Services);
+        });
         return builder.Build();
     }
 

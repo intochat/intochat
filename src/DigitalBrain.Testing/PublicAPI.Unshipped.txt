@@ -197,3 +197,5 @@ static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId 
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOS.ManifestOf(System.Type! appType) -> DigitalBrain.AppManifest!
+DigitalBrain.Testing.TestOS.FailNextPublishAfterAppend(DigitalBrain.NeuronId publisher) -> void
+DigitalBrain.Testing.TestOS.Restart() -> System.Threading.Tasks.Task!

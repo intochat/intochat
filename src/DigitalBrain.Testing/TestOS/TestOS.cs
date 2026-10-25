@@ -44,6 +44,7 @@ public sealed partial class TestOS : IAsyncDisposable
     private readonly ConcurrentQueue<Exception> _failures = new();
     private readonly Lock _gate = new();
     private int _outstanding;
+    private string? _failNextPublish;
     private TaskCompletionSource _quiet = Quiet();
 
     private TestOS(TestOSOptions options)
@@ -148,6 +149,37 @@ public sealed partial class TestOS : IAsyncDisposable
         {
             journal.Checkpoint(publisher, Options, Synapses.LowestLiveCursor(publisher));
         }
+    }
+
+    /// <summary>
+    /// Makes exactly the next journal append of <paramref name="publisher"/> send no signal references and the saving call throw
+    /// after the append is durable, as a host killed between write and publish would. Subscribers catch up on activation or
+    /// <see cref="Restart"/>.
+    /// </summary>
+    public void FailNextPublishAfterAppend(NeuronId publisher) => Volatile.Write(ref _failNextPublish, publisher.ToString());
+
+    /// <summary>
+    /// Stops every activation, as a host restart does, keeping the journal, synapses, cursors and reminders; then wakes each
+    /// subscriber whose cursor is behind a source's last signal, as the runtime's start-up reconcile does.
+    /// </summary>
+    public async Task Restart()
+    {
+        await Idle().ConfigureAwait(false);
+        foreach (var host in _hosts.Values.Where(host => host.IsActive).ToList())
+        {
+            await Track(host.Deactivate(DeactivationCause.Shutdown)).ConfigureAwait(false);
+        }
+        foreach (var subscriber in Synapses.Behind())
+        {
+            await Activate(subscriber).ConfigureAwait(false);
+        }
+        await Idle().ConfigureAwait(false);
+    }
+
+    internal bool TakePublishFault(NeuronId publisher)
+    {
+        var armed = Volatile.Read(ref _failNextPublish);
+        return armed is not null && armed == publisher.ToString() && Interlocked.CompareExchange(ref _failNextPublish, null, armed) == armed;
     }
 
     /// <summary>The synapses <paramref name="subscriber"/> holds.</summary>
