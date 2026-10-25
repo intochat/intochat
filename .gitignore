@@ -1,0 +1,6 @@
+bin/
+obj/
+artifacts/
+.digitalbrain-local/
+.vs/
+*.user
