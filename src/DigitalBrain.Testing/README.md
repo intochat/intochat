@@ -62,3 +62,18 @@ that are read after every turn. The latest of each wins ([PresentationAssertions
   `Side` or `Main` property threw.
 - `Find` throws `PresentationAssertionException` listing the ids that exist. The accessors return plain values, so any assertion
   library works.
+
+## Storage: conformance kit and fake
+
+A module providing storage@1 proves it in its `tests/` project with a sealed subclass of
+`DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>` ([StorageConformance.cs](Conformance/Storage/StorageConformance.cs)):
+
+- `Connect(StorageSeed seed, ct)` returns a `StorageSubject(storage, operations, hostileIds)` whose seed folder (the first root,
+  or override `SeedFolder`) holds `StorageSeed.Canonical`: `Notes/a.txt`, `Plan.txt` (bytes 0..15), `Deep/1/2/3/leaf.txt` and
+  `Many/` with 250 files. `operations` waits for the operations `Write` starts; `hostileIds` must each fail with `denied`.
+- `MissingId()` may be overridden with a module-shaped unknown id (not-found expected).
+- Facts for optional actions skip, with a reason, only when the storage's `Describe().Flags` does not offer the action.
+
+`InMemoryStorage` (with `InMemoryOperations`) is the reference implementation that passes the kit. `FakeStorage` is the same
+storage plus a `Calls` record; bind it with `os.WithStorage("drive", new FakeStorage("Work Drive"))` or
+`os.WithStorage("c", label: "C:", configure: fake => fake.AddFile(fake.Root, "a.txt", bytes))`.

@@ -12,21 +12,21 @@ public sealed class CapabilityFakeFacts
     [Fact]
     public async Task A_bound_fake_reaches_the_neuron_and_a_second_binding_of_the_same_name_throws()
     {
-        var c = new FakeStorage("C:");
+        var c = new StorageLikeFake("C:");
         await using var os = OS.Local().With<IStorageLike>("c", c);
         os.Register<SampleCounter>();
 
         Assert.Equal("C:", await os.Get<ISampleCounter>(Counter).StorageLabel());
         Assert.Same(c, os.Capabilities.Resolve<IStorageLike>("c"));
         Assert.Equal([CapabilityId.Parse("storage-like@1")], os.Capabilities.Bound);
-        var duplicate = Assert.Throws<ArgumentException>(() => os.With<IStorageLike>("c", new FakeStorage("other")));
+        var duplicate = Assert.Throws<ArgumentException>(() => os.With<IStorageLike>("c", new StorageLikeFake("other")));
         Assert.Contains("storage-like@1", duplicate.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task An_unbound_capability_fails_with_its_name_and_version()
     {
-        await using var os = OS.Local().With<IStorageLike>("c", new FakeStorage("C:"));
+        await using var os = OS.Local().With<IStorageLike>("c", new StorageLikeFake("C:"));
         os.Register<SampleCounter>();
 
         var byName = Assert.Throws<CapabilityNotBoundException>(() => os.Capabilities.Resolve<IStorageLike>("drive"));

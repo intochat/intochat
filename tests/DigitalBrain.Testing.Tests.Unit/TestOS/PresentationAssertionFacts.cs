@@ -10,7 +10,7 @@ public sealed class PresentationAssertionFacts
     [Fact]
     public async Task After_open_the_side_entries_and_their_trailing_text_are_readable()
     {
-        await using var os = OS.Local().With<IStorageLike>("c", new FakeStorage("c", used: 10, total: 100));
+        await using var os = OS.Local().With<IStorageLike>("c", new StorageLikeFake("c", used: 10, total: 100));
         var files = await os.Install<FilesLike>();
 
         Assert.False(files.Side.IsSet);
@@ -26,7 +26,7 @@ public sealed class PresentationAssertionFacts
     [Fact]
     public async Task Find_returns_the_node_or_throws_listing_the_ids_there_are()
     {
-        await using var os = OS.Local().With<IStorageLike>("c", new FakeStorage("c"));
+        await using var os = OS.Local().With<IStorageLike>("c", new StorageLikeFake("c"));
         var files = await os.Install<FilesLike>();
         await files.Request("open");
 
@@ -43,7 +43,7 @@ public sealed class PresentationAssertionFacts
     [Fact]
     public async Task A_presentation_published_in_a_reaction_is_visible_after_Idle_and_the_latest_wins()
     {
-        await using var os = OS.Local().With<IStorageLike>("c", new FakeStorage("c"));
+        await using var os = OS.Local().With<IStorageLike>("c", new StorageLikeFake("c"));
         var files = await os.Install<FilesLike>();
         var tally = await os.Install<TallyApp>();
 
@@ -67,8 +67,8 @@ public sealed class PresentationAssertionFacts
     public async Task Lists_every_storage_with_quota()
     {
         await using var os = OS.Local()
-            .With<IStorageLike>("drive", new FakeStorage("drive"))
-            .With<IStorageLike>("c", new FakeStorage("c", used: 10, total: 100));
+            .With<IStorageLike>("drive", new StorageLikeFake("drive"))
+            .With<IStorageLike>("c", new StorageLikeFake("c", used: 10, total: 100));
         var files = await os.Install<FilesLike>();
 
         await files.Request("open");

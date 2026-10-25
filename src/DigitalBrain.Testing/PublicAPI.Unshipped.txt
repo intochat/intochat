@@ -23,6 +23,104 @@ DigitalBrain.Testing.CapabilityNotBoundException
 DigitalBrain.Testing.CapabilityNotBoundException.Capability.get -> DigitalBrain.Capabilities.CapabilityId
 DigitalBrain.Testing.CapabilityNotBoundException.CapabilityNotBoundException(DigitalBrain.Capabilities.CapabilityId capability, string? name, string? requiredBy = null) -> void
 DigitalBrain.Testing.CapabilityNotBoundException.Name.get -> string?
+DigitalBrain.Testing.Conformance.Storage.IOperationsProbe
+DigitalBrain.Testing.Conformance.Storage.IOperationsProbe.WaitFor(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.<Clone>$() -> DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Deconstruct(out DigitalBrain.Operations.OperationId Id, out string! Stage, out double? Fraction, out DigitalBrain.Operations.OperationResult? Result) -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Equals(DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? other) -> bool
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Fraction.get -> double?
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Fraction.init -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Id.get -> DigitalBrain.Operations.OperationId
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Id.init -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.InMemoryOperationEvent(DigitalBrain.Operations.OperationId Id, string! Stage, double? Fraction, DigitalBrain.Operations.OperationResult? Result) -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Result.get -> DigitalBrain.Operations.OperationResult?
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Result.init -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Stage.get -> string!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Stage.init -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.Cancel(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.Events.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.InMemoryOperations() -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.PlanOf(DigitalBrain.Operations.OperationId id) -> DigitalBrain.Operations.OperationPlan!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.Start(DigitalBrain.Operations.OperationPlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IOperation!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryOperations.WaitFor(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.AddFile(DigitalBrain.Capabilities.Storage.ItemId parent, string! name, System.ReadOnlySpan<byte> bytes) -> DigitalBrain.Capabilities.Storage.ItemId
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.AddFolder(DigitalBrain.Capabilities.Storage.ItemId parent, string! name) -> DigitalBrain.Capabilities.Storage.ItemId
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Ancestors(DigitalBrain.Capabilities.Storage.ItemId id, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Storage.Item!>!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Describe(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageDescriptor!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Flags.get -> DigitalBrain.Capabilities.Storage.ItemFlags
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.InMemoryStorage(string! label = "Memory", DigitalBrain.Capabilities.Storage.Quota? quota = null, DigitalBrain.Capabilities.Storage.ItemFlags flags = DigitalBrain.Capabilities.Storage.ItemFlags.Read | DigitalBrain.Capabilities.Storage.ItemFlags.Write | DigitalBrain.Capabilities.Storage.ItemFlags.Trash | DigitalBrain.Capabilities.Storage.ItemFlags.Delete | DigitalBrain.Capabilities.Storage.ItemFlags.Move | DigitalBrain.Capabilities.Storage.ItemFlags.Copy | DigitalBrain.Capabilities.Storage.ItemFlags.Rename | DigitalBrain.Capabilities.Storage.ItemFlags.Search | DigitalBrain.Capabilities.Storage.ItemFlags.CreateFolder, DigitalBrain.Testing.Conformance.Storage.InMemoryOperations? operations = null, System.TimeProvider? time = null, string! kind = "memory") -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Label.get -> string!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.List(DigitalBrain.Capabilities.Storage.ItemId folder, DigitalBrain.Capabilities.Storage.ListQuery! query, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.Page<DigitalBrain.Capabilities.Storage.Item!>!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.OpenRead(DigitalBrain.Capabilities.Storage.ItemId item, DigitalBrain.Capabilities.Storage.ByteRange? range, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageReadStream!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.OpenWrite(DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageWriteStream!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Operations.get -> DigitalBrain.Testing.Conformance.Storage.InMemoryOperations!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Quota.get -> DigitalBrain.Capabilities.Storage.Quota!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Quota.set -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Read(DigitalBrain.Capabilities.Storage.ItemId id, DigitalBrain.Capabilities.Storage.ByteRange? range, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.Content!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Root.get -> DigitalBrain.Capabilities.Storage.ItemId
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Roots(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Storage.Item!>!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Search(DigitalBrain.Capabilities.Storage.SearchQuery! query, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.Page<DigitalBrain.Capabilities.Storage.Item!>!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Seed(DigitalBrain.Testing.Conformance.Storage.StorageSeed! seed) -> void
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Stat(DigitalBrain.Capabilities.Storage.ItemId id, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.Item!>!
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Trash.get -> DigitalBrain.Capabilities.Storage.ItemId
+DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.Write(DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationId>!
+DigitalBrain.Testing.Conformance.Storage.SeedEntry
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.<Clone>$() -> DigitalBrain.Testing.Conformance.Storage.SeedEntry!
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Bytes.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Bytes.init -> void
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Deconstruct(out string! Path, out DigitalBrain.Capabilities.Storage.ItemKind Kind, out System.ReadOnlyMemory<byte> Bytes) -> void
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Equals(DigitalBrain.Testing.Conformance.Storage.SeedEntry? other) -> bool
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Kind.get -> DigitalBrain.Capabilities.Storage.ItemKind
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Kind.init -> void
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Path.get -> string!
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.Path.init -> void
+DigitalBrain.Testing.Conformance.Storage.SeedEntry.SeedEntry(string! Path, DigitalBrain.Capabilities.Storage.ItemKind Kind, System.ReadOnlyMemory<byte> Bytes) -> void
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.AncestorsEndAtARootWithoutCycles() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.CopyLeavesSource() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.CreateFolderThenStat() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.CrossConnectionMoveCopiesVerifiesThenDeletes() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.DeleteMovesToTrash() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.DeletePermanentRemoves() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.DescribeReportsTriStateQuota() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.DryRunChangesNothing() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ItemFlagsStayWithinTheDescriptor() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ItemIdsRoundTrip() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ListIsSortedFolderThenName() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ListPagesCoverEveryItemExactlyOnce() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ListReportsKindsAndSizes() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.MoveRemovesSource() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.OutsideConfinementIsDenied() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.ReadReturnsBytesAndRange() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.RenameKeepsContent() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.RootsAreNonEmptyAndStatable() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.SearchByNameFindsSeededFile() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StatReportsNameKindAndSize() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StorageConformance() -> void
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StreamReadRange() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StreamWriteAbort() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StreamWriteCommit() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StreamWriteConflict() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.StreamWriteUnsupportedWithoutWrite() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.UnknownIdIsNotFound() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.WriteConflictFailsByDefault() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.WriteFileThenRead() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Storage.StorageSeed
+DigitalBrain.Testing.Conformance.Storage.StorageSeed.Entries.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Testing.Conformance.Storage.SeedEntry!>!
+DigitalBrain.Testing.Conformance.Storage.StorageSubject
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.<Clone>$() -> DigitalBrain.Testing.Conformance.Storage.StorageSubject!
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Deconstruct(out DigitalBrain.Capabilities.Storage.IStorage! Storage, out DigitalBrain.Testing.Conformance.Storage.IOperationsProbe! Operations, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Storage.ItemId>? HostileIds) -> void
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Equals(DigitalBrain.Testing.Conformance.Storage.StorageSubject? other) -> bool
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.HostileIds.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Storage.ItemId>?
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.HostileIds.init -> void
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Operations.get -> DigitalBrain.Testing.Conformance.Storage.IOperationsProbe!
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Operations.init -> void
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Storage.get -> DigitalBrain.Capabilities.Storage.IStorage!
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.Storage.init -> void
+DigitalBrain.Testing.Conformance.Storage.StorageSubject.StorageSubject(DigitalBrain.Capabilities.Storage.IStorage! Storage, DigitalBrain.Testing.Conformance.Storage.IOperationsProbe! Operations, System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.Storage.ItemId>? HostileIds = null) -> void
 DigitalBrain.Testing.FakeCapabilityBroker
 DigitalBrain.Testing.FakeCapabilityBroker.FakeCapabilityBroker() -> void
 DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance, string? connectionKey = null, string? label = null) -> DigitalBrain.Testing.FakeCapabilityBroker!
@@ -65,6 +163,9 @@ DigitalBrain.Testing.FakeOperations.All.get -> System.Collections.Generic.IReadO
 DigitalBrain.Testing.FakeOperations.Cancel(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.FakeOperations.FakeOperations() -> void
 DigitalBrain.Testing.FakeOperations.Start(DigitalBrain.Operations.OperationPlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IOperation!>!
+DigitalBrain.Testing.FakeStorage
+DigitalBrain.Testing.FakeStorage.Calls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.FakeStorage.FakeStorage(string! label = "Fake storage", DigitalBrain.Capabilities.Storage.Quota? quota = null, DigitalBrain.Capabilities.Storage.ItemFlags flags = DigitalBrain.Capabilities.Storage.ItemFlags.Read | DigitalBrain.Capabilities.Storage.ItemFlags.Write | DigitalBrain.Capabilities.Storage.ItemFlags.Trash | DigitalBrain.Capabilities.Storage.ItemFlags.Delete | DigitalBrain.Capabilities.Storage.ItemFlags.Move | DigitalBrain.Capabilities.Storage.ItemFlags.Copy | DigitalBrain.Capabilities.Storage.ItemFlags.Rename | DigitalBrain.Capabilities.Storage.ItemFlags.Search | DigitalBrain.Capabilities.Storage.ItemFlags.CreateFolder, System.TimeProvider? time = null) -> void
 DigitalBrain.Testing.InMemoryNeuronState
 DigitalBrain.Testing.InMemoryNeuronState.Clear() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.InMemoryNeuronState.Exists.get -> bool
@@ -194,10 +295,30 @@ DigitalBrain.Testing.TestOSOptions.StaleCursorAfter.set -> void
 DigitalBrain.Testing.TestOSOptions.Start.get -> System.DateTimeOffset?
 DigitalBrain.Testing.TestOSOptions.Start.set -> void
 DigitalBrain.Testing.TestOSOptions.TestOSOptions() -> void
+DigitalBrain.Testing.TestOSStorageExtensions
+abstract DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.Connect(DigitalBrain.Testing.Conformance.Storage.StorageSeed! seed, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Testing.Conformance.Storage.StorageSubject!>!
+const DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.AllFlags = DigitalBrain.Capabilities.Storage.ItemFlags.Read | DigitalBrain.Capabilities.Storage.ItemFlags.Write | DigitalBrain.Capabilities.Storage.ItemFlags.Trash | DigitalBrain.Capabilities.Storage.ItemFlags.Delete | DigitalBrain.Capabilities.Storage.ItemFlags.Move | DigitalBrain.Capabilities.Storage.ItemFlags.Copy | DigitalBrain.Capabilities.Storage.ItemFlags.Rename | DigitalBrain.Capabilities.Storage.ItemFlags.Search | DigitalBrain.Capabilities.Storage.ItemFlags.CreateFolder -> DigitalBrain.Capabilities.Storage.ItemFlags
+const DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.Timeout = 30000 -> int
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.LeafName = "leaf.txt" -> string!
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.ManyCount = 250 -> int
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.ManyFolder = "Many" -> string!
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.NoteName = "a.txt" -> string!
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.NoteText = "hello kit" -> string!
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.NotesFolder = "Notes" -> string!
+const DigitalBrain.Testing.Conformance.Storage.StorageSeed.PlanName = "Plan.txt" -> string!
 const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory, DigitalBrain.Runtime.Orleans" -> string!
 override DigitalBrain.Testing.AppPresentation.Equals(object? obj) -> bool
 override DigitalBrain.Testing.AppPresentation.GetHashCode() -> int
 override DigitalBrain.Testing.AppPresentation.ToString() -> string!
+override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.ToString() -> string!
+override DigitalBrain.Testing.Conformance.Storage.SeedEntry.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Storage.SeedEntry.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Storage.SeedEntry.ToString() -> string!
+override DigitalBrain.Testing.Conformance.Storage.StorageSubject.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Conformance.Storage.StorageSubject.GetHashCode() -> int
+override DigitalBrain.Testing.Conformance.Storage.StorageSubject.ToString() -> string!
 override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
 override DigitalBrain.Testing.PresentedView.ToString() -> string!
 override DigitalBrain.Testing.TestClock.CreateTimer(System.Threading.TimerCallback! callback, object? state, System.TimeSpan dueTime, System.TimeSpan period) -> System.Threading.ITimer!
@@ -205,7 +326,22 @@ override DigitalBrain.Testing.TestClock.GetUtcNow() -> System.DateTimeOffset
 static DigitalBrain.Testing.AppPresentation.operator !=(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
 static DigitalBrain.Testing.AppPresentation.operator ==(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
 static DigitalBrain.Testing.CapabilityFakes.IdOf(System.Type! contract) -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.operator !=(DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? left, DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? right) -> bool
+static DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent.operator ==(DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? left, DigitalBrain.Testing.Conformance.Storage.InMemoryOperationEvent? right) -> bool
+static DigitalBrain.Testing.Conformance.Storage.SeedEntry.operator !=(DigitalBrain.Testing.Conformance.Storage.SeedEntry? left, DigitalBrain.Testing.Conformance.Storage.SeedEntry? right) -> bool
+static DigitalBrain.Testing.Conformance.Storage.SeedEntry.operator ==(DigitalBrain.Testing.Conformance.Storage.SeedEntry? left, DigitalBrain.Testing.Conformance.Storage.SeedEntry? right) -> bool
+static DigitalBrain.Testing.Conformance.Storage.StorageSeed.Canonical.get -> DigitalBrain.Testing.Conformance.Storage.StorageSeed!
+static DigitalBrain.Testing.Conformance.Storage.StorageSeed.DeepChain.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static DigitalBrain.Testing.Conformance.Storage.StorageSeed.ManyName(int index) -> string!
+static DigitalBrain.Testing.Conformance.Storage.StorageSeed.PlanBytes.get -> System.ReadOnlyMemory<byte>
+static DigitalBrain.Testing.Conformance.Storage.StorageSubject.operator !=(DigitalBrain.Testing.Conformance.Storage.StorageSubject? left, DigitalBrain.Testing.Conformance.Storage.StorageSubject? right) -> bool
+static DigitalBrain.Testing.Conformance.Storage.StorageSubject.operator ==(DigitalBrain.Testing.Conformance.Storage.StorageSubject? left, DigitalBrain.Testing.Conformance.Storage.StorageSubject? right) -> bool
 static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.NeuronHarness<TNeuron!>!>!
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOS.ManifestOf(System.Type! appType) -> DigitalBrain.AppManifest!
+static DigitalBrain.Testing.TestOSStorageExtensions.WithStorage(this DigitalBrain.Testing.TestOS! os, string! name, DigitalBrain.Capabilities.Storage.IStorage! storage) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOSStorageExtensions.WithStorage(this DigitalBrain.Testing.TestOS! os, string! name, string? label = null, DigitalBrain.Capabilities.Storage.Quota? quota = null, System.Action<DigitalBrain.Testing.FakeStorage!>? configure = null) -> DigitalBrain.Testing.TestOS!
+virtual DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.OnCall(string! member) -> void
+virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.MissingId() -> DigitalBrain.Capabilities.Storage.ItemId
+virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.SeedFolder(DigitalBrain.Capabilities.Storage.IStorage! storage, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!

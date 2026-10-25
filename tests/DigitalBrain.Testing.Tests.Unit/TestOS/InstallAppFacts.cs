@@ -10,7 +10,7 @@ public sealed class InstallAppFacts
     [Fact]
     public async Task An_app_with_its_requires_bound_installs_and_an_operation_runs_as_a_turn_calling_the_fake()
     {
-        var c = new FakeStorage("C:", used: 10);
+        var c = new StorageLikeFake("C:", used: 10);
         await using var os = OS.Local().With<IStorageLike>("c", c);
 
         var app = await os.Install<SampleApp>();
@@ -32,7 +32,7 @@ public sealed class InstallAppFacts
     [Fact]
     public async Task A_missing_required_capability_fails_install_naming_it()
     {
-        await using var os = OS.Local().With<IStorageLike>("c", new FakeStorage("C:"));
+        await using var os = OS.Local().With<IStorageLike>("c", new StorageLikeFake("C:"));
 
         var error = await Assert.ThrowsAsync<CapabilityNotBoundException>(() => os.Install<NeedsClockApp>());
 

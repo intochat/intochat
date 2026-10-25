@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Testing.Conformance.Storage;
 
 namespace DigitalBrain.Testing.Tests.Unit.Conformance;
 

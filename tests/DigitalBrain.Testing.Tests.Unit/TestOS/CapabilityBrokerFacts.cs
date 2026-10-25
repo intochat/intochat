@@ -12,8 +12,8 @@ public sealed class CapabilityBrokerFacts
     [Fact]
     public async Task TestOS_broker_lists_every_bound_fake_as_a_connection_in_binding_order()
     {
-        var c = new FakeStorage("C:");
-        var drive = new FakeStorage("Drive");
+        var c = new StorageLikeFake("C:");
+        var drive = new StorageLikeFake("Drive");
         await using var os = OS.Local().With<IStorageLike>("c", c).With<IStorageLike>("drive", drive);
         var broker = (ICapabilityBroker)os.Services.GetService(typeof(ICapabilityBroker))!;
         var ct = TestContext.Current.CancellationToken;
@@ -30,11 +30,11 @@ public sealed class CapabilityBrokerFacts
     public async Task Fake_broker_resolves_one_connection_and_lists_many()
     {
         var ct = TestContext.Current.CancellationToken;
-        var broker = new FakeCapabilityBroker().Register<IStorageLike>(new FakeStorage("C:"), "c", "Local disk");
+        var broker = new FakeCapabilityBroker().Register<IStorageLike>(new StorageLikeFake("C:"), "c", "Local disk");
         Assert.Equal("C:", (await broker.Resolve<IStorageLike>(Ada, ct)).Label);
         Assert.Equal("Local disk", Assert.Single(await broker.ResolveAll<IStorageLike>(Ada, ct)).Label);
 
-        broker.Register<IStorageLike>(new FakeStorage("Drive"));
+        broker.Register<IStorageLike>(new StorageLikeFake("Drive"));
         Assert.Equal(2, (await broker.ResolveAll<IStorageLike>(Ada, ct)).Count);
         await Assert.ThrowsAsync<InvalidOperationException>(() => broker.Resolve<IStorageLike>(Ada, ct));
     }

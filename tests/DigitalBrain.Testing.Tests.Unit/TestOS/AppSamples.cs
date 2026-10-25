@@ -26,7 +26,7 @@ public interface INotACapability
     void Nothing();
 }
 
-public sealed class FakeStorage(string label, long? used = null, long? total = null) : IStorageLike
+public sealed class StorageLikeFake(string label, long? used = null, long? total = null) : IStorageLike
 {
     private int _calls;
 
