@@ -2,7 +2,9 @@ using System.Reflection;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 using Orleans.Hosting;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans;
 
@@ -30,6 +32,8 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.AddJournalPayloads(modules);
         silo.Services.AddSignalPublisher();
         silo.Services.AddSingleton<SynapseCounters>();
+        silo.Services.AddSingleton<SynapseReconcile>();
+        silo.Services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>>(sp => sp.GetRequiredService<SynapseReconcile>());
         silo.AddSynapseRetention();
         return silo;
     }
