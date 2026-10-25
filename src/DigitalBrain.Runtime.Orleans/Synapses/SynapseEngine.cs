@@ -312,7 +312,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     }
 
     private Task Report(SynapseSource entry)
-        => entry.Source == BrainWide ? Task.CompletedTask : _grains.GetGrain<ISynapseCursorRegistry>(_id.Brain.Value).ReportCursor(_id.ToString(), NeuronId.Parse(entry.Source), entry.Cursor);
+        => entry.Source == BrainWide || !_state.Sources.Contains(entry) ? Task.CompletedTask : _grains.GetGrain<ISynapseCursorRegistry>(_id.Brain.Value).ReportCursor(_id.ToString(), NeuronId.Parse(entry.Source), entry.Cursor);
 
     private static IStreamSubscriptionManager Manager(IServiceProvider services)
         => services.GetRequiredService<IStreamSubscriptionManagerAdmin>().GetStreamSubscriptionManager(StreamSubscriptionManagerType.ExplicitSubscribeOnly);

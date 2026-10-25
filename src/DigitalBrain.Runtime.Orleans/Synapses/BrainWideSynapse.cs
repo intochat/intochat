@@ -70,8 +70,8 @@ internal sealed partial class SynapseEngine
         var namespaces = _state.Sources.SelectMany(item => item.Aliases).Select(StreamNames.SignalNamespace).Distinct(StringComparer.Ordinal).ToArray();
         _state.Sources.Clear();
         await Persist().ConfigureAwait(true);
-        foreach (var ns in namespaces) { await Unsubscribe(StreamNames.ForNamespace(_id.Brain.Value, ns)).ConfigureAwait(true); }
         await _grains.GetGrain<ISynapseCursorRegistry>(_id.Brain.Value).Forget(_id.ToString()).ConfigureAwait(true);
+        foreach (var ns in namespaces) { await Unsubscribe(StreamNames.ForNamespace(_id.Brain.Value, ns)).ConfigureAwait(true); }
     }
 
     /// <summary>Whether the brain-wide synapse exists.</summary>
