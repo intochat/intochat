@@ -114,7 +114,8 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
         }
         var map = ServiceProvider.GetRequiredService<JournalPayloads>().Types;
         IReadOnlyList<Type> signals = [.. signalAliases.Select(alias => map.TryResolve(alias, out var type) ? type : throw new ArgumentException($"'{alias}' is not a registered [Signal] alias.", nameof(signalAliases)))];
-        await NeuronAttachment.Admit(neuron, subscriber, signals).ConfigureAwait(true);
+        // The caller stamp comes from the call's RequestContext (the trusted edge's Stamp), never from the arguments (04-19).
+        await NeuronAttachment.Admit(neuron, new SynapseRequest(subscriber, signals, Capabilities.RuntimeCallerContext.Current)).ConfigureAwait(true);
     }
 
     /// <inheritdoc />

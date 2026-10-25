@@ -64,7 +64,19 @@ public abstract class Neuron
         return Task.CompletedTask;
     }
 
-    internal Task Admit(NeuronId subscriber, IReadOnlyList<Type> signals) => AdmitSynapse(subscriber, signals);
+    /// <summary>
+    /// Decides on <paramref name="request"/>, which also carries the trusted caller stamp of the call that asked
+    /// (<see cref="SynapseRequest.Caller"/>, set by the runtime only). Override it to authorize by caller; the default runs
+    /// <see cref="AdmitSynapse(NeuronId, IReadOnlyList{Type})"/>.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The subscriber is not admitted.</exception>
+    protected virtual Task AdmitSynapse(SynapseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return AdmitSynapse(request.Subscriber, request.Signals);
+    }
+
+    internal Task Admit(SynapseRequest request) => AdmitSynapse(request);
 
     /// <summary>Runs when the activation starts, after state is loaded.</summary>
     protected virtual Task OnActivate(CancellationToken cancellationToken) => Task.CompletedTask;

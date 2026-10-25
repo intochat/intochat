@@ -63,6 +63,13 @@ public sealed partial class TestOS : IAsyncDisposable
 
     internal TestClusterListeners Listeners { get; }
 
+    /// <summary>
+    /// The trusted caller stamp this TestOS puts on every synapse admission (<see cref="SynapseRequest.Caller"/>), as a host's
+    /// trusted edge stamps it on the runtime; null (the default) admits with no stamp. Set it to test an <c>AdmitSynapse</c> that
+    /// authorizes by caller.
+    /// </summary>
+    public DigitalBrain.Capabilities.CapabilityCaller? Caller { get; set; }
+
     /// <summary>The confirmation gate every neuron's <c>Context.Confirm</c> asks (07 D-03); set its policy and answer as a person here.</summary>
     public TestConfirmations Confirmations { get; }
 

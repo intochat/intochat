@@ -50,9 +50,10 @@ internal sealed class SynapseRegistry(TestOS os)
         // Admission is a turn on the source, through the runtime's single entry point.
         IReadOnlyList<Type> named = [.. signals];
         var source = os.Host(from);
+        var request = new SynapseRequest(subscriber.Id, named, os.Caller);
         await os.Track(source.Turn(interleave: false, async neuron =>
         {
-            await NeuronAttachment.Admit(neuron, subscriber.Id, named).ConfigureAwait(false);
+            await NeuronAttachment.Admit(neuron, request).ConfigureAwait(false);
             return 0;
         })).ConfigureAwait(false);
 

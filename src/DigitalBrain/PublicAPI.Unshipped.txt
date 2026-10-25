@@ -900,3 +900,21 @@ static DigitalBrain.PrivilegedGrant.operator !=(DigitalBrain.PrivilegedGrant? le
 static DigitalBrain.PrivilegedGrant.operator ==(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
 DigitalBrain.Spi.IClusterListeners
 DigitalBrain.Spi.IClusterListeners.Listen<TSignal>(string! listener, System.Func<DigitalBrain.NeuronId, TSignal!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
+DigitalBrain.SynapseRequest
+DigitalBrain.SynapseRequest.Caller.get -> DigitalBrain.Capabilities.CapabilityCaller?
+DigitalBrain.SynapseRequest.Caller.init -> void
+DigitalBrain.SynapseRequest.Signals.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+DigitalBrain.SynapseRequest.Signals.init -> void
+DigitalBrain.SynapseRequest.Subscriber.get -> DigitalBrain.NeuronId
+DigitalBrain.SynapseRequest.Subscriber.init -> void
+DigitalBrain.SynapseRequest.SynapseRequest(DigitalBrain.NeuronId Subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! Signals, DigitalBrain.Capabilities.CapabilityCaller? Caller) -> void
+DigitalBrain.SynapseRequest.Deconstruct(out DigitalBrain.NeuronId Subscriber, out System.Collections.Generic.IReadOnlyList<System.Type!>! Signals, out DigitalBrain.Capabilities.CapabilityCaller? Caller) -> void
+static DigitalBrain.Spi.NeuronAttachment.Admit(DigitalBrain.Neuron! source, DigitalBrain.SynapseRequest! request) -> System.Threading.Tasks.Task!
+virtual DigitalBrain.Neuron.AdmitSynapse(DigitalBrain.SynapseRequest! request) -> System.Threading.Tasks.Task!
+DigitalBrain.SynapseRequest.<Clone>$() -> DigitalBrain.SynapseRequest!
+DigitalBrain.SynapseRequest.Equals(DigitalBrain.SynapseRequest? other) -> bool
+override DigitalBrain.SynapseRequest.Equals(object? obj) -> bool
+override DigitalBrain.SynapseRequest.GetHashCode() -> int
+override DigitalBrain.SynapseRequest.ToString() -> string!
+static DigitalBrain.SynapseRequest.operator !=(DigitalBrain.SynapseRequest? left, DigitalBrain.SynapseRequest? right) -> bool
+static DigitalBrain.SynapseRequest.operator ==(DigitalBrain.SynapseRequest? left, DigitalBrain.SynapseRequest? right) -> bool
