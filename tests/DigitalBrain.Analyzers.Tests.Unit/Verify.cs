@@ -25,6 +25,8 @@ internal static class Verify<TAnalyzer> where TAnalyzer : DiagnosticAnalyzer, ne
             public abstract class App { }
             public abstract class Neuron { }
             public sealed class ModuleManifest { }
+            public abstract record Signal;
+            [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class OnAttribute : System.Attribute;
         }
         namespace Orleans
         {

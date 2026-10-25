@@ -51,6 +51,37 @@ public sealed class CoreHasNoOrleansFacts
         Assert.DoesNotContain(libraries, library => library.StartsWith("Microsoft.Orleans", StringComparison.OrdinalIgnoreCase)
             || library.StartsWith("Orleans.", StringComparison.OrdinalIgnoreCase));
     }
+
+    // 04-03 (CORE-01, T-04-08): the built core assemblies reference no Orleans assembly and declare no Orleans namespace.
+    public static readonly TheoryData<string> CoreAssemblies = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing" };
+
+    private static Assembly Anchor(string name) => name switch
+    {
+        "DigitalBrain" => typeof(Signal).Assembly,
+        "DigitalBrain.UI" => typeof(DigitalBrain.UI.View).Assembly,
+        "DigitalBrain.Testing" => typeof(DigitalBrain.Testing.ManualTime).Assembly,
+        _ => throw new ArgumentOutOfRangeException(nameof(name)),
+    };
+
+    [Theory]
+    [MemberData(nameof(CoreAssemblies))]
+    public void Assembly_references_no_orleans(string name)
+    {
+        var assembly = Anchor(name);
+        Assert.Equal(name, assembly.GetName().Name);
+        Assert.DoesNotContain(assembly.GetReferencedAssemblies(), reference =>
+            reference.Name!.StartsWith("Orleans", StringComparison.Ordinal) || reference.Name.StartsWith("Microsoft.Orleans", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreAssemblies))]
+    public void Assembly_declares_no_orleans_namespace(string name)
+    {
+        var types = Anchor(name).GetTypes();
+        Assert.NotEmpty(types);
+        Assert.DoesNotContain(types, type => type.Namespace is { } ns
+            && (ns == "Orleans" || ns.StartsWith("Orleans.", StringComparison.Ordinal) || ns.Split('.').Contains("Orleans")));
+    }
 }
 
 // V-12: the assembly closure of the core reaches no os, Orleans or ASP.NET Core assembly.
