@@ -38,12 +38,12 @@ nightly=$(grep -oE '<[A-Za-z0-9]*Nightly\b' Directory.Build.props | tr -d '<' | 
 pins=(
   "$archdir/ContractManifest.json" "$archdir/GrainFactoryOwners.json" "$archdir/OrleansReferenceOwners.json"
   "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json" "$archdir/SynapseWordAllowlist.json"
-  "$archdir/FrameworkVendorBaseline.json" "$archdir/InternalsVisibleToBaseline.json" "$archdir/AppsModuleIdBaseline.json"
+  "$archdir/FrameworkVendorBaseline.json" "$archdir/AppsModuleIdBaseline.json"
   "$archdir/NamespaceSchemeBaseline.json"
   "$contracts/flutter-wire-names.golden.json" "$contracts/flutter-aliasless-enums.golden.json" "$contracts/ui-states.golden.json"
 )
 # Shrinking ratchets: removals there are the point, so they are not breaking.
-shrinking=" FrameworkVendorBaseline.json InternalsVisibleToBaseline.json AppsModuleIdBaseline.json NamespaceSchemeBaseline.json "
+shrinking=" FrameworkVendorBaseline.json AppsModuleIdBaseline.json NamespaceSchemeBaseline.json "
 snap=$(mktemp -d); trap 'rm -rf "$snap"' EXIT
 for pin in "${pins[@]}"; do mkdir -p "$snap/$(dirname "$pin")"; cp "$pin" "$snap/$pin"; done
 
@@ -55,7 +55,7 @@ capture() {
   dotnet test --project "$1" -c Release -p:CodeGraphRefresh=false $nightly --filter-method "*$2" --explicit only --nologo
 }
 for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples CaptureSynapseWordAllowlist \
-         CaptureFrameworkVendorBaseline CaptureInternalsVisibleToBaseline CaptureAppsModuleIdBaseline CaptureNamespaceSchemeBaseline; do capture "$arch" "$m"; done
+         CaptureFrameworkVendorBaseline CaptureAppsModuleIdBaseline CaptureNamespaceSchemeBaseline; do capture "$arch" "$m"; done
 for m in CaptureFlutterWireNames CaptureUiStateGoldens; do capture "$flutter" "$m"; done
 
 # Leaves as "path<TAB>value": objects recurse, arrays contribute one line per element (same rule as the ps1).

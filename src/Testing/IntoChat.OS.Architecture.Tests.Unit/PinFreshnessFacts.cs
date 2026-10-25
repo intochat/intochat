@@ -15,7 +15,6 @@ public sealed class PinFreshnessFacts
         "CollectionCompatibilitySamples.json",
         "SynapseWordAllowlist.json",
         FrameworkHasNoVendorSdksFacts.BaselineFile,
-        InternalsVisibleToFacts.BaselineFile,
         AppsHaveNoModuleIdsFacts.BaselineFile,
         NamespaceSchemeFacts.BaselineFile,
     ];
@@ -35,7 +34,6 @@ public sealed class PinFreshnessFacts
                 new CollectionCompatibilityFacts().CaptureCollectionCompatibilitySamples();
                 new SynapseWordFacts().CaptureSynapseWordAllowlist();
                 new FrameworkHasNoVendorSdksFacts().CaptureFrameworkVendorBaseline();
-                new InternalsVisibleToFacts().CaptureInternalsVisibleToBaseline();
                 new AppsHaveNoModuleIdsFacts().CaptureAppsModuleIdBaseline();
                 new NamespaceSchemeFacts().CaptureNamespaceSchemeBaseline();
             }

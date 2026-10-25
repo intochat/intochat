@@ -59,7 +59,6 @@ $pins = [ordered]@{
     'CollectionCompatibilitySamples.json' = Join-Path $archDir 'CollectionCompatibilitySamples.json'
     'SynapseWordAllowlist.json'           = Join-Path $archDir 'SynapseWordAllowlist.json'
     'FrameworkVendorBaseline.json'        = Join-Path $archDir 'FrameworkVendorBaseline.json'
-    'InternalsVisibleToBaseline.json'     = Join-Path $archDir 'InternalsVisibleToBaseline.json'
     'AppsModuleIdBaseline.json'           = Join-Path $archDir 'AppsModuleIdBaseline.json'
     'NamespaceSchemeBaseline.json'        = Join-Path $archDir 'NamespaceSchemeBaseline.json'
     'flutter-wire-names.golden.json'      = Join-Path $flutterContracts 'flutter-wire-names.golden.json'
@@ -67,7 +66,7 @@ $pins = [ordered]@{
     'ui-states.golden.json'               = Join-Path $flutterContracts 'ui-states.golden.json'
 }
 # Shrinking ratchets: an entry going away (or a count going down) is the point, so removals there are not breaking.
-$shrinking = @('FrameworkVendorBaseline.json', 'InternalsVisibleToBaseline.json', 'AppsModuleIdBaseline.json', 'NamespaceSchemeBaseline.json')
+$shrinking = @('FrameworkVendorBaseline.json', 'AppsModuleIdBaseline.json', 'NamespaceSchemeBaseline.json')
 $before = @{}
 foreach ($name in $pins.Keys) {
     if (-not (Test-Path $pins[$name])) { throw "Pin missing: $($pins[$name])" }
@@ -90,7 +89,7 @@ $timer = [Diagnostics.Stopwatch]::StartNew()
 foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'CaptureOrleansReferenceOwners',
                     'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples',
                     'CaptureSynapseWordAllowlist',
-                    'CaptureFrameworkVendorBaseline', 'CaptureInternalsVisibleToBaseline', 'CaptureAppsModuleIdBaseline',
+                    'CaptureFrameworkVendorBaseline', 'CaptureAppsModuleIdBaseline',
                     'CaptureNamespaceSchemeBaseline') {
     Run-Capture $archProject $method
 }

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -6,12 +5,11 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // TEST-02 (D-08): an assembly shows its internals to its own tests only. A grant is allowed when the grantee is
 // <grantor>.Tests or <grantor>.Tests.*, or when an <module>.Aspire.Hosting grantor grants <module>.Tests.Hosting.
-// Every other grant, and every duplicate grant, is pinned in InternalsVisibleToBaseline.json and only shrinks.
+// Every other grant, and every duplicate grant, fails: there is no baseline. A test that needs a sibling's internals
+// moves next to its owner or uses the public surface.
 // Source scan of csproj items and [assembly: InternalsVisibleTo] attributes, so test projects are covered too.
 public sealed partial class InternalsVisibleToFacts
 {
-    internal const string BaselineFile = "InternalsVisibleToBaseline.json";
-
     [GeneratedRegex(@"\[\s*assembly\s*:\s*(?:System\.Runtime\.CompilerServices\.)?InternalsVisibleTo(?:Attribute)?\s*\(\s*""(?<grantee>[^"",]+)", RegexOptions.CultureInvariant)]
     private static partial Regex AssemblyAttribute();
 
@@ -67,16 +65,9 @@ public sealed partial class InternalsVisibleToFacts
         => Assert.Equal(expected, Allowed(grantor, grantee));
 
     [Fact]
-    public void CrossAssemblyInternalsOnlyShrink()
+    public void NoAssemblyShowsItsInternalsBeyondItsOwnTests()
     {
-        var baseline = JsonSerializer.Deserialize<string[]>(File.ReadAllText(CaptureWriter.Path(BaselineFile)))!;
-        var current = Capture();
-        var grew = current.Except(baseline, StringComparer.Ordinal).ToArray();
-        Assert.True(grew.Length == 0, "New InternalsVisibleTo grants beyond an assembly's own tests:\n" + string.Join('\n', grew));
-        var gone = baseline.Except(current, StringComparer.Ordinal).ToArray();
-        Assert.True(gone.Length == 0, "InternalsVisibleTo offenders went away; regenerate with scripts/capture-all.ps1:\n" + string.Join('\n', gone));
+        var offenders = Capture();
+        Assert.True(offenders.Length == 0, "InternalsVisibleTo grants beyond an assembly's own tests:\n" + string.Join('\n', offenders));
     }
-
-    [Fact(Explicit = true)]
-    public void CaptureInternalsVisibleToBaseline() => CaptureWriter.Write(BaselineFile, Capture());
 }

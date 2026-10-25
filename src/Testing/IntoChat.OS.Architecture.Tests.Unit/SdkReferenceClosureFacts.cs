@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using IntoChat.OS.Framework.Modules;
 using Module = IntoChat.OS.Framework.Modules.Module;
 
@@ -62,13 +61,5 @@ public sealed class SdkReferenceClosureFacts
             ?? sample.GetField("Integration", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
         var schema = Assert.IsType<IntoChat.OS.Framework.Platform.Integrations.IntegrationSchema>(integration);
         Assert.Contains("ApiKey", schema.SecretFields);
-    }
-
-    [Fact]
-    public void NoAssemblySeesTheSdkInternals()
-    {
-        var granted = typeof(Module).Assembly.GetCustomAttributes<InternalsVisibleToAttribute>()
-            .Select(attribute => attribute.AssemblyName).Order(StringComparer.Ordinal).ToArray();
-        Assert.Empty(granted);
     }
 }
