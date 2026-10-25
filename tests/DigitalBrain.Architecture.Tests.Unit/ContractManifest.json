@@ -4,5 +4,39 @@
     "namespacePrefix": "brain.signals.",
     "granularity": "one stream per (brain, signal namespace); key = brain key; namespace = alias up to its last dot",
     "item": "synapse.ref"
+  },
+  "runtime": {
+    "grainTypes": [
+      "neuron.host",
+      "neuron.host.reentrant",
+      "neuron.host.stateless"
+    ],
+    "aliases": [
+      "admit",
+      "brain.affine-placement",
+      "brain.synapse-cursors",
+      "brain.synapse-index",
+      "catch-up",
+      "db.json-element",
+      "db.runtime-invocation",
+      "invoke",
+      "neuron.host",
+      "neuron.synapse-host",
+      "post",
+      "storage.brain-entry",
+      "storage.brain-record",
+      "storage.brain-snapshot",
+      "storage.journaled-signal",
+      "storage.publisher-mark",
+      "stream",
+      "synapse.ref"
+    ],
+    "neurons": [
+      "runtime.listener",
+      "runtime.session"
+    ],
+    "signals": [
+      "synapse.gap"
+    ]
   }
 }

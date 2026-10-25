@@ -32,11 +32,15 @@ public sealed partial class RuntimeTypeFacts
     private static IEnumerable<string> Files()
         => Scanned.SelectMany(name => Repository.SourceFiles(Path.Combine(Repository.Root, "src", name), "*.cs"));
 
+    // Source without comment lines: doc text such as <c>[Signal(alias)]</c> is not a declaration.
+    private static string Code(string path)
+        => string.Join('\n', File.ReadAllLines(path).Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+
     // const string Name = "value", keyed by bare name and by Type.Name of the type declared before it.
     private static Dictionary<string, List<string>> Constants()
     {
         var constants = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var text in Files().Select(File.ReadAllText))
+        foreach (var text in Files().Select(Code))
         {
             foreach (Match match in ConstantPattern().Matches(text))
             {
@@ -69,7 +73,7 @@ public sealed partial class RuntimeTypeFacts
         var names = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var path in Files())
         {
-            foreach (Match match in pattern.Matches(File.ReadAllText(path)))
+            foreach (Match match in pattern.Matches(Code(path)))
             {
                 if (match.Groups["literal"].Success) { names.Add(match.Groups["literal"].Value); continue; }
                 var reference = match.Groups["constant"].Value;
@@ -121,10 +125,10 @@ public sealed partial class RuntimeTypeFacts
         Assert.Empty(offenders);
     }
 
-    [GeneratedRegex(@"\bGrainType\(\s*(?:""(?<literal>[^""]+)""|(?<constant>[A-Za-z_][\w.]*))\s*\)")]
+    [GeneratedRegex(@"(?<=[\[,]\s*)GrainType\(\s*(?:""(?<literal>[^""]+)""|(?<constant>[A-Za-z_][\w.]*))\s*\)")]
     private static partial Regex GrainTypePattern();
 
-    [GeneratedRegex(@"\bAlias\(\s*(?:""(?<literal>[^""]+)""|(?<constant>[A-Za-z_][\w.]*))\s*\)")]
+    [GeneratedRegex(@"(?<=[\[,]\s*)Alias\(\s*(?:""(?<literal>[^""]+)""|(?<constant>[A-Za-z_][\w.]*))\s*\)")]
     private static partial Regex AliasPattern();
 
     [GeneratedRegex(@"\[\s*Neuron\(\s*(?:""(?<literal>[^""]+)""|(?<constant>[A-Za-z_][\w.]*))")]
