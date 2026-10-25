@@ -168,6 +168,12 @@ DigitalBrain.Spi.ICallerContextCarrier
 DigitalBrain.Spi.ICallerContextCarrier.Suppress() -> System.IDisposable!
 DigitalBrain.Spi.IDeactivatingNeuron
 DigitalBrain.Spi.IDeactivatingNeuron.OnDeactivating(DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IInProcessHost
+DigitalBrain.Spi.IInProcessHost.Home.get -> string!
+DigitalBrain.Spi.IInProcessHost.Restart(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IInProcessHost.Services.get -> System.IServiceProvider!
+DigitalBrain.Spi.IInProcessHostFactory
+DigitalBrain.Spi.IInProcessHostFactory.Start(DigitalBrain.InProcessHostOptions! options, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 DigitalBrain.Spi.INeuronContext
 DigitalBrain.Spi.INeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Spi.INeuronContext.Id.get -> DigitalBrain.NeuronId
@@ -206,6 +212,14 @@ DigitalBrain.Spi.ISynapses.Of(DigitalBrain.NeuronId from) -> System.Threading.Ta
 DigitalBrain.Spi.ITimers
 DigitalBrain.Spi.ITimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
 DigitalBrain.Spi.ITimers.Stop(string! name) -> void
+DigitalBrain.InProcessHostOptions
+DigitalBrain.InProcessHostOptions.Configuration.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string?>!
+DigitalBrain.InProcessHostOptions.Configuration.set -> void
+DigitalBrain.InProcessHostOptions.Home.get -> string?
+DigitalBrain.InProcessHostOptions.Home.set -> void
+DigitalBrain.InProcessHostOptions.InProcessHostOptions() -> void
+DigitalBrain.InProcessHostOptions.Modules.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+DigitalBrain.InProcessHostOptions.Modules.set -> void
 DigitalBrain.State.ExportableStateAttribute
 DigitalBrain.State.ExportableStateAttribute.ExportableStateAttribute() -> void
 DigitalBrain.State.IStateCodec

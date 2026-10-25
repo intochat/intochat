@@ -28,8 +28,8 @@ public sealed class VocabularyRingFacts
 // V-02: no Orleans library anywhere in the restore graph of the core-side projects.
 public sealed class CoreHasNoOrleansFacts
 {
-    // 03-03 adds DigitalBrain.Testing; 03-04 adds DigitalBrain.Analyzers.
-    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI" };
+    // 03-04 adds DigitalBrain.Analyzers.
+    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing" };
 
     [Theory]
     [MemberData(nameof(CoreProjects))]
@@ -81,7 +81,7 @@ public sealed class PackageIdAllowlistFacts
 {
     private static readonly string[] Folders = ["src", "templates"];
 
-    private const int Floor = 2; // raised by 03-03, 03-04, 03-05 and 03-08 to the final 7.
+    private const int Floor = 3; // raised by 03-04, 03-05 and 03-08 to the final 7.
 
     [Fact]
     public void Packable_ids_are_digitalbrain()

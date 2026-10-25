@@ -1,0 +1,78 @@
+#nullable enable
+DigitalBrain.Testing.FakeCapabilityBroker
+DigitalBrain.Testing.FakeCapabilityBroker.FakeCapabilityBroker() -> void
+DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance) -> DigitalBrain.Testing.FakeCapabilityBroker!
+DigitalBrain.Testing.FakeCapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
+DigitalBrain.Testing.FakeNeuronContext
+DigitalBrain.Testing.FakeNeuronContext.Clock.get -> DigitalBrain.Testing.ManualTime!
+DigitalBrain.Testing.FakeNeuronContext.FakeNeuronContext(DigitalBrain.NeuronId id, System.IServiceProvider? services = null) -> void
+DigitalBrain.Testing.FakeNeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Testing.FakeNeuronContext.Id.get -> DigitalBrain.NeuronId
+DigitalBrain.Testing.FakeNeuronContext.MemoryState.get -> DigitalBrain.Testing.InMemoryNeuronState!
+DigitalBrain.Testing.FakeNeuronContext.Operations.get -> DigitalBrain.Testing.FakeOperations!
+DigitalBrain.Testing.FakeNeuronContext.Proxies.get -> DigitalBrain.Testing.FakeNeuronProxies!
+DigitalBrain.Testing.FakeNeuronContext.Publish(DigitalBrain.Signal! signal) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.FakeNeuronContext.Published.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
+DigitalBrain.Testing.FakeNeuronContext.Reminders.get -> DigitalBrain.Testing.ManualReminders!
+DigitalBrain.Testing.FakeNeuronContext.Services.get -> System.IServiceProvider!
+DigitalBrain.Testing.FakeNeuronContext.State.get -> DigitalBrain.Spi.INeuronState!
+DigitalBrain.Testing.FakeNeuronContext.Synapses.get -> DigitalBrain.Testing.RecordingSynapses!
+DigitalBrain.Testing.FakeNeuronContext.Time.get -> System.TimeProvider!
+DigitalBrain.Testing.FakeNeuronContext.Timers.get -> DigitalBrain.Testing.ManualTimers!
+DigitalBrain.Testing.FakeNeuronProxies
+DigitalBrain.Testing.FakeNeuronProxies.FakeNeuronProxies() -> void
+DigitalBrain.Testing.FakeNeuronProxies.Get<T>(DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Testing.FakeNeuronProxies.Register<T>(DigitalBrain.NeuronId id, T! instance) -> DigitalBrain.Testing.FakeNeuronProxies!
+DigitalBrain.Testing.FakeOperations
+DigitalBrain.Testing.FakeOperations.All.get -> System.Collections.Generic.IReadOnlyDictionary<string!, (string! Kind, bool? Succeeded)>!
+DigitalBrain.Testing.FakeOperations.Begin(string! kind, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Testing.FakeOperations.Complete(string! id, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.FakeOperations.FakeOperations() -> void
+DigitalBrain.Testing.InMemoryNeuronState
+DigitalBrain.Testing.InMemoryNeuronState.Clear() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.InMemoryNeuronState.Exists.get -> bool
+DigitalBrain.Testing.InMemoryNeuronState.InMemoryNeuronState() -> void
+DigitalBrain.Testing.InMemoryNeuronState.Load<T>() -> System.Threading.Tasks.Task<T?>!
+DigitalBrain.Testing.InMemoryNeuronState.Save<T>(T state) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.InMemoryNeuronState.Saves.get -> int
+DigitalBrain.Testing.ManualReminders
+DigitalBrain.Testing.ManualReminders.Fire(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
+DigitalBrain.Testing.ManualReminders.Names() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+DigitalBrain.Testing.ManualReminders.Start(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.ManualReminders.Stop(string! name) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.ManualReminders.Target.get -> object?
+DigitalBrain.Testing.ManualReminders.Target.set -> void
+DigitalBrain.Testing.ManualTime
+DigitalBrain.Testing.ManualTime.Advance(System.TimeSpan by) -> void
+DigitalBrain.Testing.ManualTime.ManualTime(System.DateTimeOffset? start = null) -> void
+DigitalBrain.Testing.ManualTimers
+DigitalBrain.Testing.ManualTimers.Advance(System.TimeSpan by) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+DigitalBrain.Testing.ManualTimers.ManualTimers(DigitalBrain.Testing.ManualTime! time) -> void
+DigitalBrain.Testing.ManualTimers.Names.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+DigitalBrain.Testing.ManualTimers.OnFire.get -> System.Func<string!, System.Threading.Tasks.Task!>?
+DigitalBrain.Testing.ManualTimers.OnFire.set -> void
+DigitalBrain.Testing.ManualTimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
+DigitalBrain.Testing.ManualTimers.Stop(string! name) -> void
+DigitalBrain.Testing.NeuronAssertionException
+DigitalBrain.Testing.NeuronAssertionException.NeuronAssertionException() -> void
+DigitalBrain.Testing.NeuronAssertionException.NeuronAssertionException(string! message) -> void
+DigitalBrain.Testing.NeuronAssertionException.NeuronAssertionException(string! message, System.Exception! innerException) -> void
+DigitalBrain.Testing.NeuronHarness
+DigitalBrain.Testing.NeuronHarness<TNeuron>
+DigitalBrain.Testing.NeuronHarness<TNeuron>.AssertNothingPublished() -> void
+DigitalBrain.Testing.NeuronHarness<TNeuron>.AssertPublished<TSignal>(System.Func<TSignal!, bool>? predicate = null) -> TSignal!
+DigitalBrain.Testing.NeuronHarness<TNeuron>.Context.get -> DigitalBrain.Testing.FakeNeuronContext!
+DigitalBrain.Testing.NeuronHarness<TNeuron>.Deactivate(DigitalBrain.DeactivationCause cause = DigitalBrain.DeactivationCause.Requested, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.NeuronHarness<TNeuron>.Neuron.get -> TNeuron!
+DigitalBrain.Testing.RecordingSynapses
+DigitalBrain.Testing.RecordingSynapses.Connect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.RecordingSynapses.Current.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
+DigitalBrain.Testing.RecordingSynapses.Disconnect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.RecordingSynapses.Of(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!>!
+DigitalBrain.Testing.RecordingSynapses.RecordingSynapses() -> void
+DigitalBrain.Testing.SiloHost
+const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory, DigitalBrain.Runtime.Orleans" -> string!
+override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
+static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.NeuronHarness<TNeuron!>!>!
+static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
