@@ -1,0 +1,8 @@
+{
+  "streams": {
+    "binding": "signals",
+    "namespacePrefix": "brain.signals.",
+    "granularity": "one stream per (brain, signal namespace); key = brain key; namespace = alias up to its last dot",
+    "item": "synapse.ref"
+  }
+}
