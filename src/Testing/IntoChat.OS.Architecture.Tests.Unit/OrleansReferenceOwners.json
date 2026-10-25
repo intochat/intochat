@@ -138,5 +138,9 @@
   ],
   "IntoChat.OS.Modules.Google.Gmail": [
     "Microsoft.Orleans.Reminders"
+  ],
+  "IntoChat.Cloud.Circle.Server": [
+    "DigitalBrain.Runtime.Orleans",
+    "Microsoft.Orleans.Sdk"
   ]
 }
