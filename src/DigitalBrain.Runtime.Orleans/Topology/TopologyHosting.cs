@@ -94,7 +94,7 @@ public static class TopologyHosting
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(modules);
         var selected = builder.UseTopology([.. modules.Select(ModuleManifest.Of)], retired, additional);
-        builder.Services.AddSingleton(new ModuleAssemblies([.. modules.Select(module => module.Assembly).Distinct()]));
+        builder.Services.AddSingleton(new ModuleAssemblies([.. modules.Select(module => module.Assembly).Distinct()], [.. modules]));
         return selected;
     }
 
@@ -120,6 +120,9 @@ public static class TopologyHosting
         var selected = Instance<ITopologyProfile>(silo.Services);
         var context = Instance<TopologyContext>(silo.Services);
         selected.ConfigureSilo(silo, context);
+        // 05-07: refuse unknown capabilities, Provides without an implementing neuron and two modules providing one single-connection capability.
+        var moduleTypes = silo.Services.Select(d => d.ImplementationInstance).OfType<ModuleAssemblies>().SelectMany(m => m.Modules).Distinct().ToList();
+        Capabilities.ModuleCapabilityValidator.Validate(Capabilities.CapabilityHosting.Registry(silo.Services), moduleTypes);
         // The one runtime composition call: every topology gets the host grains, journal payloads, publishing and retention.
         silo.AddDigitalBrainRuntime([.. silo.Services.Select(d => d.ImplementationInstance).OfType<ModuleAssemblies>().SelectMany(m => m.Assemblies).Distinct()]);
         // The host-bound cluster store goes last, so it replaces any cluster registration the topology made.
@@ -134,7 +137,7 @@ public static class TopologyHosting
             ? value
             : throw new InvalidOperationException($"Call {nameof(UseTopology)} on the host builder before configuring the silo.");
 
-    private sealed record ModuleAssemblies(System.Reflection.Assembly[] Assemblies);
+    private sealed record ModuleAssemblies(System.Reflection.Assembly[] Assemblies, Type[] Modules);
 
     private static StateHome? TryResolveHome(IConfiguration configuration)
     {
