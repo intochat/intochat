@@ -1,5 +1,6 @@
 # DigitalBrain
 
+Framework for building AI-native apps in IntoChat OS. Designed to be used by humans and agents.
 The vocabulary for writing neurons, apps and modules. No runtime and no Orleans: a runtime package hosts what you write here.
 
 ## Glossary
