@@ -660,7 +660,7 @@ public sealed class FastPathFacts : IDisposable
         };
         await using var brain = await Start(model, runtime, sandbox, ct, features: shipped, configure: services =>
         {
-            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
+            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<global::IntoChat.OS.Kernel.Composition.Kernel>(),
                 () => Volatile.Read(ref kernelPhase), RecordKernel));
             services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
             services.AddSingleton<ILogger<ReactionExamples>>(provider => new SyntaxBoundaryLog(
@@ -1310,7 +1310,7 @@ public sealed class FastPathFacts : IDisposable
     }
 
     // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
-    private sealed class TimedKernel(Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
+    private sealed class TimedKernel(global::IntoChat.OS.Kernel.Composition.Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
     {
         private long _next;
 

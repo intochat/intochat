@@ -178,7 +178,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryIndex.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/IGitHubInbound.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Orleans.Contracts/ICluster.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.Orleans/Cluster/ClusterNeuron.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IPageTools.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IPlaywright.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Roslyn.Contracts/IRoslyn.cs": 1,
@@ -203,5 +202,6 @@
   "IntoChat.OS.Testing/Neurons/Pulse.cs": 1,
   "IntoChat.OS/Kernel/IBrain.cs": 1,
   "IntoChat.OS/Neurons/INeuron.cs": 1,
-  "IntoChat.OS/Neurons/IRetainsSignals.cs": 1
+  "IntoChat.OS/Neurons/IRetainsSignals.cs": 1,
+  "IntoChat.OS.Kernel.Composition/Cluster/ClusterNeuron.cs": 1
 }

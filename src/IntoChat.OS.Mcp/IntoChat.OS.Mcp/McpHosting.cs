@@ -21,7 +21,7 @@ public static class McpHosting
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IIntoChatOS>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
             (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
-        services.TryAddSingleton<IKernelView>(provider => new Kernel(provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IBrainMembership>()));
+        services.TryAddSingleton<IKernelView>(provider => new global::IntoChat.OS.Kernel.Composition.Kernel(provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IBrainMembership>()));
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
         services.AddScoped<NeuronSurface>();

@@ -42,6 +42,8 @@ public sealed partial class InternalsVisibleToFacts
         {
             return true;
         }
+        // Transitional (06-02, R4-12): the kernel composition hosts the os Framework until 06-08 deletes the Framework.
+        if (grantor == "IntoChat.OS.Framework" && grantee == "IntoChat.OS.Kernel.Composition") { return true; }
         const string hosting = ".Aspire.Hosting";
         return grantor.EndsWith(hosting, StringComparison.Ordinal) && grantee == grantor[..^hosting.Length] + ".Tests.Hosting";
     }

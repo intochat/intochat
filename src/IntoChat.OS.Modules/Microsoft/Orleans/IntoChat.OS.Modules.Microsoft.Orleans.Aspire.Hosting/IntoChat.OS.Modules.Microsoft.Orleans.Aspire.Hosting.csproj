@@ -7,7 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Azure.Storage" />
     <PackageReference Include="Aspire.Hosting.Orleans" />
-    <ProjectReference Include="../IntoChat.OS.Modules.Microsoft.Orleans/IntoChat.OS.Modules.Microsoft.Orleans.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

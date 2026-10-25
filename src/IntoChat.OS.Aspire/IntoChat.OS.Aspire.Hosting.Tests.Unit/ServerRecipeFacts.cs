@@ -42,7 +42,7 @@ public sealed class ServerRecipeFacts
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
         using var ready = await http.GetAsync("/ready", ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
-        Assert.True(BrainHosting.HasKernelRegistration(app.Services));
+        Assert.True(global::IntoChat.OS.Kernel.Composition.BrainHosting.HasKernelRegistration(app.Services));
         Assert.Throws<InvalidOperationException>(app.MapIntoChatOSServer);
         await app.StopAsync(ct);
     }

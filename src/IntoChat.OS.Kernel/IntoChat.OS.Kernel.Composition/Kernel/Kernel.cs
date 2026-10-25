@@ -1,7 +1,8 @@
+using IntoChat.OS.Framework;
 using System.Runtime.CompilerServices;
 using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Kernel.Composition;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
 public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null) : IKernel

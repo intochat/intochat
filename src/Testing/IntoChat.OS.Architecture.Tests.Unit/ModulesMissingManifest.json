@@ -13,7 +13,6 @@
   "IntoChat.OS.Modules.Microsoft.Azure.AzureModule",
   "IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule",
   "IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule",
-  "IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule",
   "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightModule",
   "IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule",
   "IntoChat.OS.Modules.Microsoft.Windows.WindowsModule",

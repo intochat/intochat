@@ -163,9 +163,7 @@
   <Folder Name="/Modules/Microsoft/Orleans/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans/IntoChat.OS.Modules.Microsoft.Orleans.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Orleans/tests/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit/IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Playwright/">
@@ -230,6 +228,8 @@
     <Project Path="src/Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
   </Folder>
   <Folder Name="/Kernel/">
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition.Tests.Integration/IntoChat.OS.Kernel.Composition.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj" />

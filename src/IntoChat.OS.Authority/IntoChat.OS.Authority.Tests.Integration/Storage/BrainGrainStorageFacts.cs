@@ -140,7 +140,7 @@ public sealed class BrainGrainStorageFacts
     private static async Task<List<Instance>> Listed(ITestBrain brain, CancellationToken ct)
     {
         List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(brain.Grains).InstancesIn(Scope, null, ct)) { listed.Add(instance); }
+        await foreach (var instance in new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Grains).InstancesIn(Scope, null, ct)) { listed.Add(instance); }
         return listed;
     }
 }

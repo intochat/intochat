@@ -4,9 +4,10 @@ using IntoChat.OS.Contracts.Configuration;
 using global::Orleans.Configuration;
 using global::Orleans.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Modules.Microsoft.Orleans;
+namespace IntoChat.OS.Kernel.Composition;
 
 // What the os adds on top of the cloud topology (03-12): the grain state stays in the deployment's container (the module
 // option, "os-state" by default, an install's per-format container), and the platform's deployment identity and cookie

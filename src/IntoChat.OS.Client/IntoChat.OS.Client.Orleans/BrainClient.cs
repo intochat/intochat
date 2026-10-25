@@ -8,7 +8,8 @@ namespace IntoChat.OS.Client.Orleans;
 
 // The cluster as a whole: opens brains, resolves raw grains for hosts and harnesses, and owns
 // every subscription so disposal releases them all.
-internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionOptions> options, ILogger<BrainClient> logger, ILocalSignalHub? hub = null)
+internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionOptions> options, ILogger<BrainClient> logger, ILocalSignalHub? hub = null,
+    IKernelView? kernel = null)
     : IIntoChatOSBrains, IBrainSubscriptions, IAsyncDisposable
 {
     private readonly Lock _gate = new();
@@ -26,6 +27,9 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
     // A connection key names its grain type (several connectors share IConnection); any other key
     // resolves by the contract's default grain type.
     public IGrainFactory Grains => cluster;
+
+    // The kernel view the host registered (the silo, or AddIntoChatOSClient for a cluster client); the kernel composition owns it.
+    public IKernelView Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: a silo registers it, and AddIntoChatOSClient does for a cluster client.");
 
     public T Grain<T>(string key) where T : INeuron => cluster.GetNeuronGrain<T>(cluster.ServiceProvider, key);
 

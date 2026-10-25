@@ -140,7 +140,7 @@ public sealed class KernelFacts(FrameworkHost host)
         var bob = await host.PersonAsync("bob", ct);
         using var caller = alice.AsCaller();
         await brain.Get<ILedger>(alice.Key("ledger/1")).Set(1);
-        var kernel = new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>());
+        var kernel = new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Services.GetRequiredService<IGrainFactory>());
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => kernel.Retire("test-ledger", bob.Key("ledger/1"), ct));
         await kernel.Retire("test-ledger", alice.Key("ledger/1"), ct);
@@ -161,7 +161,7 @@ public sealed class KernelFacts(FrameworkHost host)
 
         Assert.All(await Instances(brain, null, ct), instance => Assert.True(BrainKey.BelongsTo(instance.Key, alice.BrainId), instance.Key));
         Assert.Contains(await Instances(brain, null, ct), instance => instance.Key == alice.Key("ledger/1"));
-        var running = await new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Running(ct);
+        var running = await new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Running(ct);
         Assert.Contains(running, instance => instance.Key == alice.Key("ledger/1"));
         Assert.DoesNotContain(running, instance => instance.Key == bob.Key("ledger/1"));
     }
@@ -176,7 +176,7 @@ public sealed class KernelFacts(FrameworkHost host)
         await brain.Get<ILedger>(alice.Key("ledger/1")).Set(1);
 
         List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances<ILedger>(ct)) { listed.Add(instance); }
+        await foreach (var instance in new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances<ILedger>(ct)) { listed.Add(instance); }
 
         Assert.Equal(alice.Key("ledger/1"), Assert.Single(listed).Key);
     }
@@ -184,7 +184,7 @@ public sealed class KernelFacts(FrameworkHost host)
     [Fact]
     public void NothingPublicCanRegisterAnInstance()
     {
-        Type[] surface = [typeof(IKernelView), typeof(IKernel), typeof(Framework.Kernel)];
+        Type[] surface = [typeof(IKernelView), typeof(IKernel), typeof(global::IntoChat.OS.Kernel.Composition.Kernel)];
         Assert.DoesNotContain(surface.SelectMany(type => type.GetMethods()), method => method.Name.Contains("Register", StringComparison.Ordinal));
         Assert.False(typeof(IInstanceDirectory).IsPublic);
         Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IInstanceDirectory)));
@@ -194,7 +194,7 @@ public sealed class KernelFacts(FrameworkHost host)
     private static async Task<List<Instance>> Instances(ITestBrain brain, string? type, CancellationToken ct)
     {
         List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances(type, ct)) { listed.Add(instance); }
+        await foreach (var instance in new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances(type, ct)) { listed.Add(instance); }
         return listed;
     }
 }

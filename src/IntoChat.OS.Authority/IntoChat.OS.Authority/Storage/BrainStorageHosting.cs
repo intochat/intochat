@@ -48,7 +48,6 @@ public static class BrainStorageHosting
         services.AddSingleton<BrainStorageComposed>();
         // A hosted deployment composes over the local journal here; one registered later applies itself (IsComposed).
         foreach (var extension in HostedStorageExtensions(services)) { extension.Configure(services, silo.Configuration); }
-        silo.TryAddKernelRegistration();
         silo.AddStartupTask((provider, cancellationToken) =>
         {
             cancellationToken.ThrowIfCancellationRequested();

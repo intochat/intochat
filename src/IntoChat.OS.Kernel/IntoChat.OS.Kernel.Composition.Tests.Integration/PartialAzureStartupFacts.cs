@@ -11,7 +11,6 @@ public sealed class PartialAzureStartupFacts
     public static TheoryData<string, string?, string?> PartialCloudSets() => new()
     {
         { OsNames.CloudStorageConfigurationKey, null, TopologyHosts.Vault },
-        { OsNames.CloudKeyVaultConfigurationKey, TopologyHosts.AzuriteConnection, null },
         { OsNames.CloudKeyVaultConfigurationKey, TopologyHosts.AzuriteConnection, "http://plain.vault.azure.net/" },
     };
 
@@ -30,14 +29,16 @@ public sealed class PartialAzureStartupFacts
         Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
 
+    // The key vault is optional on cloud since the runtime's 04-06 (R4-08: contributor runs on Azurite use the machine key);
+    // a missing storage account still stops the host, and a key vault that is set must be an https URI (above).
     [Fact]
-    public void BothMissingCloudKeysAreNamedInOneFailure()
+    public void AMissingStorageIsNamedAndAMissingVaultIsNot()
     {
         using var home = TestHome.Create();
         var builder = TopologyHosts.Builder(home, new Dictionary<string, string?> { [OsNames.TopologyKey] = OsNames.TopologyCloud });
         var error = Assert.Throws<InvalidOperationException>(() => TopologyHosts.Compose(builder));
         Assert.Contains(OsNames.CloudStorageConfigurationKey, error.Message, StringComparison.Ordinal);
-        Assert.Contains(OsNames.CloudKeyVaultConfigurationKey, error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(OsNames.CloudKeyVaultConfigurationKey, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

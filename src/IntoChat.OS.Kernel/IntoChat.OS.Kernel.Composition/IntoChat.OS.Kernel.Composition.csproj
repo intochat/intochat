@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>The kernel composition (06-02, R4-12): kernel grains, the Orleans host wiring, the runtime cluster store and the transitional legacy adapters between the os Framework and DigitalBrain.Runtime.Orleans. Also carries the legacy cluster neuron until 06-03.</Description>
+    <RootNamespace>IntoChat.OS.Kernel.Composition</RootNamespace>
+    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition.Tests.Integration" />
+    <!-- The cloud topology (Topology=cloud): only the composition references the Azure runtime package (03-12). -->
+    <PackageReference Include="DigitalBrain.Runtime.Orleans.Azure" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
+  </ItemGroup>
+</Project>

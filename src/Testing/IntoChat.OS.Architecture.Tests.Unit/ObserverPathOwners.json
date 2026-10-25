@@ -25,7 +25,6 @@
   "IntoChat.OS.Framework.Tests.Integration/TraceFacts.cs": 6,
   "IntoChat.OS.Framework.Tests.Integration/WatchCycleFacts.cs": 8,
   "IntoChat.OS.Framework/Callers/NeuronCallFilter.cs": 4,
-  "IntoChat.OS.Framework/Runtime/Hosting/BrainHosting.cs": 3,
   "IntoChat.OS.Framework/Runtime/Neuron.cs": 20,
   "IntoChat.OS.Framework/Runtime/Signalling/ILocalSignalHub.cs": 5,
   "IntoChat.OS.Framework/Runtime/Signalling/LocalSignalHub.cs": 12,
@@ -74,5 +73,6 @@
   "IntoChat.OS/Neurons/INeuron.cs": 3,
   "IntoChat.OS/Neurons/INeuronObserver.cs": 3,
   "IntoChat.OS/Runtime/INeuronContext.cs": 5,
-  "IntoChat.OS/Signals/SignalNudge.cs": 1
+  "IntoChat.OS/Signals/SignalNudge.cs": 1,
+  "IntoChat.OS.Kernel.Composition/Kernel/BrainHosting.cs": 3
 }

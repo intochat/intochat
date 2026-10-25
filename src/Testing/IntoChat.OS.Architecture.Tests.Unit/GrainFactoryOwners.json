@@ -10,11 +10,8 @@
   "IntoChat.OS.Framework.Tests.Integration/Kernel/KernelFacts.cs": 6,
   "IntoChat.OS.Framework.Tests.Integration/TestNeurons.cs": 2,
   "IntoChat.OS.Framework.Tests.Integration/WatchCycleFacts.cs": 10,
-  "IntoChat.OS.Framework/Runtime/GrainNeuronResolver.cs": 2,
   "IntoChat.OS.Framework/Runtime/Kernel/CompiledTypes.cs": 3,
   "IntoChat.OS.Framework/Runtime/Kernel/InstanceRegistration.cs": 3,
-  "IntoChat.OS.Framework/Runtime/Kernel/Kernel.cs": 11,
-  "IntoChat.OS.Framework/Runtime/Kernel/KernelGrains.cs": 4,
   "IntoChat.OS.Mcp.Tests.Integration/McpRuntimeFacts.cs": 1,
   "IntoChat.OS.Mcp.Tests.Integration/McpTrustFacts.cs": 1,
   "IntoChat.OS.Mcp.Tests.Integration/NeuronSurfaceFacts.cs": 1,
@@ -124,5 +121,6 @@
   "IntoChat.OS.Modules.Circles/CirclesModule.Invites.cs": 2,
   "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs": 4,
   "IntoChat.Cloud.Circle.Server/EnrollmentEndpoints.cs": 4,
-  "IntoChat.Cloud.Circle.Server/MachineAuthenticationHandler.cs": 4
+  "IntoChat.Cloud.Circle.Server/MachineAuthenticationHandler.cs": 4,
+  "IntoChat.OS.Aspire.Client/IntoChatOSClientHostingExtensions.cs": 1
 }

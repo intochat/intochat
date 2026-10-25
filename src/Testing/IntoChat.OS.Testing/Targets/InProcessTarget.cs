@@ -112,9 +112,9 @@ public sealed class InProcessTarget : ITestTarget
             // cluster storage after it, so a storage the fact replaced or decorated is wrapped once, outermost.
             builder.UseOrleans(silo =>
             {
-                silo.TryRemoveKernelRegistration();
+                global::IntoChat.OS.Kernel.Composition.BrainHosting.TryRemoveKernelRegistration(silo);
                 services(silo.Services);
-                silo.TryAddKernelRegistration();
+                global::IntoChat.OS.Kernel.Composition.BrainHosting.TryAddKernelRegistration(silo);
             });
         }
         var app = builder.Build();

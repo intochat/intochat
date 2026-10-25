@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,7 @@ using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 using IntoChat.OS.Contracts.Configuration;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Kernel.Composition;
 
 public static class BrainHosting
 {

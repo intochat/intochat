@@ -42,7 +42,7 @@ public sealed class ScriptAccountFacts
         }
         using (bob.AsCaller())
         {
-            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.Services.GetRequiredService<NeuronTypeSearch>());
+            var surface = new NeuronSurface(brain, new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Grains), brain.Services.GetRequiredService<NeuronTypeSearch>());
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => surface.Call(
                 typeof(IConnectionRequests).FullName!, scope, nameof(IConnectionRequests.ListConnections), "[]", ct));
         }

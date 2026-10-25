@@ -5,8 +5,6 @@ using global::Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
@@ -25,16 +23,8 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(Orlean
         Signals = [typeof(ClusterChanged)],
     };
 
-    // The cloud topology comes from DigitalBrain.Runtime.Orleans.Azure, which only this module references. The production
-    // path never replaces the Key Vault source (T-03-59).
-    public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles { get; } =
-        [DigitalBrain.Runtime.Orleans.Azure.CloudTopologyExtensions.AddCloudTopology()];
+    // The wiring lives in the kernel composition (06-02); this module keeps the legacy cluster neuron until 06-03.
+    public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles => IntoChat.OS.Kernel.Composition.OrleansHostWiring.TopologyProfiles;
 
-    public override void Configure(ISiloBuilder silo)
-    {
-        ArgumentNullException.ThrowIfNull(silo);
-        if (CloudStorage.IsCloud(silo.Services)) { CloudStorage.Configure(silo); }
-        silo.Services.TryAddSingleton<IClusterMembershipFeed, Cluster.ClusterMembershipFeed>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterActivation>());
-    }
+    public override void Configure(ISiloBuilder silo) => IntoChat.OS.Kernel.Composition.OrleansHostWiring.Configure(silo);
 }

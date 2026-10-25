@@ -93,9 +93,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.Microsoft.Orleans": [
-    "DigitalBrain.Runtime.Orleans.Azure"
-  ],
   "IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting": [
     "Aspire.Hosting.Orleans"
   ],
@@ -142,5 +139,8 @@
   "IntoChat.Cloud.Circle.Server": [
     "DigitalBrain.Runtime.Orleans",
     "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Kernel.Composition": [
+    "DigitalBrain.Runtime.Orleans.Azure"
   ]
 }

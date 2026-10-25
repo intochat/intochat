@@ -18,5 +18,5 @@ internal sealed class OrleansBrain(BrainClient client, string brainId) : IIntoCh
 
     public IBrain Self => client.Grain<IBrain>(brainId);
 
-    public IKernelView Kernel => new IntoChat.OS.Framework.Kernel(client.Grains);
+    public IKernelView Kernel => client.Kernel;
 }

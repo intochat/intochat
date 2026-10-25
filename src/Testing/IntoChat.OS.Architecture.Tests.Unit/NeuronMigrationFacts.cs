@@ -8,14 +8,15 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Phase 6 guard rails (D-03, D-04, D-06, D-16): neurons leave Orleans family by family, and every family PR shrinks
 // these baselines. They are captured, never hand-edited, and each fact is two-sided: growth fails, and a drop fails
 // until the baseline is shrunk so the next regression cannot hide in the slack.
-// The kernel composition (IntoChat.OS.Kernel, folder Composition/, R4-07) is where Orleans may stay: kernel typed
-// grains, the transitional legacy sink and the Authority accessor live there and are exempt.
+// The kernel composition (the IntoChat.OS.Kernel.Composition library, R4-12; its Kernel/ folder by file) is where Orleans
+// may stay: kernel typed grains, the transitional legacy sink and the Authority accessor live there and are exempt. The
+// legacy cluster neuron in the same library (namespace IntoChat.OS.Modules.Microsoft.Orleans) is counted until 06-03.
 public sealed partial class NeuronMigrationFacts
 {
     internal const string KernelCompositionPrefix = "IntoChat.OS.Kernel.Composition";
 
-    // Project-key form of the same place: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Composition.
-    internal const string KernelCompositionFolder = "IntoChat.OS.Kernel/Composition/";
+    // Project-key form of the same place: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/Kernel.
+    internal const string KernelCompositionFolder = "IntoChat.OS.Kernel.Composition/Kernel/";
 
     internal const string StillGrainsFile = "NeuronsStillGrains.json";
     internal const string AttributeFile = "OrleansAttributeOwners.json";

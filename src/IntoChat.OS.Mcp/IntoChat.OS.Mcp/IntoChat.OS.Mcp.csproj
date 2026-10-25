@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
     <!-- Every module Contracts project, by convention: the host reads a neuron contract from its own loaded assemblies. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj" Exclude="../../IntoChat.OS.Modules/**/tests/**" />

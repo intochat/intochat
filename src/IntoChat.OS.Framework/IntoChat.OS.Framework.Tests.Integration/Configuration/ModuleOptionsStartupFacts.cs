@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Hosting;
+using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Connections;
 
 namespace IntoChat.OS.Framework.Tests.Integration;

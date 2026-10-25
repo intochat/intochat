@@ -1,8 +1,9 @@
+using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Framework.Modules;
 using BrainId = DigitalBrain.BrainId;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Kernel.Composition;
 
 // INeuronResolver over the grain factory while neurons are grains. Keys pass through verbatim: Resolve composes
 // "{brain}/{relative}" exactly as NeuronId.Within does, and ResolveKey uses the key as given.

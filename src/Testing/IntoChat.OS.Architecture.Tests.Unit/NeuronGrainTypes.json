@@ -174,26 +174,6 @@
     "Store": "cluster",
     "StateName": "brain"
   },
-  "IntoChat.OS.Framework.BrainSignalReaderGrain": {
-    "Type": "brain.signal-reader",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.CompiledTypeTableGrain": {
-    "Type": "kernel.compiledtypes",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.InstanceDirectoryGrain": {
-    "Type": "kernel.instances",
-    "Store": "cluster",
-    "StateName": "instances"
-  },
-  "IntoChat.OS.Framework.InstanceTypesGrain": {
-    "Type": "kernel.types",
-    "Store": "cluster",
-    "StateName": "types"
-  },
   "IntoChat.OS.Framework.Tests.Integration.ChattySource": {
     "Type": "test-chatty-source",
     "Store": null,
@@ -323,11 +303,6 @@
     "Type": "test-trace-source",
     "Store": null,
     "StateName": null
-  },
-  "IntoChat.OS.Framework.TypeTableGrain": {
-    "Type": "kernel.typetable",
-    "Store": "cluster",
-    "StateName": "features"
   },
   "IntoChat.OS.Kernel.Testing.Demo.Bitcoin": {
     "Type": "bitcoin",

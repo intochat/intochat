@@ -552,7 +552,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.InstanceDirectoryGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State",
     "state": "instances",
     "exportedToday": true,
     "grains": [
@@ -560,7 +560,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.InstanceTypesGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.InstanceTypesGrain+State",
     "state": "types",
     "exportedToday": true,
     "grains": [
@@ -568,7 +568,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.TypeTableGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.TypeTableGrain+State",
     "state": "features",
     "exportedToday": true,
     "grains": [

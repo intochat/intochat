@@ -5,6 +5,8 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace IntoChat.OS.Aspire.Client;
@@ -21,6 +23,8 @@ public static class IntoChatOSClientHostingExtensions
             builder.AddKeyedAzureTableServiceClient(IntoChatOSNames.Clustering);
         }
         builder.UseOrleansClient(client => client.AddIntoChatOS());
+        // The kernel view reads the instance directory through the cluster (the kernel composition, 06-02).
+        builder.Services.TryAddSingleton<IKernelView>(static services => new IntoChat.OS.Kernel.Composition.Kernel(services.GetRequiredService<IClusterClient>()));
         return builder;
     }
 }
