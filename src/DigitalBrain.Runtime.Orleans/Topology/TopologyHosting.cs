@@ -62,7 +62,7 @@ public static class TopologyHosting
         {
             configuration.Sources.Insert(0, new MemoryConfigurationSource { InitialData = selected.Defaults });
             issues.AddRange(selected.Validate(configuration, modules));
-            issues.AddRange(ValidateNeeds(selected, modules));
+            issues.AddRange(ValidateNeeds(selected, modules, ClusterStoreHosting.HasClusterStore(builder.Services)));
         }
 
         TopologyValidator.ThrowIfInvalid(issues);
@@ -83,6 +83,13 @@ public static class TopologyHosting
         return TopologyValidator.ValidateNeeds(topology.Topology, topology.Bindings, modules);
     }
 
+    /// <summary>Every module need the selected bindings leave unbound, given whether the host registered the <c>cluster</c> store.</summary>
+    public static IReadOnlyList<TopologyIssue> ValidateNeeds(ITopologyProfile topology, IReadOnlyList<ModuleManifest> modules, bool clusterStoreRegistered)
+    {
+        ArgumentNullException.ThrowIfNull(topology);
+        return TopologyValidator.ValidateNeeds(topology.Topology, topology.Bindings, modules, clusterStoreRegistered);
+    }
+
     /// <summary>Applies the topology chosen by <see cref="UseTopology"/> to the silo.</summary>
     /// <exception cref="InvalidOperationException"><see cref="UseTopology"/> was not called on this host.</exception>
     public static ISiloBuilder ConfigureTopologySilo(this ISiloBuilder silo)
@@ -91,6 +98,8 @@ public static class TopologyHosting
         var selected = Instance<ITopologyProfile>(silo.Services);
         var context = Instance<TopologyContext>(silo.Services);
         selected.ConfigureSilo(silo, context);
+        // The host-bound cluster store goes last, so it replaces any cluster registration the topology made.
+        foreach (var registration in ClusterStoreHosting.Registrations(silo.Services)) { registration.Register(silo); }
         return silo;
     }
 

@@ -111,6 +111,16 @@ public enum UiBinding
     HostedWeb,
 }
 
+/// <summary>Who provides the <c>cluster</c> grain store.</summary>
+public enum ClusterStoreBinding
+{
+    /// <summary>Not bound.</summary>
+    None,
+
+    /// <summary>The host supplies it through <see cref="ClusterStoreHosting"/> (os registers BrainLog this way until it moves into the runtime).</summary>
+    HostBound,
+}
+
 /// <summary>What a topology binds each resource kind to. A kind whose binding is <c>None</c> is unbound.</summary>
 public sealed record Bindings(
     ClusteringBinding Clustering,
@@ -123,6 +133,9 @@ public sealed record Bindings(
     ModelBinding Model,
     UiBinding Ui)
 {
+    /// <summary>Who provides the <c>cluster</c> grain store; <see cref="GrainStores"/> covers every other named store.</summary>
+    public ClusterStoreBinding ClusterStore { get; init; }
+
     /// <summary>Nothing bound.</summary>
     public static Bindings Unbound { get; } = new(default, default, default, default, default, default, default, default, default);
 
@@ -139,4 +152,19 @@ public sealed record Bindings(
         NeedKind.Model => Model != ModelBinding.None,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "This need kind has no binding."),
     };
+
+    /// <summary>
+    /// True when <paramref name="need"/> is bound. A <c>GrainStore("cluster")</c> need is bound only when
+    /// <see cref="ClusterStore"/> is <see cref="ClusterStoreBinding.HostBound"/> and the host registered the store.
+    /// </summary>
+    public bool Binds(Need need, bool clusterStoreRegistered)
+    {
+        ArgumentNullException.ThrowIfNull(need);
+        return IsClusterStore(need)
+            ? ClusterStore == ClusterStoreBinding.HostBound && clusterStoreRegistered
+            : Binds(need.Kind);
+    }
+
+    internal static bool IsClusterStore(Need need)
+        => need.Kind == NeedKind.GrainStore && need.Name == IntoChatOSNames.ClusterGrainStorage;
 }

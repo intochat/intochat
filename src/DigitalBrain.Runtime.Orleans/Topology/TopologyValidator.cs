@@ -42,16 +42,32 @@ public static class TopologyValidator
 
     /// <summary>Every module need the bindings leave unbound, by module id and need kind (R4-02).</summary>
     public static IReadOnlyList<TopologyIssue> ValidateNeeds(Topology topology, Bindings bindings, IReadOnlyList<ModuleManifest> modules)
+        => ValidateNeeds(topology, bindings, modules, clusterStoreRegistered: false);
+
+    /// <summary>
+    /// Every module need the bindings leave unbound. A host-bound <c>cluster</c> store without a host registration is one issue
+    /// naming <see cref="ClusterStoreHosting.HookName"/>, whether or not a module needs it.
+    /// </summary>
+    public static IReadOnlyList<TopologyIssue> ValidateNeeds(Topology topology, Bindings bindings, IReadOnlyList<ModuleManifest> modules, bool clusterStoreRegistered)
     {
         ArgumentNullException.ThrowIfNull(bindings);
         ArgumentNullException.ThrowIfNull(modules);
-        return modules
+        var hostBound = bindings.ClusterStore == ClusterStoreBinding.HostBound;
+        var issues = new List<TopologyIssue>();
+        if (hostBound && !clusterStoreRegistered)
+        {
+            issues.Add(new TopologyIssue($"grain store {IntoChatOSNames.ClusterGrainStorage}",
+                $"is host-bound under Topology={topology.ToConfigValue()} but the host registered none; call {ClusterStoreHosting.HookName} before UseTopology."));
+        }
+
+        issues.AddRange(modules
             .SelectMany(module => module.Needs.Select(need => (Module: module, Need: need)))
-            .Where(entry => !bindings.Binds(entry.Need.Kind))
+            .Where(entry => !bindings.Binds(entry.Need, clusterStoreRegistered))
+            .Where(entry => !(hostBound && Bindings.IsClusterStore(entry.Need))) // reported once above
             .Select(entry => new TopologyIssue(
                 $"module {entry.Module.Id ?? "(unnamed)"}",
-                $"needs {entry.Need.Kind}{(entry.Need.Name is null ? string.Empty : $"({entry.Need.Name})")}, which Topology={topology.ToConfigValue()} does not bind."))
-            .ToList();
+                $"needs {entry.Need.Kind}{(entry.Need.Name is null ? string.Empty : $"({entry.Need.Name})")}, which Topology={topology.ToConfigValue()} does not bind.")));
+        return issues;
     }
 
     internal static (Topology? Topology, IReadOnlyList<TopologyIssue> Issues, IReadOnlyList<string> Warnings) Evaluate(
