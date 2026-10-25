@@ -4,3 +4,4 @@ artifacts/
 .digitalbrain-local/
 .vs/
 *.user
+TestResults/
