@@ -149,3 +149,86 @@ internal static class Calls
     public static RuntimeInvocation Of(string behavior, string key, string method)
         => new(behavior, NeuronProxy.ContractName(typeof(IProbe)), key, method, []);
 }
+
+/// <summary>Turns observed by the interleaving facts, keyed by gate or tag.</summary>
+internal static class TurnLog
+{
+    public static readonly ConcurrentDictionary<string, bool> Held = new();
+    public static readonly ConcurrentDictionary<string, bool> Noted = new();
+}
+
+public interface ITurnProbe
+{
+    Task Hold(string gate);
+
+    [Interleaves]
+    Task<int> Peek();
+
+    [ReadOnlyCall]
+    Task<int> Read();
+
+    Task<int> Plain();
+
+    Task<int> Flagged(bool interleave);
+
+    [OneWayCall]
+    Task Note(string tag);
+
+    [OneWayCall, Interleaves]
+    Task NoteNow(string tag);
+
+    IAsyncEnumerable<int> Items();
+
+    [Interleaves]
+    IAsyncEnumerable<int> ItemsNow();
+}
+
+/// <summary>An abstract base with an inherited [InterleavesWhen]: Flagged(true) interleaves.</summary>
+[InterleavesWhen(nameof(BaseRule))]
+public abstract class TurnProbeBase : Neuron, ITurnProbe
+{
+    private static bool BaseRule(RuntimeInvocation call) => call.Method == nameof(Flagged) && call.Arguments[0].GetBoolean();
+
+    public async Task Hold(string gate)
+    {
+        TurnLog.Held[gate] = true;
+        await ProbeLog.Gate(gate).Task;
+    }
+
+    public Task<int> Peek() => Task.FromResult(1);
+
+    public Task<int> Read() => Task.FromResult(2);
+
+    public Task<int> Plain() => Task.FromResult(3);
+
+    public Task<int> Flagged(bool interleave) => Task.FromResult(interleave ? 4 : 5);
+
+    public Task Note(string tag)
+    {
+        TurnLog.Noted[tag] = true;
+        return Task.CompletedTask;
+    }
+
+    public Task NoteNow(string tag) => Note(tag);
+
+    public async IAsyncEnumerable<int> Items()
+    {
+        await Task.Yield();
+        yield return 6;
+    }
+
+    public IAsyncEnumerable<int> ItemsNow() => Items();
+}
+
+[Neuron("turn")]
+public sealed class TurnProbe : TurnProbeBase;
+
+/// <summary>Redeclares [InterleavesWhen]: its own rule (Plain interleaves) replaces the base rule.</summary>
+[Neuron("turn.own"), InterleavesWhen(nameof(OwnRule))]
+public sealed class OwnRuleTurnProbe : TurnProbeBase
+{
+    private static bool OwnRule(RuntimeInvocation call) => call.Method == nameof(Plain);
+}
+
+[Neuron("turn.reentrant"), Reentrant]
+public sealed class ReentrantTurnProbe : TurnProbeBase;
