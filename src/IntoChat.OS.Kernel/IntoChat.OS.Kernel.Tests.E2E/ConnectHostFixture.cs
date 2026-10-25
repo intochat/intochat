@@ -23,8 +23,8 @@ public sealed class ConnectHostFixture : ReferenceBrainFixture
         _tokens = await TokenEndpointStub.StartAsync(cancellationToken);
         return await ReferenceBrain.Create(privateConfiguration: new()
         {
-            [IntegrationSchema.Key(GmailModule.Integration.Id, "ClientId")] = "os-client",
-            [IntegrationSchema.Key(GmailModule.Integration.Id, "ClientSecret")] = "os-secret",
+            [IntegrationSchema.Key(IntoChat.OS.Modules.Google.Auth.GoogleAuth.Integration, "ClientId")] = "os-client",
+            [IntegrationSchema.Key(IntoChat.OS.Modules.Google.Auth.GoogleAuth.Integration, "ClientSecret")] = "os-secret",
             [IntoChatOSConfiguration.ConnectionsTokenEndpointKey("gmail")] = _tokens.TokenEndpoint.AbsoluteUri,
             [IntoChatOSConfiguration.ConnectionsPublicOriginKey] = _tokens.Origin.AbsoluteUri,
         })

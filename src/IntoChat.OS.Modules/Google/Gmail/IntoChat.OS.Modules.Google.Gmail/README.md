@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Google.Gmail
 
-Gmail reads, local draft previews, recoverable draft creation, browser sign-in, mailbox wake-ups and Drive storage. Draft creation never sends mail.
+Gmail reads, local draft previews, recoverable draft creation, browser sign-in, and mailbox wake-ups. Sign-in goes through the `google-auth` module; Google Drive is the separate `google-drive` module. Draft creation never sends mail.
 
 Module id: `gmail`.
 
@@ -68,10 +68,7 @@ Options:
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-| Secret | Required |
-| --- | --- |
-| `ClientId` | yes |
-| `ClientSecret` | yes |
+None.
 
 Contracts: assembly `IntoChat.OS.Modules.Google.Gmail` (`IGmail`).
 Hosting: runs in process.

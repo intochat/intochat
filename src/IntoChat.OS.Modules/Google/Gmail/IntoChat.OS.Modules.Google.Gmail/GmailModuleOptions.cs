@@ -11,7 +11,6 @@ public sealed record GmailModuleOptions : IModuleOptions
 {
     public Uri GmailEndpoint { get; set; } = new("https://gmail.googleapis.com/gmail/v1/users/me/");
     public Uri ProfileEndpoint { get; set; } = new("https://gmail.googleapis.com/gmail/v1/users/me/profile");
-    public Uri DriveEndpoint { get; set; } = new("https://www.googleapis.com/drive/v3/");
     public bool HostGmail { get; set; }
 
     public GmailModuleOptions WithGmail() { HostGmail = true; return this; }
@@ -26,7 +25,6 @@ internal sealed class GmailOptionsValidator : IModuleValidator<GmailModuleOption
         var issues = new List<ValidationIssue>();
         Endpoint(nameof(value.GmailEndpoint), value.GmailEndpoint, true);
         Endpoint(nameof(value.ProfileEndpoint), value.ProfileEndpoint, false);
-        Endpoint(nameof(value.DriveEndpoint), value.DriveEndpoint, true);
         return [.. issues];
 
         void Endpoint(string name, Uri? endpoint, bool directory)

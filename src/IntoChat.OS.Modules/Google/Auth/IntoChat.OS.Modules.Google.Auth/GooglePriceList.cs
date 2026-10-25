@@ -1,8 +1,9 @@
 using IntoChat.OS.Contracts.Compute;
 
-namespace IntoChat.OS.Modules.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Auth;
 
-internal sealed class GooglePriceList : IPriceList
+// Shared by the three Google modules: each declares its own operations against this one informational list.
+public sealed class GooglePriceList : IPriceList
 {
     public GooglePriceList() { }
     public long? MicrosPerUnit(CostKind kind, string item) => null;

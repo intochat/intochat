@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -53,7 +54,7 @@ internal sealed class GmailApi(IHttpClientFactory clients, GmailModuleOptions op
         ArgumentNullException.ThrowIfNull(mime);
         if (ct.IsCancellationRequested) { return new(GoogleWriteOutcome.NotDispatched, CancellationRequested: true); }
         var raw = Convert.ToBase64String(mime).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        using var client = clients.CreateClient(GmailModule.HttpClientName);
+        using var client = clients.CreateClient(GoogleHttp.ClientName);
         using var request = Request(accessToken, context, GoogleOperations.CreateDraft, Endpoint("drafts"), HttpMethod.Post,
             JsonContent.Create(new { message = new { raw } }));
         using var deadline = new CancellationTokenSource(ProviderTimeout, clock);
@@ -96,7 +97,7 @@ internal sealed class GmailApi(IHttpClientFactory clients, GmailModuleOptions op
         {
             try
             {
-                using var client = clients.CreateClient(GmailModule.HttpClientName);
+                using var client = clients.CreateClient(GoogleHttp.ClientName);
                 using var request = Request(accessToken, context, operation, uri, method ?? (content is null ? HttpMethod.Get : HttpMethod.Post), content?.Invoke());
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
                 accounting = response.GetExternalAccounting();

@@ -3,7 +3,7 @@
     <IsPackable>true</IsPackable>
     <IntoChatOSModule>true</IntoChatOSModule>
     <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
-    <Description>Google module: typed Gmail reads, recoverable draft creation, tools, browser sign-in and Google Drive as read-only storage.</Description>
+    <Description>Google module: typed Gmail reads, recoverable draft creation, tools and browser sign-in.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>IntoChat.OS.Modules.Google.Gmail</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
@@ -26,4 +26,5 @@
     <ProjectReference Include="../../../IntoChat.OS/Tools/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../Auth/IntoChat.OS.Modules.Google.Auth/IntoChat.OS.Modules.Google.Auth.csproj" /></ItemGroup>
 </Project>

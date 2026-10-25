@@ -3,6 +3,7 @@ using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.Google.Auth;
 using IntoChat.OS.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,20 +15,20 @@ public static class GmailBrain
 {
     public const string PushToken = "test-google-push";
 
-    public static Task<ITestBrain> StartAsync(GoogleStub stub, CancellationToken ct, string? posture = null, Uri? drive = null, bool watch = false)
-        => Compose(TestBrain.Create(), stub, posture, drive, watch).StartAsync(ct);
+    public static Task<ITestBrain> StartAsync(GoogleStub stub, CancellationToken ct, string? posture = null, bool watch = false)
+        => Compose(TestBrain.Create(), stub, posture, watch).StartAsync(ct);
 
-    public static TestBrain Compose(TestBrain brain, GoogleStub stub, string? posture = null, Uri? drive = null, bool watch = false)
+    public static TestBrain Compose(TestBrain brain, GoogleStub stub, string? posture = null, bool watch = false)
     {
         var builder = brain
+            .WithModule<GoogleAuthModule, GoogleAuthModuleOptions>()
             .WithModule<GmailModule, GmailModuleOptions>(options =>
             {
                 options.ProfileEndpoint = stub.ProfileEndpoint;
                 options.GmailEndpoint = stub.GmailEndpoint;
-                if (drive is not null) { options.DriveEndpoint = drive; }
             })
-            .WithIntegration(GmailModule.Integration, "ClientId", "integration-client")
-            .WithIntegration(GmailModule.Integration, "ClientSecret", "integration-secret")
+            .WithIntegration(GoogleAuthModule.Integration, "ClientId", "integration-client")
+            .WithIntegration(GoogleAuthModule.Integration, "ClientSecret", "integration-secret")
             .WithConfiguration(IntoChatOSConfiguration.ConnectionsPublicOriginKey, stub.Origin.AbsoluteUri)
             .WithConfiguration(IntoChatOSConfiguration.ConnectionsTokenEndpointKey("gmail"), stub.TokenEndpoint.AbsoluteUri)
             // Google signs push deliveries with its own OIDC keys; the test cannot mint those, so the push gate accepts a fixed bearer.
@@ -38,7 +39,7 @@ public static class GmailBrain
             });
         if (watch)
         {
-            var pubSub = GmailModule.Integrations.Single(schema => schema.Id == "google-pubsub");
+            var pubSub = GmailModule.Integration;
             builder = builder.WithIntegration(pubSub, "Audience", "https://push.example.test/gmail")
                 .WithIntegration(pubSub, "ServiceAccountEmail", "push@example.test")
                 .WithIntegration(pubSub, "TopicName", "projects/example/topics/gmail");

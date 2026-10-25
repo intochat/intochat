@@ -41,6 +41,7 @@ internal static class ModuleParser
         string? anchor = null;
         string? license = null;
         var integrations = new List<Draft>();
+        var used = new HashSet<string>(StringComparer.Ordinal);
         foreach (var attribute in symbol.GetAttributes())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -54,6 +55,10 @@ internal static class ModuleParser
                     break;
                 case "IntoChat.OS.Framework.Modules.RequiresLicenseAttribute":
                     if (Arg(attribute, 0) is string product) { license = product; }
+                    break;
+                case "IntoChat.OS.Framework.Modules.UsesIntegrationAttribute":
+                    if (Arg(attribute, 0) is string usedId && IsIntegrationId(usedId)) { used.Add(usedId); }
+                    else { diagnostics.Add(Diagnostic("IOS0002", "An integration id is lowercase letters, digits, dots and dashes and needs a display name.", declaration)); }
                     break;
                 case "IntoChat.OS.Framework.Modules.IntegrationAttribute":
                     if (Arg(attribute, 0) is string integrationId && Arg(attribute, 1) is string display)
@@ -150,7 +155,7 @@ internal static class ModuleParser
             var name = Arg(attribute, 0) as string ?? "";
             var integration = Arg(attribute, 1) as string ?? "";
             var unit = Arg(attribute, 2) as string ?? "";
-            if (prices.Length == 0 || !IsCanonicalToken(name) || !IsCanonicalToken(unit) || !integrations.Any(candidate => candidate.Id == integration))
+            if (prices.Length == 0 || !IsCanonicalToken(name) || !IsCanonicalToken(unit) || !(integrations.Any(candidate => candidate.Id == integration) || used.Contains(integration)))
             {
                 diagnostics.Add(Diagnostic("IOS0007", "An external operation needs a module price list, canonical name and unit, and a declared integration.", declaration));
             }

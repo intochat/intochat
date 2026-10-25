@@ -1,13 +1,12 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.Modules.Google.Gmail.Testing;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Integrations;
 
-namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
+namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
 
 // Google Drive through the storage capability, against the Drive stub.
 public sealed class DriveStorageFacts
@@ -17,10 +16,9 @@ public sealed class DriveStorageFacts
     public async Task AConnectedDriveIsDiscoveredAsStorageAndBrowsedWithItsToken()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await GoogleStub.StartAsync(ct);
         await using var drive = await DriveStub.StartAsync(ct);
-        await using var brain = await GmailBrain.StartAsync(stub, ct, drive: drive.Endpoint);
-        var key = ConnectionKeys.For(brain.Owner.BrainId, GmailModule.Drive.Id, "primary");
+        await using var brain = await DriveBrain.StartAsync(drive, ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, DriveModule.Connector.Id, "primary");
         using var caller = brain.Owner.AsCaller();
         var view = await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
         Assert.Equal("user@gmail.com", view.Account);
@@ -58,10 +56,9 @@ public sealed class DriveStorageFacts
     public async Task AFolderIsNotReadAsText()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var stub = await GoogleStub.StartAsync(ct);
         await using var drive = await DriveStub.StartAsync(ct);
-        await using var brain = await GmailBrain.StartAsync(stub, ct, drive: drive.Endpoint);
-        var key = ConnectionKeys.For(brain.Owner.BrainId, GmailModule.Drive.Id, "primary");
+        await using var brain = await DriveBrain.StartAsync(drive, ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, DriveModule.Connector.Id, "primary");
         using var caller = brain.Owner.AsCaller();
         await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
 

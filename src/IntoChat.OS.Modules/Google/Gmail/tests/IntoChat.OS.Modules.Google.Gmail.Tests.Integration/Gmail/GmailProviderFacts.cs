@@ -71,7 +71,7 @@ public sealed class GmailProviderFacts
         var trace = Assert.Single(traces);
         var page = (await brain.Owner.Http.GetFromJsonAsync<ComputeTracePage>($"/brains/{brain.Owner.BrainId}/compute/traces/{trace}", Json, ct))!;
         Assert.Equal(2, page.Rows.Length);
-        Assert.Contains(page.Rows, row => row.Item == GoogleOperations.CodeExchange);
+        Assert.Contains(page.Rows, row => row.Item == IntoChat.OS.Modules.Google.Auth.GoogleAuthOperations.CodeExchange);
         Assert.Contains(page.Rows, row => row.Item == GoogleOperations.Profile);
         Assert.All(page.Rows, row =>
         {

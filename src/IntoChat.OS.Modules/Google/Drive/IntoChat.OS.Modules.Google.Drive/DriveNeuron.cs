@@ -9,9 +9,10 @@ using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Modules.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Drive;
 
 [GenerateSerializer, Alias("db.google-drive.state")]
 internal sealed class DriveState : ConnectionState;
@@ -36,14 +37,14 @@ internal sealed class DriveNeuron(
     {
         var folder = string.IsNullOrEmpty(location) ? Root : location;
         var query = Uri.EscapeDataString($"'{folder.Replace("\\", "\\\\").Replace("'", "\\'")}' in parents and trashed = false");
-        using var json = await GetJsonAsync($"files?q={query}&fields=files(id,name,mimeType)&orderBy=folder,name&pageSize=200", GoogleOperations.DriveList, cancellationToken);
+        using var json = await GetJsonAsync($"files?q={query}&fields=files(id,name,mimeType)&orderBy=folder,name&pageSize=200", GoogleDriveOperations.List, cancellationToken);
         return [.. json.RootElement.GetProperty("files").EnumerateArray().Select(Entry)];
     }
 
     public async Task<string> Read(string location, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(location);
-        using var metadata = await GetJsonAsync($"files/{Uri.EscapeDataString(location)}?fields=id,name,mimeType", GoogleOperations.DriveMetadata, cancellationToken);
+        using var metadata = await GetJsonAsync($"files/{Uri.EscapeDataString(location)}?fields=id,name,mimeType", GoogleDriveOperations.Metadata, cancellationToken);
         var type = metadata.RootElement.GetProperty("mimeType").GetString();
         var path = type switch
         {
@@ -53,7 +54,7 @@ internal sealed class DriveNeuron(
                 => throw new InvalidOperationException("This Google file has no text form."),
             _ => $"files/{Uri.EscapeDataString(location)}?alt=media",
         };
-        return await SendAsync(path, type == DocumentType ? GoogleOperations.DriveExport : GoogleOperations.DriveMedia,
+        return await SendAsync(path, type == DocumentType ? GoogleDriveOperations.Export : GoogleDriveOperations.Media,
             cancellationToken, response => response.Content.ReadAsStringAsync(cancellationToken));
     }
 
@@ -65,7 +66,7 @@ internal sealed class DriveNeuron(
         var current = location;
         for (var depth = 0; depth < MaxDepth && current != Root; depth++)
         {
-            using var json = await GetJsonAsync($"files/{Uri.EscapeDataString(current)}?fields=id,name,mimeType,parents", GoogleOperations.DriveMetadata, cancellationToken);
+            using var json = await GetJsonAsync($"files/{Uri.EscapeDataString(current)}?fields=id,name,mimeType,parents", GoogleDriveOperations.Metadata, cancellationToken);
             var file = json.RootElement;
             chain.Add(Entry(file));
             // My Drive (Google names it so) and the topmost folder shared with the user have no visible parent.
@@ -84,10 +85,10 @@ internal sealed class DriveNeuron(
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
         using var about = await AboutAsync(grant.AccessToken, CancellationToken.None);
-        if (!about.IsSuccessStatusCode) { throw new GmailUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
+        if (!about.IsSuccessStatusCode) { throw new DriveUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
         using var json = JsonDocument.Parse(await about.Content.ReadAsStringAsync());
         Snapshot.Account = json.RootElement.TryGetProperty("user", out var user) && user.TryGetProperty("emailAddress", out var email) ? email.GetString() : null;
-        if (string.IsNullOrWhiteSpace(Snapshot.Account)) { throw new GmailUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
+        if (string.IsNullOrWhiteSpace(Snapshot.Account)) { throw new DriveUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
         return grant;
     }
 
@@ -113,27 +114,27 @@ internal sealed class DriveNeuron(
         using var trace = EnterTrace();
         return await UseCredentialAsync(async (credential, token) =>
         {
-            using var response = await RequestAsync(new Uri(Options.DriveEndpoint, path), operation, credential.Value, token);
+            using var response = await RequestAsync(new Uri(Options.Endpoint, path), operation, credential.Value, token);
             if (response.StatusCode == HttpStatusCode.NotFound) { throw new FileNotFoundException("This Drive item does not exist or is not shared with this account."); }
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 await MarkExpired("The Google Drive access token was refused. Reconnect Google Drive.");
                 throw new UnauthorizedAccessException("Google refused the Drive access token. Reconnect Google Drive.");
             }
-            if (!response.IsSuccessStatusCode) { throw new GmailUnavailableException($"Google Drive answered HTTP {(int)response.StatusCode}."); }
+            if (!response.IsSuccessStatusCode) { throw new DriveUnavailableException($"Google Drive answered HTTP {(int)response.StatusCode}."); }
             return await read(response);
         }, ct);
     }
 
     private Task<HttpResponseMessage> AboutAsync(string accessToken, CancellationToken ct) =>
-        RequestAsync(new Uri(Options.DriveEndpoint, "about?fields=user(emailAddress)"), GoogleOperations.DriveAbout, accessToken, ct);
+        RequestAsync(new Uri(Options.Endpoint, "about?fields=user(emailAddress)"), GoogleDriveOperations.About, accessToken, ct);
 
     private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct)
     {
         using var trace = EnterTrace();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-        using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GmailModule.HttpClientName);
+        using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GoogleHttp.ClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: this.GetPrimaryKeyString()), Guid.NewGuid().ToString("N")));
@@ -149,11 +150,5 @@ internal sealed class DriveNeuron(
             ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(this.GetPrimaryKeyString()))) : null;
     }
 
-    private GmailModuleOptions Options => ServiceProvider.GetRequiredService<GmailModuleOptions>();
-}
-
-internal static class DriveScopes
-{
-    internal const string Connector = "google-drive";
-    internal const string Read = "https://www.googleapis.com/auth/drive.readonly";
+    private DriveModuleOptions Options => ServiceProvider.GetRequiredService<DriveModuleOptions>();
 }

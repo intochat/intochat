@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
+namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
 
 // Google Drive v3 on loopback: My Drive holds a Notes folder and a Google document; Notes holds a.txt.
 internal sealed partial class DriveStub : IAsyncDisposable

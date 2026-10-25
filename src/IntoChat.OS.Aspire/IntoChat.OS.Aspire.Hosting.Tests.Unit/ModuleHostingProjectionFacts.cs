@@ -101,9 +101,9 @@ public sealed class ModuleHostingProjectionFacts
     [Fact]
     public async Task GmailHostingProjectsTheSameEnvironmentNamesAndValuesAsWithoutIt()
     {
-        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integration,
+        await AssertEquivalent<IntoChat.OS.Modules.Google.Auth.GoogleAuthModuleHosting>(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule.Integration,
             new Dictionary<string, string> { ["ClientId"] = "client-id", ["ClientSecret"] = "client-secret" });
-        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integrations[0],
+        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integration,
             new Dictionary<string, string> { ["Audience"] = "https://audience", ["ServiceAccountEmail"] = "sa@example.test" });
     }
 
