@@ -38,6 +38,17 @@ public sealed class LegacyCallFacts
         Assert.Equal("hello|owner/probe.legacy/l2", answer);
     }
 
+    // 06-07b (R4-17): a module neuron reaches a legacy grain through ILegacyNeurons as itself, and only in its own brain.
+    [Fact(Timeout = 120_000)]
+    public async Task AModuleNeuronCallsALegacyOneThroughTheOsServiceAsItself()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct);
+
+        Assert.Equal("hey|owner/probe.plain/m", await Plain(brain, "m").CallLegacyAsModule(Brain, "l5", "hey"));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Plain(brain, "m").CallLegacyAsModule("someone-else", "l5", "no"));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task APlainNeuronStreamsFromALegacyOne()
     {

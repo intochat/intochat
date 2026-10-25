@@ -32,6 +32,7 @@ public interface IPlainProbe
     Task<string> CallLegacy(string key, string text);
     IAsyncEnumerable<int> CountLegacy(string key, int n, CancellationToken cancellationToken = default);
     Task Follow(string source);
+    Task<string> CallLegacyAsModule(string brain, string key, string text);
 }
 
 [DB.Neuron("probe.plain")]
@@ -56,6 +57,10 @@ public sealed class PlainProbe : DB.Neuron, IPlainProbe
         Heard.Add(Id.ToString(), signal.Text);
         return Task.CompletedTask;
     }
+
+    // 06-07b: what a module neuron writes, with no reference to the kernel composition.
+    public Task<string> CallLegacyAsModule(string brain, string key, string text)
+        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<ILegacyProbe>(Context, new DB.NeuronId(new DB.BrainId(brain), LegacyProbe.Type, key)).Echo(text);
 
     private ILegacyProbe Legacy(string key) => Context.LegacyGet<ILegacyProbe>(new DB.NeuronId(Id.Brain, LegacyProbe.Type, key));
 }

@@ -69,13 +69,14 @@ $pins = [ordered]@{
     'NeuronGrainTypes.json'               = Join-Path $archDir 'NeuronGrainTypes.json'
     'ObserverPathOwners.json'             = Join-Path $archDir 'ObserverPathOwners.json'
     'ModulesMissingManifest.json'         = Join-Path $archDir 'ModulesMissingManifest.json'
+    'LegacyNeuronsOwners.json'            = Join-Path $archDir 'LegacyNeuronsOwners.json'
     'flutter-wire-names.golden.json'      = Join-Path $flutterContracts 'flutter-wire-names.golden.json'
     'flutter-aliasless-enums.golden.json' = Join-Path $flutterContracts 'flutter-aliasless-enums.golden.json'
     'ui-states.golden.json'               = Join-Path $flutterContracts 'ui-states.golden.json'
 }
 # Shrinking ratchets: an entry going away (or a count going down) is the point, so removals there are not breaking.
 $shrinking = @('FrameworkVendorBaseline.json', 'AppsModuleIdBaseline.json', 'NeuronsStillGrains.json', 'OrleansAttributeOwners.json',
-                'GrainInterfaceOwners.json', 'ObserverPathOwners.json', 'ModulesMissingManifest.json')
+                'GrainInterfaceOwners.json', 'ObserverPathOwners.json', 'ModulesMissingManifest.json', 'LegacyNeuronsOwners.json')
 $before = @{}
 foreach ($name in $pins.Keys) {
     if (-not (Test-Path $pins[$name])) { throw "Pin missing: $($pins[$name])" }
@@ -100,7 +101,7 @@ foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'Cap
                     'CaptureSynapseWordAllowlist',
                     'CaptureFrameworkVendorBaseline', 'CaptureAppsModuleIdBaseline',
                     'CaptureNeuronsStillGrains', 'CaptureOrleansAttributeOwners', 'CaptureGrainInterfaceOwners', 'CaptureNeuronGrainTypes',
-                    'CaptureObserverPathOwners', 'CaptureModulesMissingManifest') {
+                    'CaptureObserverPathOwners', 'CaptureModulesMissingManifest', 'CaptureLegacyNeuronsOwners') {
     Run-Capture $archProject $method
 }
 foreach ($method in 'CaptureFlutterWireNames', 'CaptureUiStateGoldens') {

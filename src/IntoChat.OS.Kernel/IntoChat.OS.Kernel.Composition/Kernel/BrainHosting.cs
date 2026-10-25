@@ -38,6 +38,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons, PlainNeurons>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainSignals, PlainSignals>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.ILegacyNeurons, LegacyNeurons>();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
         silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
