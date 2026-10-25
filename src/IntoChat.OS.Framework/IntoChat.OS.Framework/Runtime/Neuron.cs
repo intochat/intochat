@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Utilities;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DeactivationCause = DigitalBrain.DeactivationCause;
 using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
 

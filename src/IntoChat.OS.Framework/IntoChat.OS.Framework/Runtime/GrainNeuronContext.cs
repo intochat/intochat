@@ -1,7 +1,7 @@
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using ICallerContextCarrier = DigitalBrain.Spi.ICallerContextCarrier;
 using INeuronTimers = DigitalBrain.Spi.INeuronTimers;
 

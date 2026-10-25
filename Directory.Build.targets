@@ -13,9 +13,9 @@
     <None Include="$(MSBuildThisFileDirectory)src/Assets/nuget/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
-  <!-- Modules opt in to the SDK generator with <IntoChatOSModule>true</IntoChatOSModule>. -->
+  <!-- Modules opt in to the transitional Framework module generator with <IntoChatOSModule>true</IntoChatOSModule>. -->
   <ItemGroup Condition="'$(IntoChatOSModule)' == 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)src/IntoChat.OS.Sdk/IntoChat.OS.Sdk.Generators/IntoChat.OS.Sdk.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src/IntoChat.OS.Framework/IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:

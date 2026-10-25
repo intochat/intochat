@@ -1,6 +1,6 @@
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Framework.Tests.Integration;

@@ -5,12 +5,16 @@
     <RootNamespace>IntoChat.OS.Framework</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Server" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
+    <!-- Transitional (Phase 3 R4-07, retired in Phase 6): the legacy module generator builds first;
+         modules opt in with IntoChatOSModule (Directory.Build.targets), so the Framework itself runs no generator. -->
+    <ProjectReference Include="../IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
 </Project>

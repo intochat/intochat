@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Framework.Compute;

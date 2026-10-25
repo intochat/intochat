@@ -1,5 +1,5 @@
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Runtime.InMemory.Tests.Unit;

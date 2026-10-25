@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DeactivationCause = DigitalBrain.DeactivationCause;
 using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
 using BrainId = DigitalBrain.BrainId;

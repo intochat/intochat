@@ -1,8 +1,7 @@
 using System.Reflection;
 
-using Module = IntoChat.OS.Sdk.Modules.Module;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Modules;
+using Module = IntoChat.OS.Framework.Modules.Module;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Modules;
 

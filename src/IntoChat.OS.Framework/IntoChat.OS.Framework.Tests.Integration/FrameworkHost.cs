@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Framework.Tests.Integration.FrameworkHost))]
 

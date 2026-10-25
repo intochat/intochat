@@ -5,7 +5,7 @@ using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Framework.Tests.Integration;

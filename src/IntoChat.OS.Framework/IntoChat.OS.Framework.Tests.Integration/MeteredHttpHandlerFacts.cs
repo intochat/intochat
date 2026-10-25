@@ -6,7 +6,7 @@ using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 

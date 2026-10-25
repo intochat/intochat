@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

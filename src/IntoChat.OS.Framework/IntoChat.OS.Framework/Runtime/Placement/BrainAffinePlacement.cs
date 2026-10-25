@@ -1,6 +1,6 @@
 using Orleans.Placement;
 using Orleans.Runtime.Placement;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

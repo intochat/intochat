@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Framework;

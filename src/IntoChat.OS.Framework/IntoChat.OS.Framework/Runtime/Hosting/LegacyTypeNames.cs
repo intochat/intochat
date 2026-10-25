@@ -38,7 +38,7 @@ public sealed class LegacyTypeNames : ITypeConverter
         return assembly switch
         {
             "IntoChat.OS.Connections" => "IntoChat.OS.Connections." + rest,
-            "IntoChat.OS.Sdk" or "IntoChat.OS.Sdk.Identity" => "IntoChat.OS.Sdk." + rest,
+            "IntoChat.OS.Framework.Modules" or "IntoChat.OS.Framework.Modules.Identity" => "IntoChat.OS.Framework.Modules." + rest,
             "IntoChat.OS.Contracts.Compute" => "IntoChat.OS.Contracts." + rest,
             "IntoChat.OS.Contracts.Configuration" => "IntoChat.OS.Contracts.Configuration." + (rest.StartsWith("Configuration.", StringComparison.Ordinal) ? rest["Configuration.".Length..] : rest),
             _ => null,

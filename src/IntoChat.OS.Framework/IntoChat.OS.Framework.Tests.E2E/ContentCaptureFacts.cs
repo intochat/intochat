@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.E2E;
 
