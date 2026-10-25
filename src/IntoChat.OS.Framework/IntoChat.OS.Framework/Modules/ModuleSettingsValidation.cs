@@ -31,7 +31,8 @@ public static class ModuleSettingsValidation
             && options.Equals("Options", StringComparison.OrdinalIgnoreCase)
             && name.Length > 0 && !name.Contains("__", StringComparison.Ordinal) && !int.TryParse(name, out _);
 
-    internal static bool IsCredentialName(string name) =>
+    // Public: the credential-name rule shared by settings validation and the architecture contract rules.
+    public static bool IsCredentialName(string name) =>
         name.Contains("Secret", StringComparison.OrdinalIgnoreCase) || name.EndsWith("Password", StringComparison.OrdinalIgnoreCase)
         || name.EndsWith("ApiKey", StringComparison.OrdinalIgnoreCase) || name.EndsWith("PrivateKeyPem", StringComparison.OrdinalIgnoreCase)
         || name.EndsWith("AccessToken", StringComparison.OrdinalIgnoreCase) || name.EndsWith("RefreshToken", StringComparison.OrdinalIgnoreCase);

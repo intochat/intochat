@@ -46,7 +46,8 @@ public interface IBrainEntries : IGrainWithStringKey
 
 // The AI module's door to a brain's provider key: Authority holds the Platform stamp Release needs,
 // so a module never constructs one. Only provider:{id} entries are reachable; null when none is set.
-internal interface IBrainProviderKeys
+// Public SPI: IntoChat.OS.Authority implements it, IntoChat.OS.Modules.AI calls it. Registering it is the host's job.
+public interface IBrainProviderKeys
 {
     Task<string?> Release(string brainId, string providerId, CancellationToken cancellationToken = default);
 }

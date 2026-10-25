@@ -43,9 +43,9 @@ internal sealed class NeuronHost : INeuronContext, IAsyncDisposable
 
     public INeuronTimers Timers { get; }
 
-    public ICallerContextCarrier Caller { get; } = new GrainNeuronContext.RequestCallerCarrier();
+    public ICallerContextCarrier Caller { get; } = new InMemoryCallerCarrier();
 
-    public ITraceCarrier Trace { get; } = new GrainNeuronContext.TraceCarrier();
+    public ITraceCarrier Trace { get; } = new InMemoryTraceCarrier();
 
     public ISignalFanout Fanout { get; }
 

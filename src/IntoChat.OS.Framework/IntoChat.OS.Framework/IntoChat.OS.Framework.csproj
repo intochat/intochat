@@ -14,6 +14,4 @@
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Runtime.InMemory" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
 </Project>

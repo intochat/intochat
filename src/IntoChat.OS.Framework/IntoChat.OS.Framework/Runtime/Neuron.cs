@@ -36,8 +36,9 @@ public abstract class Neuron : Grain, INeuron
 
     private protected IServiceProvider Services => Hosted ? _context!.Services : ServiceProvider;
 
-    // Called by a runtime that hosts neurons outside Orleans, once, before activation.
-    internal void Attach(INeuronContext context)
+    // Public runtime hook: a runtime that hosts neurons outside Orleans (IntoChat.OS.Runtime.InMemory) calls it
+    // once, before activation, with its own context. A second call throws, so a context cannot be swapped.
+    public void Attach(INeuronContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (_context is not null) { throw new InvalidOperationException("The neuron already has a runtime context."); }

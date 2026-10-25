@@ -14,6 +14,9 @@ namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 // whichever part of a turn carries it.
 public sealed class RedactionFacts
 {
+    // The redactor's mask (SecretRedactor.Mask, internal to Connections), pinned here as observed output.
+    private const string RedactionMask = "****";
+
     private const string Canary = "canary-7f3a9c2e5b1d";
 
     [Trait("host", "own")]
@@ -37,7 +40,7 @@ public sealed class RedactionFacts
         Assert.Contains(seen.OfType<TurnProgressed>(), step => step.Kind == "text");
         Assert.Single(seen.OfType<TurnCompleted>());
         foreach (var signal in seen) { Assert.DoesNotContain(Canary, JsonSerializer.Serialize(signal, signal.GetType()), StringComparison.Ordinal); }
-        Assert.Contains(SecretRedactor.Mask, string.Concat(seen.OfType<TurnProgressed>().Where(step => step.Kind == "text").Select(step => step.Text)), StringComparison.Ordinal);
+        Assert.Contains(RedactionMask, string.Concat(seen.OfType<TurnProgressed>().Where(step => step.Kind == "text").Select(step => step.Text)), StringComparison.Ordinal);
 
         var state = await agent.Read();
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(state.Runs), StringComparison.Ordinal);
@@ -47,7 +50,7 @@ public sealed class RedactionFacts
         await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("main")), persisted);
         var exported = JsonSerializer.Serialize(persisted.State);
         Assert.DoesNotContain(Canary, exported, StringComparison.Ordinal);
-        Assert.Contains(SecretRedactor.Mask, exported, StringComparison.Ordinal);
+        Assert.Contains(RedactionMask, exported, StringComparison.Ordinal);
     }
 
     private static Task<ITestBrain> Brain(CancellationToken ct)

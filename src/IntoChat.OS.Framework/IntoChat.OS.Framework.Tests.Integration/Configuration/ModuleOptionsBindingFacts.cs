@@ -95,11 +95,11 @@ public sealed class ModuleOptionsBindingFacts
     }
 
     [Theory]
-    [InlineData("IntoChatOS:Modules:ai:Options:X", true)]
+    [InlineData(IntoChatOSConfiguration.ModulesSectionName + ":ai:Options:X", true)]
     [InlineData("intochatos:modules:ai:options:X", true)]
-    [InlineData("IntoChatOS:Modules:0:Options:X", false)]
-    [InlineData("IntoChatOS:Modules:a__b:Options:X", false)]
-    [InlineData("IntoChatOS:Other:ai:Options", false)]
+    [InlineData(IntoChatOSConfiguration.ModulesSectionName + ":0:Options:X", false)]
+    [InlineData(IntoChatOSConfiguration.ModulesSectionName + ":a__b:Options:X", false)]
+    [InlineData("intochatos:Other:ai:Options", false)]
     public void TheOptionsKeyPredicateMatchesOnlyAModulesOwnOptions(string key, bool expected)
         => Assert.Equal(expected, ModuleSettingsValidation.IsOptionsKey(key));
 }

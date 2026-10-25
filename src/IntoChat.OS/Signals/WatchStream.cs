@@ -5,7 +5,8 @@ namespace IntoChat.OS;
 // handler). Disposal cancels the pending read, lets it settle, and only then releases the
 // subscription, so an early exit never throws and never leaks the watch.
 // One stream serves IntoChat.OS.Client and IntoChat.OS.Client.Orleans; the Orleans client passes no extra tokens.
-internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
+// Public transitional runtime SPI (Phase 4/6): constructed by the two clients, never by scripts.
+public sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
     CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation, Func<Task> onSubscribed) : IAsyncEnumerable<T>
 {
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)

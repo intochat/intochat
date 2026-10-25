@@ -25,6 +25,10 @@ public sealed class VocabularyRingFacts
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(Sources)] = "A set of neurons for IIntoChatOS.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
+        [typeof(ISignalDelivery)] = "Transitional runtime SPI (deleted Phase 4/6): a coalesce drain waits for queued in-process deliveries.",
+        [typeof(IInitialSignalWait)] = "Transitional runtime SPI (deleted Phase 4/6): optional capability the client connection implements.",
+        [typeof(WatchStream<>)] = "Transitional runtime SPI (deleted Phase 4/6): the one stream behind brain.On<T> both clients build.",
+        [typeof(SignalDeliveries)] = "Transitional runtime SPI (deleted Phase 4/6): skip bookkeeping for app filters; EditorBrowsable(Never).",
         [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IIntoChatOS keep that filter.",
     };
 
@@ -43,9 +47,9 @@ public sealed class VocabularyRingFacts
     }
 
     // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
-    // adding one is a design decision, made here. Both clients share the vocabulary's one WatchStream.
+    // adding one is a design decision, made here. The last one is class B and goes in 02-09c.
     private static readonly string[] InternalsConsumers =
-        ["IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Client.Orleans.Tests.Integration", "IntoChat.OS.Client.Tests.Unit", "IntoChat.OS.Modules.Apps.Contracts", "IntoChat.OS.Testing"];
+        ["IntoChat.OS.Client.Orleans.Tests.Integration"];
 
     [Fact]
     public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()
@@ -94,7 +98,9 @@ public sealed class VocabularyRingFacts
             : type;
         static bool IsHandle(Type type) => typeof(IAsyncDisposable).IsAssignableFrom(type) || typeof(IDisposable).IsAssignableFrom(type);
         // The runtime SPI hands out scopes (a timer, a suppressed caller, an entered trace); contracts never do.
-        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t))
+        // The transitional client SPI (deleted Phase 4/6) hands out a suppression scope and an enumerator.
+        Type[] transitional = [typeof(IInitialSignalWait), typeof(WatchStream<>)];
+        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t) && !transitional.Contains(t))
             .Where(t => IsHandle(t)
                 || t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(m => IsHandle(Awaited(m.ReturnType))))
             .Select(t => t.FullName!).Order().ToArray();

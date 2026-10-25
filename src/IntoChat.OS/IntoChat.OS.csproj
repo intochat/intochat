@@ -8,10 +8,5 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
     <InternalsVisibleTo Include="IntoChat.OS.Client.Orleans.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Client" />
-    <InternalsVisibleTo Include="IntoChat.OS.Client.Orleans" />
-    <InternalsVisibleTo Include="IntoChat.OS.Client.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Contracts" />
-    <InternalsVisibleTo Include="IntoChat.OS.Testing" />
   </ItemGroup>
 </Project>

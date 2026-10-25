@@ -65,10 +65,10 @@ public sealed class SdkReferenceClosureFacts
     }
 
     [Fact]
-    public void OnlyTheFrameworkSeesTheSdkInternals()
+    public void NoAssemblySeesTheSdkInternals()
     {
         var granted = typeof(Module).Assembly.GetCustomAttributes<InternalsVisibleToAttribute>()
             .Select(attribute => attribute.AssemblyName).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(["IntoChat.OS.Framework"], granted);
+        Assert.Empty(granted);
     }
 }
