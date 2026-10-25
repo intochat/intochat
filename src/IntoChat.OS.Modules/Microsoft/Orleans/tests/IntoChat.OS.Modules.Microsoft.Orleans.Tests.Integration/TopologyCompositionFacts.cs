@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Storage;
 using Orleans.Streams;
+using BrainStorageHosting = IntoChat.OS.Authority.Storage.BrainStorageHosting;
 using OsNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;
