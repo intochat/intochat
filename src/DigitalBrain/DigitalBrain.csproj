@@ -16,4 +16,18 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Tests.Unit" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Analyzer-only (03-04): no assembly reference. NuGet drops ReferenceOutputAssembly=false references from the
+         dependency list (pack-and-consume probe), so the analyzer dll is bundled under analyzers/dotnet/cs below;
+         DigitalBrain.Analyzers still ships as its own package. -->
+    <ProjectReference Include="../DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+  <Target Name="DigitalBrainBundleAnalyzers" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="../DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_DigitalBrainAnalyzerDll" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_DigitalBrainAnalyzerDll)" Pack="true" PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 </Project>
