@@ -112,6 +112,12 @@ DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.Stream(DigitalBrain.Invocation.
 DigitalBrain.Runtime.Orleans.HttpBinding
 DigitalBrain.Runtime.Orleans.HttpBinding.Direct = 1 -> DigitalBrain.Runtime.Orleans.HttpBinding
 DigitalBrain.Runtime.Orleans.HttpBinding.None = 0 -> DigitalBrain.Runtime.Orleans.HttpBinding
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter.Append(string! brainId, DigitalBrain.Runtime.Orleans.JournalStateWrite? state, string! publisher, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.JournalSignalWrite!>! signals, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.JournalAppendResult!>!
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter.Claim(string! brainId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter.ReadSince(string! brainId, long cursor, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.JournalSignalPage!>!
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter.ReadSince(string! brainId, string! publisher, long cursor, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.JournalSignalPage!>!
+DigitalBrain.Runtime.Orleans.IBrainJournalWriter.ReadState(string! brainId, string! grainId, string! stateName, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.JournalStoredState?>!
 DigitalBrain.Runtime.Orleans.IBrainKeyCustody
 DigitalBrain.Runtime.Orleans.IBrainKeyCustody.Unwrap(string! accountId, string! context, byte[]! wrapped) -> byte[]!
 DigitalBrain.Runtime.Orleans.IBrainKeyCustody.Wrap(string! accountId, string! context, byte[]! secret) -> byte[]!
@@ -139,10 +145,90 @@ DigitalBrain.Runtime.Orleans.ITopologyProfile.Topology.get -> DigitalBrain.Runti
 DigitalBrain.Runtime.Orleans.ITopologyProfile.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IEnumerable<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 DigitalBrain.Runtime.Orleans.IntoChatOSNames
 DigitalBrain.Runtime.Orleans.IntoChatOSNames.Signalling
+DigitalBrain.Runtime.Orleans.JournalAppendResult
+DigitalBrain.Runtime.Orleans.JournalAppendResult.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalAppendResult!
+DigitalBrain.Runtime.Orleans.JournalAppendResult.Deconstruct(out long Sequence, out long LastSignal, out long LastPosition) -> void
+DigitalBrain.Runtime.Orleans.JournalAppendResult.Equals(DigitalBrain.Runtime.Orleans.JournalAppendResult? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalAppendResult.JournalAppendResult(long Sequence, long LastSignal, long LastPosition) -> void
+DigitalBrain.Runtime.Orleans.JournalAppendResult.LastPosition.get -> long
+DigitalBrain.Runtime.Orleans.JournalAppendResult.LastPosition.init -> void
+DigitalBrain.Runtime.Orleans.JournalAppendResult.LastSignal.get -> long
+DigitalBrain.Runtime.Orleans.JournalAppendResult.LastSignal.init -> void
+DigitalBrain.Runtime.Orleans.JournalAppendResult.Sequence.get -> long
+DigitalBrain.Runtime.Orleans.JournalAppendResult.Sequence.init -> void
 DigitalBrain.Runtime.Orleans.JournalPayloadException
 DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException() -> void
 DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException(string! message) -> void
 DigitalBrain.Runtime.Orleans.JournalPayloadException.JournalPayloadException(string! message, System.Exception! inner) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalSignalEntry!
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.At.get -> System.DateTimeOffset
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.At.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Deconstruct(out string! Publisher, out long Sequence, out long Position, out string! Type, out System.ReadOnlyMemory<byte> Json, out System.DateTimeOffset At) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Equals(DigitalBrain.Runtime.Orleans.JournalSignalEntry? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.JournalSignalEntry(string! Publisher, long Sequence, long Position, string! Type, System.ReadOnlyMemory<byte> Json, System.DateTimeOffset At) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Json.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Json.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Position.get -> long
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Position.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Publisher.get -> string!
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Publisher.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Sequence.get -> long
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Sequence.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Type.get -> string!
+DigitalBrain.Runtime.Orleans.JournalSignalEntry.Type.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalPage
+DigitalBrain.Runtime.Orleans.JournalSignalPage.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalSignalPage!
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Deconstruct(out long Floor, out long Last, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.JournalSignalEntry!>! Signals) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Equals(DigitalBrain.Runtime.Orleans.JournalSignalPage? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Floor.get -> long
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Floor.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalPage.JournalSignalPage(long Floor, long Last, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.JournalSignalEntry!>! Signals) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Last.get -> long
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Last.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.JournalSignalEntry!>!
+DigitalBrain.Runtime.Orleans.JournalSignalPage.Signals.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalWrite
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalSignalWrite!
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Deconstruct(out string! Type, out System.ReadOnlyMemory<byte> Json) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Equals(DigitalBrain.Runtime.Orleans.JournalSignalWrite? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.JournalSignalWrite(string! Type, System.ReadOnlyMemory<byte> Json) -> void
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Json.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Json.init -> void
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Type.get -> string!
+DigitalBrain.Runtime.Orleans.JournalSignalWrite.Type.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateChange
+DigitalBrain.Runtime.Orleans.JournalStateChange.Clear = 2 -> DigitalBrain.Runtime.Orleans.JournalStateChange
+DigitalBrain.Runtime.Orleans.JournalStateChange.None = 0 -> DigitalBrain.Runtime.Orleans.JournalStateChange
+DigitalBrain.Runtime.Orleans.JournalStateChange.Write = 1 -> DigitalBrain.Runtime.Orleans.JournalStateChange
+DigitalBrain.Runtime.Orleans.JournalStateWrite
+DigitalBrain.Runtime.Orleans.JournalStateWrite.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalStateWrite!
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Change.get -> DigitalBrain.Runtime.Orleans.JournalStateChange
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Change.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Deconstruct(out string! GrainId, out string! StateName, out DigitalBrain.Runtime.Orleans.JournalStateChange Change, out long? ExpectedETag, out System.ReadOnlyMemory<byte> Record, out string? StateType) -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Equals(DigitalBrain.Runtime.Orleans.JournalStateWrite? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalStateWrite.ExpectedETag.get -> long?
+DigitalBrain.Runtime.Orleans.JournalStateWrite.ExpectedETag.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.GrainId.get -> string!
+DigitalBrain.Runtime.Orleans.JournalStateWrite.GrainId.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.JournalStateWrite(string! GrainId, string! StateName, DigitalBrain.Runtime.Orleans.JournalStateChange Change, long? ExpectedETag, System.ReadOnlyMemory<byte> Record, string? StateType) -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Record.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.Runtime.Orleans.JournalStateWrite.Record.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.StateName.get -> string!
+DigitalBrain.Runtime.Orleans.JournalStateWrite.StateName.init -> void
+DigitalBrain.Runtime.Orleans.JournalStateWrite.StateType.get -> string?
+DigitalBrain.Runtime.Orleans.JournalStateWrite.StateType.init -> void
+DigitalBrain.Runtime.Orleans.JournalStoredState
+DigitalBrain.Runtime.Orleans.JournalStoredState.<Clone>$() -> DigitalBrain.Runtime.Orleans.JournalStoredState!
+DigitalBrain.Runtime.Orleans.JournalStoredState.Deconstruct(out System.ReadOnlyMemory<byte> Record, out long ETag, out string? StateType) -> void
+DigitalBrain.Runtime.Orleans.JournalStoredState.ETag.get -> long
+DigitalBrain.Runtime.Orleans.JournalStoredState.ETag.init -> void
+DigitalBrain.Runtime.Orleans.JournalStoredState.Equals(DigitalBrain.Runtime.Orleans.JournalStoredState? other) -> bool
+DigitalBrain.Runtime.Orleans.JournalStoredState.JournalStoredState(System.ReadOnlyMemory<byte> Record, long ETag, string? StateType) -> void
+DigitalBrain.Runtime.Orleans.JournalStoredState.Record.get -> System.ReadOnlyMemory<byte>
+DigitalBrain.Runtime.Orleans.JournalStoredState.Record.init -> void
+DigitalBrain.Runtime.Orleans.JournalStoredState.StateType.get -> string?
+DigitalBrain.Runtime.Orleans.JournalStoredState.StateType.init -> void
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.KeyFileMachineKeyProtector() -> void
 DigitalBrain.Runtime.Orleans.KeyFileMachineKeyProtector.Protect(byte[]! key) -> byte[]!
@@ -398,6 +484,24 @@ override DigitalBrain.Runtime.Orleans.Bindings.ToString() -> string!
 override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Equals(object? obj) -> bool
 override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.GetHashCode() -> int
 override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalAppendResult.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalAppendResult.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalAppendResult.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalSignalEntry.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalSignalEntry.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalSignalEntry.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalSignalPage.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalSignalPage.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalSignalPage.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalSignalWrite.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalSignalWrite.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalSignalWrite.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalStateWrite.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalStateWrite.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalStateWrite.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.JournalStoredState.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.JournalStoredState.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.JournalStoredState.ToString() -> string!
 override DigitalBrain.Runtime.Orleans.RetiredSetting.Equals(object? obj) -> bool
 override DigitalBrain.Runtime.Orleans.RetiredSetting.GetHashCode() -> int
 override DigitalBrain.Runtime.Orleans.RetiredSetting.ToString() -> string!
@@ -437,6 +541,18 @@ static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Mic
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<Orleans.Hosting.ISiloBuilder!>! register) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.FileGrainStorage.FileNameOf(string! serviceId, string! grainType, string! grainKey, string! stateName) -> string!
 static DigitalBrain.Runtime.Orleans.FileGrainStorageHosting.AddFileGrainStorage(this Orleans.Hosting.ISiloBuilder! silo, string! name, System.Action<DigitalBrain.Runtime.Orleans.FileGrainStorageOptions!>! configure) -> Orleans.Hosting.ISiloBuilder!
+static DigitalBrain.Runtime.Orleans.JournalAppendResult.operator !=(DigitalBrain.Runtime.Orleans.JournalAppendResult? left, DigitalBrain.Runtime.Orleans.JournalAppendResult? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalAppendResult.operator ==(DigitalBrain.Runtime.Orleans.JournalAppendResult? left, DigitalBrain.Runtime.Orleans.JournalAppendResult? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalEntry.operator !=(DigitalBrain.Runtime.Orleans.JournalSignalEntry? left, DigitalBrain.Runtime.Orleans.JournalSignalEntry? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalEntry.operator ==(DigitalBrain.Runtime.Orleans.JournalSignalEntry? left, DigitalBrain.Runtime.Orleans.JournalSignalEntry? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalPage.operator !=(DigitalBrain.Runtime.Orleans.JournalSignalPage? left, DigitalBrain.Runtime.Orleans.JournalSignalPage? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalPage.operator ==(DigitalBrain.Runtime.Orleans.JournalSignalPage? left, DigitalBrain.Runtime.Orleans.JournalSignalPage? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalWrite.operator !=(DigitalBrain.Runtime.Orleans.JournalSignalWrite? left, DigitalBrain.Runtime.Orleans.JournalSignalWrite? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalSignalWrite.operator ==(DigitalBrain.Runtime.Orleans.JournalSignalWrite? left, DigitalBrain.Runtime.Orleans.JournalSignalWrite? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalStateWrite.operator !=(DigitalBrain.Runtime.Orleans.JournalStateWrite? left, DigitalBrain.Runtime.Orleans.JournalStateWrite? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalStateWrite.operator ==(DigitalBrain.Runtime.Orleans.JournalStateWrite? left, DigitalBrain.Runtime.Orleans.JournalStateWrite? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalStoredState.operator !=(DigitalBrain.Runtime.Orleans.JournalStoredState? left, DigitalBrain.Runtime.Orleans.JournalStoredState? right) -> bool
+static DigitalBrain.Runtime.Orleans.JournalStoredState.operator ==(DigitalBrain.Runtime.Orleans.JournalStoredState? left, DigitalBrain.Runtime.Orleans.JournalStoredState? right) -> bool
 static DigitalBrain.Runtime.Orleans.LocalCloudProfile.Circle.get -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Runtime.Orleans.LocalProfile.LocalBindings.get -> DigitalBrain.Runtime.Orleans.Bindings!
 static DigitalBrain.Runtime.Orleans.LocalProfile.LocalServices.get -> DigitalBrain.Runtime.Orleans.Services!

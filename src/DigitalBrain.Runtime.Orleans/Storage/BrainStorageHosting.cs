@@ -18,7 +18,8 @@ public static class BrainStorageHosting
 {
     /// <summary>
     /// Registers BrainLog under <c>&lt;Home&gt;/state</c>, its JSON payloads for the <c>[Signal]</c> records of
-    /// <paramref name="signalAssemblies"/>, and replaces any earlier keyed <c>cluster</c> store with it.
+    /// <paramref name="signalAssemblies"/>, and <see cref="IBrainJournalWriter"/> over the same logs, and replaces any earlier keyed
+    /// <c>cluster</c> store with it.
     /// </summary>
     public static ISiloBuilder AddBrainStorage(this ISiloBuilder silo, params Assembly[] signalAssemblies)
     {
@@ -59,6 +60,8 @@ public static class BrainStorageHosting
             sp.GetRequiredService<global::Orleans.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IRetentionPolicy>(),
             sp.GetRequiredService<IOptions<BrainStoreOptions>>(), sp.GetRequiredService<IBrainLogOwnership>()));
+        // The adapters' write path shares the per-brain BrainLog (and its writer claim) with the cluster store: one writer per brain.
+        services.TryAddSingleton<IBrainJournalWriter>(sp => new BrainJournalWriter(sp.GetRequiredService<BrainLogs>(), sp));
         foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, IntoChatOSNames.ClusterGrainStorage)).ToArray())
         { services.Remove(descriptor); }
         services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage, (sp, _) => new BrainGrainStorage(sp.GetRequiredService<BrainLogs>()));
