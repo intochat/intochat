@@ -6,7 +6,7 @@ namespace IntoChat.OS.Testing.Aspire;
 
 // A brain in the AppHost's processes: HTTP through its edge, neurons through an Orleans client.
 /// <summary>A brain in the AppHost's processes; public so Testing.Playwright can reach its session and lifetime.</summary>
-public sealed class AspireBrain : ITestBrain, ITrackedBrain
+public sealed class AspireBrain : ITestBrain, ITrackedBrain, IntoChat.OS.Runtime.IPlainClient
 {
     private readonly AspireTestSession _session;
     private readonly TestSessionLifetime _lifetime;
@@ -46,6 +46,15 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain
 
     public T Get<T>(string id) where T : class, INeuron => _session.Brains.Grain<T>(id);
     T IIntoChatOS.Get<T>(NeuronId id) => _session.Brains.Grain<T>(id.Name);
+
+    // 06-07b: plain neurons through the session's client, when it reaches them.
+    private IntoChat.OS.Runtime.IPlainClient Plain => _session.Brains as IntoChat.OS.Runtime.IPlainClient
+        ?? throw new NotSupportedException("This brain's client does not reach plain neurons.");
+
+    object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => Plain.GetPlain(contract, id);
+
+    IAsyncEnumerable<T> IntoChat.OS.Runtime.IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
+        => Plain.OnPlain<T>(source, onSubscribed, cancellationToken);
     public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => _session.Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => _session.Brains.Open(BrainScope.CurrentId()).Kernel;

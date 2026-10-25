@@ -24,6 +24,6 @@ internal static class SignalTypes
     private static Type Load(string fullName)
         => AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic)
             .Select(assembly => assembly.GetType(fullName, throwOnError: false))
-            .FirstOrDefault(type => type is not null && typeof(Signal).IsAssignableFrom(type))
+            .FirstOrDefault(type => type is not null && (typeof(Signal).IsAssignableFrom(type) || typeof(global::DigitalBrain.Signal).IsAssignableFrom(type)))
             ?? throw new ArgumentException($"{fullName} is a signal type of this brain, but this host does not carry it.");
 }

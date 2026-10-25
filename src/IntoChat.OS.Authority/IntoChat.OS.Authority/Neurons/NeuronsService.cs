@@ -14,7 +14,8 @@ namespace IntoChat.OS.Authority.Neurons;
 
 // The gRPC edge of the two operations every caller has: neurons_call and brain.On<T>. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.
-internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, ILogger<NeuronsService> logger) : Proto.Neurons.NeuronsBase
+internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, ILogger<NeuronsService> logger,
+    IntoChat.OS.Runtime.IPlainSignals? plain = null) : Proto.Neurons.NeuronsBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
@@ -53,6 +54,13 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
             var types = await brain.Kernel.Types(ct);
             foreach (var source in request.Sources)
             {
+                // A plain neuron (06-07b): one session on the session synapse neuron for the source's types.
+                if (await surface.PlainId(source.Contract, source.Key, ct) is { } id)
+                {
+                    var wanted = source.SignalTypes.Distinct(StringComparer.Ordinal).Select(name => SignalTypes.Find(name, types)).ToArray();
+                    pumps.Add(Task.Run(() => PlainPump(id, source.Key, wanted, channel.Writer, stop.Token), CancellationToken.None));
+                    continue;
+                }
                 var neuron = await surface.Reference(source.Contract, source.Key, ct);
                 foreach (var name in source.SignalTypes.Distinct(StringComparer.Ordinal))
                 {
@@ -91,6 +99,47 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
         catch (OperationCanceledException) { }
         catch (Exception error) { writer.TryComplete(error); }
     }
+
+    // The retained last signal of each type first, then live ones, as the legacy pump sends them. Only [Signal] records are
+    // published by a plain neuron; a gap is sent as nothing, because a change signal only tells the view to read again.
+    private async Task PlainPump(global::DigitalBrain.NeuronId id, string key, Type[] wanted, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
+    {
+        try
+        {
+            var signals = plain ?? throw new NotSupportedException("This host cannot watch plain neurons: it registers no IPlainSignals (the silo's kernel composition does).");
+            var types = wanted.Where(type => typeof(global::DigitalBrain.Signal).IsAssignableFrom(type))
+                .ToDictionary(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf, StringComparer.Ordinal);
+            if (types.Count != wanted.Length) { throw new RpcException(new Status(StatusCode.InvalidArgument, $"{key} is a plain neuron: watch its [Signal] types.")); }
+            async Task Replay()
+            {
+                foreach (var (alias, type) in types)
+                {
+                    if (await IntoChat.OS.Runtime.PlainWatch.Retained(signals, id, alias, ct) is { } retained) { await writer.WriteAsync(PlainEnvelope(key, id, type, retained), ct); }
+                }
+            }
+            await foreach (var entry in IntoChat.OS.Runtime.PlainWatch.Live(signals, id, [.. types.Keys], "watch/" + Guid.NewGuid().ToString("N"), Replay, ct))
+            {
+                if (!entry.IsGap && types.TryGetValue(entry.Alias, out var type)) { await writer.WriteAsync(PlainEnvelope(key, id, type, entry), ct); }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            logger.LogDebug(error, "A plain watch of {Source} ended with an error", key);
+            writer.TryComplete(error);
+        }
+    }
+
+    // The payload re-encoded with this edge's options, so a plain signal reads as its grain predecessor did.
+    private static SignalEnvelope PlainEnvelope(string key, global::DigitalBrain.NeuronId id, Type type, IntoChat.OS.Runtime.PlainSignalEntry entry) => new()
+    {
+        Source = key,
+        Type = type.Name,
+        Publisher = id.ToString(),
+        Sequence = entry.Sequence,
+        Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(JsonSerializer.Deserialize(entry.Json, type, JsonSerializerOptions.Web), type, Json)),
+        ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+    };
 
     // A source that retains nothing is quiet; a refused read is the watcher's to hear.
     private static async Task Replay(INeuron neuron, string key, string type, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)

@@ -83,7 +83,9 @@ public sealed class VocabularyRingFacts
                 // Transitional (06-07, R4-15; deleted in 06-08): the os clients' calls and session synapse subscriptions to plain neurons.
                 "IntoChat.OS.Runtime.IPlainClient", "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IPlainSession", "IntoChat.OS.Runtime.IPlainSignals",
                 "IntoChat.OS.Runtime.IRuntimeBuilder", "IntoChat.OS.Runtime.ISignalFanout", "IntoChat.OS.Runtime.ITraceCarrier", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts",
-                "IntoChat.OS.Runtime.PlainSignalBatch", "IntoChat.OS.Runtime.PlainSignalEntry", "IntoChat.OS.Runtime.PlainSignalPage", "IntoChat.OS.Runtime.PlainSignalTypes"],
+                "IntoChat.OS.Runtime.PlainSignalBatch", "IntoChat.OS.Runtime.PlainSignalEntry", "IntoChat.OS.Runtime.PlainSignalPage", "IntoChat.OS.Runtime.PlainSignalTypes",
+                // Transitional (06-07b, R4-17; deleted in 06-08): the shell watch and SSE feeds of plain neurons.
+                "IntoChat.OS.Runtime.PlainWatch"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.Spi.ICallerContextCarrier", "DigitalBrain.Spi.IDeactivatingNeuron", "DigitalBrain.Spi.INeuronTimers",

@@ -68,3 +68,61 @@ public static class PlainSignalTypes
     public static T Decode<T>(string json) where T : DigitalBrain.Signal
         => JsonSerializer.Deserialize<T>(json, JsonSerializerOptions.Web) ?? throw new JsonException($"A {typeof(T).Name} payload was null.");
 }
+
+// Transitional (06-07b, R4-17, deleted in 06-08): what a watcher of a plain publisher needs from IPlainSignals, shared by the
+// shell's gRPC watch and the SSE feeds. The opening replay is the publisher's last held signal of an alias, read from the
+// brain's log (the runtime keeps at least the newest RetentionOptions.HistoryWindowSignals per publisher); the live part is
+// one session on the session synapse neuron.
+public static class PlainWatch
+{
+    private const int Page = DigitalBrain.SignalPage.MaxLimit;
+
+    // The newest held signal of alias that publisher published, or null when none is held.
+    public static async Task<PlainSignalEntry?> Retained(IPlainSignals signals, DigitalBrain.NeuronId publisher, string alias, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        ArgumentException.ThrowIfNullOrWhiteSpace(alias);
+        var head = await signals.Read(publisher, 0, 1, cancellationToken).ConfigureAwait(false);
+        if (head.Last <= head.Floor) { return null; }
+        // Newest page first, then one page further back each time, until the floor.
+        var since = Math.Max(head.Floor, head.Last - Page);
+        while (true)
+        {
+            var page = await signals.Read(publisher, since, Page, cancellationToken).ConfigureAwait(false);
+            if (page.Signals.LastOrDefault(entry => entry.Alias == alias) is { } last) { return last; }
+            if (since <= page.Floor) { return null; }
+            since = Math.Max(page.Floor, since - Page);
+        }
+    }
+
+    // The signals of the aliases source publishes after the subscription is registered; onSubscribed runs once it is (the place
+    // for the opening replay). A batch is acknowledged when the consumer asks for more; disposal ends the session. Gaps are
+    // yielded (PlainSignalEntry.IsGap) so the watcher can tell its reader to read again.
+    /// <exception cref="UnauthorizedAccessException">The source refuses the session, or is in another brain.</exception>
+    public static async IAsyncEnumerable<PlainSignalEntry> Live(IPlainSignals signals, DigitalBrain.NeuronId source, string[] aliases, string session,
+        Func<Task> onSubscribed, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        ArgumentNullException.ThrowIfNull(aliases);
+        ArgumentNullException.ThrowIfNull(onSubscribed);
+        var channel = signals.Session(source.Brain.Value, session);
+        try
+        {
+            await channel.Subscribe(source, aliases).WaitAsync(cancellationToken).ConfigureAwait(false);
+            await onSubscribed().ConfigureAwait(false);
+            long acked = 0;
+            while (true)
+            {
+                var batch = await channel.Next(acked, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (batch is null) { continue; }
+                foreach (var entry in batch.Signals) { yield return entry; }
+                acked = batch.Number;
+            }
+        }
+        finally
+        {
+            // Ending removes the session's synapses; one that fails to end expires after the runtime's SessionTtl.
+            await channel.End().ConfigureAwait(false);
+        }
+    }
+}

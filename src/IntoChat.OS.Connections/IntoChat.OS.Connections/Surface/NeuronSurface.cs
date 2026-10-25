@@ -113,8 +113,17 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
         if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
-        { throw new NotSupportedException($"{type.Name} is a plain neuron: its signals are not watched through the neuron surface."); }
+        { throw new NotSupportedException($"{type.Name} is a plain neuron: watch it through PlainId and the session synapse neuron."); }
         return (INeuron)Neuron(type, key);
+    }
+
+    // The runtime id of the neuron a plain contract and key name (06-07b: a plain neuron is watched through the session synapse
+    // neuron, not a reference), or null when the contract is still a grain contract.
+    public async Task<global::DigitalBrain.NeuronId?> PlainId(string contract, string key, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var type = await Contract(contract, ct).ConfigureAwait(false);
+        return IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) ? Plain().IdOf(type, key) : null;
     }
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);

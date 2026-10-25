@@ -173,7 +173,7 @@ internal sealed class ActivationIndex : IActivationWorkingSetObserver
     }
 }
 
-internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDelivery
+internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDelivery, IntoChat.OS.Runtime.IPlainClient
 {
     private readonly TestBrainPlan _plan;
     private readonly InProcessSession _session;
@@ -223,6 +223,12 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
     T IIntoChatOS.Get<T>(NeuronId id) => Brains.Grain<T>(id.Name);
     public T Neuron<T>(NeuronId relative) where T : INeuron => Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
+
+    // 06-07b: plain neurons through the product's in-process client, so facts read the same for grains and plain neurons.
+    object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => ((IntoChat.OS.Runtime.IPlainClient)Brains).GetPlain(contract, id);
+
+    IAsyncEnumerable<T> IntoChat.OS.Runtime.IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
+        => ((IntoChat.OS.Runtime.IPlainClient)Brains).OnPlain<T>(source, onSubscribed, cancellationToken);
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal

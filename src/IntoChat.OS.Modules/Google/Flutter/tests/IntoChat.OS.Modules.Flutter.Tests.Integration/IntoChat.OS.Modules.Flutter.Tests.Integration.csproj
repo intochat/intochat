@@ -2,6 +2,8 @@
   <ItemGroup>
     <ProjectReference Include="../../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Flame/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <!-- 06-07b: the plain SSE feed fact watches the plain Time timer. -->
+    <ProjectReference Include="../../../../Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <Using Include="IntoChat.OS.Testing" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />

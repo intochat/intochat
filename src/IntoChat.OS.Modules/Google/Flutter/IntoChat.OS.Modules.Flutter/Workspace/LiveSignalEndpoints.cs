@@ -32,7 +32,21 @@ internal static class LiveSignalEndpoints
     internal sealed record LiveFeed(
         string Type,
         Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> Sources,
-        Func<IIntoChatOS, INeuron, Func<Task>, CancellationToken, IAsyncEnumerable<Signal>> Watch);
+        Func<IIntoChatOS, INeuron, Func<Task>, CancellationToken, IAsyncEnumerable<Signal>> Watch)
+    {
+        // Set for a feed of a plain publisher (06-07b): its sources are runtime ids, watched on the session synapse neuron.
+        public PlainSpec? Plain { get; init; }
+    }
+
+    // Transitional (06-07b, R4-17; folded into LiveFeed in 06-08): the [Signal] record a plain feed carries and its sources.
+    internal sealed record PlainSpec(Type Signal, Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources);
+
+    internal static LiveFeed PlainFeed<T>(
+        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
+        => new(typeof(T).Name, static (_, _, listed, _) => None(listed), static (_, _, _, _) => throw new NotSupportedException("A plain feed has no grain sources."))
+        { Plain = new(typeof(T), sources) };
+
+    private static async IAsyncEnumerable<INeuron> None(Action listed) { await Task.CompletedTask; listed(); yield break; }
 
     internal static LiveFeed Feed<T>(
         Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> sources) where T : Signal
@@ -102,7 +116,8 @@ internal static class LiveSignalEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Modules.Flutter.Live"), ct))
+        var plain = http.RequestServices.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals)) as IntoChat.OS.Runtime.IPlainSignals;
+        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Modules.Flutter.Live"), ct, plain: plain))
         {
             await http.Response.WriteAsync("data: " + envelope + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
@@ -150,7 +165,8 @@ internal static class LiveSignalEndpoints
     // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped;
     // when every feed has failed the stream ends with an error, so the client sees a failure instead of a silent hang.
     // A reader that falls more than `capacity` envelopes behind gets Resync and the stream ends.
-    internal static async IAsyncEnumerable<string> Stream(IIntoChatOS brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer)
+    internal static async IAsyncEnumerable<string> Stream(IIntoChatOS brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer,
+        IntoChat.OS.Runtime.IPlainSignals? plain = null)
     {
         var outbox = new Outbox(capacity);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -162,7 +178,9 @@ internal static class LiveSignalEndpoints
                 if (Interlocked.Increment(ref failed) == feeds.Length)
                 { outbox.Fail(new InvalidOperationException("Every live feed failed; see the server log.")); }
             }
-            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
+            var replayed = feeds.Select(feed => Task.Run(() => feed.Plain is { } spec
+                ? DiscoverPlain(brain, brainId, feed.Type, spec, plain, outbox, log, Failed, stop.Token)
+                : Discover(brain, brainId, feed, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
@@ -216,6 +234,75 @@ internal static class LiveSignalEndpoints
         }, CancellationToken.None);
         return replayed.Task;
     }
+
+    // Discover for a plain feed: the same listing and replay contract, each source on its own session (06-07b).
+    private static Task DiscoverPlain(IIntoChatOS brain, string brainId, string type, PlainSpec spec, IntoChat.OS.Runtime.IPlainSignals? plain, Outbox writer, ILogger log, Action failed, CancellationToken ct)
+    {
+        var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (plain is null)
+        {
+            log.LogWarning("Live {Type} feed dropped: this host registers no IPlainSignals.", type);
+            failed();
+            replayed.TrySetResult();
+            return replayed.Task;
+        }
+        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(spec.Signal);
+        List<Task> initial = [];
+        void Listed()
+        {
+            Task[] pending;
+            lock (initial) { if (replayed.Task.IsCompleted) { return; } pending = [.. initial]; }
+            _ = Task.WhenAll(pending).ContinueWith(_ => replayed.TrySetResult(), TaskScheduler.Default);
+        }
+        _ = Task.Run(async () =>
+        {
+            var listing = true;
+            try
+            {
+                await foreach (var source in spec.Sources(brain, brainId, () => { listing = false; Listed(); }, ct))
+                {
+                    var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    if (listing) { lock (initial) { initial.Add(replay.Task); } }
+                    _ = Task.Run(() => PlainPump(plain, spec.Signal, alias, source, writer, log, replay, ct), CancellationToken.None);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", type); failed(); }
+            finally { if (listing) { listing = false; Listed(); } }
+        }, CancellationToken.None);
+        return replayed.Task;
+    }
+
+    private static async Task PlainPump(IntoChat.OS.Runtime.IPlainSignals plain, Type signal, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var entry in IntoChat.OS.Runtime.PlainWatch.Live(plain, source, [alias], "live/" + Guid.NewGuid().ToString("N"), async () =>
+            {
+                try
+                {
+                    if (await IntoChat.OS.Runtime.PlainWatch.Retained(plain, source, alias, ct) is { } last) { await writer.Write(PlainEnvelope(signal, source, last, replay: true), ct); }
+                }
+                finally { replayed.TrySetResult(); }
+            }, ct))
+            {
+                if (!entry.IsGap && entry.Alias == alias) { await writer.Write(PlainEnvelope(signal, source, entry), ct); }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { log.LogWarning(error, "Live {Type} source {Source} dropped.", signal.Name, source); }
+        finally { replayed.TrySetResult(); }
+    }
+
+    internal static string PlainEnvelope(Type signal, global::DigitalBrain.NeuronId source, IntoChat.OS.Runtime.PlainSignalEntry entry, bool replay = false) => JsonSerializer.Serialize(
+        new
+        {
+            type = signal.Name,
+            publisher = source.ToString(),
+            sequence = (long?)entry.Sequence,
+            replay = replay ? true : (bool?)null,
+            payload = JsonSerializer.SerializeToElement(JsonSerializer.Deserialize(entry.Json, signal, JsonSerializerOptions.Web), signal, Json),
+        }, Json);
 
     private static async Task Pump(IIntoChatOS brain, LiveFeed feed, INeuron source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
