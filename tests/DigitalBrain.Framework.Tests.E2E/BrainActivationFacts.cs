@@ -47,7 +47,7 @@ public sealed class BrainActivationFacts(AzuriteFixture azurite)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = new BrainId("e2e-" + Guid.NewGuid().ToString("N"));
-        await using var host = await FrameworkTarget.For(target, azurite).Start(ct);
+        await using var host = await ((OrleansFrameworkTarget)FrameworkTarget.For(target, azurite)).Start(ct);
 
         var probe = host.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainProbeGrain>(brain.Value);
         Assert.Equal(brain.Value, await probe.Ping());

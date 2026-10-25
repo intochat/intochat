@@ -1,28 +1,41 @@
-using System.Globalization;
-using System.Net;
-using System.Net.Sockets;
-using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Runtime.Orleans.Azure;
 using DigitalBrain.Runtime.Orleans.Azure.Tests.Integration;
 using DigitalBrain.Spi;
-using DigitalBrain.Testing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Framework.Tests.E2E;
 
-/// <summary>A place the framework e2e facts run: it starts an in-process host that survives a restart.</summary>
+/// <summary>What a fact asks of a host: retention for checkpoints and duplicate delivery. Every target maps it onto its own knobs.</summary>
+public sealed class FrameworkHostOptions
+{
+    /// <summary>Signals per publisher a checkpoint keeps at least; null keeps the target default.</summary>
+    public int? HistoryWindowSignals { get; init; }
+
+    /// <summary>Signals younger than this survive a checkpoint; null keeps the target default.</summary>
+    public TimeSpan? HistoryWindowAge { get; init; }
+
+    /// <summary>A cursor not advanced for this long stops pinning the floor; null keeps the target default.</summary>
+    public TimeSpan? StaleCursorAfter { get; init; }
+
+    /// <summary>Every signal reference is delivered twice.</summary>
+    public bool DuplicateDelivery { get; init; }
+}
+
+/// <summary>A place the framework e2e facts run (03-09, 04-15): TestOS, the local topology, or the cloud topology on Azurite.</summary>
 public abstract class FrameworkTarget
 {
-    /// <summary>The target names the theory data lists. Phase 4 adds the TestOS target here.</summary>
+    /// <summary>The Orleans targets: facts that need the silo's own services (grain probes) run on these.</summary>
     public static TheoryData<string> Names => new(LocalOrleansTarget.TargetName, AzuriteOrleansTarget.TargetName);
+
+    /// <summary>Every target: the framework fact set runs unchanged on each.</summary>
+    public static TheoryData<string> All => new(TestOSTarget.TargetName, LocalOrleansTarget.TargetName, AzuriteOrleansTarget.TargetName);
 
     public abstract string Name { get; }
 
-    public abstract Task<IInProcessHost> Start(CancellationToken ct);
+    /// <summary>Starts a host with the shared controls.</summary>
+    public abstract Task<RunningTarget> StartHost(FrameworkHostOptions options, CancellationToken ct);
 
     public static FrameworkTarget For(string name, AzuriteFixture azurite) => name switch
     {
+        TestOSTarget.TargetName => new TestOSTarget(),
         LocalOrleansTarget.TargetName => new LocalOrleansTarget(),
         AzuriteOrleansTarget.TargetName => new AzuriteOrleansTarget(azurite),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown framework target."),
@@ -31,102 +44,39 @@ public abstract class FrameworkTarget
     public override string ToString() => Name;
 }
 
-/// <summary>The local topology through <c>SiloHost.Local()</c> (LocalProfile on a temp Home).</summary>
-public sealed class LocalOrleansTarget : FrameworkTarget
+/// <summary>A target that runs an Orleans silo in-process through the Phase 3 seam.</summary>
+public abstract class OrleansFrameworkTarget : FrameworkTarget
 {
-    public const string TargetName = "local-orleans";
-
-    public override string Name => TargetName;
-
-    public override Task<IInProcessHost> Start(CancellationToken ct) => SiloHost.Local(ct: ct);
+    /// <summary>Starts a plain in-process host (03-09).</summary>
+    public abstract Task<IInProcessHost> Start(CancellationToken ct);
 }
 
-/// <summary>The cloud topology (CloudProfile) against Azurite; Key Vault is replaced by an in-memory master key.</summary>
-public sealed class AzuriteOrleansTarget(AzuriteFixture azurite) : FrameworkTarget
+/// <summary>A running host and the controls every target offers the same way.</summary>
+public abstract class RunningTarget : IAsyncDisposable
 {
-    public const string TargetName = "azurite-orleans";
+    /// <summary>A typed proxy to <paramref name="id"/>. Take a fresh one after <see cref="Restart"/>.</summary>
+    public abstract T Get<T>(NeuronId id) where T : class;
 
-    public override string Name => TargetName;
+    /// <summary>Ends the activation of <paramref name="id"/>; state, synapses and reminders survive.</summary>
+    public abstract Task Deactivate(NeuronId id);
 
-    public override async Task<IInProcessHost> Start(CancellationToken ct)
-    {
-        var host = new CloudHost(azurite.Require());
-        try { await host.Start(ct); }
-        catch
-        {
-            await host.DisposeAsync();
-            throw;
-        }
-        return host;
-    }
+    /// <summary>Stops and starts the host over the same data.</summary>
+    public abstract Task Restart(CancellationToken ct);
 
-    private sealed class CloudHost(string storage) : IInProcessHost
-    {
-        private const string MasterKey = "e2e-master-key-from-the-in-memory-vault";
-        private readonly string _clusterId = "e2e" + Guid.NewGuid().ToString("N")[..12];
-        private IHost? _host;
+    /// <summary>Makes exactly the next journal append of <paramref name="publisher"/> publish no reference and the saving call throw: a kill between write and publish.</summary>
+    public abstract void FailNextPublishAfterAppend(NeuronId publisher);
 
-        public IServiceProvider Services => (_host ?? throw new ObjectDisposedException(nameof(CloudHost))).Services;
+    /// <summary>Moves the host clock forward.</summary>
+    public abstract void Advance(TimeSpan by);
 
-        public string Home { get; } = Path.Combine(Path.GetTempPath(), "db-e2e-" + Guid.NewGuid().ToString("N"));
+    /// <summary>Runs a checkpoint of <paramref name="brain"/>'s journal now.</summary>
+    public abstract Task ForceCheckpoint(BrainId brain, CancellationToken ct);
 
-        public async Task Start(CancellationToken ct)
-        {
-            _host = Build();
-            await _host.StartAsync(ct);
-        }
+    /// <summary>Completes when queued work is done, where the target can tell; facts still poll with a deadline.</summary>
+    public abstract Task Idle();
 
-        public async Task Restart(CancellationToken ct)
-        {
-            await Stop(ct);
-            await Start(ct);
-        }
+    /// <summary>How many live subscriptions <paramref name="subscriber"/> holds for signals of <paramref name="signal"/> from <paramref name="source"/>.</summary>
+    public abstract Task<int> SubscriptionCount(NeuronId subscriber, NeuronId source, Type signal);
 
-        public async ValueTask DisposeAsync()
-        {
-            await Stop(CancellationToken.None);
-            if (Directory.Exists(Home)) { Directory.Delete(Home, recursive: true); }
-        }
-
-        private async Task Stop(CancellationToken ct)
-        {
-            if (_host is null) { return; }
-            var host = _host;
-            _host = null;
-            try { await host.StopAsync(ct); }
-            finally { host.Dispose(); }
-        }
-
-        private IHost Build()
-        {
-            var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [IntoChatOSNames.TopologyKey] = "cloud",
-                [IntoChatOSNames.HomeKey] = Home,
-                [IntoChatOSNames.CloudStorageKey] = storage,
-                [IntoChatOSNames.CloudKeyVaultKey] = "https://e2e-vault.vault.azure.net/",
-                [TopologyContext.SiloPortKey] = FreePort().ToString(CultureInfo.InvariantCulture),
-                [TopologyContext.GatewayPortKey] = FreePort().ToString(CultureInfo.InvariantCulture),
-            });
-            builder.UseClusterStore(_ => { });
-            var cloud = new CloudProfile((configuration, _) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?> { [IntoChatOSNames.MasterKeyKey] = MasterKey }));
-            builder.UseTopology([], [], cloud);
-            builder.UseOrleans(silo =>
-            {
-                silo.ConfigureTopologySilo();
-                silo.Configure<global::Orleans.Configuration.ClusterOptions>(o => { o.ClusterId = _clusterId; o.ServiceId = _clusterId; });
-                silo.Configure<global::Orleans.Configuration.EndpointOptions>(o => o.AdvertisedIPAddress = IPAddress.Loopback);
-            });
-            return builder.Build();
-        }
-
-        private static int FreePort()
-        {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
-        }
-    }
+    public abstract ValueTask DisposeAsync();
 }
