@@ -1,5 +1,6 @@
 using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Runtime.Orleans.Testing;
+using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;

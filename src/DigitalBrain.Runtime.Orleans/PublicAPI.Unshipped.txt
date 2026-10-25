@@ -385,3 +385,4 @@ DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.StaleCursorAfter.get -> S
 DigitalBrain.Runtime.Orleans.Synapses.RetentionOptions.StaleCursorAfter.set -> void
 DigitalBrain.Runtime.Orleans.Synapses.SynapseRetentionHosting
 const DigitalBrain.Runtime.Orleans.IntoChatOSNames.Signalling.Retention = "IntoChatOS:Signalling:Retention" -> string!
+static DigitalBrain.Runtime.Orleans.Synapses.SynapseRetentionHosting.AddSynapseRetention(this Orleans.Hosting.ISiloBuilder! silo) -> Orleans.Hosting.ISiloBuilder!
