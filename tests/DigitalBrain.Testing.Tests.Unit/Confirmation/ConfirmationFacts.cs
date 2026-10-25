@@ -240,7 +240,12 @@ public sealed class ConfirmationFacts
         var data = new TheoryData<ConfirmationPolicy, string, bool>();
         var destructive = new Dictionary<string, bool>
         {
-            ["delete"] = true, ["cross-move"] = true, ["overwrite"] = true, ["create-folder"] = false, ["rename"] = false, ["same-copy"] = false,
+            ["delete"] = true,
+            ["cross-move"] = true,
+            ["overwrite"] = true,
+            ["create-folder"] = false,
+            ["rename"] = false,
+            ["same-copy"] = false,
         };
         foreach (var (op, isDestructive) in destructive)
         {

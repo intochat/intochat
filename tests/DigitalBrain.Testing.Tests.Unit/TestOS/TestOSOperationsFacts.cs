@@ -25,7 +25,8 @@ public sealed class OpWriterNeuron : Neuron, IOpWriter
             "create-folder" => WritePlan.CreateFolder(new ItemId(request.Folder!), request.Name!, request.Conflict),
             "write-file" => WritePlan.WriteFile(new ItemId(request.Folder!), request.Name!, System.Text.Encoding.UTF8.GetBytes(request.Text ?? string.Empty), request.Conflict),
             _ => WritePlan.Move(new ItemId(request.Source!), new ItemId(request.Folder!), request.Conflict),
-        } with { DryRun = request.DryRun };
+        } with
+        { DryRun = request.DryRun };
         var operation = (FakeOperation)await Context.Operations.Start(plan, CancellationToken.None);
         var result = await operation.Completion;
         return result switch

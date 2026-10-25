@@ -71,7 +71,11 @@ public sealed class IdentityRecordFacts
 {
     private static readonly Member Owner = new()
     {
-        PrincipalId = "p-1", AccountId = "a-1", BrainId = "b-1", Role = MemberRole.Owner, DisplayName = "Ada",
+        PrincipalId = "p-1",
+        AccountId = "a-1",
+        BrainId = "b-1",
+        Role = MemberRole.Owner,
+        DisplayName = "Ada",
     };
 
     [Fact]
@@ -106,7 +110,11 @@ public sealed class GrantFacts
 {
     private static Grant Always(bool revoked = false) => new()
     {
-        AppId = "notes", SemanticTypeId = "person.birthDate", Mode = GrantMode.Always, WorkspaceId = "b-1", Revoked = revoked,
+        AppId = "notes",
+        SemanticTypeId = "person.birthDate",
+        Mode = GrantMode.Always,
+        WorkspaceId = "b-1",
+        Revoked = revoked,
     };
 
     [Fact]
