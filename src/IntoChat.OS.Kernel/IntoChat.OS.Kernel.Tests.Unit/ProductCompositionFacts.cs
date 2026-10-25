@@ -14,11 +14,13 @@ namespace IntoChat.OS.Kernel.Tests.Unit;
 [Collection(AppHostComposition.Collection)]
 public sealed class ProductCompositionFacts
 {
+    private const string Cloud = IntoChatOSNames.TopologyKey + "=" + IntoChatOSNames.TopologyCloud;
+
     [Fact]
     public async Task ClickHouseHostingUsesTheConfiguredDatabaseName()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars",
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", Cloud,
              IntoChatOSConfiguration.ModuleOptionsSection("clickhouse") + ":DatabaseName=analytics"], TestContext.Current.CancellationToken);
         var database = Assert.Single(appHost.Resources.OfType<ClickHouseDatabaseResource>());
         Assert.Equal("analytics", database.DatabaseName);
@@ -56,10 +58,24 @@ public sealed class ProductCompositionFacts
     }
 
     [Fact]
-    public async Task ProductMatchesTheReferenceCompositionModuleSet()
+    public async Task ABareAppHostRunsTheLeanLocalComposition()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
             ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+        var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
+            .Select(module => module.ModuleId).ToArray();
+        var catalogModules = IntoChat.OS.Kernel.OsCatalog.Modules.Select(module => module.Id.ToString()).ToArray();
+        Assert.All(productModules, module => Assert.Contains(module, catalogModules));
+        Assert.DoesNotContain("qdrant", productModules);
+        Assert.DoesNotContain("clickhouse", productModules);
+        Assert.Empty(appHost.Resources.OfType<ClickHouseDatabaseResource>());
+    }
+
+    [Fact]
+    public async Task TheCloudTopologyMatchesTheReferenceCompositionModuleSet()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", Cloud], TestContext.Current.CancellationToken);
         var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
             .Select(module => module.ModuleId).Order().ToArray();
         // Composition truth lives in the OS catalog; the AppHost only hosts infrastructure,
