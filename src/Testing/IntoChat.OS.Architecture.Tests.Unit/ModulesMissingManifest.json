@@ -1,15 +1,6 @@
 [
   "IntoChat.OS.Modules.Apps.AppsModule",
-  "IntoChat.OS.Modules.Circles.CirclesModule",
-  "IntoChat.OS.Modules.ClickHouse.ClickHouseModule",
-  "IntoChat.OS.Modules.Google.Gmail.GmailModule",
   "IntoChat.OS.Modules.Mcp.McpModule",
-  "IntoChat.OS.Modules.Microsoft.Aspire.AspireModule",
-  "IntoChat.OS.Modules.Microsoft.Azure.AzureModule",
   "IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule",
-  "IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule",
-  "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightModule",
-  "IntoChat.OS.Modules.Microsoft.Windows.WindowsModule",
-  "IntoChat.OS.Modules.Postgres.PostgresModule",
-  "IntoChat.OS.Modules.Salesforce.SalesforceModule"
+  "IntoChat.OS.Modules.Postgres.PostgresModule"
 ]

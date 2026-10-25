@@ -31,6 +31,15 @@ namespace IntoChat.OS.Modules.Google.Gmail;
 [ExternalOperation(GoogleOperations.Stop, "google-oauth", "request")]
 public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModule
 {
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<GmailModuleOptions>()],
+        Secrets: []);
+
     public const string ClockKey = "google-gmail";
     public const string WatchPath = "/google/gmail/watch";
 

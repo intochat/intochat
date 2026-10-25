@@ -18,6 +18,17 @@ namespace IntoChat.OS.Modules.ClickHouse;
 
 public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
+    internal const string ManifestName = "clickhouse";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
+        Secrets: []);
+
     public override bool RequiresContainer => true;
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.ClickHouse.Query.IClickHouse).Assembly;

@@ -20,6 +20,15 @@ namespace IntoChat.OS.Modules.Salesforce;
 [Secret("ConsumerSecret")]
 public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
 {
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>()],
+        Secrets: []);
+
     public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {
         Neurons = [typeof(ISalesforce)],

@@ -19,6 +19,17 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 // A Windows PC as an edge: the machine, its files and its console, served only by a silo on that PC.
 public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windows")), IHttpModule
 {
+    internal const string ManifestName = "windows";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<WindowsOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(WindowsModule.ManifestName))],
+        Secrets: []);
+
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
         Neurons = [typeof(IWindows), typeof(IStorage), typeof(IFileSystem), typeof(IConsole)],

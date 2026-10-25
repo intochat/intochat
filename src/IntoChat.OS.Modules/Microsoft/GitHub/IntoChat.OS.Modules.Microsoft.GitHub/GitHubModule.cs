@@ -13,6 +13,17 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
+    internal const string ManifestName = "github";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(GitHubModule.ManifestName))],
+        Secrets: []);
+
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).Assembly;
 
     // ClientId sits beside ClientSecret so the Platform's OAuth flow reads both from one release.

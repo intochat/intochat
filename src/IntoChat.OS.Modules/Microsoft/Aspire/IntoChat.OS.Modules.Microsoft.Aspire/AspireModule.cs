@@ -16,6 +16,17 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"))
 {
+    internal const string ManifestName = "aspire";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<AspireOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(AspireModule.ManifestName))],
+        Secrets: []);
+
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Aspire.IDeployment).Assembly;
 
     // Candidate builds receive model credentials and their own fresh stores.

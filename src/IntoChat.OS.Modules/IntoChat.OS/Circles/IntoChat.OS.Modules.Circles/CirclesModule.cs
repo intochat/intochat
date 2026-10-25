@@ -13,6 +13,15 @@ namespace IntoChat.OS.Modules.Circles;
 // shared into it and a share of its creator's compute. A member's own brain creates and lists its circles.
 public sealed partial class CirclesModule() : Module(new ModuleId("circles")), IHttpModule
 {
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [],
+        Secrets: []);
+
     public override System.Reflection.Assembly? Contracts => typeof(ICircle).Assembly;
 
     public void Configure(IEndpointRouteBuilder endpoints)
