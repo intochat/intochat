@@ -13,6 +13,10 @@ public sealed class PinFreshnessFacts
         "ConfigurationKeyOwners.json",
         "TestTierBaseline.json",
         "CollectionCompatibilitySamples.json",
+        FrameworkHasNoVendorSdksFacts.BaselineFile,
+        InternalsVisibleToFacts.BaselineFile,
+        AppsHaveNoModuleIdsFacts.BaselineFile,
+        NamespaceSchemeFacts.BaselineFile,
     ];
 
     [Fact]
@@ -28,6 +32,10 @@ public sealed class PinFreshnessFacts
                 new ConfigurationKeyFacts().CaptureConfigurationKeyOwners();
                 new TestTierRules().CaptureTestTierBaseline();
                 new CollectionCompatibilityFacts().CaptureCollectionCompatibilitySamples();
+                new FrameworkHasNoVendorSdksFacts().CaptureFrameworkVendorBaseline();
+                new InternalsVisibleToFacts().CaptureInternalsVisibleToBaseline();
+                new AppsHaveNoModuleIdsFacts().CaptureAppsModuleIdBaseline();
+                new NamespaceSchemeFacts().CaptureNamespaceSchemeBaseline();
             }
             var stale = new List<string>();
             foreach (var file in Files)

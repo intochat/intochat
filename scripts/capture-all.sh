@@ -38,8 +38,12 @@ nightly=$(grep -oE '<[A-Za-z0-9]*Nightly\b' Directory.Build.props | tr -d '<' | 
 pins=(
   "$archdir/ContractManifest.json" "$archdir/GrainFactoryOwners.json" "$archdir/OrleansReferenceOwners.json"
   "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json"
+  "$archdir/FrameworkVendorBaseline.json" "$archdir/InternalsVisibleToBaseline.json" "$archdir/AppsModuleIdBaseline.json"
+  "$archdir/NamespaceSchemeBaseline.json"
   "$contracts/flutter-wire-names.golden.json" "$contracts/flutter-aliasless-enums.golden.json" "$contracts/ui-states.golden.json"
 )
+# Shrinking ratchets: removals there are the point, so they are not breaking.
+shrinking=" FrameworkVendorBaseline.json InternalsVisibleToBaseline.json AppsModuleIdBaseline.json NamespaceSchemeBaseline.json "
 snap=$(mktemp -d); trap 'rm -rf "$snap"' EXIT
 for pin in "${pins[@]}"; do mkdir -p "$snap/$(dirname "$pin")"; cp "$pin" "$snap/$pin"; done
 
@@ -50,7 +54,7 @@ capture() {
   # shellcheck disable=SC2086
   dotnet test --project "$1" -c Release -p:CodeGraphRefresh=false $nightly --filter-method "*$2" --explicit only --nologo
 }
-for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples; do capture "$arch" "$m"; done
+for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples \n         CaptureFrameworkVendorBaseline CaptureInternalsVisibleToBaseline CaptureAppsModuleIdBaseline CaptureNamespaceSchemeBaseline; do capture "$arch" "$m"; done
 for m in CaptureFlutterWireNames CaptureUiStateGoldens; do capture "$flutter" "$m"; done
 
 # Leaves as "path<TAB>value": objects recurse, arrays contribute one line per element (same rule as the ps1).
@@ -60,6 +64,7 @@ leaves() {
 }
 breaking=0
 for pin in "${pins[@]}"; do
+  case "$shrinking" in *" $(basename "$pin") "*) continue ;; esac
   removed=$(comm -23 <(leaves "$snap/$pin") <(leaves "$pin") || true)
   if [ -n "$removed" ]; then breaking=1; echo "$(basename "$pin"):"; echo "$removed" | head -20 | sed 's/^/  /'; fi
 done
