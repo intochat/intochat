@@ -199,7 +199,6 @@ public static class InstallPlan
 
     private static Dictionary<string, string> Variables(InstallConfig c, string account, string vault, string lease, string grainState, IReadOnlyDictionary<string, string> extra)
     {
-        var tables = $"https://{account}.table.core.windows.net/";
         var blobs = $"https://{account}.blob.core.windows.net/";
         var variables = new Dictionary<string, string>
         {
@@ -208,17 +207,16 @@ public static class InstallPlan
             [Variable(IntoChatOSNames.TopologyKey)] = IntoChatOSNames.TopologyCloud,
             // DefaultAzureCredential picks the user-assigned identity by this client id (Orleans stores, lease, vault).
             ["AZURE_CLIENT_ID"] = ContainerAppSpec.IdentityClientIdToken,
-            [Variable(IntoChatOSNames.KeyVaultUriConfigurationKey)] = $"https://{vault}.vault.azure.net/",
+            // The cloud topology's account (its blob URI: tables and queues derive from it, token auth with the identity) and vault (P2-D-22).
+            [Variable(IntoChatOSNames.CloudStorageConfigurationKey)] = blobs,
+            [Variable(IntoChatOSNames.CloudKeyVaultConfigurationKey)] = $"https://{vault}.vault.azure.net/",
             ["Orleans__ClusterId"] = c.ClusterId,
             ["Orleans__ServiceId"] = c.ServiceId,
             // The mounted share is the Home; the brain log lives in <Home>/state.
             [Variable(IntoChatOSNames.HomeKey)] = BrainLogDirectory(c),
             [Variable(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
-            // https service URIs select token auth with the runtime identity.
-            [Integration(OrleansIntegrationNames.Clustering)] = tables,
-            [Integration(OrleansIntegrationNames.Reminders)] = tables,
-            [Integration(OrleansIntegrationNames.GrainState)] = blobs,
-            [Integration(OrleansIntegrationNames.GrainStateContainer)] = grainState,
+            // The grain state stays in this install's per-format container (the orleans module option).
+            [OrleansOption(OrleansIntegrationNames.GrainStateContainer)] = grainState,
             [Variable(IntoChatOSNames.BrainStorageOwnershipKindConfigurationKey)] = IntoChatOSNames.BrainStorageOwnershipBlobLease,
             [Variable(IntoChatOSNames.BrainStorageOwnershipContainerUriConfigurationKey)] = blobs + lease,
         };
@@ -230,5 +228,6 @@ public static class InstallPlan
 
     private static string Variable(string configurationKey) => ConfigurationKeyGrammar.EnvironmentName(configurationKey);
 
-    private static string Integration(string field) => Variable(ConfigurationKeyGrammar.IntegrationKey(OrleansIntegrationNames.Id, field));
+    private static string OrleansOption(string option)
+        => Variable(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(OrleansIntegrationNames.Id) + ":" + option);
 }

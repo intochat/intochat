@@ -21,6 +21,9 @@ public static class LegacyConfigurationGuard
     public const string CompositionReplacement = "IntoChatOS:Topology and IntoChatOS:Modules:<id>:Enabled";
     // The replacement of the retired run-mode marker: the topology decides the loopback rule, Bind widens it.
     public const string BindReplacement = "IntoChatOS:Topology (and IntoChatOS:Bind to widen binding)";
+    // The replacement of the retired orleans integration stores: the cloud topology reads one account (03-12, P2-D-22).
+    public const string CloudStorageReplacement = "IntoChatOS:Topology=cloud + IntoChatOS:Cloud:Storage";
+    private const string OrleansIntegration = "IntoChatOS:Integrations:orleans:";
 
     // Settings this release retired (D-10, D-11, D-13, R4-02). Each fails startup in every environment naming its replacement;
     // unlike the product rename these are not Development warnings, because a silently ignored one moves local state.
@@ -32,6 +35,17 @@ public static class LegacyConfigurationGuard
         ("IntoChatOS:Preset", CompositionReplacement),
         // The loopback guard follows the topology (D-21); the old run-mode marker would otherwise be ignored silently.
         ("IntoChatOS:Hosting:Mode", BindReplacement),
+        // Clustering, grain state and reminders were orleans integration fields with a memory fallback (P2-D-11). IntoChatOS:Topology
+        // selects them now, and an old deployment variable must not silently start on local storage.
+        (OrleansIntegration + "Clustering", CloudStorageReplacement),
+        (OrleansIntegration + "GrainState", CloudStorageReplacement),
+        (OrleansIntegration + "Reminders", CloudStorageReplacement),
+        (OrleansIntegration + "ClusteringUri", CloudStorageReplacement),
+        (OrleansIntegration + "GrainStateUri", CloudStorageReplacement),
+        (OrleansIntegration + "RemindersUri", CloudStorageReplacement),
+        (OrleansIntegration + "ManagedIdentityClientId", "AZURE_CLIENT_ID"),
+        (OrleansIntegration + "GrainStateContainer", "IntoChatOS:Modules:orleans:Options:GrainStateContainer"),
+        ("IntoChatOS:KeyVault:Uri", "IntoChatOS:Topology=cloud + IntoChatOS:Cloud:KeyVault"),
     ];
 
     public static void Verify(IConfiguration configuration, IHostEnvironment environment, ILogger? logger = null)

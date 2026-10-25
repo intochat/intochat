@@ -44,6 +44,4 @@ public static class IntoChatOSNames
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
-    // Where the deployment tells the runtime its vault lives.
-    public const string KeyVaultUriConfigurationKey = "IntoChatOS:KeyVault:Uri";
 }

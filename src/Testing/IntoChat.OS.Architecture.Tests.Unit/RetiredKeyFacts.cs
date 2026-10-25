@@ -27,6 +27,16 @@ public sealed class RetiredKeyFacts
         { Assert.Contains("IntoChatOS:" + expected, names); }
     }
 
+    // The memory/Azure switch is gone (03-12): every orleans integration field and the old vault key stop startup.
+    [Fact]
+    public void TheRetiredTableCoversTheOrleansIntegrationFieldsAndTheOldVaultKey()
+    {
+        var names = LegacyConfigurationGuard.RetiredSettings.Select(row => row.Name).ToArray();
+        foreach (var field in new[] { "Clustering", "GrainState", "Reminders", "ClusteringUri", "GrainStateUri", "RemindersUri", "ManagedIdentityClientId", "GrainStateContainer" })
+        { Assert.Contains("IntoChatOS:" + "Integrations:orleans:" + field, names); }
+        Assert.Contains("IntoChatOS:" + "KeyVault:Uri", names);
+    }
+
     [Theory]
     [MemberData(nameof(RetiredNames))]
     public void NoSourceSpellsARetiredKey(string name)

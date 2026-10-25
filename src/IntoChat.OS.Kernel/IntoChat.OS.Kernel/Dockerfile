@@ -11,10 +11,9 @@
 # No secrets are baked into this image. Managed identity + Key Vault are injected at run/deploy:
 #
 #   AZURE_CLIENT_ID                 user-assigned managed identity for the container app
-#   IntoChatOS__KeyVault__Uri     Key Vault URI resolved by the managed identity (config only)
-#   ConnectionStrings__clustering   Orleans clustering (Azure Table/Blob)
-#   ConnectionStrings__reminders    Orleans reminders
-#   ConnectionStrings__grainstate   Orleans grain state (intochat-os-state)
+#   IntoChatOS__Topology            cloud
+#   IntoChatOS__Cloud__Storage      the storage account (blob URI: clustering, reminders, grain state, signal queues)
+#   IntoChatOS__Cloud__KeyVault     Key Vault URI resolved by the managed identity (secrets as configuration)
 #   ConnectionStrings__qdrant  Endpoint=http://qdrant:6334;Key=...
 #
 # Ports: 8080 silo HTTP (broker + health).
