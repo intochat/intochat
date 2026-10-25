@@ -337,3 +337,38 @@ static DigitalBrain.Runtime.Orleans.TopologyValidator.TryParse(string? value, ou
 static DigitalBrain.Runtime.Orleans.TopologyValidator.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.RetiredSetting!>! retired) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain.Runtime.Orleans.Topology topology, DigitalBrain.Runtime.Orleans.Bindings! bindings, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain.Runtime.Orleans.Topology topology, DigitalBrain.Runtime.Orleans.Bindings! bindings, System.Collections.Generic.IReadOnlyList<DigitalBrain.ModuleManifest!>! modules, bool clusterStoreRegistered) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
+DigitalBrain.Runtime.Orleans.BrainNotOwnedException
+DigitalBrain.Runtime.Orleans.BrainNotOwnedException.BrainId.get -> string!
+DigitalBrain.Runtime.Orleans.BrainNotOwnedException.BrainNotOwnedException(string! brainId, System.Exception? inner = null) -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.<Clone>$() -> DigitalBrain.Runtime.Orleans.BrainOwnershipCounts!
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Acquired.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Acquired.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.BrainOwnershipCounts(string! Mechanism, long Acquired, long Refused, long Lost, long Released, long Renewed, long Fenced) -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Deconstruct(out string! Mechanism, out long Acquired, out long Refused, out long Lost, out long Released, out long Renewed, out long Fenced) -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Equals(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? other) -> bool
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Fenced.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Fenced.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Lost.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Lost.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Mechanism.get -> string!
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Mechanism.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Refused.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Refused.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Released.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Released.init -> void
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.get -> long
+DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.init -> void
+DigitalBrain.Runtime.Orleans.IBrainLogLease
+DigitalBrain.Runtime.Orleans.IBrainLogLease.BeginWrite() -> long
+DigitalBrain.Runtime.Orleans.IBrainLogLease.EndWrite(long started) -> void
+DigitalBrain.Runtime.Orleans.IBrainLogLease.IsHeld.get -> bool
+DigitalBrain.Runtime.Orleans.IBrainLogOwnership
+DigitalBrain.Runtime.Orleans.IBrainLogOwnership.ClaimAsync(string! directory, string! brainId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.IBrainLogLease!>!
+DigitalBrain.Runtime.Orleans.IBrainOwnershipCounters
+DigitalBrain.Runtime.Orleans.IBrainOwnershipCounters.Snapshot() -> DigitalBrain.Runtime.Orleans.BrainOwnershipCounts!
+override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.ToString() -> string!
+static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator !=(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
+static DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.operator ==(DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? left, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts? right) -> bool
