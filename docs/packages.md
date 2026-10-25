@@ -1,6 +1,6 @@
 # Packages and versioning
 
-This repository publishes exactly seven packages to nuget.org:
+This repository publishes exactly eight packages to nuget.org:
 
 | Package | Depends on Orleans | Purpose |
 |---------|-------------------|---------|
@@ -11,11 +11,12 @@ This repository publishes exactly seven packages to nuget.org:
 | `DigitalBrain.Templates` | no | `intochat-app` and `intochat-module` templates |
 | `DigitalBrain.Runtime.Orleans` | yes | Orleans runtime, `local` and `local+cloud` topologies |
 | `DigitalBrain.Runtime.Orleans.Azure` | yes | `cloud` topology on Azure Storage and Key Vault |
+| `DigitalBrain.Capabilities.Storage` | no | The `storage@1` capability contract |
 
 ## Versions
 
-- The `VERSION` file holds the next release, for example `0.6.0`. All seven packages share it.
-- Every push to `main` that passes the `ci` gate publishes `<VERSION>-preview.<run number>` of all seven packages.
+- The `VERSION` file holds the next release, for example `0.6.0`. All eight packages share it.
+- Every push to `main` that passes the `ci` gate publishes `<VERSION>-preview.<run number>` of all eight packages.
 - A release publishes `<VERSION>` without a suffix. The release tag must be `v<VERSION>`; the release workflow
   refuses any other tag.
 - A local inner-loop build uses `<VERSION>-preview.local.<yyMMddHHmmss>`; see [CONTRIBUTING](../CONTRIBUTING.md).

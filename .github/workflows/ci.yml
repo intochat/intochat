@@ -21,7 +21,7 @@ env:
   CI: 'true'
 
 # Gate jobs: format, build, test, azure, e2e, no-orleans, template. The aggregate `ci` job needs all of them.
-# On a push to main, publish ships 0.6.0-preview.<run> of the seven DigitalBrain packages to nuget.org via
+# On a push to main, publish ships 0.6.0-preview.<run> of the eight DigitalBrain packages to nuget.org via
 # Trusted Publishing; template-feed and the report-only downstream job run after it and never gate.
 jobs:
   format:
@@ -240,17 +240,17 @@ jobs:
           dotnet pack DigitalBrain.slnx -c Release -o artifacts "-p:VersionSuffix=preview.${RUN_NUMBER}"
           dotnet pack templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts "-p:VersionSuffix=preview.${RUN_NUMBER}"
 
-      # DIST-04: only the seven DigitalBrain ids leave this repository.
+      # DIST-04: only the eight DigitalBrain ids leave this repository.
       - name: Package allowlist
         run: |
-          allowed=" DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Templates DigitalBrain.Runtime.Orleans DigitalBrain.Runtime.Orleans.Azure "
+          allowed=" DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Templates DigitalBrain.Runtime.Orleans DigitalBrain.Runtime.Orleans.Azure DigitalBrain.Capabilities.Storage "
           version='${{ steps.version.outputs.version }}'
           count=0
           for pkg in artifacts/*.nupkg; do
             id=$(basename "$pkg" ".${version}.nupkg")
             case "$allowed" in *" $id "*) count=$((count + 1)) ;; *) echo "::error::unexpected package $pkg"; exit 1 ;; esac
           done
-          [ "$count" -eq 7 ] || { echo "::error::expected 7 packages, got $count"; exit 1; }
+          [ "$count" -eq 8 ] || { echo "::error::expected 8 packages, got $count"; exit 1; }
 
       - name: NuGet login (Trusted Publishing)
         id: login

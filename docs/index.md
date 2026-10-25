@@ -3,7 +3,7 @@
 digitalbrain is the framework for building AI-native apps. IntoChat OS is built on it.
 
 - [Getting started](getting-started.md): install the templates, create an app and a module, run the tests.
-- [Packages and versioning](packages.md): the seven packages and how versions are cut.
+- [Packages and versioning](packages.md): the eight packages and how versions are cut.
 - [Modules](modules.md): `Module`, `ModuleManifest`, `Need` and how a topology binds them.
 - [Topology](topology.md): `local`, `local+cloud` and `cloud`, and the configuration precedence.
 

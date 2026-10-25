@@ -258,7 +258,7 @@ public sealed class ContractShapeFacts
         Assert.Equal(1, write.Aborts);
 
         var committed = new RecordingWrite();
-        Assert.Equal(new ItemId("new"), await committed.Commit(CancellationToken.None));
+        Assert.Equal(new ItemId("new"), await committed.Commit(TestContext.Current.CancellationToken));
         await committed.DisposeAsync();
         Assert.Equal(0, committed.Aborts);
     }
@@ -266,7 +266,7 @@ public sealed class ContractShapeFacts
     [Fact]
     public async Task Read_text_decodes_utf8()
     {
-        var text = await new BytesStorage("héllo"u8.ToArray()).ReadText(new ItemId("a"));
+        var text = await new BytesStorage("héllo"u8.ToArray()).ReadText(new ItemId("a"), TestContext.Current.CancellationToken);
         Assert.Equal("héllo", text);
     }
 
