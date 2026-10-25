@@ -34,6 +34,8 @@ public sealed class BaseBoilerplateAnalyzer : DiagnosticAnalyzer
     {
         var type = (INamedTypeSymbol)context.Symbol;
         if (!type.Name.EndsWith("RequestLedger", StringComparison.Ordinal)) { return; }
+        // The App base ledger itself (DigitalBrain.RequestLedger) is what the rule points to, not a re-implementation.
+        if (type.ContainingType is null && type.ContainingNamespace?.ToDisplayString() == "DigitalBrain") { return; }
         var app = AppRules.ContainingApp(type.ContainingType) ?? firstApp.Value;
         if (app is null) { return; }
         context.ReportDiagnostic(Diagnostic.Create(AppRules.ReimplementedHelper, type.Locations[0], app.Name, type.Name));

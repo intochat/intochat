@@ -68,12 +68,18 @@ public sealed class AppBaseFix : CodeFixProvider
     }
 }
 
-/// <summary>DB0022 fix: make the swallowing catch rethrow (<c>throw;</c>).</summary>
+/// <summary>
+/// DB0022 fixes: make the swallowing catch rethrow (<c>throw;</c>), or, inside an instance member of an App, record the error state
+/// (<c>catch (Exception error) { RecordError(error); }</c>).
+/// </summary>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(EmptyCatchFix)), Shared]
 public sealed class EmptyCatchFix : CodeFixProvider
 {
-    /// <summary>The equivalence key of the action.</summary>
+    /// <summary>The equivalence key of the rethrow action.</summary>
     public const string Key = "DB0022.Rethrow";
+
+    /// <summary>The equivalence key of the record-the-error-state action.</summary>
+    public const string RecordErrorKey = RecordErrorAction.Key;
 
     /// <inheritdoc />
     public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(AppRules.SwallowingCatch.Id);
@@ -85,10 +91,16 @@ public sealed class EmptyCatchFix : CodeFixProvider
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+        var model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
         foreach (var diagnostic in context.Diagnostics)
         {
             if (root?.FindToken(diagnostic.Location.SourceSpan.Start).Parent?.FirstAncestorOrSelf<CatchClauseSyntax>() is not { } clause) { continue; }
             context.RegisterCodeFix(CodeAction.Create("Rethrow", ct => Fix(context.Document, clause, ct), Key), diagnostic);
+            if (model is not null && RecordErrorAction.Applies(model, clause, context.CancellationToken))
+            {
+                context.RegisterCodeFix(
+                    CodeAction.Create("Record the error state", ct => RecordErrorAction.Fix(context.Document, clause, ct), RecordErrorKey), diagnostic);
+            }
         }
     }
 

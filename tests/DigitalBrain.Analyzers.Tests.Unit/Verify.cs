@@ -22,7 +22,23 @@ internal static class Verify<TAnalyzer> where TAnalyzer : DiagnosticAnalyzer, ne
             public sealed class CallTimeoutAttribute(int milliseconds) : System.Attribute { public int Milliseconds { get; } = milliseconds; }
             public sealed class ReentrantAttribute : System.Attribute;
             public abstract class Module { }
-            public abstract class App { }
+            public abstract class App
+            {
+                protected AppKey Key(BrainId brain) => default;
+                protected RequestLedger Requests { get; } = new RequestLedger();
+                protected bool Present<TView>(System.Action<TView, TView> publish, System.Func<TView> side, System.Func<TView> main, string operation = "") where TView : class => true;
+                protected void RecordError(System.Exception error, string operation = "") { }
+                protected void Swallow(System.Exception error, string reason, string operation = "") { }
+            }
+            public readonly record struct BrainId(string Value);
+            public readonly record struct AppKey
+            {
+                public static AppKey Parse(string path) => default;
+                public static AppKey operator /(AppKey key, string part) => key;
+                public static AppKey operator /(AppKey key, long part) => key;
+                public static implicit operator string(AppKey key) => "";
+            }
+            public sealed class RequestLedger { public bool Handled(System.Guid id) => false; public bool Record(System.Guid id) => true; }
             public abstract class Neuron { }
             public sealed class ModuleManifest { }
             public abstract record Signal;

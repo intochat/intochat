@@ -15,7 +15,7 @@ namespace DigitalBrain.Analyzers.Tests.Unit.Apps.Fixes;
 internal static class FixRunner
 {
     public static async Task<(string Fixed, ImmutableArray<Diagnostic> Before, ImmutableArray<Diagnostic> After)> Apply(
-        DiagnosticAnalyzer analyzer, CodeFixProvider fixer, string source, bool fixAll = false)
+        DiagnosticAnalyzer analyzer, CodeFixProvider fixer, string source, bool fixAll = false, string? key = null)
     {
         var ct = TestContext.Current.CancellationToken;
         var references = await Microsoft.CodeAnalysis.Testing.ReferenceAssemblies.Net.Net80.ResolveAsync(LanguageNames.CSharp, ct);
@@ -32,7 +32,7 @@ internal static class FixRunner
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(document, before[0], (action, _) => actions.Add(action), ct);
         await fixer.RegisterCodeFixesAsync(context);
-        var first = Assert.Single(actions);
+        var first = key is null ? Assert.Single(actions) : Assert.Single(actions, candidate => candidate.EquivalenceKey == key);
 
         CodeAction action = first;
         if (fixAll)
@@ -49,6 +49,25 @@ internal static class FixRunner
         var compile = (await changed.Project.GetCompilationAsync(ct))!.GetDiagnostics(ct).Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compile);
         return (text, before, after);
+    }
+
+    // The equivalence keys of the actions offered for the first diagnostic.
+    public static async Task<IReadOnlyList<string?>> Offered(DiagnosticAnalyzer analyzer, CodeFixProvider fixer, string source)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var references = await Microsoft.CodeAnalysis.Testing.ReferenceAssemblies.Net.Net80.ResolveAsync(LanguageNames.CSharp, ct);
+        using var workspace = new AdhocWorkspace();
+        var project = workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Default, "Fix", "Fix", LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            parseOptions: new CSharpParseOptions(LanguageVersion.Latest),
+            metadataReferences: references));
+        project = project.AddDocument("Stubs.cs", SourceText.From(Verify<AppBaseAnalyzer>.Stubs)).Project;
+        var document = project.AddDocument("Test.cs", SourceText.From(source));
+        var before = await Diagnose(document, analyzer, ct);
+        Assert.NotEmpty(before);
+        var actions = new List<CodeAction>();
+        await fixer.RegisterCodeFixesAsync(new CodeFixContext(document, before[0], (action, _) => actions.Add(action), ct));
+        return [.. actions.Select(action => action.EquivalenceKey)];
     }
 
     private static async Task<ImmutableArray<Diagnostic>> Diagnose(Document document, DiagnosticAnalyzer analyzer, CancellationToken ct)
@@ -109,7 +128,7 @@ public sealed class EmptyCatchFixFacts
     [Fact]
     public async Task Rethrow_replaces_the_swallowing_body()
     {
-        var (text, _, after) = await FixRunner.Apply(new EmptyCatchAnalyzer(), new EmptyCatchFix(), """
+        var (text, _, after) = await FixRunner.Apply(new EmptyCatchAnalyzer(), new EmptyCatchFix(), key: EmptyCatchFix.Key, source: """
             using System;
             using DigitalBrain;
             public sealed class A : App
@@ -129,7 +148,7 @@ public sealed class EmptyCatchFixFacts
     [Fact]
     public async Task Fix_all_rewrites_every_site_in_the_document()
     {
-        var (text, before, after) = await FixRunner.Apply(new EmptyCatchAnalyzer(), new EmptyCatchFix(), """
+        var (text, before, after) = await FixRunner.Apply(new EmptyCatchAnalyzer(), new EmptyCatchFix(), key: EmptyCatchFix.Key, source: """
             using System;
             using DigitalBrain;
             public sealed class A : App
