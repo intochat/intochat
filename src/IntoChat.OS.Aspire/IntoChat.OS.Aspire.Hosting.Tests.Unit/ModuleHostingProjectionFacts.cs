@@ -34,7 +34,7 @@ public sealed class ModuleHostingProjectionFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         foreach (var pair in values) { builder.Configuration[schema.Key(pair.Key)] = pair.Value; }
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
         if (hosted) { brain.WithHosting<THosting>(); }
         return (builder, builder.AddExecutable("host", "unused", ".").WithReference(brain));
     }

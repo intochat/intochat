@@ -15,7 +15,7 @@ public sealed class ArtCraftImageSourceFacts
     private static IDistributedApplicationBuilder Compose(string? registry)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(o => { o.WithHostedApps(); o.ImageRegistry = registry; });
         return builder;
     }

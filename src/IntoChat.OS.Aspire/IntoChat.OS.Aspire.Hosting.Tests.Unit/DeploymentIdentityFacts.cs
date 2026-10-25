@@ -129,10 +129,10 @@ public sealed class DeploymentIdentityFacts
     public void BlobContainerIdentityDoesNotInheritTheAspireResourcePrefix()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var original = builder.AddIntoChatOS("Modules", options: new() { PersistentStorage = false })
+        var original = builder.AddIntoChatOS("Modules", options: new())
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
             .AddBlobContainer("cookie-protection");
-        var renamed = builder.AddIntoChatOS("Renamed", options: new() { PersistentStorage = false })
+        var renamed = builder.AddIntoChatOS("Renamed", options: new())
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
             .AddBlobContainer("cookie-protection");
         Assert.Equal("Modules-cookie-protection", original.Resource.Name);

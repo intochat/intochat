@@ -33,7 +33,7 @@ public sealed class ModuleOptionOverlayFacts
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[IntoChatOSConfiguration.ModuleSection("example") + ":ReplaceOptions"] = "true";
         builder.Configuration[IntoChatOSConfiguration.ModuleOptionsSection("example") + ":Endpoint"] = "fixture";
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithModule(new ExampleModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions
             {
                 Endpoint = "production",
@@ -50,7 +50,7 @@ public sealed class ModuleOptionOverlayFacts
     public void FlatteningOmitsDefaultsSoDeploymentCodeDoesNotPinThem()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithModule(new ExampleModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
         var configuration = brain.GetModuleConfiguration("example");
         Assert.Equal("production", configuration[IntoChatOSConfiguration.ModuleOptionsSection("example") + ":Endpoint"]);
@@ -65,9 +65,9 @@ public sealed class ModuleOptionOverlayFacts
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[IntoChatOSConfiguration.CompositionModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
         builder.Configuration[IntoChatOSConfiguration.CompositionModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
-        var first = builder.AddIntoChatOS("first", options: new() { PersistentStorage = false })
+        var first = builder.AddIntoChatOS("first", options: new())
             .WithHosting<ScopedServerHosting>();
-        var second = builder.AddIntoChatOS("second", options: new() { PersistentStorage = false })
+        var second = builder.AddIntoChatOS("second", options: new())
             .WithHosting<ScopedServerHosting>();
         Assert.Equal("first-db", first.GetModuleConfiguration("scoped")[IntoChatOSConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
         Assert.Equal("second-db", second.GetModuleConfiguration("scoped")[IntoChatOSConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
@@ -95,7 +95,7 @@ public sealed class ModuleOptionOverlayFacts
             ],
             DisableDashboard = true,
         });
-        var brain = builder.AddIntoChatOS("modules", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", options: new())
             .WithModule(new OverlaidModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
         var options = brain.GetModuleConfiguration("OverlaidModule").GetModuleOptions<OverlaidOptions>("OverlaidModule");

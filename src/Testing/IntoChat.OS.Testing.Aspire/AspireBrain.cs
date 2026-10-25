@@ -10,8 +10,12 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain
     private readonly AspireTestSession _session;
     private readonly TestSessionLifetime _lifetime;
     private readonly bool _ownsSession;
+    private readonly IAsyncDisposable? _home;
 
     public AspireBrain(AspireTestSession session) : this(session, session.Lifetime, ownsSession: true) { }
+
+    // The booting brain of AspireTarget: its temporary Home outlives the session's processes.
+    internal AspireBrain(AspireTestSession session, IAsyncDisposable home) : this(session, session.Lifetime, ownsSession: true) => _home = home;
 
     private AspireBrain(AspireTestSession session, TestSessionLifetime lifetime, bool ownsSession)
     {
@@ -71,7 +75,11 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain
     // The AppHost's posture is its own; a Secured AppHost answers this owner's calls with 401.
     public Person Owner => Person.OpenOwner(HttpClient);
 
-    public ValueTask DisposeAsync() => _ownsSession ? _session.DisposeAsync() : _lifetime.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        try { await (_ownsSession ? _session.DisposeAsync() : _lifetime.DisposeAsync()).ConfigureAwait(false); }
+        finally { if (_home is not null) { await _home.DisposeAsync().ConfigureAwait(false); } }
+    }
 
     private sealed class Release(Action release) : IAsyncDisposable
     {

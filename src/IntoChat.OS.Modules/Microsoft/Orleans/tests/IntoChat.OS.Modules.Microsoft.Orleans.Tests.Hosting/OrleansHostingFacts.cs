@@ -16,7 +16,7 @@ public sealed class OrleansHostingFacts
     public async Task WithAzuriteProjectsTheThreeConnectionsIntoTheOrleansIntegration()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("Modules", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("Modules", new())
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
@@ -45,7 +45,7 @@ public sealed class OrleansHostingFacts
     public async Task TheSiloReadsTheDeploymentGrainStateContainerAsTheOrleansModuleOption()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("Modules", new() { GrainStateContainer = "brain-rabc1234", PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("Modules", new() { GrainStateContainer = "brain-rabc1234" })
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
@@ -56,7 +56,7 @@ public sealed class OrleansHostingFacts
     public async Task AnOrleansClientFindsTheAzuriteClusteringTable()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("Modules", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("Modules", new())
             .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
         var client = builder.AddExecutable("mcp", "unused", ".").WithReference(brain.AsClient());
         var environment = await EnvironmentOf(builder, client.Resource, TestContext.Current.CancellationToken);

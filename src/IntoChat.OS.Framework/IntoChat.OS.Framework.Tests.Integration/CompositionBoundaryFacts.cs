@@ -29,8 +29,8 @@ public sealed class CompositionBoundaryFacts
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddIntoChatOS("first", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
-        var second = builder.AddIntoChatOS("second", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
+        var first = builder.AddIntoChatOS("first", options: new()).WithModule(new SampleModule());
+        var second = builder.AddIntoChatOS("second", options: new()).WithModule(new SampleModule());
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());

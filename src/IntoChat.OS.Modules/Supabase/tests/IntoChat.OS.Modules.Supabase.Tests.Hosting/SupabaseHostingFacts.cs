@@ -17,7 +17,7 @@ public sealed class SupabaseHostingFacts
     public async Task UserOnlyModuleAddsNoDeploymentDatabaseOrCredentialParameter()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(_ => { });
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
@@ -33,7 +33,7 @@ public sealed class SupabaseHostingFacts
     {
         var builder = CreateBuilder();
         builder.Configuration["Parameters:supabase-connection"] = "Host=external;Database=infra;Username=reader";
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(options =>
             {
                 if (hosted) { options.WithPostgres(); }

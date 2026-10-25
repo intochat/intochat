@@ -26,7 +26,7 @@ public sealed class SystemOneHostingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultSystemOne<ILocalJev>());
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -53,7 +53,7 @@ public sealed class SystemOneHostingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultSystemOne<IJev>());
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -69,7 +69,7 @@ public sealed class SystemOneHostingFacts
     public void AnUnknownSystemOneMarkerFailsAtBind()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("brain", new());
         var options = new AIOptions();
         options.Hosting.SystemOnes.Add("INotAJev");
 

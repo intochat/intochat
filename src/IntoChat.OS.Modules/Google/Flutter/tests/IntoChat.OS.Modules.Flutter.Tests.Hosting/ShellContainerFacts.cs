@@ -15,7 +15,7 @@ public sealed class ShellContainerFacts
     {
         var builder = AspireCompositionTest.CreateBuilder();
         builder.Configuration[FlutterHostOptions.WebContainerKey] = "true";
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
         builder.AddExecutable("OperatingSystem-a", "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain);
         var front = builder.AddExecutable("OperatingSystem-front", "unused", ".").WithHttpEndpoint(name: "http");
@@ -33,7 +33,7 @@ public sealed class ShellContainerFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[FlutterHostOptions.WebContainerKey] = "true";
-        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
 
         var shell = Assert.Single(builder.Resources, resource => resource.Annotations.OfType<BrainBrowserAnnotation>().Any());

@@ -20,7 +20,7 @@ public sealed class PostgresAspireHostingFacts
     public async Task ManagedDatabaseIsProjectedWithTheConfiguredConnectionNameAndReadiness(bool persistent)
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("brain", options: new());
         brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent).Settings);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -42,7 +42,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         builder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=external;Database=analytics;Username=reader;Password=test-only";
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithPostgres().WithConnection("reporting"));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -57,7 +57,7 @@ public sealed class PostgresAspireHostingFacts
     public async Task ModuleConfigurationCreatesOneDatabaseForMultipleConsumers()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithConnection("reporting").WithPostgres(options =>
             {
                 options.DatabaseName = "analytics";
@@ -79,7 +79,7 @@ public sealed class PostgresAspireHostingFacts
     public void RepeatedHostingConfigurationDoesNotCreateDuplicateResources()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("brain", options: new());
         brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
         var hosting = new PostgresModuleHosting();
         hosting.Configure(brain);
@@ -99,7 +99,7 @@ public sealed class PostgresAspireHostingFacts
     public async Task HostedPostgresInRunModeSelectsDatabasePerBrainWithTheAdminConnection()
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("brain", options: new());
         brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
@@ -112,7 +112,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreatePublishBuilder();
         builder.Configuration["Parameters:postgres-connection"] = "Host=azure;Database=intochat_os;Username=app;Password=test-only";
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("brain", options: new());
         brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 

@@ -20,10 +20,13 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
         { throw new ArgumentException($"Host configuration reaches the AppHost's command line; set '{leaked}' with WithIntegration so it travels in the private file."); }
         var (options, secrets) = Split(plan.Configuration);
         var identity = "test-" + Guid.NewGuid().ToString("N");
+        // A temporary Home per brain: the AppHost projects it to its silos, so state never lands in ~/.intochat.
+        var home = TestHome.Create();
         // Arguments reach the AppHost builder before its program composes modules; adding to
         // builder.Configuration afterwards would miss hosting-layer binds.
         string[] args =
         [
+            $"{IntoChat.OS.Framework.IntoChatOSNames.HomeKey}={home.Path}",
             $"{IntoChatOSHostingOptions.PersistentStorageKey}=false",
             $"{IntoChatOSHostingOptions.ClusterIdKey}={identity}",
             .. options.Where(pair => pair.Value is not null).Select(pair => $"{pair.Key}={pair.Value}"),
@@ -35,8 +38,15 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
             PrivateConfiguration = secrets,
             ArtifactDirectory = plan.Execution.ArtifactDirectory ?? Path.Combine(AppContext.BaseDirectory, "e2e-artifacts", identity),
         };
-        var session = await AspireTestSession.StartAsync<TAppHost>(args, execution, cancellationToken, browser ?? BrowserEnvironment.Location).ConfigureAwait(false);
-        return new AspireBrain(session);
+        AspireTestSession session;
+        try { session = await AspireTestSession.StartAsync<TAppHost>(args, execution, cancellationToken, browser ?? BrowserEnvironment.Location).ConfigureAwait(false); }
+        catch
+        {
+            home.Dispose();
+            throw;
+        }
+        // The Home is deleted after the session stopped the processes writing to it.
+        return new AspireBrain(session, home);
     }
 
     private static (Dictionary<string, string?> Options, Dictionary<string, string?> Secrets) Split(IReadOnlyDictionary<string, string?> configuration)

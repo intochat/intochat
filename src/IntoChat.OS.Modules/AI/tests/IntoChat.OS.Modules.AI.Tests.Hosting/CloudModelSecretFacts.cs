@@ -25,7 +25,7 @@ public sealed class CloudModelSecretFacts
             [IntegrationSchema.Key("openrouter", "ApiKey")] = "sk-test",
             [IntegrationSchema.Key("openai", "ApiKey")] = "  ",
         });
-        var brain = builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IDeepSeekV41Flash>().WithTavilySearch().WithoutLocalModels());
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -42,7 +42,7 @@ public sealed class CloudModelSecretFacts
     public void ALocalModelStartsOllamaAndCreatesNoApiKeyParameter()
     {
         var builder = CreateBuilder();
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai
                 .WithDefaultLlm<IQwen35>()
                 .WithDefaultEmbedding<IEmbeddingGemma>()

@@ -21,7 +21,7 @@ public sealed class OllamaGpuFacts
     {
         var builder = CreateBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [IntoChatOSHostingOptions.LocalGpuKey] = gpu ? "true" : "false" });
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IQwen35>().WithoutWebSearch());
 
         var ollama = Assert.Single(builder.Resources.OfType<OllamaResource>());
@@ -35,7 +35,7 @@ public sealed class OllamaGpuFacts
     public void TheOllamaImageIsPinnedToAVersion()
     {
         var builder = CreateBuilder();
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IQwen35>().WithoutWebSearch());
         var image = Assert.Single(Assert.Single(builder.Resources.OfType<OllamaResource>()).Annotations.OfType<ContainerImageAnnotation>());
         Assert.NotEqual("latest", image.Tag);

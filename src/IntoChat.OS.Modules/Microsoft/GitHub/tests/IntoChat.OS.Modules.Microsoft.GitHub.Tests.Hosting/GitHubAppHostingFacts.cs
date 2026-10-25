@@ -19,7 +19,7 @@ public sealed class GitHubAppHostingFacts
     public async Task OAuthAndWebhookSecretsAreProjectedOnlyWhenTheirFeaturesAreConfigured(bool oauth, bool webhook)
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<GitHubModuleHosting>();
         new IntoChatOSModuleBuilder<GitHubModuleHosting>(brain).WithGitHubApp(options =>
             {

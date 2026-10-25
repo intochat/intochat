@@ -11,6 +11,17 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
+    // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string HomeKey = "IntoChatOS:Home";
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string TopologyKey = "IntoChatOS:Topology";
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string TopologyLocal = "local";
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string TopologyLocalCloud = "local-cloud";
+    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string TopologyCloud = "cloud";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
     public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
     public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";

@@ -47,7 +47,7 @@ public sealed class InProcessTarget : ITestTarget
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Path.Combine(Path.GetTempPath(), $"intochat-os-machine-{Guid.NewGuid():N}"),
-                siloPort, gatewayPort);
+                TestHome.Create(), siloPort, gatewayPort);
             try
             {
                 reservation.ReleaseSockets();
@@ -57,6 +57,7 @@ public sealed class InProcessTarget : ITestTarget
             catch (Exception error)
             {
                 if (Directory.Exists(session.MachineDirectory)) { Directory.Delete(session.MachineDirectory, recursive: true); }
+                session.Home.Dispose();
                 if (attempt == StartAttempts || !AddressInUse(error)) { throw; }
                 plan.Execution.Diagnostics?.Invoke(new TestDiagnostic("in-process-start",
                     $"Ports {siloPort}/{gatewayPort} were taken before the silo bound them; retrying ({attempt}/{StartAttempts - 1})."));
@@ -85,7 +86,9 @@ public sealed class InProcessTarget : ITestTarget
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [IntoChatOSNames.MasterKeyConfigurationKey] = session.MasterKey,
-            [IntoChat.OS.Authority.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
+            // A temporary Home per brain: the brain log lives in <Home>/state, never in the developer's ~/.intochat.
+            [IntoChatOSNames.HomeKey] = session.Home.Path,
+            [IntoChat.OS.Authority.Storage.BrainStoreOptions.Key + ":Directory"] = session.Home.State,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
@@ -145,7 +148,7 @@ public sealed class InProcessTarget : ITestTarget
     }
 }
 
-internal sealed record InProcessSession(MemoryStores Stores, string MasterKey, string RunTokenKey, string MachineDirectory, int SiloPort, int GatewayPort);
+internal sealed record InProcessSession(MemoryStores Stores, string MasterKey, string RunTokenKey, string MachineDirectory, TestHome Home, int SiloPort, int GatewayPort);
 
 // The silo's live activations by grain id, so a fact can deactivate one and wait for it to finish.
 internal sealed class ActivationIndex : IActivationWorkingSetObserver
@@ -194,6 +197,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         _lifetime.Own("machine-directory", new Release(() =>
         {
             if (Directory.Exists(_session.MachineDirectory)) { Directory.Delete(_session.MachineDirectory, recursive: true); }
+            _session.Home.Dispose();
             return ValueTask.CompletedTask;
         }));
         _lifetime.Own("host", new Release(StopHostAsync));

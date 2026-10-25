@@ -17,7 +17,7 @@ public sealed class ShellFrontFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = AspireCompositionTest.CreateBuilder();
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp());
         builder.AddExecutable("OperatingSystem-a", "unused", ".")
             .WithHttpEndpoint(name: "http").WithHttpsEndpoint(name: "https").WithReference(brain);
@@ -37,7 +37,7 @@ public sealed class ShellFrontFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = AspireCompositionTest.CreateBuilder();
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
         var instances = new[] { "OperatingSystem-a", "OperatingSystem-b" }
             .Select(name => builder.AddExecutable(name, "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain))
