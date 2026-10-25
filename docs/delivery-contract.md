@@ -45,6 +45,12 @@ A silo can die between the journal append and the stream publish. Two mechanisms
 
 Subscribing is authorized at subscribe time under the subscriber's caller identity through `AdmitSynapse`. A synapse that is not admitted is never added to the stream; catch-up reads go through the same brain-checked `ISignalHistory`.
 
+`AdmitSynapse(SynapseRequest)` also receives `Caller`, the trusted caller stamp (principal, account, brain, app as module) of the call that asked. The runtime fills it from the host's stamp (`RuntimeCallerContext.Stamp` on Orleans, `TestOS.Caller` under test), never from the subscriber's arguments, and leaves it null when the call carries no stamp. A source that authorizes by caller overrides this overload; `AdmitSynapse(subscriber, signals)` remains the default.
+
+## Cluster listeners
+
+`IClusterListeners.Listen<TSignal>(listener, handler)` hands a host (not a neuron) every `TSignal` that any neuron of any brain appends, with its publisher, after the append is durable. It is in memory and best effort: no cursor, no replay, and a signal appended while a silo stops can be missed, so a listener that must not miss one holds a synapse instead. On Orleans each silo hears the appends of the neurons it hosts, so register on every silo at host start (a restarted host registers again). A second `Listen` with the same listener name and signal type replaces the handler, so start-up registration is idempotent. Handlers run off the grain scheduler in publish order per silo; one that throws is logged (`ClusterListenerFailed`) and the others still run.
+
 ## Topologies
 
 - `LocalProfile` and `LocalCloudProfile` bind memory streams plus a file `PubSubStore`.
