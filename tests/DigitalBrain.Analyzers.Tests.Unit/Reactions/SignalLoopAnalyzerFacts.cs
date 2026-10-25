@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using DigitalBrain.Analyzers.Reactions;
 using Microsoft.CodeAnalysis;
@@ -68,9 +69,9 @@ public sealed class SignalLoopAnalyzerFacts
         var loops = 0;
         for (var i = 0; source.ToString().Split('\n').Length < 2000; i++)
         {
-            source.AppendLine($"    [On] public Task Heard{i}(Number n) => Task.CompletedTask;");
-            source.AppendLine($"    public async Task Loop{i}(IAsyncEnumerable<int> values) {{ await foreach (var v in values) {{ }} }}");
-            if (i % 50 == 0) { source.AppendLine($"    public async Task Bad{i}() {{ await foreach (var n in Signals<Number>()) {{ }} }}"); loops++; }
+            source.AppendLine(CultureInfo.InvariantCulture, $"    [On] public Task Heard{i}(Number n) => Task.CompletedTask;");
+            source.AppendLine(CultureInfo.InvariantCulture, $"    public async Task Loop{i}(IAsyncEnumerable<int> values) {{ await foreach (var v in values) {{ }} }}");
+            if (i % 50 == 0) { source.AppendLine(CultureInfo.InvariantCulture, $"    public async Task Bad{i}() {{ await foreach (var n in Signals<Number>()) {{ }} }}"); loops++; }
         }
         source.AppendLine("}");
         var text = source.ToString();

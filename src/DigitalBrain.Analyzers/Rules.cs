@@ -23,6 +23,20 @@ internal static class Rules
         "'{0}' carries the Orleans attribute '{1}'; Orleans attributes belong to the runtime, not to DigitalBrain types",
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+    // 04-03 (CORE-06): ids DB0013/DB0014 sit after Phase 8's reserved DB0001..DB0012 set.
+    public static readonly DiagnosticDescriptor SignalLoop = new(
+        "DB0013", "Signal loop inside a Neuron or App",
+        "'{0}' loops over a {1} stream; use an [On] reaction and Context.Synapses.Ensure",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ReactionShape = new(
+        "DB0014", "Malformed [On] reaction",
+        "[On] method '{0}' must take exactly one Signal-derived parameter (plus an optional trailing CancellationToken) and return Task or ValueTask",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    public const string SignalType = "DigitalBrain.Signal";
+    public const string NeuronType = "DigitalBrain.Neuron";
+    public const string OnAttribute = "DigitalBrain.OnAttribute";
     public const string ModuleAttribute = "DigitalBrain.ModuleAttribute";
     public const string AppAttribute = "DigitalBrain.AppAttribute";
     public const string ModuleType = "DigitalBrain.Module";
@@ -47,6 +61,15 @@ internal static class Rules
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
             if (FullName(current) == fullName) { return true; }
+        }
+        return false;
+    }
+
+    public static bool IsOrDerivesFrom(ITypeSymbol? type, string fullName)
+    {
+        for (var current = type as INamedTypeSymbol; current is not null; current = current.BaseType)
+        {
+            if (FullName(current.OriginalDefinition) == fullName) { return true; }
         }
         return false;
     }
