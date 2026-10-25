@@ -4,11 +4,13 @@
     <Project Path="src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <Project Path="src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
+    <Project Path="src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Analyzers.Tests.Unit/DigitalBrain.Analyzers.Tests.Unit.csproj" />
+    <Project Path="tests/DigitalBrain.Runtime.Orleans.Tests.Unit/DigitalBrain.Runtime.Orleans.Tests.Unit.csproj" />
   </Folder>
 </Solution>

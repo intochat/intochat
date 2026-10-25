@@ -1,0 +1,92 @@
+#nullable enable
+DigitalBrain.Runtime.Orleans.IntoChatOSNames
+DigitalBrain.Runtime.Orleans.RetiredSetting
+DigitalBrain.Runtime.Orleans.RetiredSetting.<Clone>$() -> DigitalBrain.Runtime.Orleans.RetiredSetting!
+DigitalBrain.Runtime.Orleans.RetiredSetting.Deconstruct(out string! Key, out string! Replacement) -> void
+DigitalBrain.Runtime.Orleans.RetiredSetting.Equals(DigitalBrain.Runtime.Orleans.RetiredSetting? other) -> bool
+DigitalBrain.Runtime.Orleans.RetiredSetting.Key.get -> string!
+DigitalBrain.Runtime.Orleans.RetiredSetting.Key.init -> void
+DigitalBrain.Runtime.Orleans.RetiredSetting.Replacement.get -> string!
+DigitalBrain.Runtime.Orleans.RetiredSetting.Replacement.init -> void
+DigitalBrain.Runtime.Orleans.RetiredSetting.RetiredSetting(string! Key, string! Replacement) -> void
+DigitalBrain.Runtime.Orleans.StateHome
+DigitalBrain.Runtime.Orleans.StateHome.<Clone>$() -> DigitalBrain.Runtime.Orleans.StateHome!
+DigitalBrain.Runtime.Orleans.StateHome.Apps.get -> string!
+DigitalBrain.Runtime.Orleans.StateHome.EnsureCreated() -> DigitalBrain.Runtime.Orleans.StateHome!
+DigitalBrain.Runtime.Orleans.StateHome.Equals(DigitalBrain.Runtime.Orleans.StateHome? other) -> bool
+DigitalBrain.Runtime.Orleans.StateHome.Logs.get -> string!
+DigitalBrain.Runtime.Orleans.StateHome.Path.get -> string!
+DigitalBrain.Runtime.Orleans.StateHome.Secrets.get -> string!
+DigitalBrain.Runtime.Orleans.StateHome.SettingsFile.get -> string!
+DigitalBrain.Runtime.Orleans.StateHome.State.get -> string!
+DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.Topology.Cloud = 2 -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.Topology.Local = 0 -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.Topology.LocalCloud = 1 -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.TopologyExtensions
+DigitalBrain.Runtime.Orleans.TopologyIssue
+DigitalBrain.Runtime.Orleans.TopologyIssue.<Clone>$() -> DigitalBrain.Runtime.Orleans.TopologyIssue!
+DigitalBrain.Runtime.Orleans.TopologyIssue.Deconstruct(out string! Key, out string! Message) -> void
+DigitalBrain.Runtime.Orleans.TopologyIssue.Equals(DigitalBrain.Runtime.Orleans.TopologyIssue? other) -> bool
+DigitalBrain.Runtime.Orleans.TopologyIssue.Key.get -> string!
+DigitalBrain.Runtime.Orleans.TopologyIssue.Key.init -> void
+DigitalBrain.Runtime.Orleans.TopologyIssue.Message.get -> string!
+DigitalBrain.Runtime.Orleans.TopologyIssue.Message.init -> void
+DigitalBrain.Runtime.Orleans.TopologyIssue.TopologyIssue(string! Key, string! Message) -> void
+DigitalBrain.Runtime.Orleans.TopologySettings
+DigitalBrain.Runtime.Orleans.TopologySettings.<Clone>$() -> DigitalBrain.Runtime.Orleans.TopologySettings!
+DigitalBrain.Runtime.Orleans.TopologySettings.Deconstruct(out DigitalBrain.Runtime.Orleans.Topology Topology, out DigitalBrain.Runtime.Orleans.StateHome? Home, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>! Issues, out System.Collections.Generic.IReadOnlyList<string!>! Warnings) -> void
+DigitalBrain.Runtime.Orleans.TopologySettings.Equals(DigitalBrain.Runtime.Orleans.TopologySettings? other) -> bool
+DigitalBrain.Runtime.Orleans.TopologySettings.Home.get -> DigitalBrain.Runtime.Orleans.StateHome?
+DigitalBrain.Runtime.Orleans.TopologySettings.Home.init -> void
+DigitalBrain.Runtime.Orleans.TopologySettings.IsValid.get -> bool
+DigitalBrain.Runtime.Orleans.TopologySettings.Issues.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
+DigitalBrain.Runtime.Orleans.TopologySettings.Issues.init -> void
+DigitalBrain.Runtime.Orleans.TopologySettings.Topology.get -> DigitalBrain.Runtime.Orleans.Topology
+DigitalBrain.Runtime.Orleans.TopologySettings.Topology.init -> void
+DigitalBrain.Runtime.Orleans.TopologySettings.TopologySettings(DigitalBrain.Runtime.Orleans.Topology Topology, DigitalBrain.Runtime.Orleans.StateHome? Home, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>! Issues, System.Collections.Generic.IReadOnlyList<string!>! Warnings) -> void
+DigitalBrain.Runtime.Orleans.TopologySettings.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Runtime.Orleans.TopologySettings.Warnings.init -> void
+DigitalBrain.Runtime.Orleans.TopologyValidator
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.BindKey = "IntoChatOS:Bind" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.CloudKeyVaultKey = "IntoChatOS:Cloud:KeyVault" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.CloudSectionPrefix = "IntoChatOS:Cloud:" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.CloudServerAddressKey = "IntoChatOS:Cloud:ServerAddress" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.CloudStorageKey = "IntoChatOS:Cloud:Storage" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.ClusterGrainStorage = "cluster" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.GrainStateContainer = "os-state" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.HomeKey = "IntoChatOS:Home" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.MasterKeyKey = "IntoChatOS:MasterKey" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.PlatformGrainStorage = "platform" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.PubSubStore = "PubSubStore" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.SignalStreams = "signals" -> string!
+const DigitalBrain.Runtime.Orleans.IntoChatOSNames.TopologyKey = "IntoChatOS:Topology" -> string!
+const DigitalBrain.Runtime.Orleans.StateHome.DefaultDirectoryName = ".intochat" -> string!
+const DigitalBrain.Runtime.Orleans.TopologyValidator.LocalCloudAlias = "local-cloud" -> string!
+override DigitalBrain.Runtime.Orleans.RetiredSetting.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.RetiredSetting.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.RetiredSetting.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.StateHome.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.StateHome.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.StateHome.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.TopologyIssue.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.TopologyIssue.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.TopologyIssue.ToString() -> string!
+override DigitalBrain.Runtime.Orleans.TopologySettings.Equals(object? obj) -> bool
+override DigitalBrain.Runtime.Orleans.TopologySettings.GetHashCode() -> int
+override DigitalBrain.Runtime.Orleans.TopologySettings.ToString() -> string!
+static DigitalBrain.Runtime.Orleans.RetiredSetting.operator !=(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
+static DigitalBrain.Runtime.Orleans.RetiredSetting.operator ==(DigitalBrain.Runtime.Orleans.RetiredSetting? left, DigitalBrain.Runtime.Orleans.RetiredSetting? right) -> bool
+static DigitalBrain.Runtime.Orleans.StateHome.Default() -> DigitalBrain.Runtime.Orleans.StateHome!
+static DigitalBrain.Runtime.Orleans.StateHome.Resolve(Microsoft.Extensions.Configuration.IConfiguration? configuration) -> DigitalBrain.Runtime.Orleans.StateHome!
+static DigitalBrain.Runtime.Orleans.StateHome.operator !=(DigitalBrain.Runtime.Orleans.StateHome? left, DigitalBrain.Runtime.Orleans.StateHome? right) -> bool
+static DigitalBrain.Runtime.Orleans.StateHome.operator ==(DigitalBrain.Runtime.Orleans.StateHome? left, DigitalBrain.Runtime.Orleans.StateHome? right) -> bool
+static DigitalBrain.Runtime.Orleans.TopologyExtensions.ToConfigValue(this DigitalBrain.Runtime.Orleans.Topology topology) -> string!
+static DigitalBrain.Runtime.Orleans.TopologyIssue.operator !=(DigitalBrain.Runtime.Orleans.TopologyIssue? left, DigitalBrain.Runtime.Orleans.TopologyIssue? right) -> bool
+static DigitalBrain.Runtime.Orleans.TopologyIssue.operator ==(DigitalBrain.Runtime.Orleans.TopologyIssue? left, DigitalBrain.Runtime.Orleans.TopologyIssue? right) -> bool
+static DigitalBrain.Runtime.Orleans.TopologySettings.Parse(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.RetiredSetting!>! retired) -> DigitalBrain.Runtime.Orleans.TopologySettings!
+static DigitalBrain.Runtime.Orleans.TopologySettings.operator !=(DigitalBrain.Runtime.Orleans.TopologySettings? left, DigitalBrain.Runtime.Orleans.TopologySettings? right) -> bool
+static DigitalBrain.Runtime.Orleans.TopologySettings.operator ==(DigitalBrain.Runtime.Orleans.TopologySettings? left, DigitalBrain.Runtime.Orleans.TopologySettings? right) -> bool
+static DigitalBrain.Runtime.Orleans.TopologyValidator.ThrowIfInvalid(System.Collections.Generic.IEnumerable<DigitalBrain.Runtime.Orleans.TopologyIssue!>! issues) -> void
+static DigitalBrain.Runtime.Orleans.TopologyValidator.TryParse(string? value, out DigitalBrain.Runtime.Orleans.Topology topology, out bool isAlias) -> bool
+static DigitalBrain.Runtime.Orleans.TopologyValidator.Validate(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.RetiredSetting!>! retired) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
