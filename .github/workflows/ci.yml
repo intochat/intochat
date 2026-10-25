@@ -115,7 +115,8 @@ jobs:
       - name: Azure integration facts
         run: dotnet test --project tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration.csproj -c Release
 
-  # Framework e2e (R4-03): one fact set on the local and the Azurite targets.
+  # Framework e2e (R4-03, 04-15): one fact set on TestOS, the local and the Azurite targets. The skip guard (04-16) fails the job
+  # when any result is skipped or no report was written, so the Azurite target can never pass silently.
   e2e:
     name: e2e
     runs-on: ubuntu-24.04
@@ -137,7 +138,10 @@ jobs:
           global-json-file: global.json
 
       - name: Framework e2e facts
-        run: dotnet test --project tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release
+        run: dotnet test --project tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --report-xunit-trx --results-directory artifacts/e2e
+
+      - name: No skipped e2e facts
+        run: bash scripts/ci/fail-on-skipped.sh artifacts/e2e
 
   # The Orleans-free packages must stay Orleans-free, transitively.
   no-orleans:
