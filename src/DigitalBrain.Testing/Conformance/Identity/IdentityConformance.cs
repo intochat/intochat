@@ -11,7 +11,20 @@ namespace DigitalBrain.Testing.Conformance.Identity;
 /// Optional: signs <c>principalId</c> in the way the host does (registering it if needed) and returns the member the
 /// <see cref="ISignInHandler"/>s received. Null skips the sign-in fact.
 /// </param>
-public sealed record IdentitySubject(IIdentity Identity, IGrants Grants, CallerScope Callers, Func<string, CancellationToken, Task<Member>>? SignIn = null);
+public sealed record IdentitySubject(IIdentity Identity, IGrants Grants, CallerScope Callers, Func<string, CancellationToken, Task<Member>>? SignIn = null)
+{
+    /// <summary>The sessions part of the same identity@1 connection; null skips the session facts.</summary>
+    public ISessions? Sessions { get; init; }
+
+    /// <summary>The description part of the same identity@1 connection; null skips the description facts.</summary>
+    public IIdentityProvider? Description { get; init; }
+
+    /// <summary>
+    /// A module id the implementation grants identity@1 <c>Issue</c>, <c>End</c> and <c>Validate</c> (its manifest
+    /// <c>Privileged</c> list). Required by the session facts; every other module id must be refused.
+    /// </summary>
+    public string? PrivilegedModule { get; init; }
+}
 
 /// <summary>
 /// The identity@1 conformance kit (CAP-01). A module providing identity subclasses it in its <c>tests/</c> project as a sealed
@@ -328,6 +341,155 @@ public abstract class IdentityConformance<TIdentity>
         }
     }
 
+    // ----- provisioning under concurrency (09-03, identity row 3) -----
+
+    /// <summary>Concurrent ProvisionOwner and EnsureBrain calls for one owner yield one account, one brain and one owner member.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task EnsureBrainIsIdempotentUnderConcurrentCalls()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var principalId = Unique("p");
+        var owner = new Member { PrincipalId = principalId, AccountId = Unique("account"), BrainId = Unique("brain"), Role = MemberRole.Owner, DisplayName = "Kit owner" };
+        var account = new Account { AccountId = owner.AccountId, Name = "Kit account", OwnerPrincipalId = principalId };
+        var accounts = Enumerable.Range(0, 8).Select(_ => Task.Run(() => s.Identity.EnsureAccount(account, ct), ct));
+        var provisions = await Task.WhenAll(Enumerable.Range(0, 16).Select(i => Task.Run(
+            () => i % 2 == 0 ? s.Identity.ProvisionOwner(owner, ct) : s.Identity.EnsureBrain(owner, ct), ct))).ConfigureAwait(false);
+        await Task.WhenAll(accounts).ConfigureAwait(false);
+        Assert.Single(provisions, provision => provision.NewBrain);
+        Assert.All(provisions, provision => Assert.Equal(owner.BrainId, provision.Member.BrainId));
+        Assert.Equal(owner.AccountId, (await s.Identity.ReadAccount(owner.AccountId, ct).ConfigureAwait(false))?.AccountId);
+        Assert.Equal(owner.AccountId, (await s.Identity.OwnerOfBrain(owner.BrainId, ct).ConfigureAwait(false))?.AccountId);
+        Assert.Single(await s.Identity.BrainsOf(principalId, ct).ConfigureAwait(false), entry => entry.Id == owner.BrainId);
+        Assert.Equal(MemberRole.Owner, (await s.Identity.Membership(owner.BrainId, principalId, ct).ConfigureAwait(false))?.Role);
+    }
+
+    // ----- sessions (09-03, identity rows 1, 2 and 4) -----
+
+    /// <summary>A granted module issues a session with extra claims and a lifetime; Validate returns the member until it expires.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task IssueThenValidateReturnsTheMember()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var sessions = RequireSessions(s);
+        var owner = await Owner(s, ct).ConfigureAwait(false);
+        using (s.Callers.As(Privileged(s, owner)))
+        {
+            var before = DateTimeOffset.UtcNow;
+            var issued = await sessions.Issue(new SessionRequest
+            {
+                Member = owner,
+                Claims = new Dictionary<string, string> { ["sid"] = Unique("sid"), ["auth_time"] = "1761350400", ["amr"] = "pwd" },
+                Lifetime = TimeSpan.FromMinutes(5),
+            }, ct).ConfigureAwait(false);
+            Assert.False(string.IsNullOrWhiteSpace(issued.SessionId), "the issued session has no id");
+            Assert.InRange(issued.ExpiresAt, before.AddMinutes(4), DateTimeOffset.UtcNow.AddMinutes(6));
+            var validated = await sessions.Validate(issued.SessionId, ct).ConfigureAwait(false);
+            Assert.NotNull(validated);
+            Assert.Equal(owner.PrincipalId, validated.PrincipalId);
+            Assert.Equal(owner.AccountId, validated.AccountId);
+            Assert.Equal(owner.BrainId, validated.BrainId);
+            Assert.Equal(owner.Role, validated.Role);
+            Assert.Null(await sessions.Validate(Unique("unknown-session"), ct).ConfigureAwait(false));
+        }
+    }
+
+    /// <summary>Extra claims never replace the identity-owned principal, account, brain or role claims: Issue rejects them (T-09-07).</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task IssueRejectsIdentityOwnedClaims()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var sessions = RequireSessions(s);
+        var owner = await Owner(s, ct).ConfigureAwait(false);
+        using (s.Callers.As(Privileged(s, owner)))
+        {
+            foreach (var claim in new[] { "principal", "account", "brain", "role", "Principal", " role " })
+            {
+                var request = new SessionRequest { Member = owner, Claims = new Dictionary<string, string> { [claim] = "kit-override" } };
+                await Assert.ThrowsAnyAsync<ArgumentException>(() => sessions.Issue(request, ct)).ConfigureAwait(false);
+            }
+
+            await Assert.ThrowsAnyAsync<ArgumentException>(() => sessions.Issue(new SessionRequest { Member = owner, Lifetime = TimeSpan.Zero }, ct)).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>After End, Validate of that session is null; ending again is a no-op.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task EndThenValidateFails()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var sessions = RequireSessions(s);
+        var owner = await Owner(s, ct).ConfigureAwait(false);
+        using (s.Callers.As(Privileged(s, owner)))
+        {
+            var issued = await sessions.Issue(new SessionRequest { Member = owner }, ct).ConfigureAwait(false);
+            var other = await sessions.Issue(new SessionRequest { Member = owner }, ct).ConfigureAwait(false);
+            await sessions.End(issued.SessionId, ct).ConfigureAwait(false);
+            Assert.Null(await sessions.Validate(issued.SessionId, ct).ConfigureAwait(false));
+            Assert.NotNull(await sessions.Validate(other.SessionId, ct).ConfigureAwait(false));
+            await sessions.End(issued.SessionId, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Issue, End and Validate from a module without the manifest grant, or from a user caller, are refused with
+    /// <see cref="UnauthorizedAccessException"/> (fail closed, T-09-08); the granted module succeeds.
+    /// </summary>
+    [Fact(Timeout = Timeout)]
+    public async Task IssueFromUnprivilegedCallerIsDenied()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        var sessions = RequireSessions(s);
+        var owner = await Owner(s, ct).ConfigureAwait(false);
+        SessionIssued issued;
+        using (s.Callers.As(Privileged(s, owner)))
+        {
+            issued = await sessions.Issue(new SessionRequest { Member = owner }, ct).ConfigureAwait(false);
+        }
+
+        foreach (var caller in new[] { AppCaller(owner, Unique("ungranted")), Caller(owner) })
+        {
+            using (s.Callers.As(caller))
+            {
+                await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => sessions.Issue(new SessionRequest { Member = owner }, ct)).ConfigureAwait(false);
+                await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => sessions.Validate(issued.SessionId, ct)).ConfigureAwait(false);
+                await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => sessions.End(issued.SessionId, ct)).ConfigureAwait(false);
+            }
+        }
+
+        using (s.Callers.As(Privileged(s, owner)))
+        {
+            Assert.NotNull(await sessions.Validate(issued.SessionId, ct).ConfigureAwait(false));
+        }
+    }
+
+    // ----- description (09-03, identity rows 6 and 9) -----
+
+    /// <summary>Describe names the implementation and reports a defined posture (Open or Secured).</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task DescribeReportsPosture()
+    {
+        var (s, _) = await Open().ConfigureAwait(false);
+        Assert.SkipWhen(s.Description is null, "the subject exposes no identity@1 description");
+        var descriptor = s.Description!.Describe();
+        Assert.NotNull(descriptor);
+        Assert.False(string.IsNullOrWhiteSpace(descriptor.ProviderId), "the descriptor has no id");
+        Assert.True(Enum.IsDefined(descriptor.Posture), $"posture {(int)descriptor.Posture} is not Open or Secured");
+        Assert.Equal(descriptor, s.Description.Describe());
+    }
+
+    /// <summary>The account surface is null (no Account tab) or a well-formed neuron id.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task DescribeAccountSurfaceIsNullOrResolvable()
+    {
+        var (s, _) = await Open().ConfigureAwait(false);
+        Assert.SkipWhen(s.Description is null, "the subject exposes no identity@1 description");
+        if (s.Description!.Describe().AccountSurface is not { } surface) { return; }
+        Assert.NotNull(surface.Brain.Value);
+        Assert.False(string.IsNullOrWhiteSpace(surface.Type), "the account surface has no neuron type");
+        Assert.False(string.IsNullOrWhiteSpace(surface.Key), "the account surface has no key");
+        Assert.True(NeuronId.TryParse(surface.ToString(), out var parsed) && parsed == surface, $"{surface} does not round-trip");
+    }
+
     // ----- helpers -----
 
     private async Task<(IdentitySubject Subject, CancellationToken Ct)> Open()
@@ -337,6 +499,15 @@ public abstract class IdentityConformance<TIdentity>
         Assert.NotNull(subject);
         return (subject, ct);
     }
+
+    private static ISessions RequireSessions(IdentitySubject s)
+    {
+        Assert.SkipWhen(s.Sessions is null, "the subject exposes no identity@1 sessions");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(s.PrivilegedModule), "the subject names no privileged module");
+        return s.Sessions!;
+    }
+
+    private static KitCaller Privileged(IdentitySubject s, Member owner) => AppCaller(owner, s.PrivilegedModule!);
 
     private static string Unique(string prefix) => $"kit-{prefix}-{Guid.NewGuid():N}";
 

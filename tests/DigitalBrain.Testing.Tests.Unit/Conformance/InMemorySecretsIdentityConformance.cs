@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Testing.Conformance;
 using DigitalBrain.Testing.Conformance.Identity;
 using DigitalBrain.Testing.Conformance.Secrets;
@@ -32,8 +33,13 @@ public sealed class InMemoryIdentityConformance : IdentityConformance<InMemoryId
     protected override Task<IdentitySubject> Connect(CancellationToken ct)
     {
         var callers = new AmbientCallerScope();
-        var identity = new InMemoryIdentity(callers);
-        return Task.FromResult(new IdentitySubject(identity, identity, callers, identity.SignIn));
+        var identity = new InMemoryIdentity(callers) { Declarations = KitDeclarations.Identity };
+        return Task.FromResult(new IdentitySubject(identity, identity, callers, identity.SignIn)
+        {
+            Sessions = identity,
+            Description = identity,
+            PrivilegedModule = KitDeclarations.PrivilegedModule,
+        });
     }
 }
 
@@ -43,7 +49,24 @@ public sealed class FakeIdentityConformance : IdentityConformance<FakeIdentity>
     protected override Task<IdentitySubject> Connect(CancellationToken ct)
     {
         var callers = new AmbientCallerScope();
-        var identity = new FakeIdentity(callers);
-        return Task.FromResult(new IdentitySubject(identity, identity, callers, identity.SignIn));
+        var identity = new FakeIdentity(callers) { Declarations = KitDeclarations.Identity };
+        return Task.FromResult(new IdentitySubject(identity, identity, callers, identity.SignIn)
+        {
+            Sessions = identity,
+            Description = identity,
+            PrivilegedModule = KitDeclarations.PrivilegedModule,
+        });
     }
+}
+
+// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members.
+internal static class KitDeclarations
+{
+    public const string PrivilegedModule = "kit-auth";
+
+    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [])
+    {
+        Id = PrivilegedModule,
+        Privileged = [new(Capability.Identity.V1, "Issue"), new(Capability.Identity.V1, "End"), new(Capability.Identity.V1, "Validate")],
+    }]);
 }

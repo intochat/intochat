@@ -61,6 +61,24 @@ public sealed class IdentityCapabilityConformance : IdentityConformance<Identity
     protected override Task<IdentitySubject> Connect(CancellationToken ct)
     {
         var directory = new InMemoryIdentityDirectory();
-        return Task.FromResult(new IdentitySubject(new IdentityCapability(directory), new GrantsCapability(directory), new RuntimeCallerScope(), directory.SignIn));
+        var sessions = new SessionsCapability(directory, KitDeclarations.Identity);
+        return Task.FromResult(new IdentitySubject(new IdentityCapability(directory), new GrantsCapability(directory), new RuntimeCallerScope(), directory.SignIn)
+        {
+            Sessions = sessions,
+            Description = sessions,
+            PrivilegedModule = KitDeclarations.PrivilegedModule,
+        });
     }
+}
+
+// The manifest declarations the 09-03 kit facts run under: one module granted the identity@1 session members.
+internal static class KitDeclarations
+{
+    public const string PrivilegedModule = "kit-auth";
+
+    public static ModuleDeclarations Identity { get; } = new([new ModuleManifest([], [], [], [], [])
+    {
+        Id = PrivilegedModule,
+        Privileged = [new(Capability.Identity.V1, "Issue"), new(Capability.Identity.V1, "End"), new(Capability.Identity.V1, "Validate")],
+    }]);
 }

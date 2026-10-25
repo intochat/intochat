@@ -137,6 +137,10 @@ public static class TopologyHosting
             ? value
             : throw new InvalidOperationException($"Call {nameof(UseTopology)} on the host builder before configuring the silo.");
 
+    /// <summary>The declarations (privileged grants, secrets) of every module composed through <see cref="UseModuleTopology"/>.</summary>
+    internal static ModuleDeclarations ComposedDeclarations(IServiceProvider services)
+        => new([.. services.GetServices<ModuleAssemblies>().SelectMany(assemblies => assemblies.Modules).Distinct().Select(ModuleManifest.Of)]);
+
     private sealed record ModuleAssemblies(System.Reflection.Assembly[] Assemblies, Type[] Modules);
 
     private static StateHome? TryResolveHome(IConfiguration configuration)

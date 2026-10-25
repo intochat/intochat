@@ -5,8 +5,8 @@ namespace DigitalBrain.Capabilities.Identity;
 /// <summary>
 /// The SPI a host implements so the runtime's identity@1 capability (<see cref="IIdentity"/> and <see cref="IGrants"/>) reaches
 /// its identity directory (R4-02, D-09, D-15). Members that act for someone take the caller the runtime read from the stamped
-/// call context; the rest mirror <see cref="IIdentity"/>. Neutral DigitalBrain records only. Phase 9 auth additions (sessions,
-/// privileged grants, sign-in tickets) arrive as new members (additive).
+/// call context; the rest mirror <see cref="IIdentity"/>. Neutral DigitalBrain records only. Sessions and the
+/// description use the separate <see cref="IIdentitySessionPort"/> (09-03).
 /// </summary>
 public interface IIdentityDirectoryPort
 {

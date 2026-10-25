@@ -6,9 +6,10 @@ namespace DigitalBrain.Testing.Conformance.Identity;
 /// <summary>
 /// An in-memory <see cref="IIdentityDirectoryPort"/> over <see cref="InMemoryIdentity"/>: each caller-taking member runs the
 /// reference implementation as the caller it was handed. Lets the runtime's identity@1 capability run its conformance kit
-/// without a host directory. Owner-only members answer null/false instead of throwing (the port is neutral).
+/// without a host directory, and serves as the <see cref="IIdentitySessionPort"/> (sessions unchecked: the runtime checks
+/// the privileged grant before it calls the port). Owner-only members answer null/false instead of throwing (the port is neutral).
 /// </summary>
-public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort
+public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentitySessionPort
 {
     private readonly AmbientCallerScope _callers = new();
     private readonly InMemoryIdentity _identity;
@@ -16,6 +17,9 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort
     /// <summary>Creates the directory.</summary>
     /// <param name="time">The clock for created, joined and granted times.</param>
     public InMemoryIdentityDirectory(TimeProvider? time = null) => _identity = new InMemoryIdentity(_callers, time);
+
+    /// <summary>What <see cref="Describe"/> answers; a Secured <c>memory</c> implementation without an account surface by default.</summary>
+    public IdentityProviderDescriptor Descriptor { get; init; } = new() { ProviderId = "memory", Posture = IdentityPosture.Secured };
 
     /// <summary>Simulates a host sign-in (see <see cref="InMemoryIdentity.SignIn"/>).</summary>
     public Task<Member> SignIn(string principalId, CancellationToken cancellationToken) => _identity.SignIn(principalId, cancellationToken);
@@ -123,6 +127,27 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort
             }
         }
     }
+
+    /// <inheritdoc />
+    public Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        return Task.FromResult(_identity.IssueSession(request));
+    }
+
+    /// <inheritdoc />
+    public Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        _identity.EndSession(sessionId);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<Member?> Validate(string sessionId, CancellationToken cancellationToken) => Task.FromResult(_identity.ValidateSession(sessionId));
+
+    /// <inheritdoc />
+    public IdentityProviderDescriptor Describe() => Descriptor;
 
     private IDisposable As(CapabilityCaller caller)
     {

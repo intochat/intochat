@@ -565,3 +565,31 @@ static DigitalBrain.Testing.AppBaseline.Cases(System.Type! appType, System.Actio
 static DigitalBrain.Testing.AppBaseline.DefaultFakes.get -> System.Collections.Generic.IReadOnlyDictionary<DigitalBrain.Capabilities.CapabilityId, System.Action<DigitalBrain.Testing.TestOS!>!>!
 static DigitalBrain.Testing.AppBaseline.RunAsync(DigitalBrain.Testing.AppOperationCase! operation) -> System.Threading.Tasks.Task!
 static readonly DigitalBrain.Testing.AppBaseline.Budget -> System.TimeSpan
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.DescribeAccountSurfaceIsNullOrResolvable() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.DescribeReportsPosture() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.EndThenValidateFails() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.EnsureBrainIsIdempotentUnderConcurrentCalls() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.IssueFromUnprivilegedCallerIsDenied() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.IssueRejectsIdentityOwnedClaims() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.IssueThenValidateReturnsTheMember() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Description.get -> DigitalBrain.Capabilities.Identity.IIdentityProvider?
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Description.init -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.PrivilegedModule.get -> string?
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.PrivilegedModule.init -> void
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Sessions.get -> DigitalBrain.Capabilities.Identity.ISessions?
+DigitalBrain.Testing.Conformance.Identity.IdentitySubject.Sessions.init -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Declarations.get -> DigitalBrain.ModuleDeclarations!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Declarations.init -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Describe() -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Descriptor.get -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Descriptor.init -> void
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.End(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Issue(DigitalBrain.Capabilities.Identity.SessionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.SessionIssued!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.Validate(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member?>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Describe() -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.End(DigitalBrain.Capabilities.CapabilityCaller! caller, string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Issue(DigitalBrain.Capabilities.CapabilityCaller! caller, DigitalBrain.Capabilities.Identity.SessionRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.SessionIssued!>!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Validate(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member?>!
+static readonly DigitalBrain.Testing.Conformance.Identity.InMemoryIdentity.DefaultSessionLifetime -> System.TimeSpan
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Descriptor.get -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
+DigitalBrain.Testing.Conformance.Identity.InMemoryIdentityDirectory.Descriptor.init -> void

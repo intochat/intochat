@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 
 namespace DigitalBrain.Testing.Conformance.Identity;
@@ -8,12 +9,17 @@ namespace DigitalBrain.Testing.Conformance.Identity;
 /// (per principal, per brain id, per create operation id), the owner cannot be removed, an unknown brain is
 /// <see cref="BrainKind.Personal"/>, grants are scoped to the brain (<see cref="Grant.WorkspaceId"/> is the brain id) and only
 /// the brain's owner grants or revokes. Authorize allows user callers and requires a covering grant for every semantic type
-/// an app caller touches.
+/// an app caller touches. Sessions (<see cref="ISessions"/>) are privileged: only a caller whose app id
+/// <see cref="Declarations"/> grants the member may issue, end or validate (fail closed; none by default). Issuing requires a
+/// current membership; a session lives <see cref="DefaultSessionLifetime"/> unless the request says otherwise.
 /// </summary>
 /// <param name="callers">Supplies the runtime caller; a local owner when null.</param>
 /// <param name="time">The clock for created, joined and granted times.</param>
-public class InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? time = null) : IIdentity, IGrants
+public class InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? time = null) : IIdentity, IGrants, ISessions, IIdentityProvider
 {
+    /// <summary>The lifetime of a session whose request names none.</summary>
+    public static readonly TimeSpan DefaultSessionLifetime = TimeSpan.FromHours(8);
+
     private readonly AmbientCallerScope _callers = callers ?? new AmbientCallerScope();
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly Lock _gate = new();
@@ -24,6 +30,13 @@ public class InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? 
     private readonly Dictionary<string, Member> _registered = new(StringComparer.Ordinal);
     private readonly List<Grant> _grants = [];
     private readonly List<ISignInHandler> _handlers = [];
+    private readonly Dictionary<string, (Member Member, DateTimeOffset ExpiresAt)> _sessions = new(StringComparer.Ordinal);
+
+    /// <summary>The module declarations the privileged session members check; <see cref="ModuleDeclarations.None"/> by default.</summary>
+    public ModuleDeclarations Declarations { get; init; } = ModuleDeclarations.None;
+
+    /// <summary>What <see cref="Describe"/> answers; a Secured <c>memory</c> implementation without an account surface by default.</summary>
+    public IdentityProviderDescriptor Descriptor { get; init; } = new() { ProviderId = "memory", Posture = IdentityPosture.Secured };
 
     /// <summary>Adds a handler <see cref="SignIn"/> invokes after the session would be issued.</summary>
     public void AddSignInHandler(ISignInHandler handler)
@@ -340,6 +353,82 @@ public class InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? 
         }
 
         return Task.CompletedTask;
+    }
+
+    // ----- sessions -----
+
+    /// <inheritdoc />
+    public Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken = default)
+    {
+        OnCall(nameof(Issue));
+        Declarations.RequirePrivileged(_callers.Current.AppId, Capability.Identity.V1, nameof(Issue));
+        return Task.FromResult(IssueSession(request));
+    }
+
+    /// <inheritdoc />
+    public Task End(string sessionId, CancellationToken cancellationToken = default)
+    {
+        OnCall(nameof(End));
+        Declarations.RequirePrivileged(_callers.Current.AppId, Capability.Identity.V1, nameof(End));
+        EndSession(sessionId);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<Member?> Validate(string sessionId, CancellationToken cancellationToken = default)
+    {
+        OnCall(nameof(Validate));
+        Declarations.RequirePrivileged(_callers.Current.AppId, Capability.Identity.V1, nameof(Validate));
+        return Task.FromResult(ValidateSession(sessionId));
+    }
+
+    /// <inheritdoc />
+    public IdentityProviderDescriptor Describe()
+    {
+        OnCall(nameof(Describe));
+        return Descriptor;
+    }
+
+    // The unchecked session operations; the privilege check belongs to the caller (ISessions above, or the runtime over the port).
+    internal SessionIssued IssueSession(SessionRequest request)
+    {
+        SessionClaims.Validate(request);
+        var member = request.Member;
+        lock (_gate)
+        {
+            var current = _members.TryGetValue(member.BrainId, out var members) ? members.Find(candidate => candidate.PrincipalId == member.PrincipalId) : null;
+            if (current is null || current.AccountId != member.AccountId)
+            {
+                throw new InvalidOperationException($"{member.PrincipalId} is not a member of {member.BrainId}; no session is issued.");
+            }
+
+            var issued = new SessionIssued($"session-{Guid.NewGuid():N}", _time.GetUtcNow() + (request.Lifetime ?? DefaultSessionLifetime));
+            _sessions[issued.SessionId] = (current, issued.ExpiresAt);
+            return issued;
+        }
+    }
+
+    internal void EndSession(string sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        lock (_gate) { _sessions.Remove(sessionId); }
+    }
+
+    internal Member? ValidateSession(string sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session)) { return null; }
+            if (session.ExpiresAt <= _time.GetUtcNow())
+            {
+                _sessions.Remove(sessionId);
+                return null;
+            }
+
+            var member = session.Member;
+            return _members.TryGetValue(member.BrainId, out var members) ? members.Find(candidate => candidate.PrincipalId == member.PrincipalId) : null;
+        }
     }
 
     /// <summary>Called on entry of each identity@1 member with the member name.</summary>

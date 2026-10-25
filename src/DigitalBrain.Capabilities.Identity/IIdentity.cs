@@ -6,8 +6,9 @@ namespace DigitalBrain.Capabilities.Identity;
 /// </summary>
 /// <remarks>
 /// No member takes a caller (D-15): gated members (<see cref="EnsureMember"/>, <see cref="RemoveMember"/>,
-/// <see cref="RemovePrincipalMember"/>) check the caller the runtime stamped on the call. Session issue stays with the
-/// host's HTTP edge and is not part of this contract. Later versions add members additively.
+/// <see cref="RemovePrincipalMember"/>) check the caller the runtime stamped on the call. Sessions are the
+/// separate <see cref="ISessions"/> under the same id; the cookie write stays with the host HTTP edge. Later versions add members
+/// additively.
 /// </remarks>
 [Capability("identity", 1)]
 public interface IIdentity

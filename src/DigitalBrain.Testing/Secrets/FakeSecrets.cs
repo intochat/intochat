@@ -73,7 +73,10 @@ public static class TestOSSecretsIdentityExtensions
         return os.With(name, identity).With(name, grants);
     }
 
-    /// <summary>Binds a new <see cref="FakeIdentity"/> (on the TestOS clock) as both identity@1 halves named <paramref name="name"/>.</summary>
+    /// <summary>
+    /// Binds a new <see cref="FakeIdentity"/> (on the TestOS clock) as the identity@1 connection named <paramref name="name"/>:
+    /// <see cref="IIdentity"/>, <see cref="IGrants"/>, <see cref="ISessions"/> and <see cref="IIdentityProvider"/>.
+    /// </summary>
     /// <param name="os">The TestOS.</param>
     /// <param name="name">The connection name.</param>
     /// <param name="configure">Seeds or captures the fake before binding.</param>
@@ -83,7 +86,7 @@ public static class TestOSSecretsIdentityExtensions
         var fake = new FakeIdentity(time: os.Clock);
         ArgumentNullException.ThrowIfNull(configure);
         configure(fake);
-        return os.WithIdentity(name, fake, fake);
+        return os.WithIdentity(name, fake, fake).With<ISessions>(name, fake).With<IIdentityProvider>(name, fake);
     }
 
     /// <summary>Binds a new, empty <see cref="FakeIdentity"/> as both identity@1 halves named <paramref name="name"/>.</summary>

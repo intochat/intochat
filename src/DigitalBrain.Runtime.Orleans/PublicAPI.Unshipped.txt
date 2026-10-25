@@ -748,3 +748,11 @@ static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(Digi
 DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate
 DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate.Check(DigitalBrain.Runtime.Orleans.Operations.OperationRequest! request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Operations.OperationGateDecision!>!
 DigitalBrain.Runtime.Orleans.Operations.ConfirmingOperationGate.ConfirmingOperationGate(System.IServiceProvider! services) -> void
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability.Describe() -> DigitalBrain.Capabilities.Identity.IdentityProviderDescriptor!
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability.End(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability.Issue(DigitalBrain.Capabilities.Identity.SessionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.SessionIssued!>!
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability.SessionsCapability(DigitalBrain.Capabilities.Identity.IIdentitySessionPort! port, DigitalBrain.ModuleDeclarations! declarations) -> void
+DigitalBrain.Runtime.Orleans.Capabilities.SessionsCapability.Validate(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Member?>!
+static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddIdentitySessions<TPort>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddIdentitySessions<TPort>(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!

@@ -34,6 +34,30 @@ public static class CapabilityRegistration
         return services;
     }
 
+    /// <summary>
+    /// identity@1 sessions and description (<see cref="SessionsCapability"/>: <see cref="ISessions"/> and
+    /// <see cref="IIdentityProvider"/>) over <typeparamref name="TPort"/>. The privileged grants come from the manifests of the
+    /// modules the host composed (<see cref="TopologyHosting.UseModuleTopology"/>); with none, every session call is refused.
+    /// </summary>
+    public static IServiceCollection AddIdentitySessions<TPort>(this IServiceCollection services) where TPort : class, IIdentitySessionPort
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<TPort>();
+        services.TryAddSingleton(TopologyHosting.ComposedDeclarations);
+        services.AddKeyedSingleton<SessionsCapability>(Capability.Identity.V1Id, (sp, _) => new SessionsCapability(sp.GetRequiredService<TPort>(), sp.GetRequiredService<ModuleDeclarations>()));
+        services.AddKeyedSingleton<ISessions>(Capability.Identity.V1Id, (sp, key) => sp.GetRequiredKeyedService<SessionsCapability>(key));
+        services.AddKeyedSingleton<IIdentityProvider>(Capability.Identity.V1Id, (sp, key) => sp.GetRequiredKeyedService<SessionsCapability>(key));
+        return services;
+    }
+
+    /// <summary>identity@1 sessions and description over <typeparamref name="TPort"/>, on the host builder.</summary>
+    public static IHostApplicationBuilder AddIdentitySessions<TPort>(this IHostApplicationBuilder builder) where TPort : class, IIdentitySessionPort
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.AddIdentitySessions<TPort>();
+        return builder;
+    }
+
     /// <summary>secrets@1 over <typeparamref name="TPort"/>, on the host builder.</summary>
     public static IHostApplicationBuilder AddSecretsCapability<TPort>(this IHostApplicationBuilder builder) where TPort : class, ISecretVaultPort
     {
