@@ -31,6 +31,7 @@ internal sealed class SynapseCursorRegistryState
     public bool Indexed { get; set; }
 }
 
+[DigitalBrain.Runtime.Orleans.Placement.BrainAffinePlacement]
 internal sealed class SynapseCursorRegistry(
     [PersistentState("synapse-cursors", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SynapseCursorRegistryState> state,
     IOptions<RetentionOptions> options,
