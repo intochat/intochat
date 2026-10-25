@@ -489,3 +489,5 @@ virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.St
 virtual DigitalBrain.Testing.Conformance.Storage.InMemoryStorage.OnCall(string! member) -> void
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.MissingId() -> DigitalBrain.Capabilities.Storage.ItemId
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.SeedFolder(DigitalBrain.Capabilities.Storage.IStorage! storage, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!
+DigitalBrain.Testing.FakeOperation.Completion.get -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Testing.FakeOperations.FakeOperations(DigitalBrain.Capabilities.Storage.StorageWriteRunner! runner, System.Func<DigitalBrain.Signal!, System.Threading.Tasks.Task!>! publish) -> void

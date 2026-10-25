@@ -15,6 +15,7 @@ internal sealed class TestNeuronContext : INeuronContext
         Timers = new HostTimers(host);
         Reminders = new HostReminders(host);
         Synapses = new TestSynapses(host);
+        Operations = new FakeOperations(TestOSOperations.Runner(host.OS.Services, host.Id.Brain), Publish);
     }
 
     public NeuronId Id => _host.Id;
@@ -29,7 +30,7 @@ internal sealed class TestNeuronContext : INeuronContext
 
     public IReminders Reminders { get; }
 
-    public IOperations Operations { get; } = new FakeOperations();
+    public IOperations Operations { get; }
 
     public ISynapses Synapses { get; }
 

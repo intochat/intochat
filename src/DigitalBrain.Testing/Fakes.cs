@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
@@ -223,22 +225,54 @@ public sealed class InMemorySignalHistory : ISignalHistory
     }
 }
 
-/// <summary>Operations held in memory: every started plan, its progress, result and cancellation.</summary>
+/// <summary>
+/// Operations held in memory: every started plan, its progress, result and cancellation. Built with a
+/// <see cref="StorageWriteRunner"/> and a publish callback (as <see cref="TestOS"/> does for every neuron) it has the runtime
+/// semantics (D-04): a <see cref="WritePlan"/> runs through the same runner the runtime operation entity uses (dry run, conflict
+/// fail by default, copy-verify-delete between connections) and <see cref="OperationStarted"/>, <see cref="OperationProgress"/>
+/// and <see cref="OperationDone"/> are published in order. In TestOS the write runs inside <see cref="Start"/>, in the caller's turn.
+/// </summary>
 public sealed class FakeOperations : IOperations
 {
-    private readonly Dictionary<DigitalBrain.Operations.OperationId, FakeOperation> _operations = [];
+    private readonly ConcurrentDictionary<DigitalBrain.Operations.OperationId, FakeOperation> _operations = new();
+    private readonly StorageWriteRunner? _runner;
+    private readonly Func<Signal, Task>? _publish;
     private int _next;
+
+    /// <summary>Operations that only record: the caller drives every plan through its handle.</summary>
+    public FakeOperations()
+    {
+    }
+
+    /// <summary>Operations that run write plans through <paramref name="runner"/> and publish operation signals with <paramref name="publish"/>.</summary>
+    public FakeOperations(StorageWriteRunner runner, Func<Signal, Task> publish)
+    {
+        ArgumentNullException.ThrowIfNull(runner);
+        ArgumentNullException.ThrowIfNull(publish);
+        _runner = runner;
+        _publish = publish;
+    }
 
     /// <summary>Every started operation by id.</summary>
     public IReadOnlyDictionary<DigitalBrain.Operations.OperationId, FakeOperation> All => _operations;
 
     /// <inheritdoc />
-    public Task<IOperation> Start(DigitalBrain.Operations.OperationPlan plan, CancellationToken ct)
+    public async Task<IOperation> Start(DigitalBrain.Operations.OperationPlan plan, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        var operation = new FakeOperation(new DigitalBrain.Operations.OperationId($"op-{++_next}"), plan);
+        var write = plan as WritePlan;
+        var operation = new FakeOperation(new DigitalBrain.Operations.OperationId($"op-{Interlocked.Increment(ref _next)}"), plan, _publish, write is not null && _runner is not null);
         _operations[operation.Id] = operation;
-        return Task.FromResult<IOperation>(operation);
+        if (write is not null && _publish is not null)
+        {
+            // As on the runtime: inline bytes never travel in the started signal.
+            await _publish(new OperationStarted(operation.Id, write with { Inline = null })).ConfigureAwait(false);
+        }
+        if (write is not null && _runner is not null)
+        {
+            await operation.Complete(await _runner.Run(write, operation).ConfigureAwait(false)).ConfigureAwait(false);
+        }
+        return operation;
     }
 
     /// <inheritdoc />
@@ -252,11 +286,16 @@ public sealed class FakeOperation : IOperation, IDisposable
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly List<double> _progress = [];
+    private readonly TaskCompletionSource<DigitalBrain.Operations.OperationResult> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Func<Signal, Task>? _publish;
+    private readonly bool _driven;
 
-    internal FakeOperation(DigitalBrain.Operations.OperationId id, DigitalBrain.Operations.OperationPlan plan)
+    internal FakeOperation(DigitalBrain.Operations.OperationId id, DigitalBrain.Operations.OperationPlan plan, Func<Signal, Task>? publish = null, bool driven = false)
     {
         Id = id;
         Plan = plan;
+        _publish = publish;
+        _driven = driven;
     }
 
     /// <inheritdoc />
@@ -265,36 +304,46 @@ public sealed class FakeOperation : IOperation, IDisposable
     /// <summary>The plan the operation was started with.</summary>
     public DigitalBrain.Operations.OperationPlan Plan { get; }
 
-    /// <summary>Every reported progress fraction, in order.</summary>
+    /// <summary>Every reported progress fraction, in order; reports after a cancel or after completion are dropped.</summary>
     public IReadOnlyList<double> Progress => _progress;
 
     /// <summary>The result, or null while running.</summary>
     public DigitalBrain.Operations.OperationResult? Result { get; private set; }
+
+    /// <summary>Completes with the result once the operation ended.</summary>
+    public Task<DigitalBrain.Operations.OperationResult> Completion => _done.Task;
 
     /// <inheritdoc />
     public CancellationToken Cancellation => _cancellation.Token;
 
     /// <inheritdoc />
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="fraction"/> is outside 0..1.</exception>
-    public ValueTask Report(double fraction)
+    public async ValueTask Report(double fraction)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(fraction, 0d);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(fraction, 1d);
+        if (Result is not null || _cancellation.IsCancellationRequested) { return; }
         _progress.Add(fraction);
-        return ValueTask.CompletedTask;
+        if (_publish is not null) { await _publish(new OperationProgress(Id, fraction)).ConfigureAwait(false); }
     }
 
     /// <inheritdoc />
-    /// <exception cref="InvalidOperationException">The operation already completed.</exception>
-    public ValueTask Complete(DigitalBrain.Operations.OperationResult result)
+    /// <remarks>Once only, as on the runtime: later calls are ignored.</remarks>
+    public async ValueTask Complete(DigitalBrain.Operations.OperationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        if (Result is not null) { throw new InvalidOperationException($"Operation {Id} already completed with {Result}."); }
+        if (Result is not null) { return; }
         Result = result;
-        return ValueTask.CompletedTask;
+        if (_publish is not null) { await _publish(new OperationDone(Id, result)).ConfigureAwait(false); }
+        _done.TrySetResult(result);
     }
 
-    internal Task Cancel() => _cancellation.CancelAsync();
+    // Fires the token; an operation its caller drives also ends Cancelled now, a write the runner drives ends when the runner stops.
+    internal async Task Cancel()
+    {
+        await _cancellation.CancelAsync().ConfigureAwait(false);
+        if (!_driven) { await Complete(new DigitalBrain.Operations.OperationResult.Cancelled()).ConfigureAwait(false); }
+    }
 
     /// <inheritdoc />
     public void Dispose() => _cancellation.Dispose();
