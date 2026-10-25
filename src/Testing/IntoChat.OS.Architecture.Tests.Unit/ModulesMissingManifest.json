@@ -20,6 +20,5 @@
   "IntoChat.OS.Modules.Qdrant.QdrantModule",
   "IntoChat.OS.Modules.Salesforce.SalesforceModule",
   "IntoChat.OS.Modules.Supabase.SupabaseModule",
-  "IntoChat.OS.Modules.Time.TimeModule",
   "IntoChat.OS.Modules.Tools.ToolsModule"
 ]

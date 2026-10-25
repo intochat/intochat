@@ -3,6 +3,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
     <ProjectReference Include="../IntoChat.OS.Testing.Aspire/IntoChat.OS.Testing.Aspire.csproj" />
     <ProjectReference Include="../IntoChat.OS.Testing.Playwright/IntoChat.OS.Testing.Playwright.csproj" />
     <None Update="Identity/LegacyState/*.orleans" CopyToOutputDirectory="PreserveNewest" />

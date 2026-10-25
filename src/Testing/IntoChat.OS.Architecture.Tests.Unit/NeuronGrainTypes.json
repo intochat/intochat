@@ -1073,5 +1073,10 @@
     "Type": "probe.plain",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.OS.Testing.Tests.Integration.HarnessCounter": {
+    "Type": "testing.harness-counter",
+    "Store": null,
+    "StateName": null
   }
 }

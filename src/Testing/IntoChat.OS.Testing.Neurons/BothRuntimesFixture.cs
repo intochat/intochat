@@ -42,15 +42,17 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
     public Task<INeuronRuntime> Runtime(NeuronRuntimeKind kind)
         => _shared.GetOrAdd(kind, value => new Lazy<Task<INeuronRuntime>>(() => Start(value, CancellationToken.None))).Value;
 
-    // A runtime of kind that the caller disposes; home keeps the silo's state folder (null: a fresh temporary one).
-    public async Task<INeuronRuntime> Start(NeuronRuntimeKind kind, CancellationToken ct, string? home = null)
+    // A runtime of kind that the caller disposes; home keeps the silo's state folder (null: a fresh temporary one) and
+    // siloServices runs after ConfigureSilo (fault injection, controls).
+    public async Task<INeuronRuntime> Start(NeuronRuntimeKind kind, CancellationToken ct, string? home = null, Action<IServiceCollection>? siloServices = null)
     {
         var modules = Modules;
         if (modules.Count == 0) { throw new InvalidOperationException("A both-runtimes fixture needs at least one module."); }
         return kind switch
         {
             NeuronRuntimeKind.TestOS => TestOSRuntime.Start(Brain, modules),
-            NeuronRuntimeKind.Silo => await SiloRuntime.Start(Brain, modules, ConfigureSilo, SiloConfiguration, home, ct).ConfigureAwait(false),
+            NeuronRuntimeKind.Silo => await SiloRuntime.Start(Brain, modules, services => { ConfigureSilo(services); siloServices?.Invoke(services); },
+                SiloConfiguration, home, ct).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
     }
@@ -127,7 +129,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         {
             var journal = host.Services.GetRequiredService<IBrainJournalWriter>();
             await journal.Claim(publisher.Brain.Value, ct).ConfigureAwait(false);
-            var page = await journal.ReadSince(publisher.Brain.Value, publisher.ToString(), 0, 10_000, ct).ConfigureAwait(false);
+            var page = await journal.ReadSince(publisher.Brain.Value, publisher.ToString(), 0, 1_000, ct).ConfigureAwait(false);
             var alias = AliasOf(typeof(T));
             return [.. page.Signals.Where(entry => entry.Type == alias).Select(entry => JsonSerializer.Deserialize<T>(entry.Json.Span, RuntimeProtocol.Json)!)];
         }

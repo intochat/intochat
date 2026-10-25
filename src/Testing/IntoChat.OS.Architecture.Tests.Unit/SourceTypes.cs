@@ -141,11 +141,20 @@ internal static class SourceTypes
 
     private static string? BaseName(TypeSyntax type) => type switch
     {
-        QualifiedNameSyntax qualified when qualified.Left.ToString().StartsWith("DigitalBrain", StringComparison.Ordinal) => null,
+        QualifiedNameSyntax qualified when IsDigitalBrain(qualified.Left) => null,
         QualifiedNameSyntax qualified => BaseName(qualified.Right),
         AliasQualifiedNameSyntax alias => BaseName(alias.Name),
         GenericNameSyntax generic => generic.Identifier.Text,
         IdentifierNameSyntax identifier => identifier.Identifier.Text,
         _ => null,
     };
+
+    // DigitalBrain.X, or X through a file's alias of a DigitalBrain namespace (using DB = DigitalBrain;).
+    private static bool IsDigitalBrain(NameSyntax left)
+    {
+        if (left.ToString().StartsWith("DigitalBrain", StringComparison.Ordinal)) { return true; }
+        return left is IdentifierNameSyntax alias && left.SyntaxTree.GetRoot() is CompilationUnitSyntax root
+            && root.DescendantNodes().OfType<UsingDirectiveSyntax>().Any(directive => directive.Alias?.Name.Identifier.Text == alias.Identifier.Text
+                && directive.NamespaceOrType.ToString().StartsWith("DigitalBrain", StringComparison.Ordinal));
+    }
 }
