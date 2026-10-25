@@ -101,6 +101,44 @@ DigitalBrain.InterleavesAttribute.InterleavesAttribute() -> void
 DigitalBrain.InterleavesWhenAttribute
 DigitalBrain.InterleavesWhenAttribute.InterleavesWhenAttribute(string! predicate) -> void
 DigitalBrain.InterleavesWhenAttribute.Predicate.get -> string!
+DigitalBrain.Invocation.BindingException
+DigitalBrain.Invocation.BindingException.BindingException() -> void
+DigitalBrain.Invocation.BindingException.BindingException(string! message) -> void
+DigitalBrain.Invocation.BindingException.BindingException(string! message, System.Exception! innerException) -> void
+DigitalBrain.Invocation.BoundCall
+DigitalBrain.Invocation.BoundCall.ArgumentCount.get -> int
+DigitalBrain.Invocation.BoundCall.Contract.get -> System.Type!
+DigitalBrain.Invocation.BoundCall.Kind.get -> DigitalBrain.Invocation.InvocationResultKind
+DigitalBrain.Invocation.BoundCall.Method.get -> System.Reflection.MethodInfo!
+DigitalBrain.Invocation.BoundCall.ResultType.get -> System.Type?
+DigitalBrain.Invocation.InvocationEncoder
+DigitalBrain.Invocation.InvocationResultKind
+DigitalBrain.Invocation.InvocationResultKind.None = 0 -> DigitalBrain.Invocation.InvocationResultKind
+DigitalBrain.Invocation.InvocationResultKind.Stream = 2 -> DigitalBrain.Invocation.InvocationResultKind
+DigitalBrain.Invocation.InvocationResultKind.Value = 1 -> DigitalBrain.Invocation.InvocationResultKind
+DigitalBrain.Invocation.NeuronBinder
+DigitalBrain.Invocation.NeuronBinder.Bind(System.Type! contract, DigitalBrain.Invocation.RuntimeInvocation! call) -> DigitalBrain.Invocation.BoundCall!
+DigitalBrain.Invocation.NeuronBinder.InvokeAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
+DigitalBrain.Invocation.NeuronBinder.MaximumArgumentBytes.get -> int
+DigitalBrain.Invocation.NeuronBinder.Misses.get -> long
+DigitalBrain.Invocation.NeuronBinder.NeuronBinder(int maximumArgumentBytes = 1048576) -> void
+DigitalBrain.Invocation.NeuronBinder.StreamAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Text.Json.JsonElement>!
+DigitalBrain.Invocation.RuntimeInvocation
+DigitalBrain.Invocation.RuntimeInvocation.<Clone>$() -> DigitalBrain.Invocation.RuntimeInvocation!
+DigitalBrain.Invocation.RuntimeInvocation.Arguments.get -> System.Text.Json.JsonElement[]!
+DigitalBrain.Invocation.RuntimeInvocation.Arguments.init -> void
+DigitalBrain.Invocation.RuntimeInvocation.Behavior.get -> string!
+DigitalBrain.Invocation.RuntimeInvocation.Behavior.init -> void
+DigitalBrain.Invocation.RuntimeInvocation.Contract.get -> string!
+DigitalBrain.Invocation.RuntimeInvocation.Contract.init -> void
+DigitalBrain.Invocation.RuntimeInvocation.Deconstruct(out string! Behavior, out string! Contract, out string! Key, out string! Method, out System.Text.Json.JsonElement[]! Arguments) -> void
+DigitalBrain.Invocation.RuntimeInvocation.Equals(DigitalBrain.Invocation.RuntimeInvocation? other) -> bool
+DigitalBrain.Invocation.RuntimeInvocation.Key.get -> string!
+DigitalBrain.Invocation.RuntimeInvocation.Key.init -> void
+DigitalBrain.Invocation.RuntimeInvocation.Method.get -> string!
+DigitalBrain.Invocation.RuntimeInvocation.Method.init -> void
+DigitalBrain.Invocation.RuntimeInvocation.RuntimeInvocation(string! Behavior, string! Contract, string! Key, string! Method, System.Text.Json.JsonElement[]! Arguments) -> void
+DigitalBrain.Invocation.RuntimeProtocol
 DigitalBrain.JournaledSignal
 DigitalBrain.JournaledSignal.<Clone>$() -> DigitalBrain.JournaledSignal!
 DigitalBrain.JournaledSignal.At.get -> System.DateTimeOffset
@@ -314,6 +352,7 @@ DigitalBrain.Synapse.Synapse(DigitalBrain.NeuronId From, System.Type! Signal, Di
 DigitalBrain.Synapse.To.get -> DigitalBrain.NeuronId
 DigitalBrain.Synapse.To.init -> void
 abstract DigitalBrain.Signal.<Clone>$() -> DigitalBrain.Signal!
+const DigitalBrain.Invocation.NeuronBinder.DefaultMaximumArgumentBytes = 1048576 -> int
 const DigitalBrain.SignalPage.MaxLimit = 1000 -> int
 override DigitalBrain.AppManifest.Equals(object? obj) -> bool
 override DigitalBrain.AppManifest.GetHashCode() -> int
@@ -329,6 +368,9 @@ override DigitalBrain.Gap.<Clone>$() -> DigitalBrain.Gap!
 override DigitalBrain.Gap.Equals(object? obj) -> bool
 override DigitalBrain.Gap.GetHashCode() -> int
 override DigitalBrain.Gap.ToString() -> string!
+override DigitalBrain.Invocation.RuntimeInvocation.Equals(object? obj) -> bool
+override DigitalBrain.Invocation.RuntimeInvocation.GetHashCode() -> int
+override DigitalBrain.Invocation.RuntimeInvocation.ToString() -> string!
 override DigitalBrain.JournaledSignal.Equals(object? obj) -> bool
 override DigitalBrain.JournaledSignal.GetHashCode() -> int
 override DigitalBrain.JournaledSignal.ToString() -> string!
@@ -377,6 +419,10 @@ static DigitalBrain.Capabilities.CapabilityId.operator !=(DigitalBrain.Capabilit
 static DigitalBrain.Capabilities.CapabilityId.operator ==(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
 static DigitalBrain.Gap.operator !=(DigitalBrain.Gap? left, DigitalBrain.Gap? right) -> bool
 static DigitalBrain.Gap.operator ==(DigitalBrain.Gap? left, DigitalBrain.Gap? right) -> bool
+static DigitalBrain.Invocation.InvocationEncoder.Encode(System.Reflection.MethodInfo! method, object?[]? args) -> System.Text.Json.JsonElement[]!
+static DigitalBrain.Invocation.InvocationEncoder.TokenOf(System.Reflection.MethodInfo! method, object?[]? args) -> System.Threading.CancellationToken
+static DigitalBrain.Invocation.RuntimeInvocation.operator !=(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
+static DigitalBrain.Invocation.RuntimeInvocation.operator ==(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
 static DigitalBrain.JournaledSignal.operator !=(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
 static DigitalBrain.JournaledSignal.operator ==(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
 static DigitalBrain.ModuleManifest.Of(System.Type! moduleType) -> DigitalBrain.ModuleManifest!
@@ -417,6 +463,7 @@ static DigitalBrain.State.WriteResult.operator !=(DigitalBrain.State.WriteResult
 static DigitalBrain.State.WriteResult.operator ==(DigitalBrain.State.WriteResult? left, DigitalBrain.State.WriteResult? right) -> bool
 static DigitalBrain.Synapse.operator !=(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
 static DigitalBrain.Synapse.operator ==(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
+static readonly DigitalBrain.Invocation.RuntimeProtocol.Json -> System.Text.Json.JsonSerializerOptions!
 virtual DigitalBrain.Neuron.AdmitSynapse(DigitalBrain.NeuronId subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! signals) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron.OnActivate(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron.OnDeactivate(DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

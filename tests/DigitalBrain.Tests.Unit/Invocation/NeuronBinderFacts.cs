@@ -1,3 +1,5 @@
+// CA1068: Tokened deliberately takes tokens first and last (token injection anywhere). xUnit1051: the binder facts pass their own tokens on purpose. CA1861: inline sample arguments.
+#pragma warning disable CA1068, xUnit1051, CA1861
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Invocation;
