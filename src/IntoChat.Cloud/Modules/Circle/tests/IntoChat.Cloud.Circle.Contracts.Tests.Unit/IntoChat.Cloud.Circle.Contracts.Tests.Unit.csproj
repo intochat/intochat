@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Circle module contracts: the circle wire (enroll, refresh, journal, store, files), the machine proof, the ICircleConnection API and the compute delegate seam.</Description>
+    <RootNamespace>IntoChat.Cloud.Circle</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <!-- DigitalBrain and the BCL only: no Orleans, ASP.NET Core, os internals or vendor SDKs. -->
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+  </ItemGroup>
+</Project>

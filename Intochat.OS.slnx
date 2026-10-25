@@ -32,6 +32,12 @@
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory.Tests.Unit/IntoChat.OS.Runtime.InMemory.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
   </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Circle/">
+    <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Contracts.Tests.Unit/IntoChat.Cloud.Circle.Contracts.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Circle/Contracts/">
+    <Project Path="src/IntoChat.Cloud/Modules/Circle/Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />
+  </Folder>
   <Folder Name="/LocalSetup/">
     <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/IntoChat.OS.LocalSetup.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
