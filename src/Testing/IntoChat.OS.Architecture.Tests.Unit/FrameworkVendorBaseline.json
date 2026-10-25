@@ -1,0 +1,14 @@
+{
+  "IntoChat.OS.Framework": [
+    "folder:Auth",
+    "folder:Caching",
+    "folder:Configuration",
+    "folder:Contracts",
+    "folder:Http",
+    "folder:Platform",
+    "folder:Surface",
+    "folder:Types",
+    "framework:Microsoft.AspNetCore.App",
+    "package:Microsoft.Extensions.AI.Abstractions"
+  ]
+}
