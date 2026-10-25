@@ -1,7 +1,7 @@
 using IntoChat.OS.Framework.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Framework.Tests.Integration.Composition;
+namespace IntoChat.OS.Connections.Tests.Unit;
 
 public sealed class SecretRedactorFacts
 {

@@ -12,11 +12,12 @@ public sealed class BoundaryFacts
     private static readonly string[] KernelLayers =
     [
         "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
-        "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
+        "IntoChat.OS.Connections", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 
     [Theory]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
+    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Connections")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client.Orleans")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Authority")]
@@ -25,6 +26,7 @@ public sealed class BoundaryFacts
     [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Framework")]
     [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Client")]
+    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Connections")]
     [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Framework")]
     [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)

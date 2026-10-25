@@ -10,12 +10,10 @@
   "IntoChat.OS.Framework.Tests.Integration/Kernel/KernelFacts.cs": 6,
   "IntoChat.OS.Framework.Tests.Integration/TestNeurons.cs": 2,
   "IntoChat.OS.Framework.Tests.Integration/WatchCycleFacts.cs": 10,
-  "IntoChat.OS.Framework/Platform/Connections/ConnectionGrains.cs": 8,
-  "IntoChat.OS.Framework/Platform/Connections/ConnectionNeuron.cs": 3,
   "IntoChat.OS.Framework/Runtime/GrainNeuronResolver.cs": 2,
   "IntoChat.OS.Framework/Runtime/Kernel/CompiledTypes.cs": 3,
   "IntoChat.OS.Framework/Runtime/Kernel/InstanceRegistration.cs": 3,
-  "IntoChat.OS.Framework/Runtime/Kernel/Kernel.cs": 12,
+  "IntoChat.OS.Framework/Runtime/Kernel/Kernel.cs": 11,
   "IntoChat.OS.Framework/Runtime/Kernel/KernelGrains.cs": 4,
   "IntoChat.OS.Mcp.Tests.Integration/McpRuntimeFacts.cs": 1,
   "IntoChat.OS.Mcp.Tests.Integration/McpTrustFacts.cs": 1,
@@ -117,5 +115,8 @@
   "IntoChat.OS.Modules.AI.Tests.Integration/Models/BrainKeyFacts.cs": 2,
   "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2,
   "IntoChat.OS.Authority/Entries/BrainProviderKeys.cs": 2,
-  "IntoChat.OS.Modules.Flutter.Tests.Integration/Button/SessionActivationGuardFacts.cs": 2
+  "IntoChat.OS.Modules.Flutter.Tests.Integration/Button/SessionActivationGuardFacts.cs": 2,
+  "IntoChat.OS.Connections/Hosting/IdentityBrainMembership.cs": 2,
+  "IntoChat.OS.Connections/Platform/Connections/ConnectionGrains.cs": 8,
+  "IntoChat.OS.Connections/Platform/Connections/ConnectionNeuron.cs": 3
 }

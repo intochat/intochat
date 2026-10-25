@@ -12,10 +12,6 @@
   "IntoChat.OS.Sdk/Configuration/IntoChatOSConfiguration.cs",
   "IntoChat.OS.Sdk.Http/ForwardedHeadersSetup.cs",
   "IntoChat.OS.Framework/Runtime/Kernel/InstanceDirectoryOptions.cs",
-  "IntoChat.OS.Framework/Configuration/ModuleSettingsValidation.cs",
-  "IntoChat.OS.Framework/Platform/Identity/AuthOptions.cs",
-  "IntoChat.OS.Framework/Platform/Identity/IdentityHostOptions.cs",
-  "IntoChat.OS.Framework/Platform/Identity/KernelCorsOptions.cs",
   "IntoChat.OS.Contracts.Configuration/IntoChatOSNames.cs",
   "IntoChat.OS.Modules.AI.Tests.Integration/AIGrammarFacts.cs",
   "IntoChat.OS.Authority.Tests.Integration/AuthorityRenameFacts.cs",
@@ -26,5 +22,9 @@
   "IntoChat.OS.Authority/Compute/ComputeOptions.cs",
   "IntoChat.OS.ServiceDefaults/HealthProbes.cs",
   "IntoChat.OS.Architecture.Tests.Unit/RunModeMarkerFacts.cs",
-  "IntoChat.OS.LocalSetup/LocalSetupKeys.cs"
+  "IntoChat.OS.LocalSetup/LocalSetupKeys.cs",
+  "IntoChat.OS.Connections/Platform/Identity/AuthOptions.cs",
+  "IntoChat.OS.Connections/Platform/Identity/IdentityHostOptions.cs",
+  "IntoChat.OS.Connections/Platform/Identity/KernelCorsOptions.cs",
+  "IntoChat.OS.Framework/Modules/ModuleSettingsValidation.cs"
 ]

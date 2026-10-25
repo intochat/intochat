@@ -10,7 +10,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // runtime (Framework), the platform (Authority) or the client.
 public sealed class SdkReferenceClosureFacts
 {
-    private static readonly string[] Forbidden = ["IntoChat.OS.Framework", "IntoChat.OS.Client"];
+    private static readonly string[] Forbidden = ["IntoChat.OS.Framework", "IntoChat.OS.Connections", "IntoChat.OS.Client"];
 
     [Fact]
     public void AuthoringTypesLiveInTheSdkAssembly()
