@@ -14,6 +14,7 @@
     <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="xunit.v3.assert" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
