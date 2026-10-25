@@ -1,11 +1,12 @@
 using IntoChat.OS;
 using IntoChat.OS.Client.Runtime;
+using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Client;
 
 // One behavior's view of its session: its settings, its stop signal, and neuron calls and signal
 // subscriptions made in its name. Disposing it ends nothing shared; the host owns the session.
-public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncDisposable, IInitialSignalWait
+public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncDisposable, IInitialSignalWait, IPlainClient
 {
     private readonly SessionConnection _session;
     private readonly string _behavior;
@@ -58,7 +59,14 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
         return Watch<T>(source, onSubscribed, selector, cancellationToken);
     }
 
-    private IAsyncEnumerable<T> Watch<T>(INeuron source, Func<Task> onSubscribed, string? selector, CancellationToken cancellationToken) where T : Signal
+    // Transitional (06-07, R4-15): a plain neuron is called and watched over the same session as any other; its [Signal] records
+    // reach the behavior through the runtime's session synapse. PlainNeuronClient (brain.Get<ITimer>, brain.On<TimerTick>) lands here.
+    object IPlainClient.GetPlain(Type contract, NeuronId id) => NeuronProxy.Create(contract, _session, _behavior, id.Name, _trace);
+
+    IAsyncEnumerable<T> IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
+        => Watch<T>(source, onSubscribed, selector: null, cancellationToken);
+
+    private IAsyncEnumerable<T> Watch<T>(object source, Func<Task> onSubscribed, string? selector, CancellationToken cancellationToken) where T : class
     {
         ArgumentNullException.ThrowIfNull(onSubscribed);
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }

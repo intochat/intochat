@@ -18,7 +18,8 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory)
+internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
+    IntoChat.OS.Runtime.IPlainNeurons? plain = null)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
 
@@ -52,7 +53,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
                 ? invocation.Arguments[argument++].Deserialize(parameters[index].ParameterType, RuntimeProtocol.Json)
                 : cancellationToken;
         }
-        var neuron = grains.GetGrain(contract, invocation.Key);
+        // Transitional (06-07): a plain contract (06-03 seam) is called on its runtime host after the same access checks.
+        var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? Plain.Get(contract, invocation.Key) : grains.GetGrain(contract, invocation.Key);
         Stamp(identity);
         object? returned;
         try { returned = method.Invoke(neuron, values); }
@@ -116,10 +118,13 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         {
             // Registered before the first batch is sent, so a refusal surfaces here and not on the stream.
             var contract = Callable(subscribe.Contract);
-            if (grains.GetGrain(contract, subscribe.Key) is not INeuron source) { throw new ArgumentException($"{subscribe.Contract} is not a neuron."); }
+            // Transitional (06-07): a plain neuron is named by its runtime id; the runtime hears it through the session synapse neuron.
+            var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract)
+                ? PlainSources.Of(Plain.IdOf(contract, subscribe.Key))
+                : grains.GetGrain(contract, subscribe.Key) is INeuron source ? source.GetGrainId().ToString() : throw new ArgumentException($"{subscribe.Contract} is not a neuron.");
             var identity = await IdentityOf(brainId, claims.Session, subscribe.Behavior).ConfigureAwait(false);
             RequireTargetBrain(brainId, subscribe.Key, nameof(INeuron.Watch), identity, contract.GetCustomAttribute<AccessAttribute>());
-            var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, source.GetGrainId().ToString(), subscribe.Signal, subscribe.Selector).ConfigureAwait(false);
+            var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, neuron, subscribe.Signal, subscribe.Selector).ConfigureAwait(false);
             return Results.Ok(new { subscription = id });
         }
         if (report.Acknowledge is { } acknowledge) { await runtime.Acknowledge(claims.Session, acknowledge.Subscription, acknowledge.Watermark).ConfigureAwait(false); return Results.Ok(); }
@@ -164,6 +169,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         }
         finally { streams.Close(session, channel); }
     }
+
+    private IntoChat.OS.Runtime.IPlainNeurons Plain => plain ?? throw new NotSupportedException("This host does not reach plain neurons: the kernel composition registers them.");
 
     private Type Callable(string name)
         // Only neuron contracts are kernel types; kernel grains and inbound plumbing are not neurons.

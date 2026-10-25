@@ -22,13 +22,16 @@ public class NeuronProxy : DispatchProxy
     internal string Key { get; private set; } = "";
 
     internal static T Create<T>(SessionConnection session, string behavior, string key, BehaviorTrace trace)
+        => (T)Create(typeof(T), session, behavior, key, trace);
+
+    internal static object Create(Type contract, SessionConnection session, string behavior, string key, BehaviorTrace trace)
     {
-        var proxy = (T)Create(typeof(T), typeof(NeuronProxy));
-        var neuron = (NeuronProxy)(object)proxy;
+        var proxy = Create(contract, typeof(NeuronProxy));
+        var neuron = (NeuronProxy)proxy;
         neuron._session = session;
         neuron._behavior = behavior;
         neuron._trace = trace;
-        neuron.Contract = typeof(T);
+        neuron.Contract = contract;
         neuron.Key = key;
         return proxy;
     }
