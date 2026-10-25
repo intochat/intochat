@@ -1,4 +1,5 @@
 using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
@@ -18,8 +19,8 @@ internal interface IHostNeuronContext
 
 /// <summary>
 /// The context of a hosted neuron: id, services, clock, state over BrainLog with publish after append, timers and reminders as
-/// host grain turns, the brain's signal history, typed proxies, caller provenance and deferred work. Synapses arrive with the
-/// synapse engine (04-12); operations are not hosted yet.
+/// host grain turns, the brain's signal history, synapses over the activation's <see cref="SynapseEngine"/>, typed proxies, caller
+/// provenance and deferred work. Operations are not hosted yet.
 /// </summary>
 internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
 {
@@ -33,8 +34,9 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
     private readonly HostTimers _timers;
 
     public HostNeuronContext(NeuronId id, GrainId grainId, NeuronRegistration registration, IServiceProvider services, IGrainFactory grains,
-        NeuronTypeRegistry types, string silo, IHostTicks ticks, Action<Func<Task>> defer)
+        NeuronTypeRegistry types, string silo, IHostTicks ticks, Action<Func<Task>> defer, SynapseEngine synapses)
     {
+        Synapses = new HostSynapses(synapses);
         Id = id;
         Silo = silo;
         _services = services;
@@ -61,7 +63,7 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
 
     public IOperations Operations => throw new NotSupportedException("INeuronContext.Operations is not hosted on the Orleans runtime yet.");
 
-    public ISynapses Synapses => throw new NotSupportedException("INeuronContext.Synapses arrives with the synapse engine (04-12).");
+    public ISynapses Synapses { get; }
 
     /// <summary>The signal history of this neuron's brain only (T-04-35).</summary>
     /// <exception cref="InvalidOperationException">The <c>cluster</c> store is not BrainLog.</exception>

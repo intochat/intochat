@@ -6,6 +6,8 @@ using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;
+using Orleans.Streams.Core;
+using DigitalBrain.Runtime.Orleans.Synapses;
 
 namespace DigitalBrain.Runtime.Orleans.Hosting;
 
@@ -14,7 +16,7 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// dispatch each <see cref="RuntimeInvocation"/> through the one <see cref="NeuronBinder"/>. The invocation's Behavior is ignored:
 /// provenance comes from RequestContext, stamped by <see cref="OrleansInvocationSink"/>.
 /// </summary>
-internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, IRemindable, IHostTicks
+internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, ISynapseHost, IStreamSubscriptionObserver, IRemindable, IHostTicks
 {
     private readonly Dictionary<string, IGrainTimer> _timers = new(StringComparer.Ordinal);
     /// <summary>The binder every host grain dispatches through; its cache also serves the interleaving predicate.</summary>
@@ -26,6 +28,7 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     private Neuron? _neuron;
     private Type? _class;
     private string _key = string.Empty;
+    private SynapseEngine? _synapses;
 
     /// <summary>The host grain type this class implements.</summary>
     protected abstract string GrainTypeName { get; }
@@ -41,11 +44,18 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
         if (expected != GrainTypeName) { throw new BindingException($"{neuronClass.FullName} is hosted by {expected}, not {GrainTypeName}."); }
         _class = neuronClass;
         var neuron = (Neuron)ActivatorUtilities.CreateInstance(ServiceProvider, neuronClass);
+        var synapses = new SynapseEngine(id, this.GetGrainId(), registration, ServiceProvider, grains, types, Drain);
         var context = new HostNeuronContext(id, this.GetGrainId(), registration, ServiceProvider, grains, types,
-            ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, _deferred.Enqueue);
+            ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, _deferred.Enqueue, synapses);
         NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, cancellationToken).ConfigureAwait(true);
         _neuron = neuron;
+        _synapses = synapses;
+        synapses.Neuron = neuron;
+        // Catch-up runs on every activation, before callers or live references reach the neuron (04 D-12; spike: catch-up first,
+        // live duplicates are then dropped by the cursor).
+        await synapses.Load().ConfigureAwait(true);
+        await synapses.CatchUp().ConfigureAwait(true);
         // A publisher announces its own last again, so subscribers that missed a reference catch up (04 D-01).
         if (registration.Policy != HostPolicy.Stateless) { await context.HostState.Reannounce().ConfigureAwait(true); }
     }
@@ -88,6 +98,29 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
         var (neuron, bound) = Prepare(call);
         await foreach (var item in Binder.StreamAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
     }
+
+    /// <inheritdoc />
+    public async Task Admit(NeuronId subscriber, string[] signalAliases)
+    {
+        ArgumentNullException.ThrowIfNull(signalAliases);
+        if (_neuron is not { } neuron) { throw new InvalidOperationException($"The neuron {_key} is not active."); }
+        // Admission is decided under the subscriber's identity: a caller may not ask on behalf of another neuron (T-04-36).
+        var caller = RequestContext.Get(HostNeuronContext.CallerKey) as string ?? string.Empty;
+        if (!string.Equals(caller, subscriber.ToString(), StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException($"Admission of {subscriber} was asked by '{caller}', not by the subscriber.");
+        }
+        var map = ServiceProvider.GetRequiredService<JournalPayloads>().Types;
+        IReadOnlyList<Type> signals = [.. signalAliases.Select(alias => map.TryResolve(alias, out var type) ? type : throw new ArgumentException($"'{alias}' is not a registered [Signal] alias.", nameof(signalAliases)))];
+        await NeuronAttachment.Admit(neuron, subscriber, signals).ConfigureAwait(true);
+    }
+
+    /// <inheritdoc />
+    public Task CatchUp() => _synapses?.CatchUp() ?? Task.CompletedTask;
+
+    /// <summary>Resumes the explicit subscription on this activation; never subscribes again (04 D-12).</summary>
+    public Task OnSubscribed(IStreamSubscriptionHandleFactory handleFactory)
+        => _synapses is { } synapses ? synapses.OnSubscribed(handleFactory) : Task.CompletedTask;
 
     /// <inheritdoc />
     public Task ReceiveReminder(string reminderName, TickStatus status) => Tick(reminderName, CancellationToken.None);

@@ -124,6 +124,7 @@ public sealed class SynapseGapFacts(ShortRetentionSilo silo) : IClassFixture<Sho
         await silo.Get<IListener>(Listener).Follow(Source);
         await silo.Get<ICounter>(Source).Add(1);
         await Heard.Until(Listener, 1, ct);
+        await Task.Delay(1000, ct); // the delivery that ran counted:1 finishes its page before the publisher writes again
 
         silo.Faults.FailAfterAppend = true;
         try

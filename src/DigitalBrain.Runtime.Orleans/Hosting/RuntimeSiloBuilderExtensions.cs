@@ -29,6 +29,7 @@ public static class RuntimeSiloBuilderExtensions
         silo.AddNeuronHosting(modules);
         silo.Services.AddJournalPayloads(modules);
         silo.Services.AddSignalPublisher();
+        silo.Services.AddSingleton<SynapseCounters>();
         silo.AddSynapseRetention();
         return silo;
     }
