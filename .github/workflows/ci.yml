@@ -189,6 +189,12 @@ jobs:
       - name: Template smoke (local)
         run: bash scripts/ci/template-smoke.sh local "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/packages"
 
+      # 08-05: dotnet new intochat-app (Notes, Foo.Bar) into a custom hive, build -warnaserror, generated baseline green, DB0024 probe.
+      - name: intochat-app template facts
+        env:
+          DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
+        run: dotnet test --project tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj -c Release
+
   ci:
     name: ci
     needs: [format, build, test, azure, e2e, no-orleans, template]

@@ -3,6 +3,6 @@
     <RootNamespace>APP_NAMESPACE.Tests.Unit</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../APP_NAME/APP_NAME.csproj" />
+    <ProjectReference Include="../AppName/AppName.csproj" />
   </ItemGroup>
 </Project>

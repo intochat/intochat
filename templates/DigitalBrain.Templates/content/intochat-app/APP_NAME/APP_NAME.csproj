@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>APP_NAMESPACE</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="DigitalBrain" />
-  </ItemGroup>
-</Project>

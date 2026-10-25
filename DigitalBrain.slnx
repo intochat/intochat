@@ -23,5 +23,6 @@
     <Project Path="tests/DigitalBrain.Capabilities.Storage.Tests.Unit/DigitalBrain.Capabilities.Storage.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Capabilities.Secrets.Tests.Unit/DigitalBrain.Capabilities.Secrets.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Capabilities.Identity.Tests.Unit/DigitalBrain.Capabilities.Identity.Tests.Unit.csproj" />
+    <Project Path="tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj" />
   </Folder>
 </Solution>
