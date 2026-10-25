@@ -38,7 +38,7 @@ public sealed class AssistantGateFacts
         var app = host.Get<IApp>(Calculator(alice));
         await app.Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
         await using var requested = await host.Observe<AppRequested>(app, ct);
-        var router = host.Get<IRouter>(alice.BrainId);
+        var router = host.Get<IRouter>(IRouter.Key(alice.BrainId));
 
         var route = await router.Route("open calculator", null, ct);
         Assert.True(route.Confidence >= 0.8 && route.Contract == typeof(IApp).FullName && route.Method == nameof(IApp.Request));
@@ -61,7 +61,7 @@ public sealed class AssistantGateFacts
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
         await host.Get<IApp>(Calculator(alice)).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
-        var router = host.Get<IRouter>(alice.BrainId);
+        var router = host.Get<IRouter>(IRouter.Key(alice.BrainId));
 
         var route = await router.Route("what can you do?", null, ct);
         Assert.True(route.Confidence < 0.8);
@@ -87,7 +87,7 @@ public sealed class AssistantGateFacts
         using var caller = alice.AsCaller();
 
         await host.Get<IApp>(Calculator(alice)).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
-        await Assert.ThrowsAsync<ProviderUnavailableException>(() => host.Get<IRouter>(alice.BrainId).Route("open calculator", null, ct));
+        await Assert.ThrowsAsync<ProviderUnavailableException>(() => host.Get<IRouter>(IRouter.Key(alice.BrainId)).Route("open calculator", null, ct));
         var events = new List<AgentTurnEvent>();
         await foreach (var item in host.Get<IAgent>(Conversation(alice)).Run(AgentTurn.Text("open calculator", instructions: SystemPrompt), ct)) { events.Add(item); }
 

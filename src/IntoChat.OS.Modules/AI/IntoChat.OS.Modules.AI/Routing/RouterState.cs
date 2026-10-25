@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -23,5 +24,5 @@ internal sealed record RouterStorage
     [Id(1)] public PendingRoute[] Asked { get; init; } = [];
 }
 
-[GenerateSerializer, Alias("ai.router.decided")]
-internal sealed record RouterDecided(string Router, int Count) : Signal;
+[Signal("ai.router.decided")]
+internal sealed record RouterDecided(string Router, int Count) : DigitalBrain.Signal;

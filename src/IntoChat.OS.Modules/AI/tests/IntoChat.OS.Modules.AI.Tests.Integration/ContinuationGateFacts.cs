@@ -18,7 +18,7 @@ public sealed class ContinuationGateFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>()
             .ConfigureServices(services => services.AddSingleton<IWorkContinuation>(gate))
             .StartAsync(ct);
-        var asking = brain.Get<IRouter>("owner").Ask(new RouteRequest(Guid.NewGuid(), "Show active leads"), ct);
+        var asking = brain.Get<IRouter>(IRouter.Key("owner")).Ask(new RouteRequest(Guid.NewGuid(), "Show active leads"), ct);
 
         await gate.Entered.Task.WaitAsync(ct);
         Assert.False(asking.IsCompleted);
@@ -57,7 +57,7 @@ public sealed class ContinuationGateFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>()
             .ConfigureServices(services => services.AddSingleton<IWorkContinuation>(new RefusingContinuation()))
             .StartAsync(ct);
-        var router = brain.Get<IRouter>("owner");
+        var router = brain.Get<IRouter>(IRouter.Key("owner"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => router.Ask(new RouteRequest(id, "Show active leads"), ct));
 

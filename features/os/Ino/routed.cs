@@ -14,7 +14,7 @@ await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.Key(brain);
 var scope = Ino.Scope(brain);
 var app = brain.Get<IApp>(key);
-var router = brain.Get<IRouter>(scope);
+var router = brain.Get<IRouter>(IRouter.Key(scope));
 var ledger = await RequestLedger.LoadAsync(brain, "routed");
 await foreach (var routed in brain.On<Routed>(router, brain.Stopping))
 {

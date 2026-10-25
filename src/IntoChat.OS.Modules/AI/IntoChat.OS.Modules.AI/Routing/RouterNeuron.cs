@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Models;
@@ -17,10 +18,8 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // and method fit the request, gates on confidence, then fills the call and invokes it. The catalog
 // is the menu; confidence is the trust knob; a language model only fills key and arguments.
 // It keeps its own decisions and shows them to the model, so each request is judged against state.
-[GrainType("ai.router")]
-internal sealed class RouterNeuron(
-    [PersistentState("router", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<RouterStorage> store)
-    : Neuron<RouterStorage>(store), IRouter, IRouterWork
+[Neuron("ai.router", State = "router")]
+internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWork
 {
     private const int MaxOptions = 255;
     private const int MaxRecent = 16;
@@ -33,9 +32,13 @@ internal sealed class RouterNeuron(
     // Never routed to: the legacy observer path (Watch/Unwatch, until 06-08 deletes it) and a plain neuron's admission hook
     // (AdmitSynapse, R4-03), which only the runtime calls before it creates a synapse (T-06-14).
     internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
-    private string Key => this.GetPrimaryKeyString();
-    private string Scope => BrainKey.ScopeOf(Key) ?? Key;
+    private string Key => FullKey;
+    private string Scope => Id.Brain.Value;
     private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();
+
+    // An app of this brain by its os key: apps are still legacy grains (06-05b), reached as this neuron (R4-17).
+    private IApp App(string appKey)
+        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, appKey[(Scope.Length + 1)..]));
 
     public async Task Ask(RouteRequest request, CancellationToken ct)
     {
@@ -48,7 +51,7 @@ internal sealed class RouterNeuron(
         try
         {
             if (gate is not null) { await gate.Acquire(Scope, token); }
-            await Defer<IRouterWork>(work => work.Decide(request.Id));
+            await Context.Get<IRouterWork>(Id).Decide(request.Id);
         }
         catch (Exception error)
         {
@@ -181,12 +184,11 @@ internal sealed class RouterNeuron(
         try
         {
             var kernel = ServiceProvider.GetRequiredService<IKernel>();
-            var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
             {
                 if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
                 AppSnapshot snapshot;
-                try { snapshot = await factory.GetGrain<IApp>(instance.Key).Read(); }
+                try { snapshot = await App(instance.Key).Read(); }
                 catch (Exception error) when (error is not OperationCanceledException) { return []; }
                 if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { continue; }
                 loaded.Add((name, snapshot.Manifest.Operations
@@ -223,7 +225,7 @@ internal sealed class RouterNeuron(
         if (route.App is not null)
         {
             var appKey = IApp.Key(Scope, route.App);
-            var app = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IApp>(appKey);
+            var app = App(appKey);
             try
             {
                 // An operation whose input has to be filled from the request is the agent turn's, with the route as its hint.

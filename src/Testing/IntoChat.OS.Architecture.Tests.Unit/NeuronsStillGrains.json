@@ -69,7 +69,6 @@
   "IntoChat.OS.Kernel.Testing.Demo.Bitcoin",
   "IntoChat.OS.Kernel.Testing.Demo.TwitterAccount",
   "IntoChat.OS.Modules.AI.Agents.AgentNeuron",
-  "IntoChat.OS.Modules.AI.Routing.RouterNeuron",
   "IntoChat.OS.Modules.AI.Tests.Integration.Agents.LoopProbe",
   "IntoChat.OS.Modules.Apps.AppNeuron",
   "IntoChat.OS.Modules.Apps.AppStoreNeuron",
