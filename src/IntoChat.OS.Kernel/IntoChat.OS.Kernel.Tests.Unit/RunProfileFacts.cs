@@ -38,7 +38,8 @@ public sealed class RunProfileFacts
     [InlineData("", "local")]
     [InlineData("local", "local")]
     [InlineData("LOCAL", "local")]
-    [InlineData("local-cloud", "local-cloud")]
+    [InlineData("local+cloud", "local+cloud")]
+    [InlineData("local-cloud", "local+cloud")]
     [InlineData("cloud", "cloud")]
     public void TheTopologySelectsTheLeanBrainOrTheCloudBrain(string? topology, string expected)
     {

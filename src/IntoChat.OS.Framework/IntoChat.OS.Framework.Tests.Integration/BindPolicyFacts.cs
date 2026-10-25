@@ -15,6 +15,7 @@ public sealed class BindPolicyFacts
     [Theory]
     [InlineData(null)]
     [InlineData("local")]
+    [InlineData("local+cloud")]
     [InlineData("local-cloud")]
     [InlineData("LOCAL")]
     public void UnsetLocalAndLocalCloudWithoutABindAreLoopbackOnly(string? topology)
@@ -81,13 +82,13 @@ public sealed class BindPolicyFacts
 
     [Theory]
     [InlineData("dev")]
-    [InlineData("local+cloud")]
+    [InlineData("local_cloud")]
     public void AnUnknownTopologyStopsStartupNamingTheKeyAndTheAllowedValues(string topology)
     {
         var exception = Assert.Throws<InvalidOperationException>(() => BindPolicy.From(Configuration((Topology, topology))));
         Assert.Contains(Topology, exception.Message);
-        Assert.Contains("local, local-cloud or cloud", exception.Message);
-        Assert.DoesNotContain(topology, exception.Message.Replace("local, local-cloud or cloud", "", StringComparison.Ordinal));
+        Assert.Contains("local, local+cloud or cloud", exception.Message);
+        Assert.DoesNotContain(topology, exception.Message.Replace("local, local+cloud or cloud", "", StringComparison.Ordinal));
     }
 
     [Theory]

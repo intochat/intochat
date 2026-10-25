@@ -10,7 +10,7 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
-// Open posture serves every anonymous caller as the owner. On IntoChatOS:Topology local (or local-cloud, or unset) on the host it
+// Open posture serves every anonymous caller as the owner. On IntoChatOS:Topology local (or local+cloud, its earlier spelling local-cloud, or unset) on the host it
 // may listen on loopback only; cloud and containers are out of scope. Cases (a)-(g) are the former run-mode cases, now driven by
 // the topology with the same outcomes; (h)-(j) pin the unset topology and IntoChatOS:Bind (D-21).
 public sealed class OpenPostureLoopbackFacts
@@ -68,6 +68,7 @@ public sealed class OpenPostureLoopbackFacts
     [Theory]
     [InlineData(null)]
     [InlineData("local")]
+    [InlineData("local+cloud")]
     [InlineData("local-cloud")]
     public void H_UnsetLocalAndLocalCloudAllRefuseAWildcard(string? topology)
     {

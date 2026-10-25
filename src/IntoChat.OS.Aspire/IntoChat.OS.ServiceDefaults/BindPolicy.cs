@@ -6,9 +6,9 @@ namespace IntoChat.OS.ServiceDefaults;
 
 public enum BindKind
 {
-    // local or local-cloud without IntoChatOS:Bind: loopback only.
+    // local or local+cloud without IntoChatOS:Bind: loopback only.
     Loopback,
-    // local or local-cloud with IntoChatOS:Bind: the listed addresses (and loopback).
+    // local or local+cloud with IntoChatOS:Bind: the listed addresses (and loopback).
     Explicit,
     // cloud: today's hosted rules (explicit posture, container exemption).
     Hosted,
@@ -28,7 +28,8 @@ public sealed record BindPolicy(BindKind Kind, IReadOnlyList<IPAddress> Addresse
         var topology = configuration[TopologyKey];
         if (string.IsNullOrWhiteSpace(topology)
             || string.Equals(topology, IntoChatOSNames.TopologyLocal, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(topology, IntoChatOSNames.TopologyLocalCloud, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(topology, IntoChatOSNames.TopologyLocalCloud, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(topology, IntoChatOSNames.TopologyLocalCloudAlias, StringComparison.OrdinalIgnoreCase))
         {
             var addresses = ParseBind(configuration[BindKey]);
             return addresses.Count == 0 ? new BindPolicy(BindKind.Loopback, []) : new BindPolicy(BindKind.Explicit, addresses);
@@ -38,7 +39,7 @@ public sealed record BindPolicy(BindKind Kind, IReadOnlyList<IPAddress> Addresse
             $"{TopologyKey} must be one of {IntoChatOSNames.TopologyLocal}, {IntoChatOSNames.TopologyLocalCloud} or {IntoChatOSNames.TopologyCloud} (unset means {IntoChatOSNames.TopologyLocal}).");
     }
 
-    // True when the loopback rules apply: local or local-cloud on the host. A container keeps today's exemption.
+    // True when the loopback rules apply: local or local+cloud on the host. A container keeps today's exemption.
     public static bool IsLocal(IConfiguration configuration)
         => From(configuration).Kind != BindKind.Hosted
             && !string.Equals(configuration["DOTNET_RUNNING_IN_CONTAINER"], "true", StringComparison.OrdinalIgnoreCase);

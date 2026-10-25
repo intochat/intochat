@@ -68,7 +68,7 @@ public static class LegacyConfigurationGuard
             throw new InvalidOperationException("Retired settings are not read: "
                 + string.Join("; ", retired.Select(offender => $"{offender.Name} -> {offender.Replacement}"))
                 + ". Local state lives under IntoChatOS:Home (<Home>/state) and composition and binding follow IntoChatOS:Topology"
-                + " (local, local-cloud or cloud) plus IntoChatOS:Modules:<id>:Enabled and IntoChatOS:Bind; remove each setting, then start again.");
+                + " (local, local+cloud or cloud) plus IntoChatOS:Modules:<id>:Enabled and IntoChatOS:Bind; remove each setting, then start again.");
         }
         // The pre-Home state directory is not migrated (clean break): one note so an operator knows where state went.
         if (localApplicationData is { Length: > 0 } && Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS", "runtime")))

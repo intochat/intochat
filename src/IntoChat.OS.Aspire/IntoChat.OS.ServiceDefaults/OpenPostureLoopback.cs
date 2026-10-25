@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.ServiceDefaults;
 
-// Open posture resolves every anonymous caller as the owner, so on IntoChatOS:Topology local or local-cloud (unset means local)
+// Open posture resolves every anonymous caller as the owner, so on IntoChatOS:Topology local or local+cloud (unset means local)
 // on the host it may listen on loopback only (D-21; this replaced the retired run-mode marker). Cloud and containers are out of
 // scope: they already require an explicit posture (IdentityHosting), and the isolated candidate containers opt in explicitly.
 // An IntoChatOS:Bind beyond loopback does not lift the rule: Open posture there still needs AllowOpenOnNetwork=true.

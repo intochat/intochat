@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 namespace IntoChat.OS.ServiceDefaults;
 
 // Applies the bind policy to the listeners Kestrel reads from configuration (urls, ASPNETCORE_URLS, DOTNET_URLS,
-// Kestrel:Endpoints) before anything binds. On local and local-cloud a listener beyond loopback needs IntoChatOS:Bind to name
+// Kestrel:Endpoints) before anything binds. On local and local+cloud a listener beyond loopback needs IntoChatOS:Bind to name
 // it; the policy refuses rather than rewrites, so Aspire-assigned ports stay as they are. Bare port variables are the
 // Open-posture check's (OpenPostureLoopback): Aspire projects them to local executables on purpose.
 public static class BindPolicyKestrel

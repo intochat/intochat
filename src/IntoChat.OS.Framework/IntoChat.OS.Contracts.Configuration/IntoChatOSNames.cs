@@ -11,20 +11,18 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
+    // The topology keys and values are DigitalBrain.Runtime.Orleans's (IntoChatOSNames, Topology.ToConfigValue()), held here as the
+    // same strings because this assembly has no dependencies (03-12, R4-09); the architecture facts compare them.
     // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string HomeKey = "IntoChatOS:Home";
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string TopologyKey = "IntoChatOS:Topology";
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string TopologyLocal = "local";
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
-    public const string TopologyLocalCloud = "local-cloud";
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
+    public const string TopologyLocalCloud = "local+cloud";
+    // The earlier spelling of local+cloud: still accepted (the runtime warns), never written.
+    public const string TopologyLocalCloudAlias = "local-cloud";
     public const string TopologyCloud = "cloud";
-    // Widens binding beyond loopback on local and local-cloud: a comma list of IP literals or localhost (0.0.0.0 or :: for every
+    // Widens binding beyond loopback on local and local+cloud: a comma list of IP literals or localhost (0.0.0.0 or :: for every
     // interface). Unset means loopback only.
-    // Phase 3 re-points this at DigitalBrain.Runtime.Orleans TopologySettings.
     public const string BindKey = "IntoChatOS:Bind";
     // Topology=cloud: the one storage account (tables, blobs, queues) and the Key Vault the cloud topology reads
     // (the same strings as DigitalBrain.Runtime.Orleans IntoChatOSNames.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
