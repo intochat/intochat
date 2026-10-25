@@ -60,12 +60,13 @@ public sealed partial class RuntimeBoundaryFacts
     }
 
     // Every Orleans package pinned centrally is referenced by some project; an unused pin blurs the R-O1 picture.
+    // The DigitalBrain runtime packages are the fixed D-02 pin set (Directory.Packages.props) and are exempt.
     [Fact]
     public void EveryCentralOrleansPinIsReferenced()
     {
         var pinned = System.Xml.Linq.XDocument.Load(Path.Combine(Repository.Root, "Directory.Packages.props"))
             .Descendants("PackageVersion").Select(version => version.Attribute("Include")?.Value).OfType<string>()
-            .Where(IsOrleansPackage).ToHashSet(StringComparer.Ordinal);
+            .Where(IsOrleansPackage).Where(package => !package.StartsWith("DigitalBrain.", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
         var referenced = Repository.Projects.Values.SelectMany(project => Repository.PackageReferences(project.Path)).ToHashSet(StringComparer.Ordinal);
 
         var unused = pinned.Except(referenced).Order(StringComparer.Ordinal).ToArray();

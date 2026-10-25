@@ -14,22 +14,17 @@ public sealed partial class PackagingFacts
         "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Contracts.Compute",
     ];
 
-    // The templatepack lives outside the solution (templates/), so it is named in the MIT condition but is not a solution project.
     private const string TemplatePack = "IntoChat.OS.Templates";
 
-    [GeneratedRegex(@"'\$\(MSBuildProjectName\)' == '([^']+)'", RegexOptions.CultureInvariant)]
-    private static partial Regex NamedSdkPackage();
-
-    // MIT is stamped from Directory.Build.props only, and only on the SDK tier; runtime packages carry no licence
-    // expression until the runtime licence is decided (handbook vision/commercial.md).
+    // MIT is stamped from Directory.Build.props only and covers every package (D-09, P2-D-27); no project
+    // overrides or adds a licence of its own.
     [Fact]
-    public void OnlySdkPackagesCarryTheMitStamp()
+    public void EveryPackageCarriesTheUnconditionalMitStamp()
     {
         var props = File.ReadAllText(Path.Combine(Repository.Root, "Directory.Build.props"));
-        Assert.Contains("""<PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>""", props, StringComparison.Ordinal);
+        Assert.Contains("<PackageLicenseExpression>MIT</PackageLicenseExpression>", props, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(props, "<PackageLicenseExpression", RegexOptions.CultureInvariant));
-        Assert.Contains("$(MSBuildProjectName.EndsWith('.Contracts'))", props, StringComparison.Ordinal);
-        Assert.Equal(SdkPackages.Append(TemplatePack).Order(StringComparer.Ordinal), NamedSdkPackage().Matches(props).Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal));
+        Assert.DoesNotContain("IntoChatOSSdkPackage", props, StringComparison.Ordinal);
         var packable = Repository.Projects.Values.Where(project => File.ReadAllText(project.Path).Contains("<IsPackable>true</IsPackable>", StringComparison.Ordinal)).ToArray();
         Assert.All(SdkPackages, name => Assert.Contains(packable, project => project.Name == name));
         Assert.All(packable, project =>
@@ -64,7 +59,6 @@ public sealed partial class PackagingFacts
         Assert.DoesNotContain("PackageLicenseExpression", csproj, StringComparison.Ordinal);
         Assert.DoesNotContain(Repository.Projects.Keys, name => name == TemplatePack);
         Assert.DoesNotContain("templates/", File.ReadAllText(Path.Combine(Repository.Root, "Intochat.OS.slnx")), StringComparison.Ordinal);
-        Assert.Contains($"'$(MSBuildProjectName)' == '{TemplatePack}'", File.ReadAllText(Path.Combine(Repository.Root, "Directory.Build.props")), StringComparison.Ordinal);
         var content = Path.Combine(Repository.Root, "templates", TemplatePack, "content");
         Assert.DoesNotContain(Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories), path => File.ReadAllText(path).Contains("IntoChatOSModule", StringComparison.Ordinal));
         Assert.DoesNotContain("<PropertyGroup", File.ReadAllText(Path.Combine(content, "intochat-module", "Directory.Build.props")), StringComparison.Ordinal);
