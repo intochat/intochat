@@ -810,3 +810,63 @@ override DigitalBrain.Apps.SpecCommentError.ToString() -> string!
 static DigitalBrain.Apps.SpecComment.Extract(string! source) -> string?
 static DigitalBrain.Apps.SpecComment.NormalizeOperation(string! name) -> string!
 static DigitalBrain.Apps.SpecComment.Parse(string! text) -> DigitalBrain.Apps.SpecComment!
+DigitalBrain.App.AppId.get -> string!
+DigitalBrain.App.ClearError() -> void
+DigitalBrain.App.Key(DigitalBrain.BrainId brain) -> DigitalBrain.AppKey
+DigitalBrain.App.Present<TView>(System.Action<TView?, TView?>! publish, System.Func<TView?>! side, System.Func<TView?>! main, string! operation = "") -> bool
+DigitalBrain.App.RecordError(DigitalBrain.AppError! error) -> void
+DigitalBrain.App.RecordError(System.Exception! error, string! operation = "") -> void
+DigitalBrain.App.RecordedError.get -> DigitalBrain.AppError?
+DigitalBrain.App.Requests.get -> DigitalBrain.RequestLedger!
+DigitalBrain.App.Swallow(System.Exception! error, string! reason, string! operation = "") -> void
+DigitalBrain.App.SwallowedErrors.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.AppError!>!
+DigitalBrain.AppError
+DigitalBrain.AppError.<Clone>$() -> DigitalBrain.AppError!
+DigitalBrain.AppError.AppError(string! Operation, string! Kind, string! Message, string? Reason = null) -> void
+DigitalBrain.AppError.Deconstruct(out string! Operation, out string! Kind, out string! Message, out string? Reason) -> void
+DigitalBrain.AppError.Equals(DigitalBrain.AppError? other) -> bool
+DigitalBrain.AppError.Kind.get -> string!
+DigitalBrain.AppError.Kind.init -> void
+DigitalBrain.AppError.Message.get -> string!
+DigitalBrain.AppError.Message.init -> void
+DigitalBrain.AppError.Operation.get -> string!
+DigitalBrain.AppError.Operation.init -> void
+DigitalBrain.AppError.Reason.get -> string?
+DigitalBrain.AppError.Reason.init -> void
+DigitalBrain.AppKey
+DigitalBrain.AppKey.App.get -> string!
+DigitalBrain.AppKey.AppKey() -> void
+DigitalBrain.AppKey.AppKey(DigitalBrain.BrainId brain, string! app) -> void
+DigitalBrain.AppKey.Brain.get -> DigitalBrain.BrainId
+DigitalBrain.AppKey.Child(long part) -> DigitalBrain.AppKey
+DigitalBrain.AppKey.Child(string! part) -> DigitalBrain.AppKey
+DigitalBrain.AppKey.Equals(DigitalBrain.AppKey other) -> bool
+DigitalBrain.AppKey.Neuron(string! type) -> DigitalBrain.NeuronId
+DigitalBrain.AppKey.Parts.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.AppKey.Path.get -> string!
+DigitalBrain.RequestLedger
+DigitalBrain.RequestLedger.Capacity.get -> int
+DigitalBrain.RequestLedger.Handled(System.Guid id) -> bool
+DigitalBrain.RequestLedger.Ids.get -> System.Collections.Generic.IReadOnlyList<System.Guid>!
+DigitalBrain.RequestLedger.Record(System.Guid id) -> bool
+DigitalBrain.RequestLedger.RequestLedger() -> void
+DigitalBrain.RequestLedger.RequestLedger(System.Collections.Generic.IEnumerable<System.Guid>! ids, int capacity = 256) -> void
+const DigitalBrain.App.SwallowedKept = 64 -> int
+const DigitalBrain.RequestLedger.DefaultCapacity = 256 -> int
+override DigitalBrain.AppError.Equals(object? obj) -> bool
+override DigitalBrain.AppError.GetHashCode() -> int
+override DigitalBrain.AppError.ToString() -> string!
+override DigitalBrain.AppKey.GetHashCode() -> int
+override DigitalBrain.AppKey.ToString() -> string!
+static DigitalBrain.AppError.From(System.Exception! error, string! operation, string? reason = null) -> DigitalBrain.AppError!
+static DigitalBrain.AppError.operator !=(DigitalBrain.AppError? left, DigitalBrain.AppError? right) -> bool
+static DigitalBrain.AppError.operator ==(DigitalBrain.AppError? left, DigitalBrain.AppError? right) -> bool
+static DigitalBrain.AppKey.Divide(DigitalBrain.AppKey key, string! part) -> DigitalBrain.AppKey
+static DigitalBrain.AppKey.Parse(DigitalBrain.BrainId brain, string! path) -> DigitalBrain.AppKey
+static DigitalBrain.AppKey.Parse(string! path) -> DigitalBrain.AppKey
+static DigitalBrain.AppKey.implicit operator string!(DigitalBrain.AppKey key) -> string!
+static DigitalBrain.AppKey.operator !=(DigitalBrain.AppKey left, DigitalBrain.AppKey right) -> bool
+static DigitalBrain.AppKey.operator /(DigitalBrain.AppKey key, long part) -> DigitalBrain.AppKey
+static DigitalBrain.AppKey.operator /(DigitalBrain.AppKey key, string! part) -> DigitalBrain.AppKey
+static DigitalBrain.AppKey.operator ==(DigitalBrain.AppKey left, DigitalBrain.AppKey right) -> bool
+~override DigitalBrain.AppKey.Equals(object obj) -> bool
