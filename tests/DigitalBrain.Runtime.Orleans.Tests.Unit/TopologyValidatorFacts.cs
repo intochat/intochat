@@ -39,11 +39,13 @@ public sealed class TopologyValidatorFacts
     }
 
     [Fact]
-    public void Cloud_missing_storage_and_vault_yields_one_issue_each()
+    public void Cloud_missing_storage_is_an_issue_and_a_missing_vault_is_a_warning()
     {
-        var issues = TopologyValidator.Validate(Config.Of((IntoChatOSNames.TopologyKey, "cloud")), []);
+        // 04-CONTEXT R4-08: the vault is optional; without it secrets come from the machine key.
+        var settings = TopologySettings.Parse(Config.Of((IntoChatOSNames.TopologyKey, "cloud")), []);
 
-        Assert.Equal([IntoChatOSNames.CloudStorageKey, IntoChatOSNames.CloudKeyVaultKey], issues.Select(i => i.Key));
+        Assert.Equal([IntoChatOSNames.CloudStorageKey], settings.Issues.Select(i => i.Key));
+        Assert.Contains(settings.Warnings, w => w.Contains(IntoChatOSNames.CloudKeyVaultKey, StringComparison.Ordinal));
     }
 
     [Fact]

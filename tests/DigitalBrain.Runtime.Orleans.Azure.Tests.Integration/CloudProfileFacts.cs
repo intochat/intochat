@@ -6,7 +6,7 @@ using Orleans.Streams;
 
 namespace DigitalBrain.Runtime.Orleans.Azure.Tests.Integration;
 
-public sealed class CloudProfileFacts
+public sealed class CloudProfileFacts(AzuriteFixture azurite)
 {
     private static IConfiguration Configuration(string? storage, string? vault) => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
@@ -17,13 +17,26 @@ public sealed class CloudProfileFacts
         .Build();
 
     [Fact]
-    public void Missing_storage_and_key_vault_are_one_issue_each()
+    public void Missing_storage_is_an_issue_and_the_key_vault_is_optional()
     {
-        var issues = new CloudProfile().Validate(Configuration(null, null), []).ToList();
+        // 04-CONTEXT R4-08: without a vault the cloud topology uses the machine-key secrets source.
+        var issue = Assert.Single(new CloudProfile().Validate(Configuration(null, null), []));
+        Assert.Equal(IntoChatOSNames.CloudStorageKey, issue.Key);
+    }
 
-        Assert.Equal(2, issues.Count);
-        Assert.Contains(issues, i => i.Key == IntoChatOSNames.CloudStorageKey);
-        Assert.Contains(issues, i => i.Key == IntoChatOSNames.CloudKeyVaultKey);
+    [Fact]
+    public async Task Without_a_key_vault_a_cloud_silo_on_Azurite_starts_with_a_machine_key_master_key()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var storage = azurite.Require();
+        using var home = new TempHome();
+        using var host = CloudHosts.Build(storage, home.Path, new FakeClusterStore(), "v" + Guid.NewGuid().ToString("N")[..12], vault: null, production: true);
+
+        Assert.False(string.IsNullOrEmpty(host.Services.GetRequiredService<IConfiguration>()[IntoChatOSNames.MasterKeyKey]));
+        Assert.Contains(host.Services.GetRequiredService<TopologySettings>().Warnings,
+            w => w.Contains(IntoChatOSNames.CloudKeyVaultKey, StringComparison.Ordinal));
+        await host.StartAsync(ct);
+        await host.StopAsync(ct);
     }
 
     [Theory]

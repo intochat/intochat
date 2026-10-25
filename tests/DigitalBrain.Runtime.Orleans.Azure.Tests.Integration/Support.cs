@@ -68,6 +68,10 @@ internal static class CloudHosts
         new Dictionary<string, string?> { [IntoChatOSNames.MasterKeyKey] = MasterKey }));
 
     public static IHost Build(string storage, string home, IClusterStoreRegistration? cluster, string clusterId, params Type[] modules)
+        => Build(storage, home, cluster, clusterId, Vault, production: false, modules);
+
+    /// <summary>A null vault leaves IntoChatOS:Cloud:KeyVault unset; production uses the real profile (no vault source swap).</summary>
+    public static IHost Build(string storage, string home, IClusterStoreRegistration? cluster, string clusterId, string? vault, bool production, params Type[] modules)
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -75,14 +79,14 @@ internal static class CloudHosts
             [IntoChatOSNames.TopologyKey] = "cloud",
             [IntoChatOSNames.HomeKey] = home,
             [IntoChatOSNames.CloudStorageKey] = storage,
-            [IntoChatOSNames.CloudKeyVaultKey] = Vault,
+            [IntoChatOSNames.CloudKeyVaultKey] = vault,
             [TopologyContext.SiloPortKey] = Ports.Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
             [TopologyContext.GatewayPortKey] = Ports.Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Orleans:ClusterId"] = clusterId,
         });
         if (cluster is not null) { builder.UseClusterStore(cluster); }
         else { builder.UseClusterStore(_ => { }); }
-        builder.UseTopology([.. modules.Select(ModuleManifest.Of)], [], Profile());
+        builder.UseTopology([.. modules.Select(ModuleManifest.Of)], [], production ? new CloudProfile() : Profile());
         builder.UseOrleans(silo =>
         {
             silo.ConfigureTopologySilo();
