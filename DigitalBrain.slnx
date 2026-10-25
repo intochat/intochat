@@ -7,6 +7,8 @@
     <Project Path="src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <Project Path="src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <Project Path="src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
+    <Project Path="src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
@@ -18,5 +20,7 @@
     <Project Path="tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration.csproj" />
     <Project Path="tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
     <Project Path="tests/DigitalBrain.Capabilities.Storage.Tests.Unit/DigitalBrain.Capabilities.Storage.Tests.Unit.csproj" />
+    <Project Path="tests/DigitalBrain.Capabilities.Secrets.Tests.Unit/DigitalBrain.Capabilities.Secrets.Tests.Unit.csproj" />
+    <Project Path="tests/DigitalBrain.Capabilities.Identity.Tests.Unit/DigitalBrain.Capabilities.Identity.Tests.Unit.csproj" />
   </Folder>
 </Solution>
