@@ -612,3 +612,23 @@ virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> 
 ~override DigitalBrain.Operations.OperationId.Equals(object obj) -> bool
 ~static DigitalBrain.Capabilities.CapabilityConnection<TCapability>.operator !=(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? left, DigitalBrain.Capabilities.CapabilityConnection<TCapability>? right) -> bool
 ~static DigitalBrain.Capabilities.CapabilityConnection<TCapability>.operator ==(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? left, DigitalBrain.Capabilities.CapabilityConnection<TCapability>? right) -> bool
+DigitalBrain.Capabilities.CapabilityCaller
+DigitalBrain.Capabilities.CapabilityCaller.<Clone>$() -> DigitalBrain.Capabilities.CapabilityCaller!
+DigitalBrain.Capabilities.CapabilityCaller.AccountId.get -> string!
+DigitalBrain.Capabilities.CapabilityCaller.AccountId.init -> void
+DigitalBrain.Capabilities.CapabilityCaller.AppId.get -> string?
+DigitalBrain.Capabilities.CapabilityCaller.AppId.init -> void
+DigitalBrain.Capabilities.CapabilityCaller.BrainId.get -> string!
+DigitalBrain.Capabilities.CapabilityCaller.BrainId.init -> void
+DigitalBrain.Capabilities.CapabilityCaller.CapabilityCaller(string! PrincipalId, string! AccountId, string! BrainId, string? AppId = null, string? ConversationId = null) -> void
+DigitalBrain.Capabilities.CapabilityCaller.ConversationId.get -> string?
+DigitalBrain.Capabilities.CapabilityCaller.ConversationId.init -> void
+DigitalBrain.Capabilities.CapabilityCaller.Deconstruct(out string! PrincipalId, out string! AccountId, out string! BrainId, out string? AppId, out string? ConversationId) -> void
+DigitalBrain.Capabilities.CapabilityCaller.Equals(DigitalBrain.Capabilities.CapabilityCaller? other) -> bool
+DigitalBrain.Capabilities.CapabilityCaller.PrincipalId.get -> string!
+DigitalBrain.Capabilities.CapabilityCaller.PrincipalId.init -> void
+override DigitalBrain.Capabilities.CapabilityCaller.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.CapabilityCaller.GetHashCode() -> int
+override DigitalBrain.Capabilities.CapabilityCaller.ToString() -> string!
+static DigitalBrain.Capabilities.CapabilityCaller.operator !=(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
+static DigitalBrain.Capabilities.CapabilityCaller.operator ==(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
