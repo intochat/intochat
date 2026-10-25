@@ -46,11 +46,15 @@ internal sealed class OrleansInvocationSink(IGrainFactory grains, NeuronTypeRegi
         return grains.GetGrain<INeuronHost>(GrainId.Create(grainType, key));
     }
 
-    private RuntimeInvocation Stamped(RuntimeInvocation call) => call with { Behavior = caller?.ToString() ?? string.Empty };
+    private readonly string _behavior = caller?.ToString() ?? string.Empty;
+
+    // The caller's invocation is reused when it already carries this sink's provenance: no copy on the common path.
+    private RuntimeInvocation Stamped(RuntimeInvocation call)
+        => string.Equals(call.Behavior, _behavior, StringComparison.Ordinal) ? call : call with { Behavior = _behavior };
 
     private void Stamp()
     {
-        if (caller is { } id) { RequestContext.Set(HostNeuronContext.CallerKey, id.ToString()); }
+        if (caller is not null) { RequestContext.Set(HostNeuronContext.CallerKey, _behavior); }
         else { RequestContext.Remove(HostNeuronContext.CallerKey); }
     }
 }

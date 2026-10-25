@@ -1,29 +1,36 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using Orleans;
+using Orleans.Serialization.Cloning;
 
 namespace DigitalBrain.Runtime.Orleans.Hosting;
 
-/// <summary>Orleans wire form of <see cref="JsonElement"/>: its JSON text, or null for an undefined element.</summary>
+/// <summary>Orleans wire form of <see cref="JsonElement"/>: its UTF-8 JSON bytes, or null for an undefined element.</summary>
 [GenerateSerializer, Alias("db.json-element")]
 internal struct JsonElementSurrogate
 {
     [Id(0)]
-    public string? Text;
+    public byte[]? Utf8;
+}
+
+/// <summary>
+/// In-silo copies share the element: an encoded <see cref="JsonElement"/> owns its bytes and is immutable, so a local call
+/// passes it as is instead of re-encoding it (one encoding pass per argument and result).
+/// </summary>
+[RegisterCopier]
+internal sealed class JsonElementCopier : IDeepCopier<JsonElement>
+{
+    public JsonElement DeepCopy(JsonElement input, CopyContext context) => input;
 }
 
 [RegisterConverter]
 internal sealed class JsonElementSurrogateConverter : IConverter<JsonElement, JsonElementSurrogate>
 {
-    public JsonElement ConvertFromSurrogate(in JsonElementSurrogate surrogate) => Parse(surrogate.Text);
+    public JsonElement ConvertFromSurrogate(in JsonElementSurrogate surrogate) => Parse(surrogate.Utf8);
 
-    public JsonElementSurrogate ConvertToSurrogate(in JsonElement value) => new() { Text = Text(value) };
+    public JsonElementSurrogate ConvertToSurrogate(in JsonElement value) => new() { Utf8 = Utf8(value) };
 
-    internal static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.Undefined ? null : value.GetRawText();
+    internal static byte[]? Utf8(JsonElement value) => value.ValueKind == JsonValueKind.Undefined ? null : JsonMarshal.GetRawUtf8Value(value).ToArray();
 
-    internal static JsonElement Parse(string? text)
-    {
-        if (text is null) { return default; }
-        using var document = JsonDocument.Parse(text);
-        return document.RootElement.Clone();
-    }
+    internal static JsonElement Parse(byte[]? utf8) => utf8 is null ? default : JsonElement.Parse(utf8);
 }

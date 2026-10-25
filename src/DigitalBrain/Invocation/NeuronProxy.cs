@@ -23,6 +23,7 @@ public class NeuronProxy : DispatchProxy
 
     private IInvocationSink _sink = null!;
     private string _contract = "";
+    private string _key = "";
 
     /// <summary>The neuron this proxy calls.</summary>
     public NeuronId Target { get; private set; }
@@ -38,6 +39,7 @@ public class NeuronProxy : DispatchProxy
         neuron._sink = sink;
         neuron._contract = ContractName(typeof(T));
         neuron.Target = id;
+        neuron._key = id.ToString();
         return proxy;
     }
 
@@ -73,7 +75,7 @@ public class NeuronProxy : DispatchProxy
         }
         // Bound once per contract method: parameter types, token position, timeout and the dispatch delegate; no per-call reflection.
         var bound = Methods.GetOrAdd(targetMethod, static method => new ProxyMethod(method, Dispatch(method)));
-        var call = new RuntimeInvocation(string.Empty, _contract, Target.ToString(), targetMethod.Name, bound.Encode(args));
+        var call = new RuntimeInvocation(string.Empty, _contract, _key, targetMethod.Name, bound.Encode(args));
         return bound.Dispatch(this, call, bound.Shape, bound.TokenOf(args));
     }
 
@@ -104,7 +106,7 @@ public class NeuronProxy : DispatchProxy
             for (int index = 0, argument = 0; index < _parameters.Length; index++)
             {
                 if (_parameters[index] == typeof(CancellationToken)) { continue; }
-                arguments[argument++] = JsonSerializer.SerializeToElement(args is not null && index < args.Length ? args[index] : null, _parameters[index], RuntimeProtocol.Json);
+                arguments[argument++] = PooledJson.Encode(args is not null && index < args.Length ? args[index] : null, _parameters[index]);
             }
             return arguments;
         }

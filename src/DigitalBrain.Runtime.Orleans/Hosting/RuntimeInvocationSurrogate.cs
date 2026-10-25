@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Invocation;
 using Orleans;
+using Orleans.Serialization.Cloning;
 
 namespace DigitalBrain.Runtime.Orleans.Hosting;
 
@@ -21,7 +22,14 @@ internal struct RuntimeInvocationSurrogate
     public string Method;
 
     [Id(4)]
-    public string?[] Arguments;
+    public byte[]?[] Arguments;
+}
+
+/// <summary>In-silo copies share the invocation: its arguments are encoded once by the caller and never re-encoded for a local call.</summary>
+[RegisterCopier]
+internal sealed class RuntimeInvocationCopier : IDeepCopier<RuntimeInvocation>
+{
+    public RuntimeInvocation? DeepCopy(RuntimeInvocation? input, CopyContext context) => input;
 }
 
 [RegisterConverter]
@@ -37,6 +45,6 @@ internal sealed class RuntimeInvocationSurrogateConverter : IConverter<RuntimeIn
         Contract = value.Contract,
         Key = value.Key,
         Method = value.Method,
-        Arguments = value.Arguments is null ? [] : [.. value.Arguments.Select(JsonElementSurrogateConverter.Text)],
+        Arguments = value.Arguments is null ? [] : [.. value.Arguments.Select(JsonElementSurrogateConverter.Utf8)],
     };
 }

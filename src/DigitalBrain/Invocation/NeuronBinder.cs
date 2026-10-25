@@ -76,7 +76,7 @@ public sealed class NeuronBinder
         if (call.Kind == InvocationResultKind.Stream) { throw new BindingException($"{call.Contract.Name}.{call.Method.Name} returns a stream; stream it."); }
         var returned = Call(target, call, arguments, cancellationToken);
         var result = call.IsTask ? await TaskBoxing.ResultAsync((Task)returned!, call.TaskResultType).ConfigureAwait(false) : returned;
-        return call.ResultType is null ? null : JsonSerializer.SerializeToElement(result, call.ResultType, RuntimeProtocol.Json);
+        return call.ResultType is null ? null : PooledJson.Encode(result, call.ResultType);
     }
 
     /// <summary>Calls a streaming <paramref name="call"/> and yields its items as JSON until the stream ends or the caller cancels.</summary>
