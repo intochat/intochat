@@ -85,7 +85,7 @@ public sealed class PackageIdAllowlistFacts
 {
     private static readonly string[] Folders = ["src", "templates"];
 
-    private const int Floor = 5; // 03-04: + DigitalBrain.Analyzers, DigitalBrain.Templates; raised by 03-05 and 03-08 to the final 7.
+    private const int Floor = 6; // 03-05: + DigitalBrain.Runtime.Orleans; raised by 03-08 to the final 7.
 
     [Fact]
     public void Packable_ids_are_digitalbrain()

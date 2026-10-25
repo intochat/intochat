@@ -40,6 +40,20 @@ public static class TopologyValidator
     public static IReadOnlyList<TopologyIssue> Validate(IConfiguration configuration, IReadOnlyList<RetiredSetting> retired)
         => Evaluate(configuration, retired).Issues;
 
+    /// <summary>Every module need the bindings leave unbound, by module id and need kind (R4-02).</summary>
+    public static IReadOnlyList<TopologyIssue> ValidateNeeds(Topology topology, Bindings bindings, IReadOnlyList<ModuleManifest> modules)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(modules);
+        return modules
+            .SelectMany(module => module.Needs.Select(need => (Module: module, Need: need)))
+            .Where(entry => !bindings.Binds(entry.Need.Kind))
+            .Select(entry => new TopologyIssue(
+                $"module {entry.Module.Id ?? "(unnamed)"}",
+                $"needs {entry.Need.Kind}{(entry.Need.Name is null ? string.Empty : $"({entry.Need.Name})")}, which Topology={topology.ToConfigValue()} does not bind."))
+            .ToList();
+    }
+
     internal static (Topology? Topology, IReadOnlyList<TopologyIssue> Issues, IReadOnlyList<string> Warnings) Evaluate(
         IConfiguration configuration, IReadOnlyList<RetiredSetting> retired)
     {
