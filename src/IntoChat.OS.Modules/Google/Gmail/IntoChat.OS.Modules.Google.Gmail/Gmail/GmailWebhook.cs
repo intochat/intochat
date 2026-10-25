@@ -2,7 +2,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Http;
+using IntoChat.OS.Framework.Modules.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

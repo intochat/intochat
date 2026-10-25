@@ -1,5 +1,5 @@
 using System.Net;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Testing.Neurons;
 using Microsoft.Extensions.Configuration;

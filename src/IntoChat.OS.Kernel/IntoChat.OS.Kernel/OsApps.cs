@@ -70,7 +70,7 @@ internal sealed class OsDefaults(
     public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
     {
         var brainId = kernel.GetPrimaryKeyString();
-        if (await identity.KindOf(brainId) == IntoChat.OS.Sdk.Platform.Identity.BrainKind.Circle) { return; }
+        if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind.Circle) { return; }
         foreach (var app in options.Value.Apps)
         {
             try

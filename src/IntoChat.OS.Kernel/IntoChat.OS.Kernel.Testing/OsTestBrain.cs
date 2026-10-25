@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Google.Gmail;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Testing.Model;

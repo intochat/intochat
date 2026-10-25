@@ -6,7 +6,7 @@ using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;

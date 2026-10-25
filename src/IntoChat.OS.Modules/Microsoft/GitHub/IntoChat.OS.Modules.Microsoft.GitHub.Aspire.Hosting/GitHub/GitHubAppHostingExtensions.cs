@@ -4,11 +4,11 @@ using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 

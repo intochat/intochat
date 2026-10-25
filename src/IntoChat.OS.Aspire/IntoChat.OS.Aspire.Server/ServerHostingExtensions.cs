@@ -7,7 +7,7 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -127,7 +127,7 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<IntoChat.OS.Sdk.IBrainAccess>();
+            _ = services.GetRequiredService<IntoChat.OS.Framework.Modules.IBrainAccess>();
             if (!services.GetServices<IntoChat.OS.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddIntoChatOSPlatform before starting the server."); }
             if (!IntoChat.OS.Framework.BrainHosting.HasKernelRegistration(services))

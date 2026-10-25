@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity;
 

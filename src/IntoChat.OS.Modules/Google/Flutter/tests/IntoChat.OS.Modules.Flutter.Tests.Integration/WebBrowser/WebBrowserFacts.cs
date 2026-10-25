@@ -4,7 +4,7 @@ using IntoChat.OS.Modules.Flutter.WebBrowser;
 using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;

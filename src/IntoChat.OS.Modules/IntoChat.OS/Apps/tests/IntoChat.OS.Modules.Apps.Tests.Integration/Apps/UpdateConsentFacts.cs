@@ -5,7 +5,7 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using static IntoChat.OS.Modules.Apps.Tests.Apps.UnifiedInstallFacts;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Apps;

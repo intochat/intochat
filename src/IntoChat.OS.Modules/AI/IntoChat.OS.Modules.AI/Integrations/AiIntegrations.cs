@@ -1,6 +1,6 @@
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Modules.AI;
 

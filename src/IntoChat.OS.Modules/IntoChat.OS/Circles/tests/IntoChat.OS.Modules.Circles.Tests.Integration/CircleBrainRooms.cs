@@ -1,13 +1,11 @@
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;

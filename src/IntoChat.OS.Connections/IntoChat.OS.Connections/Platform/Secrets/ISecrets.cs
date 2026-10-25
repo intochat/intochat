@@ -1,6 +1,6 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Platform.Secrets;
 

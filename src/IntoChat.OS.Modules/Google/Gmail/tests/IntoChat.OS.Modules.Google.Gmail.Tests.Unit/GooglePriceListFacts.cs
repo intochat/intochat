@@ -1,7 +1,7 @@
 using System.Reflection;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Modules.Google.Gmail;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;
 

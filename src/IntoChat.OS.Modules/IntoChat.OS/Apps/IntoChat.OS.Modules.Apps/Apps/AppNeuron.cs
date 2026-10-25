@@ -2,7 +2,7 @@ using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -785,7 +785,7 @@ internal sealed partial class AppNeuron(
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
         return values;
     }
 

@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

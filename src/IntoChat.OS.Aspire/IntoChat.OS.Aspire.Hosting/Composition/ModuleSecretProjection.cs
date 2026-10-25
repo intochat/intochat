@@ -3,8 +3,8 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;

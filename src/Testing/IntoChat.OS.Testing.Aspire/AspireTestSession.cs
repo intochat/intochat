@@ -9,7 +9,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

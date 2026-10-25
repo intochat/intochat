@@ -3,8 +3,8 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Google.Gmail;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

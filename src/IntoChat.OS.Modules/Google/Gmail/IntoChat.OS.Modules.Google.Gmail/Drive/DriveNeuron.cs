@@ -8,7 +8,7 @@ using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Sdk.Http.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;

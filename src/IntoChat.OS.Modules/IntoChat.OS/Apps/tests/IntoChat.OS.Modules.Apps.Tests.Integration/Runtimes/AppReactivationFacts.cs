@@ -3,7 +3,7 @@ using System.Text.Json;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

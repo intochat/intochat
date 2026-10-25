@@ -7,7 +7,7 @@ using External = IntoChat.OS.Authority.Identity.External;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Marketplace;
 using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Platform.Secrets;
 

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections;
 

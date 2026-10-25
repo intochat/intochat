@@ -15,7 +15,7 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
             var owner = TableOwner.Parse(context.TargetId.Key.ToString()!);
             if (owner.BrainId != BrainScope.CurrentId()) { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
             var caller = CallerContextStamper.Require();
-            if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == IntoChat.OS.Sdk.CallerKind.App)
+            if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == IntoChat.OS.Framework.Modules.CallerKind.App)
             { throw new UnauthorizedAccessException("Only trusted host code may read app storage."); }
         }
         else if (contract == typeof(ITableIndex) || contract == typeof(ITableLifetime))

@@ -3,11 +3,11 @@ using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 

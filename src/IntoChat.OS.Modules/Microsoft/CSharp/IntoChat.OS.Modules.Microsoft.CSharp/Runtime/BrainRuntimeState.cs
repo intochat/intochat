@@ -1,7 +1,7 @@
 using System.Runtime.Serialization;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;

@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

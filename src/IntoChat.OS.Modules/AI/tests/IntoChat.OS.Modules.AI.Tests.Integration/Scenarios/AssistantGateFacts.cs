@@ -6,7 +6,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.CSharp;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Testing.Model;

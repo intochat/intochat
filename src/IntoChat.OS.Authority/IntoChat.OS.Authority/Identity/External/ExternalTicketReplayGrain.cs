@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Authority.Identity.External;
 
@@ -25,7 +25,7 @@ internal sealed class ExternalTicketReplayGrain(
     {
         var now = clock.GetUtcNow();
         if (string.IsNullOrWhiteSpace(jti) || jti.Length > 128 || expiresAt <= now ||
-            expiresAt > now.AddSeconds(IntoChat.OS.Sdk.Identity.ExternalSignInTicket.LifetimeSeconds))
+            expiresAt > now.AddSeconds(IntoChat.OS.Framework.Modules.Identity.ExternalSignInTicket.LifetimeSeconds))
         { return false; }
         var live = store.State.Used.Where(entry => entry.ExpiresAt > now).ToArray();
         if (live.Any(entry => entry.Jti == jti)) { return false; }

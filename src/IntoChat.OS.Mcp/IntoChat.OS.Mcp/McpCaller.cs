@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;

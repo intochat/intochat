@@ -1,7 +1,7 @@
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Orleans.Concurrency;
 using Orleans.Metadata;
 

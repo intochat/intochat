@@ -1,9 +1,9 @@
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
@@ -91,13 +91,13 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var brainId = AuthorityHost.Unique("brain");
         var authority = brain.Platform.BrainAuthority(BrainScope.Create(accountId, brainId).Id);
         await authority.EnsureMember(new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner });
-        var caller = new IntoChat.OS.Sdk.CallerContext
+        var caller = new IntoChat.OS.Framework.Modules.CallerContext
         {
             PrincipalId = aliceId,
             AccountId = accountId,
             BrainId = brainId,
-            Kind = IntoChat.OS.Sdk.CallerKind.User,
-            StampedBy = IntoChat.OS.Sdk.TrustedEdge.AuthenticatedHttp
+            Kind = IntoChat.OS.Framework.Modules.CallerKind.User,
+            StampedBy = IntoChat.OS.Framework.Modules.TrustedEdge.AuthenticatedHttp
         };
         var grant = new Grant { AppId = "app", WorkspaceId = brainId, SemanticTypeId = "person.email", Mode = GrantMode.Always };
         await authority.GrantAsOwner(caller, grant);

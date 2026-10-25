@@ -4,7 +4,7 @@ using Aspire.Hosting.Azure;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Hosting;

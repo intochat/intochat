@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models.Signals;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Modules.AI.Models;
 

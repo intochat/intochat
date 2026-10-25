@@ -4,7 +4,7 @@ using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.CSharp;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using ModelContextProtocol.Server;

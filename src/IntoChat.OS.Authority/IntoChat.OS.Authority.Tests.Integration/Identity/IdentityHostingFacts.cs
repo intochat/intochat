@@ -32,7 +32,7 @@ public sealed class IdentityHostingFacts
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Sdk.IBrainAccess>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Modules.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -45,7 +45,7 @@ public sealed class IdentityHostingFacts
         var target = new { alice.AccountId, alice.BrainId };
         using var denied = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
-        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", IntoChat.OS.Sdk.Platform.Identity.MemberRole.Member, ct);
+        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole.Member, ct);
         using var selected = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         selected.EnsureSuccessStatusCode();
         using var session = JsonDocument.Parse(await client.GetStringAsync("/identity/session", ct));

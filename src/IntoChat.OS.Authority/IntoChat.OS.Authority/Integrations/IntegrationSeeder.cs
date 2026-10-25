@@ -1,5 +1,5 @@
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;

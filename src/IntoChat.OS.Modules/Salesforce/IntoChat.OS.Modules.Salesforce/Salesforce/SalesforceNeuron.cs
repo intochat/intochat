@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Salesforce.Signals;
 

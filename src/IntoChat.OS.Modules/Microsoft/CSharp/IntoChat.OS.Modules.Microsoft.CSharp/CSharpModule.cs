@@ -5,14 +5,12 @@ using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Caching;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
@@ -78,7 +76,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         builder.AddIncomingGrainCallFilter<BrainRunsGuard>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Sdk.Platform.Identity.ISignInHandler, RuntimeSignIn>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)
         {
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));

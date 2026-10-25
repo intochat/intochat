@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk.Validation;
+using IntoChat.OS.Framework.Modules.Validation;
 using MimeKit;
 
 namespace IntoChat.OS.Modules.Google.Gmail;

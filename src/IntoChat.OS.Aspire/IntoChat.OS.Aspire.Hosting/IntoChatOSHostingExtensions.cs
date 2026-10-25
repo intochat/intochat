@@ -5,11 +5,11 @@ using Aspire.Hosting.Azure;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 

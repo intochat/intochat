@@ -1,7 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 

@@ -1,10 +1,8 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Orleans.Hosting;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;

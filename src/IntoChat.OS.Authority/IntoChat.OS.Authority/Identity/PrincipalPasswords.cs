@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Identity;
 
 namespace IntoChat.OS.Authority.Identity;

@@ -1,6 +1,6 @@
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using global::Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;

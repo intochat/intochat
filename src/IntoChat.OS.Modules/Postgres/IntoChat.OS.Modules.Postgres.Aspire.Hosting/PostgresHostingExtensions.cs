@@ -1,14 +1,14 @@
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Postgres.Aspire.Hosting;
@@ -84,19 +84,19 @@ internal static class PostgresHostingExtensions
             if (_configuration is null) { return; }
             if (_database is not null)
             {
-                builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
+                builder.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                     .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
                 if (_server is not null)
                 {
-                    builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
+                    builder.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
-                        context.EnvironmentVariables[IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
+                        context.EnvironmentVariables[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
                 }
             }
             else if (_connection is not null)
             {
-                builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
+                builder.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
             }
         }
     }

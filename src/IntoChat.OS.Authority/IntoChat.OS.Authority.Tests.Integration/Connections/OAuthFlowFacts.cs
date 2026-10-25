@@ -10,7 +10,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Connections;
-using IntoChat.OS.Sdk.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 
 namespace IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 

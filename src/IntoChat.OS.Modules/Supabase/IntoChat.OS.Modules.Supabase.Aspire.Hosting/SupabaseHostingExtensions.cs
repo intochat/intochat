@@ -1,10 +1,10 @@
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;
@@ -61,8 +61,8 @@ public static class SupabaseHostingExtensions
                 return;
             }
 
-            builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
+            builder.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
         }
     }
 }

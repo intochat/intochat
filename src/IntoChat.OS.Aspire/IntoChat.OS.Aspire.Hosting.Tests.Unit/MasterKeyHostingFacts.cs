@@ -4,7 +4,7 @@ using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 

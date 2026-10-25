@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.Options;

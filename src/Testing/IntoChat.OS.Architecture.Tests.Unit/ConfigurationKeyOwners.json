@@ -8,8 +8,6 @@
   "IntoChat.OS.Aspire.Hosting/IntoChatOSHostingOptions.cs",
   "IntoChat.OS.Aspire.Server/ServerHostingExtensions.cs",
   "IntoChat.OS.Framework.Tests.Integration/ModuleIdFacts.cs",
-  "IntoChat.OS.Sdk/Configuration/IntoChatOSConfiguration.cs",
-  "IntoChat.OS.Sdk.Http/ForwardedHeadersSetup.cs",
   "IntoChat.OS.Framework/Runtime/Kernel/InstanceDirectoryOptions.cs",
   "IntoChat.OS.Contracts.Configuration/IntoChatOSNames.cs",
   "IntoChat.OS.Modules.AI.Tests.Integration/AIGrammarFacts.cs",
@@ -27,5 +25,7 @@
   "IntoChat.OS.Framework/Modules/ModuleSettingsValidation.cs",
   "IntoChat.OS.Architecture.Tests.Unit/TestHostsUseTempHomeFacts.cs",
   "IntoChat.OS.Architecture.Tests.Unit/LoopbackGuardFacts.cs",
-  "IntoChat.OS.Framework.Tests.Integration/BindPolicyFacts.cs"
+  "IntoChat.OS.Framework.Tests.Integration/BindPolicyFacts.cs",
+  "IntoChat.OS.Framework/Modules/Configuration/IntoChatOSConfiguration.cs",
+  "IntoChat.OS.Framework/Modules/Http/ForwardedHeadersSetup.cs"
 ]

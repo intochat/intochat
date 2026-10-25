@@ -4,7 +4,7 @@ using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Apps;
 

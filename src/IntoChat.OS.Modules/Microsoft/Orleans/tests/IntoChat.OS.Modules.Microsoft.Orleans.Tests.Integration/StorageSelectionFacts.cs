@@ -1,6 +1,6 @@
 using Azure.Storage.Blobs;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

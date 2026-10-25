@@ -1,6 +1,6 @@
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;

@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Sdk.Http.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Connections.Compute;

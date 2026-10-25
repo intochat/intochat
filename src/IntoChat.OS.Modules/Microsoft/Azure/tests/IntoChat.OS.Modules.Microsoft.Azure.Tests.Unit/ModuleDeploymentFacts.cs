@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;
 using IntoChat.OS.Modules.Microsoft.CSharp;
 

@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;

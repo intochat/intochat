@@ -1,7 +1,7 @@
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Secrets;
 
 namespace IntoChat.OS.Authority.Secrets;

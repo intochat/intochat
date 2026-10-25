@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Platform.Integrations;

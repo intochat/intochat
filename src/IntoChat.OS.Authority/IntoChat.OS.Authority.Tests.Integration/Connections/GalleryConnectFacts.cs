@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;

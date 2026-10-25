@@ -1,13 +1,12 @@
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ModuleContract = IntoChat.OS.Sdk.Modules.Module;
+using ModuleContract = IntoChat.OS.Framework.Modules.Module;
 
 namespace IntoChat.OS.Testing;
 

@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;

@@ -11,10 +11,8 @@ public sealed partial class PackagingFacts
     [
         "IntoChat.OS", "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Aspire.Client",
         "IntoChat.OS.Testing", "IntoChat.OS.Testing.Aspire", "IntoChat.OS.Aspire.Testing", "IntoChat.OS.Testing.Playwright",
-        "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Contracts.Compute",
+        "IntoChat.OS.Contracts.Compute",
     ];
-
-    private const string TemplatePack = "IntoChat.OS.Templates";
 
     // MIT is stamped from Directory.Build.props only and covers every package (D-09, P2-D-27); no project
     // overrides or adds a licence of its own.
@@ -49,19 +47,6 @@ public sealed partial class PackagingFacts
         });
         Assert.Equal(hosts.Select(project => project.Name).Order(StringComparer.Ordinal),
             ProductionArchitecture.Assemblies.Where(ContractRing.IsHost).Select(assembly => assembly.GetName().Name!).Order(StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void TheTemplatePackLivesOutsideTheSolutionAndIsMit()
-    {
-        var csproj = File.ReadAllText(Path.Combine(Repository.Root, "templates", TemplatePack, TemplatePack + ".csproj"));
-        Assert.Contains("<PackageType>Template</PackageType>", csproj, StringComparison.Ordinal);
-        Assert.DoesNotContain("PackageLicenseExpression", csproj, StringComparison.Ordinal);
-        Assert.DoesNotContain(Repository.Projects.Keys, name => name == TemplatePack);
-        Assert.DoesNotContain("templates/", File.ReadAllText(Path.Combine(Repository.Root, "Intochat.OS.slnx")), StringComparison.Ordinal);
-        var content = Path.Combine(Repository.Root, "templates", TemplatePack, "content");
-        Assert.DoesNotContain(Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories), path => File.ReadAllText(path).Contains("IntoChatOSModule", StringComparison.Ordinal));
-        Assert.DoesNotContain("<PropertyGroup", File.ReadAllText(Path.Combine(content, "intochat-module", "Directory.Build.props")), StringComparison.Ordinal);
     }
 
     [Fact]

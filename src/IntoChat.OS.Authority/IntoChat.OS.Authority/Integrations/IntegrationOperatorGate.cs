@@ -1,6 +1,6 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;

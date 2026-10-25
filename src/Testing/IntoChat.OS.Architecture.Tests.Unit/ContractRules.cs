@@ -1,7 +1,7 @@
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
 

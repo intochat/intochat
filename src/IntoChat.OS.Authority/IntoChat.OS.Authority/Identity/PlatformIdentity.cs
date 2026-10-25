@@ -1,7 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
 
 namespace IntoChat.OS.Authority.Identity;

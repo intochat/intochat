@@ -2,7 +2,7 @@ using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Modules.Time;
 using IntoChat.OS.Modules.Time.Timers.Signals;

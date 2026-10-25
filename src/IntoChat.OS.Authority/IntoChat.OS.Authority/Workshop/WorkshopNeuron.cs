@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Workshop;

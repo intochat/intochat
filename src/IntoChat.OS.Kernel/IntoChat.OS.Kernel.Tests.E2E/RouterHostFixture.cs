@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

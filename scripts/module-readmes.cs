@@ -12,12 +12,10 @@ using System.Xml.Linq;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
-using Module = IntoChat.OS.Sdk.Modules.Module;
+using Module = IntoChat.OS.Framework.Modules.Module;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Sdk;
 
 const string Begin = "<!-- BEGIN GENERATED options -->";
 const string End = "<!-- END GENERATED -->";

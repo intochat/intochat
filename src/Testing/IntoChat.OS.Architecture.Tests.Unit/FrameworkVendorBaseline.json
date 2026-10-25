@@ -1,3 +1,5 @@
 {
-  "IntoChat.OS.Framework": []
+  "IntoChat.OS.Framework": [
+    "framework:Microsoft.AspNetCore.App"
+  ]
 }

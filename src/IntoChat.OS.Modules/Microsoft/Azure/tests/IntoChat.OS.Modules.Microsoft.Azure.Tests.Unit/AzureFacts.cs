@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;
 

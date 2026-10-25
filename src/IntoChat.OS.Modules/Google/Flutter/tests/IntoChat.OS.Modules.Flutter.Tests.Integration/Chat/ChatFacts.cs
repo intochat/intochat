@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;
 

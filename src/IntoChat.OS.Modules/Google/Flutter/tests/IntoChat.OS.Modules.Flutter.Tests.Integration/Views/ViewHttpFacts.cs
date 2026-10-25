@@ -2,7 +2,7 @@ using System.Net;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Views;
 

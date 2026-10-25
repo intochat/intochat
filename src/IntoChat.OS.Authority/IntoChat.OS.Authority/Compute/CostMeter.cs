@@ -8,7 +8,7 @@ using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Sdk.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 
 namespace IntoChat.OS.Authority.Compute;
 

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Microsoft.Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp;

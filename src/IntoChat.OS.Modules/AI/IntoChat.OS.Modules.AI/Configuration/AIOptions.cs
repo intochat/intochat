@@ -3,9 +3,7 @@ using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.AI;

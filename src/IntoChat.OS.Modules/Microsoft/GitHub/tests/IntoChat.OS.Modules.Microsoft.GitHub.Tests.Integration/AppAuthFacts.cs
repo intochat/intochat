@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Authority.Secrets;

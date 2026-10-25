@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Integrations;
@@ -215,7 +215,7 @@ public sealed class ConnectionNeuronFacts
         await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
             .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
-            .WithConfiguration(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ConnectionsTokenEndpointKey("example"), tokens.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsTokenEndpointKey("example"), tokens.TokenEndpoint.AbsoluteUri)
             .StartAsync(ct);
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();

@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Flutter.Space;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.State;
 

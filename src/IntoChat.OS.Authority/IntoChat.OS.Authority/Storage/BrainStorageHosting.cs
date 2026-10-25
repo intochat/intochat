@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk.Identity;
+using IntoChat.OS.Framework.Modules.Identity;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;

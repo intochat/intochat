@@ -2,7 +2,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

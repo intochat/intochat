@@ -79,14 +79,14 @@ public sealed class AppInstallerFacts
         await Published(brain);
         var alice = await brain.PersonAsync("alice", Ct);
         var identity = brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
-        var principal = IntoChat.OS.Sdk.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
+        var principal = IntoChat.OS.Framework.Modules.AppPrincipal.Id(IApp.Key(alice.BrainId, "echo"));
 
         using var _ = alice.AsCaller();
         await brain.InstallLatest("intochat", "echo", Ct);
 
         var member = await identity.Membership(alice.BrainId, principal);
         Assert.NotNull(member);
-        Assert.Equal(IntoChat.OS.Sdk.Platform.Identity.MemberRole.App, member.Role);
+        Assert.Equal(IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole.App, member.Role);
         Assert.Equal(alice.AccountId, member.AccountId);
 
         await Mine(brain, alice).Delete();

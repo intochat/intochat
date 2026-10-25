@@ -2,7 +2,7 @@ using System.Security.Claims;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;

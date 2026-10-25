@@ -3,7 +3,7 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 

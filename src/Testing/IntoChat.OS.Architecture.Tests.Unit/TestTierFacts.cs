@@ -1,5 +1,5 @@
 using System.Text.Json;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

@@ -4,9 +4,9 @@ using IntoChat.OS.Modules.Flutter.Card;
 using IntoChat.OS.Modules.Flutter.Person;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Identity;
 
 namespace IntoChat.OS.Modules.Flutter.Space;

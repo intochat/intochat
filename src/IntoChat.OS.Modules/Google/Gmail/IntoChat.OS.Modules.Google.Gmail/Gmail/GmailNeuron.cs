@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;

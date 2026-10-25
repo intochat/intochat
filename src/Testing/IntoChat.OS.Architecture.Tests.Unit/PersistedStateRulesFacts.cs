@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

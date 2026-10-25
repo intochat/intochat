@@ -1,6 +1,6 @@
 using System.ClientModel;
 using IntoChat.OS.Modules.AI.Voice;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using OpenAI;
 using OpenAI.Audio;
 

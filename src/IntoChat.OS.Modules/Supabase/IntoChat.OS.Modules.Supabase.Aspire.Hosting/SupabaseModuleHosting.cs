@@ -3,8 +3,8 @@ using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Sdk.Configuration;
-using IntoChat.OS.Sdk.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;
@@ -30,8 +30,8 @@ public sealed class SupabaseModuleHosting : ModuleHosting<IntoChat.OS.Modules.Su
         : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(IntoChat.OS.Sdk.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
+            => builder.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

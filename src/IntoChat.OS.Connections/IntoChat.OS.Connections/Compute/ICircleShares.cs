@@ -1,5 +1,5 @@
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 

@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Metadata;
 using Orleans.Runtime;

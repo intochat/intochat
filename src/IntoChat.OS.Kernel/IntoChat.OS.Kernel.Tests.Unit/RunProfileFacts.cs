@@ -7,7 +7,7 @@ using Aspire.Hosting.Azure;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

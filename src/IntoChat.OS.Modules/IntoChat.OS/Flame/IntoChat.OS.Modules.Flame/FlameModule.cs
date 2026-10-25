@@ -1,7 +1,6 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Orleans.Hosting;
 

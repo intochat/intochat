@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

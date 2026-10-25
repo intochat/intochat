@@ -1,6 +1,6 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Platform.Secrets;
 
@@ -12,7 +12,7 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
+        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
         "IntoChat.OS.Connections", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 
@@ -25,12 +25,6 @@ public sealed class BoundaryFacts
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Client")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Connections")]
-    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -131,15 +125,15 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Sdk.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Framework.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
         InNamespace(type, "IntoChat.OS.Connections.Platform.Secrets")
-        || InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Sdk.Platform.Identity")
-        || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Sdk.Platform.Integrations"));
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Identity")
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;
@@ -161,7 +155,7 @@ public sealed class BoundaryFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Sdk.Modules.Module<>))
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Framework.Modules.Module<>))
             { return current.GetGenericArguments()[0]; }
         }
         return null;

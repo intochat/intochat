@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using IntoChat.OS.Sdk.Modules;
+using IntoChat.OS.Framework.Modules;
 using global::Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;

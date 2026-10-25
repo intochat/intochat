@@ -4,7 +4,7 @@ using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 

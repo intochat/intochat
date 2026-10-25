@@ -4,7 +4,6 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk.Modules;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

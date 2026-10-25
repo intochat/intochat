@@ -2,7 +2,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 

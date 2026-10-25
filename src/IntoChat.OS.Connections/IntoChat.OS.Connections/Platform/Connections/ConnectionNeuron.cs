@@ -2,7 +2,7 @@ using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Platform.Connections;
 

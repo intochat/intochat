@@ -1,6 +1,6 @@
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Connections.Platform.Identity;
 

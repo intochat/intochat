@@ -1,4 +1,4 @@
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Salesforce.Aspire.Hosting;
 

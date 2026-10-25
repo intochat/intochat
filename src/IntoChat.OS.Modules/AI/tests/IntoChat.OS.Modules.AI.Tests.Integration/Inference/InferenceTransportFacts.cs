@@ -8,7 +8,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Sdk;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
