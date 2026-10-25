@@ -16,7 +16,7 @@ public class NeuronProxy : DispatchProxy
 #pragma warning restore CA1852
 {
     private static readonly ConcurrentDictionary<Type, string> ContractNames = new();
-    private static readonly ConcurrentDictionary<MethodInfo, Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>> Shapes = new();
+    private static readonly ConcurrentDictionary<MethodInfo, ProxyMethod> Methods = new();
     private static readonly MethodInfo InvokeValueMethod = typeof(NeuronProxy).GetMethod(nameof(InvokeValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
     private static readonly MethodInfo InvokeValueTaskMethod = typeof(NeuronProxy).GetMethod(nameof(InvokeValueTask), BindingFlags.NonPublic | BindingFlags.Instance)!;
     private static readonly MethodInfo StreamMethod = typeof(NeuronProxy).GetMethod(nameof(StreamItems), BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -71,10 +71,46 @@ public class NeuronProxy : DispatchProxy
                 _ => throw new NotSupportedException(targetMethod.Name),
             };
         }
-        var call = new RuntimeInvocation(string.Empty, _contract, Target.ToString(), targetMethod.Name, InvocationEncoder.Encode(targetMethod, args));
-        var token = InvocationEncoder.TokenOf(targetMethod, args);
-        var shape = new CallShape(targetMethod.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout, targetMethod.Name);
-        return Shapes.GetOrAdd(targetMethod, Dispatch)(this, call, shape, token);
+        // Bound once per contract method: parameter types, token position, timeout and the dispatch delegate; no per-call reflection.
+        var bound = Methods.GetOrAdd(targetMethod, static method => new ProxyMethod(method, Dispatch(method)));
+        var call = new RuntimeInvocation(string.Empty, _contract, Target.ToString(), targetMethod.Name, bound.Encode(args));
+        return bound.Dispatch(this, call, bound.Shape, bound.TokenOf(args));
+    }
+
+    private sealed class ProxyMethod
+    {
+        private readonly Type[] _parameters;
+        private readonly int _token = -1;
+
+        public ProxyMethod(MethodInfo method, Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> dispatch)
+        {
+            _parameters = [.. method.GetParameters().Select(parameter => parameter.ParameterType)];
+            _token = Array.IndexOf(_parameters, typeof(CancellationToken));
+            ArgumentCount = _parameters.Count(type => type != typeof(CancellationToken));
+            Shape = new CallShape(method.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout, method.Name);
+            Dispatch = dispatch;
+        }
+
+        public int ArgumentCount { get; }
+
+        public CallShape Shape { get; }
+
+        public Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> Dispatch { get; }
+
+        public JsonElement[] Encode(object?[]? args)
+        {
+            if (ArgumentCount == 0) { return []; }
+            var arguments = new JsonElement[ArgumentCount];
+            for (int index = 0, argument = 0; index < _parameters.Length; index++)
+            {
+                if (_parameters[index] == typeof(CancellationToken)) { continue; }
+                arguments[argument++] = JsonSerializer.SerializeToElement(args is not null && index < args.Length ? args[index] : null, _parameters[index], RuntimeProtocol.Json);
+            }
+            return arguments;
+        }
+
+        public CancellationToken TokenOf(object?[]? args)
+            => _token >= 0 && args is not null && _token < args.Length && args[_token] is CancellationToken token ? token : CancellationToken.None;
     }
 
     private static Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> Dispatch(MethodInfo method)
