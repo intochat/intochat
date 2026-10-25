@@ -7,7 +7,6 @@ public sealed class ModuleUnitTierFacts
 {
     private static readonly Dictionary<string, string> Exempt = new(StringComparer.Ordinal)
     {
-        ["ArtCraft"] = "image-bound; 83 lines of options/neuron, no pure logic (ruling 6)",
     };
 
     [Fact]

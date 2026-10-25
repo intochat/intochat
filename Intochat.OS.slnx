@@ -67,6 +67,7 @@
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Integration/IntoChat.OS.Modules.ArtCraft.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Unit/IntoChat.OS.Modules.ArtCraft.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/">
     <Project Path="src/IntoChat.OS.Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting/IntoChat.OS.Modules.ClickHouse.Aspire.Hosting.csproj" />
@@ -134,6 +135,7 @@
   <Folder Name="/Modules/Microsoft/Roslyn/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts/IntoChat.OS.Modules.Microsoft.Roslyn.Contracts.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/tests/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Integration/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Roslyn/tests/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Aspire/">

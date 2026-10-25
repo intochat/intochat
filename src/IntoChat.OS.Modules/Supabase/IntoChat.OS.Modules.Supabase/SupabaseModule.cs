@@ -15,6 +15,17 @@ namespace IntoChat.OS.Modules.Supabase;
 // Supabase is a deployment backing store. A person's Supabase database is a postgres connection.
 public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleId("supabase"))
 {
+    internal const string ManifestName = "supabase";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<SupabaseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(SupabaseModule.ManifestName))],
+        Secrets: []);
+
     public override bool RequiresContainer => true;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("supabase", "Supabase").RequiresSecret("ConnectionString");

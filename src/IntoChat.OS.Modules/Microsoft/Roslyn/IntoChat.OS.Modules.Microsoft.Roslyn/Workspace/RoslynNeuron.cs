@@ -1,20 +1,26 @@
+using DigitalBrain;
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GrainType("microsoft.roslyn")]
+// One workspace per deployment (06-06a): a cluster-scoped singleton in the system brain, keyed by the configured workspace key
+// (R4-19), "system/microsoft.roslyn/{WorkspaceKey}".
+[Neuron("microsoft.roslyn")]
 internal sealed class RoslynNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<WorkspaceState> state,
     SolutionWorkspace workspace,
     ChangeSetEditor editor,
     TimeProvider clock)
-    : Neuron, IRoslyn
+    : DigitalBrain.Neuron<RoslynState>, IRoslyn
 {
+    internal const string Type = "microsoft.roslyn";
+
+    // The brain cluster-scoped singletons live in (R4-19).
+    internal const string SystemBrain = "system";
+
+    private WorkspaceState? Current => State.Workspace;
+
+    private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+
     public async Task<WorkspaceReceipt> Open(OpenWorkspace request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -23,7 +29,7 @@ internal sealed class RoslynNeuron(
             throw new ArgumentException("solution path is blank", nameof(request));
         }
 
-        var generation = state.State?.Generation ?? 0;
+        var generation = Current?.Generation ?? 0;
         if (request.ExpectedVersion is { } expected && expected != generation)
         {
             throw new InvalidOperationException(
@@ -35,15 +41,14 @@ internal sealed class RoslynNeuron(
         await workspace.BeginOpenAsync(request.SolutionPath);
         var map = await CacheMapAsync();
         generation++;
-        state.State = new WorkspaceState(request.SolutionPath, generation, clock.GetUtcNow(), map, workspace.Status.Detail);
-        await state.WriteStateAsync();
-        await PublishAsync(new WorkspaceChanged(this.GetPrimaryKeyString(), generation, workspace.Status.Phase));
-        return new WorkspaceReceipt(this.GetPrimaryKeyString(), generation);
+        await Save(new RoslynState { Workspace = new WorkspaceState(request.SolutionPath, generation, clock.GetUtcNow(), map, workspace.Status.Detail) },
+            new WorkspaceChanged(FullKey, generation, workspace.Status.Phase));
+        return new WorkspaceReceipt(FullKey, generation);
     }
 
     public async Task<WorkspaceReceipt> Reload()
     {
-        var path = state.State?.SolutionPath ?? workspace.Status.SolutionPath;
+        var path = Current?.SolutionPath ?? workspace.Status.SolutionPath;
         if (path is null)
         {
             throw new InvalidOperationException("No solution has been opened. Open a solution before reloading.");
@@ -59,40 +64,39 @@ internal sealed class RoslynNeuron(
         }
 
         var map = await CacheMapAsync();
-        var generation = (state.State?.Generation ?? 0) + 1;
-        state.State = new WorkspaceState(path, generation, clock.GetUtcNow(), map, workspace.Status.Detail);
-        await state.WriteStateAsync();
-        await PublishAsync(new WorkspaceChanged(this.GetPrimaryKeyString(), generation, workspace.Status.Phase));
-        return new WorkspaceReceipt(this.GetPrimaryKeyString(), generation);
+        var generation = (Current?.Generation ?? 0) + 1;
+        await Save(new RoslynState { Workspace = new WorkspaceState(path, generation, clock.GetUtcNow(), map, workspace.Status.Detail) },
+            new WorkspaceChanged(FullKey, generation, workspace.Status.Phase));
+        return new WorkspaceReceipt(FullKey, generation);
     }
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<WorkspaceSnapshot> Read()
     {
         var live = workspace.Status;
         return Task.FromResult(new WorkspaceSnapshot(
-            state.State?.SolutionPath ?? live.SolutionPath,
+            Current?.SolutionPath ?? live.SolutionPath,
             live.Phase,
             live.ProjectCount,
             live.DocumentCount,
-            live.Detail ?? state.State?.Detail,
-            state.State?.Generation ?? 0,
+            live.Detail ?? Current?.Detail,
+            Current?.Generation ?? 0,
             live.ReloadNeeded));
     }
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<SymbolSearchResult> FindSymbols(SymbolSearch query, CancellationToken cancellationToken = default)
         => workspace.FindSymbolsAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<ReferenceSearchResult> References(ReferenceSearch query, CancellationToken cancellationToken = default)
         => workspace.ReferencesAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<DiagnosticsResult> Diagnostics(DiagnosticsQuery query, CancellationToken cancellationToken = default)
         => workspace.DiagnosticsAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public async Task<SolutionMap> Map(MapQuery query, CancellationToken cancellationToken = default)
     {
         if (workspace.Status.Phase == WorkspacePhase.Ready)
@@ -100,26 +104,26 @@ internal sealed class RoslynNeuron(
             return await workspace.MapAsync(query, cancellationToken);
         }
 
-        return state.State?.LastMap ?? throw new WorkspaceNotReadyException(workspace.Status);
+        return Current?.LastMap ?? throw new WorkspaceNotReadyException(workspace.Status);
     }
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<Skeleton> Skeleton(SkeletonQuery query, CancellationToken cancellationToken = default)
         => workspace.SkeletonAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<MemberSource> Member(MemberQuery query, CancellationToken cancellationToken = default)
         => workspace.MemberAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<CallersResult> Callers(CallersQuery query, CancellationToken cancellationToken = default)
         => workspace.CallersAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<SymbolSearchResult> Implementations(ImplementationsQuery query, CancellationToken cancellationToken = default)
         => workspace.ImplementationsAsync(query, cancellationToken);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<SymbolSearchResult> Derived(DerivedQuery query, CancellationToken cancellationToken = default)
         => workspace.DerivedAsync(query, cancellationToken);
 
@@ -154,11 +158,11 @@ internal sealed class RoslynNeuron(
         }
     }
 
-    internal Task RestoreAsync(CancellationToken cancellationToken)
+    // A silo that restarted still knows which solution this workspace had open.
+    protected override Task OnActivate(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // A silo that restarted still knows which solution this workspace had open.
-        if (state.State is { } current && workspace.Status.Phase == WorkspacePhase.NotOpened)
+        if (Current is { } current && workspace.Status.Phase == WorkspacePhase.NotOpened)
         {
             _ = workspace.BeginOpenAsync(current.SolutionPath);
         }
@@ -169,11 +173,13 @@ internal sealed class RoslynNeuron(
     private async Task<SolutionMap?> CacheMapAsync()
         => workspace.Status.Phase == WorkspacePhase.Ready
             ? await workspace.MapAsync(new MapQuery(), CancellationToken.None)
-            : state.State?.LastMap;
+            : Current?.LastMap;
 }
 
-internal sealed class RoslynActivation : IActivationHandler<RoslynNeuron>
+// The workspace neuron's state: the open request, durable across restarts (06-06a; WorkspaceState was the grain's state).
+[GenerateSerializer, Alias("coding.roslyn-state")]
+[DigitalBrain.State.ExportableState]
+internal sealed class RoslynState
 {
-    public Task Activated(RoslynNeuron neuron, CancellationToken cancellationToken)
-        => neuron.RestoreAsync(cancellationToken);
+    [Id(0)] public WorkspaceState? Workspace { get; init; }
 }

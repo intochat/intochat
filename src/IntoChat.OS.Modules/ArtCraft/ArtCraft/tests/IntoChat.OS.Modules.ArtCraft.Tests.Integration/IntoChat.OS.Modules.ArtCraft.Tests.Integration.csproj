@@ -8,4 +8,10 @@
     <ProjectReference Include="../../../../IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" /></ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.ArtCraft.Tests.Unit/StudioNeuronFacts.cs" Link="Neurons/StudioNeuronFacts.cs" />
+    <Compile Include="../IntoChat.OS.Modules.ArtCraft.Tests.Unit/ArtCraftFixture.Services.cs" Link="Neurons/ArtCraftFixture.Services.cs" />
+  </ItemGroup>
 </Project>

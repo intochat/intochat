@@ -17,16 +17,17 @@ internal static class FlameEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var ui = BrainRoutes.Group(endpoints, "/ui");
-        ui.MapGet("/scenes/{name}", async (string name, IGrainFactory grains, CancellationToken ct) =>
-            Results.Ok(await Scene(grains, name).Read().WaitAsync(ct)));
-        ui.MapPost("/scenes/{name}/report", async (string name, ReportBody body, IGrainFactory grains, CancellationToken ct) =>
+        ui.MapGet("/scenes/{name}", async (string name, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
+            Results.Ok(await Scene(plain, name).Read().WaitAsync(ct)));
+        ui.MapPost("/scenes/{name}/report", async (string name, ReportBody body, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
         {
-            await Scene(grains, name).Report(body.NodeId, body.Kind, body.X, body.Y, body.Payload).WaitAsync(ct);
+            await Scene(plain, name).Report(body.NodeId, body.Kind, body.X, body.Y, body.Payload).WaitAsync(ct);
             return Results.Ok();
         });
     }
 
     // ASP.NET keeps %2F encoded in a route value (decoding it would change the path's segments), so the
     // scene key is unescaped here.
-    private static IScene Scene(IGrainFactory grains, string name) => grains.GetGrain<IScene>(Uri.UnescapeDataString(name));
+    // The scene is a plain neuron (06-06a), reached by its os key "{brain}/{key}".
+    private static IScene Scene(IntoChat.OS.Runtime.IPlainNeurons plain, string name) => plain.Get<IScene>(Uri.UnescapeDataString(name));
 }

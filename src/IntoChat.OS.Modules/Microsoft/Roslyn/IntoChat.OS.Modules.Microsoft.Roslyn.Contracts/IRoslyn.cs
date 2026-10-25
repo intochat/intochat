@@ -1,43 +1,43 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[Alias("microsoft.roslyn")]
-public interface IRoslyn : INeuron
+[NeuronAlias("microsoft.roslyn"), DefaultNeuronType("microsoft.roslyn")]
+public interface IRoslyn
 {
     Task<WorkspaceReceipt> Open(OpenWorkspace request);
 
     Task<WorkspaceReceipt> Reload();
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<WorkspaceSnapshot> Read();
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<SymbolSearchResult> FindSymbols(SymbolSearch query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<ReferenceSearchResult> References(ReferenceSearch query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<DiagnosticsResult> Diagnostics(DiagnosticsQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<SolutionMap> Map(MapQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<Skeleton> Skeleton(SkeletonQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<MemberSource> Member(MemberQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<CallersResult> Callers(CallersQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<SymbolSearchResult> Implementations(ImplementationsQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<SymbolSearchResult> Derived(DerivedQuery query, CancellationToken cancellationToken = default);
 
     Task<EditCheck> CheckEdits(IReadOnlyList<EditRequest> edits, CancellationToken cancellationToken = default);

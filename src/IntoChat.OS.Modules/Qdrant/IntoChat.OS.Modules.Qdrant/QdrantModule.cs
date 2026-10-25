@@ -12,6 +12,17 @@ namespace IntoChat.OS.Modules.Qdrant;
 
 public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
 {
+    internal const string ManifestName = "qdrant";
+
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<QdrantModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(QdrantModule.ManifestName))],
+        Secrets: []);
+
     public override bool RequiresContainer => true;
 
     public const string ConnectionName = "qdrant";

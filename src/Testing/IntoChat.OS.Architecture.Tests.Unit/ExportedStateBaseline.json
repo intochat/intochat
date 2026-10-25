@@ -672,7 +672,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Modules.Microsoft.Roslyn.WorkspaceState",
+    "type": "IntoChat.OS.Modules.Microsoft.Roslyn.RoslynState",
     "state": "state",
     "exportedToday": true,
     "grains": [

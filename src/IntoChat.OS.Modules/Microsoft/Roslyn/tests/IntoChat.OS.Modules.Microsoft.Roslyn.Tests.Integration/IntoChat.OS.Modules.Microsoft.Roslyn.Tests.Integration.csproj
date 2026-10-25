@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" /></ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/RoslynNeuronFacts.cs" Link="Neurons/RoslynNeuronFacts.cs" />
+    <Compile Include="../IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/RoslynFixture.Services.cs" Link="Neurons/RoslynFixture.Services.cs" />
+  </ItemGroup>
+</Project>

@@ -1,23 +1,24 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flame;
 
-[GrainType(FlameVocabulary.SceneType)]
-internal sealed class SceneNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SceneState> store)
-    : Neuron<SceneState>(store), IScene
+[Neuron(FlameVocabulary.SceneType)]
+internal sealed class SceneNeuron
+    : DigitalBrain.Neuron<SceneState>, IScene
 {
+    // The os key "{brain}/{key}" the scene names itself by (SceneAccess, signals, the shell).
+    private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+
     public Task Set(SceneDefinition definition, long expectedRevision)
     {
-        var name = this.GetPrimaryKeyString();
+        var name = FullKey;
         SceneAccess.RequireWriter(name);
         SceneValidation.Check(definition);
-        if (Snapshot.Revision != expectedRevision) { throw new RevisionConflictException($"Scene changed (revision {Snapshot.Revision}); read it and set again.", Snapshot.Revision); }
-        var next = new SceneState { Name = name, Revision = Snapshot.Revision + 1, Definition = definition };
+        if (State.Revision != expectedRevision) { throw new RevisionConflictException($"Scene changed (revision {State.Revision}); read it and set again.", State.Revision); }
+        var next = new SceneState { Name = name, Revision = State.Revision + 1, Definition = definition };
         return Save(next, new SceneChanged(next.Name, next.Revision));
     }
 
@@ -26,13 +27,13 @@ internal sealed class SceneNeuron([PersistentState("state", IntoChatOSNames.Clus
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-        var name = this.GetPrimaryKeyString();
+        var name = FullKey;
         SceneAccess.RequireReporter(name);
-        if (!Contains(Snapshot.Definition.Nodes, nodeId)) { throw new ArgumentException($"Scene has no node '{nodeId}'.", nameof(nodeId)); }
-        return PublishAsync(new SceneInput(name, nodeId, kind, x, y, payload));
+        if (!Contains(State.Definition.Nodes, nodeId)) { throw new ArgumentException($"Scene has no node '{nodeId}'.", nameof(nodeId)); }
+        return Publish(new SceneInput(name, nodeId, kind, x, y, payload));
     }
 
     private static bool Contains(SceneNode[] nodes, string id) => nodes.Any(n => n.Id == id || Contains(n.Children, id));
 
-    [ReadOnly] public Task<SceneState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [DigitalBrain.ReadOnlyCall] public Task<SceneState> Read() { State.Name = FullKey; return Task.FromResult(State); }
 }

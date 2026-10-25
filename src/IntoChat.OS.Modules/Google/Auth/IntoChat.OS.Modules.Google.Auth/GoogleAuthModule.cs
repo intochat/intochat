@@ -17,6 +17,15 @@ namespace IntoChat.OS.Modules.Google.Auth;
 [ExternalOperation(GoogleAuthOperations.Refresh, GoogleAuth.Integration, "request")]
 public sealed partial class GoogleAuthModule : Module<GoogleAuthModuleOptions>
 {
+    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
+    // leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<GoogleAuthModuleOptions>()],
+        Secrets: []);
+
     public const string ModuleName = "google-auth";
 
     partial void OnConfigure(IModuleServices services)

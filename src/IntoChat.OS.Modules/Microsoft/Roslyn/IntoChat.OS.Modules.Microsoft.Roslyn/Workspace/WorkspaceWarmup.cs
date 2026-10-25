@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 internal sealed class WorkspaceWarmup(
     SolutionWorkspace workspace,
     SolutionFileWatcher watcher,
-    IGrainFactory grains,
+    IntoChat.OS.Runtime.IPlainNeurons plain,
     IOptions<RoslynModuleOptions> options,
     ILogger<WorkspaceWarmup> logger) : IHostedService
 {
@@ -71,7 +71,8 @@ internal sealed class WorkspaceWarmup(
             return;
         }
 
-        var neuron = grains.GetGrain<IRoslyn>(key);
+        // The workspace is a cluster-scoped plain neuron in the system brain (06-06a, R4-19).
+        var neuron = plain.Get<IRoslyn>($"{RoslynNeuron.SystemBrain}/{key}");
         for (var attempt = 0; attempt < 30; attempt++)
         {
             try

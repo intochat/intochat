@@ -176,7 +176,8 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
                 _friendsFresh = true;
             }
             SpaceComposer.SpaceEntry[] entries = [.. _entries.Values, .. _friendEntries];
-            var scene = grains.GetGrain<IScene>(brain + "/space");
+            // The scene is a plain neuron (06-06a), reached by its os key.
+            var scene = plain.Get<IScene>(brain + "/space");
             var current = await scene.Read();
             // Always publish. A refresh whose picture matches still moves the revision, which is
             // how a caller knows the composition finished. The cost that repeats is the source reads above.

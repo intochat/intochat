@@ -23,11 +23,24 @@ public sealed partial class SpaceWatcherHubFacts
     public void LegacyHubSignalsOnlyShrink() => NeuronMigrationFacts.CountsOnlyShrink(FileName, Current(),
         "SpaceWatcher took a new signal from the local hub; listen through IBrainListeners");
 
+    [GeneratedRegex(@"^\s*(?:using|namespace)\s+([\w.]+)\s*;", RegexOptions.CultureInvariant | RegexOptions.Multiline)]
+    private static partial Regex NamespaceLine();
+
+    [GeneratedRegex(@"^\s*namespace\s+([\w.]+)\s*;", RegexOptions.CultureInvariant | RegexOptions.Multiline)]
+    private static partial Regex FileNamespace();
+
+    // The namespaces SpaceWatcher's simple type names resolve in: its usings and its own (06-06a: a [Signal] record of the same
+    // name in a namespace SpaceWatcher does not see, e.g. Roslyn's WorkspaceChanged, is another type).
+    private static HashSet<string> WatcherNamespaces()
+        => NamespaceLine().Matches(File.ReadAllText(Repository.FromProjectKey(Watcher))).Select(match => match.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
+
     [Fact]
     public void NoPlainSignalIsTakenFromTheHub()
     {
+        var seen = WatcherNamespaces();
         var plain = Repository.ProjectFiles("*.cs", path => !path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
             .Select(File.ReadAllText)
+            .Where(text => FileNamespace().Match(text) is { Success: true } declared && seen.Contains(declared.Groups[1].Value))
             .SelectMany(text => Subscribed().Where(name => Regex.IsMatch(text, @"\[(?:DigitalBrain\.)?Signal\(""[^""]*""\)\]\s*(?:public|internal)\s+(?:sealed\s+)?record\s+" + name + @"\b")))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         Assert.True(plain.Length == 0, "A plain [Signal] is published to the runtime, not the hub; listen through IBrainListeners:\n" + string.Join('\n', plain));
