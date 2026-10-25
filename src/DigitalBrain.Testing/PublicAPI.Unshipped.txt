@@ -1,4 +1,17 @@
 #nullable enable
+DigitalBrain.Testing.CapabilityFakes
+DigitalBrain.Testing.CapabilityFakes.All<TCapability>() -> System.Collections.Generic.IReadOnlyList<TCapability!>!
+DigitalBrain.Testing.CapabilityFakes.Bind<TCapability>(string! name, TCapability! fake) -> DigitalBrain.Testing.CapabilityFakes!
+DigitalBrain.Testing.CapabilityFakes.Bound.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityId>!
+DigitalBrain.Testing.CapabilityFakes.CapabilityFakes() -> void
+DigitalBrain.Testing.CapabilityFakes.IsBound(DigitalBrain.Capabilities.CapabilityId capability) -> bool
+DigitalBrain.Testing.CapabilityFakes.Names<TCapability>() -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.CapabilityFakes.Resolve<TCapability>() -> TCapability!
+DigitalBrain.Testing.CapabilityFakes.Resolve<TCapability>(string! name) -> TCapability!
+DigitalBrain.Testing.CapabilityNotBoundException
+DigitalBrain.Testing.CapabilityNotBoundException.Capability.get -> DigitalBrain.Capabilities.CapabilityId
+DigitalBrain.Testing.CapabilityNotBoundException.CapabilityNotBoundException(DigitalBrain.Capabilities.CapabilityId capability, string? name, string? requiredBy = null) -> void
+DigitalBrain.Testing.CapabilityNotBoundException.Name.get -> string?
 DigitalBrain.Testing.FakeCapabilityBroker
 DigitalBrain.Testing.FakeCapabilityBroker.FakeCapabilityBroker() -> void
 DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance) -> DigitalBrain.Testing.FakeCapabilityBroker!
@@ -46,6 +59,11 @@ DigitalBrain.Testing.InMemorySignalHistory.Last.get -> long
 DigitalBrain.Testing.InMemorySignalHistory.Read(DigitalBrain.NeuronId publisher, long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
 DigitalBrain.Testing.InMemorySignalHistory.Read(long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
 DigitalBrain.Testing.InMemorySignalHistory.Trim(long floor) -> void
+DigitalBrain.Testing.InstalledApp<TApp>
+DigitalBrain.Testing.InstalledApp<TApp>.App.get -> TApp!
+DigitalBrain.Testing.InstalledApp<TApp>.Manifest.get -> DigitalBrain.AppManifest!
+DigitalBrain.Testing.InstalledApp<TApp>.Operations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.InstalledApp<TApp>.Request(string! operation, object? argument = null) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders
 DigitalBrain.Testing.ManualReminders.Fire(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
@@ -97,6 +115,7 @@ DigitalBrain.Testing.TestJournal.Saves.get -> int
 DigitalBrain.Testing.TestJournal.Signals(DigitalBrain.NeuronId publisher) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>!
 DigitalBrain.Testing.TestOS
 DigitalBrain.Testing.TestOS.Activate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.Capabilities.get -> DigitalBrain.Testing.CapabilityFakes!
 DigitalBrain.Testing.TestOS.Clock.get -> DigitalBrain.Testing.TestClock!
 DigitalBrain.Testing.TestOS.Cursor(DigitalBrain.NeuronId subscriber, DigitalBrain.NeuronId source) -> long?
 DigitalBrain.Testing.TestOS.Deactivate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
@@ -106,6 +125,7 @@ DigitalBrain.Testing.TestOS.Failures.get -> System.Collections.Generic.IReadOnly
 DigitalBrain.Testing.TestOS.ForceCheckpoint(DigitalBrain.BrainId brain) -> void
 DigitalBrain.Testing.TestOS.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Testing.TestOS.Idle() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.Install<TApp>() -> System.Threading.Tasks.Task<DigitalBrain.Testing.InstalledApp<TApp!>!>!
 DigitalBrain.Testing.TestOS.IsActive(DigitalBrain.NeuronId id) -> bool
 DigitalBrain.Testing.TestOS.Journal(DigitalBrain.BrainId brain) -> DigitalBrain.Testing.TestJournal!
 DigitalBrain.Testing.TestOS.Options.get -> DigitalBrain.Testing.TestOSOptions!
@@ -113,6 +133,8 @@ DigitalBrain.Testing.TestOS.Register(System.Reflection.Assembly! assembly) -> Di
 DigitalBrain.Testing.TestOS.Register<TNeuron>() -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOS.Services.get -> System.IServiceProvider!
 DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
+DigitalBrain.Testing.TestOS.With<TCapability>(TCapability! fake) -> DigitalBrain.Testing.TestOS!
+DigitalBrain.Testing.TestOS.With<TCapability>(string! name, TCapability! fake) -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOSOptions
 DigitalBrain.Testing.TestOSOptions.CallTimeout.get -> System.TimeSpan
 DigitalBrain.Testing.TestOSOptions.CallTimeout.set -> void
@@ -133,6 +155,8 @@ const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orle
 override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
 override DigitalBrain.Testing.TestClock.CreateTimer(System.Threading.TimerCallback! callback, object? state, System.TimeSpan dueTime, System.TimeSpan period) -> System.Threading.ITimer!
 override DigitalBrain.Testing.TestClock.GetUtcNow() -> System.DateTimeOffset
+static DigitalBrain.Testing.CapabilityFakes.IdOf(System.Type! contract) -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.NeuronHarness<TNeuron!>!>!
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
+static DigitalBrain.Testing.TestOS.ManifestOf(System.Type! appType) -> DigitalBrain.AppManifest!

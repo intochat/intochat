@@ -36,7 +36,7 @@ public sealed class TestOSOptions
 /// scheduling attributes say otherwise; reactions ordered per source and deduped by cursor; timers and reminders as turns.
 /// There is no background checkpoint: <see cref="ForceCheckpoint(BrainId)"/> moves the history floor.
 /// </summary>
-public sealed class TestOS : IAsyncDisposable
+public sealed partial class TestOS : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Type> _types = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<NeuronId, TestNeuronHost> _hosts = new();
@@ -50,7 +50,8 @@ public sealed class TestOS : IAsyncDisposable
     {
         Options = options;
         Clock = new TestClock(options.Start);
-        Services = options.Services ?? EmptyServices.Instance;
+        Capabilities = new CapabilityFakes();
+        Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance);
         Synapses = new SynapseRegistry(this);
     }
 
@@ -60,8 +61,11 @@ public sealed class TestOS : IAsyncDisposable
     /// <summary>The clock every neuron, timer, reminder and call timeout runs on.</summary>
     public TestClock Clock { get; }
 
-    /// <summary>The services neurons resolve from.</summary>
+    /// <summary>The services neurons and apps resolve from: bound capability fakes, an <see cref="DigitalBrain.Capabilities.ICapabilityBroker"/> over them, then <see cref="TestOSOptions.Services"/>.</summary>
     public IServiceProvider Services { get; }
+
+    /// <summary>The capability fakes bound with <see cref="With{TCapability}(string, TCapability)"/>.</summary>
+    public CapabilityFakes Capabilities { get; }
 
     /// <summary>Errors of work nobody awaited: one-way calls, deferred work, timer ticks and reactions.</summary>
     public IReadOnlyCollection<Exception> Failures => _failures;
