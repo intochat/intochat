@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Spi;
 
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Hosting;
 
@@ -232,3 +233,99 @@ public sealed class OwnRuleTurnProbe : TurnProbeBase
 
 [Neuron("turn.reentrant"), Reentrant]
 public sealed class ReentrantTurnProbe : TurnProbeBase;
+
+/// <summary>Attribute-free state of the counter probe (06 D-14: JSON payloads).</summary>
+public sealed record CounterState
+{
+    public int Value { get; init; }
+}
+
+[Signal("probe.counted")]
+public sealed record Counted(int Value) : Signal;
+
+[Signal("probe.noted.deep")]
+public sealed record Noted(string Text) : Signal;
+
+public interface ICounter
+{
+    Task<int> Add(int by);
+
+    Task<int> Value();
+
+    Task Note(string text);
+
+    Task Tick(string name, int dueMs);
+
+    Task Remind(string name, int dueMs, int periodMs);
+
+    Task<string> Caller();
+
+    Task<string> AskCaller(string otherKey);
+
+    Task<string> ReadForeign(string publisher);
+
+    Task<long> HistoryLast();
+}
+
+/// <summary>What the counter probes saw: timer and reminder ticks, by neuron id and name.</summary>
+internal static class CounterLog
+{
+    public static readonly ConcurrentDictionary<string, int> Ticks = new();
+}
+
+[Neuron("probe.counter", State = "count")]
+public sealed class CounterNeuron : Neuron<CounterState>, ICounter, IRemindedNeuron
+{
+    public async Task<int> Add(int by)
+    {
+        var next = State with { Value = State.Value + by };
+        await Save(next, new Counted(next.Value));
+        return State.Value;
+    }
+
+    public Task<int> Value() => Task.FromResult(State.Value);
+
+    public Task Note(string text) => Publish(new Noted(text));
+
+    public Task Tick(string name, int dueMs)
+    {
+        Context.Timers.Start(name, TimeSpan.FromMilliseconds(dueMs), null);
+        return Task.CompletedTask;
+    }
+
+    public Task Remind(string name, int dueMs, int periodMs)
+        => Context.Reminders.Start(name, TimeSpan.FromMilliseconds(dueMs), TimeSpan.FromMilliseconds(periodMs));
+
+    public Task<string> Caller() => Task.FromResult(((IHostedNeuronContext)Context).Caller);
+
+    public Task<string> AskCaller(string otherKey) => Get<ICounter>(new NeuronId(Id.Brain, "probe.counter", otherKey)).Caller();
+
+    public async Task<string> ReadForeign(string publisher)
+    {
+        try
+        {
+            _ = await Context.History.Read(NeuronId.Parse(publisher), 0, 10, CancellationToken.None);
+            return "read";
+        }
+        catch (UnauthorizedAccessException) { return "refused"; }
+    }
+
+    public async Task<long> HistoryLast() => (await Context.History.Read(Id, 0, 10, CancellationToken.None)).Last;
+
+    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    {
+        CounterLog.Ticks.AddOrUpdate($"{Id}:{name}", 1, static (_, count) => count + 1);
+        if (name.StartsWith("once", StringComparison.Ordinal)) { await Context.Reminders.Stop(name); }
+    }
+}
+
+public interface IStatelessSaver
+{
+    Task Save();
+}
+
+[Neuron("probe.stateless.saver"), StatelessNeuron]
+public sealed class StatelessSaver : Neuron<CounterState>, IStatelessSaver
+{
+    public Task Save() => Save(new CounterState { Value = 1 }, new Counted(1));
+}

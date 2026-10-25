@@ -14,7 +14,7 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// dispatch each <see cref="RuntimeInvocation"/> through the one <see cref="NeuronBinder"/>. The invocation's Behavior is ignored:
 /// provenance comes from RequestContext, stamped by <see cref="OrleansInvocationSink"/>.
 /// </summary>
-internal abstract class NeuronHostGrainBase(HostedNeuronTypes types, IGrainFactory grains) : Grain, INeuronHost
+internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost
 {
     /// <summary>The binder every host grain dispatches through; its cache also serves the interleaving predicate.</summary>
     internal static readonly NeuronBinder Binder = new();
@@ -35,7 +35,7 @@ internal abstract class NeuronHostGrainBase(HostedNeuronTypes types, IGrainFacto
         _key = this.GetPrimaryKeyString();
         if (!NeuronId.TryParse(_key, out var id)) { throw new BindingException($"'{_key}' is not a neuron id brain/type/key."); }
         if (!types.TryGet(id.Type, out var neuronClass)) { throw new BindingException($"No neuron class is hosted for type '{id.Type}'."); }
-        var expected = HostedNeuronTypes.GrainTypeOf(HostedNeuronTypes.PolicyOf(neuronClass));
+        var expected = NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass));
         if (expected != GrainTypeName) { throw new BindingException($"{neuronClass.FullName} is hosted by {expected}, not {GrainTypeName}."); }
         _class = neuronClass;
         var neuron = (Neuron)ActivatorUtilities.CreateInstance(ServiceProvider, neuronClass);

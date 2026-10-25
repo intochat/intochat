@@ -49,7 +49,7 @@ public sealed class LocalSiloHostFactory : IInProcessHostFactory
         foreach (var (key, value) in options.Configuration) { values[key] = value; }
         builder.Configuration.AddInMemoryCollection(values);
         builder.UseClusterStore(_clusterStore);
-        builder.UseTopology([.. options.Modules.Select(ModuleManifest.Of)], []);
+        builder.UseModuleTopology(options.Modules, []);
         builder.UseOrleans(silo => silo.ConfigureTopologySilo());
         return builder.Build();
     }

@@ -32,7 +32,7 @@ internal static class NeutralCallMapping
     public static bool MayInterleave(RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        if (!NeuronId.TryParse(call.Key, out var id) || !HostedNeuronTypes.TryGetAny(id.Type, out var neuronClass)) { return false; }
+        if (!NeuronId.TryParse(call.Key, out var id) || !NeuronTypeRegistry.TryGetAny(id.Type, out var neuronClass)) { return false; }
         if (neuronClass.IsDefined(typeof(ReentrantAttribute), inherit: true)) { return true; }
         BoundCall bound;
         try { bound = NeuronHostGrainBase.Bind(neuronClass, call); }

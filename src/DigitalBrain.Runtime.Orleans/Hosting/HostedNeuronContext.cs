@@ -19,7 +19,7 @@ internal interface IHostedNeuronContext
 /// The minimal context of a hosted neuron: id, services, clock, typed proxies, caller and deferred work.
 /// State, journal, timers, reminders, operations and synapses arrive with the full runtime (04-11) and refuse until then.
 /// </summary>
-internal sealed class HostedNeuronContext(NeuronId id, IServiceProvider services, IGrainFactory grains, HostedNeuronTypes types, string silo, Action<Func<Task>> defer)
+internal sealed class HostedNeuronContext(NeuronId id, IServiceProvider services, IGrainFactory grains, NeuronTypeRegistry types, string silo, Action<Func<Task>> defer)
     : INeuronContext, IHostedNeuronContext
 {
     internal const string CallerKey = "db.caller";

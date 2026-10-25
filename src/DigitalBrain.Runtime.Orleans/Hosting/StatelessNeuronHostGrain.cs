@@ -5,7 +5,7 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 
 /// <summary>The host of a [StatelessNeuron] class: many activations per key, calls routed to any of them.</summary>
 [GrainType("neuron.host.stateless"), StatelessWorker]
-internal sealed class StatelessNeuronHostGrain(HostedNeuronTypes types, IGrainFactory grains) : NeuronHostGrainBase(types, grains)
+internal sealed class StatelessNeuronHostGrain(NeuronTypeRegistry types, IGrainFactory grains) : NeuronHostGrainBase(types, grains)
 {
-    protected override string GrainTypeName => HostedNeuronTypes.StatelessGrainType;
+    protected override string GrainTypeName => NeuronTypeRegistry.StatelessGrainType;
 }

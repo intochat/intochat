@@ -10,7 +10,7 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// The in-silo <see cref="IInvocationSink"/> behind <c>Get&lt;T&gt;(NeuronId)</c>: picks the host grain by the class's policy,
 /// keys it <c>brain/type/key</c> and stamps the caller into RequestContext, where the host grain reads provenance.
 /// </summary>
-internal sealed class OrleansInvocationSink(IGrainFactory grains, HostedNeuronTypes types, NeuronId? caller) : IInvocationSink
+internal sealed class OrleansInvocationSink(IGrainFactory grains, NeuronTypeRegistry types, NeuronId? caller) : IInvocationSink
 {
     // Async methods: the RequestContext change stays inside the call and never leaks back into the caller's flow.
     public async Task<JsonElement?> Invoke(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
@@ -42,7 +42,7 @@ internal sealed class OrleansInvocationSink(IGrainFactory grains, HostedNeuronTy
         if (!types.TryGet(target.Type, out var neuronClass)) { throw new BindingException($"No neuron class is hosted for type '{target.Type}'."); }
         var key = target.ToString();
         if (!string.Equals(call.Key, key, StringComparison.Ordinal)) { throw new BindingException($"The call names {call.Key}, not {key}."); }
-        var grainType = HostedNeuronTypes.GrainTypeOf(HostedNeuronTypes.PolicyOf(neuronClass));
+        var grainType = NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass));
         return grains.GetGrain<INeuronHost>(GrainId.Create(grainType, key));
     }
 

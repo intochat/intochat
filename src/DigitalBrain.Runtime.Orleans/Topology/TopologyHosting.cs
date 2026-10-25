@@ -79,6 +79,25 @@ public static class TopologyHosting
         return selected;
     }
 
+    /// <summary>
+    /// <see cref="UseTopology(IHostApplicationBuilder, IReadOnlyList{ModuleManifest}, IReadOnlyList{RetiredSetting}, ITopologyProfile[])"/>
+    /// for module classes: reads each manifest with <see cref="ModuleManifest.Of(Type)"/> and hosts the plain neurons, signals and
+    /// stores of the module assemblies.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Any issue; names keys only.</exception>
+    public static ITopologyProfile UseModuleTopology(
+        this IHostApplicationBuilder builder,
+        IReadOnlyList<Type> modules,
+        IReadOnlyList<RetiredSetting> retired,
+        params ITopologyProfile[] additional)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(modules);
+        var selected = builder.UseTopology([.. modules.Select(ModuleManifest.Of)], retired, additional);
+        builder.Services.AddSingleton(new ModuleAssemblies([.. modules.Select(module => module.Assembly).Distinct()]));
+        return selected;
+    }
+
     /// <summary>Every module need the selected bindings leave unbound (R4-02).</summary>
     public static IReadOnlyList<TopologyIssue> ValidateNeeds(ITopologyProfile topology, IReadOnlyList<ModuleManifest> modules)
     {
@@ -101,6 +120,8 @@ public static class TopologyHosting
         var selected = Instance<ITopologyProfile>(silo.Services);
         var context = Instance<TopologyContext>(silo.Services);
         selected.ConfigureSilo(silo, context);
+        // The one runtime composition call: every topology gets the host grains, journal payloads, publishing and retention.
+        silo.AddDigitalBrainRuntime([.. silo.Services.Select(d => d.ImplementationInstance).OfType<ModuleAssemblies>().SelectMany(m => m.Assemblies).Distinct()]);
         // The host-bound cluster store goes last, so it replaces any cluster registration the topology made.
         foreach (var registration in ClusterStoreHosting.Registrations(silo.Services)) { registration.Register(silo); }
         silo.AddPlacementDirector<Placement.BrainAffinePlacement, Placement.BrainAffinePlacementDirector>();
@@ -112,6 +133,8 @@ public static class TopologyHosting
         => services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(T) && !descriptor.IsKeyedService)?.ImplementationInstance is T value
             ? value
             : throw new InvalidOperationException($"Call {nameof(UseTopology)} on the host builder before configuring the silo.");
+
+    private sealed record ModuleAssemblies(System.Reflection.Assembly[] Assemblies);
 
     private static StateHome? TryResolveHome(IConfiguration configuration)
     {

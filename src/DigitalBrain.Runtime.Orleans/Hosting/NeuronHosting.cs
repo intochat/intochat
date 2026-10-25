@@ -16,13 +16,13 @@ internal static class NeuronHosting
         ArgumentNullException.ThrowIfNull(silo);
         ArgumentNullException.ThrowIfNull(assemblies);
         foreach (var assembly in assemblies) { silo.Services.AddSingleton(new HostedAssembly(assembly)); }
-        silo.Services.TryAddSingleton(sp => new HostedNeuronTypes(sp.GetServices<HostedAssembly>().Select(hosted => hosted.Assembly)));
+        silo.Services.TryAddSingleton(sp => new NeuronTypeRegistry(sp.GetServices<HostedAssembly>().Select(hosted => hosted.Assembly)));
         return silo;
     }
 
     /// <summary>A typed proxy, from outside any neuron, to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
     internal static T Get<T>(IServiceProvider services, NeuronId id) where T : class
-        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<HostedNeuronTypes>(), null));
+        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<NeuronTypeRegistry>(), null));
 
     internal sealed record HostedAssembly(Assembly Assembly);
 }
