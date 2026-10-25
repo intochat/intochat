@@ -30,7 +30,7 @@ public sealed class StorageFixtureCapture(OsHost host)
         Assert.False(Directory.Exists(output), $"Remove {output} before capturing it again.");
         var work = Path.Combine(Path.GetTempPath(), "intochat-os-fixture-" + Guid.NewGuid().ToString("N"));
         // work is the capture host's Home; its brain log is <Home>/state.
-        var store = Path.Combine(work, IntoChat.OS.Framework.StateHome.StateDirectoryName);
+        var store = Path.Combine(work, "state" /* DigitalBrain.Runtime.Orleans StateHome.State */);
         var capture = new Capture();
         try
         {

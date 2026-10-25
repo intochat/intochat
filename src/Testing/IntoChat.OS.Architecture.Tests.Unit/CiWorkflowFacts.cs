@@ -49,13 +49,12 @@ public sealed partial class CiWorkflowFacts
     }
 
     [Fact]
-    public void TheDownstreamJobIsReportOnlyAndOutsideTheGate()
+    // The platform downstream build moved to digitalbrain's downstream job, which builds os (03-13, R4-03).
+    public void TheDownstreamJobLivesInDigitalbrainNotHere()
     {
         var workflow = Workflow("ci.yml");
-        Assert.Matches(@"(?m)^\s*continue-on-error:\s*true\s*$", Job(workflow, "downstream"));
-        var needs = Regex.Match(Job(workflow, "ci"), @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
-        Assert.True(needs.Success, "ci job must list its needs inline");
-        Assert.DoesNotContain("downstream", needs.Groups["list"].Value.Split(',').Select(n => n.Trim()));
+        Assert.DoesNotMatch(@"(?m)^  downstream:", workflow);
+        Assert.DoesNotContain("PLATFORM_READ_TOKEN", workflow, StringComparison.Ordinal);
     }
 
     [Fact]

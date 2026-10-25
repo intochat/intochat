@@ -26,7 +26,7 @@ public static class BrainStorageHosting
     {
         var services = silo.Services;
         services.AddOptions<BrainStoreOptions>().BindConfiguration(BrainStoreOptions.Key)
-            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) => options.Directory = IntoChat.OS.Framework.StateHome.Resolve(configuration).State)
+            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).State)
             .Validate(options => !string.IsNullOrWhiteSpace(options.Directory), "Local brain storage needs a directory.")
             .Validate(options => options.Ownership.Kind != BrainLogOwnershipKind.BlobLease
                 || options.Ownership.ContainerUri is not null || !string.IsNullOrWhiteSpace(options.Ownership.ConnectionString),

@@ -11,9 +11,9 @@ public sealed class AuthorityRenameFacts
     public void AuthorityRenameKeepsPersistedNames()
     {
         Assert.Equal("IntoChatOS:Platform:Storage", IntoChatOSNames.BrainStorageConfigurationKey);
-        // The brain log's directory is <Home>/state (StateHome), no longer a Platform:Storage key.
+        // The brain log's directory is <Home>/state (DigitalBrain.Runtime.Orleans StateHome), no longer a Platform:Storage key.
         Assert.Equal("IntoChatOS:Home", IntoChatOSNames.HomeKey);
-        Assert.Equal(StateHome.StateDirectoryName, Path.GetFileName(new IntoChat.OS.Authority.Storage.BrainStoreOptions().Directory));
+        Assert.Equal("state", Path.GetFileName(new IntoChat.OS.Authority.Storage.BrainStoreOptions().Directory));
         Assert.Equal("IntoChatOS:Platform:Fees", FeeOptions.Key);
         Assert.Equal("platform", IntoChatOSNames.PlatformGrainStorage);
         Assert.Equal("cluster", IntoChatOSNames.ClusterGrainStorage);

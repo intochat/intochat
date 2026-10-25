@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
+// State matches DigitalBrain.Runtime.Orleans StateHome.State (<Home>/state).
 
 namespace IntoChat.OS.Testing;
 
@@ -10,7 +10,7 @@ public sealed class TestHome : IDisposable, IAsyncDisposable
     private TestHome(string path) => Path = path;
 
     public string Path { get; }
-    public string State => System.IO.Path.Combine(Path, StateHome.StateDirectoryName);
+    public string State => System.IO.Path.Combine(Path, "state");
     public KeyValuePair<string, string?> Setting => new(IntoChatOSNames.HomeKey, Path);
 
     public static TestHome Create()

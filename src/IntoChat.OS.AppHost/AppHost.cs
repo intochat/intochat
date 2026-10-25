@@ -26,7 +26,7 @@ if (args.Length > 0 && args[0] == "reset")
     var secretsDirectory = userSecretsId is null ? null : Path.GetDirectoryName(PathHelper.GetSecretsPathFromSecretsId(userSecretsId));
     return await new LocalReset(
         builder.Environment, builder.ExecutionContext.IsRunMode, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..")),
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), IntoChat.OS.Framework.StateHome.Resolve(builder.Configuration).Path,
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DigitalBrain.Runtime.Orleans.StateHome.Resolve(builder.Configuration).Path,
         builder.Configuration["AppHost:PathSha256"] ?? "",
         secretsDirectory, new RealResetFileSystem(), new RealDockerCli(), Console.In, Console.Out, !Console.IsInputRedirected)
         .RunAsync(args[1..], CancellationToken.None);
@@ -61,7 +61,7 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // One runtime owns this deployment; devices are connections to external capabilities.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
 // Local state lives under the Home (IntoChatOS:Home, or ~/.intochat); a test brain passes a temporary one (TestHome).
-var home = IntoChat.OS.Framework.StateHome.Resolve(builder.Configuration).Path;
+var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(builder.Configuration).Path;
 var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.

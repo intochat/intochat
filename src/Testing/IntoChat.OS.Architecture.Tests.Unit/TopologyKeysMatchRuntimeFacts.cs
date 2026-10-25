@@ -6,7 +6,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // The os configuration names stay dependency-free for deployments, so they hold the runtime's strings rather than referencing
 // them (03-12, R4-09): this fact keeps the two in step.
-public sealed class TopologyNameFacts
+public sealed class TopologyKeysMatchRuntimeFacts
 {
     [Fact]
     public void TheOsTopologyNamesAreTheRuntimeNames()

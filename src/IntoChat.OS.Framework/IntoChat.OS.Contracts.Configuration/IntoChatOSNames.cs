@@ -11,8 +11,8 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
-    // The topology keys and values are DigitalBrain.Runtime.Orleans's (IntoChatOSNames, Topology.ToConfigValue()), held here as the
-    // same strings because this assembly has no dependencies (03-12, R4-09); the architecture facts compare them.
+    // Pinned equal to DigitalBrain.Runtime.Orleans.IntoChatOSNames (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
+    // Kept because their consumers (ServiceDefaults, AppHost, Aspire hosting, module installers) stay Orleans-free (03-13).
     // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
     public const string HomeKey = "IntoChatOS:Home";
     public const string TopologyKey = "IntoChatOS:Topology";

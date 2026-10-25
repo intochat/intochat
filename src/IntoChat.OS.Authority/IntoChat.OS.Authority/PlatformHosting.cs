@@ -53,7 +53,7 @@ public static class PlatformHosting
             }).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
-            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) => options.Directory = IntoChat.OS.Framework.StateHome.Resolve(configuration).State);
+            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).State);
         services.AddSiloDiagnostics();
         services.TryAddSingleton<IntoChat.OS.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
