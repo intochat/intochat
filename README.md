@@ -11,7 +11,15 @@ Everything in the runtime is a **neuron**, a **signal** or a **synapse**.
 
 - **Neuron**: a stateful, addressable capability that lives in a brain (an ownership scope): a timer, an inbox, a running program. Durable state lives in neurons, never in a process.
 - **Signal**: a typed fact a neuron publishes. Signals are the only thing that flows between neurons. The runtime stamps each one with its publisher, so provenance cannot be forged.
-- **Synapse**: a durable connection saying "this neuron receives every signal of this kind from that neuron", surviving restarts.
+- **Synapse**: the durable routing of a signal kind from one neuron to another; it survives restarts.
+
+The rest of the vocabulary:
+
+- **Reaction**: a script method that runs when a signal arrives (shape checked by RXN0001/RXN0002).
+- **Module**: the unit of code; one folder with Contracts, internal neurons, tests and one static ModuleManifest.
+- **Capability**: a versioned contract (storage@1) a module provides and an app requires.
+- **Connection**: a person's authorised use of a module in a brain; apps never pick a module, the broker resolves connections.
+- **Topology**: local, local+cloud or cloud; one topology profile class each.
 
 ```mermaid
 flowchart LR

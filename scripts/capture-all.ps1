@@ -57,6 +57,7 @@ $pins = [ordered]@{
     'ConfigurationKeyOwners.json'         = Join-Path $archDir 'ConfigurationKeyOwners.json'
     'TestTierBaseline.json'               = Join-Path $archDir 'TestTierBaseline.json'
     'CollectionCompatibilitySamples.json' = Join-Path $archDir 'CollectionCompatibilitySamples.json'
+    'SynapseWordAllowlist.json'           = Join-Path $archDir 'SynapseWordAllowlist.json'
     'flutter-wire-names.golden.json'      = Join-Path $flutterContracts 'flutter-wire-names.golden.json'
     'flutter-aliasless-enums.golden.json' = Join-Path $flutterContracts 'flutter-aliasless-enums.golden.json'
     'ui-states.golden.json'               = Join-Path $flutterContracts 'ui-states.golden.json'
@@ -81,7 +82,8 @@ function Run-Capture([string]$Project, [string]$Method) {
 # Only these facts run; StorageFixtureCapture, CaptureSealedSegments and CaptureUiTransportBaseline are never run.
 $timer = [Diagnostics.Stopwatch]::StartNew()
 foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'CaptureOrleansReferenceOwners',
-                    'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples') {
+                    'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples',
+                    'CaptureSynapseWordAllowlist') {
     Run-Capture $archProject $method
 }
 foreach ($method in 'CaptureFlutterWireNames', 'CaptureUiStateGoldens') {

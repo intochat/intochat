@@ -13,6 +13,7 @@ public sealed class PinFreshnessFacts
         "ConfigurationKeyOwners.json",
         "TestTierBaseline.json",
         "CollectionCompatibilitySamples.json",
+        "SynapseWordAllowlist.json",
     ];
 
     [Fact]
@@ -28,6 +29,7 @@ public sealed class PinFreshnessFacts
                 new ConfigurationKeyFacts().CaptureConfigurationKeyOwners();
                 new TestTierRules().CaptureTestTierBaseline();
                 new CollectionCompatibilityFacts().CaptureCollectionCompatibilitySamples();
+                new SynapseWordFacts().CaptureSynapseWordAllowlist();
             }
             var stale = new List<string>();
             foreach (var file in Files)
