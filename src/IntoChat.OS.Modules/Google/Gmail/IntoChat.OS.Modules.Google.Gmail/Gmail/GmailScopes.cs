@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Google.Gmail;
+namespace IntoChat.OS.Modules.Google.Gmail;
 
 /// <summary>OAuth scopes the Gmail module requests.</summary>
 public static class GmailScopes

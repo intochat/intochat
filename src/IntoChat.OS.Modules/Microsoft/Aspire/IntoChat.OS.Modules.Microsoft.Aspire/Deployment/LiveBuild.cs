@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace IntoChat.OS.Microsoft.Aspire.Deployment;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 /// <summary>The build the live silos run: its commit and published folder.</summary>
 public sealed record LiveBuild(string Sha, string Path);

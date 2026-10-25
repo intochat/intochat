@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using System.Text.Json;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Microsoft.Aspire.Candidates;

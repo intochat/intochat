@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Testing;

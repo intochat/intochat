@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
@@ -162,7 +163,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Microsoft.As
     public static readonly TimeSpan DrainDelay = (ProbeInterval + ProbeTimeout) * ConsecutiveFailures;
     public static string DrainDelayVariable => IntoChatOSConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
 
-    public const string OtlpHttpEndpoint = Candidates.CandidateEnvironment.OtlpHttpEndpoint;
+    public const string OtlpHttpEndpoint = global::IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
     public const string FeaturesFolder = "features";

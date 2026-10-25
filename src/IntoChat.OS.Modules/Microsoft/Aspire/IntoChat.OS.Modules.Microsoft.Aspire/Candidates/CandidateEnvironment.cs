@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Microsoft.Aspire.Candidates;
+namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 /// <summary>Environment variable names a contributor candidate reads, shared with the module's Aspire hosting.</summary>
 public static class CandidateEnvironment

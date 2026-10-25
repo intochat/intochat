@@ -1,24 +1,13 @@
 [
   "IntoChat.OS -> IntoChat.OS.Client.Orleans.Tests.Integration",
-  "IntoChat.OS.Aspire.Server -> IntoChat.OS.Aspire.Hosting.Tests.Unit",
   "IntoChat.OS.Authority -> IntoChat.OS.Architecture.Tests.Unit",
   "IntoChat.OS.Authority -> IntoChat.OS.Kernel.Testing",
   "IntoChat.OS.Connections -> IntoChat.OS.Architecture.Tests.Unit",
   "IntoChat.OS.Connections -> IntoChat.OS.Framework.Tests.Integration",
   "IntoChat.OS.Framework -> IntoChat.OS.Architecture.Tests.Unit",
-  "IntoChat.OS.Modules.AI -> IntoChat.OS.Modules.AI.Tests.Integration (duplicate)",
-  "IntoChat.OS.Modules.Apps -> IntoChat.OS.Kernel.Tests.E2E",
   "IntoChat.OS.Modules.Google.Gmail -> IntoChat.OS.Modules.Google.Gmail.Testing",
-  "IntoChat.OS.Modules.Google.Gmail -> IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration",
-  "IntoChat.OS.Modules.Microsoft.Aspire -> IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting",
-  "IntoChat.OS.Modules.Microsoft.CSharp -> IntoChat.OS.Kernel.Tests.Unit",
   "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox -> IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration",
-  "IntoChat.OS.Modules.Microsoft.Roslyn -> IntoChat.OS.Modules.Coding.Tests.Unit",
   "IntoChat.OS.Modules.Postgres -> IntoChat.OS.Modules.AI.Tests.Integration",
   "IntoChat.OS.Modules.Postgres -> IntoChat.OS.Modules.Apps.Tests.Integration",
-  "IntoChat.OS.Testing -> IntoChat.OS.Kernel.Testing",
-  "IntoChat.OS.Testing -> IntoChat.OS.Testing.Aspire",
-  "IntoChat.OS.Testing.Aspire -> IntoChat.OS.Testing.Playwright",
-  "IntoChat.OS.Testing.Aspire -> IntoChat.OS.Testing.Tests.Integration",
-  "IntoChat.OS.Testing.Playwright -> IntoChat.OS.Framework.Tests.E2E"
+  "IntoChat.OS.Testing.Aspire -> IntoChat.OS.Testing.Tests.Integration"
 ]

@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Google.Gmail;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Connections;
