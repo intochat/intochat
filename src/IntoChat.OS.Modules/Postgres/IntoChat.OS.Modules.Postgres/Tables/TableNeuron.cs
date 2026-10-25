@@ -4,6 +4,7 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Modules.Postgres.Tables.Signals;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 

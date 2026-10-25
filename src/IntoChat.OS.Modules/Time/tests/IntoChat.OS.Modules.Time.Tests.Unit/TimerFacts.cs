@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using BrainId = DigitalBrain.BrainId;
 
 namespace IntoChat.OS.Modules.Time.Tests.Unit;
 

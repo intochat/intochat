@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Framework;
 

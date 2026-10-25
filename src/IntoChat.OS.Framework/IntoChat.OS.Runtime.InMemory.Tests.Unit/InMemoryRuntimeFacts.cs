@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
+using BrainId = DigitalBrain.BrainId;
 
 namespace IntoChat.OS.Runtime.InMemory.Tests.Unit;
 

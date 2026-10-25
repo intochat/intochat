@@ -15,6 +15,8 @@ public sealed class SynapseWordFacts
     internal static string[] CurrentSynapseTypes()
         => CaptureWriter.Ordered(ProductionArchitecture.Types
             .Where(type => !type.Assembly.GetName().Name!.Contains(".Tests", StringComparison.Ordinal))
+            // The DigitalBrain core owns the Synapse word (its own repository's facts govern it); the ratchet covers os code.
+            .Where(type => !type.Assembly.GetName().Name!.StartsWith("DigitalBrain", StringComparison.Ordinal))
             .Where(type => type.Name.Contains("Synapse", StringComparison.Ordinal))
             .Select(type => type.FullName!.Replace('+', '.')));
 

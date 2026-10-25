@@ -1,3 +1,5 @@
+using DigitalBrain.State;
+
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [GenerateSerializer, Alias("ui.problem-reports-state")]

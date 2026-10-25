@@ -3,6 +3,7 @@ using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents.Intents;
 

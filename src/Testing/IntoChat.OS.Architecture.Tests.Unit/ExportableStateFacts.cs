@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using IntoChat.OS;
 using Orleans;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

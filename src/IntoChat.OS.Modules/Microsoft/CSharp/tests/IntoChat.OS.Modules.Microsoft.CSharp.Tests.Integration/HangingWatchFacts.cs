@@ -1,6 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 

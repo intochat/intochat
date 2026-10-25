@@ -3,6 +3,9 @@ using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Sdk;
+using DeactivationCause = DigitalBrain.DeactivationCause;
+using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
+using BrainId = DigitalBrain.BrainId;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Runtime;
 

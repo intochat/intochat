@@ -1,4 +1,5 @@
 using IntoChat.OS;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flame.Scene;
 

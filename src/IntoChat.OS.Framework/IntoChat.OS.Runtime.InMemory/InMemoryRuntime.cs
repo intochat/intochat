@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Metadata;
 using Orleans.Serialization;
+using BrainId = DigitalBrain.BrainId;
+using DigitalBrain.State;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Runtime.InMemory;
 

@@ -5,6 +5,7 @@ using IntoChat.OS.Sdk;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Sdk.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Circles;
 

@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Utilities;
 using IntoChat.OS.Sdk;
+using DeactivationCause = DigitalBrain.DeactivationCause;
+using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
 
 namespace IntoChat.OS.Framework;
 

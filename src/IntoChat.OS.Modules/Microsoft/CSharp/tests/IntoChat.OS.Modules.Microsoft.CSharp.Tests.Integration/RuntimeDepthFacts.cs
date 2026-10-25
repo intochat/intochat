@@ -6,6 +6,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 

@@ -6,6 +6,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Mcp;
 

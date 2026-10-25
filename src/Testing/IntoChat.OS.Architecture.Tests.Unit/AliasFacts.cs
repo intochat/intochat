@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Orleans.Metadata;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

@@ -531,7 +531,7 @@ public sealed class PostgresWriteTableFacts
     }
 }
 
-[IntoChat.OS.Public]
+[DigitalBrain.Access.Public]
 public interface IPostgresLifecycleTestApp : IntoChat.OS.INeuron
 {
     Task Uninstall(string appId);

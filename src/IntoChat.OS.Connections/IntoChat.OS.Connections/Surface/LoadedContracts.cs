@@ -29,7 +29,8 @@ internal static class LoadedContracts
         var pending = new Queue<AssemblyName>(entry.GetReferencedAssemblies());
         while (pending.TryDequeue(out var reference))
         {
-            if (!reference.Name!.StartsWith("IntoChat.OS", StringComparison.Ordinal) || !seen.Add(reference.Name)) { continue; }
+            if (!(reference.Name!.StartsWith("IntoChat.OS", StringComparison.Ordinal) || reference.Name.StartsWith("DigitalBrain", StringComparison.Ordinal))
+                || !seen.Add(reference.Name)) { continue; }
             try { foreach (var next in Assembly.Load(reference).GetReferencedAssemblies()) { pending.Enqueue(next); } }
             catch (FileNotFoundException) { continue; } // an optional reference that is not deployed
         }

@@ -5,6 +5,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Sdk;
 using Orleans.Concurrency;
 using Orleans.Runtime;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 

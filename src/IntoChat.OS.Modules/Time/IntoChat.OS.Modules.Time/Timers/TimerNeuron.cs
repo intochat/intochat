@@ -3,6 +3,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.DependencyInjection;
+using DeactivationCause = DigitalBrain.DeactivationCause;
+using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
 
 namespace IntoChat.OS.Modules.Time.Timers;
 

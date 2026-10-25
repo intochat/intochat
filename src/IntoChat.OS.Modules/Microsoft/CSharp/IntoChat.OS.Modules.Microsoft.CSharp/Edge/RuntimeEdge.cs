@@ -10,6 +10,7 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Http;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 

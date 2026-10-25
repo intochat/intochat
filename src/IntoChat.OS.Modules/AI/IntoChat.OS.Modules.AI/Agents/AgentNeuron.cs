@@ -9,6 +9,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 

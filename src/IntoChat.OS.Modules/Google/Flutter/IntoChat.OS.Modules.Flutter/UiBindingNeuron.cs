@@ -3,6 +3,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter;
 

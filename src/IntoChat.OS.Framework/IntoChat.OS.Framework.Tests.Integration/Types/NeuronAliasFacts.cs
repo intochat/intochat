@@ -1,6 +1,7 @@
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Sdk;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
@@ -38,23 +39,23 @@ public sealed class NeuronAliasFacts
     [Fact]
     public void TheNeutralAliasWinsOverTheOrleansAlias()
     {
-        Assert.Equal("test.neutral-only", NeuronAliasAttribute.Of(typeof(INeutralAliasedNeuron)));
-        Assert.Equal("test.neutral-first", NeuronAliasAttribute.Of(typeof(IDoublyAliasedNeuron)));
-        Assert.Equal("test.orleans-only", NeuronAliasAttribute.Of(typeof(IOrleansAliasedNeuron)));
+        Assert.Equal("test.neutral-only", NeuronAliases.Of(typeof(INeutralAliasedNeuron)));
+        Assert.Equal("test.neutral-first", NeuronAliases.Of(typeof(IDoublyAliasedNeuron)));
+        Assert.Equal("test.orleans-only", NeuronAliases.Of(typeof(IOrleansAliasedNeuron)));
     }
 
     [Fact]
     public void ADerivedSignalWithoutItsOwnAliasKeepsItsBaseAliasUnderBothAttributes()
     {
-        Assert.Equal(typeof(OrleansUnaliasedDerivedSignal).GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias, NeuronAliasAttribute.Of(typeof(OrleansUnaliasedDerivedSignal)));
-        Assert.Equal("test.orleans-base", NeuronAliasAttribute.Of(typeof(OrleansUnaliasedDerivedSignal)));
-        Assert.Equal("test.neutral-base", NeuronAliasAttribute.Of(typeof(NeutralUnaliasedDerivedSignal)));
+        Assert.Equal(typeof(OrleansUnaliasedDerivedSignal).GetCustomAttributes<AliasAttribute>().FirstOrDefault()?.Alias, NeuronAliases.Of(typeof(OrleansUnaliasedDerivedSignal)));
+        Assert.Equal("test.orleans-base", NeuronAliases.Of(typeof(OrleansUnaliasedDerivedSignal)));
+        Assert.Equal("test.neutral-base", NeuronAliases.Of(typeof(NeutralUnaliasedDerivedSignal)));
         Assert.Equal(new SignalId("test.neutral-base"), SignalId.Of(typeof(NeutralUnaliasedDerivedSignal)));
     }
 
     [Fact]
     public void AnUnaliasedTypeHasNoAlias()
-        => Assert.Null(NeuronAliasAttribute.Of(typeof(NeuronAliasFacts)));
+        => Assert.Null(NeuronAliases.Of(typeof(NeuronAliasFacts)));
 
     [Fact]
     public void ASignalIdIsTheSignalsAlias()
@@ -80,9 +81,9 @@ public sealed class NeuronAliasFacts
     [Fact]
     public void ShippedCoreAliasesAreUnchanged()
     {
-        Assert.Equal("brain", NeuronAliasAttribute.Of(typeof(IBrain)));
-        Assert.Equal("brain.signal", NeuronAliasAttribute.Of(typeof(Signal)));
-        Assert.Equal("signal.id", NeuronAliasAttribute.Of(typeof(SignalId)));
+        Assert.Equal("brain", NeuronAliases.Of(typeof(IBrain)));
+        Assert.Equal("brain.signal", NeuronAliases.Of(typeof(Signal)));
+        Assert.Equal("signal.id", NeuronAliases.Of(typeof(SignalId)));
     }
 
     [Fact]

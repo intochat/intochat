@@ -20,14 +20,14 @@ public sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Http
 
     // The contracts this image carries, reported to every brain on connect.
     public static string Fingerprint { get; } = ResolveFromBaseDirectory() ?? ContractsFingerprint.Of(Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
-        .Where(path => Path.GetFileNameWithoutExtension(path) is "IntoChat.OS" or "IntoChat.OS.Client"
+        .Where(path => Path.GetFileNameWithoutExtension(path) is "IntoChat.OS" or "IntoChat.OS.Client" or "DigitalBrain" or "DigitalBrain.UI"
             || Path.GetFileNameWithoutExtension(path).EndsWith(".Contracts", StringComparison.Ordinal)
             || (Path.GetFileName(path).StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && ContractsHost.Declares(path)))
         .Select(path => AssemblyLoadContext.Default.Assemblies.FirstOrDefault(loaded => loaded.GetName().Name == Path.GetFileNameWithoutExtension(path))
             ?? AssemblyLoadContext.Default.LoadFromAssemblyPath(path)));
 
-    // Contracts copied beside the host may reference each other (Mcp.Contracts -> Tools.Contracts) without
-    // being in its deps.json, so the default context resolves them from the host's directory. Installed
+    // Contracts copied beside the host may reference each other (Mcp.Contracts -> Tools.Contracts) or the core
+    // packages (DigitalBrain, DigitalBrain.UI) without being in its deps.json, so the default context resolves them from the host's directory. Installed
     // before the fingerprint loads every contract; returns null so the fingerprint is computed after it.
     private static string? ResolveFromBaseDirectory()
     {

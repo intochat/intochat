@@ -2,6 +2,11 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using ICallerContextCarrier = DigitalBrain.Spi.ICallerContextCarrier;
+using INeuronTimers = DigitalBrain.Spi.INeuronTimers;
+using DeactivationCause = DigitalBrain.DeactivationCause;
+using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
+using IRemindedNeuron = DigitalBrain.Spi.IRemindedNeuron;
 
 namespace IntoChat.OS.Runtime.InMemory;
 

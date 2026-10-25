@@ -1,3 +1,5 @@
+using DigitalBrain.State;
+
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 [GenerateSerializer, Alias("aspire.candidates.state")]

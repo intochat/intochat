@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.AI.Agents.Intents;
 using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 

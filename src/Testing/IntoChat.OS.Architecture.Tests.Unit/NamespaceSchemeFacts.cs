@@ -19,9 +19,10 @@ public sealed class NamespaceSchemeFacts
         {
             return true;
         }
+        // The DigitalBrain namespaces belong to the DigitalBrain packages (loaded as the lowest kernel layer) and to no os assembly.
         if (ns.StartsWith("DigitalBrain", StringComparison.Ordinal))
         {
-            return true;
+            return !assembly.StartsWith("DigitalBrain", StringComparison.Ordinal);
         }
         return ns.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) && assembly != "IntoChat.OS.Framework";
     }

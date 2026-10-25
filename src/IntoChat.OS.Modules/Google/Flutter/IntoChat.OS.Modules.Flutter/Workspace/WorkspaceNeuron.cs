@@ -9,6 +9,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Sdk;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 

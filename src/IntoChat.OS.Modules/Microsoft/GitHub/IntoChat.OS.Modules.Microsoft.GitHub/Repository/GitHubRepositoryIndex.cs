@@ -1,6 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Sdk;
 using Orleans.Runtime;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 

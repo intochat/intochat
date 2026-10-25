@@ -6,6 +6,7 @@ using Orleans.Runtime;
 using Orleans.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 

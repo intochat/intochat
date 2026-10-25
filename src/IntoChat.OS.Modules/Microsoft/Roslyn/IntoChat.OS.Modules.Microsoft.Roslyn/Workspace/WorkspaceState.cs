@@ -1,3 +1,5 @@
+using DigitalBrain.State;
+
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 [GenerateSerializer]

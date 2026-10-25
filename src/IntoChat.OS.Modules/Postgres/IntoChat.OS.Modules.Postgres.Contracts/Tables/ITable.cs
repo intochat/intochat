@@ -1,3 +1,5 @@
+using DigitalBrain.Access;
+
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // Use a unique grain key per installed table. First Define binds it permanently to the

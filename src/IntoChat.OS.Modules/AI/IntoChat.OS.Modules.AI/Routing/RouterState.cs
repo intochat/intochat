@@ -3,6 +3,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Sdk;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Routing;
 

@@ -1,6 +1,7 @@
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Viewport;
 

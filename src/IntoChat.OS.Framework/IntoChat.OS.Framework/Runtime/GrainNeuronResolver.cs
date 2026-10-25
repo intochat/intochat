@@ -1,5 +1,6 @@
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Sdk;
+using BrainId = DigitalBrain.BrainId;
 
 namespace IntoChat.OS.Framework;
 

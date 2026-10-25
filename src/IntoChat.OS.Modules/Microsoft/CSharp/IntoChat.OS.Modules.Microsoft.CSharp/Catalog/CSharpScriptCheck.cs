@@ -164,8 +164,9 @@ public sealed class CSharpScriptCheck
             .ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, StringComparer.OrdinalIgnoreCase);
         var runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
         var carried = new HashSet<string>(available.Where(entry => Path.GetDirectoryName(entry.Value) == runtime).Select(entry => entry.Key), StringComparer.OrdinalIgnoreCase);
-        // A contract assembly is a *.Contracts project or a module assembly that declares it hosts its own contracts.
-        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "IntoChat.OS.Client"
+        // A contract assembly is a *.Contracts project or a module assembly that declares it hosts its own contracts;
+        // the core vocabulary packages DigitalBrain and DigitalBrain.UI are seeded with IntoChat.OS.
+        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "IntoChat.OS.Client" or "DigitalBrain" or "DigitalBrain.UI"
             || entry.Key.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)
             || (entry.Key.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && ContractsHost.Declares(entry.Value))).Select(entry => entry.Key));
         while (pending.TryPop(out var name))

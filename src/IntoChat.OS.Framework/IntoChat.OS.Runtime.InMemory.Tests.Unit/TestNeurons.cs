@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Orleans.Runtime;
+using DeactivationCause = DigitalBrain.DeactivationCause;
+using IDeactivatingNeuron = DigitalBrain.Spi.IDeactivatingNeuron;
 
 namespace IntoChat.OS.Runtime.InMemory.Tests.Unit;
 

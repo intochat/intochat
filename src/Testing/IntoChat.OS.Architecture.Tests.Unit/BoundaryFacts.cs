@@ -8,14 +8,16 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 public sealed class BoundaryFacts
 {
-    // IntoChat.OS.Contracts.Configuration is innermost: configuration names with no dependencies, which deployments share.
+    // DigitalBrain (the core package) is the lowest layer; IntoChat.OS.Contracts.Configuration is the innermost os layer:
+    // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
+        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
         "IntoChat.OS.Connections", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 
     [Theory]
+    [InlineData("DigitalBrain", "IntoChat.OS")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Connections")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client")]
@@ -83,7 +85,7 @@ public sealed class BoundaryFacts
     {
         var contracts = ProductionArchitecture.Assemblies.Where(ContractRing.IsContractAssembly).ToArray();
         var runtime = ProductionArchitecture.Assemblies.Except(contracts)
-            .Where(assembly => assembly.GetName().Name != "IntoChat.OS").ToArray();
+            .Where(assembly => assembly.GetName().Name is not ("IntoChat.OS" or "DigitalBrain" or "DigitalBrain.UI")).ToArray();
         Assert.NotEmpty(contracts);
         foreach (var contract in contracts.Where(ContractRing.IsContractsProject))
         {

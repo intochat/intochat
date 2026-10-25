@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Orleans.Storage;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Runtime.InMemory;
 

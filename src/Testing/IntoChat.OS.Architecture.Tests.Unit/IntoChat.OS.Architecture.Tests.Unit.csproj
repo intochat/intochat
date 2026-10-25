@@ -13,8 +13,9 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <None Include="CollectionCompatibilitySamples.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- DigitalBrain (the core package, CORE-02) is the lowest kernel layer, so the production graph loads it with the projects. -->
   <Target Name="WriteArchitectureAssemblies" AfterTargets="Build">
     <WriteLinesToFile File="$(OutDir)ArchitectureAssemblies.txt"
-                      Lines="@(ArchitectureProject->'%(Filename)')" Overwrite="true" />
+                      Lines="@(ArchitectureProject->'%(Filename)');DigitalBrain" Overwrite="true" />
   </Target>
 </Project>
