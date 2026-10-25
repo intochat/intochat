@@ -5,7 +5,9 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Framework;
 
 // Places every grain of a brain on one silo: the silo that owns the brain's writer lock and serves its journal.
-[Serializable, GenerateSerializer, Immutable, SuppressReferenceTracking, Alias("brain.affine-placement")]
+// DigitalBrain.Runtime.Orleans owns "brain.affine-placement" for its host grains; this transitional os strategy keeps a
+// distinct wire alias until the Framework retires (an alias is wire-only, never persisted).
+[Serializable, GenerateSerializer, Immutable, SuppressReferenceTracking, Alias("os.brain-affine-placement")]
 public sealed class BrainAffinePlacement : PlacementStrategy;
 
 // Inherited, so it covers every grain class deriving from a marked base (Neuron).

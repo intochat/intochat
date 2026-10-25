@@ -8,10 +8,10 @@ public enum BrainLogFormat : byte { Legacy = 0, Framed = 1 }
 internal sealed record BrainExport(int FormatVersion, string BrainScope, long Sequence, BrainExportRecord[] Records, int OmittedRecords);
 internal sealed record BrainExportRecord(string GrainId, string StateName, string Type, System.Text.Json.JsonElement Data);
 
-[GenerateSerializer, Alias("storage.brain-record")]
+[GenerateSerializer, Alias("os.storage.brain-record")]
 public sealed record BrainRecord([property: Id(0)] byte[] Record, [property: Id(1)] long ETag);
 
-[GenerateSerializer, Alias("storage.brain-entry")]
+[GenerateSerializer, Alias("os.storage.brain-entry")]
 internal sealed record BrainEntry(
     [property: Id(0)] long Sequence,
     [property: Id(1)] string GrainId,
@@ -21,7 +21,7 @@ internal sealed record BrainEntry(
     [property: Id(5)] Signal[] Signals,
     [property: Id(6)] long FirstSignal);
 
-[GenerateSerializer, Alias("storage.brain-snapshot")]
+[GenerateSerializer, Alias("os.storage.brain-snapshot")]
 internal sealed record BrainSnapshot(
     [property: Id(0)] long Sequence,
     [property: Id(1)] long LastSignal,
