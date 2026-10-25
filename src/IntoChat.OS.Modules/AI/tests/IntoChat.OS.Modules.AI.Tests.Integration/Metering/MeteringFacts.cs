@@ -121,13 +121,13 @@ public sealed class MeteringFacts(AIHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var usage = brain.Get<IIntentUsage>("intent-durable");
+        var usage = brain.Get<IIntentUsage>("owner/intent-durable");
         await usage.RecordAsync(new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch), ct);
 
         await brain.DeactivateAsync(usage, ct);
 
         var read = await usage.ReadAsync(ct);
-        Assert.Equal("intent-durable", read.IntentId);
+        Assert.Equal("owner/intent-durable", read.IntentId);
         var entry = Assert.Single(read.Entries);
         Assert.Equal(10, entry.InputTokens);
         Assert.Equal(3, entry.CachedInputTokens);

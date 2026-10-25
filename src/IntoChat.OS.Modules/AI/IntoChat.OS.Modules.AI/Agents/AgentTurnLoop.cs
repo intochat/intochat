@@ -181,10 +181,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
     private async Task<List<ContextEntry>> ReadContexts(string[] keys, CancellationToken ct)
     {
         if (keys.Length == 0) { return []; }
-        var grains = services.GetRequiredService<IGrainFactory>();
+        // A context is a plain neuron (06-05), reached by its os key "{brain}/{key}".
+        var plain = services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
         async Task<IEnumerable<ContextEntry>> Read(string key)
         {
-            try { return (await grains.GetGrain<IAgentContext>(key).Read().WaitAsync(ct)).Entries; }
+            try { return (await plain.Get<IAgentContext>(key).Read().WaitAsync(ct)).Entries; }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 services.GetService<ILoggerFactory>()?.CreateLogger<AgentTurnLoop>().LogWarning(error, "Context {Context} could not be read; the turn continues without it.", key);

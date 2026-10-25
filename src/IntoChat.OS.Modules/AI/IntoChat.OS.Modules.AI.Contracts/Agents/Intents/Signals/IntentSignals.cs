@@ -1,18 +1,19 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 
-[GenerateSerializer, Alias("intents.heard")]
-public sealed record IntentHeard([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId, [property: Id(2)] string RequestId) : Signal;
+[Signal("intents.heard")]
+public sealed record IntentHeard(string IntentsId, Guid IntentId, string RequestId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("intents.rephrased")]
-public sealed record IntentRephrased([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId, [property: Id(2)] string RequestId, [property: Id(3)] double Confidence) : Signal;
+[Signal("intents.rephrased")]
+public sealed record IntentRephrased(string IntentsId, Guid IntentId, string RequestId, double Confidence) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("intents.transitioned")]
-public sealed record IntentTransitioned([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId, [property: Id(2)] IntentState From, [property: Id(3)] IntentState To) : Signal;
+[Signal("intents.transitioned")]
+public sealed record IntentTransitioned(string IntentsId, Guid IntentId, IntentState From, IntentState To) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("intents.armed")]
-public sealed record IntentArmed([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId) : Signal;
+[Signal("intents.armed")]
+public sealed record IntentArmed(string IntentsId, Guid IntentId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("intents.cue-fired")]
-public sealed record IntentCueFired([property: Id(0)] string IntentsId, [property: Id(1)] Guid IntentId, [property: Id(2)] string Cue) : Signal;
+[Signal("intents.cue-fired")]
+public sealed record IntentCueFired(string IntentsId, Guid IntentId, string Cue) : DigitalBrain.Signal;

@@ -1,11 +1,12 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Models.Signals;
 
-[GenerateSerializer, Alias("ai.inference-started")]
-public sealed record InferenceStarted([property: Id(0)] string NeuronId, [property: Id(1)] string OperationId) : Signal;
-[GenerateSerializer, Alias("ai.inference-completed")]
-public sealed record InferenceCompleted([property: Id(0)] string NeuronId, [property: Id(1)] string OperationId) : Signal;
-[GenerateSerializer, Alias("ai.inference-failed")]
-public sealed record InferenceFailed([property: Id(0)] string NeuronId, [property: Id(1)] string OperationId,
-    [property: Id(2)] string Reason) : Signal;
+[Signal("ai.inference-started")]
+public sealed record InferenceStarted(string NeuronId, string OperationId) : DigitalBrain.Signal;
+[Signal("ai.inference-completed")]
+public sealed record InferenceCompleted(string NeuronId, string OperationId) : DigitalBrain.Signal;
+[Signal("ai.inference-failed")]
+public sealed record InferenceFailed(string NeuronId, string OperationId,
+    string Reason) : DigitalBrain.Signal;

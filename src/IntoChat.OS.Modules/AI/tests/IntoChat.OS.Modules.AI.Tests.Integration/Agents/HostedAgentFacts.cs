@@ -60,7 +60,7 @@ public sealed class HostedAgentFacts
         Assert.Equal(4, (await agent.Transcript()).Length);
 
         var inferenceRequest = ReplyWithCompletion(endpoint, "standalone", ct);
-        var result = await brain.Get<ILLM>("fixture").Generate(
+        var result = await brain.Get<ILLM>("owner/fixture").Generate(
             new InferenceRequest([new AiMessage("user", [new AiText("independent")])]), cancellationToken: ct);
         Assert.Equal("standalone", Assert.IsType<AiText>(Assert.Single(Assert.Single(result.Messages).Content)).Text);
         await inferenceRequest;

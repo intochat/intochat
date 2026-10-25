@@ -1,7 +1,7 @@
+using DigitalBrain;
+using DigitalBrain.Contracts;
 using System.ComponentModel;
 using IntoChat.OS;
-using Orleans.Concurrency;
-using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
 namespace IntoChat.OS.Modules.AI.Agents.Intents;
 
@@ -34,8 +34,8 @@ public sealed record Intent([property: Id(0)] Guid Id, [property: Id(1)] string 
 [GenerateSerializer, Alias("intents.snapshot")]
 public sealed record IntentsSnapshot([property: Id(0)] long Revision, [property: Id(1)] Intent[] Intents);
 
-[Alias("intents"), Orleans.Metadata.DefaultGrainType("intents")]
-public interface IIntents : INeuron
+[NeuronAlias("intents"), DefaultNeuronType("intents")]
+public interface IIntents
 {
     [Description("Record what the user asked as an intent. Returns the existing intent when the request id was heard before.")]
     Task<Guid> Declare(IntentDraft draft);
@@ -47,7 +47,7 @@ public interface IIntents : INeuron
 
     Task Arm(Guid id, Cue[] cues, long expectedRevision);
 
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<IntentsSnapshot> Read();
 
     static string Key(string brainId) => $"{brainId}/memory/intents";

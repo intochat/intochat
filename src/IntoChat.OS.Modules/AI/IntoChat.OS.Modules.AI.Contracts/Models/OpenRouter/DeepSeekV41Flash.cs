@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.OpenRouter;
 
 public sealed class DeepSeekV41Flash : LLMModel<IDeepSeekV41Flash>
@@ -7,5 +9,5 @@ public sealed class DeepSeekV41Flash : LLMModel<IDeepSeekV41Flash>
     public override AiProvider Provider => AiProvider.OpenRouter;
 }
 
-[Alias("ai.llm.deepseek-v41-flash"), Orleans.Metadata.DefaultGrainType("ai.llm.deepseek-v41-flash")]
+[NeuronAlias("ai.llm.deepseek-v41-flash"), DefaultNeuronType("ai.llm.deepseek-v41-flash")]
 public interface IDeepSeekV41Flash : ILLM;

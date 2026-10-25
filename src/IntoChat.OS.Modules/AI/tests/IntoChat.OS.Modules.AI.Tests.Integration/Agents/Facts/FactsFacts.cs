@@ -109,7 +109,8 @@ public sealed class FactsFacts(AIHost host)
         {
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facts.Assert(Assertion("ep-1#0", importance: bad)));
         }
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facts.Assert(Assertion("ep-1#0", confidence: double.NaN)));
+        // A plain call's arguments are JSON (06-05): NaN cannot be written, so the call is refused before it leaves the caller.
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => facts.Assert(Assertion("ep-1#0", confidence: double.NaN)));
         Assert.Empty((await facts.Read()).Facts);
     }
 

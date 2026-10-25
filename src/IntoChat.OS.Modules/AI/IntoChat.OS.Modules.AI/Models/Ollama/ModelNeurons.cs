@@ -1,9 +1,10 @@
-using Orleans.Runtime;
+using DigitalBrain;
+
 
 namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
-[GrainType("ai.llm.gemma4")]
-internal sealed class Gemma4Neuron(InferenceService inference) : LlmNeuronBase(inference, typeof(IntoChat.OS.Modules.AI.Models.Ollama.IGemma4)), IntoChat.OS.Modules.AI.Models.Ollama.IGemma4;
+[Neuron("ai.llm.gemma4")]
+internal sealed class Gemma4Neuron(IModelInference inference) : LlmNeuronBase(inference, typeof(IntoChat.OS.Modules.AI.Models.Ollama.IGemma4)), IntoChat.OS.Modules.AI.Models.Ollama.IGemma4;
 
-[GrainType("ai.llm.qwen35")]
-internal sealed class Qwen35Neuron(InferenceService inference) : LlmNeuronBase(inference, typeof(IntoChat.OS.Modules.AI.Models.Ollama.IQwen35)), IntoChat.OS.Modules.AI.Models.Ollama.IQwen35;
+[Neuron("ai.llm.qwen35")]
+internal sealed class Qwen35Neuron(IModelInference inference) : LlmNeuronBase(inference, typeof(IntoChat.OS.Modules.AI.Models.Ollama.IQwen35)), IntoChat.OS.Modules.AI.Models.Ollama.IQwen35;

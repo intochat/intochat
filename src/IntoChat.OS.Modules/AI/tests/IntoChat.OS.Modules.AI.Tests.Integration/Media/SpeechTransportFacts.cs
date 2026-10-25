@@ -15,7 +15,7 @@ public sealed class SpeechTransportFacts
         await using var brain = await TestBrain.Create().WithProvider("OpenAI", endpoint.Url).WithModule<AIModule>()
             // The OpenAI speech transport is chosen in code, not by option: the fact composes it as a host would.
             .ConfigureServices(services => services.AddOpenAISpeechSynthesis("fixture-tts")).StartAsync(ct);
-        var speech = brain.Get<ISpeechSynthesizer>("real-speech-transport");
+        var speech = brain.Get<ISpeechSynthesizer>("owner/real-speech-transport");
         Assert.True((await speech.Describe()).Available);
         await using var completed = await brain.Observe<SpeechSynthesized>(speech, ct);
         byte[] mp3 = [0x49, 0x44, 0x33, 0x04, 0, 0];

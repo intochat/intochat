@@ -123,13 +123,13 @@ public sealed class InferenceFacts
             {
                 options.ModelProfiles["custom"] = new() { Provider = "OpenAI", Model = "custom-model" };
             }).StartAsync(ct);
-        var generic = brain.Get<ILLM>("generic");
+        var generic = brain.Get<ILLM>("owner/generic");
         var description = await generic.Describe(new("custom"));
         Assert.Equal("custom-model", description.Model);
         Assert.Equal(CapabilitySupport.Unknown, description.Tools);
         Assert.Null(description.ContextWindowTokens);
-        Assert.Equal("custom-model", (await brain.Get<ILLM>("custom").Describe()).Model);
-        var typed = brain.Get<IntoChat.OS.Modules.AI.Models.OpenAI.IGpt56Sol>("typed");
+        Assert.Equal("custom-model", (await brain.Get<ILLM>("owner/custom").Describe()).Model);
+        var typed = brain.Get<IntoChat.OS.Modules.AI.Models.OpenAI.IGpt56Sol>("owner/typed");
         Assert.Equal("gpt-5.6-sol", (await typed.Describe()).Model);
         await Assert.ThrowsAsync<ArgumentException>(() => typed.Describe(new("custom")));
     }

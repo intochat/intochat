@@ -1,5 +1,6 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.AI.Media;
 
@@ -34,39 +35,39 @@ public sealed record SpeechSynthesisRequest([property: Id(0)] string Text, [prop
 [GenerateSerializer, Alias("ai.media.SpeechSynthesisResult")]
 public sealed record SpeechSynthesisResult([property: Id(0)] Guid OperationId, [property: Id(1)] MediaPayload Audio, [property: Id(2)] string Model);
 
-[Alias("ai.media.IImageGenerator")]
-public interface IImageGenerator : INeuron
+[NeuronAlias("ai.media.IImageGenerator"), DefaultNeuronType("imagegeneratorneuron")]
+public interface IImageGenerator
 {
-    [ReadOnly] Task<MediaCapabilities> Describe();
-    [ResponseTimeout("00:10:00")] Task<ImageGenerationResult> Generate(ImageGenerationRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.CallTimeout(600000)] Task<ImageGenerationResult> Generate(ImageGenerationRequest request, CancellationToken cancellationToken = default);
 }
-[Alias("ai.media.IEmbeddingModel")]
-public interface IEmbeddingModel : INeuron
+[NeuronAlias("ai.media.IEmbeddingModel"), DefaultNeuronType("embeddingneuron")]
+public interface IEmbeddingModel
 {
-    [ReadOnly] Task<MediaCapabilities> Describe();
-    [ResponseTimeout("00:10:00")] Task<EmbeddingResult> Embed(EmbeddingRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.CallTimeout(600000)] Task<EmbeddingResult> Embed(EmbeddingRequest request, CancellationToken cancellationToken = default);
 }
-[Alias("ai.media.ISpeechRecognizer")]
-public interface ISpeechRecognizer : INeuron
+[NeuronAlias("ai.media.ISpeechRecognizer"), DefaultNeuronType("speechrecognizerneuron")]
+public interface ISpeechRecognizer
 {
-    [ReadOnly] Task<MediaCapabilities> Describe();
-    [ResponseTimeout("00:10:00")] Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.CallTimeout(600000)] Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default);
 }
-[Alias("ai.media.ISpeechSynthesizer")]
-public interface ISpeechSynthesizer : INeuron
+[NeuronAlias("ai.media.ISpeechSynthesizer"), DefaultNeuronType("speechsynthesizerneuron")]
+public interface ISpeechSynthesizer
 {
-    [ReadOnly] Task<MediaCapabilities> Describe();
-    [ResponseTimeout("00:10:00")] Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.CallTimeout(600000)] Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default);
 }
 
-[GenerateSerializer, Alias("ai.media.ImageGenerated")]
-public sealed record ImageGenerated([property: Id(0)] Guid OperationId, [property: Id(1)] string Model) : Signal;
-[GenerateSerializer, Alias("ai.media.EmbeddingsGenerated")]
-public sealed record EmbeddingsGenerated([property: Id(0)] Guid OperationId, [property: Id(1)] int Count) : Signal;
-[GenerateSerializer, Alias("ai.media.SpeechRecognized")]
-public sealed record SpeechRecognized([property: Id(0)] Guid OperationId, [property: Id(1)] string Model) : Signal;
-[GenerateSerializer, Alias("ai.media.SpeechSynthesized")]
-public sealed record SpeechSynthesized([property: Id(0)] Guid OperationId, [property: Id(1)] string Model) : Signal;
-[GenerateSerializer, Alias("ai.media.MediaOperationFailed")]
-public sealed record MediaOperationFailed([property: Id(0)] Guid OperationId, [property: Id(1)] MediaOperation Operation,
-    [property: Id(2)] string Code) : Signal;
+[Signal("ai.media.ImageGenerated")]
+public sealed record ImageGenerated(Guid OperationId, string Model) : DigitalBrain.Signal;
+[Signal("ai.media.EmbeddingsGenerated")]
+public sealed record EmbeddingsGenerated(Guid OperationId, int Count) : DigitalBrain.Signal;
+[Signal("ai.media.SpeechRecognized")]
+public sealed record SpeechRecognized(Guid OperationId, string Model) : DigitalBrain.Signal;
+[Signal("ai.media.SpeechSynthesized")]
+public sealed record SpeechSynthesized(Guid OperationId, string Model) : DigitalBrain.Signal;
+[Signal("ai.media.MediaOperationFailed")]
+public sealed record MediaOperationFailed(Guid OperationId, MediaOperation Operation,
+    string Code) : DigitalBrain.Signal;

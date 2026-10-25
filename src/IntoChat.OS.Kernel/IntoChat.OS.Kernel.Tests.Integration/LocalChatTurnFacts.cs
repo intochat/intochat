@@ -36,12 +36,13 @@ public sealed class LocalChatTurnFacts
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Open))
             .StartAsync(ct);
 
-        // neurons_call { contract: ILLM, key: "default", method: "Generate", arguments: "[<InferenceRequest>]" }
+        // neurons_call { contract: ILLM, key: "{brain}/models", method: "Generate", arguments: "[<InferenceRequest>]" }
+        // (06-05: the model neurons are plain; a plain key names its brain, so the bare "default" is no longer a model key)
         var request = new InferenceRequest([new AiMessage("user", [new AiText("Say hello.")])]);
         var arguments = JsonSerializer.Serialize(new object[] { request }, JsonSerializerOptions.Web);
         using var caller = brain.Owner.AsCaller();
         var surface = brain.Services.GetRequiredService<NeuronSurface>();
-        var result = await surface.Call(typeof(ILLM).FullName!, "default", nameof(ILLM.Generate), arguments, ct);
+        var result = await surface.Call(typeof(ILLM).FullName!, IntoChat.OS.Modules.AI.Models.ModelAddress.Key(brain.Owner.BrainId), nameof(ILLM.Generate), arguments, ct);
 
         Assert.NotNull(result);
         var reply = result.Value.GetProperty("messages").EnumerateArray().Last();

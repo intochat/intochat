@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.XAI;
 
 public sealed class Grok46 : LLMModel<IGrok46>
@@ -7,5 +9,5 @@ public sealed class Grok46 : LLMModel<IGrok46>
     public override AiProvider Provider => AiProvider.XAI;
 }
 
-[Alias("ai.llm.grok46"), Orleans.Metadata.DefaultGrainType("ai.llm.grok46")]
+[NeuronAlias("ai.llm.grok46"), DefaultNeuronType("ai.llm.grok46")]
 public interface IGrok46 : ILLM;

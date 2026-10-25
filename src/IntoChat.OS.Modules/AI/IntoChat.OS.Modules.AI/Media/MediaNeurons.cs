@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Media;
 
-public abstract class MediaNeuron : Neuron
+public abstract class MediaNeuron : DigitalBrain.Neuron
 {
     public const int MaxPayloadBytes = 8 * 1024 * 1024;
     protected static MediaCapabilities Capabilities(MediaOperation operation, Func<bool> available)
@@ -28,22 +28,23 @@ public abstract class MediaNeuron : Neuron
         if (payload.Content.Length is 0 or > MaxPayloadBytes) { throw new ArgumentException("Media must contain between 1 byte and 8 MiB."); }
     }
     protected async Task<T> Execute<T>(MediaOperation operation, CancellationToken ct,
-        Func<Guid, Task<T>> action, Func<T, Signal> completed)
+        Func<Guid, Task<T>> action, Func<T, DigitalBrain.Signal> completed)
     {
         var id = Guid.NewGuid();
         T result;
         try { ct.ThrowIfCancellationRequested(); result = await action(id); ct.ThrowIfCancellationRequested(); }
         catch (Exception error)
         {
-            await PublishAsync(new MediaOperationFailed(id, operation,
+            await Publish(new MediaOperationFailed(id, operation,
                 error is OperationCanceledException ? "cancelled" : error is NotSupportedException ? "unavailable" : "failed"));
             throw;
         }
-        await PublishAsync(completed(result));
+        await Publish(completed(result));
         return result;
     }
 }
 
+[DigitalBrain.Neuron("imagegeneratorneuron")]
 public sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuron, IImageGenerator
 {
     public async Task<MediaCapabilities> Describe()
@@ -62,6 +63,7 @@ public sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuro
         }, result => new ImageGenerated(result.OperationId, result.Model));
 }
 
+[DigitalBrain.Neuron("embeddingneuron")]
 public sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IEmbeddingModel
 {
     public Task<MediaCapabilities> Describe() => Task.FromResult(Capabilities(MediaOperation.Embedding,
@@ -82,6 +84,7 @@ public sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IE
         }, result => new EmbeddingsGenerated(result.OperationId, result.Vectors.Length));
 }
 
+[DigitalBrain.Neuron("speechrecognizerneuron")]
 public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeuron, ISpeechRecognizer
 {
     public async Task<MediaCapabilities> Describe()
@@ -105,6 +108,7 @@ public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeu
         }, result => new SpeechRecognized(result.OperationId, result.Model));
 }
 
+[DigitalBrain.Neuron("speechsynthesizerneuron")]
 public sealed class SpeechSynthesizerNeuron(ISpeechSynthesisTransport transport) : MediaNeuron, ISpeechSynthesizer
 {
     public async Task<MediaCapabilities> Describe()

@@ -53,10 +53,11 @@ public sealed class ContractManifestFacts
         // TimerTick (06-07) and TextChanged (06-04) became plain [Signal] records; a family 3 signal stands in until Circles migrates.
         Assert.StartsWith("circles.circle-changed; ", manifest.Contracts["IntoChat.OS.Modules.Circles.Signals.CircleChanged"], StringComparison.Ordinal);
         Assert.Equal("Signal", manifest.Signals["IntoChat.OS.Signal"]);
-        // A neuron without [GrainType] gets its grain type from the class name; it is pinned all the same.
-        Assert.Contains(manifest.Grains, grain => grain.Key.EndsWith(".ImageGeneratorNeuron", StringComparison.Ordinal));
+        // The last grains named by Orleans' class-name convention (the AI media neurons) are plain since 06-05, their types frozen
+        // by [Neuron("imagegeneratorneuron")] and pinned in NeuronGrainTypes.json; a grain sample stands in.
+        Assert.Equal("ledger", manifest.Grains["IntoChat.OS.Authority.Compute.LedgerGrain"]);
         Assert.True(manifest.Contracts.Count > 500, $"{manifest.Contracts.Count} contracts");
-        Assert.True(manifest.Grains.Count > 100, $"{manifest.Grains.Count} grains");
+        Assert.True(manifest.Grains.Count > 50, $"{manifest.Grains.Count} grains");
         Assert.True(manifest.States.Count > 50, $"{manifest.States.Count} grains with state");
     }
 

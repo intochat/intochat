@@ -1,7 +1,7 @@
+using DigitalBrain.Contracts;
 using System.ComponentModel;
 using IntoChat.OS;
-using Orleans.Concurrency;
-using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
+using DigitalBrain;
 
 namespace IntoChat.OS.Modules.AI.Agents.Facts;
 
@@ -27,8 +27,8 @@ public sealed record FactAssertion([property: Id(0)] FactKind Kind, [property: I
 [GenerateSerializer, Alias("facts.snapshot")]
 public sealed record FactsSnapshot([property: Id(0)] long Revision, [property: Id(1)] Fact[] Facts);
 
-[Alias("facts"), Orleans.Metadata.DefaultGrainType("facts")]
-public interface IFacts : INeuron
+[NeuronAlias("facts"), DefaultNeuronType("facts")]
+public interface IFacts
 {
     [Description("Record a durable fact about the user. Returns the existing fact when the dedup key was seen before.")]
     Task<Guid> Assert(FactAssertion assertion);
@@ -39,11 +39,11 @@ public interface IFacts : INeuron
     [Description("Hide a fact from recall and rendering (\"forget this\"); it stays in the journal.")]
     Task Forget(Guid id, string reason, long expectedRevision);
 
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<FactsSnapshot> Read();
 
     // ValidTo == null && !Hidden
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<Fact[]> Current();
 
     static string Key(string brainId) => $"{brainId}/memory/facts";

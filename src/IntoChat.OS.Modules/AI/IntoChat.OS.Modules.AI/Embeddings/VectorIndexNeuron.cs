@@ -1,8 +1,8 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Embeddings.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Embeddings;
@@ -17,10 +17,9 @@ internal sealed record VectorIndexState
 }
 
 // Every write rewrites the whole record, so the index is bounded: 1024 entries of 1536 floats is about 6 MB.
-[GrainType("ai.vector-index")]
-internal sealed class VectorIndexNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<VectorIndexState> store)
-    : Neuron<VectorIndexState>(store), IVectorIndex
+[Neuron("ai.vector-index")]
+internal sealed class VectorIndexNeuron
+    : AiNeuron<VectorIndexState>, IVectorIndex
 {
     internal const int MaxEntries = 1024;
     internal const int MaxDimensions = 4096;
@@ -91,7 +90,7 @@ internal sealed class VectorIndexNeuron(
         var current = Snapshot;
         if (dimensions == current.Dimensions && Same(current.Entries, entries)) { return View(current); }
         var next = new VectorIndexState { Entries = entries, Dimensions = dimensions, Revision = current.Revision + 1 };
-        await Save(next, new VectorIndexChanged(this.GetPrimaryKeyString(), next.Revision, entries.Length));
+        await Save(next, new VectorIndexChanged(FullKey, next.Revision, entries.Length));
         return View(next);
     }
 

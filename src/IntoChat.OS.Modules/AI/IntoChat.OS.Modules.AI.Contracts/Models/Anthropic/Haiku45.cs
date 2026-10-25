@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.Anthropic;
 
 public sealed class Haiku45 : LLMModel<IHaiku45>
@@ -7,5 +9,5 @@ public sealed class Haiku45 : LLMModel<IHaiku45>
     public override AiProvider Provider => AiProvider.Anthropic;
 }
 
-[Alias("ai.llm.haiku45"), Orleans.Metadata.DefaultGrainType("ai.llm.haiku45")]
+[NeuronAlias("ai.llm.haiku45"), DefaultNeuronType("ai.llm.haiku45")]
 public interface IHaiku45 : ILLM;

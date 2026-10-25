@@ -1,8 +1,8 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents.Facts;
@@ -19,10 +19,8 @@ public sealed record FactsState
     [Id(2)] public FactDedup[] Dedup { get; init; } = [];
 }
 
-[GrainType("facts")]
-internal sealed class FactsNeuron(
-    [PersistentState("facts", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FactsState> store)
-    : Neuron<FactsState>(store), IFacts
+[Neuron("facts", State = "facts")]
+internal sealed class FactsNeuron : AiNeuron<FactsState>, IFacts
 {
     public async Task<Guid> Assert(FactAssertion assertion)
     {
@@ -44,7 +42,7 @@ internal sealed class FactsNeuron(
             Revision = Snapshot.Revision + 1,
             Facts = [.. Snapshot.Facts, fact],
             Dedup = [.. Snapshot.Dedup, new FactDedup(assertion.DedupKey, id)],
-        }, new FactAsserted(this.GetPrimaryKeyString(), id, assertion.DedupKey));
+        }, new FactAsserted(FullKey, id, assertion.DedupKey));
         return id;
     }
 
@@ -69,7 +67,7 @@ internal sealed class FactsNeuron(
             item.Id == id ? ended
             : successor is not null && item.Id == successor.Id ? item with { Links = [.. item.Links.Union([id])] }
             : item).ToArray();
-        await Save(Snapshot with { Revision = Snapshot.Revision + 1, Facts = facts }, new FactInvalidated(this.GetPrimaryKeyString(), id, supersededBy));
+        await Save(Snapshot with { Revision = Snapshot.Revision + 1, Facts = facts }, new FactInvalidated(FullKey, id, supersededBy));
     }
 
     public async Task Forget(Guid id, string reason, long expectedRevision)
@@ -80,7 +78,7 @@ internal sealed class FactsNeuron(
         {
             Revision = Snapshot.Revision + 1,
             Facts = [.. Snapshot.Facts.Select(item => item.Id == fact.Id ? item with { Hidden = true } : item)],
-        }, new FactForgotten(this.GetPrimaryKeyString(), id));
+        }, new FactForgotten(FullKey, id));
     }
 
     private Fact Find(Guid id, long expectedRevision)

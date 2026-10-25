@@ -11,5 +11,11 @@
     <ProjectReference Include="../../../ModelContextProtocol/Mcp/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../../../Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
     <ProjectReference Include="../../../IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
+    <ProjectReference Include="../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.AI.Tests.Unit/AiNeuronFacts.cs" Link="Neurons/AiNeuronFacts.cs" />
+    <Compile Include="../IntoChat.OS.Modules.AI.Tests.Unit/GatedInference.cs" Link="Neurons/GatedInference.cs" />
   </ItemGroup>
 </Project>

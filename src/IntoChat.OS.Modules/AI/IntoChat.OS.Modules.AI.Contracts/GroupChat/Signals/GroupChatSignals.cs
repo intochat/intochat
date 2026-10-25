@@ -1,16 +1,17 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.GroupChat.Signals;
 
-[GenerateSerializer, Alias("ai.group-chat-changed")]
-public sealed record GroupChatChanged([property: Id(0)] string ChatId, [property: Id(1)] long Revision, [property: Id(2)] GroupChatStatus Status) : Signal;
+[Signal("ai.group-chat-changed")]
+public sealed record GroupChatChanged(string ChatId, long Revision, GroupChatStatus Status) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ai.group-chat-spoke")]
-public sealed record GroupChatSpoke([property: Id(0)] string ChatId, [property: Id(1)] GroupChatTurn Turn) : Signal;
+[Signal("ai.group-chat-spoke")]
+public sealed record GroupChatSpoke(string ChatId, GroupChatTurn Turn) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ai.group-chat-concluded")]
+[Signal("ai.group-chat-concluded")]
 public sealed record GroupChatConcluded(
-    [property: Id(0)] string ChatId,
-    [property: Id(1)] string Answer,
-    [property: Id(2)] int Rounds,
-    [property: Id(3)] bool Agreed) : Signal;
+    string ChatId,
+    string Answer,
+    int Rounds,
+    bool Agreed) : DigitalBrain.Signal;

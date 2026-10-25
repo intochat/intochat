@@ -1,21 +1,21 @@
+using DigitalBrain;
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.GroupChat.Signals;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.AI.GroupChat;
 
-[GrainType("ai.group-chat")]
-internal sealed class GroupChatNeuron(
-    [PersistentState("ai.group-chat", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<GroupChatState> store)
-    : Neuron<GroupChatState>(store), IGroupChat
+[Neuron("ai.group-chat", State = "ai.group-chat")]
+internal sealed class GroupChatNeuron
+    : AiNeuron<GroupChatState>, IGroupChat
 {
     private const string AgreementMarker = "AGREE";
 
-    private string ChatId => this.GetPrimaryKeyString();
+    private string ChatId => FullKey;
 
     public async Task<GroupChatState> Configure(GroupChatSetup setup)
     {
@@ -92,7 +92,7 @@ internal sealed class GroupChatNeuron(
         var conversation = new StringBuilder().AppendLine($"Question: {question}");
         foreach (var turn in transcript) { conversation.AppendLine($"{turn.Speaker}: {turn.Text}"); }
         conversation.AppendLine().AppendLine(instruction);
-        var text = await ModelAddress.Complete(GrainFactory, BrainKey.BrainOf(ChatId), participant.Model, system, conversation.ToString());
+        var text = await ModelAddress.Complete(ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Id.Brain.Value, participant.Model, system, conversation.ToString());
         return text.Length > 0 ? text : throw new InvalidOperationException($"{participant.Name} returned an empty turn.");
     }
 }

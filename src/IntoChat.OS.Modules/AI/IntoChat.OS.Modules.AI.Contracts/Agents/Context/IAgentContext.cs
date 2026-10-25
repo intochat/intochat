@@ -1,16 +1,17 @@
+using DigitalBrain;
+using DigitalBrain.Contracts;
 using IntoChat.OS;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 
 // What an agent should know before it answers, as named slices each producer owns. The agent reads
 // the latest snapshot at turn time; behaviors subscribe to the signals.
-[Alias("agent-context"), Orleans.Metadata.DefaultGrainType("agent-context")]
-public interface IAgentContext : INeuron
+[NeuronAlias("agent-context"), DefaultNeuronType("agent-context")]
+public interface IAgentContext
 {
     Task Set(ContextEntry entry);
     Task Remove(string name);
-    [ReadOnly, AlwaysInterleave] Task<ContextSnapshot> Read();
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ContextSnapshot> Read();
 }
 
 // Text is what the model should know; Contracts are full type names of neuron contracts it may need for it.

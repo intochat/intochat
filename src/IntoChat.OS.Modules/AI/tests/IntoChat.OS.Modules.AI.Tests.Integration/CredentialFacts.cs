@@ -27,7 +27,7 @@ public sealed class CredentialFacts
         var catalogRow = await brain.Integration("openai").Read();
         var factory = new OpenAIProviderFactory();
         var credentials = brain.Services.GetRequiredService<IAiCredentials>();
-        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => brain.Get<IGpt56Sol>("unregistered").Describe());
+        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => brain.Get<IGpt56Sol>("owner/unregistered").Describe());
 
         Assert.Equal(IntegrationStatus.Unconfigured, catalogRow.Status);
         Assert.False(await factory.IsConfigured(new AIOptions(), credentials, ct));
@@ -54,7 +54,7 @@ public sealed class CredentialFacts
         var registration = brain.Integration("openai");
 
         var seen = ReplyOnceCapturingKey(provider, ct);
-        await brain.Get<ILLM>("default").Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct);
+        await brain.Get<ILLM>(ModelAddress.Key("owner")).Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct);
 
         Assert.Equal("Bearer " + Canary, await seen);
         var snapshot = await registration.Read();
@@ -189,11 +189,11 @@ public sealed class CredentialFacts
         var registration = brain.Integration("openai");
 
         var refused = ReplyOnceCapturingKey(provider, ct, HttpStatusCode.Unauthorized);
-        var failure = await Assert.ThrowsAnyAsync<Exception>(() => brain.Get<ILLM>("default").Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct));
+        var failure = await Assert.ThrowsAnyAsync<Exception>(() => brain.Get<ILLM>(ModelAddress.Key("owner")).Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct));
         Assert.Equal("Bearer " + Canary, await refused);
         await registration.Clear("ApiKey");
         clock.Advance(TimeSpan.FromSeconds(6));
-        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => brain.Get<IGpt56Sol>("cleared").Describe());
+        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => brain.Get<IGpt56Sol>("owner/cleared").Describe());
 
         Assert.DoesNotContain(Canary, failure.ToString());
         Assert.DoesNotContain(Canary, unavailable.ToString());

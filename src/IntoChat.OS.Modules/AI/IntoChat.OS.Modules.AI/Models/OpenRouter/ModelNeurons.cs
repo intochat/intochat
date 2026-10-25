@@ -1,7 +1,8 @@
-using Orleans.Runtime;
+using DigitalBrain;
+
 
 namespace IntoChat.OS.Modules.AI.Models.OpenRouter;
 
-[GrainType("ai.llm.deepseek-v41-flash")]
-internal sealed class DeepSeekV41FlashNeuron(InferenceService inference)
+[Neuron("ai.llm.deepseek-v41-flash")]
+internal sealed class DeepSeekV41FlashNeuron(IModelInference inference)
     : LlmNeuronBase(inference, typeof(IntoChat.OS.Modules.AI.Models.OpenRouter.IDeepSeekV41Flash)), IntoChat.OS.Modules.AI.Models.OpenRouter.IDeepSeekV41Flash;

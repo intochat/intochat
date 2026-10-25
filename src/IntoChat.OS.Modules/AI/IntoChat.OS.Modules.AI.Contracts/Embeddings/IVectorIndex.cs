@@ -1,15 +1,15 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using System.ComponentModel;
 using IntoChat.OS;
-using Orleans.Concurrency;
-using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
 namespace IntoChat.OS.Modules.AI.Embeddings;
 
 // The caller embeds (IEmbeddingModel) and the index ranks. An empty index takes its dimensions from the next
 // write; while it holds entries, every vector it is given or asked about must have those dimensions.
-[Alias("ai.vector-index"), Orleans.Metadata.DefaultGrainType("ai.vector-index")]
+[NeuronAlias("ai.vector-index"), DefaultNeuronType("ai.vector-index")]
 [Description("A brain's nearest-neighbour memory, keyed {brain}/memory/{name}: entries of id, vector and payload, ranked by cosine similarity.")]
-public interface IVectorIndex : INeuron
+public interface IVectorIndex
 {
     [Description("Rebuild the index from exactly these entries; entries not given are dropped and the dimensions are taken from them.")]
     Task<VectorIndexSnapshot> Replace(VectorEntry[] entries);
@@ -21,11 +21,11 @@ public interface IVectorIndex : INeuron
     Task<VectorIndexSnapshot> Remove(string[] ids);
 
     [Description("The take entries nearest the query by cosine similarity, best first, among those whose payload holds every mustMatch pair.")]
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<VectorMatch[]> Nearest(float[] query, int take, Dictionary<string, string>? mustMatch = null);
 
     [Description("How many entries the index holds, their dimensions and its revision.")]
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     Task<VectorIndexSnapshot> Read();
 
     static string Key(string brainId, string name) => $"{brainId}/memory/{name}";

@@ -1,8 +1,8 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
@@ -15,10 +15,9 @@ public sealed record AgentContextState
     [Id(1)] public ContextEntry[] Entries { get; init; } = [];
 }
 
-[GrainType("agent-context")]
-internal sealed class AgentContextNeuron(
-    [PersistentState("agent-context", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<AgentContextState> store)
-    : Neuron<AgentContextState>(store), IAgentContext
+[Neuron("agent-context", State = "agent-context")]
+internal sealed class AgentContextNeuron
+    : AiNeuron<AgentContextState>, IAgentContext
 {
     public async Task Set(ContextEntry entry)
     {
@@ -31,7 +30,7 @@ internal sealed class AgentContextNeuron(
         var index = Array.FindIndex(Snapshot.Entries, item => item.Name == entry.Name);
         ContextEntry[] entries = index < 0 ? [.. Snapshot.Entries, kept] : [.. Snapshot.Entries[..index], kept, .. Snapshot.Entries[(index + 1)..]];
         var revision = Snapshot.Revision + 1;
-        await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextUpdated(this.GetPrimaryKeyString(), revision, entry.Name));
+        await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextUpdated(FullKey, revision, entry.Name));
     }
 
     public async Task Remove(string name)
@@ -40,7 +39,7 @@ internal sealed class AgentContextNeuron(
         if (index < 0) { return; }
         var revision = Snapshot.Revision + 1;
         ContextEntry[] entries = [.. Snapshot.Entries[..index], .. Snapshot.Entries[(index + 1)..]];
-        await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextRemoved(this.GetPrimaryKeyString(), revision, name));
+        await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextRemoved(FullKey, revision, name));
     }
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(Snapshot.Revision, Snapshot.Entries.ToArray()));

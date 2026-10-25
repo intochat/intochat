@@ -17,17 +17,18 @@ public static class ModelAddress
 
     public static bool IsKnown(string model) => LLMModel.FindByMarkerName(model) is not null;
 
-    public static ILLM Resolve(IGrainFactory grains, string brainId, string model)
+    // The model neurons are plain neurons (06-05), reached by their marker contract and the brain's model key.
+    public static ILLM Resolve(IntoChat.OS.Runtime.IPlainNeurons neurons, string brainId, string model)
     {
-        ArgumentNullException.ThrowIfNull(grains);
+        ArgumentNullException.ThrowIfNull(neurons);
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         var marker = LLMModel.FindByMarkerName(model)?.Marker ?? throw new ArgumentException($"Unknown model '{model}'.", nameof(model));
-        return (ILLM)grains.GetGrain(marker, Key(brainId));
+        return (ILLM)neurons.Get(marker, Key(brainId));
     }
 
-    public static async Task<string> Complete(IGrainFactory grains, string brainId, string model, string system, string user, CancellationToken cancellationToken = default)
+    public static async Task<string> Complete(IntoChat.OS.Runtime.IPlainNeurons neurons, string brainId, string model, string system, string user, CancellationToken cancellationToken = default)
     {
-        var result = await Resolve(grains, brainId, model).Generate(new InferenceRequest(
+        var result = await Resolve(neurons, brainId, model).Generate(new InferenceRequest(
         [
             new AiMessage("system", [new AiText(system)]),
             new AiMessage("user", [new AiText(user)]),

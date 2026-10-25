@@ -2,6 +2,7 @@ using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using Orleans.Concurrency;
 using Orleans.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -18,9 +19,13 @@ public interface ICreatorModel : IGrainWithIntegerKey
 [GrainType("apps.creator-model"), StatelessWorker, Reentrant]
 internal sealed class CreatorModelWorker : Grain, ICreatorModel
 {
+    // The model neurons are plain neurons (06-05); this worker stays a raw grain (allow-listed until Phase 12) and reaches them
+    // through the kernel's plain-neuron seam, still from inside a grain call, so the trusted stamp flows on.
+    private IntoChat.OS.Runtime.IPlainNeurons Models => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+
     public Task<string> Complete(string brainId, string model, string system, string prompt)
-        => ModelAddress.Complete(GrainFactory, brainId, model, system, prompt);
+        => ModelAddress.Complete(Models, brainId, model, system, prompt);
 
     public Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request)
-        => ModelAddress.Resolve(GrainFactory, brainId, model).Generate(request);
+        => ModelAddress.Resolve(Models, brainId, model).Generate(request);
 }

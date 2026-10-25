@@ -1,16 +1,17 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.GroupChat;
 
 // Several models discuss one question in turns, building on each other, until they agree or run out of rounds.
-[Alias("ai.group-chat"), Orleans.Metadata.DefaultGrainType("ai.group-chat")]
-public interface IGroupChat : INeuron
+[NeuronAlias("ai.group-chat"), DefaultNeuronType("ai.group-chat")]
+public interface IGroupChat
 {
     Task<GroupChatState> Configure(GroupChatSetup setup);
-    [ResponseTimeout("00:30:00")] Task<GroupChatState> Ask(string question);
-    [ReadOnly, AlwaysInterleave] Task<GroupChatState> Read();
+    [DigitalBrain.CallTimeout(1800000)] Task<GroupChatState> Ask(string question);
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<GroupChatState> Read();
 }
 
 // Model is the LLM marker name, for example "IGpt56Luna" or "IGemma4".

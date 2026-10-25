@@ -1,8 +1,8 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.AI.Metering;
 
@@ -12,33 +12,30 @@ internal sealed record IntentUsageStorage
     [Id(0)] public List<TokenUsageEntry> Entries { get; init; } = [];
 }
 
-[GrainType("ai-intent-usage")]
-internal sealed class IntentUsageNeuron(
-    [PersistentState("intent-usage", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<IntentUsageStorage> store)
-    : Neuron, IIntentUsage
+[Neuron("ai-intent-usage", State = "intent-usage")]
+internal sealed class IntentUsageNeuron : AiNeuron<IntentUsageStorage>, IIntentUsage
 {
-    public async Task RecordAsync(TokenUsageEntry entry, CancellationToken cancellationToken = default)
+    public Task RecordAsync(TokenUsageEntry entry, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(entry);
-        store.State ??= new();
-        store.State.Entries.Add(entry);
-        await store.WriteStateAsync(cancellationToken);
+        return Append([entry]);
     }
 
-    public async Task RecordBatchAsync(TokenUsageEntry[] entries, CancellationToken cancellationToken = default)
+    public Task RecordBatchAsync(TokenUsageEntry[] entries, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (entries is null || entries.Length == 0) { return; }
-        store.State ??= new();
-        store.State.Entries.AddRange(entries);
-        await store.WriteStateAsync(cancellationToken);
+        if (entries is null || entries.Length == 0) { return Task.CompletedTask; }
+        return Append(entries);
     }
+
+    // A plain neuron saves with the signal that says what changed (D-02): the entries recorded.
+    private Task Append(TokenUsageEntry[] entries)
+        => Save(new IntentUsageStorage { Entries = [.. Snapshot.Entries, .. entries] }, new IntentUsageRecorded(FullKey, entries.Length));
 
     public Task<IntentTokenUsage> ReadAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        store.State ??= new();
-        return Task.FromResult(new IntentTokenUsage(this.GetPrimaryKeyString(), [.. store.State.Entries]));
+        return Task.FromResult(new IntentTokenUsage(FullKey, [.. Snapshot.Entries]));
     }
 }

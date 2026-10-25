@@ -682,7 +682,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.All(ranking.Layouts, layout => Assert.Matches("(?i)^features/os/(calculator|desktop)$", layout.Origin));
         Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("static UiNode Render", StringComparison.Ordinal));
 
-        await using var inference = await brain.Observe<Signal>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
+        // The model neuron is a plain neuron (06-05): its inference signals are read from its journal for the diagnostics.
+        var inference = brain.Get<IGpt56Luna>(ModelAddress.Key(Brain));
         await using var written = await brain.Observe<SynapseWritten>(app, ct);
         var operation = Guid.NewGuid();
         var compiledBeforeWrite = sandbox.Compiled.Count;
@@ -703,7 +704,9 @@ public sealed class FastPathFacts : IDisposable
         {
             Volatile.Write(ref kernelPhase, null);
             // Snapshot before any subscription, brain or fake-model disposal; never include prompt or signal payloads.
-            var signals = inference.Snapshot;
+            var inferenceStarted = (await brain.History<InferenceStarted>(inference, CancellationToken.None)).Length;
+            var inferenceCompleted = (await brain.History<InferenceCompleted>(inference, CancellationToken.None)).Length;
+            var inferenceFailed = (await brain.History<InferenceFailed>(inference, CancellationToken.None)).Length;
             TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
             {
                 diagnostic = "fastpath-shipped-layouts",
@@ -722,9 +725,9 @@ public sealed class FastPathFacts : IDisposable
                     allocatedBytes = boundary.AllocatedBytes,
                     elapsedMs = boundary.ElapsedMs,
                 }),
-                inferenceStarted = signals.OfType<InferenceStarted>().Count(),
-                inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
-                inferenceFailed = signals.OfType<InferenceFailed>().Count(),
+                inferenceStarted,
+                inferenceCompleted,
+                inferenceFailed,
                 modelRequests = model.Requests(Writer).Count,
                 compiledBeforeWrite,
                 compiled = sandbox.Compiled.Count,

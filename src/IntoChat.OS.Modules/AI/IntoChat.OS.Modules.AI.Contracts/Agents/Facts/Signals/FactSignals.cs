@@ -1,12 +1,13 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Agents.Facts.Signals;
 
-[GenerateSerializer, Alias("facts.asserted")]
-public sealed record FactAsserted([property: Id(0)] string FactsId, [property: Id(1)] Guid FactId, [property: Id(2)] string DedupKey) : Signal;
+[Signal("facts.asserted")]
+public sealed record FactAsserted(string FactsId, Guid FactId, string DedupKey) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("facts.invalidated")]
-public sealed record FactInvalidated([property: Id(0)] string FactsId, [property: Id(1)] Guid FactId, [property: Id(2)] Guid? SupersededBy) : Signal;
+[Signal("facts.invalidated")]
+public sealed record FactInvalidated(string FactsId, Guid FactId, Guid? SupersededBy) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("facts.forgotten")]
-public sealed record FactForgotten([property: Id(0)] string FactsId, [property: Id(1)] Guid FactId) : Signal;
+[Signal("facts.forgotten")]
+public sealed record FactForgotten(string FactsId, Guid FactId) : DigitalBrain.Signal;

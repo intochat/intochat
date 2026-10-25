@@ -5,8 +5,19 @@ using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-public sealed class InferenceService(ModelCatalog catalog)
+public sealed class InferenceService(ModelCatalog catalog) : IModelInference
 {
+    bool IModelInference.HasProfile(string name) => HasProfile(name);
+
+    Task<ModelDescriptor> IModelInference.Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId)
+        => Describe(selection, marker, cancellationToken, brainId);
+
+    Task<InferenceResult> IModelInference.Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        => Generate(request, marker, cancellationToken, brainId);
+
+    IAsyncEnumerable<InferenceUpdate> IModelInference.GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        => GenerateStreaming(request, marker, cancellationToken, brainId);
+
     internal bool HasProfile(string name) => catalog.HasProfile(name);
 
     // A typed model neuron pins its marker: without a selection it resolves the marker, with one the

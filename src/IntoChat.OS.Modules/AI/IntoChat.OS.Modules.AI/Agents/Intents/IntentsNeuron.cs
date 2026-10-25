@@ -1,8 +1,8 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents.Intents;
@@ -15,10 +15,9 @@ public sealed record IntentsState
     [Id(1)] public Intent[] Intents { get; init; } = [];
 }
 
-[GrainType("intents")]
-internal sealed class IntentsNeuron(
-    [PersistentState("intents", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<IntentsState> store)
-    : Neuron<IntentsState>(store), IIntents
+[Neuron("intents", State = "intents")]
+internal sealed class IntentsNeuron
+    : AiNeuron<IntentsState>, IIntents
 {
     public async Task<Guid> Declare(IntentDraft draft)
     {
@@ -38,7 +37,7 @@ internal sealed class IntentsNeuron(
         var intent = new Intent(id, draft.Heard, draft.Conversation ?? "", draft.RequestId, null, 0, IntentState.Heard, [], [],
             [new IntentTransition(IntentState.Heard, DateTimeOffset.UtcNow, draft.RequestId, "heard")]);
         var revision = Snapshot.Revision + 1;
-        await Save(Snapshot with { Revision = revision, Intents = [.. Snapshot.Intents, intent] }, new IntentHeard(this.GetPrimaryKeyString(), id, draft.RequestId));
+        await Save(Snapshot with { Revision = revision, Intents = [.. Snapshot.Intents, intent] }, new IntentHeard(FullKey, id, draft.RequestId));
         return id;
     }
 
@@ -56,7 +55,7 @@ internal sealed class IntentsNeuron(
             State = keeps ? intent.State : IntentState.Rephrased,
             History = keeps ? intent.History : [.. intent.History, new IntentTransition(IntentState.Rephrased, DateTimeOffset.UtcNow, intent.RequestId, "rephrased")],
         };
-        await Save(Replace(next), new IntentRephrased(this.GetPrimaryKeyString(), id, intent.RequestId, confidence));
+        await Save(Replace(next), new IntentRephrased(FullKey, id, intent.RequestId, confidence));
     }
 
     public async Task Transition(Guid id, IntentState to, string reason, long expectedRevision)
@@ -78,7 +77,7 @@ internal sealed class IntentsNeuron(
             State = to,
             History = [.. intent.History, new IntentTransition(to, DateTimeOffset.UtcNow, intent.RequestId, reason)],
         };
-        await Save(Replace(next), new IntentTransitioned(this.GetPrimaryKeyString(), id, intent.State, to));
+        await Save(Replace(next), new IntentTransitioned(FullKey, id, intent.State, to));
     }
 
     public async Task Arm(Guid id, Cue[] cues, long expectedRevision)
@@ -86,7 +85,7 @@ internal sealed class IntentsNeuron(
         ArgumentNullException.ThrowIfNull(cues);
         var intent = Find(id, expectedRevision);
         if (intent.State is IntentState.Done or IntentState.Abandoned) { throw new InvalidOperationException($"An intent in state {intent.State} cannot be armed."); }
-        await Save(Replace(intent with { Cues = [.. cues] }), new IntentArmed(this.GetPrimaryKeyString(), id));
+        await Save(Replace(intent with { Cues = [.. cues] }), new IntentArmed(FullKey, id));
     }
 
     private Intent Find(Guid id, long expectedRevision)

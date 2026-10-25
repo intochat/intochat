@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Metering;
@@ -27,11 +28,15 @@ public sealed record IntentTokenUsage(
 
 // The durable per-intent usage row. Keyed by intent id and owned by the AI module; P1.4 receipts and
 // the P2.2 Compute meter consume it rather than deriving usage from sampled traces.
-[Alias("ai.intent-usage")]
-[Orleans.Metadata.DefaultGrainType("ai-intent-usage")]
-public interface IIntentUsage : INeuron
+[NeuronAlias("ai.intent-usage")]
+[DefaultNeuronType("ai-intent-usage")]
+public interface IIntentUsage
 {
     Task RecordAsync(TokenUsageEntry entry, CancellationToken cancellationToken = default);
     Task RecordBatchAsync(TokenUsageEntry[] entries, CancellationToken cancellationToken = default);
     Task<IntentTokenUsage> ReadAsync(CancellationToken cancellationToken = default);
 }
+
+// Entries were recorded for an intent (06-05: a plain neuron's state changes with a signal).
+[DigitalBrain.Signal("ai.intent-usage-recorded")]
+public sealed record IntentUsageRecorded(string IntentId, int Count) : DigitalBrain.Signal;

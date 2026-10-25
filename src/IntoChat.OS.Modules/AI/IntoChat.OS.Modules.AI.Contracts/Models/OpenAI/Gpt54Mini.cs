@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class Gpt54Mini : LLMModel<IGpt54Mini>
@@ -7,5 +9,5 @@ public sealed class Gpt54Mini : LLMModel<IGpt54Mini>
     public override AiProvider Provider => AiProvider.OpenAI;
 }
 
-[Alias("ai.llm.gpt54mini"), Orleans.Metadata.DefaultGrainType("ai.llm.gpt54mini")]
+[NeuronAlias("ai.llm.gpt54mini"), DefaultNeuronType("ai.llm.gpt54mini")]
 public interface IGpt54Mini : ILLM;

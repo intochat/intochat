@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.Anthropic;
 
 public sealed class Opus5 : LLMModel<IOpus5>
@@ -7,5 +9,5 @@ public sealed class Opus5 : LLMModel<IOpus5>
     public override AiProvider Provider => AiProvider.Anthropic;
 }
 
-[Alias("ai.llm.opus5"), Orleans.Metadata.DefaultGrainType("ai.llm.opus5")]
+[NeuronAlias("ai.llm.opus5"), DefaultNeuronType("ai.llm.opus5")]
 public interface IOpus5 : ILLM;

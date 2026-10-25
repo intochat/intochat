@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.Google;
 
 public sealed class Gemini36Flash : LLMModel<IGemini36Flash>
@@ -7,5 +9,5 @@ public sealed class Gemini36Flash : LLMModel<IGemini36Flash>
     public override AiProvider Provider => AiProvider.Google;
 }
 
-[Alias("ai.llm.gemini36flash"), Orleans.Metadata.DefaultGrainType("ai.llm.gemini36flash")]
+[NeuronAlias("ai.llm.gemini36flash"), DefaultNeuronType("ai.llm.gemini36flash")]
 public interface IGemini36Flash : ILLM;

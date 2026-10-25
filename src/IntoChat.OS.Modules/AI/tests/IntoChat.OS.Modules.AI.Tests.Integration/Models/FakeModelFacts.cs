@@ -27,7 +27,7 @@ public sealed class FakeModelFacts
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
-        var answer = await brain.Get<IGpt56Luna>("default").Generate(new([new("user", [new AiText("hello")])]), ct);
+        var answer = await brain.Get<IGpt56Luna>(ModelAddress.Key("owner")).Generate(new([new("user", [new AiText("hello")])]), ct);
 
         Assert.Equal("You said: hello", Assert.IsType<AiText>(Assert.Single(Assert.Single(answer.Messages).Content)).Text);
     }

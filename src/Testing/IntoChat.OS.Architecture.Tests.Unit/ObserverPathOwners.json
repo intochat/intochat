@@ -35,8 +35,6 @@
   "IntoChat.OS.Kernel.Tests.Unit/OsInoLinkFacts.cs": 6,
   "IntoChat.OS.Kernel.Tests.Unit/OsInoModelFacts.cs": 3,
   "IntoChat.OS.Kernel.Tests.Unit/OsSettingsLogicFacts.cs": 3,
-  "IntoChat.OS.Modules.AI.Tests.Integration/Inference/InterleavingFacts.cs": 4,
-  "IntoChat.OS.Modules.AI/Models/LlmNeuron.cs": 7,
   "IntoChat.OS.Modules.AI/Routing/AppMenuHost.cs": 1,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppCreatorFacts.cs": 5,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppNeuronFacts.cs": 1,

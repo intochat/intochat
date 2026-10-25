@@ -30,7 +30,9 @@ internal sealed class RouterNeuron(
     private const double Gate = 0.5;
     private const string NotClear = "The request was not clear enough to route.";
     private const string NeedsInput = "The operation needs input filled from the request, so it was not carried out directly.";
-    private static readonly HashSet<string> NotCallable = ["Watch", "Unwatch"];
+    // Never routed to: the legacy observer path (Watch/Unwatch, until 06-08 deletes it) and a plain neuron's admission hook
+    // (AdmitSynapse, R4-03), which only the runtime calls before it creates a synapse (T-06-14).
+    internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
     private string Key => this.GetPrimaryKeyString();
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
     private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();

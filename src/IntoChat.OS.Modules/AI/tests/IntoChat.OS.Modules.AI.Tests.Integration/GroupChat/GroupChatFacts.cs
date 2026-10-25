@@ -27,7 +27,7 @@ public sealed class GroupChatFacts(AIHost host)
         model.Script(SolModel, "Building on the bowl: add a feeding log.", "AGREE: bowl plus log.");
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
-        var chat = brain.Get<IGroupChat>("chat-1");
+        var chat = brain.Get<IGroupChat>("owner/chat-1");
         await chat.Configure(LunaAndGemma);
         await using var spoke = await brain.Observe<GroupChatSpoke>(chat, ct);
         await using var concluded = await brain.Observe<GroupChatConcluded>(chat, ct);
@@ -61,7 +61,7 @@ public sealed class GroupChatFacts(AIHost host)
         model.Script(SolModel, "not A", "not B", "not C");
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
-        var chat = brain.Get<IGroupChat>("chat-2");
+        var chat = brain.Get<IGroupChat>("owner/chat-2");
         await chat.Configure(LunaAndGemma);
         var state = await chat.Ask("Pick one");
 
@@ -80,7 +80,7 @@ public sealed class GroupChatFacts(AIHost host)
         model.Script(SolModel);
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
-        var chat = brain.Get<IGroupChat>("chat-5");
+        var chat = brain.Get<IGroupChat>("owner/chat-5");
         await chat.Configure(LunaAndGemma);
         await Assert.ThrowsAsync<System.ClientModel.ClientResultException>(() => chat.Ask("Pick one"));
 
@@ -94,7 +94,7 @@ public sealed class GroupChatFacts(AIHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IGroupChat>("chat-3").Ask("anything"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IGroupChat>("owner/chat-3").Ask("anything"));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class GroupChatFacts(AIHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IGroupChat>("chat-4")
+        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IGroupChat>("owner/chat-4")
             .Configure(new([new("Ghost", "INoSuchModel"), new("Gemma", nameof(IGemma4))])));
     }
 }

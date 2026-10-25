@@ -7,6 +7,8 @@ using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
@@ -32,6 +34,15 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     public static IntegrationSchema TypeSafeIntegration => AiIntegrations.TypeSafe;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 
+    internal const string ModuleName = "ai";
+
+    // R4-04: what the module needs from its host (AINeurons). Configure keeps the registrations of the neurons that are
+    // still grains until Configure leaves with the Framework (06-08).
+    public static DigitalBrain.ModuleManifest Manifest => AINeurons.Manifest;
+
+    // The migrated AI neurons (06-05) run as plain neurons on the runtime's host grains.
+    public override Type? Neurons => typeof(AINeurons);
+
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -51,6 +62,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         services.AddHostedService<AppMenuHost>();
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
+        services.TryAddSingleton<IModelInference>(provider => provider.GetRequiredService<InferenceService>());
         services.TryAddSingleton<NeuronSurface>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AgentNeuron>, AgentResume>());
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
@@ -72,4 +84,17 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     internal static string CatalogKey(CallerContext? caller)
         => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
             ? IModelCatalog.Key(caller.BrainId) : "default";
+}
+
+// The DigitalBrain module of AI (06-05): its assembly's [Neuron] classes run on the runtime's host grains, on TestOS and on
+// the silo alike.
+[DigitalBrain.Module(AIModule.ModuleName)]
+public sealed class AINeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<AIOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId(AIModule.ModuleName)))],
+        Secrets: []);
 }

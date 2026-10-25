@@ -99,7 +99,7 @@ public sealed class InferenceTransportFacts
         var serve = endpoint.ReplyOnce("application/json", """
             {"id":"response-1","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"id\":42}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
             """, ct);
-        var llm = brain.Get<ILLM>("default");
+        var llm = brain.Get<ILLM>(ModelAddress.Key("owner"));
         await using var started = await brain.Observe<InferenceStarted>(llm, ct);
         await using var completed = await brain.Observe<InferenceCompleted>(llm, ct);
         var result = await llm.Generate(new(

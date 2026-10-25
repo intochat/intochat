@@ -27,7 +27,7 @@ public sealed class ModelAddressFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
         await using var started = await brain.Observe<InferenceStarted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
 
-        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IGrainFactory>(), Brain, nameof(IGpt56Luna), "Be brief.", "hello", ct);
+        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Brain, nameof(IGpt56Luna), "Be brief.", "hello", ct);
 
         Assert.Equal("You said: hello", answer);
         Assert.Equal($"{Brain}/models", (await started.NextAsync(ct: ct)).NeuronId);
@@ -43,7 +43,8 @@ public sealed class ModelAddressFacts
 
         var scoped = await brain.Get<ILLM>(ModelAddress.Key(Brain)).Describe();
 
-        var deployment = await brain.Get<ILLM>("default").Describe();
+        // A model key names a brain (06-05: plain neurons have no bare "default" key); the deployment default is the service's.
+        var deployment = await brain.Services.GetRequiredService<InferenceService>().Describe(cancellationToken: ct);
         Assert.Equal((deployment.Provider, deployment.Model, deployment.Profile), (scoped.Provider, scoped.Model, scoped.Profile));
     }
 
@@ -64,10 +65,10 @@ public sealed class ModelAddressFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
             .StartAsync(ct);
 
-        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IGrainFactory>(), Owner, nameof(IGpt56Luna), "Be brief.", "hello", ct);
+        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Owner, nameof(IGpt56Luna), "Be brief.", "hello", ct);
 
         Assert.Equal("You said: hello", answer);
-        var journaled = await brain.Services.GetRequiredService<ISignalJournal>().ReadSince(Owner, 0, 1000);
-        Assert.Contains(journaled, entry => entry.Signal is InferenceCompleted completed && completed.NeuronId == ModelAddress.Key(Owner));
+        var journaled = await brain.History<InferenceCompleted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Owner)), ct);
+        Assert.Contains(journaled, completed => completed.NeuronId == ModelAddress.Key(Owner));
     }
 }

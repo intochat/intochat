@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.AI.Models.OpenAI;
 
 public sealed class Gpt56Terra : LLMModel<IGpt56Terra>
@@ -7,5 +9,5 @@ public sealed class Gpt56Terra : LLMModel<IGpt56Terra>
     public override AiProvider Provider => AiProvider.OpenAI;
 }
 
-[Alias("ai.llm.gpt56terra"), Orleans.Metadata.DefaultGrainType("ai.llm.gpt56terra")]
+[NeuronAlias("ai.llm.gpt56terra"), DefaultNeuronType("ai.llm.gpt56terra")]
 public interface IGpt56Terra : ILLM;
