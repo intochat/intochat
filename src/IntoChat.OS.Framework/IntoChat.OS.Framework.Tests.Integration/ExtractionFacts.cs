@@ -18,7 +18,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("IntoChat.OS", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "CallTimeoutAttribute", "Created", "IBrain", "IInitialSignalWait", "IIntoChatOS", "IKernelView", "ILogic`1", "INeuron", "INeuronObserver", "IRetainsSignals", "ISelectiveWatch", "ISignalDelivery", "Instance", "InstanceCreated", "InstanceRetired", "InterleavesAttribute", "InterleavesWhenAttribute", "JournalConflictException", "LeaseLostException", "NeuronAliases", "NeuronId", "OneWayCallAttribute", "Owner", "ReadOnlyCallAttribute", "RetainedSignal", "RevisionConflictException", "RollbackDetectedException", "ServiceUnavailableException", "Signal", "SignalDeliveries", "SignalId", "SignalNudge", "SignalPage", "Sources", "StaleActionException", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind", "Verdict", "WatchStream`1"],
+            ["Activated", "CallTimeoutAttribute", "Created", "IBrain", "IInitialSignalWait", "IIntoChatOS", "IKernelView", "ILogic`1", "INeuron", "INeuronObserver", "IRetainsSignals", "ISelectiveWatch", "ISignalDelivery", "Instance", "InstanceCreated", "InstanceRetired", "InterleavesAttribute", "InterleavesWhenAttribute", "JournalConflictException", "LeaseLostException", "NeuronAliases", "NeuronId", "OneWayCallAttribute", "Owner", "PlainNeuronClient", "ReadOnlyCallAttribute", "RetainedSignal", "RevisionConflictException", "RollbackDetectedException", "ServiceUnavailableException", "Signal", "SignalDeliveries", "SignalId", "SignalNudge", "SignalPage", "Sources", "StaleActionException", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind", "Verdict", "WatchStream`1"],
             exported);
     }
 
