@@ -1,18 +1,19 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.VoiceInput;
 
 // Captures audio from the user; whoever listens decides how to transcribe it.
-[Alias("voiceinput"), Orleans.Metadata.DefaultGrainType(UIVocabulary.VoiceInputType)]
-public interface IVoiceInput : INeuron
+[NeuronAlias("voiceinput"), DefaultNeuronType(UIVocabulary.VoiceInputType)]
+public interface IVoiceInput
 {
     const int MaxAudioBytes = 8 * 1024 * 1024;
 
     Task Configure(string label);
     Task Capture(byte[] audio, string mimeType);
-    [ReadOnly, Alias("read")] Task<VoiceInputState> Read();
+    [ReadOnlyCall] Task<VoiceInputState> Read();
 }
 
 [GenerateSerializer, Alias("ui.voiceinput-state")]

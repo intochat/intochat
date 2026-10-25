@@ -142,7 +142,7 @@ public sealed class FormFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var form = brain.Get<IForm>("f");
+        var form = brain.Get<IForm>("owner/f");
         await form.Define(new("Sign up", [new("age", "Age", FormFieldKind.Number, Required: true)]));
         var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("age", "forty")])));
         Assert.Equal(FormFieldKind.Number, error.Kind);

@@ -1,18 +1,19 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Button;
 
-[Alias("button"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ButtonType)]
-public interface IButton : INeuron
+[NeuronAlias("button"), DefaultNeuronType(UIVocabulary.ButtonType)]
+public interface IButton
 {
     Task Set(string label, string action, bool enabled = true);
     Task SetVisual(ControlVisual visual);
     Task Click();
     Task ClickCurrent(string expectedAction);
     Task SetActivation(string label, string activationJson);
-    [ReadOnly, Alias("read")] Task<ButtonState> Read();
+    [ReadOnlyCall] Task<ButtonState> Read();
 }
 
 [GenerateSerializer, Alias("ui.button-state")]

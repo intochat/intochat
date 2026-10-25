@@ -1,5 +1,6 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Entries;
@@ -15,11 +16,11 @@ public sealed record EntryControlSpec(
     [property: Id(1)] string Label,
     [property: Id(2)] string? EntryName = null);
 
-[Alias("entrycontrol"), Orleans.Metadata.DefaultGrainType(UIVocabulary.EntryControlType)]
-public interface IEntryControl : INeuron
+[NeuronAlias("entrycontrol"), DefaultNeuronType(UIVocabulary.EntryControlType)]
+public interface IEntryControl
 {
     Task Configure(EntryControlSpec spec);
-    [ReadOnly, Alias("read")] Task<EntryControlState> Read();
+    [ReadOnlyCall] Task<EntryControlState> Read();
     // The renderer calls this after a successful write so the app can refresh; the signal carries only the neuron name.
     Task Changed();
 }

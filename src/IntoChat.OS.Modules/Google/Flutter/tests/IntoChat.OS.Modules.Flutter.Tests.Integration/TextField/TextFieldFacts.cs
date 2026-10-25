@@ -11,7 +11,7 @@ public sealed class TextFieldFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var field = brain.Get<ITextField>("draft");
+        var field = brain.Get<ITextField>("owner/draft");
         await field.SetValue("original");
         var before = await field.Read();
         await field.Input("new user edit");
@@ -29,7 +29,7 @@ public sealed class TextFieldFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var field = brain.Get<ITextField>("preference");
+        var field = brain.Get<ITextField>("owner/preference");
         var before = await field.Read();
         var results = await Task.WhenAll(field.TrySetValue("first", before.Version), field.TrySetValue("second", before.Version));
         Assert.Single(results, applied => applied);
@@ -41,7 +41,7 @@ public sealed class TextFieldFacts(FlutterHost host)
     [InlineData("secret")]
     public async Task SecretKindsKeepOnlyThatAValueIsSetAndJournalNoValue(string kind)
     {
-        var field = host.Brain.Get<ITextField>($"secret-{kind}");
+        var field = host.Brain.Get<ITextField>($"owner/secret-{kind}");
         await field.SetValue("typed before configure");
         await field.Configure("Password", kind);
         await field.SetValue("hunter2-set");
@@ -50,8 +50,7 @@ public sealed class TextFieldFacts(FlutterHost host)
         Assert.DoesNotContain("hunter2", state.Value, StringComparison.Ordinal);
         Assert.DoesNotContain("typed before", state.Value, StringComparison.Ordinal);
         Assert.NotEmpty(state.Value);
-        var journal = await field.Read(0, 100);
-        var changes = journal.Signals.OfType<TextFieldChanged>().ToArray();
+        var changes = await host.Brain.History<TextFieldChanged>(field, TestContext.Current.CancellationToken);
         Assert.True(changes.Length >= 3);
         Assert.All(changes, changed => Assert.DoesNotContain("hunter2", changed.Value, StringComparison.Ordinal));
         Assert.All(changes, changed => Assert.DoesNotContain("typed before", changed.Value, StringComparison.Ordinal));
@@ -67,7 +66,7 @@ public sealed class TextFieldFacts(FlutterHost host)
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var field = brain.Get<ITextField>("name");
+        var field = brain.Get<ITextField>("owner/name");
         await field.Configure("Name", "text");
         await field.SetValue("Ada");
         Assert.Equal("Ada", (await field.Read()).Value);

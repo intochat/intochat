@@ -97,11 +97,11 @@ public static class Workspace
         return (await brain.Get<IText>(desktop + "/layout").Read()).Markdown != "classic";
     }
 
-    public static async Task<INeuron[]> Inputs(IntoChatOSConnection brain)
+    public static async Task<IButton[]> Inputs(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         var state = await State(brain).Read();
-        List<INeuron> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/usage-button"), brain.Get<IButton>(key + "/profile")];
+        List<IButton> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/usage-button"), brain.Get<IButton>(key + "/profile")];
         for (var i = 0; i < state.OpenViews.Length; i++)
         { sources.Add(brain.Get<IButton>(key + "/focus-" + i)); sources.Add(brain.Get<IButton>(key + "/close-" + i)); }
         for (var i = 0; i < state.Pins.Length; i++) { sources.Add(brain.Get<IButton>(key + "/pinned-" + i)); }

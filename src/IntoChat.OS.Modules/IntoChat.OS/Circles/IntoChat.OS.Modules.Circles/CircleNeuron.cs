@@ -72,7 +72,7 @@ internal sealed class CircleNeuron(
     public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
     {
         MemberChange();
-        return PublicationButton.Handle(GrainFactory, ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), CircleBrain, "circleroom", "bring-button", uiEvent, BringPublication);
+        return PublicationButton.Handle(ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), CircleBrain, "circleroom", "bring-button", uiEvent, BringPublication);
     }
 
     public async Task Found(string name)

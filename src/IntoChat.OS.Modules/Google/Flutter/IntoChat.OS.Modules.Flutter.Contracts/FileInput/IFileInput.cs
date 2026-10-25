@@ -1,15 +1,16 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.FileInput;
 
-[Alias("fileinput"), Orleans.Metadata.DefaultGrainType(UIVocabulary.FileInputType)]
-public interface IFileInput : INeuron
+[NeuronAlias("fileinput"), DefaultNeuronType(UIVocabulary.FileInputType)]
+public interface IFileInput
 {
     Task Configure(string label);
     Task Capture(string name, string content);
-    [ReadOnly, Alias("read")] Task<FileInputState> Read();
+    [ReadOnlyCall] Task<FileInputState> Read();
 }
 
 [GenerateSerializer, Alias("ui.fileinput-state")]
@@ -21,8 +22,8 @@ public sealed class FileInputState
     [Id(2)] public string Label { get; set; } = "";
 }
 
-[GenerateSerializer, Alias("ui.file-captured")]
-public sealed record FileCaptured([property: Id(0)] string Name, [property: Id(1)] string FileName, [property: Id(2)] string Content) : Signal;
+[Signal("ui.file-captured")]
+public sealed record FileCaptured(string Name, string FileName, string Content) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.fileinput-changed")]
-public sealed record FileInputChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.fileinput-changed")]
+public sealed record FileInputChanged(string Name, long Revision) : DigitalBrain.Signal;

@@ -1,15 +1,15 @@
+using DigitalBrain;
 using System.Globalization;
 using IntoChat.OS.Modules.Flutter.Form.Signals;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Flutter.Form;
 
-[GrainType(UIVocabulary.FormType)]
-internal sealed class FormNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FormState> store)
-    : Neuron<FormState>(store), IForm
+[Neuron(UIVocabulary.FormType)]
+internal sealed class FormNeuron
+    : UiNeuron<FormState>, IForm
 {
     public Task<FormState> Define(FormDefinition definition)
     {
@@ -37,7 +37,7 @@ internal sealed class FormNeuron([PersistentState("state", IntoChatOSNames.Clust
             });
         }
         var state = Snapshot;
-        state.FormId = this.GetPrimaryKeyString();
+        state.FormId = FullKey;
         state.Title = definition.Title.Trim();
         state.Fields = fields;
         state.Submitted = false;
@@ -128,10 +128,10 @@ internal sealed class FormNeuron([PersistentState("state", IntoChatOSNames.Clust
         return SaveAndReturn();
     }
 
-    [ReadOnly, Alias("read")]
+    [ReadOnlyCall]
     public Task<FormState> Read()
     {
-        Snapshot.FormId = this.GetPrimaryKeyString();
+        Snapshot.FormId = FullKey;
         return Task.FromResult(CallerContextStamper.TryGet(out var caller) && CallerContextStamper.IsModelOriginated(caller) ? Shape(Snapshot) : Snapshot);
     }
 
@@ -164,7 +164,7 @@ internal sealed class FormNeuron([PersistentState("state", IntoChatOSNames.Clust
     private async Task<FormState> SaveAndReturn()
     {
         var state = Snapshot;
-        await Save(state, new FormChanged(this.GetPrimaryKeyString(), state.Revision));
+        await Save(state, new FormChanged(FullKey, state.Revision));
         return state;
     }
 

@@ -68,8 +68,9 @@ begin {
         $text = [regex]::Replace($text, '\[(?:Orleans\.Metadata\.)?DefaultGrainType\(', '[DefaultNeuronType(')
         $text = [regex]::Replace($text, '(\[Alias\("[^"]*"\),\s*)(?:Orleans\.Metadata\.)?DefaultGrainType\(', '$1DefaultNeuronType(')
         # Orleans method aliases: in a list ([ReadOnly, Alias("read")]) or alone on a method line of a contract.
-        $text = [regex]::Replace($text, ',\s*Alias\("[^"]*"\)(?=[^\[\]]*\]\s*(?:Task|ValueTask|IAsyncEnumerable))', '')
-        $text = [regex]::Replace($text, '\[Alias\("[^"]*"\),\s*(?=[^\[\]]*\]\s*(?:Task|ValueTask|IAsyncEnumerable))', '[')
+        # (06-04) also on a class method, where the list stands above "public [async] Task...".
+        $text = [regex]::Replace($text, ',\s*Alias\("[^"]*"\)(?=[^\[\]]*\]\s*(?:public\s+(?:async\s+)?)?(?:Task|ValueTask|IAsyncEnumerable))', '')
+        $text = [regex]::Replace($text, '\[Alias\("[^"]*"\),\s*(?=[^\[\]]*\]\s*(?:public\s+(?:async\s+)?)?(?:Task|ValueTask|IAsyncEnumerable))', '[')
         $text = [regex]::Replace($text, '(?m)^([ 	]*)\[Alias\("[^"]*"\)\]\s*(?=(?:\[[^\]]*\]\s*)*(?:Task|ValueTask|IAsyncEnumerable))', '$1')
         $text = [regex]::Replace($text, '(?m)^([ \t]*)\[Alias\(("[^"]*")\)\](?=\s*(?:\[[^\]]*\]\s*)*(?:public|internal)\s+(?:partial\s+)?interface\b)', '$1[NeuronAlias($2)]')
         $text = [regex]::Replace($text, '\[Alias\(("[^"]*")\),\s*(DefaultNeuronType\()', '[NeuronAlias($1), $2')

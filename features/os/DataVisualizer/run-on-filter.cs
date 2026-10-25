@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Flutter.TextField.Signals;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var fields = Views.Registry<ITextField>(brain, appKey, view => view.Filters.Select(column => $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
+var fields = Views.PlainRegistry<ITextField>(brain, appKey, view => view.Filters.Select(column => $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
 await foreach (var changed in brain.On<TextFieldChanged>(fields, brain.Stopping))
 {
     // The signal names its field, {app}/views/{group}/filter/{column}, the group being the view id or the

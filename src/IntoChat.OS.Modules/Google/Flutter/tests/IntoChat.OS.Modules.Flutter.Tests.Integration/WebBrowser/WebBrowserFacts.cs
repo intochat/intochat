@@ -366,7 +366,7 @@ public sealed class WebBrowserFacts
         Assert.Empty(view.ActualUrl);
         // The binding dispatches to the handler asynchronously: wait for the handler to record it.
         await PrimitiveBindingFacts.WaitFor(handled, 1, TestContext.Current.CancellationToken);
-        Assert.Contains(await handler.Events(), signal => signal is BrowserObservationChanged);
+        Assert.Contains((await handler.Events()).Decoded(), signal => signal is BrowserObservationChanged);
         await connector.Unavailable(new string('x', 300));
         Assert.Equal(200, (await browser.Read()).Error.Length);
     }
@@ -395,11 +395,11 @@ public sealed class WebBrowserFacts
     }
 
     // Observation changes re-render the shell; these facts are about the session lifecycle.
-    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler)
-        => [.. (await handler.Events()).Where(signal => signal is not BrowserObservationChanged)];
+    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler)
+        => [.. (await handler.Events()).Decoded().Where(signal => signal is not BrowserObservationChanged)];
 
     // The binding dispatches to the handler asynchronously: wait until it has recorded the expected lifecycle signal.
-    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler, SignalProbe<UiEventHandled> handled, string expected)
+    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler, SignalProbe<UiEventHandled> handled, string expected)
     {
         while ((await handled.NextAsync(ct: TestContext.Current.CancellationToken)).Type != expected) { }
         return await Lifecycle(handler);

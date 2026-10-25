@@ -105,7 +105,7 @@ public sealed class ChatFacts
         await brain.DeactivateAsync(chat, ct);
         Assert.Equal(projection.Actions, (await chat.Read()).Projection!.Actions);
         await chat.Project(projection with { Version = 2 });
-        Assert.Empty(await handler.Events());
+        Assert.Empty((await handler.Events()).Decoded());
         await using var actions = await brain.Observe<ChatActionActivated>(chat, ct);
         await chat.Activate("first", 1, "run-1");
         var activated = await actions.NextAsync(ct: ct);
@@ -115,7 +115,7 @@ public sealed class ChatFacts
         Assert.Equal("run-1", activated.ActionId);
         Assert.NotEqual(Guid.Empty, activated.RequestId);
         await PrimitiveBindingFacts.WaitFor(handled, 1, ct);
-        var dispatched = Assert.IsType<ChatActionActivated>(Assert.Single(await handler.Events()));
+        var dispatched = Assert.IsType<ChatActionActivated>(Assert.Single((await handler.Events()).Decoded()));
         Assert.Equal(activated.RequestId, dispatched.RequestId);
         Assert.Equal(activated.Payload, dispatched.Payload);
         Assert.Equal(activated.ActionId, dispatched.ActionId);

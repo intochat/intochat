@@ -1,17 +1,16 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.TextField.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.TextField;
 
-[GrainType(UIVocabulary.TextFieldType)]
-internal sealed class TextFieldNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TextFieldState> store)
-    : Neuron<TextFieldState>(store), ITextField
+[Neuron(UIVocabulary.TextFieldType)]
+internal sealed class TextFieldNeuron
+    : UiNeuron<TextFieldState>, ITextField
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.OrdinalIgnoreCase) { "text", "number", "password", "secret", "suggest", "multiline" };
     private static readonly HashSet<string> SecretKinds = new(StringComparer.OrdinalIgnoreCase) { "password", "secret" };
@@ -35,7 +34,7 @@ internal sealed class TextFieldNeuron([PersistentState("state", IntoChatOSNames.
         if (!Kinds.Contains(kind)) { throw new ArgumentOutOfRangeException(nameof(kind)); }
         var next = Snapshot;
         var wasSecret = IsSecret(next.Kind);
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Label = label.Trim();
         next.Kind = kind.Trim().ToLowerInvariant();
@@ -43,17 +42,17 @@ internal sealed class TextFieldNeuron([PersistentState("state", IntoChatOSNames.
         if (IsSecret(next.Kind) && next.Value.Length > 0) { next.Value = SecretSetMarker; }
         // The marker is not a value: a secret that becomes plain text starts empty.
         else if (wasSecret && !IsSecret(next.Kind)) { next.Value = ""; }
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, next.Value)));
+        return Save(next, new TextFieldChanged(FullKey, Journalled(next, next.Value)));
     }
 
     public Task SetValue(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Value = Stored(next.Kind, value);
-        return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), Journalled(next, value)));
+        return Save(next, new TextFieldChanged(FullKey, Journalled(next, value)));
     }
 
     public async Task<bool> TrySetValue(string value, int expectedVersion)
@@ -70,8 +69,8 @@ internal sealed class TextFieldNeuron([PersistentState("state", IntoChatOSNames.
         if (value.Length > 32_000) { throw new ArgumentException("Input has at most 32000 characters.", nameof(value)); }
         await SetValue(value);
         // The binding is the only recipient of a secret value; it forwards without journalling.
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(new TextFieldChanged(this.GetPrimaryKeyString(), value)));
+        await Dispatch(UiEvent.Of(new TextFieldChanged(FullKey, value)));
     }
 
-    [ReadOnly] public Task<TextFieldState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<TextFieldState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 }

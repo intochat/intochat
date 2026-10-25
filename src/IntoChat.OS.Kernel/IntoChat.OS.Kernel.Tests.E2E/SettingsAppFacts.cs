@@ -152,10 +152,16 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
         var app = await Brain.Get<IApp>(Settings).Read();
         scanned.Add(JsonSerializer.Serialize(app.Activity));
         scanned.Add(JsonSerializer.Serialize(app.Presentation));
-        await foreach (var instance in Brain.Kernel.Instances<IEntryControl>(ct))
-        { if (instance.Key.StartsWith(Settings + "/", StringComparison.Ordinal)) { scanned.Add(JsonSerializer.Serialize(await Brain.Get<IEntryControl>(instance.Key).Read())); } }
-        await foreach (var instance in Brain.Kernel.Instances<IPreferenceControl>(ct))
-        { if (instance.Key.StartsWith(Settings + "/", StringComparison.Ordinal)) { scanned.Add(JsonSerializer.Serialize(await Brain.Get<IPreferenceControl>(instance.Key).Read())); } }
+        // Entry and preference controls are plain neurons since 06-04, which the kernel's instance listing does not enumerate:
+        // read every one the Settings view names, plus the variables collection.
+        var named = System.Text.RegularExpressions.Regex.Matches(JsonSerializer.Serialize(view),
+                System.Text.RegularExpressions.Regex.Escape(Settings) + "/(?:keys|pref)/[A-Za-z0-9._-]+")
+            .Select(match => match.Value).Distinct(StringComparer.Ordinal).ToArray();
+        Assert.Contains(named, key => key.Contains("/keys/", StringComparison.Ordinal));
+        foreach (var key in named.Where(key => key.Contains("/keys/", StringComparison.Ordinal)).Append(Settings + "/variables"))
+        { scanned.Add(JsonSerializer.Serialize(await Brain.Get<IEntryControl>(key).Read())); }
+        foreach (var key in named.Where(key => key.Contains("/pref/", StringComparison.Ordinal)))
+        { scanned.Add(JsonSerializer.Serialize(await Brain.Get<IPreferenceControl>(key).Read())); }
         scanned.Add(await LiveReplay("AppActivity", ct));
         Assert.True(scanned.Count > 4);
         Assert.All(scanned, text => Assert.DoesNotContain(Canary, text, StringComparison.Ordinal));

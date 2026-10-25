@@ -1,20 +1,20 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Form;
 
 // One declarative form per window: a typed field list from the P1.1 catalog, draft values, and a
 // single atomic submit. There is no per-field neuron; the whole form is one grain and one blob.
-[Alias("form"), Orleans.Metadata.DefaultGrainType(UIVocabulary.FormType)]
-public interface IForm : INeuron
+[NeuronAlias("form"), DefaultNeuronType(UIVocabulary.FormType)]
+public interface IForm
 {
     Task<FormState> Define(FormDefinition definition);
     Task<FormState> SetDraft(string fieldName, string value);
     Task<FormState> SetSecret(string fieldName, FormSecret reference);
     Task<FormState> Submit(FormSubmission submission);
-    [ReadOnly, Alias("read")] Task<FormState> Read();
+    [ReadOnlyCall] Task<FormState> Read();
 }
 
 public enum FormFieldKind { PlainText, LongText, Number, Date, DateTime, Boolean, Choice, MultiChoice, Email, Url, Secret, Reference }

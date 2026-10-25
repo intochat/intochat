@@ -1,17 +1,18 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Button;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Select;
 
-[Alias("select"), Orleans.Metadata.DefaultGrainType(UIVocabulary.SelectType)]
-public interface ISelect : INeuron
+[NeuronAlias("select"), DefaultNeuronType(UIVocabulary.SelectType)]
+public interface ISelect
 {
     Task Set(string label, IReadOnlyList<SelectOption> options, string? selected);
     Task SetVisual(ControlVisual visual);
     Task Choose(string value);
-    [ReadOnly, Alias("read")] Task<SelectState> Read();
+    [ReadOnlyCall] Task<SelectState> Read();
 }
 
 [GenerateSerializer, Alias("ui.select-option")]
@@ -29,5 +30,5 @@ public sealed class SelectState
     [Id(5)] public ControlVisual? Visual { get; set; }
 }
 
-[GenerateSerializer, Alias("ui.select-changed")]
-public sealed record SelectChanged([property: Id(0)] string Name, [property: Id(1)] string Value) : Signal;
+[Signal("ui.select-changed")]
+public sealed record SelectChanged(string Name, string Value) : DigitalBrain.Signal;

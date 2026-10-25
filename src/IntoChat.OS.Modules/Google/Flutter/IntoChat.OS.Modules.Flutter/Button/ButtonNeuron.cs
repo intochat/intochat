@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
@@ -8,27 +9,25 @@ using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Button;
 
-[GrainType(UIVocabulary.ButtonType)]
-internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)
-    : Neuron<ButtonState>(store), IButton
+[Neuron(UIVocabulary.ButtonType)]
+internal sealed partial class ButtonNeuron
+    : UiNeuron<ButtonState>, IButton
 {
     public Task Set(string label, string action, bool enabled = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(action);
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Label = label.Trim();
         next.Action = action.Trim();
         next.Enabled = enabled;
         next.Activation = null;
-        return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new ButtonChanged(FullKey, next.Version));
     }
 
     public Task SetVisual(ControlVisual visual)
@@ -37,7 +36,7 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
         var next = Snapshot;
         next.Visual = visual;
         next.Version++;
-        return Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version));
+        return Save(next, new ButtonChanged(FullKey, next.Version));
     }
 
     public async Task SetActivation(string label, string activationJson)
@@ -65,13 +64,13 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
         // ships may set one, and only for the button's own brain: no other app can put a misleading label on it.
         if (kind is not null && AppKinds.Contains(kind))
         {
-            var scope = this.GetPrimaryKeyString().Split('/')[0];
+            var scope = FullKey.Split('/')[0];
             if (brainId != scope || !await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), scope, "apps"))
             { throw new UnauthorizedAccessException("Only the Apps app sets an install, update or remove activation."); }
         }
         // Switching the account, reconnecting to a new root, or signing an existing connection in again acts on the
         // person's session in one click: only the shipped apps that own that control may set one, for this brain.
-        var own = this.GetPrimaryKeyString().Split('/')[0];
+        var own = FullKey.Split('/')[0];
         var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
         var owners = SessionOwners(kind);
         var ownBrain = brainId == own || (brainId is null && !brainNamed && string.Equals(kind, "account", StringComparison.OrdinalIgnoreCase));
@@ -95,7 +94,7 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
         else if (connecting && !ownBrain)
         { throw new UnauthorizedAccessException("A connection window opens for the button's own brain only."); }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Label = label.Trim();
         next.Enabled = true;
@@ -122,7 +121,7 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
     private async Task<bool> HoldsConnection(string scope, string? id)
     {
         if (string.IsNullOrEmpty(id)) { return false; }
-        foreach (var key in await GrainFactory.GetGrain<IConnectionIndex>(scope).List())
+        foreach (var key in await ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IConnectionIndex>(scope).List())
         {
             if (ConnectionKeys.Parse(key).ConnectionId.Equals(id, StringComparison.OrdinalIgnoreCase)) { return true; }
         }
@@ -147,15 +146,15 @@ internal sealed partial class ButtonNeuron([PersistentState("state", IntoChatOSN
             throw new InvalidOperationException("Button is not ready to click.");
         }
 
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.ClickCount++;
-        var clicked = new ButtonClicked(this.GetPrimaryKeyString(), next.Action, Guid.NewGuid());
-        await Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version), clicked);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(clicked));
+        var clicked = new ButtonClicked(FullKey, next.Action, Guid.NewGuid());
+        await Save(next, new ButtonChanged(FullKey, next.Version), clicked);
+        await Dispatch(UiEvent.Of(clicked));
     }
 
-    [ReadOnly] public Task<ButtonState> Read() => Task.FromResult(Named(Snapshot));
+    [ReadOnlyCall] public Task<ButtonState> Read() => Task.FromResult(Named(Snapshot));
 
-    private ButtonState Named(ButtonState state) { state.Name = this.GetPrimaryKeyString(); return state; }
+    private ButtonState Named(ButtonState state) { state.Name = FullKey; return state; }
 }

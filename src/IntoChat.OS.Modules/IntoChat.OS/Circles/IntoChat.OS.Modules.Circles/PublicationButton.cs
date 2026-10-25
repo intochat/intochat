@@ -21,7 +21,7 @@ internal static class PublicationButton
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private sealed record Command(AppPublicationRef Publication, string TargetName, Guid OperationId);
 
-    public static async Task Handle(IGrainFactory grains, IntoChat.OS.Runtime.IPlainNeurons plain, string brain, string application, string button,
+    public static async Task Handle(IntoChat.OS.Runtime.IPlainNeurons plain, string brain, string application, string button,
         UiEvent uiEvent, Func<AppPublicationRef, string, Guid, Task<AppSnapshot>> install)
     {
         ArgumentNullException.ThrowIfNull(uiEvent);
@@ -47,7 +47,7 @@ internal static class PublicationButton
             else
             {
                 var reference = JsonSerializer.Deserialize<AppPublicationRef>(click.Action, Json) ?? throw new ArgumentException("Missing publication.");
-                var form = await grains.GetGrain<IForm>(app + "/forms/" + reference.Digest).Read();
+                var form = await plain.Get<IForm>(app + "/forms/" + reference.Digest).Read();
                 command = new(reference, form.Fields.Single(field => field.Name == "name").Value?.Trim() ?? "", click.RequestId);
                 await capture.Set(JsonSerializer.Serialize(command, Json));
             }
@@ -76,7 +76,7 @@ internal static class PublicationButton
             async Task AddButton(string id, string label, string? view)
             {
                 var key = app + "/" + id;
-                await grains.GetGrain<IButton>(key).SetActivation(label, JsonSerializer.Serialize(new
+                await plain.Get<IButton>(key).SetActivation(label, JsonSerializer.Serialize(new
                 { kind = "workspace", brainId = brain, application = installed.Name, view }, Json));
                 controls.Add(new("button", key));
             }

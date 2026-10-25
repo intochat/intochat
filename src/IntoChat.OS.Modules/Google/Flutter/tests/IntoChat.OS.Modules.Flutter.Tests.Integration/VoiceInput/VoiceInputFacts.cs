@@ -11,7 +11,7 @@ public sealed class VoiceInputFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var voice = brain.Get<IVoiceInput>("mic");
+        var voice = brain.Get<IVoiceInput>("owner/mic");
         await voice.Configure("Hold to talk");
         await using var captured = await brain.Observe<VoiceCaptured>(voice, ct);
 

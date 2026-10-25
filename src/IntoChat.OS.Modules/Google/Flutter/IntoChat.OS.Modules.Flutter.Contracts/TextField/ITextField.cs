@@ -1,17 +1,18 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.TextField;
 
-[Alias("textfield"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TextFieldType)]
-public interface ITextField : INeuron
+[NeuronAlias("textfield"), DefaultNeuronType(UIVocabulary.TextFieldType)]
+public interface ITextField
 {
     Task Configure(string label, string kind, string? submitButton = null);
     Task SetValue(string value);
     Task<bool> TrySetValue(string value, int expectedVersion);
     Task Input(string value);
-    [ReadOnly, Alias("read")] Task<TextFieldState> Read();
+    [ReadOnlyCall] Task<TextFieldState> Read();
 }
 
 [GenerateSerializer, Alias("ui.textfield-state")]

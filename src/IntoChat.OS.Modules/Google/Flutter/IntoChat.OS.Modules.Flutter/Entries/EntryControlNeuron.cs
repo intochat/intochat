@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Entries.Signals;
 using IntoChat.OS.Modules.Flutter.Settings;
@@ -6,18 +7,16 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Entries;
 
-[GrainType(UIVocabulary.EntryControlType)]
-internal sealed class EntryControlNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<EntryControlState> store)
-    : Neuron<EntryControlState>(store), IEntryControl
+[Neuron(UIVocabulary.EntryControlType)]
+internal sealed class EntryControlNeuron
+    : UiNeuron<EntryControlState>, IEntryControl
 {
     public async Task Configure(EntryControlSpec spec)
     {
-        if (!await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), NeuronAddress.ScopeOf(this.GetPrimaryKeyString())))
+        if (!await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), NeuronAddress.ScopeOf(FullKey)))
         { throw new UnauthorizedAccessException("Only the Settings app configures an entry control."); }
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Label);
@@ -34,13 +33,13 @@ internal sealed class EntryControlNeuron([PersistentState("state", IntoChatOSNam
                 throw new ArgumentException("Unknown entry control mode.", nameof(spec));
         }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Spec = spec with { Label = spec.Label.Trim() };
         await Save(next, new EntryControlChanged(next.Name));
     }
 
-    [ReadOnly] public Task<EntryControlState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<EntryControlState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
-    public Task Changed() => PublishAsync(new EntryControlChanged(this.GetPrimaryKeyString()));
+    public Task Changed() => Publish(new EntryControlChanged(FullKey));
 }

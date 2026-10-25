@@ -11,4 +11,12 @@ internal abstract class UiNeuron<TState> : DigitalBrain.Neuron<TState> where TSt
     protected string FullKey => $"{Id.Brain.Value}/{Id.Key}";
 
     protected IServiceProvider ServiceProvider => Context.Services;
+
+    // The type of the control's UI binding, a grain until the Circles handlers migrate (06-06a).
+    internal const string BindingType = "ui.binding";
+
+    // Sends a UI event to the handler bound to this control. The binding is reached through ILegacyNeurons, so it sees this
+    // control as the caller, and the os caller stamp of the call that raised the event flows on to the handler (UiEvent.Caller).
+    protected Task Dispatch(UiEvent uiEvent)
+        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IUiBinding>(Context, new DigitalBrain.NeuronId(Id.Brain, BindingType, Id.Key)).Dispatch(uiEvent);
 }

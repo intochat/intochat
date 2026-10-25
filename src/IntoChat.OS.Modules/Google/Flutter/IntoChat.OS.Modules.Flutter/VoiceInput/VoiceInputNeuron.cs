@@ -1,15 +1,14 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.VoiceInput;
 
-[GrainType(UIVocabulary.VoiceInputType)]
-internal sealed class VoiceInputNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<VoiceInputState> store)
-    : Neuron<VoiceInputState>(store), IVoiceInput
+[Neuron(UIVocabulary.VoiceInputType)]
+internal sealed class VoiceInputNeuron
+    : UiNeuron<VoiceInputState>, IVoiceInput
 {
     public Task Configure(string label)
     {
@@ -29,15 +28,15 @@ internal sealed class VoiceInputNeuron([PersistentState("state", IntoChatOSNames
         next.Captures++;
         var captured = new VoiceCaptured(next.Name, audio, mimeType.Trim().ToLowerInvariant());
         await Save(next, new VoiceInputChanged(next.Name, next.Revision), captured);
-        await GrainFactory.GetGrain<IUiBinding>(next.Name).Dispatch(UiEvent.Of(captured));
+        await Dispatch(UiEvent.Of(captured));
     }
 
-    [ReadOnly] public Task<VoiceInputState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    [ReadOnlyCall] public Task<VoiceInputState> Read() { Snapshot.Name = FullKey; return Task.FromResult(Snapshot); }
 
     private VoiceInputState Next()
     {
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Revision++;
         return next;
     }

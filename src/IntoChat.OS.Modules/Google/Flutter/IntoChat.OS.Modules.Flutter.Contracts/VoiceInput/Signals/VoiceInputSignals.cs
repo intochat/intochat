@@ -1,9 +1,10 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
 
-[GenerateSerializer, Alias("ui.voiceinput-changed")]
-public sealed record VoiceInputChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.voiceinput-changed")]
+public sealed record VoiceInputChanged(string Name, long Revision) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.voice-captured")]
-public sealed record VoiceCaptured([property: Id(0)] string Name, [property: Id(1)] byte[] Audio, [property: Id(2)] string MimeType) : Signal;
+[Signal("ui.voice-captured")]
+public sealed record VoiceCaptured(string Name, byte[] Audio, string MimeType) : DigitalBrain.Signal;

@@ -1,5 +1,6 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Preferences;
@@ -38,12 +39,12 @@ public sealed record PreferenceSpec(
     [property: Id(2)] PreferenceKind Kind,
     [property: Id(3)] PreferenceChoice[]? Choices = null);
 
-[Alias("preference"), Orleans.Metadata.DefaultGrainType(UIVocabulary.PreferenceType)]
-public interface IPreferenceControl : INeuron
+[NeuronAlias("preference"), DefaultNeuronType(UIVocabulary.PreferenceType)]
+public interface IPreferenceControl
 {
     Task Configure(PreferenceSpec spec);
     // The spec plus the stored value; Value is null for a Local* store, which only the device holds.
-    [ReadOnly, Alias("read")] Task<PreferenceControlState> Read();
+    [ReadOnlyCall] Task<PreferenceControlState> Read();
     // Writes a brain store as the calling person. Installed apps are refused; Local* stores are never written here.
     Task Set(string value);
 }

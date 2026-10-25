@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Preferences.Signals;
 using IntoChat.OS.Modules.Flutter.Settings;
@@ -5,28 +6,26 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Preferences;
 
 // One preference a Settings view shows. A brain store is read and written through BrainPreferenceStore, the same
 // fields the HTTP preference endpoints use, as the calling person; a Local* store is the device's, so the
 // neuron holds only its spec and the renderer reads and writes it on the device.
-[GrainType(UIVocabulary.PreferenceType)]
-internal sealed class PreferenceControlNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PreferenceControlState> store)
-    : Neuron<PreferenceControlState>(store), IPreferenceControl
+[Neuron(UIVocabulary.PreferenceType)]
+internal sealed class PreferenceControlNeuron
+    : UiNeuron<PreferenceControlState>, IPreferenceControl
 {
     private const int MaxChoices = 64;
 
     private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOS>();
 
-    private string Scope => NeuronAddress.ScopeOf(this.GetPrimaryKeyString())
+    private string Scope => NeuronAddress.ScopeOf(FullKey)
         ?? throw new InvalidOperationException("A preference control lives inside a brain.");
 
     public async Task Configure(PreferenceSpec spec)
     {
-        if (!await SettingsCaller.IsShipped(Brain, NeuronAddress.ScopeOf(this.GetPrimaryKeyString())))
+        if (!await SettingsCaller.IsShipped(Brain, NeuronAddress.ScopeOf(FullKey)))
         { throw new UnauthorizedAccessException("Only the Settings app configures a preference control."); }
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Label);
@@ -42,17 +41,17 @@ internal sealed class PreferenceControlNeuron([PersistentState("state", IntoChat
             || choice.Label.Length > 128 || choice.Detail?.Length > 256)))
         { throw new ArgumentException("Preference choices name an id and a label, at most 64 of them.", nameof(spec)); }
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Spec = spec with { Label = spec.Label.Trim() };
         next.Value = null;
         await Save(next, new PreferenceChanged(spec.Store));
     }
 
-    [ReadOnly]
+    [ReadOnlyCall]
     public async Task<PreferenceControlState> Read()
     {
-        var state = new PreferenceControlState { Name = this.GetPrimaryKeyString(), Version = Snapshot.Version, Spec = Snapshot.Spec };
+        var state = new PreferenceControlState { Name = FullKey, Version = Snapshot.Version, Spec = Snapshot.Spec };
         if (state.Spec is not { } spec || IsLocal(spec.Store)) { return state; }
         if (Notification(spec.Store) is { } key)
         {
@@ -82,7 +81,7 @@ internal sealed class PreferenceControlNeuron([PersistentState("state", IntoChat
             if (!await BrainPreferenceStore.WriteNewTab(Brain, Scope, value, CancellationToken.None))
             { throw new ArgumentException("Choose an installed app.", nameof(value)); }
         }
-        await PublishAsync(new PreferenceChanged(spec.Store));
+        await Publish(new PreferenceChanged(spec.Store));
     }
 
     private static bool IsLocal(PreferenceStore store) => (int)store >= 10;

@@ -1,8 +1,9 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.Form.Signals;
 
-[GenerateSerializer, Alias("ui.form-changed")]
+[Signal("ui.form-changed")]
 public sealed record FormChanged(
-    [property: Id(0)] string FormId,
-    [property: Id(1)] int Revision) : Signal;
+    string FormId,
+    int Revision) : DigitalBrain.Signal;

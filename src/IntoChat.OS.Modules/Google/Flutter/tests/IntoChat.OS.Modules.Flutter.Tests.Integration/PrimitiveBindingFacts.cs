@@ -12,6 +12,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans;
 using Orleans.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration;
@@ -32,15 +33,15 @@ public sealed class PrimitiveBindingFacts
         await Assert.ThrowsAsync<ArgumentException>(() => field.Configure("Message", "multiline", new string('x', 513)));
         await field.Configure("Message", "multiline", "workspace/app/send");
         await field.SetValue("projection");
-        Assert.Empty(await handler.Events());
+        Assert.Empty((await handler.Events()).Decoded());
         await field.Input("first edit");
         await WaitFor(handled, 1, ct);
-        Assert.Equal(new TextFieldChanged("owner/field", "first edit"), Assert.Single(await handler.Events()));
+        Assert.Equal(new TextFieldChanged("owner/field", "first edit"), Assert.Single((await handler.Events()).Decoded()));
         await brain.DeactivateAsync(binding, ct);
         await brain.DeactivateAsync(field, ct);
         await field.Input("second edit");
         await WaitFor(handled, 2, ct);
-        Assert.Equal(new TextFieldChanged("owner/field", "second edit"), (await handler.Events())[1]);
+        Assert.Equal(new TextFieldChanged("owner/field", "second edit"), (await handler.Events()).Decoded()[1]);
         Assert.Equal("second edit", (await field.Read()).Value);
         Assert.Equal("workspace/app/send", (await field.Read()).SubmitButton);
     }
@@ -69,7 +70,7 @@ public sealed class PrimitiveBindingFacts
         var voice = brain.Get<IVoiceInput>("owner/voice");
         await voice.Capture([1, 2], "audio/wav");
         await WaitFor(handled, 4, ct);
-        var events = await handler.Events();
+        var events = (await handler.Events()).Decoded();
         Assert.Contains(events, signal => signal is SelectChanged { Name: "owner/select", Value: "yes" });
         Assert.Contains(events, signal => signal is FileCaptured { Name: "owner/file", FileName: "notes.txt", Content: "notes" });
         Assert.Contains(events, signal => signal is ButtonClicked { Name: "owner/button", Action: "submit" });
@@ -85,12 +86,12 @@ public sealed class PrimitiveBindingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        await brain.Get<ITextField>("field").Input("edit");
-        await brain.Get<IFileInput>("file").Capture("empty.txt", "");
-        var select = brain.Get<ISelect>("select");
+        await brain.Get<ITextField>("owner/field").Input("edit");
+        await brain.Get<IFileInput>("owner/file").Capture("empty.txt", "");
+        var select = brain.Get<ISelect>("owner/select");
         await select.Set("Choice", [new("a", "A")], "a");
         await select.Choose("a");
-        var button = brain.Get<IButton>("open");
+        var button = brain.Get<IButton>("owner/open");
         await Assert.ThrowsAsync<ArgumentException>(() => button.SetActivation("Open", "[]"));
         await Assert.ThrowsAsync<ArgumentException>(() => button.SetActivation("Open", "invalid"));
         await button.SetActivation("Open", "{\"windowId\":\"table-1\"}");
@@ -130,9 +131,9 @@ public sealed class PrimitiveBindingFacts
         await field.Input("edited");
         await WaitFor(handled, 1, ct);
         Assert.Equal("projected: edited", (await field.Read()).Value);
-        Assert.Equal(new TextFieldChanged("owner/projection-field", "edited"), Assert.Single(await handler.Events()));
+        Assert.Equal(new TextFieldChanged("owner/projection-field", "edited"), Assert.Single((await handler.Events()).Decoded()));
         await field.SetValue("another projection");
-        Assert.Single(await handler.Events());
+        Assert.Single((await handler.Events()).Decoded());
     }
     // The handler announces each event it has recorded; delivery is at-least-once, so wait for the count.
     internal static async Task WaitFor(SignalProbe<UiEventHandled> handled, int count, CancellationToken ct)
@@ -147,28 +148,35 @@ public sealed record UiEventHandled([property: Id(0)] int Count, [property: Id(1
 [Alias("test.primitive-handler"), Orleans.Metadata.DefaultGrainType("test.primitive-handler")]
 public interface IPrimitiveTestHandler : IUiEventHandler, INeuron
 {
-    Task<IReadOnlyList<Signal>> Events();
+    // The events as they arrived; decode them with UiEvents.Decoded (a plain control's [Signal] record has no Orleans form).
+    Task<IReadOnlyList<UiEvent>> Events();
     Task ProjectTo(string name);
 }
 
 [GrainType("test.primitive-handler")]
 public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
 {
-    private readonly List<Signal> _events = [];
+    private readonly List<UiEvent> _events = [];
     private string? _projection;
     public Task ProjectTo(string name) { _projection = name; return Task.CompletedTask; }
-    // The signal types a control dispatches, by the full name a UiEvent carries.
+
+    public async Task HandleUiEvent(UiEvent uiEvent)
+    {
+        _events.Add(uiEvent);
+        if (_projection is not null && uiEvent.As<TextFieldChanged>() is { } changed)
+        { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITextField>(_projection).SetValue("projected: " + changed.Value); }
+        await PublishAsync(new UiEventHandled(_events.Count, uiEvent.Type[(uiEvent.Type.LastIndexOf('.') + 1)..]));
+    }
+    public Task<IReadOnlyList<UiEvent>> Events() => Task.FromResult<IReadOnlyList<UiEvent>>(_events.ToArray());
+}
+
+public static class UiEvents
+{
+    // The signal types a control dispatches, by the full name a UiEvent carries: os Signals and plain [Signal] records.
     private static readonly Dictionary<string, Type> Dispatched = typeof(IUiBinding).Assembly.GetTypes()
         .Where(type => typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type))
         .ToDictionary(type => type.FullName!, StringComparer.Ordinal);
 
-    public async Task HandleUiEvent(UiEvent uiEvent)
-    {
-        var signal = (Signal)System.Text.Json.JsonSerializer.Deserialize(uiEvent.Json, Dispatched[uiEvent.Type], System.Text.Json.JsonSerializerOptions.Web)!;
-        _events.Add(signal);
-        if (_projection is not null && signal is TextFieldChanged changed)
-        { await GrainFactory.GetGrain<ITextField>(_projection).SetValue("projected: " + changed.Value); }
-        await PublishAsync(new UiEventHandled(_events.Count, signal.GetType().Name));
-    }
-    public Task<IReadOnlyList<Signal>> Events() => Task.FromResult<IReadOnlyList<Signal>>(_events.ToArray());
+    public static object[] Decoded(this IReadOnlyList<UiEvent> events)
+        => [.. events.Select(uiEvent => System.Text.Json.JsonSerializer.Deserialize(uiEvent.Json, Dispatched[uiEvent.Type], System.Text.Json.JsonSerializerOptions.Web)!)];
 }

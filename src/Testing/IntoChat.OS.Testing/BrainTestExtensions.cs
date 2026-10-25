@@ -30,6 +30,25 @@ public static class BrainTestExtensions
         return probe;
     }
 
+    // A plain neuron's held [Signal] records of type T, oldest first, read from its brain's log (06-04): what the os journal read
+    // Read(from, count) gave for a grain neuron.
+    public static async Task<T[]> History<T>(this ITestBrain brain, object neuron, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        var target = neuron is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
+            : throw new ArgumentException("Read the history of a plain neuron obtained from this brain's Get.", nameof(neuron));
+        var signals = (IntoChat.OS.Runtime.IPlainSignals)brain.Services.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals))!;
+        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(T));
+        List<T> found = [];
+        for (long since = 0; ;)
+        {
+            var page = await signals.Read(target, since, DigitalBrain.SignalPage.MaxLimit, cancellationToken).ConfigureAwait(false);
+            found.AddRange(page.Signals.Where(entry => entry.Alias == alias).Select(entry => IntoChat.OS.Runtime.PlainSignalTypes.Decode<T>(entry.Json)));
+            if (page.Signals.Count == 0 || page.Signals[^1].Sequence >= page.Last) { return [.. found]; }
+            since = page.Signals[^1].Sequence;
+        }
+    }
+
     // DeactivateAsync for a plain neuron (06-04): its runtime host grain is deactivated; the next call reactivates it from its state.
     public static Task DeactivateAsync(this ITestBrain brain, object neuron, CancellationToken cancellationToken = default)
     {
