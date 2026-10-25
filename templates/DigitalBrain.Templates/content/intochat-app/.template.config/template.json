@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Digital Brain Tech",
+  "classifications": [
+    "DigitalBrain",
+    "App"
+  ],
+  "identity": "DigitalBrain.App.CSharp",
+  "name": "DigitalBrain app",
+  "description": "A DigitalBrain app with one neuron, one signal and a unit test.",
+  "shortName": "intochat-app",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "APP_NAME",
+  "preferNameDirectory": true,
+  "symbols": {
+    "AppId": {
+      "type": "parameter",
+      "datatype": "string",
+      "isRequired": true,
+      "description": "App id: lowercase letters, digits and hyphens, dot-separated (for example acme.notes). The generated test checks it.",
+      "replaces": "APP_ID"
+    },
+    "ClassName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "safe_name",
+      "replaces": "APP_CLASS",
+      "fileRename": "APP_CLASS"
+    },
+    "Namespace": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "safe_namespace",
+      "replaces": "APP_NAMESPACE"
+    },
+    "DigitalBrainVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "__DIGITALBRAIN_VERSION__",
+      "description": "DigitalBrain and DigitalBrain.Testing package version.",
+      "replaces": "DIGITALBRAIN_VERSION_VALUE"
+    }
+  }
+}
