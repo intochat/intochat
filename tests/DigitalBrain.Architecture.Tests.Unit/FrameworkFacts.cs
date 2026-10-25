@@ -8,12 +8,17 @@ namespace DigitalBrain.Architecture.Tests.Unit;
 // The framework rings: the core and the UI view model reference nothing.
 public sealed class VocabularyRingFacts
 {
-    [Theory]
-    [InlineData("DigitalBrain")]
-    [InlineData("DigitalBrain.UI")]
-    public void Core_projects_reference_no_project(string name)
+    [Fact]
+    public void View_model_references_no_project()
     {
-        Assert.Empty(Repository.ProjectReferences(Repository.ProjectNamed(name).Path));
+        Assert.Empty(Repository.ProjectReferences(Repository.ProjectNamed("DigitalBrain.UI").Path));
+    }
+
+    // 03-04: the core's only project reference is the analyzer, analyzer-only (no assembly reference).
+    [Fact]
+    public void Core_references_only_the_analyzer_as_analyzer()
+    {
+        Assert.Equal(["DigitalBrain.Analyzers"], Repository.ProjectReferences(Repository.ProjectNamed("DigitalBrain").Path));
     }
 
     [Theory]
@@ -28,8 +33,7 @@ public sealed class VocabularyRingFacts
 // V-02: no Orleans library anywhere in the restore graph of the core-side projects.
 public sealed class CoreHasNoOrleansFacts
 {
-    // 03-04 adds DigitalBrain.Analyzers.
-    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing" };
+    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Testing", "DigitalBrain.Analyzers" };
 
     [Theory]
     [MemberData(nameof(CoreProjects))]
