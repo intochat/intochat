@@ -155,10 +155,13 @@ public sealed class TestingFacts
     [Fact]
     public async Task Synapses_and_operations_are_recorded()
     {
-        var synapses = new RecordingSynapses();
         var to = new NeuronId(new BrainId("alice"), "sink", "s");
-        await synapses.Connect(new Synapse(Id, typeof(Pinged), to));
-        Assert.Single(await synapses.Of(Id));
+        var synapses = new RecordingSynapses(to);
+        await synapses.Ensure<Pinged>(Id);
+        await synapses.Ensure<Pinged>(Id);
+        Assert.Equal([new Synapse(Id, typeof(Pinged), to)], synapses.Current);
+        await synapses.Remove(Id);
+        Assert.Empty(synapses.Current);
 
         var operations = new FakeOperations();
         var op = await operations.Begin("import", TestContext.Current.CancellationToken);

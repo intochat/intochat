@@ -74,6 +74,16 @@ DigitalBrain.DeactivationCause.Failed = 3 -> DigitalBrain.DeactivationCause
 DigitalBrain.DeactivationCause.Idle = 1 -> DigitalBrain.DeactivationCause
 DigitalBrain.DeactivationCause.Requested = 0 -> DigitalBrain.DeactivationCause
 DigitalBrain.DeactivationCause.Shutdown = 2 -> DigitalBrain.DeactivationCause
+DigitalBrain.Gap
+DigitalBrain.Gap.Deconstruct(out DigitalBrain.NeuronId Source, out long From, out long To) -> void
+DigitalBrain.Gap.Equals(DigitalBrain.Gap? other) -> bool
+DigitalBrain.Gap.From.get -> long
+DigitalBrain.Gap.From.init -> void
+DigitalBrain.Gap.Gap(DigitalBrain.NeuronId Source, long From, long To) -> void
+DigitalBrain.Gap.Source.get -> DigitalBrain.NeuronId
+DigitalBrain.Gap.Source.init -> void
+DigitalBrain.Gap.To.get -> long
+DigitalBrain.Gap.To.init -> void
 DigitalBrain.IRevisioned<TState>
 DigitalBrain.IRevisioned<TState>.Advanced(string! operationId) -> TState
 DigitalBrain.IRevisioned<TState>.Operations.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
@@ -91,6 +101,19 @@ DigitalBrain.InterleavesAttribute.InterleavesAttribute() -> void
 DigitalBrain.InterleavesWhenAttribute
 DigitalBrain.InterleavesWhenAttribute.InterleavesWhenAttribute(string! predicate) -> void
 DigitalBrain.InterleavesWhenAttribute.Predicate.get -> string!
+DigitalBrain.JournaledSignal
+DigitalBrain.JournaledSignal.<Clone>$() -> DigitalBrain.JournaledSignal!
+DigitalBrain.JournaledSignal.At.get -> System.DateTimeOffset
+DigitalBrain.JournaledSignal.At.init -> void
+DigitalBrain.JournaledSignal.Deconstruct(out DigitalBrain.NeuronId Publisher, out long Sequence, out DigitalBrain.Signal! Signal, out System.DateTimeOffset At) -> void
+DigitalBrain.JournaledSignal.Equals(DigitalBrain.JournaledSignal? other) -> bool
+DigitalBrain.JournaledSignal.JournaledSignal(DigitalBrain.NeuronId Publisher, long Sequence, DigitalBrain.Signal! Signal, System.DateTimeOffset At) -> void
+DigitalBrain.JournaledSignal.Publisher.get -> DigitalBrain.NeuronId
+DigitalBrain.JournaledSignal.Publisher.init -> void
+DigitalBrain.JournaledSignal.Sequence.get -> long
+DigitalBrain.JournaledSignal.Sequence.init -> void
+DigitalBrain.JournaledSignal.Signal.get -> DigitalBrain.Signal!
+DigitalBrain.JournaledSignal.Signal.init -> void
 DigitalBrain.Module
 DigitalBrain.Module.Module() -> void
 DigitalBrain.ModuleAttribute
@@ -188,6 +211,17 @@ DigitalBrain.Signal.Signal(DigitalBrain.Signal! original) -> void
 DigitalBrain.SignalAttribute
 DigitalBrain.SignalAttribute.Alias.get -> string!
 DigitalBrain.SignalAttribute.SignalAttribute(string! alias) -> void
+DigitalBrain.SignalPage
+DigitalBrain.SignalPage.<Clone>$() -> DigitalBrain.SignalPage!
+DigitalBrain.SignalPage.Deconstruct(out long Floor, out long Last, out System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>! Signals) -> void
+DigitalBrain.SignalPage.Equals(DigitalBrain.SignalPage? other) -> bool
+DigitalBrain.SignalPage.Floor.get -> long
+DigitalBrain.SignalPage.Floor.init -> void
+DigitalBrain.SignalPage.Last.get -> long
+DigitalBrain.SignalPage.Last.init -> void
+DigitalBrain.SignalPage.SignalPage(long Floor, long Last, System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>! Signals) -> void
+DigitalBrain.SignalPage.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>!
+DigitalBrain.SignalPage.Signals.init -> void
 DigitalBrain.Spi.ICallerContextCarrier
 DigitalBrain.Spi.ICallerContextCarrier.Suppress() -> System.IDisposable!
 DigitalBrain.Spi.IDeactivatingNeuron
@@ -201,6 +235,7 @@ DigitalBrain.Spi.IInProcessHostFactory.Start(DigitalBrain.InProcessHostOptions! 
 DigitalBrain.Spi.INeuronContext
 DigitalBrain.Spi.INeuronContext.Defer(System.Func<System.Threading.Tasks.Task!>! work) -> void
 DigitalBrain.Spi.INeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Spi.INeuronContext.History.get -> DigitalBrain.Spi.ISignalHistory!
 DigitalBrain.Spi.INeuronContext.Id.get -> DigitalBrain.NeuronId
 DigitalBrain.Spi.INeuronContext.Operations.get -> DigitalBrain.Spi.IOperations!
 DigitalBrain.Spi.INeuronContext.Publish(DigitalBrain.Signal! signal) -> System.Threading.Tasks.Task!
@@ -230,10 +265,13 @@ DigitalBrain.Spi.IReminders.Names() -> System.Threading.Tasks.Task<System.Collec
 DigitalBrain.Spi.IReminders.Start(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.IReminders.Stop(string! name) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.IRuntimeEndpoint
+DigitalBrain.Spi.ISignalHistory
+DigitalBrain.Spi.ISignalHistory.Read(DigitalBrain.NeuronId publisher, long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
+DigitalBrain.Spi.ISignalHistory.Read(long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
 DigitalBrain.Spi.ISynapses
-DigitalBrain.Spi.ISynapses.Connect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
-DigitalBrain.Spi.ISynapses.Disconnect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
-DigitalBrain.Spi.ISynapses.Of(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!>!
+DigitalBrain.Spi.ISynapses.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.ISynapses.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.ISynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.ITimers
 DigitalBrain.Spi.ITimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period) -> void
 DigitalBrain.Spi.ITimers.Stop(string! name) -> void
@@ -276,6 +314,7 @@ DigitalBrain.Synapse.Synapse(DigitalBrain.NeuronId From, System.Type! Signal, Di
 DigitalBrain.Synapse.To.get -> DigitalBrain.NeuronId
 DigitalBrain.Synapse.To.init -> void
 abstract DigitalBrain.Signal.<Clone>$() -> DigitalBrain.Signal!
+const DigitalBrain.SignalPage.MaxLimit = 1000 -> int
 override DigitalBrain.AppManifest.Equals(object? obj) -> bool
 override DigitalBrain.AppManifest.GetHashCode() -> int
 override DigitalBrain.AppManifest.ToString() -> string!
@@ -286,6 +325,13 @@ override DigitalBrain.BrainId.GetHashCode() -> int
 override DigitalBrain.BrainId.ToString() -> string!
 override DigitalBrain.Capabilities.CapabilityId.GetHashCode() -> int
 override DigitalBrain.Capabilities.CapabilityId.ToString() -> string!
+override DigitalBrain.Gap.<Clone>$() -> DigitalBrain.Gap!
+override DigitalBrain.Gap.Equals(object? obj) -> bool
+override DigitalBrain.Gap.GetHashCode() -> int
+override DigitalBrain.Gap.ToString() -> string!
+override DigitalBrain.JournaledSignal.Equals(object? obj) -> bool
+override DigitalBrain.JournaledSignal.GetHashCode() -> int
+override DigitalBrain.JournaledSignal.ToString() -> string!
 override DigitalBrain.ModuleManifest.Equals(object? obj) -> bool
 override DigitalBrain.ModuleManifest.GetHashCode() -> int
 override DigitalBrain.ModuleManifest.ToString() -> string!
@@ -303,6 +349,9 @@ override DigitalBrain.Setting.ToString() -> string!
 override DigitalBrain.Signal.Equals(object? obj) -> bool
 override DigitalBrain.Signal.GetHashCode() -> int
 override DigitalBrain.Signal.ToString() -> string!
+override DigitalBrain.SignalPage.Equals(object? obj) -> bool
+override DigitalBrain.SignalPage.GetHashCode() -> int
+override DigitalBrain.SignalPage.ToString() -> string!
 override DigitalBrain.State.StoredRecord.Equals(object? obj) -> bool
 override DigitalBrain.State.StoredRecord.GetHashCode() -> int
 override DigitalBrain.State.StoredRecord.ToString() -> string!
@@ -312,6 +361,7 @@ override DigitalBrain.State.WriteResult.ToString() -> string!
 override DigitalBrain.Synapse.Equals(object? obj) -> bool
 override DigitalBrain.Synapse.GetHashCode() -> int
 override DigitalBrain.Synapse.ToString() -> string!
+override sealed DigitalBrain.Gap.Equals(DigitalBrain.Signal? other) -> bool
 static DigitalBrain.AppManifest.operator !=(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
 static DigitalBrain.AppManifest.operator ==(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
 static DigitalBrain.AppRequirements.operator !=(DigitalBrain.AppRequirements? left, DigitalBrain.AppRequirements? right) -> bool
@@ -325,6 +375,10 @@ static DigitalBrain.Capabilities.CapabilityId.Parse(string! text) -> DigitalBrai
 static DigitalBrain.Capabilities.CapabilityId.TryParse(string? text, out DigitalBrain.Capabilities.CapabilityId id) -> bool
 static DigitalBrain.Capabilities.CapabilityId.operator !=(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
 static DigitalBrain.Capabilities.CapabilityId.operator ==(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
+static DigitalBrain.Gap.operator !=(DigitalBrain.Gap? left, DigitalBrain.Gap? right) -> bool
+static DigitalBrain.Gap.operator ==(DigitalBrain.Gap? left, DigitalBrain.Gap? right) -> bool
+static DigitalBrain.JournaledSignal.operator !=(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
+static DigitalBrain.JournaledSignal.operator ==(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
 static DigitalBrain.ModuleManifest.Of(System.Type! moduleType) -> DigitalBrain.ModuleManifest!
 static DigitalBrain.ModuleManifest.operator !=(DigitalBrain.ModuleManifest? left, DigitalBrain.ModuleManifest? right) -> bool
 static DigitalBrain.ModuleManifest.operator ==(DigitalBrain.ModuleManifest? left, DigitalBrain.ModuleManifest? right) -> bool
@@ -350,7 +404,11 @@ static DigitalBrain.Setting.operator !=(DigitalBrain.Setting? left, DigitalBrain
 static DigitalBrain.Setting.operator ==(DigitalBrain.Setting? left, DigitalBrain.Setting? right) -> bool
 static DigitalBrain.Signal.operator !=(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
 static DigitalBrain.Signal.operator ==(DigitalBrain.Signal? left, DigitalBrain.Signal? right) -> bool
+static DigitalBrain.SignalPage.CheckLimit(int limit) -> int
+static DigitalBrain.SignalPage.operator !=(DigitalBrain.SignalPage? left, DigitalBrain.SignalPage? right) -> bool
+static DigitalBrain.SignalPage.operator ==(DigitalBrain.SignalPage? left, DigitalBrain.SignalPage? right) -> bool
 static DigitalBrain.Spi.NeuronAttachment.Activate(DigitalBrain.Neuron! neuron, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static DigitalBrain.Spi.NeuronAttachment.Admit(DigitalBrain.Neuron! source, DigitalBrain.NeuronId subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! signals) -> System.Threading.Tasks.Task!
 static DigitalBrain.Spi.NeuronAttachment.Attach(DigitalBrain.Neuron! neuron, DigitalBrain.Spi.INeuronContext! context) -> void
 static DigitalBrain.Spi.NeuronAttachment.Deactivate(DigitalBrain.Neuron! neuron, DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static DigitalBrain.State.StoredRecord.operator !=(DigitalBrain.State.StoredRecord? left, DigitalBrain.State.StoredRecord? right) -> bool
@@ -359,6 +417,7 @@ static DigitalBrain.State.WriteResult.operator !=(DigitalBrain.State.WriteResult
 static DigitalBrain.State.WriteResult.operator ==(DigitalBrain.State.WriteResult? left, DigitalBrain.State.WriteResult? right) -> bool
 static DigitalBrain.Synapse.operator !=(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
 static DigitalBrain.Synapse.operator ==(DigitalBrain.Synapse? left, DigitalBrain.Synapse? right) -> bool
+virtual DigitalBrain.Neuron.AdmitSynapse(DigitalBrain.NeuronId subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! signals) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron.OnActivate(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron.OnDeactivate(DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron<TState>.OnCommitted() -> void

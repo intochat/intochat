@@ -144,31 +144,83 @@ public sealed class ManualReminders : IReminders
             : throw new InvalidOperationException($"{Target?.GetType().FullName ?? "No neuron"} does not implement {nameof(IRemindedNeuron)}.");
 }
 
-/// <summary>Synapses held in memory, with a record of every change.</summary>
+/// <summary>The synapses one subscriber holds, in memory. Ensure is idempotent and refuses a self-synapse.</summary>
 public sealed class RecordingSynapses : ISynapses
 {
     private readonly List<Synapse> _synapses = [];
+
+    /// <summary>Synapses held by <paramref name="subscriber"/>.</summary>
+    public RecordingSynapses(NeuronId subscriber) => Subscriber = subscriber;
+
+    /// <summary>The neuron that holds these synapses.</summary>
+    public NeuronId Subscriber { get; }
 
     /// <summary>The current synapses.</summary>
     public IReadOnlyList<Synapse> Current => _synapses;
 
     /// <inheritdoc />
-    public Task Connect(Synapse synapse)
+    public Task Ensure<TSignal>(NeuronId from) where TSignal : Signal => Ensure(from, typeof(TSignal));
+
+    /// <inheritdoc />
+    public Task Ensure(NeuronId from, params Type[] signals)
     {
-        ArgumentNullException.ThrowIfNull(synapse);
-        if (!_synapses.Contains(synapse)) { _synapses.Add(synapse); }
+        ArgumentNullException.ThrowIfNull(signals);
+        if (from == Subscriber) { throw new ArgumentException("A neuron does not subscribe to itself.", nameof(from)); }
+        foreach (var signal in signals)
+        {
+            if (signal is null || !typeof(Signal).IsAssignableFrom(signal)) { throw new ArgumentException($"{signal} is not a signal type.", nameof(signals)); }
+            var synapse = new Synapse(from, signal, Subscriber);
+            if (!_synapses.Contains(synapse)) { _synapses.Add(synapse); }
+        }
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task Disconnect(Synapse synapse)
+    public Task Remove(NeuronId from)
     {
-        _synapses.Remove(synapse);
+        _synapses.RemoveAll(synapse => synapse.From == from);
         return Task.CompletedTask;
+    }
+}
+
+/// <summary>Signal history held in memory. <see cref="Trim(long)"/> raises the floor.</summary>
+public sealed class InMemorySignalHistory : ISignalHistory
+{
+    private readonly List<JournaledSignal> _entries = [];
+    private long _floor = 1;
+
+    /// <summary>Journals a signal with the next sequence and returns that sequence.</summary>
+    public long Append(NeuronId publisher, Signal signal, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        var sequence = Last + 1;
+        _entries.Add(new JournaledSignal(publisher, sequence, signal, at));
+        return sequence;
+    }
+
+    /// <summary>The highest sequence written.</summary>
+    public long Last => _entries.Count == 0 ? _floor - 1 : _entries[^1].Sequence;
+
+    /// <summary>Drops entries below <paramref name="floor"/>.</summary>
+    public void Trim(long floor)
+    {
+        _floor = Math.Max(_floor, floor);
+        _entries.RemoveAll(entry => entry.Sequence < _floor);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<Synapse>> Of(NeuronId from) => Task.FromResult<IReadOnlyList<Synapse>>([.. _synapses.Where(synapse => synapse.From == from)]);
+    public Task<SignalPage> Read(NeuronId publisher, long since, int limit, CancellationToken ct)
+        => Task.FromResult(Page(entry => entry.Publisher == publisher, since, limit));
+
+    /// <inheritdoc />
+    public Task<SignalPage> Read(long since, int limit, CancellationToken ct)
+        => Task.FromResult(Page(_ => true, since, limit));
+
+    private SignalPage Page(Func<JournaledSignal, bool> filter, long since, int limit)
+    {
+        SignalPage.CheckLimit(limit);
+        return new SignalPage(_floor, Last, [.. _entries.Where(entry => entry.Sequence > since && filter(entry)).Take(limit)]);
+    }
 }
 
 /// <summary>Operations held in memory.</summary>
@@ -248,6 +300,7 @@ public sealed class FakeNeuronContext : INeuronContext
     {
         Id = id;
         MemoryState = new InMemoryNeuronState(_published.AddRange);
+        Synapses = new RecordingSynapses(id);
         Services = services ?? EmptyServices.Instance;
         Timers = new ManualTimers(Clock);
     }
@@ -286,9 +339,14 @@ public sealed class FakeNeuronContext : INeuronContext
     IOperations INeuronContext.Operations => Operations;
 
     /// <summary>The recording synapses.</summary>
-    public RecordingSynapses Synapses { get; } = new();
+    public RecordingSynapses Synapses { get; }
 
     ISynapses INeuronContext.Synapses => Synapses;
+
+    /// <summary>The in-memory signal history.</summary>
+    public InMemorySignalHistory History { get; } = new();
+
+    ISignalHistory INeuronContext.History => History;
 
     /// <summary>The proxies <see cref="Get{T}(NeuronId)"/> returns.</summary>
     public FakeNeuronProxies Proxies { get; } = new();

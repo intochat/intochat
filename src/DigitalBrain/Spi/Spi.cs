@@ -26,8 +26,11 @@ public interface INeuronContext
     /// <summary>Long-running operations.</summary>
     IOperations Operations { get; }
 
-    /// <summary>The synapses of the brain.</summary>
+    /// <summary>The synapses this neuron holds as a subscriber.</summary>
     ISynapses Synapses { get; }
+
+    /// <summary>The brain's signal history.</summary>
+    ISignalHistory History { get; }
 
     /// <summary>Publishes a signal from this neuron.</summary>
     Task Publish(Signal signal);
@@ -86,19 +89,6 @@ public interface IOperations
 
     /// <summary>Completes an operation.</summary>
     Task Complete(string id, bool succeeded, CancellationToken cancellationToken);
-}
-
-/// <summary>The synapses of a brain.</summary>
-public interface ISynapses
-{
-    /// <summary>Adds a synapse.</summary>
-    Task Connect(Synapse synapse);
-
-    /// <summary>Removes a synapse.</summary>
-    Task Disconnect(Synapse synapse);
-
-    /// <summary>The synapses that start at a neuron.</summary>
-    Task<IReadOnlyList<Synapse>> Of(NeuronId from);
 }
 
 /// <summary>Typed proxies to neurons.</summary>

@@ -52,6 +52,20 @@ public abstract class Neuron
         Context.Defer(work);
     }
 
+    /// <summary>
+    /// Decides whether <paramref name="subscriber"/> may hold a synapse from this neuron for <paramref name="signals"/>.
+    /// Runtimes call it only through <see cref="NeuronAttachment.Admit"/>, under the subscriber's caller identity, before a synapse is created.
+    /// The default admits subscribers of the same brain; an override refuses by throwing <see cref="UnauthorizedAccessException"/>.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The subscriber is not admitted.</exception>
+    protected virtual Task AdmitSynapse(NeuronId subscriber, IReadOnlyList<Type> signals)
+    {
+        if (subscriber.Brain != Id.Brain) { throw new UnauthorizedAccessException($"Neuron {subscriber} of another brain may not subscribe to {Id}."); }
+        return Task.CompletedTask;
+    }
+
+    internal Task Admit(NeuronId subscriber, IReadOnlyList<Type> signals) => AdmitSynapse(subscriber, signals);
+
     /// <summary>Runs when the activation starts, after state is loaded.</summary>
     protected virtual Task OnActivate(CancellationToken cancellationToken) => Task.CompletedTask;
 

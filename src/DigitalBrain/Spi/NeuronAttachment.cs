@@ -25,4 +25,16 @@ public static class NeuronAttachment
         ArgumentNullException.ThrowIfNull(neuron);
         return neuron.Deactivate(cause, cancellationToken);
     }
+
+    /// <summary>
+    /// The single entry point a runtime calls before it creates a synapse: asks <paramref name="source"/> whether
+    /// <paramref name="subscriber"/> may receive <paramref name="signals"/> from it.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The source refuses the subscriber.</exception>
+    public static Task Admit(Neuron source, NeuronId subscriber, IReadOnlyList<Type> signals)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(signals);
+        return source.Admit(subscriber, signals);
+    }
 }

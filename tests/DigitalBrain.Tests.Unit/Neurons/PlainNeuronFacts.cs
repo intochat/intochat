@@ -52,6 +52,10 @@ public sealed class CounterNeuron : Neuron<CounterState>
 
 public sealed class Notifier : Neuron
 {
+    public Task Follow(NeuronId from) => Context.Synapses.Ensure<Counted>(from);
+
+    public Task Unfollow(NeuronId from) => Context.Synapses.Remove(from);
+
     public Task Notice() => Publish(new Noticed("hello"));
 }
 
@@ -60,6 +64,12 @@ public sealed record Ledger(long Revision, IReadOnlyCollection<string> Operation
     public Ledger() : this(0, [], 0) { }
 
     public Ledger Advanced(string operationId) => this with { Revision = Revision + 1, Operations = [.. Operations, operationId] };
+}
+
+public sealed class Private : Neuron
+{
+    protected override Task AdmitSynapse(NeuronId subscriber, IReadOnlyList<Type> signals)
+        => throw new UnauthorizedAccessException("private");
 }
 
 public sealed record Credited(int Balance) : Signal;
@@ -175,5 +185,80 @@ public sealed class PlainNeuronFacts
         Assert.Equal(7, neuron.SeenAtActivation);
         var state = typeof(Neuron<CounterState>).GetProperty("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.False(state.SetMethod!.IsPublic || state.SetMethod.IsFamily);
+    }
+
+    private static readonly NeuronId Source = new(Brain, "source", "s");
+
+    [Fact]
+    public async Task Ensure_records_one_synapse_and_is_idempotent()
+    {
+        var (neuron, context) = Attached<Notifier>();
+
+        await neuron.Follow(Source);
+        await neuron.Follow(Source);
+
+        Assert.Equal([new Synapse(Source, typeof(Counted), CounterId)], context.SynapseList);
+    }
+
+    [Fact]
+    public async Task Ensure_refuses_a_self_synapse()
+    {
+        var (neuron, _) = Attached<Notifier>();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => neuron.Follow(CounterId));
+    }
+
+    [Fact]
+    public async Task Remove_is_recorded()
+    {
+        var (neuron, context) = Attached<Notifier>();
+        await neuron.Follow(Source);
+
+        await neuron.Unfollow(Source);
+
+        Assert.Equal([Source], context.Removed);
+        Assert.Empty(context.SynapseList);
+    }
+
+    [Fact]
+    public async Task History_reads_a_page_by_sequence_and_bounds_the_limit()
+    {
+        var context = new RecordingContext(CounterId) { Floor = 3 };
+        var at = DateTimeOffset.UnixEpoch;
+        context.Journal.Add(new JournaledSignal(Source, 5, new Counted(5), at));
+        context.Journal.Add(new JournaledSignal(Source, 4, new Counted(4), at));
+        context.Journal.Add(new JournaledSignal(CounterId, 3, new Counted(3), at));
+        var history = context;
+
+        var page = await history.Read(3, 10, TestContext.Current.CancellationToken);
+        Assert.Equal((3L, 5L), (page.Floor, page.Last));
+        Assert.Equal([4L, 5L], page.Signals.Select(entry => entry.Sequence));
+        Assert.Equal([3L, 4L], (await history.Read(0, 2, TestContext.Current.CancellationToken)).Signals.Select(entry => entry.Sequence));
+        Assert.Single((await history.Read(CounterId, 0, 10, TestContext.Current.CancellationToken)).Signals);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => history.Read(0, 0, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => history.Read(0, 1001, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void Gap_is_the_synapse_gap_signal()
+    {
+        var gap = new Gap(Source, 2, 9);
+
+        Assert.IsAssignableFrom<Signal>(gap);
+        Assert.Equal("synapse.gap", typeof(Gap).GetCustomAttribute<SignalAttribute>()!.Alias);
+        Assert.Equal((Source, 2L, 9L), (gap.Source, gap.From, gap.To));
+    }
+
+    [Fact]
+    public async Task Admit_allows_the_same_brain_refuses_another_and_an_override_can_refuse()
+    {
+        var (source, _) = Attached<Notifier>();
+        IReadOnlyList<Type> signals = [typeof(Counted)];
+
+        await NeuronAttachment.Admit(source, Source, signals);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => NeuronAttachment.Admit(source, new NeuronId(new BrainId("bob"), "x", "y"), signals));
+
+        var (refusing, _) = Attached<Private>();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => NeuronAttachment.Admit(refusing, Source, signals));
     }
 }

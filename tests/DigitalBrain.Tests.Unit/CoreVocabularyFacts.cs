@@ -109,6 +109,7 @@ public sealed class CoreVocabularyFacts
         public IReminders Reminders => throw new NotSupportedException();
         public IOperations Operations => throw new NotSupportedException();
         public ISynapses Synapses => throw new NotSupportedException();
+        public ISignalHistory History => throw new NotSupportedException();
         public Task Publish(Signal signal) => Task.CompletedTask;
         public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
         public void Defer(Func<Task> work) => throw new NotSupportedException();

@@ -8,6 +8,7 @@ DigitalBrain.Testing.FakeNeuronContext.Clock.get -> DigitalBrain.Testing.ManualT
 DigitalBrain.Testing.FakeNeuronContext.Defer(System.Func<System.Threading.Tasks.Task!>! work) -> void
 DigitalBrain.Testing.FakeNeuronContext.FakeNeuronContext(DigitalBrain.NeuronId id, System.IServiceProvider? services = null) -> void
 DigitalBrain.Testing.FakeNeuronContext.Get<T>(DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Testing.FakeNeuronContext.History.get -> DigitalBrain.Testing.InMemorySignalHistory!
 DigitalBrain.Testing.FakeNeuronContext.Id.get -> DigitalBrain.NeuronId
 DigitalBrain.Testing.FakeNeuronContext.MemoryState.get -> DigitalBrain.Testing.InMemoryNeuronState!
 DigitalBrain.Testing.FakeNeuronContext.Operations.get -> DigitalBrain.Testing.FakeOperations!
@@ -38,6 +39,13 @@ DigitalBrain.Testing.InMemoryNeuronState.Load<T>() -> System.Threading.Tasks.Tas
 DigitalBrain.Testing.InMemoryNeuronState.Save<T>(T next, System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! signals) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.InMemoryNeuronState.Saves.get -> int
 DigitalBrain.Testing.InMemoryNeuronState.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
+DigitalBrain.Testing.InMemorySignalHistory
+DigitalBrain.Testing.InMemorySignalHistory.Append(DigitalBrain.NeuronId publisher, DigitalBrain.Signal! signal, System.DateTimeOffset at) -> long
+DigitalBrain.Testing.InMemorySignalHistory.InMemorySignalHistory() -> void
+DigitalBrain.Testing.InMemorySignalHistory.Last.get -> long
+DigitalBrain.Testing.InMemorySignalHistory.Read(DigitalBrain.NeuronId publisher, long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
+DigitalBrain.Testing.InMemorySignalHistory.Read(long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.SignalPage!>!
+DigitalBrain.Testing.InMemorySignalHistory.Trim(long floor) -> void
 DigitalBrain.Testing.ManualReminders
 DigitalBrain.Testing.ManualReminders.Fire(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
@@ -69,11 +77,12 @@ DigitalBrain.Testing.NeuronHarness<TNeuron>.Context.get -> DigitalBrain.Testing.
 DigitalBrain.Testing.NeuronHarness<TNeuron>.Deactivate(DigitalBrain.DeactivationCause cause = DigitalBrain.DeactivationCause.Requested, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.NeuronHarness<TNeuron>.Neuron.get -> TNeuron!
 DigitalBrain.Testing.RecordingSynapses
-DigitalBrain.Testing.RecordingSynapses.Connect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.RecordingSynapses.Current.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
-DigitalBrain.Testing.RecordingSynapses.Disconnect(DigitalBrain.Synapse! synapse) -> System.Threading.Tasks.Task!
-DigitalBrain.Testing.RecordingSynapses.Of(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!>!
-DigitalBrain.Testing.RecordingSynapses.RecordingSynapses() -> void
+DigitalBrain.Testing.RecordingSynapses.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.RecordingSynapses.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.RecordingSynapses.RecordingSynapses(DigitalBrain.NeuronId subscriber) -> void
+DigitalBrain.Testing.RecordingSynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.RecordingSynapses.Subscriber.get -> DigitalBrain.NeuronId
 DigitalBrain.Testing.SiloHost
 const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory, DigitalBrain.Runtime.Orleans" -> string!
 override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
