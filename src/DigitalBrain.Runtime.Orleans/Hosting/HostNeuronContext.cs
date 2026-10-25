@@ -32,11 +32,14 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
     private readonly Action<Func<Task>> _defer;
     private readonly HostNeuronState _state;
     private readonly HostTimers _timers;
+    private readonly IHostTicks _ticks;
 
     public HostNeuronContext(NeuronId id, GrainId grainId, NeuronRegistration registration, IServiceProvider services, IGrainFactory grains,
         NeuronTypeRegistry types, string silo, IHostTicks ticks, Action<Func<Task>> defer, SynapseEngine synapses)
     {
         Synapses = new HostSynapses(synapses);
+        Engine = synapses;
+        _ticks = ticks;
         Id = id;
         Silo = silo;
         _services = services;
@@ -64,6 +67,12 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
     public IOperations Operations => throw new NotSupportedException("INeuronContext.Operations is not hosted on the Orleans runtime yet.");
 
     public ISynapses Synapses { get; }
+
+    /// <summary>The activation's synapse engine, for runtime services (04-13) that use the alias and brain-wide forms.</summary>
+    internal SynapseEngine Engine { get; }
+
+    /// <summary>Deactivates the activation after the current turn (runtime services end themselves on SessionTtl).</summary>
+    internal void DeactivateOnIdle() => _ticks.Deactivate();
 
     /// <summary>The signal history of this neuron's brain only (T-04-35).</summary>
     /// <exception cref="InvalidOperationException">The <c>cluster</c> store is not BrainLog.</exception>

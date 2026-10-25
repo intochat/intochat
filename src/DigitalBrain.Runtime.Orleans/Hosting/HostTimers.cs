@@ -14,6 +14,9 @@ internal interface IHostTicks
     Task StopReminder(string name);
 
     Task<IReadOnlyList<string>> ReminderNames();
+
+    /// <summary>Asks the host grain to deactivate once the current turn ends (runtime services, 04-13).</summary>
+    void Deactivate();
 }
 
 /// <summary>

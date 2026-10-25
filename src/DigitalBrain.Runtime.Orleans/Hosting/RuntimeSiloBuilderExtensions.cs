@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
@@ -35,6 +36,7 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.AddSingleton<SynapseReconcile>();
         silo.Services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>>(sp => sp.GetRequiredService<SynapseReconcile>());
         silo.AddSynapseRetention();
+        silo.AddRuntimeServices();
         return silo;
     }
 

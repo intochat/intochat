@@ -132,6 +132,8 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
             new GrainTimerCreationOptions(due, period ?? Timeout.InfiniteTimeSpan) { Interleave = false });
     }
 
+    void IHostTicks.Deactivate() => this.DeactivateOnIdle();
+
     void IHostTicks.StopTimer(string name)
     {
         if (_timers.Remove(name, out var existing)) { existing.Dispose(); }

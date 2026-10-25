@@ -79,7 +79,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         _etag = state.ETag;
         var loaded = state.RecordExists && state.State is not null ? state.State : new SynapseState();
         // Only sources of the subscriber's own brain are honoured, whatever the stored record says (T-04-37).
-        loaded.Sources.RemoveAll(entry => !NeuronId.TryParse(entry.Source, out var source) || source.Brain != _id.Brain || source == _id);
+        loaded.Sources.RemoveAll(entry => entry.Source != BrainWide && (!NeuronId.TryParse(entry.Source, out var source) || source.Brain != _id.Brain || source == _id));
         _state = loaded;
     }
 
@@ -95,19 +95,33 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     /// <exception cref="InvalidOperationException">The subscriber is a <c>[StatelessNeuron]</c>, or the cluster store is not BrainLog.</exception>
     /// <exception cref="ArgumentException">Self-synapse, no signal, or a type without a registered <c>[Signal]</c> alias.</exception>
     /// <exception cref="UnauthorizedAccessException">The source is in another brain or refuses the subscriber.</exception>
-    public async Task Ensure(NeuronId from, IReadOnlyList<Type> signals)
+    public Task Ensure(NeuronId from, IReadOnlyList<Type> signals)
     {
         ArgumentNullException.ThrowIfNull(signals);
-        if (Stateless)
-        {
-            throw new InvalidOperationException($"{_registration.Class.FullName} is a [StatelessNeuron] class: stateless activations own no durable synapse.");
-        }
-        if (from == _id) { throw new ArgumentException("A neuron does not subscribe to itself.", nameof(from)); }
         if (signals.Count == 0) { throw new ArgumentException("A synapse names at least one signal type.", nameof(signals)); }
         var map = _services.GetRequiredService<JournalPayloads>().Types;
         var aliases = signals.Select(signal => signal is not null && typeof(Signal).IsAssignableFrom(signal) && map.TryAliasOf(signal, out var alias)
             ? alias
             : throw new ArgumentException($"{signal?.Name} is not a registered [Signal] type.", nameof(signals))).Distinct(StringComparer.Ordinal).ToArray();
+        return EnsureAliases(from, aliases);
+    }
+
+    /// <summary>
+    /// Ensures signals of the <c>[Signal]</c> <paramref name="aliases"/> from <paramref name="from"/> reach this neuron: the alias form
+    /// runtime services use (the session neuron, 04-13); module neurons go through <see cref="Ensure"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The subscriber is a <c>[StatelessNeuron]</c>, or the cluster store is not BrainLog.</exception>
+    /// <exception cref="ArgumentException">Self-synapse, no alias, or an alias that is not registered.</exception>
+    /// <exception cref="UnauthorizedAccessException">The source is in another brain or refuses the subscriber.</exception>
+    public async Task EnsureAliases(NeuronId from, string[] aliases)
+    {
+        ArgumentNullException.ThrowIfNull(aliases);
+        if (Stateless)
+        {
+            throw new InvalidOperationException($"{_registration.Class.FullName} is a [StatelessNeuron] class: stateless activations own no durable synapse.");
+        }
+        if (from == _id) { throw new ArgumentException("A neuron does not subscribe to itself.", nameof(from)); }
+        aliases = CheckAliases(aliases);
         if (from.Brain != _id.Brain) { throw new UnauthorizedAccessException($"Neuron {_id} may not subscribe to {from} of another brain."); }
         if (Store is null) { throw new InvalidOperationException($"{_id} holds synapses, which need a cluster store (BrainStorageRegistration)."); }
         if (!_loaded) { await Load().ConfigureAwait(true); }
@@ -141,7 +155,11 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     {
         if (Stateless || Store is null) { return; }
         if (!_loaded) { await Load().ConfigureAwait(true); }
-        var source = from.ToString();
+        await RemoveSource(from.ToString()).ConfigureAwait(true);
+    }
+
+    private async Task RemoveSource(string source)
+    {
         var entry = _state.Sources.Find(item => item.Source == source);
         if (entry is null) { return; }
         _state.Sources.Remove(entry);
@@ -174,7 +192,14 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         if (!_loaded) { await Load().ConfigureAwait(true); }
         var source = item.Publisher.ToString();
         var entry = _state.Sources.Find(held => held.Source == source);
-        if (entry is null) { return; } // the namespace is shared: references of sources this neuron does not hold are ignored
+        if (entry is null)
+        {
+            // A brain-wide synapse takes every reference of its namespaces; it dedupes by brain position, not by the reference.
+            if (BrainEntry is not { } brain || brain.Aliases.Count == 0) { return; } // references of sources this neuron does not hold are ignored
+            try { await PullBrain(brain).ConfigureAwait(true); }
+            catch (Exception error) when (error is not OutOfMemoryException) { LogCatchUpFailed(_log, error, _id.ToString(), BrainWide); }
+            return;
+        }
         try { await Pull(entry, item.Sequence).ConfigureAwait(true); }
         catch (Exception error) when (error is not OutOfMemoryException) { LogCatchUpFailed(_log, error, _id.ToString(), source); }
     }
@@ -192,6 +217,11 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     // Pages the source's journal from the cursor. A reference (through) at or below the cursor is a duplicate and costs no read.
     private async Task Pull(SynapseSource entry, long? reference)
     {
+        if (entry.Source == BrainWide)
+        {
+            await PullBrain(entry).ConfigureAwait(true);
+            return;
+        }
         if (Neuron is not { } neuron) { return; }
         if (!_gates.TryGetValue(entry.Source, out var gate)) { _gates[entry.Source] = gate = new SemaphoreSlim(1, 1); }
         await gate.WaitAsync().ConfigureAwait(true);
@@ -213,7 +243,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
                 _counters.Read();
                 if (page.Floor > entry.Cursor)
                 {
-                    if (!await React(neuron, new Gap(source, entry.Cursor, page.Floor), entry, page.Floor).ConfigureAwait(true)) { return; }
+                    if (!await React(neuron, new JournaledSignal(source, page.Floor, new Gap(source, entry.Cursor, page.Floor), DateTimeOffset.UtcNow), entry).ConfigureAwait(true)) { return; }
                     await Persist().ConfigureAwait(true);
                     continue;
                 }
@@ -223,7 +253,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
                 {
                     if (wanted.Any(type => type.IsInstanceOfType(item.Signal)))
                     {
-                        if (!await React(neuron, item.Signal, entry, item.Sequence).ConfigureAwait(true)) { return; }
+                        if (!await React(neuron, item, entry).ConfigureAwait(true)) { return; }
                         await Persist().ConfigureAwait(true);
                     }
                     else { entry.Cursor = item.Sequence; }
@@ -239,21 +269,23 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         }
     }
 
-    // One reaction: on success the cursor moves to `sequence`; on failure it stays before the signal and the failure is logged.
-    private async Task<bool> React(Neuron neuron, Signal signal, SynapseSource entry, long sequence)
+    // One reaction: on success the cursor moves to the signal's sequence; on failure it stays before it and the failure is logged.
+    // A runtime service that is an ISignalSink takes the journaled signal itself; a module neuron runs its [On] method.
+    private async Task<bool> React(Neuron neuron, JournaledSignal item, SynapseSource entry)
     {
         try
         {
-            await ReactionDispatcher.React(neuron, signal, CancellationToken.None).ConfigureAwait(true);
+            if (neuron is ISignalSink sink) { await sink.Deliver(item).ConfigureAwait(true); }
+            else { await ReactionDispatcher.React(neuron, item.Signal, CancellationToken.None).ConfigureAwait(true); }
             await _drain().ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             _counters.Failure();
-            LogReactionFailed(_log, error, _id.ToString(), entry.Source, sequence);
+            LogReactionFailed(_log, error, _id.ToString(), entry.Source, item.Sequence);
             return false;
         }
-        entry.Cursor = sequence;
+        entry.Cursor = item.Sequence;
         return true;
     }
 
@@ -280,7 +312,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     }
 
     private Task Report(SynapseSource entry)
-        => _grains.GetGrain<ISynapseCursorRegistry>(_id.Brain.Value).ReportCursor(_id.ToString(), NeuronId.Parse(entry.Source), entry.Cursor);
+        => entry.Source == BrainWide ? Task.CompletedTask : _grains.GetGrain<ISynapseCursorRegistry>(_id.Brain.Value).ReportCursor(_id.ToString(), NeuronId.Parse(entry.Source), entry.Cursor);
 
     private static IStreamSubscriptionManager Manager(IServiceProvider services)
         => services.GetRequiredService<IStreamSubscriptionManagerAdmin>().GetStreamSubscriptionManager(StreamSubscriptionManagerType.ExplicitSubscribeOnly);

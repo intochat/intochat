@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Runtime.Orleans.Testing;
@@ -11,5 +12,12 @@ internal static class RuntimeTestHooks
         ArgumentNullException.ThrowIfNull(services);
         var log = await services.GetRequiredService<BrainLogs>().For(brain).ConfigureAwait(false);
         await log.Checkpoint(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Moves the clock runtime services read for SessionTtl forward by <paramref name="by"/> (04-13).</summary>
+    public static void Advance(IServiceProvider services, TimeSpan by)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.GetRequiredService<RuntimeClock>().Advance(by);
     }
 }
