@@ -201,6 +201,8 @@ public static class InstallPlan
         var variables = new Dictionary<string, string>
         {
             ["ASPNETCORE_ENVIRONMENT"] = "Production",
+            // A hosted deployment declares its topology: the hosted posture rules apply, not the local loopback rule (D-21).
+            [Variable(IntoChatOSNames.TopologyKey)] = IntoChatOSNames.TopologyCloud,
             // DefaultAzureCredential picks the user-assigned identity by this client id (Orleans stores, lease, vault).
             ["AZURE_CLIENT_ID"] = ContainerAppSpec.IdentityClientIdToken,
             [Variable(IntoChatOSNames.KeyVaultUriConfigurationKey)] = $"https://{vault}.vault.azure.net/",

@@ -44,6 +44,7 @@ COPY features /app/features
 # (Windows + TPM) or IntoChatOS__Platform__Parts__ConfiguredCustodyAcknowledged=true, or it refuses to start (R81).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
+    IntoChatOS__Topology=cloud \
     DOTNET_EnableDiagnostics=0 \
     IntoChatOS__Modules__apps__Options__Features=/app/features
 

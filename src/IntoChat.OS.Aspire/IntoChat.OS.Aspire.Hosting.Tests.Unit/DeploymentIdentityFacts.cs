@@ -59,12 +59,12 @@ public sealed class DeploymentIdentityFacts
         Assert.Equal(expected, values[IntoChatOSConfiguration.EnvironmentName(AuthOptions.PostureKey)]);
     }
 
-    // The server has no Aspire execution context: the AppHost marks the processes it starts in run mode so Open posture
-    // can hold them to loopback (OpenPostureLoopback). Publish mode is out of scope and carries no marker.
+    // The server has no Aspire execution context: an Aspire run gives the processes it starts the local topology so Open
+    // posture holds them to loopback (OpenPostureLoopback, BindPolicy). Publish mode is out of scope and projects no topology.
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public async Task RunModeMarksTheKernelAndMcpResources(bool publish, bool marked)
+    public async Task RunModeGivesTheKernelAndMcpResourcesTheLocalTopology(bool publish, bool marked)
     {
         var output = Directory.CreateTempSubdirectory("publish-").FullName;
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
@@ -82,9 +82,10 @@ public sealed class DeploymentIdentityFacts
             var values = new Dictionary<string, object>();
             var context = new EnvironmentCallbackContext(builder.ExecutionContext, resource, values, TestContext.Current.CancellationToken);
             foreach (var annotation in resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await annotation.Callback(context); }
-            var key = IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HostingModeConfigurationKey);
+            var key = IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey);
             Assert.Equal(marked, values.ContainsKey(key));
-            if (marked) { Assert.Equal(IntoChatOSNames.HostingModeRun, values[key]); }
+            if (marked) { Assert.Equal(IntoChatOSNames.TopologyLocal, values[key]); }
+            Assert.DoesNotContain(values.Keys, name => IntoChat.OS.ServiceDefaults.LegacyConfigurationGuard.RetiredSettings.Any(row => IntoChatOSConfiguration.EnvironmentName(row.Name) == name));
         }
     }
 

@@ -20,11 +20,12 @@
   "IntoChat.OS.Authority/Compute/FeeOptions.cs",
   "IntoChat.OS.Authority/Compute/ComputeOptions.cs",
   "IntoChat.OS.ServiceDefaults/HealthProbes.cs",
-  "IntoChat.OS.Architecture.Tests.Unit/RunModeMarkerFacts.cs",
   "IntoChat.OS.LocalSetup/LocalSetupKeys.cs",
   "IntoChat.OS.Connections/Platform/Identity/AuthOptions.cs",
   "IntoChat.OS.Connections/Platform/Identity/IdentityHostOptions.cs",
   "IntoChat.OS.Connections/Platform/Identity/KernelCorsOptions.cs",
   "IntoChat.OS.Framework/Modules/ModuleSettingsValidation.cs",
-  "IntoChat.OS.Architecture.Tests.Unit/TestHostsUseTempHomeFacts.cs"
+  "IntoChat.OS.Architecture.Tests.Unit/TestHostsUseTempHomeFacts.cs",
+  "IntoChat.OS.Architecture.Tests.Unit/LoopbackGuardFacts.cs",
+  "IntoChat.OS.Framework.Tests.Integration/BindPolicyFacts.cs"
 ]

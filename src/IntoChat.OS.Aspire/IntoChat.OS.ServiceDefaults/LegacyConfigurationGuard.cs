@@ -19,6 +19,8 @@ public static class LegacyConfigurationGuard
 
     // The replacement of the retired run-composition keys: Topology is the only axis, modules switch per id.
     public const string CompositionReplacement = "IntoChatOS:Topology and IntoChatOS:Modules:<id>:Enabled";
+    // The replacement of the retired run-mode marker: the topology decides the loopback rule, Bind widens it.
+    public const string BindReplacement = "IntoChatOS:Topology (and IntoChatOS:Bind to widen binding)";
 
     // Settings this release retired (D-10, D-11, D-13, R4-02). Each fails startup in every environment naming its replacement;
     // unlike the product rename these are not Development warnings, because a silently ignored one moves local state.
@@ -28,6 +30,8 @@ public static class LegacyConfigurationGuard
         ("IntoChatOS:Platform:Storage:Directory", IntoChat.OS.Framework.IntoChatOSNames.HomeKey),
         ("IntoChatOS:Profile", CompositionReplacement),
         ("IntoChatOS:Preset", CompositionReplacement),
+        // The loopback guard follows the topology (D-21); the old run-mode marker would otherwise be ignored silently.
+        ("IntoChatOS:Hosting:Mode", BindReplacement),
     ];
 
     public static void Verify(IConfiguration configuration, IHostEnvironment environment, ILogger? logger = null)
@@ -49,8 +53,8 @@ public static class LegacyConfigurationGuard
         {
             throw new InvalidOperationException("Retired settings are not read: "
                 + string.Join("; ", retired.Select(offender => $"{offender.Name} -> {offender.Replacement}"))
-                + ". Local state lives under IntoChatOS:Home (<Home>/state) and the run is composed by IntoChatOS:Topology"
-                + " (local, local-cloud or cloud) plus IntoChatOS:Modules:<id>:Enabled; remove each setting, then start again.");
+                + ". Local state lives under IntoChatOS:Home (<Home>/state) and composition and binding follow IntoChatOS:Topology"
+                + " (local, local-cloud or cloud) plus IntoChatOS:Modules:<id>:Enabled and IntoChatOS:Bind; remove each setting, then start again.");
         }
         // The pre-Home state directory is not migrated (clean break): one note so an operator knows where state went.
         if (localApplicationData is { Length: > 0 } && Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS", "runtime")))

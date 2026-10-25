@@ -20,10 +20,10 @@ public sealed class RetiredKeyFacts
     }
 
     [Fact]
-    public void TheRetiredTableCoversTheRetiredStorageAndCompositionKeys()
+    public void TheRetiredTableCoversTheRetiredStorageCompositionAndRunModeKeys()
     {
         var names = LegacyConfigurationGuard.RetiredSettings.Select(row => row.Name).ToArray();
-        foreach (var expected in new[] { "Profile", "Preset", "Hosting:PersistentStorage", "Platform:Storage:Directory" })
+        foreach (var expected in new[] { "Profile", "Preset", "Hosting:PersistentStorage", "Platform:Storage:Directory", "Hosting:" + "Mode" })
         { Assert.Contains("IntoChatOS:" + expected, names); }
     }
 

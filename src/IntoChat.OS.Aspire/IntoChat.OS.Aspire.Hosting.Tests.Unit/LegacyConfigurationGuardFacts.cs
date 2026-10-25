@@ -108,6 +108,29 @@ public sealed class LegacyConfigurationGuardFacts
         Assert.DoesNotContain(Sentinel, exception.Message);
     }
 
+    [Theory]
+    [InlineData("key", "IntoChatOS:Hosting:Mode", "Production")]
+    [InlineData("key", "IntoChatOS:Hosting:Mode", "Development")]
+    [InlineData("env", "IntoChatOS__Hosting__Mode", "Production")]
+    [InlineData("env", "IntoChatOS__Hosting__Mode", "Development")]
+    public void TheRetiredRunModeMarkerFailsStartupNamingTopologyAndBind(string kind, string name, string environment)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => Verify(Configure(kind, name), environment, kind == "env" ? [name] : []));
+        Assert.Contains(name, exception.Message);
+        Assert.Contains("IntoChatOS:Topology", exception.Message);
+        Assert.Contains("IntoChatOS:Bind", exception.Message);
+        Assert.DoesNotContain(Sentinel, exception.Message);
+    }
+
+    [Fact]
+    public void TheRetiredRunModeMarkerNeverEchoesItsValue()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["IntoChatOS:Hosting:Mode"] = "run" }).Build();
+        var exception = Assert.Throws<InvalidOperationException>(() => Verify(configuration, Environments.Production, []));
+        Assert.Contains("IntoChatOS:Topology", exception.Message);
+        Assert.DoesNotContain("run", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TheOtherStorageKeysAreNotRetired()
     {
