@@ -543,3 +543,25 @@ DigitalBrain.Testing.FakeStorage.MaxSingleRead.get -> int
 DigitalBrain.Testing.FakeStorage.OpenRead(DigitalBrain.Capabilities.Storage.ItemId item, DigitalBrain.Capabilities.Storage.ByteRange? range, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageReadStream!>!
 DigitalBrain.Testing.FakeStorage.Seekable.get -> bool
 DigitalBrain.Testing.FakeStorage.Seekable.set -> void
+DigitalBrain.Testing.AppBaseline
+DigitalBrain.Testing.AppBaselineException
+DigitalBrain.Testing.AppBaselineException.AppBaselineException(string! message, System.Exception? inner = null) -> void
+DigitalBrain.Testing.AppOperationCase
+DigitalBrain.Testing.AppOperationCase.AppOperationCase() -> void
+DigitalBrain.Testing.AppOperationCase.DisplayName.get -> string!
+DigitalBrain.Testing.AppOperationCase.Manifest.get -> DigitalBrain.AppManifest!
+DigitalBrain.Testing.AppOperationCase.Operation.get -> string!
+DigitalBrain.Testing.IInstalledApp
+DigitalBrain.Testing.IInstalledApp.Instance.get -> DigitalBrain.App!
+DigitalBrain.Testing.IInstalledApp.Manifest.get -> DigitalBrain.AppManifest!
+DigitalBrain.Testing.IInstalledApp.Operations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.IInstalledApp.Presentation.get -> DigitalBrain.Testing.AppPresentation!
+DigitalBrain.Testing.IInstalledApp.PresentationError.get -> System.Exception?
+DigitalBrain.Testing.IInstalledApp.Request(string! operation, object? argument = null) -> System.Threading.Tasks.Task!
+override DigitalBrain.Testing.AppOperationCase.ToString() -> string!
+static DigitalBrain.Testing.AppBaseline.Cases(DigitalBrain.AppManifest! manifest, System.Collections.Generic.IEnumerable<string!>! operations, System.Func<DigitalBrain.Testing.TestOS!, System.Threading.Tasks.Task<DigitalBrain.Testing.IInstalledApp!>!>! install, System.Action<DigitalBrain.Testing.TestOS!>? fakes) -> System.Collections.Generic.IEnumerable<Xunit.TheoryDataRow<DigitalBrain.Testing.AppOperationCase!>!>!
+static DigitalBrain.Testing.AppBaseline.Cases(System.Type! appType) -> System.Collections.Generic.IEnumerable<Xunit.TheoryDataRow<DigitalBrain.Testing.AppOperationCase!>!>!
+static DigitalBrain.Testing.AppBaseline.Cases(System.Type! appType, System.Action<DigitalBrain.Testing.TestOS!>? fakes) -> System.Collections.Generic.IEnumerable<Xunit.TheoryDataRow<DigitalBrain.Testing.AppOperationCase!>!>!
+static DigitalBrain.Testing.AppBaseline.DefaultFakes.get -> System.Collections.Generic.IReadOnlyDictionary<DigitalBrain.Capabilities.CapabilityId, System.Action<DigitalBrain.Testing.TestOS!>!>!
+static DigitalBrain.Testing.AppBaseline.RunAsync(DigitalBrain.Testing.AppOperationCase! operation) -> System.Threading.Tasks.Task!
+static readonly DigitalBrain.Testing.AppBaseline.Budget -> System.TimeSpan

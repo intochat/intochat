@@ -9,8 +9,10 @@ namespace DigitalBrain.Testing;
 /// An operation is an <c>[On]</c> method of the app; it is requested by its method name, case-insensitive, with dashes ignored.
 /// </summary>
 /// <typeparam name="TApp">The <c>[App]</c> class.</typeparam>
-public sealed partial class InstalledApp<TApp> where TApp : App
+public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
 {
+    App IInstalledApp.Instance => App;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly TestOS _os;
     private readonly Lock _gate = new();
@@ -85,13 +87,19 @@ public sealed partial class InstalledApp<TApp> where TApp : App
 
     private async Task Invoke(MethodInfo method, object? argument)
     {
+        // One input at most, plus an optional CancellationToken (the [On] shape DB0014 allows).
         var parameters = method.GetParameters();
-        var arguments = parameters.Length switch
+        var arguments = new object?[parameters.Length];
+        var inputs = 0;
+        for (var i = 0; i < parameters.Length; i++)
         {
-            0 => [],
-            1 => new[] { Convert(argument, parameters[0].ParameterType) },
-            _ => throw new InvalidOperationException($"{typeof(TApp).FullName}.{method.Name} takes more than one parameter; an operation takes at most one input."),
-        };
+            if (parameters[i].ParameterType == typeof(CancellationToken)) { arguments[i] = CancellationToken.None; continue; }
+            if (++inputs > 1)
+            {
+                throw new InvalidOperationException($"{typeof(TApp).FullName}.{method.Name} takes more than one parameter; an operation takes at most one input.");
+            }
+            arguments[i] = Convert(argument, parameters[i].ParameterType);
+        }
         object? result;
         try { result = method.Invoke(_app, arguments); }
         catch (TargetInvocationException error) when (error.InnerException is not null)

@@ -63,6 +63,19 @@ that are read after every turn. The latest of each wins ([PresentationAssertions
 - `Find` throws `PresentationAssertionException` listing the ids that exist. The accessors return plain values, so any assertion
   library works.
 
+## App baseline
+
+`AppBaseline` is the generated baseline test of an app (D-04): a theory with one row per `[On]` operation, named `app/operation`.
+
+```csharp
+public static IEnumerable<TheoryDataRow<AppOperationCase>> Operations => AppBaseline.Cases(typeof(Notes));
+
+[Theory, MemberData(nameof(Operations))]
+public Task Baseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+```
+
+Each row installs the app into a fresh `TestOS`, binds a fake for every required capability (`storage@1` and `identity@1` have defaults; pass others with `AppBaseline.Cases(typeof(X), os => os.With<IMail>(fake))`), opens the app, requests the operation with the empty input, and fails with `AppBaselineException` naming the app and the operation when a capability has no fake, the app throws or records an error state, a view throws, nothing is presented, or the row takes more than 5 s. Script apps use the `Cases(manifest, operations, install, fakes)` overload with an `IInstalledApp`.
+
 ## Storage: conformance kit and fake
 
 A module providing storage@1 proves it in its `tests/` project with a sealed subclass of
