@@ -49,6 +49,16 @@ public sealed partial class CiWorkflowFacts
     }
 
     [Fact]
+    public void TheDownstreamJobIsReportOnlyAndOutsideTheGate()
+    {
+        var workflow = Workflow("ci.yml");
+        Assert.Matches(@"(?m)^\s*continue-on-error:\s*true\s*$", Job(workflow, "downstream"));
+        var needs = Regex.Match(Job(workflow, "ci"), @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
+        Assert.True(needs.Success, "ci job must list its needs inline");
+        Assert.DoesNotContain("downstream", needs.Groups["list"].Value.Split(',').Select(n => n.Trim()));
+    }
+
+    [Fact]
     public void OnlyTheWarmWorkflowMayWritePackages()
     {
         Assert.Contains("packages: write", Workflow("artcraft-images.yml"), StringComparison.Ordinal);

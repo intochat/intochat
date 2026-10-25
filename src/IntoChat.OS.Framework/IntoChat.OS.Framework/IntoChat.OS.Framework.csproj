@@ -14,7 +14,6 @@
     <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
