@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Authority.Identity;
+namespace IntoChat.OS.Connections.Identity;
 
 public enum GrantMode
 {

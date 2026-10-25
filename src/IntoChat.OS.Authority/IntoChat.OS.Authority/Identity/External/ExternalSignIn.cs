@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Sdk.Http;
 using IntoChat.OS.Sdk.Identity;

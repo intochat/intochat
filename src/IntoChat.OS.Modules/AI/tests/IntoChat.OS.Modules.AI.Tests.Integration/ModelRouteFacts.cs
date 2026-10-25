@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;

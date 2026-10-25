@@ -12,4 +12,5 @@
     <ProjectReference Include="../../Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

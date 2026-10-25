@@ -13,6 +13,10 @@
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </Folder>
+  <Folder Name="/Connections/">
+    <Project Path="src/IntoChat.OS.Connections/IntoChat.OS.Connections.Tests.Unit/IntoChat.OS.Connections.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
+  </Folder>
   <Folder Name="/Desktop/">
     <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>

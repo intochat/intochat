@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Authority.Identity.Configuration;
+namespace IntoChat.OS.Connections.Identity.Configuration;
 
 public sealed class KernelCorsOptions
 {

@@ -1,5 +1,5 @@
 using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity;

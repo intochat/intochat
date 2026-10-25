@@ -9,7 +9,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Microsoft.Orleans;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

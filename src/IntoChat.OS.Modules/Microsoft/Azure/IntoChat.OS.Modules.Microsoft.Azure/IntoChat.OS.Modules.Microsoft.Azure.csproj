@@ -25,4 +25,5 @@
     <PackageReference Include="Azure.ResourceManager.Resources" />
     <PackageReference Include="Azure.ResourceManager.Storage" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

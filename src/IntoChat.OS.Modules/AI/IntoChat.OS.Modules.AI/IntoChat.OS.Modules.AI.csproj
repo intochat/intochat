@@ -44,4 +44,5 @@
   <ItemGroup>
     <EmbeddedResource Include="Pricing/models.prices.json" LogicalName="IntoChat.OS.AI.Pricing.models.prices.json" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

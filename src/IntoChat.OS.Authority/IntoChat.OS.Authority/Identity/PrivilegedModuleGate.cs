@@ -1,6 +1,6 @@
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Sdk.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

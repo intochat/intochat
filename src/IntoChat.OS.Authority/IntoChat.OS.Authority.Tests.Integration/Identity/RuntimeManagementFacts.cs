@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Authority.Hosting;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 

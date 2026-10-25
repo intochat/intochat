@@ -3,7 +3,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Microsoft.Aspire.Tests;

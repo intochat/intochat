@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Authority.Storage;
+namespace IntoChat.OS.Sdk.Identity;
 
 // A hosted deployment's storage over the local journal. Registered as an
 // instance; AddBrainStorage applies it after the journal is wired, before the kernel registration.

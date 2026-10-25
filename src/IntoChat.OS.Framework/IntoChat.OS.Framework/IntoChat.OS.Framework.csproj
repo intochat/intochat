@@ -5,23 +5,15 @@
     <RootNamespace>IntoChat.OS.Framework</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Server" />
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Runtime.InMemory" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Unit" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
 </Project>

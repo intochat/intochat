@@ -1,3 +1,4 @@
+using IntoChat.OS.Sdk.Identity;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;

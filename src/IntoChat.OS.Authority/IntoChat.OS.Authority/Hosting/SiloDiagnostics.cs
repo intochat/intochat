@@ -1,3 +1,4 @@
+using IntoChat.OS.Sdk.Identity;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;

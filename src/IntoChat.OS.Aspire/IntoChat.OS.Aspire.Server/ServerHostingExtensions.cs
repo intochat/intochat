@@ -2,6 +2,7 @@ using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
@@ -72,6 +73,8 @@ public static class ServerHostingExtensions
             // call to 4 spans (measured); it was removed so exactly one registration remains.
             if (definition.Dashboard) { global::Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddIntoChatOS(modules);
+            // Identity-backed brain membership, connector types, secret redaction and connection bindings (D-18).
+            silo.AddIntoChatOSConnections();
             foreach (var module in modules)
             {
                 module.Configure(silo);

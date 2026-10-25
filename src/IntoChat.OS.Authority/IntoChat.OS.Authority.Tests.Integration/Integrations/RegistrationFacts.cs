@@ -351,10 +351,10 @@ public sealed class RegistrationFacts
     [Fact]
     public void OnlyTheDeploymentOperatorMayWriteARegistration()
     {
-        var basic = new IntoChat.OS.Authority.Identity.Configuration.AuthOptions
-        { Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Secured, Username = "ops", Password = "a-long-operator-password" };
-        var open = new IntoChat.OS.Authority.Identity.Configuration.AuthOptions
-        { Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Open };
+        var basic = new IntoChat.OS.Connections.Identity.Configuration.AuthOptions
+        { Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Secured, Username = "ops", Password = "a-long-operator-password" };
+        var open = new IntoChat.OS.Connections.Identity.Configuration.AuthOptions
+        { Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Open };
 
         Assert.True(IntegrationOperatorGate.Allows(Http("ops"), basic));
         Assert.False(IntegrationOperatorGate.Allows(Http("someone-else"), basic));

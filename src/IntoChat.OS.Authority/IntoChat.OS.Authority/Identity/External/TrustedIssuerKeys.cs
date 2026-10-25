@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Sdk.Identity;
 using Microsoft.Extensions.Options;
 

@@ -8,7 +8,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Platform.Integrations;
 using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Postgres;
 using IntoChat.OS.Qdrant;
 using IntoChat.OS.Salesforce;

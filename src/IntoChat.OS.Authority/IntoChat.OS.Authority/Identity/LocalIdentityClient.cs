@@ -1,3 +1,4 @@
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Authority;

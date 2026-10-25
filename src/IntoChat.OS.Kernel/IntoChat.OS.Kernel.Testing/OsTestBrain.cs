@@ -1,7 +1,7 @@
 using IntoChat.OS.Flutter;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Testing.Model;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;

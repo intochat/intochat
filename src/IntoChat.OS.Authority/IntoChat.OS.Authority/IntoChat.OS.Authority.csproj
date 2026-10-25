@@ -24,4 +24,5 @@
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Testing" />
     <!-- The hosted-cloud package composes over the journal, directory and births it extends. -->
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

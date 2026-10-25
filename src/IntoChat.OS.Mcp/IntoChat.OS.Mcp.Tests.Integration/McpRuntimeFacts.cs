@@ -1,5 +1,6 @@
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;

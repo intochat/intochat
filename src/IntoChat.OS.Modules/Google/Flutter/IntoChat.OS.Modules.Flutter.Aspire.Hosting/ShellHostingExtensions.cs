@@ -295,7 +295,7 @@ public static class ShellHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            var corsOrigin = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
+            var corsOrigin = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {

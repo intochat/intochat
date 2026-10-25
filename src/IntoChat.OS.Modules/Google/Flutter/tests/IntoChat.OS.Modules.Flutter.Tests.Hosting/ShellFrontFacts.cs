@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Hosting;
 // A roll restarts silo instances one at a time; the shell must not ride on any one of them.
 public sealed class ShellFrontFacts
 {
-    private const string AllowedOrigin = IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
+    private const string AllowedOrigin = IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
 
     [Fact]
     public async Task TheDesktopShellUsesTheFrontsHttpsEndpointForNativeHttp2()

@@ -2,6 +2,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Surface;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Mcp;
@@ -12,14 +13,14 @@ public static class McpHosting
     {
         // Types come from the silo's kernel; this client carries contracts only to call neurons.
         services.AddSingleton<IRuntimeCapabilitySource, IntoChat.OS.Tools.ToolCapabilitySource>();
-        services.TryAddSingleton(NeuronTypeSearch.Create);
+        services.AddIntoChatOSConnections();
         services.AddIdentity();
         // IBrainAccess asks the trust side for memberships: the MCP composes the trust clients as a reader (R70).
         services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IIntoChatOS>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
             (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
-        services.TryAddSingleton<IKernelView>(provider => new Kernel(provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<IntoChat.OS.Authority.Identity.Configuration.IdentityHostOptions>>()));
+        services.TryAddSingleton<IKernelView>(provider => new Kernel(provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IBrainMembership>()));
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
         services.AddScoped<NeuronSurface>();

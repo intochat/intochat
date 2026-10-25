@@ -2,7 +2,7 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Circles.Signals;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 
 namespace IntoChat.OS.Circles;
 

@@ -2,7 +2,7 @@ extern alias AppHost;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Microsoft.CSharp;
 

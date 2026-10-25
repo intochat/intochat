@@ -1,3 +1,4 @@
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
@@ -107,9 +108,9 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
     public async Task BasicBootstrapOwnsOnlyItsExplicitDefaultScope()
     {
         await using var brain = await TestBrain.Create().ConfigureServices(services =>
-            services.Configure<IntoChat.OS.Authority.Identity.Configuration.AuthOptions>(options =>
+            services.Configure<IntoChat.OS.Connections.Identity.Configuration.AuthOptions>(options =>
             {
-                options.Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Secured;
+                options.Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Secured;
                 options.Username = "operator";
                 options.Password = "configured-bootstrap-password";
             })).StartAsync(TestContext.Current.CancellationToken);

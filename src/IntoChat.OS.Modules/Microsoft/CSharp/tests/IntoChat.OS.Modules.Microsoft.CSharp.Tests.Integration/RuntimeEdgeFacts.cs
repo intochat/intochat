@@ -246,7 +246,7 @@ public sealed class RuntimeEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         var binding = new RecordedBinding();
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
-            .WithConfiguration(IntoChat.OS.Authority.Identity.Configuration.AuthOptions.PostureKey, "Secured")
+            .WithConfiguration(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.PostureKey, "Secured")
             .ConfigureServices(services => services.AddSingleton<IConnectionBindings>(binding)).StartAsync(ct);
         var alice = await brain.PersonAsync("alice", ct);
         var behavior = Key(alice, "bound");
@@ -281,7 +281,7 @@ public sealed class RuntimeEdgeFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
-            .WithConfiguration(IntoChat.OS.Authority.Identity.Configuration.AuthOptions.PostureKey, "Secured").StartAsync(ct);
+            .WithConfiguration(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.PostureKey, "Secured").StartAsync(ct);
         await brain.Get<IBrain>("acc-brain").Create(new Owner("acc"));
         await brain.Get<IBrain>("another-brain").Create(new Owner("another"));
         var session = await Assigned(brain, ct);

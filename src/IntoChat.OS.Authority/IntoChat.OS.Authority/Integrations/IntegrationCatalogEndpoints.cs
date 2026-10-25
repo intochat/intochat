@@ -23,12 +23,12 @@ internal static class IntegrationCatalogEndpoints
             CallerContextStamper.TryGet(out _) ? await next(context) : Results.Unauthorized());
 
         group.MapGet("", async ([FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons,
-            [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth, CancellationToken cancellationToken) =>
+            [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth, CancellationToken cancellationToken) =>
             IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)
                 ? Results.Ok(await IntegrationCatalog.ListAsync(definitions, neurons, cancellationToken))
                 : Results.StatusCode(StatusCodes.Status403Forbidden));
 
-        group.MapPost("/{id}/registration", async (string id, ConfigureRegistrationInput body, [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth,
+        group.MapPost("/{id}/registration", async (string id, ConfigureRegistrationInput body, [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth,
             [FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons) =>
         {
             if (!IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
@@ -44,7 +44,7 @@ internal static class IntegrationCatalogEndpoints
             }
         });
 
-        group.MapDelete("/{id}/registration/{field}", async (string id, string field, [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth,
+        group.MapDelete("/{id}/registration/{field}", async (string id, string field, [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth,
             [FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons) =>
         {
             if (!IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }

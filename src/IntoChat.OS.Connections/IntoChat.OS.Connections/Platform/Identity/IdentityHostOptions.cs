@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Authority.Identity.Configuration;
+namespace IntoChat.OS.Connections.Identity.Configuration;
 
 // The deployment's HTTP identity. The platform binds it in the silo; the AppHost projects the
 // same keys to every resource that serves or shares the session, so silo and clients agree.

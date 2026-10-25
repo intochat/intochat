@@ -5,6 +5,7 @@ using IntoChat.OS.AI.Models.OpenAI;
 using IntoChat.OS.AI.Models.Signals;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 

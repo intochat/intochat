@@ -119,7 +119,7 @@ public sealed class AppInstallerFacts
 
         var identity = brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>();
         var grant = Assert.Single(await identity.ListGrants(alice.BrainId), grant => grant.SemanticTypeId == "person.email");
-        Assert.Equal((IApp.Key(alice.BrainId, "echo"), IntoChat.OS.Authority.Identity.GrantMode.Always), (grant.AppId, grant.Mode));
+        Assert.Equal((IApp.Key(alice.BrainId, "echo"), IntoChat.OS.Connections.Identity.GrantMode.Always), (grant.AppId, grant.Mode));
     }
 
     [Trait("host", "own")]

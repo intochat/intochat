@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Connections, identity and secrets contracts, HTTP surface for IntoChat.OS modules (interim, D-18).</Description>
+    <RootNamespace>IntoChat.OS.Connections</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Connections.Tests.Unit" /></ItemGroup>
+  <!-- Carried over with the moved Platform internals from IntoChat.OS.Framework (D-18); pinned in InternalsVisibleToBaseline.json. -->
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Unit" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
+</Project>

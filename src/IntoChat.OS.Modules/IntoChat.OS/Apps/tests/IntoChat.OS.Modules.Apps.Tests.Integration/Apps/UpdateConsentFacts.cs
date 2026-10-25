@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;
 using static IntoChat.OS.Apps.Tests.Apps.UnifiedInstallFacts;

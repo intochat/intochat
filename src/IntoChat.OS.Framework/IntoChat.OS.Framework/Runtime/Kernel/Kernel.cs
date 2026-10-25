@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace IntoChat.OS.Framework;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
-public sealed class Kernel(IGrainFactory grains, Microsoft.Extensions.Options.IOptions<IntoChat.OS.Authority.Identity.Configuration.IdentityHostOptions>? identity = null) : IKernel
+public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null) : IKernel
 {
     public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
         => Instances(TypeOf(typeof(T)), cancellationToken);
@@ -32,8 +32,9 @@ public sealed class Kernel(IGrainFactory grains, Microsoft.Extensions.Options.IO
     {
         var current = BrainScope.CurrentId();
         var caller = CallerContextStamper.Require();
-        var members = await grains.GetGrain<Platform.Identity.IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey)
-            .BrainsOfAsync(caller.PersonId, cancellationToken).WaitAsync(cancellationToken);
+        // Fail closed: without a membership source the kernel cannot tell which brains the caller may see.
+        var source = membership ?? throw new InvalidOperationException("No brain membership source registered: register IBrainMembership (AddIntoChatOSConnections) before listing brains.");
+        var members = await source.BrainsOf(caller.PersonId, cancellationToken).WaitAsync(cancellationToken);
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }
 

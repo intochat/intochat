@@ -1,5 +1,4 @@
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,11 +20,8 @@ public static class BrainHosting
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
         foreach (var module in selected) { module.AddOptions(silo.Services); }
-        silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>()));
-        silo.Services.TryAddSingleton(NeuronTypeSearch.Create);
+        silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.Services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Framework.Platform.Secrets.ISecretRedactor, IntoChat.OS.Framework.Platform.Secrets.SecretRedactor>();
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

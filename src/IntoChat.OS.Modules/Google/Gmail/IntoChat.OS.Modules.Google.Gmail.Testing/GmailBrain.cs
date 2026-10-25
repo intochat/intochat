@@ -41,7 +41,7 @@ public static class GmailBrain
                 .WithIntegration(pubSub, "ServiceAccountEmail", "push@example.test")
                 .WithIntegration(pubSub, "TopicName", "projects/example/topics/gmail");
         }
-        if (posture is not null) { builder = builder.WithConfiguration(IntoChat.OS.Authority.Identity.Configuration.AuthOptions.PostureKey, posture); }
+        if (posture is not null) { builder = builder.WithConfiguration(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.PostureKey, posture); }
         return builder;
     }
 

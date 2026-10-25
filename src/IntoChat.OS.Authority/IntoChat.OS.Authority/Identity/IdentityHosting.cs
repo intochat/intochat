@@ -1,5 +1,6 @@
+using IntoChat.OS.Sdk.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Identity.Directory;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;

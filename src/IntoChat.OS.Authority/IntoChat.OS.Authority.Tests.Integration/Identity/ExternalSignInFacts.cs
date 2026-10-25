@@ -1,6 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Identity.External;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Platform.Identity;

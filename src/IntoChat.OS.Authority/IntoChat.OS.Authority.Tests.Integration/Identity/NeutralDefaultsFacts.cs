@@ -1,5 +1,5 @@
 using System.Reflection;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Configuration;
 

@@ -4,7 +4,7 @@ using System.Text.Json;
 using IntoChat.OS.AI;
 using IntoChat.OS.AI.Inference;
 using IntoChat.OS.AI.Models;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

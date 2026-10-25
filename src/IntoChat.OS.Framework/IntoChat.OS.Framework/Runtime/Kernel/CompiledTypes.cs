@@ -1,8 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
-using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
 
 namespace IntoChat.OS.Framework;
 
@@ -13,14 +11,19 @@ public sealed class CompiledTypes
     private readonly Dictionary<string, Type> _neurons;
     private TypeEntry[]? _addressed;
 
-    public CompiledTypes(ModuleInventory modules)
-        : this(modules.ContractAssemblies(), assembly => modules.Declaring(assembly)?.Id.ToString() ?? assembly.GetName().Name!, modules.Modules) { }
+    // The module type sources add what a module declares beyond its contract assemblies (the Connections assembly
+    // adds its connectors); the kernel itself knows no connector shape.
+    public CompiledTypes(ModuleInventory modules, IEnumerable<IModuleTypeSource> sources)
+        : this(modules.ContractAssemblies(), assembly => modules.Declaring(assembly)?.Id.ToString() ?? assembly.GetName().Name!, modules.Modules, sources) { }
 
     // Without a module composition an assembly names itself and no connectors are declared.
-    public CompiledTypes(IEnumerable<Assembly> assemblies) : this(assemblies, assembly => assembly.GetName().Name!, []) { }
+    public CompiledTypes(IEnumerable<Assembly> assemblies) : this(assemblies, assembly => assembly.GetName().Name!, [], []) { }
 
-    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Framework.Modules.Module> modules)
+    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Framework.Modules.Module> modules,
+        IEnumerable<IModuleTypeSource> sources)
     {
+        ArgumentNullException.ThrowIfNull(sources);
+        var typeSources = sources.ToArray();
         var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes()).ToArray();
         _neurons = visible.Where(IsNeuron).ToDictionary(type => type.FullName!, StringComparer.Ordinal);
         var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
@@ -34,7 +37,7 @@ public sealed class CompiledTypes
         [
             .. aliases.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => Neuron(pair.Value, pair.Key, provider(pair.Value.Assembly))),
             .. visible.Where(IsSignal).OrderBy(type => type.FullName, StringComparer.Ordinal).Select(signal => Signal(signal, provider(signal.Assembly))),
-            .. modules.SelectMany(module => ConnectorDefinition.DeclaredBy(module.GetType()).Select(connector => Connector(connector, module.Id.ToString()))),
+            .. modules.SelectMany(module => typeSources.SelectMany(source => source.TypesOf(module))),
         ];
         Assemblies = [.. new[] { typeof(Signal).Assembly }.Concat(_neurons.Values.Select(type => type.Assembly)).Distinct()];
     }
@@ -87,10 +90,6 @@ public sealed class CompiledTypes
             [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.DeclaringType != typeof(Signal))
                 .Select(property => TypeName(property.PropertyType) + " " + property.Name)], []);
-
-    private static TypeEntry Connector(ConnectorDefinition connector, string provider)
-        => new(connector.Id, connector.Id, TypeKind.Connector, provider, connector.DisplayName,
-            [.. connector.Neurons.Concat(connector.Signals).Select(type => type.FullName!)], []);
 
     private static string TypeName(Type type) => type.IsGenericType
         ? type.Name.Split('`')[0] + "<" + string.Join(",", type.GetGenericArguments().Select(TypeName)) + ">"

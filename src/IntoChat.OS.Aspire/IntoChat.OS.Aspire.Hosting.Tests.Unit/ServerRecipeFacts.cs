@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Microsoft.Orleans;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Storage;
 using IntoChat.OS.Time;
 using Microsoft.AspNetCore.Builder;

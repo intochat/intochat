@@ -1,6 +1,7 @@
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 
 namespace IntoChat.OS.Authority.Integrations;
 

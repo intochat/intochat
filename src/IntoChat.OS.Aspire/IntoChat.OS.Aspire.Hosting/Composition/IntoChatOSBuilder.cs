@@ -89,7 +89,7 @@ public sealed class IntoChatOSBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
-    public IntoChat.OS.Authority.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
+    public IntoChat.OS.Connections.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
     public IntoChatOSBuilder WithHttpIdentity()
     {
         Identity = HttpIdentityProjection.FromConfiguration(ApplicationBuilder.Configuration);

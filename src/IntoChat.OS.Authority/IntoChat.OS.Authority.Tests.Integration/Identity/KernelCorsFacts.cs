@@ -1,4 +1,5 @@
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;

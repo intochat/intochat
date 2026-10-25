@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Authority.Identity.Configuration;
+namespace IntoChat.OS.Connections.Identity.Configuration;
 
 // Open: single-tenant development and test — anonymous requests act as the synthetic "owner".
 // Secured: cookie sessions plus an optional Basic bootstrap credential — anonymous gets 401.

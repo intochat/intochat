@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Aspire.Server;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
