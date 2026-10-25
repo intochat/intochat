@@ -28,5 +28,6 @@
   "IntoChat.OS.Framework.Tests.Integration/BindPolicyFacts.cs",
   "IntoChat.OS.Framework/Modules/Configuration/IntoChatOSConfiguration.cs",
   "IntoChat.OS.Framework/Modules/Http/ForwardedHeadersSetup.cs",
-  "IntoChat.OS.Framework/Machine/MachineIdFile.cs"
+  "IntoChat.OS.Framework/Machine/MachineIdFile.cs",
+  "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs"
 ]

@@ -6,4 +6,5 @@
     <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" /></ItemGroup>
 </Project>

@@ -119,5 +119,8 @@
   "IntoChat.OS.Connections/Platform/Connections/ConnectionGrains.cs": 8,
   "IntoChat.OS.Connections/Platform/Connections/ConnectionNeuron.cs": 3,
   "IntoChat.OS.Modules.Google.Gmail.Tests.Support/GmailBrain.cs": 2,
-  "IntoChat.OS.Modules.Google.Drive.Tests.Integration/DriveBrain.cs": 2
+  "IntoChat.OS.Modules.Google.Drive.Tests.Integration/DriveBrain.cs": 2,
+  "IntoChat.OS.Modules.Circles/CircleInvitesNeuron.cs": 3,
+  "IntoChat.OS.Modules.Circles/CirclesModule.Invites.cs": 2,
+  "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs": 4
 }

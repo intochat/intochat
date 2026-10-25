@@ -29,6 +29,8 @@ internal sealed class CircleRecord
     [Id(7)] public long Version { get; set; }
     // R155: each slot of a shared app bound at Share, so a sharer's removal can withdraw it.
     [Id(10)] public CircleBinding[] Bindings { get; set; } = [];
+    // D-10: members the creator made admins; owners and admins mint invite codes.
+    [Id(11)] public string[] Admins { get; set; } = [];
 
     public CircleRecord Clone() => (CircleRecord)MemberwiseClone();
 }
@@ -93,6 +95,27 @@ internal sealed class CircleNeuron(
         next.Invited = [.. next.Invited, accountId];
         await CommitCore(next);
     }
+
+    public async Task SetAdmin(string accountId, bool admin)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        RequirePerson();
+        var next = MemberChange();
+        if (Caller().AccountId != next.Owner) { throw new UnauthorizedAccessException($"Only {next.Name}'s creator names its admins."); }
+        if (!next.Members.Contains(accountId)) { throw new InvalidOperationException($"{accountId} is not in {next.Name}."); }
+        next.Admins = admin ? [.. next.Admins.Where(known => known != accountId), accountId] : [.. next.Admins.Where(known => known != accountId)];
+        await CommitCore(next);
+    }
+
+    public Task<string> RoleOf(string accountId)
+    {
+        var record = Core();
+        return Task.FromResult(accountId == record.Owner ? "owner"
+            : !record.Members.Contains(accountId) ? ""
+            : record.Admins.Contains(accountId) ? "admin" : "member");
+    }
+
+    public Task<string> Name() => Task.FromResult(Core().Name);
 
     // R129: the invitation is the authority for a membership; the caller's machine joins the circle with it.
     public async Task<CircleState> Accept()
@@ -166,6 +189,7 @@ internal sealed class CircleNeuron(
             { logger.LogWarning(error, "Circle {Circle} could not clear the binding of {Connection} on {App}.{Slot}.", CircleBrain, binding.ConnectionKey, app, binding.Slot); }
         }
         next.Bindings = [.. next.Bindings.Where(binding => binding.AccountId != accountId)];
+        next.Admins = [.. next.Admins.Where(admin => admin != accountId)];
     }
 
     // The creator leaving revokes other memberships and clears the circle.

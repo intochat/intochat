@@ -41,6 +41,12 @@ public interface ICircle : INeuron, IntoChat.OS.Modules.Flutter.IUiEventHandler
     Task<CircleState> State();
     Task BindPublicationButton();
 
+    // D-10: the creator makes a member an admin (or not); owners and admins mint invite codes.
+    Task SetAdmin(string accountId, bool admin);
+    // "owner", "admin", "member", or "" for an account outside the circle.
+    [Internal] Task<string> RoleOf(string accountId);
+    [Internal] Task<string> Name();
+
     // The circle brain's birth names the circle.
     [Internal] Task Found(string name);
 
