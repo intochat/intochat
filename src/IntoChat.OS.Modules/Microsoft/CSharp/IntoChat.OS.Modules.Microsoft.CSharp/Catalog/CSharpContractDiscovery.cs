@@ -19,14 +19,14 @@ public sealed class CSharpContractDiscovery(IKernelView kernel, ModuleInventory 
     public const string Example = """
         // Plain C#: every installed contract is referenced; name the ones you use with usings.
         // System, collections, LINQ, tasks, IntoChat.OS and IntoChat.OS.Client are imported.
-        using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
-        using IntoChat.OS.Modules.Time.Timers.Signals;
+        using IntoChat.OS.Modules.Flutter.Button;
+        using IntoChat.OS.Modules.Flutter.Button.Signals;
 
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var timer = brain.Get<ITimer>(brain.Setting("TimerId") ?? "tea");
-        await foreach (var tick in brain.On<TimerTick>(timer, brain.Stopping))
+        var button = brain.Get<IButton>(brain.Setting("ButtonId") ?? "start");
+        await foreach (var click in brain.On<ButtonClicked>(button, brain.Stopping))
         {
-            Console.WriteLine($"TimerTick {tick.TimerId} {tick.ObservedAt:O}");
+            Console.WriteLine($"ButtonClicked {click.Name} {click.Action}");
         }
         // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals. A behavior stays
         // loaded in its brain's session; signals that arrive while it reloads are buffered, not lost.

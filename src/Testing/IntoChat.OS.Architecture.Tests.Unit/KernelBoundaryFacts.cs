@@ -42,7 +42,8 @@ public sealed class KernelBoundaryFacts
         var types = new IntoChat.OS.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
 
         Assert.All(types.Entries.Where(entry => entry.Kind == TypeKind.Neuron),
-            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)), entry.Name));
+            // Transitional (06-03/06-07, deleted in 06-08): a migrated plain contract is a [DefaultNeuronType] interface instead.
+            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
     }
 
     // The call filter applies access policy to INeuron contracts only, so an access attribute

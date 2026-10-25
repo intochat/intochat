@@ -1,10 +1,11 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Time.Timers;
 
-[Alias("timer")]
-[Orleans.Metadata.DefaultGrainType("timer")]
-public interface ITimer : INeuron
+[NeuronAlias("timer")]
+[DefaultNeuronType("timer")]
+public interface ITimer
 {
     // Replace the activation-local schedule. Null period means one shot.
     Task Start(TimeSpan dueTime, TimeSpan? period = null);

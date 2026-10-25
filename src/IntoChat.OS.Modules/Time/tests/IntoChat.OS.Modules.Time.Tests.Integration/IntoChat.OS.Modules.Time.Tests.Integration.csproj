@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.Time.Tests.Unit/TimeNeuronFacts.cs" Link="TimeNeuronFacts.cs" />
   </ItemGroup>
   <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

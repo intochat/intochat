@@ -126,5 +126,7 @@
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/BrainGrains.cs": 2,
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/LegacyCallFacts.cs": 2,
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/SideBySideRuntimeFacts.cs": 6,
-  "IntoChat.OS.Testing.Neurons/BothRuntimesFixture.cs": 2
+  "IntoChat.OS.Testing.Neurons/BothRuntimesFixture.cs": 2,
+  "IntoChat.OS.Kernel.Tests.E2E/LocalKillRestartE2E.cs": 6,
+  "IntoChat.OS.Modules.Time.Tests.Integration/Reminders/ReminderFacts.cs": 4
 }

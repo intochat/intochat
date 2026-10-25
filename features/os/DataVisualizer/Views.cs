@@ -45,6 +45,15 @@ public static class Views
             return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => (INeuron)brain.Get<T>(key)).ToArray();
         });
 
+    // The same registry over plain neurons (the Time reminders), whose contracts are not INeuron.
+    public static Sources PlainRegistry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : class
+        => Sources.Named<IText, TextChanged, T>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
+        {
+            var text = (await registry.Read()).Markdown;
+            var views = text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, Json) ?? [];
+            return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => brain.Get<T>(key)).ToArray();
+        });
+
     public static async Task Compose(IntoChatOSConnection brain, string appKey, View view)
     {
         var root = $"{appKey}/views/{view.Id}";

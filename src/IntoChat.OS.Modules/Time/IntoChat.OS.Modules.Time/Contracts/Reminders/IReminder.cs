@@ -1,10 +1,11 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Time.Reminders;
 
-[Alias("reminder")]
-[Orleans.Metadata.DefaultGrainType("reminder")]
-public interface IReminder : INeuron
+[NeuronAlias("reminder")]
+[DefaultNeuronType("reminder")]
+public interface IReminder
 {
     // Replace the persistent periodic registration. Missed ticks are not replayed.
     Task Start(TimeSpan dueTime, TimeSpan period);

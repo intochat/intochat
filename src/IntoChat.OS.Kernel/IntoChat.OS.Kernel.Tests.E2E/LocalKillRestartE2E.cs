@@ -7,7 +7,9 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Time;
 using IntoChat.OS.Modules.Time.Reminders;
-using IntoChat.OS.Modules.Time.Reminders.Signals;
+using System.Runtime.CompilerServices;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,6 +20,9 @@ namespace IntoChat.OS.Kernel.Tests.E2E;
 // LocalProfile: file grain stores and the file reminder table under <Home>/state). A brain and a ReminderNeuron
 // reminder are created, the process tree is killed without a graceful shutdown, the host is launched again over the
 // same Home and ports, and the brain is still listed and the reminder ticks again. Timers would die with the process.
+// Since 06-03 the reminder is the plain ReminderNeuron on the runtime's host grain neuron.host/{brain}/reminder/{key}, reached
+// from the cluster client through its INeuronHost. A tick is a turn on that grain, so after the restart, with no call made,
+// the host grain becoming active is the evidence that the persisted registration fired.
 public sealed class LocalKillRestartE2E
 {
     private const string ReminderKey = "kill-restart";
@@ -54,15 +59,15 @@ public sealed class LocalKillRestartE2E
             Note($"brains before kill: {string.Join(", ", brainsBefore)}");
             Assert.True(brainsBefore.Count >= 2);
 
-            int beforeKill;
+            var id = new global::DigitalBrain.NeuronId(new global::DigitalBrain.BrainId(brainsBefore.Order(StringComparer.Ordinal).First()), "reminder", ReminderKey);
+            var hostGrain = GrainId.Create("neuron.host", id.ToString());
             await using (var client = await ConnectAsync(host.GatewayPort, ct))
             {
-                var reminder = client.Services.GetRequiredService<IIntoChatOSBrains>().Grain<IReminder>(ReminderKey);
-                await using var subscription = await client.Services.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<ReminderTick>(reminder, ct);
-                await reminder.Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
-                beforeKill = await CountTicksAsync(subscription, 2, ct);
+                var grains = client.Services.GetRequiredService<IGrainFactory>();
+                await NeuronProxy.Create<IReminder>(id, new GatewaySink(grains)).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+                await ActiveAsync(grains, hostGrain, ct);
             }
-            Note($"ticks before kill: {beforeKill}");
+            Note($"reminder started on {hostGrain}");
 
             var pid = host.ProcessId;
             await host.KillAsync();
@@ -77,17 +82,14 @@ public sealed class LocalKillRestartE2E
             Note($"brains after restart: {string.Join(", ", brainsAfter)}");
             Assert.Equal(brainsBefore.Order(), brainsAfter.Order());
 
-            int afterRestart;
             await using (var client = await ConnectAsync(host.GatewayPort, ct))
             {
-                var reminder = client.Services.GetRequiredService<IIntoChatOSBrains>().Grain<IReminder>(ReminderKey);
-                await using var subscription = await client.Services.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<ReminderTick>(reminder, ct);
-                // No Start here: only the registration persisted in the file reminder table can make it tick.
-                afterRestart = beforeKill + await CountTicksAsync(subscription, 1, ct);
-                await reminder.Stop();
+                var grains = client.Services.GetRequiredService<IGrainFactory>();
+                // No call here: only the registration persisted in the file reminder table can activate the host grain.
+                await ActiveAsync(grains, hostGrain, ct);
+                Note($"reminder fired after restart on {hostGrain}");
+                await NeuronProxy.Create<IReminder>(id, new GatewaySink(grains)).Stop();
             }
-            Note($"ticks after restart (cumulative): {afterRestart}");
-            Assert.True(afterRestart > beforeKill);
         }
         finally
         {
@@ -111,17 +113,28 @@ public sealed class LocalKillRestartE2E
         return [.. brains.EnumerateArray().Select(brain => brain.GetProperty("id").GetString()!)];
     }
 
-    private static async Task<int> CountTicksAsync(ISignalSubscription<ReminderTick> subscription, int wanted, CancellationToken ct)
+    // Waits until the grain has an activation in the cluster.
+    private static async Task ActiveAsync(IGrainFactory grains, GrainId grain, CancellationToken ct)
     {
         using var bound = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bound.CancelAfter(TickBound);
-        var seen = 0;
-        await foreach (var tick in subscription.ReadAllAsync(bound.Token))
+        var management = grains.GetGrain<IManagementGrain>(0);
+        while (!(await management.GetActiveGrains(grain.Type, bound.Token)).Contains(grain)) { await Task.Delay(250, bound.Token); }
+    }
+
+    // A cluster-client sink: calls go to the plain neuron's brain-affine host grain and carry no neuron caller.
+    private sealed class GatewaySink(IGrainFactory grains) : IInvocationSink
+    {
+        private INeuronHost Host(global::DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create("neuron.host", target.ToString()));
+
+        public Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken) => Host(target).Invoke(call, cancellationToken);
+
+        public Task Post(global::DigitalBrain.NeuronId target, RuntimeInvocation call) => Host(target).Post(call);
+
+        public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            Assert.Equal(ReminderKey, tick.ReminderId);
-            if (++seen == wanted) { break; }
+            await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken)) { yield return item; }
         }
-        return seen;
     }
 
     private static async Task<ClientHost> ConnectAsync(int gatewayPort, CancellationToken ct)

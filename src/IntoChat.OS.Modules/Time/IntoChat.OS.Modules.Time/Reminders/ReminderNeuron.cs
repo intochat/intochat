@@ -1,41 +1,36 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
+using DigitalBrain;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
-using Microsoft.Extensions.DependencyInjection;
-using Orleans.Runtime;
-using Orleans.Timers;
+using IntoChat.OS.Modules.Time.Timers;
 
 namespace IntoChat.OS.Modules.Time.Reminders;
 
-[GrainType("reminder")]
-internal sealed class ReminderNeuron([FromKeyedServices(typeof(TimeModule))] TimeProvider time, IReminderRegistry reminders) : Neuron, IReminder, IRemindable
+// A plain neuron (06-03): one durable reminder named "tick" on the runtime host, which reactivates the neuron; each tick is a
+// turn (IRemindedNeuron.OnReminder) that publishes ReminderTick. Reminders the Framework neuron registered before the
+// migration are moved onto this neuron's host by the kernel composition's RetiredReminderGrain when they next fire.
+[Neuron("reminder")]
+internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder, IRemindedNeuron
 {
     private const string Name = "tick";
+    // Left by the removed automation job runner; retired when it fires.
+    private const string RetiredJob = "job";
 
-    public async Task Start(TimeSpan dueTime, TimeSpan period)
+    public Task Start(TimeSpan dueTime, TimeSpan period)
     {
-        // Orleans validates due time and the configured minimum period before writing the registration.
-        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), Name, dueTime, period);
+        // The host also refuses a period under its configured minimum before writing the registration.
+        if (dueTime < TimeSpan.Zero || dueTime > TimerNeuron.MaximumDelay)
+        { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
+        if (period <= TimeSpan.Zero || period > TimerNeuron.MaximumDelay)
+        { throw new ArgumentOutOfRangeException(nameof(period)); }
+        return Context.Reminders.Start(Name, dueTime, period);
     }
 
-    public async Task Stop()
+    public Task Stop() => Context.Reminders.Stop(Name);
+
+    public async Task OnReminder(string name, CancellationToken cancellationToken)
     {
-        var reminder = await reminders.GetReminder(this.GetGrainId(), Name);
-        if (reminder is not null) { await reminders.UnregisterReminder(this.GetGrainId(), reminder); }
-    }
-
-    public async Task ReceiveReminder(string reminderName, TickStatus status)
-    {
-        if (reminderName == Name)
-        {
-            await PublishAsync(new ReminderTick(this.GetPrimaryKeyString(), time.GetUtcNow()));
-            return;
-        }
-
-        if (reminderName != "job") { return; }
-
-        // Retire registrations left by the removed automation job runner.
-        var obsolete = await reminders.GetReminder(this.GetGrainId(), reminderName);
-        if (obsolete is not null) { await reminders.UnregisterReminder(this.GetGrainId(), obsolete); }
+        // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
+        if (name == Name) { await Publish(new ReminderTick($"{Id.Brain.Value}/{Id.Key}", Context.Time.GetUtcNow())); }
+        else if (name == RetiredJob) { await Context.Reminders.Stop(name); }
     }
 }

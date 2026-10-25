@@ -203,8 +203,6 @@
   "IntoChat.OS.Modules.Postgres.Tables.TableNeuron",
   "IntoChat.OS.Modules.Postgres.Tests.Integration.PostgresLifecycleTestApp",
   "IntoChat.OS.Modules.Salesforce.SalesforceNeuron",
-  "IntoChat.OS.Modules.Time.Reminders.ReminderNeuron",
-  "IntoChat.OS.Modules.Time.Timers.TimerNeuron",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.CounterNeuron",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.FailingDeactivation",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.HangingSource",

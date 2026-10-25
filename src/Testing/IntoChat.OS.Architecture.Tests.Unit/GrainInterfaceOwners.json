@@ -193,8 +193,6 @@
   "IntoChat.OS.Modules.Postgres/Tables/TableDescriptor.cs": 1,
   "IntoChat.OS.Modules.Postgres/Tables/TableIndex.cs": 2,
   "IntoChat.OS.Modules.Salesforce.Contracts/Salesforce/ISalesforce.cs": 1,
-  "IntoChat.OS.Modules.Time/Contracts/Reminders/IReminder.cs": 1,
-  "IntoChat.OS.Modules.Time/Contracts/Timers/ITimer.cs": 1,
   "IntoChat.OS.Modules.Tools.Contracts/Tools/IToolSource.cs": 1,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/TestNeurons.cs": 7,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/WatchRenewalFacts.cs": 2,

@@ -24,6 +24,7 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
+    "IntoChat.OS.Kernel.Composition.RetiredReminderGrain": "reminder",
     "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
     "IntoChat.OS.Modules.AI.Agents.AgentNeuron": "agent",
     "IntoChat.OS.Modules.AI.Agents.Context.AgentContextNeuron": "agent-context",
@@ -138,9 +139,7 @@
     "IntoChat.OS.Modules.Postgres.PostgresServerNeuron": "postgres",
     "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron": "postgres.tables",
     "IntoChat.OS.Modules.Postgres.Tables.TableNeuron": "postgres.table",
-    "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": "salesforce",
-    "IntoChat.OS.Modules.Time.Reminders.ReminderNeuron": "reminder",
-    "IntoChat.OS.Modules.Time.Timers.TimerNeuron": "timer"
+    "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": "salesforce"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Compute.IBrainComputeGrain": "compute.brain",
@@ -318,8 +317,6 @@
     "IntoChat.OS.Modules.Postgres.Tables.ITableIndex": "postgres.table-index",
     "IntoChat.OS.Modules.Postgres.Tables.ITableLifetime": "postgres.table-lifetime",
     "IntoChat.OS.Modules.Salesforce.ISalesforce": "salesforce",
-    "IntoChat.OS.Modules.Time.Reminders.IReminder": "reminder",
-    "IntoChat.OS.Modules.Time.Timers.ITimer": "timer",
     "IntoChat.OS.Modules.Tools.IToolSource": "tools.source"
   },
   "Contracts": {
@@ -1199,10 +1196,6 @@
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWritePrepared": "salesforce.write-prepared; Preview=0",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteUncertain": "salesforce.write-uncertain; PreviewId=0",
     "IntoChat.OS.Modules.Salesforce.SoqlQuery": "salesforce.soql-query; Query=0",
-    "IntoChat.OS.Modules.Time.Reminders.IReminder": "reminder (not generated); ",
-    "IntoChat.OS.Modules.Time.Reminders.Signals.ReminderTick": "time.reminder-tick; ReminderId=0, ObservedAt=1",
-    "IntoChat.OS.Modules.Time.Timers.ITimer": "timer (not generated); ",
-    "IntoChat.OS.Modules.Time.Timers.Signals.TimerTick": "time.timer-tick; TimerId=0, ObservedAt=1",
     "IntoChat.OS.Modules.Tools.IToolSource": "tools.source (not generated); ",
     "IntoChat.OS.Modules.Tools.ToolBlob": "tools.blob; MediaType=0, Data=1, Uri=2",
     "IntoChat.OS.Modules.Tools.ToolDescriptor": "tools.descriptor; Name=0, Title=1, Description=2, InputSchema=3, ReadOnly=4",
@@ -1469,8 +1462,6 @@
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteFailed": "SalesforceWriteFailed",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWritePrepared": "SalesforceWritePrepared",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteUncertain": "SalesforceWriteUncertain",
-    "IntoChat.OS.Modules.Time.Reminders.Signals.ReminderTick": "ReminderTick",
-    "IntoChat.OS.Modules.Time.Timers.Signals.TimerTick": "TimerTick",
     "IntoChat.OS.Signal": "Signal",
     "IntoChat.OS.TypeAdded": "TypeAdded"
   }

@@ -9,8 +9,8 @@ using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Jev.Scope(brain);
 var rang = brain.Get<IText>(Jev.Name(brain, "timer-rang"));
-var timers = Sources.Named<IText, TextChanged>(brain.Get<IText>(Jev.Name(brain, "timers")), async (registry, ct) =>
-    [.. Timers.Keys((await registry.Read()).Markdown, scope).Select(key => (INeuron)brain.Get<ITimer>(key))]);
+var timers = Sources.Named<IText, TextChanged, ITimer>(brain.Get<IText>(Jev.Name(brain, "timers")), async (registry, ct) =>
+    [.. Timers.Keys((await registry.Read()).Markdown, scope).Select(key => brain.Get<ITimer>(key))]);
 await foreach (var tick in brain.On<TimerTick>(timers, brain.Stopping))
 {
     var lines = Timers.Lines((await rang.Read()).Markdown);

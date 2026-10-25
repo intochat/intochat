@@ -1,8 +1,9 @@
+using DigitalBrain;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Time.Timers.Signals;
 
-[GenerateSerializer, Alias("time.timer-tick")]
+[Signal("time.timer-tick")]
 public sealed record TimerTick(
-    [property: Id(0)] string TimerId,
-    [property: Id(1)] DateTimeOffset ObservedAt) : Signal;
+    string TimerId,
+    DateTimeOffset ObservedAt) : DigitalBrain.Signal;
