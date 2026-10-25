@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.UI;
 using System.Collections.Concurrent;
 
 namespace DigitalBrain.Testing.Tests.Unit.Apps;
@@ -105,6 +106,53 @@ public sealed class NeedsClockApp : App
     public Task Open()
     {
         Opened++;
+        return Task.CompletedTask;
+    }
+}
+
+// DESIGN section 6, ported to the test-local storage-like capability: every bound storage on the side with its quota as trailing text.
+[App("files-like")]
+public sealed class FilesLike(IReadOnlyList<IStorageLike> storages, IPresenter presenter) : App
+{
+    [On]
+    public async Task Open()
+    {
+        var entries = new List<Entry>();
+        foreach (var storage in storages)
+        {
+            entries.Add(new Entry(storage.Label, storage.Label, null) { Trailing = Quota(await storage.Used(), await storage.Total()) });
+        }
+        presenter.Present(
+            new View("Storages", new Collection(entries)),
+            new View("Files", new Column([new TextField("filter", null, "Filter names"), new Collection([]), new Text("content")])));
+    }
+
+    [On]
+    public Task Search(string text)
+    {
+        presenter.Toast(new Toast($"searching '{text}'"));
+        presenter.Present(null, new View("Results", new Column([new Text($"results for '{text}'")])));
+        return Task.CompletedTask;
+    }
+
+    private static string Quota(long? used, long? total)
+        => used is { } u && total is { } t ? $"{u} GB of {t} GB" : "quota unknown";
+}
+
+// Presents through its own Side and Main properties, read after every turn.
+[App("tally")]
+public sealed class TallyApp : App
+{
+    private int _count;
+
+    public View Side => new("Tally", new Collection([new Entry("count", "Count", null) { Trailing = _count.ToString(System.Globalization.CultureInfo.InvariantCulture) }]));
+
+    public Node Main => new Text($"count is {_count}");
+
+    [On]
+    public Task Add()
+    {
+        _count++;
         return Task.CompletedTask;
     }
 }

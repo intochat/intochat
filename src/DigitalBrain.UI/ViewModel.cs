@@ -35,7 +35,12 @@ public sealed record Collection(IReadOnlyList<Entry> Entries) : Node
 }
 
 /// <summary>One entry of a collection.</summary>
-public sealed record Entry(string Id, string Title, string? Subtitle);
+public sealed record Entry(string Id, string Title, string? Subtitle)
+{
+    /// <summary>Text shown at the end of the entry, such as a size or a quota; null for none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Trailing { get; init; }
+}
 
 /// <summary>Read-only text.</summary>
 public sealed record Text(string Value) : Node;
@@ -45,3 +50,13 @@ public sealed record TextField(string Name, string? Value, string? Placeholder) 
 
 /// <summary>A transient message.</summary>
 public sealed record Toast(string Message) : Node;
+
+/// <summary>Where an app publishes what it shows: its side and main views and transient toasts. The host renders the latest of each.</summary>
+public interface IPresenter
+{
+    /// <summary>Replaces the side view, the main view, or both; a null view keeps the current one.</summary>
+    void Present(View? side, View? main);
+
+    /// <summary>Shows a transient message.</summary>
+    void Toast(Toast toast);
+}

@@ -1,5 +1,4 @@
 #nullable enable
-abstract DigitalBrain.UI.Node.<Clone>$() -> DigitalBrain.UI.Node!
 DigitalBrain.UI.Collection
 DigitalBrain.UI.Collection.Collection(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Entry!>! Entries) -> void
 DigitalBrain.UI.Collection.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Entry!>! Entries) -> void
@@ -23,6 +22,11 @@ DigitalBrain.UI.Entry.Subtitle.get -> string?
 DigitalBrain.UI.Entry.Subtitle.init -> void
 DigitalBrain.UI.Entry.Title.get -> string!
 DigitalBrain.UI.Entry.Title.init -> void
+DigitalBrain.UI.Entry.Trailing.get -> string?
+DigitalBrain.UI.Entry.Trailing.init -> void
+DigitalBrain.UI.IPresenter
+DigitalBrain.UI.IPresenter.Present(DigitalBrain.UI.View? side, DigitalBrain.UI.View? main) -> void
+DigitalBrain.UI.IPresenter.Toast(DigitalBrain.UI.Toast! toast) -> void
 DigitalBrain.UI.Node
 DigitalBrain.UI.Node.Node() -> void
 DigitalBrain.UI.Node.Node(DigitalBrain.UI.Node! original) -> void
@@ -57,6 +61,7 @@ DigitalBrain.UI.View.Root.init -> void
 DigitalBrain.UI.View.Title.get -> string!
 DigitalBrain.UI.View.Title.init -> void
 DigitalBrain.UI.View.View(string! Title, DigitalBrain.UI.Node! Root) -> void
+abstract DigitalBrain.UI.Node.<Clone>$() -> DigitalBrain.UI.Node!
 override DigitalBrain.UI.Collection.<Clone>$() -> DigitalBrain.UI.Collection!
 override DigitalBrain.UI.Collection.Equals(object? obj) -> bool
 override DigitalBrain.UI.Collection.GetHashCode() -> int

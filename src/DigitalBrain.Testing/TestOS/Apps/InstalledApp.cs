@@ -136,10 +136,5 @@ public sealed partial class InstalledApp<TApp> where TApp : App
             : JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(argument, argument.GetType(), Json), type, Json);
     }
 
-    private object? Service(Type type) => _os.Services.GetService(type);
-
-    // Reads the app's presentation after each turn.
-    partial void Refresh();
-
     private static string Key(string name) => name.Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
 }

@@ -1,4 +1,15 @@
 #nullable enable
+DigitalBrain.Testing.AppPresentation
+DigitalBrain.Testing.AppPresentation.<Clone>$() -> DigitalBrain.Testing.AppPresentation!
+DigitalBrain.Testing.AppPresentation.AppPresentation(DigitalBrain.UI.View? Side, DigitalBrain.UI.View? Main, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Toast!>! Toasts) -> void
+DigitalBrain.Testing.AppPresentation.Deconstruct(out DigitalBrain.UI.View? Side, out DigitalBrain.UI.View? Main, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Toast!>! Toasts) -> void
+DigitalBrain.Testing.AppPresentation.Equals(DigitalBrain.Testing.AppPresentation? other) -> bool
+DigitalBrain.Testing.AppPresentation.Main.get -> DigitalBrain.UI.View?
+DigitalBrain.Testing.AppPresentation.Main.init -> void
+DigitalBrain.Testing.AppPresentation.Side.get -> DigitalBrain.UI.View?
+DigitalBrain.Testing.AppPresentation.Side.init -> void
+DigitalBrain.Testing.AppPresentation.Toasts.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Toast!>!
+DigitalBrain.Testing.AppPresentation.Toasts.init -> void
 DigitalBrain.Testing.CapabilityFakes
 DigitalBrain.Testing.CapabilityFakes.All<TCapability>() -> System.Collections.Generic.IReadOnlyList<TCapability!>!
 DigitalBrain.Testing.CapabilityFakes.Bind<TCapability>(string! name, TCapability! fake) -> DigitalBrain.Testing.CapabilityFakes!
@@ -61,9 +72,15 @@ DigitalBrain.Testing.InMemorySignalHistory.Read(long since, int limit, System.Th
 DigitalBrain.Testing.InMemorySignalHistory.Trim(long floor) -> void
 DigitalBrain.Testing.InstalledApp<TApp>
 DigitalBrain.Testing.InstalledApp<TApp>.App.get -> TApp!
+DigitalBrain.Testing.InstalledApp<TApp>.Find(string! id) -> object!
+DigitalBrain.Testing.InstalledApp<TApp>.Main.get -> DigitalBrain.Testing.PresentedView!
 DigitalBrain.Testing.InstalledApp<TApp>.Manifest.get -> DigitalBrain.AppManifest!
 DigitalBrain.Testing.InstalledApp<TApp>.Operations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.InstalledApp<TApp>.Presentation.get -> DigitalBrain.Testing.AppPresentation!
+DigitalBrain.Testing.InstalledApp<TApp>.PresentationError.get -> System.Exception?
 DigitalBrain.Testing.InstalledApp<TApp>.Request(string! operation, object? argument = null) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.InstalledApp<TApp>.Side.get -> DigitalBrain.Testing.PresentedView!
+DigitalBrain.Testing.InstalledApp<TApp>.Toasts.get -> System.Collections.Generic.IReadOnlyList<string!>!
 DigitalBrain.Testing.ManualReminders
 DigitalBrain.Testing.ManualReminders.Fire(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
@@ -94,6 +111,20 @@ DigitalBrain.Testing.NeuronHarness<TNeuron>.AssertPublished<TSignal>(System.Func
 DigitalBrain.Testing.NeuronHarness<TNeuron>.Context.get -> DigitalBrain.Testing.FakeNeuronContext!
 DigitalBrain.Testing.NeuronHarness<TNeuron>.Deactivate(DigitalBrain.DeactivationCause cause = DigitalBrain.DeactivationCause.Requested, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.NeuronHarness<TNeuron>.Neuron.get -> TNeuron!
+DigitalBrain.Testing.PresentationAssertionException
+DigitalBrain.Testing.PresentationAssertionException.PresentationAssertionException(string! message) -> void
+DigitalBrain.Testing.PresentedView
+DigitalBrain.Testing.PresentedView.Entries.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Entry!>!
+DigitalBrain.Testing.PresentedView.Entry(string! id) -> DigitalBrain.UI.Entry!
+DigitalBrain.Testing.PresentedView.Fields.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TextField!>!
+DigitalBrain.Testing.PresentedView.Find(string! id) -> object!
+DigitalBrain.Testing.PresentedView.Ids.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.PresentedView.IsSet.get -> bool
+DigitalBrain.Testing.PresentedView.Nodes.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
+DigitalBrain.Testing.PresentedView.Part.get -> string!
+DigitalBrain.Testing.PresentedView.Texts.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Testing.PresentedView.Title.get -> string?
+DigitalBrain.Testing.PresentedView.View.get -> DigitalBrain.UI.View?
 DigitalBrain.Testing.RecordingSynapses
 DigitalBrain.Testing.RecordingSynapses.Current.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
 DigitalBrain.Testing.RecordingSynapses.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
@@ -152,9 +183,15 @@ DigitalBrain.Testing.TestOSOptions.Start.get -> System.DateTimeOffset?
 DigitalBrain.Testing.TestOSOptions.Start.set -> void
 DigitalBrain.Testing.TestOSOptions.TestOSOptions() -> void
 const DigitalBrain.Testing.SiloHost.FactoryTypeName = "DigitalBrain.Runtime.Orleans.Testing.LocalSiloHostFactory, DigitalBrain.Runtime.Orleans" -> string!
+override DigitalBrain.Testing.AppPresentation.Equals(object? obj) -> bool
+override DigitalBrain.Testing.AppPresentation.GetHashCode() -> int
+override DigitalBrain.Testing.AppPresentation.ToString() -> string!
 override DigitalBrain.Testing.ManualTime.GetUtcNow() -> System.DateTimeOffset
+override DigitalBrain.Testing.PresentedView.ToString() -> string!
 override DigitalBrain.Testing.TestClock.CreateTimer(System.Threading.TimerCallback! callback, object? state, System.TimeSpan dueTime, System.TimeSpan period) -> System.Threading.ITimer!
 override DigitalBrain.Testing.TestClock.GetUtcNow() -> System.DateTimeOffset
+static DigitalBrain.Testing.AppPresentation.operator !=(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
+static DigitalBrain.Testing.AppPresentation.operator ==(DigitalBrain.Testing.AppPresentation? left, DigitalBrain.Testing.AppPresentation? right) -> bool
 static DigitalBrain.Testing.CapabilityFakes.IdOf(System.Type! contract) -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.NeuronHarness<TNeuron!>!>!
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
