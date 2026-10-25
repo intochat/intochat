@@ -81,14 +81,30 @@ public interface IReminders
     Task<IReadOnlyList<string>> Names();
 }
 
-/// <summary>Long-running operations a neuron tracks by id.</summary>
+/// <summary>Long-running operations a neuron starts from a plan: progress, completion, cancellation and dry runs.</summary>
 public interface IOperations
 {
-    /// <summary>Begins an operation and returns its id.</summary>
-    Task<string> Begin(string kind, CancellationToken cancellationToken);
+    /// <summary>Starts the operation <paramref name="plan"/> describes and returns its handle.</summary>
+    Task<IOperation> Start(DigitalBrain.Operations.OperationPlan plan, CancellationToken ct);
 
-    /// <summary>Completes an operation.</summary>
-    Task Complete(string id, bool succeeded, CancellationToken cancellationToken);
+    /// <summary>Requests cancellation of a running operation; its handle's <see cref="IOperation.Cancellation"/> fires.</summary>
+    Task Cancel(DigitalBrain.Operations.OperationId id, CancellationToken ct);
+}
+
+/// <summary>The handle of a running operation.</summary>
+public interface IOperation
+{
+    /// <summary>The operation id.</summary>
+    DigitalBrain.Operations.OperationId Id { get; }
+
+    /// <summary>Fires when the operation is cancelled.</summary>
+    CancellationToken Cancellation { get; }
+
+    /// <summary>Reports progress as a fraction between 0 and 1.</summary>
+    ValueTask Report(double fraction);
+
+    /// <summary>Completes the operation with its result.</summary>
+    ValueTask Complete(DigitalBrain.Operations.OperationResult result);
 }
 
 /// <summary>Typed proxies to neurons.</summary>

@@ -6,6 +6,8 @@ public sealed record Pinged(int Count) : Signal;
 
 public sealed record Unrelated : Signal;
 
+public sealed record ImportPlan(bool DryRun) : DigitalBrain.Operations.OperationPlan(DryRun);
+
 public sealed class Counter
 {
     public int Count { get; set; }
@@ -164,9 +166,14 @@ public sealed class TestingFacts
         Assert.Empty(synapses.Current);
 
         var operations = new FakeOperations();
-        var op = await operations.Begin("import", TestContext.Current.CancellationToken);
-        await operations.Complete(op, succeeded: true, TestContext.Current.CancellationToken);
-        Assert.True(operations.All[op].Succeeded);
+        var op = await operations.Start(new ImportPlan(DryRun: false), TestContext.Current.CancellationToken);
+        await op.Report(0.5);
+        await op.Complete(new DigitalBrain.Operations.OperationResult.Succeeded());
+        Assert.Equal([0.5], operations.All[op.Id].Progress);
+        Assert.IsType<DigitalBrain.Operations.OperationResult.Succeeded>(operations.All[op.Id].Result);
+        await operations.Cancel(op.Id, TestContext.Current.CancellationToken);
+        Assert.True(op.Cancellation.IsCancellationRequested);
+        operations.All[op.Id].Dispose();
     }
 
     [Fact]

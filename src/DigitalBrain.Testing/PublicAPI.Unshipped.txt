@@ -25,8 +25,9 @@ DigitalBrain.Testing.CapabilityNotBoundException.CapabilityNotBoundException(Dig
 DigitalBrain.Testing.CapabilityNotBoundException.Name.get -> string?
 DigitalBrain.Testing.FakeCapabilityBroker
 DigitalBrain.Testing.FakeCapabilityBroker.FakeCapabilityBroker() -> void
-DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance) -> DigitalBrain.Testing.FakeCapabilityBroker!
+DigitalBrain.Testing.FakeCapabilityBroker.Register<TCapability>(TCapability! instance, string? connectionKey = null, string? label = null) -> DigitalBrain.Testing.FakeCapabilityBroker!
 DigitalBrain.Testing.FakeCapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
+DigitalBrain.Testing.FakeCapabilityBroker.ResolveAll<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityConnection<TCapability!>!>!>!
 DigitalBrain.Testing.FakeNeuronContext
 DigitalBrain.Testing.FakeNeuronContext.Clock.get -> DigitalBrain.Testing.ManualTime!
 DigitalBrain.Testing.FakeNeuronContext.Defer(System.Func<System.Threading.Tasks.Task!>! work) -> void
@@ -50,11 +51,20 @@ DigitalBrain.Testing.FakeNeuronProxies
 DigitalBrain.Testing.FakeNeuronProxies.FakeNeuronProxies() -> void
 DigitalBrain.Testing.FakeNeuronProxies.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Testing.FakeNeuronProxies.Register<T>(DigitalBrain.NeuronId id, T! instance) -> DigitalBrain.Testing.FakeNeuronProxies!
+DigitalBrain.Testing.FakeOperation
+DigitalBrain.Testing.FakeOperation.Cancellation.get -> System.Threading.CancellationToken
+DigitalBrain.Testing.FakeOperation.Complete(DigitalBrain.Operations.OperationResult! result) -> System.Threading.Tasks.ValueTask
+DigitalBrain.Testing.FakeOperation.Dispose() -> void
+DigitalBrain.Testing.FakeOperation.Id.get -> DigitalBrain.Operations.OperationId
+DigitalBrain.Testing.FakeOperation.Plan.get -> DigitalBrain.Operations.OperationPlan!
+DigitalBrain.Testing.FakeOperation.Progress.get -> System.Collections.Generic.IReadOnlyList<double>!
+DigitalBrain.Testing.FakeOperation.Report(double fraction) -> System.Threading.Tasks.ValueTask
+DigitalBrain.Testing.FakeOperation.Result.get -> DigitalBrain.Operations.OperationResult?
 DigitalBrain.Testing.FakeOperations
-DigitalBrain.Testing.FakeOperations.All.get -> System.Collections.Generic.IReadOnlyDictionary<string!, (string! Kind, bool? Succeeded)>!
-DigitalBrain.Testing.FakeOperations.Begin(string! kind, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
-DigitalBrain.Testing.FakeOperations.Complete(string! id, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.FakeOperations.All.get -> System.Collections.Generic.IReadOnlyDictionary<DigitalBrain.Operations.OperationId, DigitalBrain.Testing.FakeOperation!>!
+DigitalBrain.Testing.FakeOperations.Cancel(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.FakeOperations.FakeOperations() -> void
+DigitalBrain.Testing.FakeOperations.Start(DigitalBrain.Operations.OperationPlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IOperation!>!
 DigitalBrain.Testing.InMemoryNeuronState
 DigitalBrain.Testing.InMemoryNeuronState.Clear() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.InMemoryNeuronState.Exists.get -> bool
@@ -152,6 +162,7 @@ DigitalBrain.Testing.TestOS.Cursor(DigitalBrain.NeuronId subscriber, DigitalBrai
 DigitalBrain.Testing.TestOS.Deactivate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.TestOS.DisposeAsync() -> System.Threading.Tasks.ValueTask
 DigitalBrain.Testing.TestOS.DuplicatesDropped.get -> long
+DigitalBrain.Testing.TestOS.FailNextPublishAfterAppend(DigitalBrain.NeuronId publisher) -> void
 DigitalBrain.Testing.TestOS.Failures.get -> System.Collections.Generic.IReadOnlyCollection<System.Exception!>!
 DigitalBrain.Testing.TestOS.ForceCheckpoint(DigitalBrain.BrainId brain) -> void
 DigitalBrain.Testing.TestOS.Get<T>(DigitalBrain.NeuronId id) -> T!
@@ -162,6 +173,7 @@ DigitalBrain.Testing.TestOS.Journal(DigitalBrain.BrainId brain) -> DigitalBrain.
 DigitalBrain.Testing.TestOS.Options.get -> DigitalBrain.Testing.TestOSOptions!
 DigitalBrain.Testing.TestOS.Register(System.Reflection.Assembly! assembly) -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOS.Register<TNeuron>() -> DigitalBrain.Testing.TestOS!
+DigitalBrain.Testing.TestOS.Restart() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.TestOS.Services.get -> System.IServiceProvider!
 DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
 DigitalBrain.Testing.TestOS.With<TCapability>(TCapability! fake) -> DigitalBrain.Testing.TestOS!
@@ -197,5 +209,3 @@ static DigitalBrain.Testing.NeuronHarness.Create<TNeuron>(DigitalBrain.NeuronId 
 static DigitalBrain.Testing.SiloHost.Local(System.Action<DigitalBrain.InProcessHostOptions!>? configure = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IInProcessHost!>!
 static DigitalBrain.Testing.TestOS.Local(System.Action<DigitalBrain.Testing.TestOSOptions!>? configure = null) -> DigitalBrain.Testing.TestOS!
 static DigitalBrain.Testing.TestOS.ManifestOf(System.Type! appType) -> DigitalBrain.AppManifest!
-DigitalBrain.Testing.TestOS.FailNextPublishAfterAppend(DigitalBrain.NeuronId publisher) -> void
-DigitalBrain.Testing.TestOS.Restart() -> System.Threading.Tasks.Task!

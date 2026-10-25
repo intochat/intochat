@@ -223,30 +223,81 @@ public sealed class InMemorySignalHistory : ISignalHistory
     }
 }
 
-/// <summary>Operations held in memory.</summary>
+/// <summary>Operations held in memory: every started plan, its progress, result and cancellation.</summary>
 public sealed class FakeOperations : IOperations
 {
-    private readonly Dictionary<string, (string Kind, bool? Succeeded)> _operations = new(StringComparer.Ordinal);
+    private readonly Dictionary<DigitalBrain.Operations.OperationId, FakeOperation> _operations = [];
     private int _next;
 
-    /// <summary>Every operation: kind and outcome (null while running).</summary>
-    public IReadOnlyDictionary<string, (string Kind, bool? Succeeded)> All => _operations;
+    /// <summary>Every started operation by id.</summary>
+    public IReadOnlyDictionary<DigitalBrain.Operations.OperationId, FakeOperation> All => _operations;
 
     /// <inheritdoc />
-    public Task<string> Begin(string kind, CancellationToken cancellationToken)
+    public Task<IOperation> Start(DigitalBrain.Operations.OperationPlan plan, CancellationToken ct)
     {
-        var id = $"op-{++_next}";
-        _operations[id] = (kind, null);
-        return Task.FromResult(id);
+        ArgumentNullException.ThrowIfNull(plan);
+        var operation = new FakeOperation(new DigitalBrain.Operations.OperationId($"op-{++_next}"), plan);
+        _operations[operation.Id] = operation;
+        return Task.FromResult<IOperation>(operation);
     }
 
     /// <inheritdoc />
-    public Task Complete(string id, bool succeeded, CancellationToken cancellationToken)
+    /// <exception cref="KeyNotFoundException">No operation has this id.</exception>
+    public Task Cancel(DigitalBrain.Operations.OperationId id, CancellationToken ct)
+        => _operations.TryGetValue(id, out var operation) ? operation.Cancel() : throw new KeyNotFoundException($"No operation {id}.");
+}
+
+/// <summary>An operation held in memory.</summary>
+public sealed class FakeOperation : IOperation, IDisposable
+{
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly List<double> _progress = [];
+
+    internal FakeOperation(DigitalBrain.Operations.OperationId id, DigitalBrain.Operations.OperationPlan plan)
     {
-        if (!_operations.TryGetValue(id, out var operation)) { throw new KeyNotFoundException($"No operation {id}."); }
-        _operations[id] = (operation.Kind, succeeded);
-        return Task.CompletedTask;
+        Id = id;
+        Plan = plan;
     }
+
+    /// <inheritdoc />
+    public DigitalBrain.Operations.OperationId Id { get; }
+
+    /// <summary>The plan the operation was started with.</summary>
+    public DigitalBrain.Operations.OperationPlan Plan { get; }
+
+    /// <summary>Every reported progress fraction, in order.</summary>
+    public IReadOnlyList<double> Progress => _progress;
+
+    /// <summary>The result, or null while running.</summary>
+    public DigitalBrain.Operations.OperationResult? Result { get; private set; }
+
+    /// <inheritdoc />
+    public CancellationToken Cancellation => _cancellation.Token;
+
+    /// <inheritdoc />
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="fraction"/> is outside 0..1.</exception>
+    public ValueTask Report(double fraction)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(fraction, 0d);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(fraction, 1d);
+        _progress.Add(fraction);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">The operation already completed.</exception>
+    public ValueTask Complete(DigitalBrain.Operations.OperationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (Result is not null) { throw new InvalidOperationException($"Operation {Id} already completed with {Result}."); }
+        Result = result;
+        return ValueTask.CompletedTask;
+    }
+
+    internal Task Cancel() => _cancellation.CancelAsync();
+
+    /// <inheritdoc />
+    public void Dispose() => _cancellation.Dispose();
 }
 
 /// <summary>Neuron proxies registered by hand.</summary>
@@ -269,24 +320,39 @@ public sealed class FakeNeuronProxies : INeuronProxies
             : throw new KeyNotFoundException($"No {typeof(T).Name} is registered for neuron {id}.");
 }
 
-/// <summary>Capabilities registered by hand.</summary>
+/// <summary>Capabilities registered by hand, one or more connections per capability.</summary>
 public sealed class FakeCapabilityBroker : ICapabilityBroker
 {
-    private readonly Dictionary<Type, object> _capabilities = [];
+    private readonly Dictionary<Type, List<object>> _connections = [];
 
-    /// <summary>Makes <see cref="Resolve{TCapability}"/> return <paramref name="instance"/> for every brain.</summary>
-    public FakeCapabilityBroker Register<TCapability>(TCapability instance) where TCapability : class
+    /// <summary>Adds <paramref name="instance"/> as a connection of <typeparamref name="TCapability"/> for every brain.</summary>
+    /// <param name="instance">The implementation.</param>
+    /// <param name="connectionKey">The connection key; defaults to the capability type name plus position.</param>
+    /// <param name="label">The connection label; defaults to the key.</param>
+    public FakeCapabilityBroker Register<TCapability>(TCapability instance, string? connectionKey = null, string? label = null) where TCapability : class
     {
         ArgumentNullException.ThrowIfNull(instance);
-        _capabilities[typeof(TCapability)] = instance;
+        if (!_connections.TryGetValue(typeof(TCapability), out var list)) { _connections[typeof(TCapability)] = list = []; }
+        var key = connectionKey ?? $"{typeof(TCapability).Name}-{list.Count + 1}";
+        list.Add(new CapabilityConnection<TCapability>(key, label ?? key, instance));
         return this;
     }
 
     /// <inheritdoc />
     public Task<TCapability> Resolve<TCapability>(BrainId brain, CancellationToken ct) where TCapability : class
-        => _capabilities.TryGetValue(typeof(TCapability), out var capability)
-            ? Task.FromResult((TCapability)capability)
-            : throw new KeyNotFoundException($"No {typeof(TCapability).Name} capability is registered.");
+    {
+        var all = Connections<TCapability>();
+        return all.Count == 1
+            ? Task.FromResult(all[0].Capability)
+            : throw new InvalidOperationException($"{typeof(TCapability).Name} has {all.Count} connections; Resolve needs exactly one, use ResolveAll.");
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<CapabilityConnection<TCapability>>> ResolveAll<TCapability>(BrainId brain, CancellationToken ct) where TCapability : class
+        => Task.FromResult(Connections<TCapability>());
+
+    private IReadOnlyList<CapabilityConnection<TCapability>> Connections<TCapability>() where TCapability : class
+        => _connections.TryGetValue(typeof(TCapability), out var list) ? [.. list.Cast<CapabilityConnection<TCapability>>()] : [];
 }
 
 /// <summary>A neuron context made of fakes. Published signals are recorded.</summary>

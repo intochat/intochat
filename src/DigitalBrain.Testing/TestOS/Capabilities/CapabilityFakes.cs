@@ -24,7 +24,7 @@ public sealed class CapabilityFakes
         var attribute = contract.IsInterface ? contract.GetCustomAttribute<CapabilityAttribute>(inherit: false) : null;
         return attribute is null
             ? throw new ArgumentException($"{contract.FullName} is not a capability contract: mark the interface [Capability(name, version)].", nameof(contract))
-            : new CapabilityId(attribute.Name, attribute.Version);
+            : attribute.Id;
     }
 
     /// <summary>Binds <paramref name="fake"/> as the <typeparamref name="TCapability"/> named <paramref name="name"/>.</summary>
@@ -137,4 +137,9 @@ internal sealed class TestOSServices(CapabilityFakes fakes, IServiceProvider inn
 
     public Task<TCapability> Resolve<TCapability>(BrainId brain, CancellationToken ct) where TCapability : class
         => Task.FromResult(fakes.Resolve<TCapability>());
+
+    // One connection per bound fake: the binding name is the connection key and the label.
+    public Task<IReadOnlyList<CapabilityConnection<TCapability>>> ResolveAll<TCapability>(BrainId brain, CancellationToken ct) where TCapability : class
+        => Task.FromResult<IReadOnlyList<CapabilityConnection<TCapability>>>(
+            [.. fakes.Names<TCapability>().Select(name => new CapabilityConnection<TCapability>(name, name, fakes.Resolve<TCapability>(name)))]);
 }

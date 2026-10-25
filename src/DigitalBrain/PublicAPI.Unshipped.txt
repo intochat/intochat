@@ -46,16 +46,34 @@ DigitalBrain.CallTimeoutAttribute
 DigitalBrain.CallTimeoutAttribute.CallTimeoutAttribute(int milliseconds) -> void
 DigitalBrain.CallTimeoutAttribute.Milliseconds.get -> int
 DigitalBrain.CallTimeoutAttribute.Timeout.get -> System.TimeSpan
+DigitalBrain.Capabilities.Capability
+DigitalBrain.Capabilities.Capability.Identity
+DigitalBrain.Capabilities.Capability.Secrets
+DigitalBrain.Capabilities.Capability.Storage
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Capability.get -> TCapability!
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Capability.init -> void
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.CapabilityConnection(string! ConnectionKey, string! Label, TCapability! Capability) -> void
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.ConnectionKey.get -> string!
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.ConnectionKey.init -> void
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Deconstruct(out string! ConnectionKey, out string! Label, out TCapability! Capability) -> void
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Label.get -> string!
+DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Label.init -> void
 DigitalBrain.Capabilities.CapabilityId
 DigitalBrain.Capabilities.CapabilityId.CapabilityId() -> void
 DigitalBrain.Capabilities.CapabilityId.CapabilityId(string! name, int major) -> void
 DigitalBrain.Capabilities.CapabilityId.Equals(DigitalBrain.Capabilities.CapabilityId other) -> bool
 DigitalBrain.Capabilities.CapabilityId.Major.get -> int
 DigitalBrain.Capabilities.CapabilityId.Name.get -> string!
+DigitalBrain.Capabilities.CapabilityId.Satisfies(DigitalBrain.Capabilities.CapabilityId required) -> bool
+DigitalBrain.Capabilities.CapabilityIdJsonConverter
+DigitalBrain.Capabilities.CapabilityIdJsonConverter.CapabilityIdJsonConverter() -> void
 DigitalBrain.Capabilities.ICapabilityBroker
 DigitalBrain.Capabilities.ICapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
+DigitalBrain.Capabilities.ICapabilityBroker.ResolveAll<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityConnection<TCapability!>!>!>!
 DigitalBrain.CapabilityAttribute
 DigitalBrain.CapabilityAttribute.CapabilityAttribute(string! name, int version) -> void
+DigitalBrain.CapabilityAttribute.Id.get -> DigitalBrain.Capabilities.CapabilityId
 DigitalBrain.CapabilityAttribute.Name.get -> string!
 DigitalBrain.CapabilityAttribute.Version.get -> int
 DigitalBrain.Contracts.DefaultNeuronTypeAttribute
@@ -223,6 +241,41 @@ DigitalBrain.OnAttribute
 DigitalBrain.OnAttribute.OnAttribute() -> void
 DigitalBrain.OneWayCallAttribute
 DigitalBrain.OneWayCallAttribute.OneWayCallAttribute() -> void
+DigitalBrain.Operations.OperationId
+DigitalBrain.Operations.OperationId.Deconstruct(out string! Value) -> void
+DigitalBrain.Operations.OperationId.Equals(DigitalBrain.Operations.OperationId other) -> bool
+DigitalBrain.Operations.OperationId.OperationId() -> void
+DigitalBrain.Operations.OperationId.OperationId(string! Value) -> void
+DigitalBrain.Operations.OperationId.Value.get -> string!
+DigitalBrain.Operations.OperationId.Value.init -> void
+DigitalBrain.Operations.OperationPlan
+DigitalBrain.Operations.OperationPlan.Deconstruct(out bool DryRun) -> void
+DigitalBrain.Operations.OperationPlan.DryRun.get -> bool
+DigitalBrain.Operations.OperationPlan.DryRun.init -> void
+DigitalBrain.Operations.OperationPlan.OperationPlan(DigitalBrain.Operations.OperationPlan! original) -> void
+DigitalBrain.Operations.OperationPlan.OperationPlan(bool DryRun) -> void
+DigitalBrain.Operations.OperationResult
+DigitalBrain.Operations.OperationResult.Cancelled
+DigitalBrain.Operations.OperationResult.Cancelled.Cancelled() -> void
+DigitalBrain.Operations.OperationResult.Cancelled.Equals(DigitalBrain.Operations.OperationResult.Cancelled? other) -> bool
+DigitalBrain.Operations.OperationResult.Failed
+DigitalBrain.Operations.OperationResult.Failed.Code.get -> string!
+DigitalBrain.Operations.OperationResult.Failed.Code.init -> void
+DigitalBrain.Operations.OperationResult.Failed.Deconstruct(out string! Code, out string! Message) -> void
+DigitalBrain.Operations.OperationResult.Failed.Equals(DigitalBrain.Operations.OperationResult.Failed? other) -> bool
+DigitalBrain.Operations.OperationResult.Failed.Failed(string! Code, string! Message) -> void
+DigitalBrain.Operations.OperationResult.Failed.Message.get -> string!
+DigitalBrain.Operations.OperationResult.Failed.Message.init -> void
+DigitalBrain.Operations.OperationResult.OperationResult(DigitalBrain.Operations.OperationResult! original) -> void
+DigitalBrain.Operations.OperationResult.Planned
+DigitalBrain.Operations.OperationResult.Planned.Deconstruct(out System.Collections.Generic.IReadOnlyList<string!>! Steps) -> void
+DigitalBrain.Operations.OperationResult.Planned.Equals(DigitalBrain.Operations.OperationResult.Planned? other) -> bool
+DigitalBrain.Operations.OperationResult.Planned.Planned(System.Collections.Generic.IReadOnlyList<string!>! Steps) -> void
+DigitalBrain.Operations.OperationResult.Planned.Steps.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.Operations.OperationResult.Planned.Steps.init -> void
+DigitalBrain.Operations.OperationResult.Succeeded
+DigitalBrain.Operations.OperationResult.Succeeded.Equals(DigitalBrain.Operations.OperationResult.Succeeded? other) -> bool
+DigitalBrain.Operations.OperationResult.Succeeded.Succeeded() -> void
 DigitalBrain.ReadOnlyCallAttribute
 DigitalBrain.ReadOnlyCallAttribute.ReadOnlyCallAttribute() -> void
 DigitalBrain.ReentrantAttribute
@@ -300,9 +353,14 @@ DigitalBrain.Spi.INeuronTimers
 DigitalBrain.Spi.INeuronTimers.Forget(string! name) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.INeuronTimers.Remind(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.INeuronTimers.Start(string! name, System.TimeSpan due, System.TimeSpan? period, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! tick, bool interleave = false, bool keepAlive = false) -> System.IDisposable!
+DigitalBrain.Spi.IOperation
+DigitalBrain.Spi.IOperation.Cancellation.get -> System.Threading.CancellationToken
+DigitalBrain.Spi.IOperation.Complete(DigitalBrain.Operations.OperationResult! result) -> System.Threading.Tasks.ValueTask
+DigitalBrain.Spi.IOperation.Id.get -> DigitalBrain.Operations.OperationId
+DigitalBrain.Spi.IOperation.Report(double fraction) -> System.Threading.Tasks.ValueTask
 DigitalBrain.Spi.IOperations
-DigitalBrain.Spi.IOperations.Begin(string! kind, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
-DigitalBrain.Spi.IOperations.Complete(string! id, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IOperations.Cancel(DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+DigitalBrain.Spi.IOperations.Start(DigitalBrain.Operations.OperationPlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Spi.IOperation!>!
 DigitalBrain.Spi.IRemindedNeuron
 DigitalBrain.Spi.IRemindedNeuron.OnReminder(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 DigitalBrain.Spi.IReminders
@@ -358,7 +416,12 @@ DigitalBrain.Synapse.Signal.init -> void
 DigitalBrain.Synapse.Synapse(DigitalBrain.NeuronId From, System.Type! Signal, DigitalBrain.NeuronId To) -> void
 DigitalBrain.Synapse.To.get -> DigitalBrain.NeuronId
 DigitalBrain.Synapse.To.init -> void
+abstract DigitalBrain.Operations.OperationPlan.<Clone>$() -> DigitalBrain.Operations.OperationPlan!
+abstract DigitalBrain.Operations.OperationResult.<Clone>$() -> DigitalBrain.Operations.OperationResult!
 abstract DigitalBrain.Signal.<Clone>$() -> DigitalBrain.Signal!
+const DigitalBrain.Capabilities.Capability.Identity.V1Id = "identity@1" -> string!
+const DigitalBrain.Capabilities.Capability.Secrets.V1Id = "secrets@1" -> string!
+const DigitalBrain.Capabilities.Capability.Storage.V1Id = "storage@1" -> string!
 const DigitalBrain.Invocation.NeuronBinder.DefaultMaximumArgumentBytes = 1048576 -> int
 const DigitalBrain.SignalPage.MaxLimit = 1000 -> int
 override DigitalBrain.AppManifest.Equals(object? obj) -> bool
@@ -369,8 +432,13 @@ override DigitalBrain.AppRequirements.GetHashCode() -> int
 override DigitalBrain.AppRequirements.ToString() -> string!
 override DigitalBrain.BrainId.GetHashCode() -> int
 override DigitalBrain.BrainId.ToString() -> string!
+override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.GetHashCode() -> int
+override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.ToString() -> string!
 override DigitalBrain.Capabilities.CapabilityId.GetHashCode() -> int
 override DigitalBrain.Capabilities.CapabilityId.ToString() -> string!
+override DigitalBrain.Capabilities.CapabilityIdJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> DigitalBrain.Capabilities.CapabilityId
+override DigitalBrain.Capabilities.CapabilityIdJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, DigitalBrain.Capabilities.CapabilityId value, System.Text.Json.JsonSerializerOptions! options) -> void
 override DigitalBrain.Gap.<Clone>$() -> DigitalBrain.Gap!
 override DigitalBrain.Gap.Equals(object? obj) -> bool
 override DigitalBrain.Gap.GetHashCode() -> int
@@ -393,6 +461,30 @@ override DigitalBrain.Need.GetHashCode() -> int
 override DigitalBrain.Need.ToString() -> string!
 override DigitalBrain.NeuronId.GetHashCode() -> int
 override DigitalBrain.NeuronId.ToString() -> string!
+override DigitalBrain.Operations.OperationId.GetHashCode() -> int
+override DigitalBrain.Operations.OperationId.ToString() -> string!
+override DigitalBrain.Operations.OperationPlan.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationPlan.GetHashCode() -> int
+override DigitalBrain.Operations.OperationPlan.ToString() -> string!
+override DigitalBrain.Operations.OperationResult.Cancelled.<Clone>$() -> DigitalBrain.Operations.OperationResult.Cancelled!
+override DigitalBrain.Operations.OperationResult.Cancelled.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationResult.Cancelled.GetHashCode() -> int
+override DigitalBrain.Operations.OperationResult.Cancelled.ToString() -> string!
+override DigitalBrain.Operations.OperationResult.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationResult.Failed.<Clone>$() -> DigitalBrain.Operations.OperationResult.Failed!
+override DigitalBrain.Operations.OperationResult.Failed.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationResult.Failed.GetHashCode() -> int
+override DigitalBrain.Operations.OperationResult.Failed.ToString() -> string!
+override DigitalBrain.Operations.OperationResult.GetHashCode() -> int
+override DigitalBrain.Operations.OperationResult.Planned.<Clone>$() -> DigitalBrain.Operations.OperationResult.Planned!
+override DigitalBrain.Operations.OperationResult.Planned.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationResult.Planned.GetHashCode() -> int
+override DigitalBrain.Operations.OperationResult.Planned.ToString() -> string!
+override DigitalBrain.Operations.OperationResult.Succeeded.<Clone>$() -> DigitalBrain.Operations.OperationResult.Succeeded!
+override DigitalBrain.Operations.OperationResult.Succeeded.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationResult.Succeeded.GetHashCode() -> int
+override DigitalBrain.Operations.OperationResult.Succeeded.ToString() -> string!
+override DigitalBrain.Operations.OperationResult.ToString() -> string!
 override DigitalBrain.Secret.Equals(object? obj) -> bool
 override DigitalBrain.Secret.GetHashCode() -> int
 override DigitalBrain.Secret.ToString() -> string!
@@ -415,6 +507,10 @@ override DigitalBrain.Synapse.Equals(object? obj) -> bool
 override DigitalBrain.Synapse.GetHashCode() -> int
 override DigitalBrain.Synapse.ToString() -> string!
 override sealed DigitalBrain.Gap.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.Operations.OperationResult.Cancelled.Equals(DigitalBrain.Operations.OperationResult? other) -> bool
+override sealed DigitalBrain.Operations.OperationResult.Failed.Equals(DigitalBrain.Operations.OperationResult? other) -> bool
+override sealed DigitalBrain.Operations.OperationResult.Planned.Equals(DigitalBrain.Operations.OperationResult? other) -> bool
+override sealed DigitalBrain.Operations.OperationResult.Succeeded.Equals(DigitalBrain.Operations.OperationResult? other) -> bool
 static DigitalBrain.AppManifest.operator !=(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
 static DigitalBrain.AppManifest.operator ==(DigitalBrain.AppManifest? left, DigitalBrain.AppManifest? right) -> bool
 static DigitalBrain.AppRequirements.operator !=(DigitalBrain.AppRequirements? left, DigitalBrain.AppRequirements? right) -> bool
@@ -424,6 +520,9 @@ static DigitalBrain.BrainId.Kernel.get -> DigitalBrain.BrainId
 static DigitalBrain.BrainId.System(string! name) -> DigitalBrain.BrainId
 static DigitalBrain.BrainId.operator !=(DigitalBrain.BrainId left, DigitalBrain.BrainId right) -> bool
 static DigitalBrain.BrainId.operator ==(DigitalBrain.BrainId left, DigitalBrain.BrainId right) -> bool
+static DigitalBrain.Capabilities.Capability.Identity.V1.get -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Capabilities.Capability.Secrets.V1.get -> DigitalBrain.Capabilities.CapabilityId
+static DigitalBrain.Capabilities.Capability.Storage.V1.get -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Capabilities.CapabilityId.Parse(string! text) -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Capabilities.CapabilityId.TryParse(string? text, out DigitalBrain.Capabilities.CapabilityId id) -> bool
 static DigitalBrain.Capabilities.CapabilityId.operator !=(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
@@ -436,6 +535,7 @@ static DigitalBrain.Invocation.NeuronProxy.ContractName(System.Type! contract) -
 static DigitalBrain.Invocation.NeuronProxy.Create<T>(DigitalBrain.NeuronId id, DigitalBrain.Invocation.IInvocationSink! sink) -> T!
 static DigitalBrain.Invocation.RuntimeInvocation.operator !=(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
 static DigitalBrain.Invocation.RuntimeInvocation.operator ==(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
+static DigitalBrain.Invocation.RuntimeProtocol.Register(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver! resolver) -> void
 static DigitalBrain.JournaledSignal.operator !=(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
 static DigitalBrain.JournaledSignal.operator ==(DigitalBrain.JournaledSignal? left, DigitalBrain.JournaledSignal? right) -> bool
 static DigitalBrain.ModuleManifest.Of(System.Type! moduleType) -> DigitalBrain.ModuleManifest!
@@ -454,6 +554,20 @@ static DigitalBrain.NeuronId.Parse(string! text) -> DigitalBrain.NeuronId
 static DigitalBrain.NeuronId.TryParse(string? text, out DigitalBrain.NeuronId id) -> bool
 static DigitalBrain.NeuronId.operator !=(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
 static DigitalBrain.NeuronId.operator ==(DigitalBrain.NeuronId left, DigitalBrain.NeuronId right) -> bool
+static DigitalBrain.Operations.OperationId.operator !=(DigitalBrain.Operations.OperationId left, DigitalBrain.Operations.OperationId right) -> bool
+static DigitalBrain.Operations.OperationId.operator ==(DigitalBrain.Operations.OperationId left, DigitalBrain.Operations.OperationId right) -> bool
+static DigitalBrain.Operations.OperationPlan.operator !=(DigitalBrain.Operations.OperationPlan? left, DigitalBrain.Operations.OperationPlan? right) -> bool
+static DigitalBrain.Operations.OperationPlan.operator ==(DigitalBrain.Operations.OperationPlan? left, DigitalBrain.Operations.OperationPlan? right) -> bool
+static DigitalBrain.Operations.OperationResult.Cancelled.operator !=(DigitalBrain.Operations.OperationResult.Cancelled? left, DigitalBrain.Operations.OperationResult.Cancelled? right) -> bool
+static DigitalBrain.Operations.OperationResult.Cancelled.operator ==(DigitalBrain.Operations.OperationResult.Cancelled? left, DigitalBrain.Operations.OperationResult.Cancelled? right) -> bool
+static DigitalBrain.Operations.OperationResult.Failed.operator !=(DigitalBrain.Operations.OperationResult.Failed? left, DigitalBrain.Operations.OperationResult.Failed? right) -> bool
+static DigitalBrain.Operations.OperationResult.Failed.operator ==(DigitalBrain.Operations.OperationResult.Failed? left, DigitalBrain.Operations.OperationResult.Failed? right) -> bool
+static DigitalBrain.Operations.OperationResult.Planned.operator !=(DigitalBrain.Operations.OperationResult.Planned? left, DigitalBrain.Operations.OperationResult.Planned? right) -> bool
+static DigitalBrain.Operations.OperationResult.Planned.operator ==(DigitalBrain.Operations.OperationResult.Planned? left, DigitalBrain.Operations.OperationResult.Planned? right) -> bool
+static DigitalBrain.Operations.OperationResult.Succeeded.operator !=(DigitalBrain.Operations.OperationResult.Succeeded? left, DigitalBrain.Operations.OperationResult.Succeeded? right) -> bool
+static DigitalBrain.Operations.OperationResult.Succeeded.operator ==(DigitalBrain.Operations.OperationResult.Succeeded? left, DigitalBrain.Operations.OperationResult.Succeeded? right) -> bool
+static DigitalBrain.Operations.OperationResult.operator !=(DigitalBrain.Operations.OperationResult? left, DigitalBrain.Operations.OperationResult? right) -> bool
+static DigitalBrain.Operations.OperationResult.operator ==(DigitalBrain.Operations.OperationResult? left, DigitalBrain.Operations.OperationResult? right) -> bool
 static DigitalBrain.RevisionedNeuron<TState>.RequireRevision(long expectedRevision, long currentRevision) -> void
 static DigitalBrain.Secret.Named(string! name) -> DigitalBrain.Secret!
 static DigitalBrain.Secret.operator !=(DigitalBrain.Secret? left, DigitalBrain.Secret? right) -> bool
@@ -481,10 +595,20 @@ virtual DigitalBrain.Neuron.AdmitSynapse(DigitalBrain.NeuronId subscriber, Syste
 virtual DigitalBrain.Neuron.OnActivate(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron.OnDeactivate(DigitalBrain.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual DigitalBrain.Neuron<TState>.OnCommitted() -> void
+virtual DigitalBrain.Operations.OperationPlan.EqualityContract.get -> System.Type!
+virtual DigitalBrain.Operations.OperationPlan.Equals(DigitalBrain.Operations.OperationPlan? other) -> bool
+virtual DigitalBrain.Operations.OperationPlan.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual DigitalBrain.Operations.OperationResult.EqualityContract.get -> System.Type!
+virtual DigitalBrain.Operations.OperationResult.Equals(DigitalBrain.Operations.OperationResult? other) -> bool
+virtual DigitalBrain.Operations.OperationResult.PrintMembers(System.Text.StringBuilder! builder) -> bool
 virtual DigitalBrain.Signal.EqualityContract.get -> System.Type!
 virtual DigitalBrain.Signal.Equals(DigitalBrain.Signal? other) -> bool
 virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~DigitalBrain.Capabilities.CapabilityConnection<TCapability>.<Clone>$() -> DigitalBrain.Capabilities.CapabilityConnection<TCapability>!
+~DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Equals(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? other) -> bool
 ~override DigitalBrain.BrainId.Equals(object obj) -> bool
 ~override DigitalBrain.Capabilities.CapabilityId.Equals(object obj) -> bool
 ~override DigitalBrain.NeuronId.Equals(object obj) -> bool
-static DigitalBrain.Invocation.RuntimeProtocol.Register(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver! resolver) -> void
+~override DigitalBrain.Operations.OperationId.Equals(object obj) -> bool
+~static DigitalBrain.Capabilities.CapabilityConnection<TCapability>.operator !=(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? left, DigitalBrain.Capabilities.CapabilityConnection<TCapability>? right) -> bool
+~static DigitalBrain.Capabilities.CapabilityConnection<TCapability>.operator ==(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? left, DigitalBrain.Capabilities.CapabilityConnection<TCapability>? right) -> bool

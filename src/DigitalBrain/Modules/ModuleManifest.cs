@@ -20,6 +20,7 @@ public sealed record ModuleManifest(
     public string? Id { get; init; }
 
     /// <summary>Reads the <c>[Module]</c> id and the public static <c>Manifest</c> property of a module class.</summary>
+    /// <exception cref="InvalidDataException">Provides or Requires lists a capability twice.</exception>
     /// <exception cref="InvalidOperationException">The type is not a module, has no <c>[Module]</c> or no static <c>Manifest</c>.</exception>
     public static ModuleManifest Of(Type moduleType)
     {
@@ -36,6 +37,20 @@ public sealed record ModuleManifest(
         {
             throw new InvalidOperationException($"{moduleType.FullName} has no public static ModuleManifest Manifest property.");
         }
+        RejectDuplicates(manifest.Provides, $"Module '{attribute.Id}' ({moduleType.FullName}) Provides");
+        RejectDuplicates(manifest.Requires, $"Module '{attribute.Id}' ({moduleType.FullName}) Requires");
         return manifest with { Id = attribute.Id };
+    }
+
+    // A requirement is a need, not a grant: nothing grants access from Requires (T-05-01-02).
+    internal static IReadOnlyList<CapabilityId> RejectDuplicates(IReadOnlyList<CapabilityId> ids, string where)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var seen = new HashSet<CapabilityId>();
+        foreach (var id in ids)
+        {
+            if (!seen.Add(id)) { throw new InvalidDataException($"{where} lists capability {id} more than once."); }
+        }
+        return ids;
     }
 }

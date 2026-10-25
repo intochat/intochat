@@ -40,4 +40,7 @@ public sealed class CapabilityAttribute(string name, int version) : Attribute
 
     /// <summary>The contract version.</summary>
     public int Version { get; } = version;
+
+    /// <summary>The typed id, <c>name@version</c>.</summary>
+    public DigitalBrain.Capabilities.CapabilityId Id => new(Name, Version);
 }
