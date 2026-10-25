@@ -23,6 +23,18 @@ public sealed class UnmarkedModule : Module
     public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
 }
 
+[Module("dup.provides")]
+public sealed class DuplicateProvidesModule : Module
+{
+    public static ModuleManifest Manifest { get; } = new([Capability.Storage.V1, Capability.Storage.V1], [], [], [], []);
+}
+
+[Module("dup.requires")]
+public sealed class DuplicateRequiresModule : Module
+{
+    public static ModuleManifest Manifest { get; } = new([], [Capability.Secrets.V1, CapabilityId.Parse("secrets@1")], [], [], []);
+}
+
 [Module("no.manifest")]
 public sealed class ManifestlessModule : Module;
 
@@ -89,6 +101,23 @@ public sealed class ModuleManifestFacts
     {
         var app = new AppManifest("notes", "Notes", "1.0.0", [typeof(SampleModule)], new AppRequirements([CapabilityId.Parse("storage@1")]));
         Assert.Equal("storage@1", Assert.Single(app.Requires.Capabilities).ToString());
+    }
+
+    [Theory]
+    [InlineData(typeof(DuplicateProvidesModule), "dup.provides", "storage@1")]
+    [InlineData(typeof(DuplicateRequiresModule), "dup.requires", "secrets@1")]
+    public void Of_rejects_duplicate_capabilities_naming_module_and_id(Type module, string id, string capability)
+    {
+        var error = Assert.Throws<InvalidDataException>(() => ModuleManifest.Of(module));
+        Assert.Contains(id, error.Message, StringComparison.Ordinal);
+        Assert.Contains(capability, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void App_requirements_reject_duplicate_capabilities()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => new AppRequirements([Capability.Storage.V1, Capability.Storage.V1]));
+        Assert.Contains("storage@1", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
