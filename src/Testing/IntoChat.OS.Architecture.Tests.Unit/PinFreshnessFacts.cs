@@ -20,6 +20,8 @@ public sealed class PinFreshnessFacts
         "OrleansAttributeOwners.json",
         "GrainInterfaceOwners.json",
         "NeuronGrainTypes.json",
+        "ObserverPathOwners.json",
+        "ModulesMissingManifest.json",
     ];
 
     [Fact]
@@ -42,6 +44,8 @@ public sealed class PinFreshnessFacts
                 new NeuronMigrationFacts().CaptureOrleansAttributeOwners();
                 new NeuronMigrationFacts().CaptureGrainInterfaceOwners();
                 new NeuronMigrationFacts().CaptureNeuronGrainTypes();
+                new ObserverPathFacts().CaptureObserverPathOwners();
+                new ModuleManifestFacts().CaptureModulesMissingManifest();
             }
             var stale = new List<string>();
             foreach (var file in Files)

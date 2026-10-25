@@ -1,0 +1,22 @@
+[
+  {
+    "File": "IntoChat.OS/Kernel/SourceSet.cs",
+    "Kind": "client-session-api",
+    "Reason": "brain.On over a source set is the client/session API; 06-07 moves the feed onto the session neuron, the API stays"
+  },
+  {
+    "File": "IntoChat.OS/Kernel/Sources.cs",
+    "Kind": "client-session-api",
+    "Reason": "registry change feed behind the client/session brain.On API"
+  },
+  {
+    "File": "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs",
+    "Kind": "client-session-api",
+    "Reason": "live signal endpoint streams brain.On to the Flutter client; 06-07 moves the feed onto the session neuron"
+  },
+  {
+    "File": "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
+    "Kind": "prompt-text",
+    "Reason": "prompt text that teaches script authors the reaction shape; not executed os code"
+  }
+]
