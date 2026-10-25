@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Machine;
 using System.Diagnostics;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

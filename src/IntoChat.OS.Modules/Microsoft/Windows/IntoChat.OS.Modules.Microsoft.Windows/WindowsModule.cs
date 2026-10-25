@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.Versioning;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Machine;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
@@ -32,12 +33,23 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<IMachineIdentity, MachineIdentity>();
+        silo.Services.TryAddSingleton<MachineIdentity>();
+        silo.Services.TryAddSingleton<IMachineIdentity>(provider => provider.GetRequiredService<MachineIdentity>());
+        silo.Services.TryAddSingleton(MachineKeyStore);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<WindowsNeuron>, WindowsActivation>());
         if (OperatingSystem.IsWindows()
             && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(silo.Configuration, IntoChatOSNames.CustodyConfigurationKey), ignoreCase: true, out var custody)
             && custody == MasterKeyCustodyKind.Tpm)
         { UseTpmCustody(silo.Services); }
+    }
+
+    // TPM custody when the provider can make keys; otherwise the master-key-sealed file next to the machine-id file,
+    // so Custody reports "file" rather than failing.
+    private static IMachineKeyStore MachineKeyStore(IServiceProvider provider)
+    {
+        if (OperatingSystem.IsWindows() && TpmMasterKeyCustody.IsAvailable()) { return new TpmMachineKeyStore(); }
+        var file = provider.GetRequiredService<MachineIdentity>().File;
+        return new FileMachineKeyStore(Path.GetDirectoryName(Path.GetFullPath(file))!, provider.GetRequiredService<IMasterKeyCustody>());
     }
 
     // The local brain key stays wrapped by the TPM. Missing hardware refuses startup.
