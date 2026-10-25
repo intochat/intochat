@@ -54,7 +54,7 @@ internal sealed class SignalPublisher(IServiceProvider services, PublishFaults f
         var streams = Streams;
         foreach (var (ns, sequence) in items)
         {
-            var stream = streams.GetStream<SignalReference>(StreamNames.For(publisher.Brain.Value, ns));
+            var stream = streams.GetStream<SignalReference>(StreamNames.ForNamespace(publisher.Brain.Value, ns));
             await stream.OnNextAsync(new SignalReference(publisher, sequence));
         }
     }

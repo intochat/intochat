@@ -112,9 +112,9 @@ public sealed class ProbeNeuron : Neuron, IProbe
 
     public Task<string> Key() => Task.FromResult(Me);
 
-    public Task<string> Caller() => Task.FromResult(((IHostedNeuronContext)Context).Caller);
+    public Task<string> Caller() => Task.FromResult(((IHostNeuronContext)Context).Caller);
 
-    public Task<string> Silo() => Task.FromResult(((IHostedNeuronContext)Context).Silo);
+    public Task<string> Silo() => Task.FromResult(((IHostNeuronContext)Context).Silo);
 
     public Task<string> AskCaller(string otherKey) => Get<IProbe>(new NeuronId(Id.Brain, "probe", otherKey)).Caller();
 }
@@ -296,7 +296,7 @@ public sealed class CounterNeuron : Neuron<CounterState>, ICounter, IRemindedNeu
     public Task Remind(string name, int dueMs, int periodMs)
         => Context.Reminders.Start(name, TimeSpan.FromMilliseconds(dueMs), TimeSpan.FromMilliseconds(periodMs));
 
-    public Task<string> Caller() => Task.FromResult(((IHostedNeuronContext)Context).Caller);
+    public Task<string> Caller() => Task.FromResult(((IHostNeuronContext)Context).Caller);
 
     public Task<string> AskCaller(string otherKey) => Get<ICounter>(new NeuronId(Id.Brain, "probe.counter", otherKey)).Caller();
 

@@ -50,7 +50,7 @@ internal sealed class OrleansInvocationSink(IGrainFactory grains, NeuronTypeRegi
 
     private void Stamp()
     {
-        if (caller is { } id) { RequestContext.Set(HostedNeuronContext.CallerKey, id.ToString()); }
-        else { RequestContext.Remove(HostedNeuronContext.CallerKey); }
+        if (caller is { } id) { RequestContext.Set(HostNeuronContext.CallerKey, id.ToString()); }
+        else { RequestContext.Remove(HostNeuronContext.CallerKey); }
     }
 }

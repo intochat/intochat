@@ -14,8 +14,9 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// dispatch each <see cref="RuntimeInvocation"/> through the one <see cref="NeuronBinder"/>. The invocation's Behavior is ignored:
 /// provenance comes from RequestContext, stamped by <see cref="OrleansInvocationSink"/>.
 /// </summary>
-internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost
+internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, IRemindable, IHostTicks
 {
+    private readonly Dictionary<string, IGrainTimer> _timers = new(StringComparer.Ordinal);
     /// <summary>The binder every host grain dispatches through; its cache also serves the interleaving predicate.</summary>
     internal static readonly NeuronBinder Binder = new();
 
@@ -34,14 +35,19 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     {
         _key = this.GetPrimaryKeyString();
         if (!NeuronId.TryParse(_key, out var id)) { throw new BindingException($"'{_key}' is not a neuron id brain/type/key."); }
-        if (!types.TryGet(id.Type, out var neuronClass)) { throw new BindingException($"No neuron class is hosted for type '{id.Type}'."); }
-        var expected = NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass));
+        if (!types.TryGetRegistration(id.Type, out var registration)) { throw new BindingException($"No neuron class is hosted for type '{id.Type}'."); }
+        var neuronClass = registration.Class;
+        var expected = NeuronTypeRegistry.GrainTypeOf(registration.Policy);
         if (expected != GrainTypeName) { throw new BindingException($"{neuronClass.FullName} is hosted by {expected}, not {GrainTypeName}."); }
         _class = neuronClass;
         var neuron = (Neuron)ActivatorUtilities.CreateInstance(ServiceProvider, neuronClass);
-        NeuronAttachment.Attach(neuron, new HostedNeuronContext(id, ServiceProvider, grains, types, ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), _deferred.Enqueue));
+        var context = new HostNeuronContext(id, this.GetGrainId(), registration, ServiceProvider, grains, types,
+            ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, _deferred.Enqueue);
+        NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, cancellationToken).ConfigureAwait(true);
         _neuron = neuron;
+        // A publisher announces its own last again, so subscribers that missed a reference catch up (04 D-01).
+        if (registration.Policy != HostPolicy.Stateless) { await context.HostState.Reannounce().ConfigureAwait(true); }
     }
 
     /// <inheritdoc />
@@ -81,6 +87,40 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     {
         var (neuron, bound) = Prepare(call);
         await foreach (var item in Binder.StreamAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
+    }
+
+    /// <inheritdoc />
+    public Task ReceiveReminder(string reminderName, TickStatus status) => Tick(reminderName, CancellationToken.None);
+
+    void IHostTicks.StartTimer(string name, TimeSpan due, TimeSpan? period)
+    {
+        if (_timers.Remove(name, out var existing)) { existing.Dispose(); }
+        _timers[name] = this.RegisterGrainTimer(static (state, ct) => state.Grain.Tick(state.Name, ct), (Grain: this, Name: name),
+            new GrainTimerCreationOptions(due, period ?? Timeout.InfiniteTimeSpan) { Interleave = false });
+    }
+
+    void IHostTicks.StopTimer(string name)
+    {
+        if (_timers.Remove(name, out var existing)) { existing.Dispose(); }
+    }
+
+    async Task IHostTicks.StartReminder(string name, TimeSpan due, TimeSpan period)
+        => _ = await this.RegisterOrUpdateReminder(name, due, period).ConfigureAwait(true);
+
+    async Task IHostTicks.StopReminder(string name)
+    {
+        if (await this.GetReminder(name).ConfigureAwait(true) is { } reminder) { await this.UnregisterReminder(reminder).ConfigureAwait(true); }
+    }
+
+    async Task<IReadOnlyList<string>> IHostTicks.ReminderNames()
+        => [.. (await this.GetReminders().ConfigureAwait(true)).Select(reminder => reminder.ReminderName)];
+
+    // A timer or reminder tick: a turn on this grain that reaches IRemindedNeuron.OnReminder, then runs deferred work.
+    private async Task Tick(string name, CancellationToken cancellationToken)
+    {
+        if (_neuron is not IRemindedNeuron reminded) { return; }
+        try { await reminded.OnReminder(name, cancellationToken).ConfigureAwait(true); }
+        finally { await Drain().ConfigureAwait(true); }
     }
 
     /// <summary>The contract <paramref name="contract"/> names on <paramref name="neuronClass"/>, or null when the class does not implement it.</summary>

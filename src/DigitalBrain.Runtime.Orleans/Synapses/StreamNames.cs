@@ -28,6 +28,14 @@ internal static class StreamNames
         return StreamId.Create(NamespacePrefix + SignalNamespace(alias), brainKey);
     }
 
+    /// <summary>The stream for one brain and one signal namespace (already cut from an alias).</summary>
+    public static StreamId ForNamespace(string brainKey, string signalNamespace)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(signalNamespace);
+        return StreamId.Create(NamespacePrefix + signalNamespace, brainKey);
+    }
+
     /// <summary>The stream for one brain and the namespace of a <c>[Signal]</c> type.</summary>
     /// <exception cref="ArgumentException">The type has no <see cref="SignalAttribute"/>.</exception>
     public static StreamId For(string brainKey, Type signalType)

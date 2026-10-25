@@ -32,6 +32,13 @@ internal sealed class BrainGrainStorage(BrainLogs logs, string? fixedBrainScope 
         return last;
     }
 
+    /// <summary>Appends the <paramref name="signals"/> of <paramref name="publisher"/> as one entry with no state change; returns its last sequence.</summary>
+    internal async Task<long> AppendSignalsAsync(string stateName, GrainId grainId, string publisher, IReadOnlyList<Signal> signals)
+        => (await Append(stateName, grainId, null, BrainRecordChange.None, [], publisher, signals)).Last;
+
+    /// <summary>The journal of the brain <paramref name="grainId"/> belongs to.</summary>
+    internal Task<BrainLog> LogOf(GrainId grainId) => Log(grainId);
+
     public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
         ArgumentNullException.ThrowIfNull(grainState);
