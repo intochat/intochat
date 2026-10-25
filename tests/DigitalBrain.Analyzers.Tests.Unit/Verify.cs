@@ -28,13 +28,23 @@ internal static class Verify<TAnalyzer> where TAnalyzer : DiagnosticAnalyzer, ne
             public abstract record Signal;
             [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class OnAttribute : System.Attribute;
         }
+        namespace DigitalBrain.Capabilities
+        {
+            public readonly record struct CapabilityId(string Name, int Major)
+            {
+                public static CapabilityId Parse(string text) => default;
+                public static bool TryParse(string? text, out CapabilityId id) { id = default; return false; }
+            }
+        }
         namespace Orleans
         {
             public sealed class GenerateSerializerAttribute : System.Attribute;
         }
         """;
 
-    internal static Task Diagnostics(string source)
+    internal static Task Diagnostics(string source) => Create(source).RunAsync(TestContext.Current.CancellationToken);
+
+    internal static CSharpAnalyzerTest<TAnalyzer, DefaultVerifier> Create(string source)
     {
         var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
         {
@@ -42,6 +52,6 @@ internal static class Verify<TAnalyzer> where TAnalyzer : DiagnosticAnalyzer, ne
             TestCode = source,
         };
         test.TestState.Sources.Add(("Stubs.cs", Stubs));
-        return test.RunAsync(TestContext.Current.CancellationToken);
+        return test;
     }
 }
