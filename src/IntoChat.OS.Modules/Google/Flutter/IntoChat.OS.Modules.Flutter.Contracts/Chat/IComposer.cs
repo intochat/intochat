@@ -1,10 +1,12 @@
-using Orleans.Concurrency;
+using DigitalBrain.Contracts;
+using DigitalBrain;
+
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // Holds input awaiting a behavior's acknowledgement, never conversation history.
-[Alias("composer"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ComposerType)]
-public interface IComposer : INeuron
+[NeuronAlias("composer"), DefaultNeuronType(UIVocabulary.ComposerType)]
+public interface IComposer
 {
     Task Follow(string chat);
     Task Edit(string context, long selectionRevision, string value);
@@ -19,8 +21,8 @@ public interface IComposer : INeuron
     Task CaptureVoice(Guid captureId, byte[] audio, string mimeType);
     Task CancelVoice(Guid captureId);
     Task CompleteVoice(Guid captureId, string? text, string? error = null);
-    [ReadOnly] Task<ComposerAudio?> ReadAudio(Guid captureId);
-    [ReadOnly] Task<ComposerState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ComposerAudio?> ReadAudio(Guid captureId);
+    [DigitalBrain.ReadOnlyCall] Task<ComposerState> Read();
 }
 
 [GenerateSerializer, Alias("ui.composer-submission")]
@@ -60,11 +62,11 @@ public sealed record ComposerState
     [Id(10)] public string? FollowedChat { get; init; }
 }
 
-[GenerateSerializer, Alias("ui.composer-changed")]
-public sealed record ComposerChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.composer-changed")]
+public sealed record ComposerChanged(string Name, long Revision) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.composer-submitted")]
-public sealed record ComposerSubmitted([property: Id(0)] string Name, [property: Id(1)] Guid RequestId) : Signal;
+[Signal("ui.composer-submitted")]
+public sealed record ComposerSubmitted(string Name, Guid RequestId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.composer-voice-captured")]
-public sealed record ComposerVoiceCaptured([property: Id(0)] string Name, [property: Id(1)] Guid CaptureId) : Signal;
+[Signal("ui.composer-voice-captured")]
+public sealed record ComposerVoiceCaptured(string Name, Guid CaptureId) : DigitalBrain.Signal;

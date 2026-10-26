@@ -14,7 +14,14 @@ namespace IntoChat.OS.Kernel;
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
 internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider services) : IChatAgentSource
 {
-    public INeuron Source(string key) => grains.GetGrain<IAgent>(key);
+    // The agent is still a grain (06-05b): the chat's synapse is admitted by its stand-in and fed the agent's signals as their
+    // plain change records.
+    public ChatAgentSubscription Subscription(string key)
+    {
+        var brain = IntoChat.OS.Framework.BrainKey.BrainOf(key);
+        return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.NeuronType, key[(brain.Length + 1)..]),
+            IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.Signals);
+    }
 
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {

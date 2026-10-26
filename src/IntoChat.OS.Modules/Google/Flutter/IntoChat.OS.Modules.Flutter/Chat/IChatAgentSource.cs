@@ -4,21 +4,26 @@ namespace IntoChat.OS.Modules.Flutter.Chat;
 // Implementations resolve one authoritative agent and translate its recoverable snapshot.
 public interface IChatAgentSource
 {
-    INeuron Source(string key);
+    // The neuron a chat following key holds a synapse on, and the [Signal] types that say it changed (06-05b: a chat is a plain
+    // neuron; any of them makes it read the snapshot again).
+    ChatAgentSubscription Subscription(string key);
     Task<ChatAgentSnapshot> Read(string key, long selectionRevision);
 }
 
+public sealed record ChatAgentSubscription(DigitalBrain.NeuronId Source, Type[] Signals);
+
 public sealed record ChatAgentSnapshot(ChatProjection Projection, ChatRunSnapshot? Run);
 
-// Infrastructure only: neither interface is a neuron or exposed to scripts/model tools.
-[Alias("ui.chat-migration"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChatType)]
-public interface IChatMigration : IGrainWithStringKey
+// Infrastructure only: neither interface is exposed to scripts/model tools.
+[DigitalBrain.Contracts.NeuronAlias("ui.chat-migration"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ChatType)]
+public interface IChatMigration
 {
     Task AdoptAgent(string agent, long generation, Guid operationId);
 }
 
-[Alias("ui.chat-reconciliation"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChatType)]
-internal interface IChatReconciliation : IGrainWithStringKey
+// The chat's reconciliation as its own one-way turn: a deferred turn would hold the call that queued it.
+[DigitalBrain.Contracts.NeuronAlias("ui.chat-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ChatType)]
+internal interface IChatReconciliation
 {
-    [Orleans.Concurrency.OneWay] Task Reconcile();
+    [DigitalBrain.OneWayCall] Task Reconcile();
 }

@@ -1,18 +1,19 @@
-using Orleans.Concurrency;
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // A recoverable UI projection. The source neuron owns the conversation and runs its turns.
-[Alias("chat"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChatType)]
-public interface IChat : INeuron
+[NeuronAlias("chat"), DefaultNeuronType(UIVocabulary.ChatType)]
+public interface IChat
 {
     Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId);
     Task Project(ChatProjection projection);
     // IDs identify immutable intents within a generation; use a new ID when the action target changes.
     Task Activate(string source, long generation, string actionId);
     Task MarkRead(string source, long generation, long version, string[] messageIds);
-    [ReadOnly] Task<ChatState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ChatState> Read();
 }
 
 [GenerateSerializer, Alias("ui.chat-projection")]
@@ -32,14 +33,14 @@ public sealed record ChatAction(
     [property: Id(2)] string Payload,
     [property: Id(3)] bool Enabled = true);
 
-[GenerateSerializer, Alias("ui.chat-action-activated")]
+[Signal("ui.chat-action-activated")]
 public sealed record ChatActionActivated(
-    [property: Id(0)] string Name,
-    [property: Id(1)] string Source,
-    [property: Id(2)] long Generation,
-    [property: Id(3)] string ActionId,
-    [property: Id(4)] string Payload,
-    [property: Id(5)] Guid RequestId) : Signal;
+    string Name,
+    string Source,
+    long Generation,
+    string ActionId,
+    string Payload,
+    Guid RequestId) : DigitalBrain.Signal;
 
 [GenerateSerializer, Alias("ui.chat-state")]
 [ExportableState]
@@ -71,14 +72,14 @@ public sealed record ChatRunSnapshot(
     [property: Id(0)] string Source, [property: Id(1)] long SelectionRevision,
     [property: Id(2)] long Version, [property: Id(3)] string RunId, [property: Id(4)] ChatRunStatus Status);
 
-[GenerateSerializer, Alias("ui.chat-selection-changed")]
-public sealed record ChatSelectionChanged([property: Id(0)] string Name, [property: Id(1)] ChatSelection Selection) : Signal;
+[Signal("ui.chat-selection-changed")]
+public sealed record ChatSelectionChanged(string Name, ChatSelection Selection) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.chat-run-changed")]
+[Signal("ui.chat-run-changed")]
 public sealed record ChatRunChanged(
-    [property: Id(0)] string Name,
-    [property: Id(1)] long ActivityRevision,
-    [property: Id(2)] ChatRunStatus? Status = null) : Signal;
+    string Name,
+    long ActivityRevision,
+    ChatRunStatus? Status = null) : DigitalBrain.Signal;
 
 [GenerateSerializer, Alias("ui.chat-read-receipt")]
 public sealed record ChatReadReceipt(
@@ -87,5 +88,5 @@ public sealed record ChatReadReceipt(
     [property: Id(2)] string MessageId,
     [property: Id(3)] string ContentHash);
 
-[GenerateSerializer, Alias("ui.chat-changed")]
-public sealed record ChatChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.chat-changed")]
+public sealed record ChatChanged(string Name, long Revision) : DigitalBrain.Signal;

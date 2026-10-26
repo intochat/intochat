@@ -1,4 +1,3 @@
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
@@ -15,3 +14,8 @@ public sealed class LiveSignalEndpointsFacts
         Assert.Equal(golden, LiveSignalEndpoints.Envelope(signal, 42, replay: true));
     }
 }
+
+// A legacy os signal of the shape the golden envelope was captured with (the chat's own ChatChanged is a plain [Signal] since
+// 06-05b; the legacy envelope still serves the signals of grain publishers).
+[GenerateSerializer, Alias("test.live-envelope-chat-changed")]
+public sealed record ChatChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;

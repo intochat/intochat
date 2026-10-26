@@ -71,9 +71,9 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         var generation = chat.Selection?.Revision ?? Math.Max(0, Math.Max(pointer.Version, Math.Max(composer.Generation, chat.Projection?.Generation ?? 0)));
         if (chat.Selection is null && chat.Projection is { } projection && projection.Source != selected) { generation = checked(generation + 1); }
         if (chat.Selection is null)
-        { await transcript.AsReference<IChatMigration>().AdoptAgent(selected, generation, SelectionOperation).WaitAsync(ct); }
+        { await scope.Neuron<IChatMigration>("apps/assistant/transcript").AdoptAgent(selected, generation, SelectionOperation).WaitAsync(ct); }
         if (composer.FollowedChat != sourceKey + "/transcript")
-        { await composerNeuron.AsReference<IComposerMigration>().AdoptFollow(sourceKey + "/transcript").WaitAsync(ct); }
+        { await scope.Neuron<IComposerMigration>("apps/assistant/composer").AdoptFollow(sourceKey + "/transcript").WaitAsync(ct); }
 
         // The old Ino forwarding ids differ from the Assistant ids. Keep both sets so retained
         // completed forwarding requests cannot create a second conversation or recording.

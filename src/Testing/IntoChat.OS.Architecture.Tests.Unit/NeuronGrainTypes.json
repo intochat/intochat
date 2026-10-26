@@ -1083,5 +1083,15 @@
     "Type": "test.chat-source",
     "Store": "cluster",
     "StateName": "state"
+  },
+  "IntoChat.OS.Modules.AI.Agents.AgentSource": {
+    "Type": "agent",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Flutter.Tests.Integration.Chat.ChatSourceTextSource": {
+    "Type": "test.chat-source",
+    "Store": null,
+    "StateName": null
   }
 }

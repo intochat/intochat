@@ -87,8 +87,6 @@
   "IntoChat.OS.Modules.Circles.InviteKeyNeuron",
   "IntoChat.OS.Modules.Circles.Tests.SharedConnectionNeuron",
   "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseNeuron",
-  "IntoChat.OS.Modules.Flutter.Chat.ChatNeuron",
-  "IntoChat.OS.Modules.Flutter.Chat.ComposerNeuron",
   "IntoChat.OS.Modules.Flutter.Compute.ComputeNeuron",
   "IntoChat.OS.Modules.Flutter.Space.SpaceNeuron",
   "IntoChat.OS.Modules.Flutter.Tests.Integration.Chat.ChatSourceTextNeuron",

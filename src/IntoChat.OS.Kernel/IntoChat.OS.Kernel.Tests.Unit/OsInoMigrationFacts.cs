@@ -20,7 +20,7 @@ public sealed class OsInoMigrationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new IdleRuntime();
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>().WithModule<IntoChat.OS.Modules.AI.AIModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();
@@ -125,7 +125,7 @@ public sealed class OsInoMigrationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new IdleRuntime();
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>().WithModule<IntoChat.OS.Modules.AI.AIModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();
@@ -160,9 +160,14 @@ public sealed class OsInoMigrationFacts
         Assert.Equal(legacyKey + "/transcript", (await composer.Read()).FollowedChat);
     }
 
-    private sealed class QuietSource(IIntoChatOSBrains brains) : IChatAgentSource
+    private sealed class QuietSource : IChatAgentSource
     {
-        public INeuron Source(string key) => brains.Grain<IntoChat.OS.Modules.AI.Agents.IAgent>(key);
+        public ChatAgentSubscription Subscription(string key)
+        {
+            var brain = key[..key.IndexOf('/', StringComparison.Ordinal)];
+            return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.NeuronType, key[(brain.Length + 1)..]),
+                IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.Signals);
+        }
         public Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
             => Task.FromResult(new ChatAgentSnapshot(new(key, selectionRevision, 0, []), null));
     }

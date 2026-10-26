@@ -19,7 +19,7 @@ public sealed class ChatBindingFacts
     public async Task SelectionReceiptsPreventReplayFromNavigatingAndRejectManualWriters()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         var chat = brain.Get<IChat>("owner/apps/test/chat");
         var firstId = Guid.NewGuid();
@@ -42,7 +42,7 @@ public sealed class ChatBindingFacts
     public async Task AgentChangesProjectNativelyAndMigrationRetainsReadReceipts()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         var key = "owner/apps/test/chat";
@@ -54,7 +54,7 @@ public sealed class ChatBindingFacts
         var snapshot = await adapter.Read(source, 7);
         await chat.Project(snapshot.Projection);
         await chat.MarkRead(source, 7, snapshot.Projection.Version, ["answer"]);
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IChatMigration>(key).AdoptAgent(source, 7, Guid.NewGuid());
+        await brain.Get<IChatMigration>(key).AdoptAgent(source, 7, Guid.NewGuid());
         Assert.Empty((await chat.Read()).UnreadMessageIds);
         await using var changed = await brain.Observe<ChatChanged>(chat, ct);
         await text.Set("new answer");
@@ -68,7 +68,7 @@ public sealed class ChatBindingFacts
     public async Task ProjectionsCarryTheModelLabelAndTheAppCard()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         var chat = brain.Get<IChat>("owner/apps/test/cards");
@@ -86,7 +86,7 @@ public sealed class ChatBindingFacts
     public async Task SameSourceSelectionKeepsTheVisibleRevisionButRetainsItsOperationReceipt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         var chat = brain.Get<IChat>("owner/apps/test/same");
         var first = await chat.SelectAgent("owner/apps/test/a", 0, Guid.NewGuid());
@@ -104,12 +104,12 @@ public sealed class ChatBindingFacts
     public async Task AdoptingAnotherProjectedSourceRequiresAStrictlyNewerGeneration()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/apps/test/adoption";
         var chat = brain.Get<IChat>(key);
         await chat.Project(new("owner/apps/test/a", 7, 1, [new("a", ChatRole.Assistant, "prior answer")]));
-        var migration = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IChatMigration>(key);
+        var migration = brain.Get<IChatMigration>(key);
         await Assert.ThrowsAsync<InvalidOperationException>(() => migration.AdoptAgent("owner/apps/test/b", 7, Guid.NewGuid()));
         await migration.AdoptAgent("owner/apps/test/b", 8, Guid.NewGuid());
         var state = await chat.Read();
@@ -137,7 +137,9 @@ public sealed class ChatBindingFacts
         public int Count;
         public Task Invoke(IOutgoingGrainCallContext context)
         {
-            if (context.InterfaceMethod?.DeclaringType?.Name == "IChatReconciliation")
+            if (context.InterfaceMethod?.DeclaringType?.Name == "IChatReconciliation"
+                || (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+                    && call.Contract.EndsWith(".IChatReconciliation", StringComparison.Ordinal)))
             { Interlocked.Increment(ref Count); }
             return context.Invoke();
         }
@@ -147,11 +149,11 @@ public sealed class ChatBindingFacts
     public async Task MigrationRetryDoesNotRewindAConversationSelectedByTheNewProgram()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/apps/test/retry";
         var chat = brain.Get<IChat>(key);
-        var migration = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IChatMigration>(key);
+        var migration = brain.Get<IChatMigration>(key);
         var operation = Guid.NewGuid();
         await migration.AdoptAgent("owner/apps/test/a", 7, operation);
         var next = await chat.SelectAgent("owner/apps/test/b", 7, Guid.NewGuid());
@@ -165,7 +167,7 @@ public sealed class ChatBindingFacts
     public async Task FailedNewSourceProjectionCannotExposeThePreviousConversationsRun()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(s => s.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/apps/test/failure";
         var chat = brain.Get<IChat>(key);
@@ -191,7 +193,11 @@ internal sealed class TestChatAgentSource(IGrainFactory grains) : IChatAgentSour
 {
     public string? FailSource { get; set; }
     public int ReadsUntilFailure { get; set; }
-    public INeuron Source(string key) => grains.GetGrain<IChatSourceText>(key);
+    public ChatAgentSubscription Subscription(string key)
+    {
+        var brain = key[..key.IndexOf('/', StringComparison.Ordinal)];
+        return new(new(new DigitalBrain.BrainId(brain), "test.chat-source", key[(brain.Length + 1)..]), [typeof(ChatSourceTextChange)]);
+    }
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         if (key == FailSource && ReadsUntilFailure-- <= 0) { throw new InvalidOperationException("Source unavailable."); }

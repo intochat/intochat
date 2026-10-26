@@ -3,15 +3,15 @@ using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using Orleans.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
-[GrainType(UIVocabulary.ChatType)]
-internal sealed partial class ChatNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ChatState> store)
-    : Neuron<ChatState>(store), IChat, INeuronObserver, IChatReconciliation, IChatMigration
+// A selection-bound chat follows its agent through a synapse (06-05b): the agent's change signals start a reconciliation that
+// reads the agent's snapshot again. A state write that changes nothing visible (a repeated selection's receipt) saves with
+// ChatReceiptRecorded, because a plain neuron saves with a signal (D-02).
+[DigitalBrain.Neuron(UIVocabulary.ChatType)]
+internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReconciliation, IChatMigration
 {
     public Task Project(ChatProjection projection)
     {
@@ -55,7 +55,7 @@ internal sealed partial class ChatNeuron(
             || previous.Run?.RunId != run?.RunId || previous.Run?.Status != run?.Status;
         var next = previous with
         {
-            Name = this.GetPrimaryKeyString(),
+            Name = FullKey,
             Revision = checked(previous.Revision + 1),
             Run = run,
             ActivityRevision = activityChanged ? checked(previous.ActivityRevision + 1) : previous.ActivityRevision,
@@ -65,8 +65,8 @@ internal sealed partial class ChatNeuron(
                 Actions = [.. projection.Actions],
             },
         };
-        await Save(next, new ChatChanged(this.GetPrimaryKeyString(), next.Revision),
-            activityChanged ? new ChatRunChanged(this.GetPrimaryKeyString(), next.ActivityRevision, run?.Status) : null);
+        await Save(next, new ChatChanged(FullKey, next.Revision),
+            activityChanged ? new ChatRunChanged(FullKey, next.ActivityRevision, run?.Status) : null);
     }
 
     public async Task Activate(string source, long generation, string actionId)
@@ -76,10 +76,10 @@ internal sealed partial class ChatNeuron(
             || (projection.Actions ?? []).FirstOrDefault(action => action.Id == actionId) is not { Enabled: true } action)
         { throw new InvalidOperationException("This chat action is no longer available."); }
         // Use the canonical payload. Streaming versions do not invalidate the same action identity.
-        var activated = new ChatActionActivated(this.GetPrimaryKeyString(), source, generation,
+        var activated = new ChatActionActivated(FullKey, source, generation,
             action.Id, action.Payload, Guid.NewGuid());
-        await PublishAsync(activated);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(activated));
+        await Publish(activated);
+        await Dispatch(UiEvent.Of(activated));
     }
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)
@@ -104,9 +104,10 @@ internal sealed partial class ChatNeuron(
             ReadReceipts = [.. previous.ReadReceipts.Where(receipt => !receipts.Any(next =>
                 next.PrincipalId == receipt.PrincipalId && next.Source == receipt.Source && next.MessageId == receipt.MessageId)), .. receipts],
         };
-        await Save(next, new ChatChanged(this.GetPrimaryKeyString(), next.Revision));
+        await Save(next, new ChatChanged(FullKey, next.Revision));
     }
 
+    [DigitalBrain.ReadOnlyCall]
     public Task<ChatState> Read()
     {
         var principal = CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null;

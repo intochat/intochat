@@ -1,25 +1,15 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Metadata;
-
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
-// The observer only queues this non-neuron turn, so a chat publishing its selection
-// never waits for the composer to call back into it.
-[Alias("ui.composer-reconciliation"), DefaultGrainType(UIVocabulary.ComposerType)]
-internal interface IComposerReconciliation : IGrainWithStringKey
+// The reaction only queues this one-way turn, so a chat publishing its selection never waits for the composer to call back
+// into it.
+[DigitalBrain.Contracts.NeuronAlias("ui.composer-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ComposerType)]
+internal interface IComposerReconciliation
 {
-    [OneWay] Task Reconcile(string chat);
+    [DigitalBrain.OneWayCall] Task Reconcile(string chat);
 }
 
-[Alias("ui.composer-migration"), DefaultGrainType(UIVocabulary.ComposerType)]
-public interface IComposerMigration : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("ui.composer-migration"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ComposerType)]
+public interface IComposerMigration
 {
     Task AdoptFollow(string chat);
-}
-
-internal sealed class ComposerActivation : IActivationHandler<ComposerNeuron>
-{
-    public Task Activated(ComposerNeuron neuron, CancellationToken cancellationToken) => neuron.ActivateFollowing();
 }

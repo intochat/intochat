@@ -21,6 +21,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />

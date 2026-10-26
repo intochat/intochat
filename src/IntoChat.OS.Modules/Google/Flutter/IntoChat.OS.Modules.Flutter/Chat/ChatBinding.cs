@@ -1,19 +1,19 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
+// A repeated selection only adds its operation receipt: a state change nothing reads as a chat change.
+[DigitalBrain.Signal("ui.chat-receipt-recorded")]
+internal sealed record ChatReceiptRecorded(string Name) : DigitalBrain.Signal;
+
 internal sealed partial class ChatNeuron
 {
-    private INeuron? _source;
-    private IWatchRenewal? _renewal;
+    // The source this activation holds its synapse on; a selection change removes the previous one (06-05b: the synapse is
+    // durable and delivers what was published while the chat was away, so no watermark or renewal is kept).
+    private DigitalBrain.NeuronId? _following;
     private bool _dirty;
     private bool _queued;
-    private bool _watchReady;
-    private long _watermark;
     private IChatAgentSource Adapter => ServiceProvider.GetRequiredService<IChatAgentSource>();
 
     public async Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
@@ -61,7 +61,7 @@ internal sealed partial class ChatNeuron
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agent);
         if (agent.Length > 512 || operationId == Guid.Empty) { throw new ArgumentException("Selection needs a bounded source and an operation ID."); }
-        if (!BrainKey.BelongsTo(agent, BrainKey.BrainOf(this.GetPrimaryKeyString())))
+        if (!BrainKey.BelongsTo(agent, Id.Brain.Value))
         { throw new UnauthorizedAccessException("A chat can only select an agent in its own brain."); }
         _ = Adapter;
     }
@@ -76,7 +76,7 @@ internal sealed partial class ChatNeuron
             && (run.Source != selected.Agent || run.SelectionRevision != selected.Revision);
         var next = previous with
         {
-            Name = this.GetPrimaryKeyString(),
+            Name = FullKey,
             Selection = selected,
             SelectionReceipts = [.. previous.SelectionReceipts, new(operationId, selected)],
             // Do not expose the old conversation/actions while the new projection is being recovered.
@@ -88,63 +88,55 @@ internal sealed partial class ChatNeuron
         };
         if (changed)
         {
-            var selectionSignal = new ChatSelectionChanged(this.GetPrimaryKeyString(), selected);
-            var changedSignal = new ChatChanged(this.GetPrimaryKeyString(), next.Revision);
+            var selectionSignal = new ChatSelectionChanged(FullKey, selected);
+            var changedSignal = new ChatChanged(FullKey, next.Revision);
             await Save(next, clearRun
-                ? [(selectionSignal, null), (changedSignal, null), (new ChatRunChanged(this.GetPrimaryKeyString(), next.ActivityRevision), null)]
-                : [(selectionSignal, null), (changedSignal, null)]);
+                ? [selectionSignal, changedSignal, new ChatRunChanged(FullKey, next.ActivityRevision)]
+                : [selectionSignal, changedSignal]);
+            // The previous agent no longer feeds this chat.
+            if (previous.Selection is { } left && left.Agent != selected.Agent) { await Unfollow(Adapter.Subscription(left.Agent).Source); }
         }
-        else { await SaveQuietly(next); }
+        else { await Save(next, new ChatReceiptRecorded(FullKey)); }
+    }
+
+    private async Task Unfollow(DigitalBrain.NeuronId source)
+    {
+        await Context.Synapses.Remove(source);
+        if (_following == source) { _following = null; }
     }
 
     internal async Task Recover()
     {
         if (Snapshot.Selection is not { } selected) { return; }
-        var next = Adapter.Source(selected.Agent);
-        if (!_watchReady || _source?.GetGrainId() != next.GetGrainId())
-        {
-            // The old lease is withdrawn first: it is the same observer, so withdrawing it after the new watch would drop that too.
-            var old = _renewal;
-            _renewal = null;
-            if (old is not null) { await old.DisposeAsync(); }
-            // Start the watermark before watching, so nothing published in between is lost.
-            _source = next;
-            _watchReady = false;
-            _watermark = await SignalPull.Head(Journal, next.GetGrainId());
-            // A reactivated source may have missed what was published meanwhile; each renewal retries a failed snapshot.
-            _renewal = await WatchRenewing(next, null, keepAlive: false, onSourceReactivated: _ => { _dirty = true; return Task.CompletedTask; }, onRenewed: Reconcile);
-            _watchReady = true;
-            _watermark = (await SignalPull.After(Journal, next.GetGrainId(), _watermark, Logger)).Watermark;
-        }
+        var subscription = Adapter.Subscription(selected.Agent);
+        if (_following is { } old && old != subscription.Source) { await Unfollow(old); }
+        // Idempotent: the source admits the synapse again on every Ensure.
+        await Context.Synapses.Ensure(subscription.Source, subscription.Signals);
+        _following = subscription.Source;
         _dirty = true;
         await Reconcile();
     }
 
-    async Task INeuronObserver.Nudge(SignalNudge nudge)
+    // Any change signal of the followed agent: the snapshot is read again, one reconciliation at a time.
+    [DigitalBrain.On]
+    public Task On(DigitalBrain.Signal changed)
     {
-        if (_source is not { } source || nudge.Publisher.Name != source.GetGrainId().ToString() || nudge.Sequence <= _watermark) { return; }
-        var (signals, watermark) = await SignalPull.After(Journal, source.GetGrainId(), _watermark, Logger);
-        if (_source?.GetGrainId() != source.GetGrainId()) { return; }
-        _watermark = watermark;
-        if (signals.Length == 0) { return; }
+        _ = changed;
         _dirty = true;
-        await QueueReconciliation();
+        return QueueReconciliation();
     }
-
-    private ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
-    private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<ChatNeuron>>();
 
     private Task QueueReconciliation()
     {
         if (!_dirty || _queued) { return Task.CompletedTask; }
         _queued = true;
-        return Defer<IChatReconciliation>(binding => binding.Reconcile());
+        return Context.Get<IChatReconciliation>(Id).Reconcile();
     }
 
     public async Task Reconcile()
     {
         _queued = false;
-        if (!_watchReady && Snapshot.Selection is not null) { await Recover(); return; }
+        if (_following is null && Snapshot.Selection is not null) { await Recover(); return; }
         if (!_dirty || Snapshot.Selection is not { } selected) { return; }
         _dirty = false;
         try
@@ -155,21 +147,16 @@ internal sealed partial class ChatNeuron
         }
         catch
         {
-            // A failed snapshot never advances the successful watermark; the renewal recovers it.
+            // A failed snapshot stays dirty; the next change signal or activation reads it again.
             _dirty = true;
             throw;
         }
     }
 
-    internal Task ActivateBinding()
+    protected override Task OnActivate(CancellationToken cancellationToken)
     {
         if (Snapshot.Selection is null) { return Task.CompletedTask; }
         _dirty = true;
-        return Defer<IChatReconciliation>(binding => binding.Reconcile());
+        return QueueReconciliation();
     }
-}
-
-internal sealed class ChatActivation : IActivationHandler<ChatNeuron>
-{
-    public Task Activated(ChatNeuron neuron, CancellationToken cancellationToken) => neuron.ActivateBinding();
 }
