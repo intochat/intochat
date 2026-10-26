@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.Mcp;
 // One MCP server reached over Streamable HTTP, keyed {brain}/mcp/{name}. Connect lists its tools and
 // registers them with the brain's tool sources; Run calls one. Credentials never live here.
 [Alias("mcp.server"), Orleans.Metadata.DefaultGrainType("mcp.server")]
-public interface IMcpServer : IToolSource
+public interface IMcpServer : ILegacyToolSource
 {
     [ResponseTimeout("00:02:00")] Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default);
     Task Disconnect(CancellationToken ct = default);

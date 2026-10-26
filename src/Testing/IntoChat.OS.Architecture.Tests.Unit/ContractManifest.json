@@ -166,7 +166,7 @@
     "IntoChat.OS.Modules.Postgres.Tables.IPostgresTableHost": "postgres.table-host",
     "IntoChat.OS.Modules.Postgres.Tables.ITableIndex": "postgres.table-index",
     "IntoChat.OS.Modules.Salesforce.ISalesforce": "salesforce",
-    "IntoChat.OS.Modules.Tools.IToolSource": "tools.source"
+    "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source"
   },
   "Contracts": {
     "IntoChat.OS.Activated": "brain.activated; Owner=0",
@@ -888,7 +888,7 @@
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWritePrepared": "salesforce.write-prepared; Preview=0",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteUncertain": "salesforce.write-uncertain; PreviewId=0",
     "IntoChat.OS.Modules.Salesforce.SoqlQuery": "salesforce.soql-query; Query=0",
-    "IntoChat.OS.Modules.Tools.IToolSource": "tools.source (not generated); ",
+    "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source (not generated); ",
     "IntoChat.OS.Modules.Tools.ToolBlob": "tools.blob; MediaType=0, Data=1, Uri=2",
     "IntoChat.OS.Modules.Tools.ToolDescriptor": "tools.descriptor; Name=0, Title=1, Description=2, InputSchema=3, ReadOnly=4",
     "IntoChat.OS.Modules.Tools.ToolResult": "tools.result; IsError=0, Text=1, Blobs=2",

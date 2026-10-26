@@ -4,7 +4,7 @@ namespace IntoChat.OS.Modules.Google.Gmail;
 
 [Alias("gmail")]
 [Orleans.Metadata.DefaultGrainType("gmail")]
-public interface IGmail : IToolSource
+public interface IGmail : ILegacyToolSource
 {
     Task<GmailInboxResult> ReadInbox(GmailInboxRequest request, CancellationToken ct = default);
     Task<GmailMessageResult> ReadMessage(GmailMessageRequest request, CancellationToken ct = default);

@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Microsoft.Playwright;
 // {brain}/pages/{name}. It runs through the IPlaywright neuron at Driver, which must be attached to the
 // page; the page answers only while it renders, so Run reports a hidden page instead of waiting on it.
 [Alias("playwright.page-tools"), Orleans.Metadata.DefaultGrainType("playwright.page-tools")]
-public interface IPageTools : IToolSource
+public interface IPageTools : ILegacyToolSource
 {
     Task<PageToolsState> Configure(PageToolsSpec spec, CancellationToken ct = default);
     [ReadOnly, AlwaysInterleave] Task<PageToolsState> Read();

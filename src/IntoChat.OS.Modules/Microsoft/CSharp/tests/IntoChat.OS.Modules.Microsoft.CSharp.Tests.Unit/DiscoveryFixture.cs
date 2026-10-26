@@ -17,7 +17,7 @@ public interface IPlainCapability
     Task<string> Capability();
 }
 
-public interface IDiscoveryBase : IntoChat.OS.Modules.Tools.IToolSource, IPlainCapability
+public interface IDiscoveryBase : IntoChat.OS.Modules.Tools.ILegacyToolSource, IPlainCapability
 {
     Task<DiscoveryAddress> Inherited(CancellationToken cancellationToken);
     Task<Verdict> Check(CancellationToken cancellationToken = default);

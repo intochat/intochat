@@ -11,7 +11,9 @@ public sealed class ToolCapabilitySource(IGrainFactory grains, IKernelView kerne
 {
     internal const int MaxTools = 200;
     internal const int MaxDescription = 1000;
-    private static readonly string ToolSource = typeof(IToolSource).FullName!;
+    // A still-legacy source is a neuron contract deriving ILegacyToolSource (R4-21(6)) and is reached as that grain; plain
+    // sources (IToolSource on a plain contract) join with plain-aware Instances (06-06d).
+    private static readonly string ToolSource = typeof(ILegacyToolSource).FullName!;
 
     public async Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
     {
@@ -24,7 +26,7 @@ public sealed class ToolCapabilitySource(IGrainFactory grains, IKernelView kerne
             {
                 ToolSet set;
                 // One source that cannot answer drops out of search; the others stay.
-                try { set = await grains.GetGrain<IToolSource>(GrainId.Create(instance.Type, instance.Key)).Tools(ct).WaitAsync(ct); }
+                try { set = await grains.GetGrain<ILegacyToolSource>(GrainId.Create(instance.Type, instance.Key)).Tools(ct).WaitAsync(ct); }
                 catch (Exception error) when (error is not OperationCanceledException) { continue; }
                 capabilities.AddRange(set.Tools.Take(MaxTools).Select(tool => Capability(instance.Key, source.Name, set.Title, tool)));
             }
