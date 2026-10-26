@@ -182,7 +182,7 @@ public sealed partial class FrameworkBoundaryFacts
         Assert.True(offenders.Length == 0, "Workflows restore through the committed nuget.config: " + string.Join(", ", offenders));
     }
 
-    [GeneratedRegex("local-feed|RestoreConfigFile", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("local" + "-feed|Restore" + "ConfigFile", RegexOptions.IgnoreCase)]
     private static partial Regex LocalFeed();
 
     // Kept from NuGetOnlyConsumptionFacts.
