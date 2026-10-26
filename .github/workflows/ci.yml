@@ -51,6 +51,10 @@ jobs:
       - name: Format code
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
 
+      # framework/ keeps the full format check it had as its own repository (06-00).
+      - name: Format framework
+        run: dotnet format framework/DigitalBrain.slnx --verify-no-changes --no-restore --verbosity minimal
+
   build:
     name: build
     runs-on: ubuntu-24.04
@@ -245,6 +249,146 @@ jobs:
           path: artifacts/trx
           retention-days: 7
 
+  # framework/ (the DigitalBrain framework, folded in 06-00) keeps its own build props, so its test output stays under
+  # framework/**/bin rather than artifacts/bin and the shard archive never sees it; these jobs carry the former
+  # digitalbrain ci: unit, analyzer, testing and runtime facts (framework-test), the e2e (framework-e2e), the template
+  # smoke (framework-template) and the DX-04 pack-and-build proof (dx04-packages).
+  framework-test:
+    name: framework-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+          - 10001:10001
+          - 10002:10002
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build framework
+        run: dotnet build framework/DigitalBrain.slnx -c Release
+
+      # CI=true makes a missing Azurite a failure in the Azure integration facts, never a skip.
+      - name: Framework unit and integration facts
+        run: |
+          for project in \
+            DigitalBrain.Tests.Unit \
+            DigitalBrain.Architecture.Tests.Unit \
+            DigitalBrain.Analyzers.Tests.Unit \
+            DigitalBrain.Testing.Tests.Unit \
+            DigitalBrain.Capabilities.Storage.Tests.Unit \
+            DigitalBrain.Capabilities.Secrets.Tests.Unit \
+            DigitalBrain.Capabilities.Identity.Tests.Unit \
+            DigitalBrain.Runtime.Orleans.Tests.Unit \
+            DigitalBrain.Runtime.Http.Tests.Unit \
+            DigitalBrain.Runtime.Orleans.Tests.Integration \
+            DigitalBrain.Runtime.Orleans.Azure.Tests.Integration; do
+            dotnet test --project "framework/tests/$project/$project.csproj" -c Release --no-build
+          done
+
+      # The Orleans-free packages stay Orleans-free, transitively.
+      - name: No Orleans in the core packages
+        run: |
+          status=0
+          for name in DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers; do
+            project="framework/src/$name/$name.csproj"
+            if dotnet list "$project" package --include-transitive | grep -i orleans; then
+              echo "::error::$name references Orleans"
+              status=1
+            fi
+          done
+          exit $status
+
+  # Framework e2e (R4-03, 04-15): one fact set on TestOS, the local and the Azurite targets. The skip guard (04-16) fails
+  # the job when any result is skipped or no report was written, so the Azurite target can never pass silently.
+  framework-e2e:
+    name: framework-e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+          - 10001:10001
+          - 10002:10002
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Framework e2e facts
+        run: dotnet test --project framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --report-xunit-trx --results-directory artifacts/e2e
+
+      - name: No skipped e2e facts
+        run: bash framework/scripts/ci/fail-on-skipped.sh artifacts/e2e
+
+  # dotnet new intochat-app / intochat-module outside the repository, from packages packed in this job.
+  framework-template:
+    name: framework-template
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack framework
+        run: |
+          dotnet pack framework/DigitalBrain.slnx -c Release -o artifacts/framework-packages
+          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/framework-packages
+
+      - name: Template smoke (local)
+        run: bash framework/scripts/ci/template-smoke.sh local "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/framework-packages"
+
+      # 08-05: dotnet new intochat-app (Notes, Foo.Bar) into a custom hive, build -warnaserror, generated baseline green, DB0024 probe.
+      - name: intochat-app template facts
+        env:
+          DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/framework-packages
+        run: dotnet test --project framework/tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj -c Release
+
+  # DX-04: a module author builds and tests with the DigitalBrain packages alone. The Drive module is copied out of the
+  # repository, its DigitalBrain ProjectReferences become PackageReferences to the packages packed here, and it builds and
+  # runs its unit facts from that folder with nuget.org plus the packed folder as the only sources. An IntoChat.* project
+  # reference fails the proof; until Drive drops its os references (module-proof job, 12-12) the script lists them as
+  # warnings and stops after the pack, and it turns strict by itself on the first commit where none remain.
+  dx04-packages:
+    name: dx04-packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack framework
+        run: dotnet pack framework/DigitalBrain.slnx -c Release -o artifacts/framework-packages
+
+      - name: Build the Drive module from the packages alone
+        run: bash scripts/dx04-drive.sh src/IntoChat.OS.Modules/Google/Drive artifacts/framework-packages "$RUNNER_TEMP/dx04"
+
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
   # shard reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
@@ -277,7 +421,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [format, build, test]
+    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -286,6 +430,7 @@ jobs:
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
           echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
+          echo "framework-test=${{ needs.framework-test.result }} framework-e2e=${{ needs.framework-e2e.result }} framework-template=${{ needs.framework-template.result }} dx04-packages=${{ needs.dx04-packages.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
@@ -321,6 +466,8 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx
 
+      # Intochat.OS.slnx holds framework/ (06-00), so DigitalBrain.* pack here with the same pre.<run> suffix and the
+      # IntoChat.OS.* dependency on DigitalBrain resolves from the same feed.
       - name: Pack prerelease packages
         run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
 
