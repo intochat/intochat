@@ -1,12 +1,14 @@
-using Orleans.Concurrency;
+using DigitalBrain.Contracts;
+using DigitalBrain;
+
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
-[Alias("view"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ViewType)]
-public interface IView : INeuron
+[NeuronAlias("view"), DefaultNeuronType(UIVocabulary.ViewType)]
+public interface IView
 {
     Task Publish(UiView view);
-    [ReadOnly] Task<UiView?> Read();
+    [DigitalBrain.ReadOnlyCall] Task<UiView?> Read();
     Task Activate(long generation, string key, string expectedAction, Guid requestId);
 }
 
@@ -59,8 +61,8 @@ public static class Ui
     public static UiNode Tab(string key, string label, string action, bool active) => new(UiNodeKind.Button, key) { Text = label, Action = action, Style = active ? UiStyle.Primary : UiStyle.Ghost };
 }
 
-[GenerateSerializer, Alias("ui.view-changed")]
-public sealed record ViewChanged([property: Id(0)] string Name, [property: Id(1)] long Generation, [property: Id(2)] long Version) : Signal;
+[Signal("ui.view-changed")]
+public sealed record ViewChanged(string Name, long Generation, long Version) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.view-action")]
-public sealed record ViewAction([property: Id(0)] string Name, [property: Id(1)] string Key, [property: Id(2)] string Action, [property: Id(3)] Guid RequestId, [property: Id(4)] long Generation) : Signal;
+[Signal("ui.view-action")]
+public sealed record ViewAction(string Name, string Key, string Action, Guid RequestId, long Generation) : DigitalBrain.Signal;

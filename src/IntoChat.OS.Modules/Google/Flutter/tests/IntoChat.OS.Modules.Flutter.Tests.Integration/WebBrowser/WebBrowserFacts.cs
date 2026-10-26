@@ -24,7 +24,7 @@ public sealed class WebBrowserFacts
         .StartAsync(TestContext.Current.CancellationToken);
 
     // The shell's edge reaches the browser grain through its connector interface, which is not a neuron contract.
-    private static IWebBrowserConnector Connector(ITestBrain brain, string name) => brain.Get<IWebBrowser>(name).AsReference<IWebBrowserConnector>();
+    private static IWebBrowserConnector Connector(ITestBrain brain, string name) => brain.Get<IWebBrowserConnector>(name);
 
     [Trait("host", "own")]
     [Fact]
@@ -51,7 +51,6 @@ public sealed class WebBrowserFacts
         var signal = await connected.NextAsync(ct: ct);
         Assert.Equal("research/browser", signal.Name);
         Assert.Equal(Session, signal.SessionId);
-        Assert.False(string.IsNullOrEmpty(signal.Publisher.Name));
         Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
     }
 
@@ -306,8 +305,8 @@ public sealed class WebBrowserFacts
     [Fact]
     public void The_script_contract_and_status_signal_do_not_expose_the_debugging_port()
     {
-        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IWebBrowserConnector)));
-        Assert.True(typeof(INeuron).IsAssignableFrom(typeof(IWebBrowser)));
+        // The connector is the shell's contract, kept out of the contracts assembly that scripts compile against.
+        Assert.NotEqual(typeof(IWebBrowser).Assembly, typeof(IWebBrowserConnector).Assembly);
         Assert.DoesNotContain(typeof(IWebBrowser).GetMethods(), method => method.Name is "Connect" or "Disconnect" or "Unavailable");
         Assert.DoesNotContain(typeof(BrowserConnected).GetProperties(), property => property.Name == "Port");
         Assert.DoesNotContain(typeof(WebBrowserState).GetProperties(), property => property.Name == "Port");
@@ -320,7 +319,7 @@ public sealed class WebBrowserFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var browser = brain.Get<IWebBrowser>("docs");
+        var browser = brain.Get<IWebBrowser>("research/docs");
         await using var nav = await brain.Observe<BrowserNavigated>(browser, ct);
         await browser.Navigate("https://learn.microsoft.com/winui", "WinUI");
         Assert.Equal("https://learn.microsoft.com/winui", (await nav.NextAsync(ct: ct)).Uri);

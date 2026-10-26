@@ -1,22 +1,21 @@
+using DigitalBrain;
 using System.Buffers;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
-[GrainType(UIVocabulary.ViewType)]
-internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ViewState> store)
-    : Neuron<ViewState>(store), IView, IRetainsSignals
+[Neuron(UIVocabulary.ViewType)]
+internal sealed class ViewNeuron
+    : UiNeuron<ViewState>, IView
 {
     public Task Publish(UiView view)
     {
         RequireWriter();
-        var next = ViewValidation.Clone(view, this.GetPrimaryKeyString());
+        var next = ViewValidation.Clone(view, FullKey);
         if (Snapshot.View is { } current)
         {
             if (next.Generation < current.Generation || next.Generation == current.Generation && next.Version < current.Version) { return Task.CompletedTask; }
@@ -26,20 +25,10 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
                 return Task.CompletedTask;
             }
         }
-        return Save(new() { View = next, Changes = Snapshot.Changes + 1 }, new ViewChanged(this.GetPrimaryKeyString(), next.Generation, next.Version));
+        return Save(new() { View = next, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next.Generation, next.Version));
     }
 
-    // The last ViewChanged, replayed to a watch opened after it (a reloaded shell would otherwise keep
-    // the view it read before the publish). Its sequence counts publications: small enough for a web client.
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-    {
-        if (signal != nameof(ViewChanged) || Snapshot.View is not { } view) { return Task.FromResult<RetainedSignal[]>([]); }
-        var sequence = Math.Max(Snapshot.Changes, 1);
-        return Task.FromResult<RetainedSignal[]>(sequence <= since ? []
-            : [new(sequence, new ViewChanged(this.GetPrimaryKeyString(), view.Generation, view.Version) { Publisher = Id })]);
-    }
-
-    [ReadOnly] public Task<UiView?> Read() => Task.FromResult(Snapshot.View is { } view ? ViewValidation.Clone(view, this.GetPrimaryKeyString()) : null);
+    [DigitalBrain.ReadOnlyCall] public Task<UiView?> Read() => Task.FromResult(Snapshot.View is { } view ? ViewValidation.Clone(view, FullKey) : null);
 
     public Task Activate(long generation, string key, string expectedAction, Guid requestId)
     {
@@ -50,7 +39,7 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
         var node = view is null ? null : Find(view.Root, key);
         if (view?.Generation != generation || node is not { Kind: UiNodeKind.Button, Enabled: true } || !string.Equals(node.Action, expectedAction, StringComparison.Ordinal))
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        return PublishAsync(new ViewAction(this.GetPrimaryKeyString(), node.Key, node.Action!, requestId, view.Generation));
+        return Publish(new ViewAction(FullKey, node.Key, node.Action!, requestId, view.Generation));
     }
 
     private static UiNode? Find(UiNode root, string key) => root.Key == key ? root : root.Children.Select(child => Find(child, key)).FirstOrDefault(node => node is not null);
@@ -58,7 +47,7 @@ internal sealed class ViewNeuron([PersistentState("state", IntoChatOSNames.Clust
     private void RequireWriter()
     {
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
-        var name = this.GetPrimaryKeyString();
+        var name = FullKey;
         if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
             (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))
         { throw new UnauthorizedAccessException("Only the owning brain and app may publish this view."); }

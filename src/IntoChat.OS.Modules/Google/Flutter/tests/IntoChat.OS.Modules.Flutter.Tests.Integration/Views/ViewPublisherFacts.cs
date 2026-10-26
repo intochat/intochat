@@ -11,7 +11,7 @@ public sealed class ViewPublisherFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var view = brain.Get<IView>("publisher");
+        var view = brain.Get<IView>("views/publisher");
         await view.Publish(new(3, 7, Ui.Text("title", "before")));
         var publisher = new ViewPublisher(view, 3);
         await publisher.Publish(Ui.Text("title", "before"));
@@ -30,7 +30,7 @@ public sealed class ViewPublisherFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var view = brain.Get<IView>("retry");
+        var view = brain.Get<IView>("views/retry");
         var publisher = new ViewPublisher(view, 1);
         await Assert.ThrowsAsync<ArgumentException>(() => publisher.Publish(Ui.Column("root", [Ui.Text("same", "a"), Ui.Text("same", "b")])));
         await publisher.Publish(Ui.Text("valid", "ok"));

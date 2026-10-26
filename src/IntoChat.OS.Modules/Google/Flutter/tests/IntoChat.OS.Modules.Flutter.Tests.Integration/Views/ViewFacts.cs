@@ -10,7 +10,7 @@ public sealed class ViewFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var view = brain.Get<IView>("views");
+        var view = brain.Get<IView>("views/views");
         Assert.Null(await view.Read());
         await view.Publish(new(1, 2, Ui.Text("title", "latest")));
         await view.Publish(new(1, 1, Ui.Text("title", "old")));
@@ -23,25 +23,21 @@ public sealed class ViewFacts(FlutterHost host)
         Assert.Equal(2, (await view.Read())!.Generation);
     }
 
-    // A watch opened after a publish (a reloaded page) still learns of it: the view retains its last
-    // ViewChanged, ordered by generation then version, and nothing for its actions.
+    // A watch opened after a publish (a reloaded page) still learns of it: the runtime retains the view's
+    // saved ViewChanged signals (R4-18), the last one naming the newest generation and version.
     [Fact]
     public async Task TheLastChangeIsRetainedForAWatchOpenedLater()
     {
-        var view = host.Brain.Get<IView>("retained");
-        var retains = view.AsReference<IRetainsSignals>();
-        Assert.Empty(await retains.Retained(nameof(ViewChanged), 0));
+        var ct = TestContext.Current.CancellationToken;
+        var view = host.Brain.Get<IView>("views/retained");
+        Assert.Empty(await host.Brain.History<ViewChanged>(view, ct));
         await view.Publish(new(1, 2, Ui.Text("title", "first")));
-        var first = Assert.Single(await retains.Retained(nameof(ViewChanged), 0));
-        Assert.Equal((1L, 2L), (((ViewChanged)first.Signal).Generation, ((ViewChanged)first.Signal).Version));
-        // Stamped like a published signal: a watch serializes its publisher.
-        Assert.EndsWith("retained", first.Signal.Publisher.Name, StringComparison.Ordinal);
+        var first = Assert.Single(await host.Brain.History<ViewChanged>(view, ct));
+        Assert.Equal((1L, 2L), (first.Generation, first.Version));
+        Assert.EndsWith("retained", first.Name, StringComparison.Ordinal);
         await view.Publish(new(2, 1, Ui.Text("title", "second")));
-        var second = Assert.Single(await retains.Retained(nameof(ViewChanged), 0));
-        Assert.True(second.Sequence > first.Sequence);
-        Assert.Equal(2L, ((ViewChanged)second.Signal).Generation);
-        Assert.Empty(await retains.Retained(nameof(ViewChanged), second.Sequence));
-        Assert.Empty(await retains.Retained(nameof(ViewAction), 0));
+        var last = (await host.Brain.History<ViewChanged>(view, ct))[^1];
+        Assert.Equal((2L, 1L), (last.Generation, last.Version));
     }
 
     [Fact]
@@ -49,7 +45,7 @@ public sealed class ViewFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var view = brain.Get<IView>("deep");
+        var view = brain.Get<IView>("views/deep");
         var root = Ui.Text("leaf", "x");
         for (var i = 0; i < 31; i++) { root = Ui.Column("level" + i, [root]); }
         await view.Publish(new(1, 1, root));
@@ -62,7 +58,7 @@ public sealed class ViewFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var view = brain.Get<IView>("actions");
+        var view = brain.Get<IView>("views/actions");
         await using var actions = await brain.Observe<ViewAction>(view, ct);
         await view.Publish(new(3, 1, Ui.Column("root", [Ui.Button("go", "Go", "navigate"), Ui.Button("off", "Off", "delete", false)])));
         await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(2, "go", "navigate", Guid.NewGuid()));
@@ -80,7 +76,7 @@ public sealed class ViewFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var view = brain.Get<IView>("kit-actions");
+        var view = brain.Get<IView>("views/kit-actions");
         await using var actions = await brain.Observe<ViewAction>(view, ct);
         await view.Publish(new(1, 1, Ui.Column("root",
         [

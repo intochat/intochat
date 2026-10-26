@@ -1,16 +1,17 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using System.Text.Json.Serialization;
 using IntoChat.OS;
-using Orleans.Concurrency;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
-[Alias("webbrowser"), Orleans.Metadata.DefaultGrainType(UIVocabulary.WebBrowserType)]
-public interface IWebBrowser : INeuron
+[NeuronAlias("webbrowser"), DefaultNeuronType(UIVocabulary.WebBrowserType)]
+public interface IWebBrowser
 {
     Task Navigate(string uri, string? title = null);
     Task Configure(string playwrightKey);
-    [ReadOnly, Alias("read")] Task<WebBrowserView> Read();
+    [DigitalBrain.ReadOnlyCall] Task<WebBrowserView> Read();
 }
 
 // The shell reads the connection by name.
@@ -41,5 +42,5 @@ public sealed class WebBrowserView
     [Id(6)] public string ActualUrl { get; set; } = "";
 }
 
-[GenerateSerializer, Alias("ui.browser-observation")]
-public sealed record BrowserObservationChanged([property: Id(0)] string Name) : Signal;
+[Signal("ui.browser-observation")]
+public sealed record BrowserObservationChanged(string Name) : DigitalBrain.Signal;

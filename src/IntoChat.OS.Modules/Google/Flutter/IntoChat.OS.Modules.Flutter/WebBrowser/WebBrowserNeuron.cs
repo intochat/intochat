@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Text.RegularExpressions;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
@@ -7,17 +8,17 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Modules.Microsoft.Playwright;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
-[GrainType(UIVocabulary.WebBrowserType), Reentrant]
-internal sealed class WebBrowserNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<WebBrowserState> store)
-    : Neuron<WebBrowserState>(store), IWebBrowser, IWebBrowserConnector
+[Neuron(UIVocabulary.WebBrowserType), DigitalBrain.Reentrant]
+internal sealed class WebBrowserNeuron
+    : UiNeuron<WebBrowserState>, IWebBrowser, IWebBrowserConnector, DigitalBrain.Spi.IRemindedNeuron
 {
     private const int ReasonClip = 200;
+    // Keeps the activation (and with it the attached session) alive while a page is attached (R4-18, ITimers keep-alive).
+    private const string KeepAlive = "session";
+    private static readonly TimeSpan KeepAliveEvery = TimeSpan.FromMinutes(5);
     private string? _session;
     private int _port;
     private BrowserConnection _connection;
@@ -26,7 +27,7 @@ internal sealed class WebBrowserNeuron(
     private long _generation;
     private Task? _connecting;
     private Task? _disconnecting;
-    private string DriverKey => Snapshot.PlaywrightKey ?? this.GetPrimaryKeyString();
+    private string DriverKey => Snapshot.PlaywrightKey ?? FullKey;
     // The browser is a plain neuron (06-06d); this neuron is still a grain and reaches it through the plain-neuron seam.
     private IPlaywright Driver => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IPlaywright>(DriverKey);
 
@@ -37,7 +38,7 @@ internal sealed class WebBrowserNeuron(
         if (_session is not null && DriverKey != playwrightKey)
         { throw new InvalidOperationException("Disconnect the browser before changing its driver."); }
         var current = Snapshot;
-        await SaveQuietly(new() { Name = current.Name, Version = current.Version, Uri = current.Uri, Title = current.Title, PlaywrightKey = playwrightKey });
+        await Save(new() { Name = current.Name, Version = current.Version, Uri = current.Uri, Title = current.Title, PlaywrightKey = playwrightKey }, new BrowserConfigured(FullKey, playwrightKey));
     }
 
     public Task Connect(int port, string sessionId)
@@ -56,7 +57,7 @@ internal sealed class WebBrowserNeuron(
         _session = sessionId;
         _port = port;
         if (!repeated) { await Observe(BrowserConnection.Waiting, ""); }
-        DelayDeactivation(Timeout.InfiniteTimeSpan);
+        Context.Timers.Start(KeepAlive, KeepAliveEvery, KeepAliveEvery, keepAlive: true);
         try
         {
             if (repeated && (await Driver.Read()).Ready) { return; }
@@ -70,9 +71,9 @@ internal sealed class WebBrowserNeuron(
                 _session = null;
                 _port = 0;
                 await Observe(BrowserConnection.Unavailable, error.Message);
-                DelayDeactivation(TimeSpan.Zero);
+                Context.Timers.Stop(KeepAlive);
                 if (generation == _generation)
-                { await Announce(new BrowserDisconnected(this.GetPrimaryKeyString(), sessionId)); }
+                { await Announce(new BrowserDisconnected(FullKey, sessionId)); }
             }
             throw;
         }
@@ -81,7 +82,7 @@ internal sealed class WebBrowserNeuron(
         await Observe(BrowserConnection.Attached, "");
         await Show(Snapshot.Uri);
         if (generation == _generation)
-        { await Announce(new BrowserConnected(this.GetPrimaryKeyString(), sessionId)); }
+        { await Announce(new BrowserConnected(FullKey, sessionId)); }
     }
 
     // The neuron's Uri is what the attached page shows; an empty Uri leaves the page to its driver.
@@ -121,9 +122,9 @@ internal sealed class WebBrowserNeuron(
         _session = null;
         _port = 0;
         await Observe(BrowserConnection.Waiting, "");
-        DelayDeactivation(TimeSpan.Zero);
+        Context.Timers.Stop(KeepAlive);
         if (generation == _generation)
-        { await Announce(new BrowserDisconnected(this.GetPrimaryKeyString(), sessionId)); }
+        { await Announce(new BrowserDisconnected(FullKey, sessionId)); }
     }
 
     public async Task Unavailable(string reason)
@@ -142,16 +143,18 @@ internal sealed class WebBrowserNeuron(
     }
 
     private async Task Review() =>
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString())
-            .Dispatch(UiEvent.Of(new BrowserObservationChanged(this.GetPrimaryKeyString())));
+        await Dispatch(UiEvent.Of(new BrowserObservationChanged(FullKey)));
 
-    private async Task Announce(Signal signal)
+    private async Task Announce(DigitalBrain.Signal signal)
     {
-        await PublishAsync(signal);
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(signal));
+        await Publish(signal);
+        await Dispatch(UiEvent.Of(signal));
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    // The keep-alive tick has nothing to do: holding the activation is its whole purpose.
+    public Task OnReminder(string name, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (_session is { } session)
         {
@@ -162,7 +165,6 @@ internal sealed class WebBrowserNeuron(
                 ServiceProvider.GetRequiredService<ILogger<WebBrowserNeuron>>().LogSwallowed(error, "detaching the driver session while deactivating");
             }
         }
-        await base.OnDeactivateAsync(reason, cancellationToken);
     }
 
     private static void ValidateSession(string sessionId)
@@ -181,20 +183,20 @@ internal sealed class WebBrowserNeuron(
         }
 
         var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
+        next.Name = FullKey;
         next.Version++;
         next.Uri = parsed.AbsoluteUri;
         next.Title = string.IsNullOrWhiteSpace(title) ? parsed.Host : title.Trim();
-        var navigated = new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri);
+        var navigated = new BrowserNavigated(FullKey, next.Uri);
         await Save(next, navigated);
         if (_session is not null) { await Show(next.Uri); }
-        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(UiEvent.Of(navigated));
+        await Dispatch(UiEvent.Of(navigated));
     }
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<WebBrowserView> Read() => Task.FromResult(new WebBrowserView
     {
-        Name = this.GetPrimaryKeyString(),
+        Name = FullKey,
         Version = Snapshot.Version,
         Uri = Snapshot.Uri,
         Title = Snapshot.Title,

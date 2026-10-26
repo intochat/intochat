@@ -159,7 +159,7 @@ internal static class AppUiEndpoints
                     }
                     break;
                 case UIVocabulary.WebBrowserType:
-                    var browser = grains.GetGrain<IWebBrowserConnector>(input.Name);
+                    var browser = brain.Get<IWebBrowserConnector>(input.Name);
                     if (input.Action == "unavailable")
                     {
                         await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);

@@ -94,8 +94,6 @@
   "IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace.StubRuntime",
   "IntoChat.OS.Modules.Flutter.UiBindingNeuron",
   "IntoChat.OS.Modules.Flutter.Viewport.ViewportNeuron",
-  "IntoChat.OS.Modules.Flutter.Views.ViewNeuron",
-  "IntoChat.OS.Modules.Flutter.WebBrowser.WebBrowserNeuron",
   "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsNeuron",
   "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceNeuron",
   "IntoChat.OS.Modules.Google.Drive.DriveNeuron",
