@@ -13,7 +13,7 @@ public sealed class CircleServerBoundaryFacts
     {
         var project = Repository.ProjectNamed(Module).Path;
         var projects = Repository.References(project)
-            .Where(reference => !reference.EndsWith(".Contracts", StringComparison.Ordinal))
+            .Where(reference => !reference.EndsWith(".Contracts", StringComparison.Ordinal) && !reference.StartsWith("DigitalBrain", StringComparison.Ordinal))
             .ToArray();
         var packages = Repository.PackageReferences(project)
             .Where(package => !package.StartsWith("DigitalBrain", StringComparison.Ordinal) && !ThirdPartyPackages.Contains(package))

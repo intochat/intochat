@@ -77,7 +77,8 @@ public sealed partial class RuntimeBoundaryFacts
 
     internal static Dictionary<string, string[]> OrleansReferences()
         => Repository.Projects.Values
-            .Select(project => (project.Name, Packages: Repository.PackageReferences(project.Path).Where(IsOrleansPackage).Distinct().Order(StringComparer.Ordinal).ToArray()))
+            // DigitalBrain.Runtime.Orleans* is referenced by project since framework/ folded in (06-00); it counts as before.
+            .Select(project => (project.Name, Packages: Repository.PackageReferences(project.Path).Concat(Repository.References(project.Path).Where(reference => reference.StartsWith("DigitalBrain.", StringComparison.Ordinal))).Where(IsOrleansPackage).Distinct().Order(StringComparer.Ordinal).ToArray()))
             .Where(project => project.Packages.Length > 0)
             .ToDictionary(project => project.Name, project => project.Packages, StringComparer.Ordinal);
 

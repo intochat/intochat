@@ -89,6 +89,8 @@ public sealed class RetiredKeyFacts
         return Directory.EnumerateFiles(Repository.Root, "*", SearchOption.AllDirectories)
             .Where(path => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             .Where(path => !skipped.Any(segment => path.Contains(segment, StringComparison.OrdinalIgnoreCase)))
+            // framework/ (06-00) is not configured by IntoChatOS keys; its own topology facts may name retired os keys to reject them.
+            .Where(path => !path.StartsWith(Repository.FrameworkRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             .Where(path => !Path.GetFileName(path).StartsWith(nameof(LegacyConfigurationGuard), StringComparison.Ordinal)
                 && Path.GetFileName(path) != nameof(RetiredKeyFacts) + ".cs"
                 // The gitleaks baseline quotes historical commit messages; it is a record of history, not configuration.
