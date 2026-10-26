@@ -14,7 +14,8 @@ public sealed partial class CollectionCompatibilityFacts
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
-        Assert.Equal(46, samples.Length);
+        // 06-06d: CSharpFileState is plain JSON state (clean break); its Orleans sample went.
+        Assert.Equal(45, samples.Length);
         Assert.All(samples, sample =>
         {
             var value = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload));
@@ -37,14 +38,14 @@ public sealed partial class CollectionCompatibilityFacts
         string[] migrated =
         [
             "IntoChat.OS.Modules.Apps.AppState", "IntoChat.OS.Modules.Apps.AppVersionRecord", "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsState",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileState", "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState",
             "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramAssignment",
         ];
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
         var covered = samples.Where(sample => migrated.Contains(sample.Type, StringComparer.Ordinal)).ToArray();
-        Assert.Equal(10, covered.Length);
+        Assert.Equal(9, covered.Length);
         Assert.All(covered, sample =>
         {
             var older = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload))!;

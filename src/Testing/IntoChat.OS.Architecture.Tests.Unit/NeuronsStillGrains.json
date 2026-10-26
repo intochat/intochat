@@ -105,7 +105,6 @@
   "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateQueueNeuron",
   "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentNeuron",
   "IntoChat.OS.Modules.Microsoft.Azure.AzureNeuron",
-  "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileNeuron",
   "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron",
   "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.ConnectionProbe",

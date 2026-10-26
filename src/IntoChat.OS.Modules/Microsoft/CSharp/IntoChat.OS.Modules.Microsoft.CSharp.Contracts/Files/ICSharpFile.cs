@@ -1,12 +1,12 @@
-using IntoChat.OS;
-using Orleans.Metadata;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // A C# behavior as a neuron: its source and settings. Start and Swap compile it and hand it to the
 // brain's runtime, which runs it in the brain's sandbox session; they return once that is recorded.
-[Alias("microsoft.csharp.file"), DefaultGrainType("microsoft.csharp.file")]
-public interface ICSharpFile : INeuron
+// A plain contract since 06-06d; the kernel lists files through its instance directory.
+[NeuronAlias("microsoft.csharp.file"), DefaultNeuronType("microsoft.csharp.file")]
+public interface ICSharpFile
 {
     Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default);
     // The readable name and purpose of a file that exists (a never-written key is refused). A null or

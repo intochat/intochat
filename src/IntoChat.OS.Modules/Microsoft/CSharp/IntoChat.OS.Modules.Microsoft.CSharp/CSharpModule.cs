@@ -31,14 +31,15 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
-    // R4-04: what the module needs from its host. Its neurons are still grains (06-06b: the runtime, its runs and files wait
-    // for plain-aware Instances and the legacy publishers); its registrations stay in Configure until the Framework leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<CSharpOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("csharp")))],
-        Secrets: []);
+    internal const string ManifestName = "csharp";
+
+    // R4-04: what the module needs from its host (CSharpNeurons). The runtime and its runs are still grains (06-06b: they wait
+    // for the legacy publishers, 06-08); C# files are plain (06-06d). The grain registrations stay in Configure until the
+    // Framework leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest => CSharpNeurons.Manifest;
+
+    // CSharpFileNeuron runs on the runtime's host grains.
+    public override Type? Neurons => typeof(CSharpNeurons);
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
@@ -98,4 +99,16 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         endpoints.MapRuntimeEdge();
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
     }
+}
+
+// The DigitalBrain module of CSharp (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module(CSharpModule.ManifestName)]
+public sealed class CSharpNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<CSharpOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId(CSharpModule.ManifestName)))],
+        Secrets: []);
 }

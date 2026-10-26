@@ -294,13 +294,6 @@
     "Expected": "[{\"IntentId\":\"intent-1\",\"WorkspaceId\":\"workspace-1\",\"Message\":\"it broke\",\"ReportedAt\":\"1970-01-01T00:00:00+00:00\"},{\"IntentId\":\"intent-2\",\"WorkspaceId\":\"workspace-2\",\"Message\":\"it broke again\",\"ReportedAt\":\"1970-01-01T00:00:00+00:00\"}]"
   },
   {
-    "Type": "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileState",
-    "Member": "Settings",
-    "Representation": "dictionary",
-    "Payload": "MAGmhA8QN21pY3Jvc29mdC5jc2hhcnAuZmlsZS1zdGF0ZehAASEwATEs1C4dU3RyaW5nQ29tcGFyZXIAAwEB4AEFQQthbHBoYUAHb25lQAliZXRhQAd0d2/gwQEBAcEBwQXBBcEB4A==",
-    "Expected": "{\"alpha\":\"one\",\"beta\":\"two\"}"
-  },
-  {
     "Type": "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState",
     "Member": "Initialized",
     "Representation": "dictionary",
