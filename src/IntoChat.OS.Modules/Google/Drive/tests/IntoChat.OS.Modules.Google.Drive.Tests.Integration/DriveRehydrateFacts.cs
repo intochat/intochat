@@ -24,7 +24,7 @@ public sealed class DriveRehydrateFacts
         await brain.RestartAsync(ct);
 
         using var caller = brain.Owner.AsCaller();
-        var connection = Assert.Single(await brain.Get<IConnectionRequests>(brain.Owner.BrainId).ListConnections(), item => item.Neuron == key);
+        var connection = Assert.Single(await brain.Get<IConnectionRequests>(IConnectionRequests.Key(brain.Owner.BrainId)).ListConnections(), item => item.Neuron == key);
         Assert.Equal("user@gmail.com", connection.Account);
         var top = await brain.Get<IStorage>(key).List("root", ct);
         Assert.Equal(["Notes", "Plan"], top.Select(entry => entry.Name));

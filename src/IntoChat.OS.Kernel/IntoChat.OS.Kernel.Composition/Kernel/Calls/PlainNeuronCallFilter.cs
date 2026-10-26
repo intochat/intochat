@@ -23,9 +23,9 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
         if (context.Grain is not INeuronHost || !CallerContextStamper.TryGet(out var caller)
             || context.Request.GetArgumentCount() == 0 || context.Request.GetArgument(0) is not RuntimeInvocation call)
         { await context.Invoke(); return; }
-        // A module-internal contract (ISharedCardReader) is plumbing no edge can name, as a grain's own non-INeuron interface
-        // was: the module authorizes before it calls.
-        if (LegacyGrainSink.ContractOf(call.Contract) is { IsVisible: false }) { await context.Invoke(); return; }
+        // A module-internal contract (ISharedCardReader, or a public one marked [Internal] as a whole such as the connection index,
+        // 06-08) is plumbing no edge can name, as a grain's own non-INeuron interface was: the module authorizes before it calls.
+        if (IsPlumbing(call)) { await context.Invoke(); return; }
 
         var id = global::DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!);
         // As for grains (NeuronCallFilter): a module service calling through an injected client after leaving a turn, or any call
@@ -55,7 +55,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     /// <exception cref="UnauthorizedAccessException">The policy refuses the call.</exception>
     internal static async Task Authorize(ICallFilter filter, ILogger logger, CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call)
     {
-        if (LegacyGrainSink.ContractOf(call.Contract) is { IsVisible: false }) { return; }
+        if (IsPlumbing(call)) { return; }
         var (scope, isPublic) = Classify(caller, id, call);
         // The grain id the neuron had as a grain, so policy stages read the same target either way.
         var target = $"{id.Type}/{id.Brain.Value}/{id.Key}";
@@ -75,6 +75,11 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
             throw new UnauthorizedAccessException($"{decision.Explanation} (target {id.Type}, operation {call.Method})");
         }
     }
+
+    // Module plumbing: a contract no edge can name, because it is not public or is [Internal] as a whole (the script catalog and the
+    // neuron surface leave such contracts out, CompiledTypes).
+    private static bool IsPlumbing(RuntimeInvocation call)
+        => LegacyGrainSink.ContractOf(call.Contract) is { } contract && (!contract.IsVisible || contract.IsDefined(typeof(InternalAttribute), inherit: false));
 
     // The method's access attribute wins over its contract's; null is the owner rule.
     private static AccessAttribute? Policy(RuntimeInvocation call) => Policies.GetOrAdd((call.Contract, call.Method, call.Arguments.Length), static key =>

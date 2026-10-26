@@ -361,7 +361,7 @@ public sealed class SelfImproveAvailabilityFacts
             Calls.Enqueue(call);
             if (call.Contract == typeof(IConnectionRequests).FullName && call.Method == nameof(IConnectionRequests.ListKinds))
             {
-                Assert.Equal("fixture-brain", call.Key);
+                Assert.Equal(IConnectionRequests.Key("fixture-brain"), call.Key);
                 var callback = call.Behavior.EndsWith("/healthy.cs", StringComparison.Ordinal) || call.Behavior.EndsWith("/verified.cs", StringComparison.Ordinal);
                 if (callback && !Available) { UnavailableCallbacks.TryAdd(call.Behavior, 0); }
                 if (callback && PauseCallbackDiscovery) { await ResumeCallbacks.Task.WaitAsync(cancellationToken); }

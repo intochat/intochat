@@ -6,12 +6,13 @@ using IntoChat.OS.Connections.Contracts;
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // One index per TableOwner: which tables the app defined, and whether its storage is retired.
-[Alias("postgres.table-index")]
-public interface ITableIndex : IGrainWithStringKey
+// A plain neuron (06-08), keyed by the owner "{brain}/tables/{app}"; TableLifecycleGuard admits its callers.
+[DigitalBrain.Contracts.NeuronAlias("postgres.table-index"), DigitalBrain.Contracts.DefaultNeuronType(TableIndexNeuron.GrainType)]
+public interface ITableIndex
 {
-    [Orleans.Concurrency.ReadOnly] Task<string[]> ReadTables();
-    [Orleans.Concurrency.AlwaysInterleave] Task Register(string tableId);
-    [Orleans.Concurrency.AlwaysInterleave] Task RequireOpen();
+    [DigitalBrain.ReadOnlyCall] Task<string[]> ReadTables();
+    [DigitalBrain.Interleaves] Task Register(string tableId);
+    [DigitalBrain.Interleaves] Task RequireOpen();
     Task Retire();
     Task Reopen();
 }

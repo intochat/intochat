@@ -13,29 +13,26 @@ namespace IntoChat.OS.Modules.Circles;
 // shared into it and a share of its creator's compute. A member's own brain creates and lists its circles.
 public sealed partial class CirclesModule() : Module(new ModuleId("circles")), IHttpModule
 {
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [],
-        Secrets: []);
+    // R4-04: what the module needs from its host (CirclesNeurons carries it).
+    public static DigitalBrain.ModuleManifest Manifest => CirclesNeurons.Manifest;
 
     public override System.Reflection.Assembly? Contracts => typeof(ICircle).Assembly;
+
+    // 06-08: the circle, its chat and invites, the factory and the invite code index are plain neurons.
+    public override Type? Neurons => typeof(CirclesNeurons);
 
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         // Joining precedes membership. Only this invitation-checked operation is reachable here;
         // ordinary circle routes still require membership before entering the brain.
-        endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IGrainFactory grains) =>
+        endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IntoChat.OS.Runtime.IPlainNeurons plain) =>
         {
             if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
             { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.BadRequest(); }
             CallerContextStamper.Stamp(caller with { BrainId = brainId });
-            try { return Results.Ok(await grains.GetGrain<ICircle>(ICircle.Key(brainId)).Accept()); }
+            try { return Results.Ok(await plain.Get<ICircle>(ICircle.Key(brainId)).Accept()); }
             catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException)
             { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             finally { CallerContextStamper.Stamp(caller); }
@@ -52,4 +49,11 @@ public sealed partial class CirclesModule() : Module(new ModuleId("circles")), I
         silo.Services.AddSingleton<CircleBirth>();
         silo.Services.AddSingleton<ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
     }
+}
+
+// The DigitalBrain module of the Circles module's plain neurons (06-08).
+[DigitalBrain.Module("circles")]
+public sealed class CirclesNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

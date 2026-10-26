@@ -1,28 +1,27 @@
 using System.Text.RegularExpressions;
-using Orleans.Metadata;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Circles;
 
-[GenerateSerializer, Alias("circles.state")]
 public sealed record CircleState(
-    [property: Id(0)] string Name,
+    string Name,
     // The account that created the circle and pays its compute.
-    [property: Id(1)] string Creator,
+    string Creator,
     // Account ids.
-    [property: Id(2)] string[] Members,
+    string[] Members,
     // Account ids.
-    [property: Id(4)] string[] Invited,
-    [property: Id(5)] string[] SharedApps,
-    [property: Id(6)] int ComputeSharePercent,
-    [property: Id(8)] long Version);
+    string[] Invited,
+    string[] SharedApps,
+    int ComputeSharePercent,
+    long Version);
 
 // T26-1: a circle is a brain of kind Circle; this is its core neuron `{circle}/circle`. Members are accounts, recorded
 // as memberships of the circle brain. Invite
 // and Accept are a person's, on the /brains/{circle} route; a script is refused them (R126).
-// The alias and grain type literals must equal IntoChat.OS.Connections.CircleGrainType.Name (a Circles fact asserts it).
-[Alias("circles.circle"), DefaultGrainType("circles.circle")]
-public interface ICircle : INeuron, IntoChat.OS.Modules.Flutter.IUiEventHandler
+// The alias and neuron type literals must equal IntoChat.OS.Connections.CircleGrainType.Name (a Circles fact asserts it).
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("circles.circle"), DigitalBrain.Contracts.DefaultNeuronType("circles.circle")]
+public interface ICircle : IntoChat.OS.Modules.Flutter.IUiEventHandler
 {
     const int MaxComputeSharePercent = 25;
 
@@ -35,7 +34,7 @@ public interface ICircle : INeuron, IntoChat.OS.Modules.Flutter.IUiEventHandler
     // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
     // sharer's connection, reached only through the binding recorded on it (R134).
     Task Share(string appName, string[] connectionIds);
-    [ResponseTimeout("00:10:00")] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
+    [DigitalBrain.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();

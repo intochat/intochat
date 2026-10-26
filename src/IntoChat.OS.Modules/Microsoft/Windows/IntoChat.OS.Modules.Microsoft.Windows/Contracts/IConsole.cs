@@ -1,14 +1,14 @@
 using System.ComponentModel;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // cmd.exe on one Windows PC, keyed {connectionKey}/console; the working directory must be inside an allowed root.
-[Alias("windows.console"), Orleans.Metadata.DefaultGrainType("windows.console")]
-public interface IConsole : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("windows.console"), DigitalBrain.Contracts.DefaultNeuronType("windows.console")]
+public interface IConsole
 {
     [Description("Run one cmd.exe command line on this Windows machine and return its exit code, standard output and standard error. workingDirectory defaults to the first allowed root.")]
-    [AlwaysInterleave, ResponseTimeout("00:05:00")]
+    [DigitalBrain.Interleaves, DigitalBrain.CallTimeout(300_000)]
     Task<CommandResult> Run(string command, string? workingDirectory = null, int timeoutSeconds = 60, CancellationToken cancellationToken = default);
 }
 

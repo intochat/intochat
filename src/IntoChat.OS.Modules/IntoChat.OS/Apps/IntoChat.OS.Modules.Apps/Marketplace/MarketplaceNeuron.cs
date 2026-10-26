@@ -1,5 +1,4 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Marketplace;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -9,8 +8,9 @@ namespace IntoChat.OS.Modules.Apps;
 // listings onto the platform's records. Reads are public; writes are checked by
 // MarketplaceWriteGuard against the calling app, then signed by the machine for the account that
 // owns the listing's source brain.
-[GrainType("apps.marketplace")]
-internal sealed class MarketplaceNeuron(IMarketplaceClient catalog) : Neuron, IMarketplace
+// A plain neuron (06-08).
+[DigitalBrain.Neuron("apps.marketplace")]
+internal sealed class MarketplaceNeuron(IMarketplaceClient catalog) : DigitalBrain.Neuron, IMarketplace
 {
     public async Task<MarketplaceListing[]> List() => [.. (await catalog.List()).Select(Listing)];
 

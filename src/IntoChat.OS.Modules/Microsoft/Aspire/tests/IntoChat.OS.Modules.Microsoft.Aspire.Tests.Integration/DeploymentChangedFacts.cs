@@ -15,10 +15,10 @@ public sealed class DeploymentChangedFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
-        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
+        // The activation's first sample is journaled (06-08: a plain neuron's opening signal is read from the brain's log).
         await grain.Read();
-        var first = await changes.NextAsync(ct: ct);
+        var first = Assert.Single(await brain.History<DeploymentChanged>(grain, ct));
 
         Assert.Equal(("Steady", "base000"), (first.Stage, first.Sha));
         Assert.Equal("Active", Assert.Single(first.Silos).State);
@@ -31,10 +31,10 @@ public sealed class DeploymentChangedFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
-        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
-
         await grain.Read();
-        await changes.NextAsync(ct: ct);
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await Task.Delay(Sampling * 5, ct);
+        Assert.Single(await brain.History<DeploymentChanged>(grain, ct));
         await grain.Restart("sha0001");
         var next = await changes.NextAsync(ct: ct);
 
@@ -48,13 +48,13 @@ public sealed class DeploymentChangedFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
-        await using var early = await brain.Observe<DeploymentChanged>(grain, ct);
         await grain.Read();
-        var published = await early.NextAsync(ct: ct);
+        var published = Assert.Single(await brain.History<DeploymentChanged>(grain, ct));
+        await grain.Restart("sha0001");
 
-        var retained = await grain.AsReference<IRetainsSignals>().Retained(nameof(DeploymentChanged), 0);
-
-        var last = Assert.IsType<DeploymentChanged>(Assert.Single(retained).Signal);
+        // The runtime keeps the published signal in the brain's log, which seeds a later reader (06-08).
+        var last = (await brain.History<DeploymentChanged>(grain, ct))[^1];
         Assert.Equal(published.Silos, last.Silos);
+        Assert.Equal(nameof(DeploymentStage.Restarting), last.Stage);
     }
 }

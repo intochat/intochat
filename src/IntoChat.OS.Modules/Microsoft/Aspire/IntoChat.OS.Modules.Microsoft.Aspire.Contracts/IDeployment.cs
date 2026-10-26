@@ -1,6 +1,4 @@
 using IntoChat.OS;
-using Orleans.Concurrency;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
@@ -15,11 +13,12 @@ public sealed record DeploymentSnapshot(
     [property: Id(3)] string[] Remaining,
     [property: Id(4)] string? Failure);
 
-[Alias("aspire.deployment"), DefaultGrainType("aspire.deployment")]
-public interface IDeployment : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("aspire.deployment"), DigitalBrain.Contracts.DefaultNeuronType("aspire.deployment")]
+public interface IDeployment
 {
-    [ReadOnly, AlwaysInterleave] Task<DeploymentSnapshot> Read();
-    [ResponseTimeout("00:10:00")] Task<DeploymentSnapshot> Restart(string sha);
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<DeploymentSnapshot> Read();
+    [DigitalBrain.CallTimeout(600_000)] Task<DeploymentSnapshot> Restart(string sha);
     // Instance by instance onto a compatible build: the MCP clients, then the silos, the one running the roll last.
     // Answers once the roll is under way; its end is DeploymentChanged(Steady): on sha, or back on the previous build
     // with the Failure that sent it back, which Read() reports. Callers follow a roll through Read()/DeploymentChanged and never resend Roll

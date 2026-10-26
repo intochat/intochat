@@ -30,7 +30,22 @@ public sealed class ExportableStateFacts
     // decided all the same. The runtime has one state per neuron, labelled "state" here.
     private static IEnumerable<(Type State, string Name)> PlainStates() => ProductionArchitecture.Types
         .Where(type => !type.IsAbstract && !type.ContainsGenericParameters)
-        .Select(PlainStateOf).OfType<Type>().Select(state => (state, "state"));
+        .Select(PlainStateOf).OfType<Type>()
+        .Concat(RawPlainStates.Select(name => Assert.Single(ProductionArchitecture.Types, type => type.FullName == name)))
+        .Select(state => (state, "state"));
+
+    // Plain neurons that keep bookkeeping state through Context.State with no signal (06-08: a quiet step of a roll, the table
+    // and connection indexes) derive DigitalBrain.Neuron, not Neuron<TState>, so their state types are named here.
+    private static readonly string[] RawPlainStates =
+    [
+        "IntoChat.OS.Authority.Connections.ConnectionIndexState",
+        "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentState",
+        "IntoChat.OS.Modules.Circles.CircleFactoryRecord",
+        "IntoChat.OS.Modules.Circles.CircleInvitesRecord",
+        "IntoChat.OS.Modules.Circles.InviteCodeRecord",
+        "IntoChat.OS.Modules.Circles.InviteKeyRecord",
+        "IntoChat.OS.Modules.Postgres.Tables.TableIndexState",
+    ];
 
     private static Type? PlainStateOf(Type type)
     {

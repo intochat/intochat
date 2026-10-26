@@ -21,7 +21,7 @@ static class Store
     }
 
     public static async Task<ConnectionSummary[]> Connections(IntoChatOSConnection brain) =>
-        (await brain.Get<IConnectionRequests>(Scope(brain)).ListConnections())
+        (await brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain))).ListConnections())
             .Where(item => item.Capabilities.Contains(IStorage.Capability)).OrderBy(item => item.Kind).ThenBy(item => item.Id).ToArray();
 
     static IStorage Of(IntoChatOSConnection brain, string connection) => brain.Get<IStorage>(connection);
@@ -30,7 +30,7 @@ static class Store
     {
         try
         {
-            var kinds = await brain.Get<IConnectionRequests>(Scope(brain)).ListKinds();
+            var kinds = await brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain))).ListKinds();
             if (kinds.FirstOrDefault(kind => kind.Id == connection.Kind) is { } kind) { return kind.DisplayName; }
         }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }

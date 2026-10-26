@@ -66,7 +66,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     private async Task<GalleryEntry[]> Connections()
     {
         ConnectorOffer[] offers;
-        try { offers = await Context.Services.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers(); }
+        try { offers = await Context.Services.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(IConnectionRequests.Key(Scope)).ListOffers(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             logger.LogWarning(error, "The gallery could not read the connection catalog of {Brain}; it shows apps only.", Scope);

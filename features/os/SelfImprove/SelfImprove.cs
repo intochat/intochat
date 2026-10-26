@@ -16,7 +16,7 @@ public static class SelfImprove
     public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
 
     public static async Task<bool> IsAvailableAsync(IntoChatOSConnection brain)
-        => (await brain.Get<IConnectionRequests>(Scope(brain)).ListKinds()).Any(kind => kind.Id == "aspire");
+        => (await brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain))).ListKinds()).Any(kind => kind.Id == "aspire");
 
     public static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 

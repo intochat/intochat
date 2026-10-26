@@ -118,7 +118,9 @@ internal sealed class CircleShareGrain(
     }
 }
 
-// Configure is the circle neuron's alone: the grain the kernel is running the call for must be the circle neuron the key names.
+// Configure is the circle neuron's alone: the neuron the kernel is running the call for must be the circle neuron the key names.
+// The circle is a plain neuron (06-08): its call leaves from its runtime host grain, keyed by its neuron id "brain/type/key", read
+// from the ids Orleans sets on the message (never from the call's body).
 internal sealed class CircleShareGuard : IIncomingGrainCallFilter
 {
     private const string CircleNeuronType = CircleGrainType.Name;
@@ -128,10 +130,22 @@ internal sealed class CircleShareGuard : IIncomingGrainCallFilter
         if (context.InterfaceMethod.DeclaringType == typeof(ICircleShares))
         {
             var key = context.TargetId.Key.ToString();
-            if (context.SourceId is not { } source || source.Type.ToString() != CircleNeuronType || source.Key.ToString() != key || key!.Contains('@'))
+            if (SourceOf(context.SourceId) is not { } source || source.Type != CircleNeuronType || source.Key != key || key!.Contains('@'))
             { throw new UnauthorizedAccessException($"Only the owner's circle {key} states its compute share."); }
         }
         await context.Invoke();
+    }
+
+    private static (string Type, string Key)? SourceOf(GrainId? source)
+    {
+        if (source is not { } id) { return null; }
+        var type = id.Type.ToString()!;
+        var key = id.Key.ToString()!;
+        if (type.StartsWith("neuron.host", StringComparison.Ordinal))
+        {
+            return global::DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+        }
+        return (type, key);
     }
 }
 

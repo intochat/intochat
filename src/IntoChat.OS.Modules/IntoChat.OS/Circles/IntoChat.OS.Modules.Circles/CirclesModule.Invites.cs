@@ -14,7 +14,7 @@ public sealed partial class CirclesModule
 
     private static void MapInviteCodes(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/circle-invitations/{brainId}/codes", async (string brainId, MintCodeRequest? body, HttpContext http, IGrainFactory grains) =>
+        endpoints.MapPost("/circle-invitations/{brainId}/codes", async (string brainId, MintCodeRequest? body, HttpContext http, IntoChat.OS.Runtime.IPlainNeurons plain) =>
         {
             if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
@@ -25,7 +25,7 @@ public sealed partial class CirclesModule
             CallerContextStamper.Stamp(caller with { BrainId = brainId });
             try
             {
-                var minted = await grains.GetGrain<ICircleInvites>(ICircleInvites.Key(brainId)).Mint(request);
+                var minted = await plain.Get<ICircleInvites>(ICircleInvites.Key(brainId)).Mint(request);
                 http.Response.Headers.CacheControl = "no-store";
                 return Results.Ok(new { code = minted.Code, expiresAt = minted.ExpiresAt });
             }

@@ -23,7 +23,7 @@ public static class Apps
         => brain.Setting("Brain") is { Length: > 0 } scope ? scope : Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
     public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/view-state");
     public static IAppStore Store(IntoChatOSConnection brain) => brain.Get<IAppStore>(IAppStore.Key(Scope(brain)));
-    public static IConnectionRequests Connections(IntoChatOSConnection brain) => brain.Get<IConnectionRequests>(Scope(brain));
+    public static IConnectionRequests Connections(IntoChatOSConnection brain) => brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain)));
     public static ISelect Slot(IntoChatOSConnection brain, int i) => brain.Get<ISelect>(Key(brain) + "/slot/" + i.ToString(CultureInfo.InvariantCulture));
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 

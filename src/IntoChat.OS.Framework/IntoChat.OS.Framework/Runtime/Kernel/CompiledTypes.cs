@@ -72,9 +72,11 @@ public sealed class CompiledTypes
     // A legacy grain contract, or a migrated plain contract that names its [Neuron] type (06-03). IRetainsSignals is the legacy
     // retention side-interface every retaining grain adds, never a neuron of its own: once one grain is left implementing it
     // (06-08), Orleans resolves it to that grain's type and it would shadow the grain's own contract in listings.
+    // A plain contract marked [Internal] as a whole (the connection index, 06-08) is module plumbing no edge caller reaches, so no
+    // script compiles against it either.
     private static bool IsNeuron(Type type)
         => (type.IsInterface && type != typeof(INeuron) && type != typeof(IRetainsSignals) && typeof(INeuron).IsAssignableFrom(type))
-            || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type);
+            || (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) && !type.IsDefined(typeof(DigitalBrain.Access.InternalAttribute), inherit: false));
 
     // An os signal, or a DigitalBrain [Signal] record a migrated neuron publishes (06-03).
     private static bool IsSignal(Type type)

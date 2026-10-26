@@ -14,16 +14,16 @@ public sealed class TableLifecycleGuardFacts
             // Rule 4: a wire-level fake would need a loopback Postgres; the store stands in for the database.
             .ConfigureServices(services => services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables()))
             .StartAsync(TestContext.Current.CancellationToken);
-        // The index is a plain grain, not a neuron: only the grain factory addresses it.
-        var grains = brain.Services.GetRequiredService<IGrainFactory>();
+        // The index is a plain neuron (06-08).
+        var neurons = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
         using (brain.Owner.AsCaller())
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>(new TableOwner("other-brain", "install").Key).ReadTables);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>("not a key").ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new TableOwner("other-brain", "install").Key).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new global::DigitalBrain.NeuronId(new(brain.Owner.BrainId), TableIndexNeuron.GrainType, "not-a-key")).ReadTables);
         }
         using (brain.Owner.AsApp("install"))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>(new TableOwner(brain.Owner.BrainId, "install").Key).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new TableOwner(brain.Owner.BrainId, "install").Key).ReadTables);
         }
     }
 }

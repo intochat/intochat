@@ -36,7 +36,7 @@ public sealed class PostgresWriteTableFacts
         placements.Placement = TablePlacement.BrainDatabase("replacement");
         await brain.DeactivateAsync(table, ct);
 
-        var owner = brain.Get<IPostgresLifecycleTestApp>("pending-install");
+        var owner = brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("pending-install"));
         await owner.Uninstall("app");
         await owner.Uninstall("app");
 
@@ -78,7 +78,7 @@ public sealed class PostgresWriteTableFacts
         await forked.Define(Definition);
         await forked.Upsert(Key(), Values("fork"));
 
-        await brain.Get<IPostgresLifecycleTestApp>("first-app").Uninstall("app");
+        await brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("first-app")).Uninstall("app");
 
         Assert.Equal("\"fork\"", (await forked.Read(Key()))!.Single(value => value.Column == "value").Json);
     }
@@ -90,12 +90,12 @@ public sealed class PostgresWriteTableFacts
         var ct = TestContext.Current.CancellationToken;
         var race = new RetirementRace();
         await using var brain = await Builder("Host=localhost;Database=sample;Username=reader", services => services.AddSingleton<ITableStore>(new MemoryTables()))
-            // Storage-fault injection: the race holds RequireOpen open and reports when retirement is persisted.
-            // The replaced cluster storage is wrapped by the kernel after ConfigureServices.
+            // Call interception: the race holds RequireOpen open and reports when the retired index calls its tables back, which it
+            // does only after retirement is persisted (06-08: the index is a plain neuron on the runtime's host grain).
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IIncomingGrainCallFilter>(race);
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, race);
+                services.AddSingleton<IOutgoingGrainCallFilter>(race);
             }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
         var table = brain.Get<ITable>(brain.Owner.Key("race"));
@@ -103,7 +103,7 @@ public sealed class PostgresWriteTableFacts
         race.HoldOpen = true;
         var defining = table.Define(Definition);
         await race.Open.Task.WaitAsync(ct);
-        var retiring = brain.Get<IPostgresLifecycleTestApp>("race-app").Uninstall("app");
+        var retiring = brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("race-app")).Uninstall("app");
         await race.Closed.Task.WaitAsync(ct);
         race.Release.TrySetResult();
         await Assert.ThrowsAsync<InvalidOperationException>(() => defining.WaitAsync(ct));
@@ -117,7 +117,7 @@ public sealed class PostgresWriteTableFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new MemoryTables());
         var table = brain.Get<ITable>(brain.Owner.Key("lifecycle"));
-        var owner = brain.Get<IPostgresLifecycleTestApp>("install");
+        var owner = brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("install"));
         using (brain.Owner.AsApp("app"))
         {
             await table.Define(Definition);
@@ -142,7 +142,7 @@ public sealed class PostgresWriteTableFacts
     {
         await using var brain = await Start(new MemoryTables());
         var table = brain.Get<ITable>(brain.Owner.Key("memories"));
-        var owner = brain.Get<IPostgresLifecycleTestApp>("reinstall");
+        var owner = brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("reinstall"));
         using var app = brain.Owner.AsApp("app");
         await table.Define(Definition);
         await owner.Uninstall("app");
@@ -161,7 +161,7 @@ public sealed class PostgresWriteTableFacts
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
         var table = brain.Get<ITable>(brain.Owner.Key("memories"));
-        var owner = brain.Get<IPostgresLifecycleTestApp>("redelete");
+        var owner = brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("redelete"));
         using var app = brain.Owner.AsApp("app");
         await table.Define(Definition);
         await table.Upsert(Key(), Values("old"));
@@ -193,7 +193,7 @@ public sealed class PostgresWriteTableFacts
         var table = brain.Get<ITable>(brain.Owner.Key("shared"));
         await table.Define(Definition);
         await table.Upsert(Key(), Values("one"));
-        await brain.Get<IPostgresLifecycleTestApp>("shared-install").Uninstall("app");
+        await brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("shared-install")).Uninstall("app");
 
         Assert.Equal([("Define", TablePlacement.Shared), ("Upsert", TablePlacement.Shared), ("Drop", TablePlacement.Shared)], provider.Placements);
     }
@@ -446,9 +446,9 @@ public sealed class PostgresWriteTableFacts
         }
     }
 
-    // The index is a plain grain, not a neuron: only the grain factory addresses it.
+    // The index is a plain neuron (06-08), addressed by its owner key.
     private static ITableIndex Index(ITestBrain brain, string appId)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ITableIndex>(new TableOwner(brain.Owner.BrainId, appId).Key);
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableIndex>(new TableOwner(brain.Owner.BrainId, appId).Key);
 
     private static Task<ITestBrain> Start(ITableStore? provider, string connection = "Host=localhost;Database=sample;Username=reader")
         => Builder(connection, services => { if (provider is not null) { services.AddSingleton(provider); } })
@@ -456,7 +456,7 @@ public sealed class PostgresWriteTableFacts
 
     // Rule 4: a wire-level fake would need a loopback Postgres; the store stands in for the database.
     private static TestBrain Builder(string connection, Action<IServiceCollection> services)
-        => TestBrain.Create().WithModule<PostgresModule>()
+        => TestBrain.Create().WithModule<PostgresModule>().WithNeuronModule<PostgresLifecycleTestModule>()
             .WithIntegration(PostgresModule.Integration, "ConnectionString", connection)
             .ConfigureServices(services);
 
@@ -541,9 +541,10 @@ public sealed class PostgresWriteTableFacts
         { Resolutions++; return Task.FromResult(Placement); }
     }
 
-    private sealed class RetirementRace : IIncomingGrainCallFilter, IGrainStorage
+    private sealed class RetirementRace : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
     {
-        private readonly Dictionary<(string, GrainId), object?> saved = [];
+        private static readonly string Index = DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(ITableIndex));
+        private static readonly string Lifetime = DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(ITableLifetime));
         public bool HoldOpen { get; set; }
         public TaskCompletionSource Open { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -551,43 +552,46 @@ public sealed class PostgresWriteTableFacts
         public async Task Invoke(IIncomingGrainCallContext context)
         {
             await context.Invoke();
-            if (HoldOpen && context.InterfaceMethod.DeclaringType == typeof(ITableIndex)
-                && context.InterfaceMethod.Name == nameof(ITableIndex.RequireOpen))
+            if (HoldOpen && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+                && call.Contract == Index && call.Method == nameof(ITableIndex.RequireOpen))
             {
                 HoldOpen = false;
                 Open.TrySetResult();
                 await Release.Task;
             }
         }
-        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state)
+        public Task Invoke(IOutgoingGrainCallContext context)
         {
-            if (saved.TryGetValue((name, id), out var value)) { state.State = (T)value!; state.RecordExists = true; }
-            return Task.CompletedTask;
+            if (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+                && call.Contract == Lifetime && call.Method == nameof(ITableLifetime.Retire))
+            { Closed.TrySetResult(); }
+            return context.Invoke();
         }
-        public Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
-        {
-            saved[(name, id)] = state.State;
-            state.RecordExists = true;
-            if (state.State is TableIndexState { Retired: true }) { Closed.TrySetResult(); }
-            return Task.CompletedTask;
-        }
-        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => throw new NotSupportedException();
     }
 }
 
+// The app's stand-in: a plain neuron of the app type (06-08), so TableLifecycleGuard sees an app as the caller.
 [DigitalBrain.Access.Public]
-public interface IPostgresLifecycleTestApp : IntoChat.OS.INeuron
+[DigitalBrain.Contracts.NeuronAlias("test.postgres-lifecycle-app"), DigitalBrain.Contracts.DefaultNeuronType(IntoChat.OS.Connections.AppGrainType.Name)]
+public interface IPostgresLifecycleTestApp
 {
     Task Uninstall(string appId);
     Task Reinstall(string appId);
 }
 
-[GrainType(IntoChat.OS.Connections.AppGrainType.Name)]
-public sealed class PostgresLifecycleTestApp : IntoChat.OS.Framework.Neuron, IPostgresLifecycleTestApp
+[DigitalBrain.Neuron(IntoChat.OS.Connections.AppGrainType.Name)]
+public sealed class PostgresLifecycleTestApp : DigitalBrain.Neuron, IPostgresLifecycleTestApp
 {
-    public Task Uninstall(string appId)
-        => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), appId).Key).Retire();
+    public Task Uninstall(string appId) => Index(appId).Retire();
 
-    public Task Reinstall(string appId)
-        => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), appId).Key).Reopen();
+    public Task Reinstall(string appId) => Index(appId).Reopen();
+
+    private ITableIndex Index(string appId)
+        => Context.Get<ITableIndex>(new DigitalBrain.NeuronId(Id.Brain, TableIndexNeuron.GrainType, new TableOwner(Id.Brain.Value, appId).Key[(Id.Brain.Value.Length + 1)..]));
+}
+
+[DigitalBrain.Module("test.postgres-lifecycle")]
+public sealed class PostgresLifecycleTestModule : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

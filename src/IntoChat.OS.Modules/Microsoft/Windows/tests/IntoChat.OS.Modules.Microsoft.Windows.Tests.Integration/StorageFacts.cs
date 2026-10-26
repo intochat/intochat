@@ -13,7 +13,7 @@ public sealed class StorageFacts(WindowsMachineHost shared)
         var host = await WindowsHost.ForPersonAsync(shared, connect: true, allowRoot: true, ct);
         using var caller = host.Owner.AsCaller();
 
-        var connections = await host.Brain.Get<IConnectionRequests>(host.Owner.BrainId).ListConnections();
+        var connections = await host.Brain.Get<IConnectionRequests>(IConnectionRequests.Key(host.Owner.BrainId)).ListConnections();
 
         var pc = Assert.Single(connections, item => item.Neuron == host.Key);
         Assert.Contains(IStorage.Capability, pc.Capabilities);

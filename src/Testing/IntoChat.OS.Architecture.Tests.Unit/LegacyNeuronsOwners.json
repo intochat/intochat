@@ -1,7 +1,5 @@
 {
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/LegacyCallFacts.cs": 1,
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/Probes.cs": 1,
-  "IntoChat.OS.Modules.Flutter/Shared/UiNeuron.cs": 3,
-  "IntoChat.OS.Modules.Postgres/Tables/TableNeuron.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp/Files/CSharpFileNeuron.cs": 2
 }

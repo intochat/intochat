@@ -1,29 +1,24 @@
-using Orleans.Metadata;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Circles;
 
-[GenerateSerializer, Alias("circles.mint-invite")]
 public sealed record MintInvite(
     // Clamped to InviteCode.MinValidity..MaxValidity.
-    [property: Id(0)] TimeSpan ValidFor,
+    TimeSpan ValidFor,
     // "member" or "admin".
-    [property: Id(1)] string Role = "member",
+    string Role = "member",
     // The minting account is bound to the machine that redeems; otherwise the machine waits for ClaimMachine.
-    [property: Id(2)] bool BindCaller = false);
+    bool BindCaller = false);
 
 // The code is returned once and never stored.
-[GenerateSerializer, Alias("circles.minted-invite")]
-public sealed record MintedInvite([property: Id(0)] string Code, [property: Id(1)] DateTimeOffset ExpiresAt);
+public sealed record MintedInvite(string Code, DateTimeOffset ExpiresAt);
 
-[GenerateSerializer, Alias("circles.redeem-invite")]
 public sealed record RedeemInvite(
-    [property: Id(0)] string CodeHash,
-    [property: Id(1)] string MachineId,
-    [property: Id(2)] string MachineKeyThumbprint,
-    [property: Id(3)] string MachineName);
+    string CodeHash,
+    string MachineId,
+    string MachineKeyThumbprint,
+    string MachineName);
 
-[GenerateSerializer, Alias("circles.redeem-result")]
 public enum RedeemResult
 {
     Accepted = 0,
@@ -34,32 +29,31 @@ public enum RedeemResult
     Rejected = 3,
 }
 
-[GenerateSerializer, Alias("circles.redeem-outcome")]
 public sealed record RedeemOutcome(
-    [property: Id(0)] RedeemResult Result,
-    [property: Id(1)] string CircleId = "",
-    [property: Id(2)] string CircleName = "",
-    [property: Id(3)] string Role = "",
-    [property: Id(4)] string? AccountId = null,
-    [property: Id(5)] bool PendingAccount = false)
+    RedeemResult Result,
+    string CircleId = "",
+    string CircleName = "",
+    string Role = "",
+    string? AccountId = null,
+    bool PendingAccount = false)
 {
     public static RedeemOutcome Rejected { get; } = new(RedeemResult.Rejected);
     public static RedeemOutcome Expired { get; } = new(RedeemResult.Expired);
 }
 
-[GenerateSerializer, Alias("circles.circle-machine")]
 public sealed record CircleMachine(
-    [property: Id(0)] string MachineId,
-    [property: Id(1)] string MachineName,
-    [property: Id(2)] string MachineKeyThumbprint,
-    [property: Id(3)] string Role,
-    [property: Id(4)] string? AccountId,
-    [property: Id(5)] DateTimeOffset AcceptedAt);
+    string MachineId,
+    string MachineName,
+    string MachineKeyThumbprint,
+    string Role,
+    string? AccountId,
+    DateTimeOffset AcceptedAt);
 
 // D-03/D-10: `{circle}/invites` in a circle brain. Owners and admins mint single-use, expiring codes; a machine redeems
 // a code once (through ICircleInviteRedeemer), binding its machine id and key; an account binds at mint or by claim.
-[Alias("circles.invites"), DefaultGrainType("circles.invites")]
-public interface ICircleInvites : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("circles.invites"), DigitalBrain.Contracts.DefaultNeuronType("circles.invites")]
+public interface ICircleInvites
 {
     static readonly TimeSpan RepeatWindow = TimeSpan.FromMinutes(5);
 

@@ -40,6 +40,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IIntoChatOS, CurrentBrain>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons, PlainNeurons>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IBrainCalls, BrainCalls>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainSignals, PlainSignals>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.ILegacyNeurons, LegacyNeurons>();
         silo.Services.AddAuthorityGrains();

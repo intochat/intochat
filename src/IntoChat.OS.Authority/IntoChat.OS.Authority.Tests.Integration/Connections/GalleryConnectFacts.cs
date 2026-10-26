@@ -28,7 +28,7 @@ public sealed class GalleryConnectFacts : IAsyncLifetime
 
     public async ValueTask DisposeAsync() { await _brain.DisposeAsync(); await _stub.DisposeAsync(); }
 
-    private IConnectionRequests Requests => _brain.Get<IConnectionRequests>(_brain.Owner.BrainId);
+    private IConnectionRequests Requests => _brain.Get<IConnectionRequests>(IConnectionRequests.Key(_brain.Owner.BrainId));
 
     [Fact]
     public async Task AnOfferedConnectorReadsConnectedAfterTheUsersLoginCallback()

@@ -104,9 +104,10 @@ public sealed class CircleCodeInviteFacts(CirclesHost host)
         Assert.Equal(["m1"], (await bob.In(circle, () => invites.ListMachines())).Select(machine => machine.MachineId).ToArray());
 
         // Hashed at rest: the stored record holds no code, dashed or not.
-        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
+        // The invites are a plain neuron (06-08): its state is stored under its runtime host grain.
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
         var state = new GrainState<CircleInvitesRecord>();
-        await storage.ReadStateAsync("circles.invites", GrainId.Create("circles.invites", ICircleInvites.Key(circle)), state);
+        await storage.ReadStateAsync("state", GrainId.Create("neuron.host", new DigitalBrain.NeuronId(new DigitalBrain.BrainId(circle), "circles.invites", "invites").ToString()), state);
         var stored = JsonSerializer.Serialize(state.State);
         Assert.NotNull(state.State);
         Assert.Equal(3, state.State.Invites.Length);

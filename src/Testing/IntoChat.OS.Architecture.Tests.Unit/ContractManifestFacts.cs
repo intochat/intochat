@@ -50,8 +50,9 @@ public sealed class ContractManifestFacts
     {
         var manifest = ContractManifest.Load(ContractManifest.BaselinePath);
 
-        // TimerTick (06-07) and TextChanged (06-04) became plain [Signal] records; a family 3 signal stands in until Circles migrates.
-        Assert.StartsWith("circles.circle-changed; ", manifest.Contracts["IntoChat.OS.Modules.Circles.Signals.CircleChanged"], StringComparison.Ordinal);
+        // The os signals become plain [Signal] records family by family (06-04..06-08); a wire record still pinned with its field ids
+        // stands in, whichever it is.
+        Assert.Contains(manifest.Contracts, pair => pair.Value.Contains("=0", StringComparison.Ordinal));
         Assert.Equal("Signal", manifest.Signals["IntoChat.OS.Signal"]);
         // The last grains named by Orleans' class-name convention (the AI media neurons) are plain since 06-05, their types frozen
         // by [Neuron("imagegeneratorneuron")] and pinned in NeuronGrainTypes.json; a grain sample stands in.
@@ -59,8 +60,9 @@ public sealed class ContractManifestFacts
         Assert.True(manifest.Contracts.Count > 500, $"{manifest.Contracts.Count} contracts");
         // Shrinks as grains become plain neurons (06-08: under 50); the floor only proves the capture found the grains.
         Assert.True(manifest.Grains.Count > 25, $"{manifest.Grains.Count} grains");
-        // Shrinks as neurons leave Orleans storage (06-06d: 50 left); the floor only proves the capture found the stateful grains.
-        Assert.True(manifest.States.Count > 25, $"{manifest.States.Count} grains with state");
+        // Shrinks as neurons leave Orleans storage (06-08: the Authority raw grains, 20); the floor only proves the capture found the
+        // stateful grains.
+        Assert.True(manifest.States.Count > 10, $"{manifest.States.Count} grains with state");
     }
 
     [Fact(Explicit = true)]

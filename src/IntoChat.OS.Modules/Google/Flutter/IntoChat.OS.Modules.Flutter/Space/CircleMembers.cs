@@ -11,7 +11,7 @@ using IntoChat.OS.Connections.Identity;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
-internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identity, IntoChat.OS.Runtime.IPlainNeurons plain)
+internal sealed class CircleMembers(IIdentityClient identity, IntoChat.OS.Runtime.IPlainNeurons plain)
 {
     internal sealed record Friend(string Account, string Brain, string[] Circles);
 
@@ -26,7 +26,7 @@ internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identi
         {
             if ((await identity.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
             string[] members;
-            try { members = await grains.GetGrain<ICircleStateReader>(ICircle.Key(entry.Id)).Members(); }
+            try { members = await plain.Get<ICircleStateReader>(ICircle.Key(entry.Id)).Members(); }
             catch (KeyNotFoundException) { continue; }
             if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
             foreach (var member in members.Where(m => m != account.AccountId))
@@ -62,7 +62,7 @@ internal sealed class CircleMembers(IGrainFactory grains, IIdentityClient identi
         List<string> posts = [];
         foreach (var circle in friend.Circles)
         {
-            foreach (var line in (await grains.GetGrain<ICirclePostReader>(ICircleChat.Key(circle)).PostReferences()).Reverse())
+            foreach (var line in (await plain.Get<ICirclePostReader>(ICircleChat.Key(circle)).PostReferences()).Reverse())
             {
                 if (line.Speaker != friend.Account || !line.Text.StartsWith("post ", StringComparison.Ordinal)) { continue; }
                 var key = line.Text[5..];

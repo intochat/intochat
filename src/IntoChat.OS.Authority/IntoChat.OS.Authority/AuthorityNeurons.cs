@@ -37,9 +37,9 @@ internal sealed class AuthorityNeurons(IAuthorityGrains grains, Microsoft.Extens
     public ICircleShareGrain CircleShare(string circleKey) => Resolve<ICircleShareGrain>(circleKey);
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
-    public IConnectionIndex Connections(string brainId) => Resolve<IConnectionIndex>(brainId);
+    public IConnectionIndex Connections(string brainId) => grains.Plain<IConnectionIndex>(IConnectionIndex.Key(brainId));
     public IntoChat.OS.Connections.Platform.Entries.IBrainEntries Entries(string brainId) => Resolve<IntoChat.OS.Connections.Platform.Entries.IBrainEntries>(brainId);
-    public IntoChat.OS.Integrations.IConnectionRequests ConnectionRequests(string brainId) => Resolve<IntoChat.OS.Integrations.IConnectionRequests>(brainId);
+    public IntoChat.OS.Integrations.IConnectionRequests ConnectionRequests(string brainId) => grains.Plain<IntoChat.OS.Integrations.IConnectionRequests>(IntoChat.OS.Integrations.IConnectionRequests.Key(brainId));
     public ISecrets Secrets(string owner) => Resolve<ISecrets>(owner);
     public IntoChat.OS.Authority.Secrets.ISecretVaultValues SecretValues(string owner) => Resolve<IntoChat.OS.Authority.Secrets.ISecretVaultValues>(owner);
     public IMarketplaceCatalog Marketplace() => Resolve<IMarketplaceCatalog>(IMarketplaceCatalog.Key);

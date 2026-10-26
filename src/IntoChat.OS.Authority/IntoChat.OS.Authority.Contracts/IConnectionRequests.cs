@@ -1,23 +1,24 @@
-using Orleans.Concurrency;
-
 namespace IntoChat.OS.Integrations;
 
 // Request an account of a kind. The secret stays in the platform ring; the script holds an ConnectionRef.
-[Alias("integrations.accounts"), Orleans.Metadata.DefaultGrainType("integrations.accounts")]
-public interface IConnectionRequests : INeuron
+// A plain neuron (06-08), the brain's singleton "{brain}/main" (R4-19).
+[DigitalBrain.Contracts.NeuronAlias("integrations.accounts"), DigitalBrain.Contracts.DefaultNeuronType("integrations.accounts")]
+public interface IConnectionRequests
 {
-    [ReadOnly] Task<ConnectorKind[]> ListKinds();
+    static string Key(string brainId) => $"{brainId}/main";
 
-    [ReadOnly] Task<ConnectionRef[]> ListPending();
+    [DigitalBrain.ReadOnlyCall] Task<ConnectorKind[]> ListKinds();
+
+    [DigitalBrain.ReadOnlyCall] Task<ConnectionRef[]> ListPending();
 
     // Keyed by the current brain. Describes existing connections without opening credentials.
-    [ReadOnly] Task<ConnectionSummary[]> ListConnections();
+    [DigitalBrain.ReadOnlyCall] Task<ConnectionSummary[]> ListConnections();
 
     Task<ConnectionRef> Request(string kind);
 
     // The apps gallery's connections: every declared OAuth connector, whether this host offers it, and
     // whether this brain holds a live connection of it.
-    [ReadOnly] Task<ConnectorOffer[]> ListOffers();
+    [DigitalBrain.ReadOnlyCall] Task<ConnectorOffer[]> ListOffers();
 }
 
 [GenerateSerializer, Alias("integrations.connector-offer")]
@@ -39,9 +40,9 @@ public sealed record ConnectionSummary(
     [Id(6)] public string[] Capabilities { get; init; } = [];
 }
 
-[GenerateSerializer, Alias("integrations.account-requested")]
-public sealed record ConnectionRequested([property: Id(0)] string Kind, [property: Id(1)] string Id) : Signal;
+[DigitalBrain.Signal("integrations.account-requested")]
+public sealed record ConnectionRequested(string Kind, string Id) : DigitalBrain.Signal;
 
 // Invalidation only: consumers re-read the catalog; no credential or provider detail is carried.
-[GenerateSerializer, Alias("integrations.connections-changed")]
-public sealed record ConnectionsChanged([property: Id(0)] long Revision) : Signal;
+[DigitalBrain.Signal("integrations.connections-changed")]
+public sealed record ConnectionsChanged(long Revision) : DigitalBrain.Signal;

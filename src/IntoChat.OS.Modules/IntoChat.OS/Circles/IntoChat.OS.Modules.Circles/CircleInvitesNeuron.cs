@@ -1,49 +1,61 @@
-using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Circles;
 
-[GenerateSerializer, Alias("circles.invites-record")]
 internal sealed class CircleInvitesRecord
 {
-    [Id(0)] public CircleCodeInvite[] Invites { get; set; } = [];
+    public CircleCodeInvite[] Invites { get; set; } = [];
 }
 
 // The circle side of the invitation record (D-10): the fields Authority's Invitation gained, held by the circles
 // module, which does not reference Authority. CodeHash only; the code is shown once at mint and never stored.
-[GenerateSerializer, Alias("circles.code-invite")]
 internal sealed record CircleCodeInvite
 {
-    [Id(0)] public required string Id { get; init; }
-    [Id(1)] public required string CodeHash { get; init; }
-    [Id(2)] public required string Role { get; init; }
-    [Id(3)] public required string IssuedBy { get; init; }
-    [Id(4)] public string? AccountId { get; init; }
-    [Id(5)] public DateTimeOffset CreatedAt { get; init; }
-    [Id(6)] public DateTimeOffset ExpiresAt { get; init; }
-    [Id(7)] public string? MachineId { get; init; }
-    [Id(8)] public string? MachineKeyThumbprint { get; init; }
-    [Id(9)] public string MachineName { get; init; } = "";
-    [Id(10)] public DateTimeOffset? AcceptedAt { get; init; }
-    [Id(11)] public bool Revoked { get; init; }
-    [Id(12)] public string CircleName { get; init; } = "";
+    public required string Id { get; init; }
+    public required string CodeHash { get; init; }
+    public required string Role { get; init; }
+    public required string IssuedBy { get; init; }
+    public string? AccountId { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
+    public string? MachineId { get; init; }
+    public string? MachineKeyThumbprint { get; init; }
+    public string MachineName { get; init; } = "";
+    public DateTimeOffset? AcceptedAt { get; init; }
+    public bool Revoked { get; init; }
+    public string CircleName { get; init; } = "";
 }
 
-[GrainType("circles.invites")]
-internal sealed class CircleInvitesNeuron(
-    [PersistentState("circles.invites", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CircleInvitesRecord> store)
-    : Neuron<CircleInvitesRecord>(store), ICircleInvites
+// A plain neuron (06-08) at "{circle}/invites". Its record saves without a signal: invites are no one's to watch.
+[DigitalBrain.Neuron("circles.invites")]
+internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
 {
     // Facts replace the clock under this key; the deployment uses the system clock.
     public const string ClockKey = "circles.invites";
 
-    private string CircleBrain => this.GetPrimaryKeyString()[..^"/invites".Length];
+    private CircleInvitesRecord Snapshot = new();
 
-    private DateTimeOffset Now => (ServiceProvider.GetKeyedService<TimeProvider>(ClockKey) ?? TimeProvider.System).GetUtcNow();
+    private string CircleBrain => Id.Brain.Value;
 
-    private ICircle Circle => GrainFactory.GetGrain<ICircle>(ICircle.Key(CircleBrain));
+    private DateTimeOffset Now => (Context.Services.GetKeyedService<TimeProvider>(ClockKey) ?? TimeProvider.System).GetUtcNow();
+
+    private ICircle Circle => Get<ICircle>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle"));
+
+    // The invite key and the code index live in the system brain: module plumbing reached through the host seam, which a
+    // neuron's own Get (same brain only) does not cross.
+    private IntoChat.OS.Runtime.IPlainNeurons Plain => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+        => Snapshot = await Context.State.Load<CircleInvitesRecord>() ?? new();
+
+    private async Task SaveQuietly(CircleInvitesRecord next)
+    {
+        await Context.State.Save(next, []);
+        Snapshot = next;
+    }
 
     public async Task<MintedInvite> Mint(MintInvite request)
     {
@@ -53,7 +65,7 @@ internal sealed class CircleInvitesNeuron(
         var now = Now;
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
         var code = InviteCode.Generate();
-        var hash = InviteCode.Hash(code, await GrainFactory.GetGrain<IInviteKey>(IInviteKey.Key).Get());
+        var hash = InviteCode.Hash(code, await Plain.Get<IInviteKey>(IInviteKey.Key).Get());
         var invite = new CircleCodeInvite
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -68,7 +80,7 @@ internal sealed class CircleInvitesNeuron(
         // Unredeemed invites past their expiry carry nothing worth keeping.
         var kept = Snapshot.Invites.Where(known => known.AcceptedAt is not null || known.ExpiresAt > now);
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
-        await GrainFactory.GetGrain<IInviteCode>(IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+        await Plain.Get<IInviteCode>(IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
         return new MintedInvite(code, expiresAt);
     }
 

@@ -1,5 +1,3 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Modules;
 using DigitalBrain.State;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,20 +11,25 @@ internal sealed record TableIndexState
     [Id(1)] public bool Retired { get; init; }
 }
 
-[GrainType(GrainType)]
-internal sealed class TableIndexNeuron(
-    [PersistentState("tables", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TableIndexState> state)
-    : Grain, ITableIndex
+// A plain neuron (06-08). Its state saves without a signal: which tables exist is no one's to watch.
+[DigitalBrain.Neuron(GrainType)]
+internal sealed class TableIndexNeuron : DigitalBrain.Neuron, ITableIndex
 {
     public const string GrainType = "postgres.tables";
 
     private readonly SemaphoreSlim writes = new(1, 1);
+    private TableIndexState state = new();
 
-    public Task<string[]> ReadTables() => Task.FromResult(state.State.Tables.ToArray());
+    private string OwnerKey => $"{Id.Brain.Value}/{Id.Key}";
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+        => state = await Context.State.Load<TableIndexState>() ?? new();
+
+    public Task<string[]> ReadTables() => Task.FromResult(state.Tables.ToArray());
 
     public Task RequireOpen()
     {
-        if (state.State.Retired) { throw new InvalidOperationException("This app's storage has been retired."); }
+        if (state.Retired) { throw new InvalidOperationException("This app's storage has been retired."); }
         return Task.CompletedTask;
     }
 
@@ -36,8 +39,8 @@ internal sealed class TableIndexNeuron(
         try
         {
             await RequireOpen();
-            if (state.State.Tables.Contains(tableId, StringComparer.Ordinal)) { return; }
-            await Persist(state.State with { Tables = [.. state.State.Tables, tableId] });
+            if (state.Tables.Contains(tableId, StringComparer.Ordinal)) { return; }
+            await Persist(state with { Tables = [.. state.Tables, tableId] });
         }
         finally { writes.Release(); }
     }
@@ -45,33 +48,33 @@ internal sealed class TableIndexNeuron(
     public async Task Retire()
     {
         await writes.WaitAsync();
-        try { if (!state.State.Retired) { await Persist(state.State with { Retired = true }); } }
+        try { if (!state.Retired) { await Persist(state with { Retired = true }); } }
         finally { writes.Release(); }
         // Registration must still answer while a table is finishing its in-flight Define.
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
-        foreach (var table in state.State.Tables)
-        { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
+        // Each call leaves as this neuron, so TableLifecycleGuard sees the index as the caller.
+        var neurons = Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+        foreach (var table in state.Tables)
+        { await Context.Get<ITableLifetime>(neurons.IdOf(typeof(ITableLifetime), table)).Retire(OwnerKey); }
     }
 
     // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.
     public async Task Reopen()
     {
         await writes.WaitAsync();
-        try { if (state.State.Retired) { await Persist(new()); } }
+        try { if (state.Retired) { await Persist(new()); } }
         finally { writes.Release(); }
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    protected override Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
     {
         writes.Dispose();
-        return base.OnDeactivateAsync(reason, cancellationToken);
+        return Task.CompletedTask;
     }
 
     private async Task Persist(TableIndexState next)
     {
-        var previous = state.State;
-        state.State = next;
-        try { await state.WriteStateAsync(); }
-        catch { state.State = previous; throw; }
+        await Context.State.Save(next, []);
+        state = next;
     }
 }

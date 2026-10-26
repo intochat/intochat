@@ -64,7 +64,9 @@ public static class ServerHostingExtensions
         // os never calls AddDigitalBrainRuntime itself: ConfigureTopologySilo does.
         // A Framework module that brings plain neurons names its DigitalBrain module (Module.Neurons, 06-03); it is hosted when
         // the Framework module is selected.
-        IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>()).Distinct()];
+        // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
+        IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
+            .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
         builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules.Select(static module => module.Assembly)));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
@@ -74,6 +76,8 @@ public static class ServerHostingExtensions
             .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
             .Append(typeof(IBrain).Assembly)
             .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
+            // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
+            .Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly)
             .Distinct()]);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);

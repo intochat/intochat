@@ -13,6 +13,9 @@ public interface IAuthorityGrains
     // The brain neuron of brainId (06-08: a plain neuron of the kernel composition, keyed {brain}/main), reached as the host.
     IBrain Brain(string brainId);
 
+    // A plain neuron of the Authority (the connection index and requests, 06-08) by its "{brain}/{key}".
+    T Plain<T>(string fullKey) where T : class;
+
     IConnection Connection(string connectionKey);
 
     IConnectionInbound ConnectionInbound(string connectionKey);

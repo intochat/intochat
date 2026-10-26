@@ -15,7 +15,7 @@ public interface ICapabilitySatisfaction
 public sealed class ConnectedModuleSatisfaction(IIntoChatOS brains) : ICapabilitySatisfaction
 {
     public async Task<bool> Satisfied(string brain, string capability, CancellationToken ct)
-        => Satisfies(await brains.Get<IConnectionRequests>(brain).ListConnections().WaitAsync(ct), capability);
+        => Satisfies(await brains.Get<IConnectionRequests>(IConnectionRequests.Key(brain)).ListConnections().WaitAsync(ct), capability);
 
     public static bool Satisfies(IEnumerable<ConnectionSummary> connections, string capability)
         => connections.Any(connection => connection.Status == "connected" && AppCapabilities.Satisfies(connection.Capabilities, capability));

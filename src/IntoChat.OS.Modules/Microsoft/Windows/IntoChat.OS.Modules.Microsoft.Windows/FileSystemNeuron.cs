@@ -7,8 +7,9 @@ using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
-[GrainType("windows.files")]
-internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFileSystem
+// A plain neuron (06-08) keyed {connectionKey}/files.
+[DigitalBrain.Neuron("windows.files")]
+internal sealed class FileSystemNeuron(IMachineIdentity identity) : DigitalBrain.Neuron, IFileSystem
 {
     public async Task<string> Read(string path, CancellationToken cancellationToken = default) =>
         await File.ReadAllTextAsync(await Resolve(path), cancellationToken);
@@ -18,7 +19,7 @@ internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFil
         var full = await Resolve(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         await File.WriteAllTextAsync(full, content, cancellationToken);
-        await PublishAsync(new FileWritten(full, Encoding.UTF8.GetByteCount(content)));
+        await Publish(new FileWritten(full, Encoding.UTF8.GetByteCount(content)));
     }
 
     public async Task<string[]> List(string path, CancellationToken cancellationToken = default) =>
@@ -27,9 +28,9 @@ internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFil
     // Roots are read on every call, so a revoked root is refused by the very next call.
     private async Task<string> Resolve(string path)
     {
-        var connection = WindowsKeys.Connection(this.GetPrimaryKeyString());
+        var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        return MachineRoots.Resolve(await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IWindows>(connection).Roots(), path);
+        return MachineRoots.Resolve(await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots(), path);
     }
 }

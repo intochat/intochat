@@ -54,15 +54,18 @@ internal static class LiveSignalEndpoints
 
     internal static readonly LiveFeed[] Feeds =
     [
-        Feed<DeploymentChanged>(static (brain, brainId, _, _) => Single(brain.Get<IDeployment>(IDeployment.Key(brainId)))),
+        // The deployment is a plain neuron (06-08).
+        PlainFeed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
         // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
         PlainFeed<AppActivity>(Apps),
-        // R126: asked of a circle brain's own /live; the shell watches each circle the person is in.
-        Feed<CircleChanged>(static (brain, brainId, _, _) => Single(brain.Get<ICircle>(ICircle.Key(brainId)))),
-        Feed<CircleSpoke>(static (brain, brainId, _, _) => Single(brain.Get<ICircleChat>(ICircleChat.Key(brainId)))),
+        // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
+        PlainFeed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
+        PlainFeed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
     ];
 
     private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }
+
+    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> SingleId(global::DigitalBrain.NeuronId id) { await Task.CompletedTask; yield return id; }
 
     // App keys waiting for the stream. A dropped key would leave an app out of the watch for good, so a full
     // buffer holds the kernel enumeration back instead of dropping.

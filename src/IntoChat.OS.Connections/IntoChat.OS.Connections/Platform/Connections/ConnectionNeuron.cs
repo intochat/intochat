@@ -171,7 +171,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         Snapshot.ExpiresAt = null;
         Snapshot.Account = null;
         await Transition(ConnectionStatus.Disconnected, null, notifyCatalog: false);
-        await GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Untrack(FullKey);
+        await Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Untrack(FullKey);
         await NotifyCatalog();
     }
 
@@ -337,9 +337,9 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         if (notifyCatalog) { await NotifyCatalog(); }
     }
 
-    private Task NotifyCatalog() => GrainFactory.GetGrain<IConnectionCatalogUpdates>(Key.Brain).Changed(FullKey);
+    private Task NotifyCatalog() => Context.Get<IConnectionCatalogUpdates>(IConnectionCatalogUpdates.Id(Key.Brain)).Changed(FullKey);
 
-    private Task Track() => GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Track(FullKey);
+    private Task Track() => Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Track(FullKey);
 
     private void RequireAuthMethod(string authMethodId)
     {

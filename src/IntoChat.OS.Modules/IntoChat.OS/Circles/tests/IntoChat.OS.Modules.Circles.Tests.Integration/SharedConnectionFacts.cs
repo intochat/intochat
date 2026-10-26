@@ -31,7 +31,7 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         var copy = ConnectionKeys.For(circle, Connector, "c1");
         var view = await alice.In(circle, () => Plain(brain).GetConnection(copy).Read());
         Assert.Equal((Connector, "c1", ConnectionStatus.Connected), (view.ConnectorId, view.ConnectionId, view.Status));
-        Assert.Contains(copy, await Grains(brain).GetGrain<IConnectionIndex>(circle).List());
+        Assert.Contains(copy, await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(circle)).List());
         var app = await alice.In(circle, () => brain.Get<IApp>(IApp.Key(circle, "notes")).Read());
         Assert.Equal(copy, app.Connections["db"]);
     }

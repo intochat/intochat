@@ -138,7 +138,7 @@ public sealed class CircleFacts(CirclesHost host)
 
     [Fact]
     public void TheCircleContractsAliasEqualsTheSharedGrainTypeName()
-        => Assert.Equal(IntoChat.OS.Connections.CircleGrainType.Name, ((Orleans.AliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(Orleans.AliasAttribute))!).Alias);
+        => Assert.Equal(IntoChat.OS.Connections.CircleGrainType.Name, ((DigitalBrain.Contracts.NeuronAliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(DigitalBrain.Contracts.NeuronAliasAttribute))!).Alias);
 
     [Fact]
     public void ACircleNameIsLowercaseLettersDigitsAndDashes()

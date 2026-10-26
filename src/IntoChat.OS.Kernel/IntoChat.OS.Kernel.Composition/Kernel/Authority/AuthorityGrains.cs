@@ -34,14 +34,16 @@ internal sealed class AuthorityGrains(IGrainFactory grains, IServiceProvider ser
     }
 
     // Connections are plain neurons (06-08, R4-25): the three lookups go through the plain seam by the key's connector.
-    private IntoChat.OS.Runtime.IPlainNeurons Plain => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+    private IntoChat.OS.Runtime.IPlainNeurons Neurons => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
-    public IConnection Connection(string connectionKey) => Plain.GetConnection(connectionKey);
+    public T Plain<T>(string fullKey) where T : class => Neurons.Get<T>(fullKey);
 
-    public IConnectionInbound ConnectionInbound(string connectionKey) => Plain.GetConnectionInbound(connectionKey);
+    public IConnection Connection(string connectionKey) => Neurons.GetConnection(connectionKey);
+
+    public IConnectionInbound ConnectionInbound(string connectionKey) => Neurons.GetConnectionInbound(connectionKey);
 
     public T CallerConnection<T>(IServiceProvider services, string connectionKey) where T : class
-        => Plain.GetNeuron<T>(services, connectionKey);
+        => Neurons.GetNeuron<T>(services, connectionKey);
 
     internal static bool IsAllowListed(Type contract) => Contracts.Contains(contract);
 }

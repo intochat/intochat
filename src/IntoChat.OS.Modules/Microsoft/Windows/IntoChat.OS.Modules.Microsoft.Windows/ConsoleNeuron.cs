@@ -6,8 +6,9 @@ using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
-[GrainType("windows.console")]
-internal sealed class ConsoleNeuron(IMachineIdentity identity) : Neuron, IConsole
+// A plain neuron (06-08) keyed {connectionKey}/console.
+[DigitalBrain.Neuron("windows.console")]
+internal sealed class ConsoleNeuron(IMachineIdentity identity) : DigitalBrain.Neuron, IConsole
 {
     private const int MaxOutputChars = 20_000;
 
@@ -17,10 +18,10 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : Neuron, IConsol
     public async Task<CommandResult> Run(string command, string? workingDirectory = null, int timeoutSeconds = 60, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
-        var connection = WindowsKeys.Connection(this.GetPrimaryKeyString());
+        var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IWindows>(connection).Roots();
+        var roots = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots();
         var directory = MachineRoots.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 

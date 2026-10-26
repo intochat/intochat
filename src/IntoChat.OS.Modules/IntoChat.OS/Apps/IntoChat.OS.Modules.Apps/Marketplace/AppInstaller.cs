@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Apps;
 // The one way an app crosses brains: a listed bundle goes into the caller's brain through the
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. An app that reads data installs only for the brain's owner.
-public sealed class AppInstaller(IGrainFactory grains, IntoChat.OS.Runtime.IPlainNeurons plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
+public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
     IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, IIdentityClient? identity = null,
     IOptions<AuthOptions>? auth = null)
 {
@@ -117,7 +117,7 @@ public sealed class AppInstaller(IGrainFactory grains, IntoChat.OS.Runtime.IPlai
     private async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
     {
         if (bindings is not { Count: > 0 }) { return null; }
-        var connections = await grains.GetGrain<IConnectionRequests>(scope).ListConnections().WaitAsync(ct);
+        var connections = await plain.Get<IConnectionRequests>(IConnectionRequests.Key(scope)).ListConnections().WaitAsync(ct);
         foreach (var (slotName, id) in bindings)
         {
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)

@@ -1,18 +1,17 @@
-using Orleans.Metadata;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Circles;
 
-[GenerateSerializer, Alias("circles.line")]
 public sealed record CircleLine(
-    [property: Id(0)] string Speaker,
-    [property: Id(1)] string Text,
-    [property: Id(2)] long Sequence);
+    string Speaker,
+    string Text,
+    long Sequence);
 
 // A circle's conversation, `{circle}/chat` in the circle brain: one line per Say, the speaker is the member account
 // that said it.
-[Alias("circles.chat"), DefaultGrainType("circles.chat")]
-public interface ICircleChat : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("circles.chat"), DigitalBrain.Contracts.DefaultNeuronType("circles.chat")]
+public interface ICircleChat
 {
     // A requestId makes the call idempotent: saying twice under one id is one line.
     Task Say(string text, string? requestId = null);
@@ -22,18 +21,20 @@ public interface ICircleChat : INeuron
     static string Key(string circleBrainId) => $"{circleBrainId}/chat";
 }
 
-// Module-only typed readers: not INeuron contracts, absent from scripts and edge resolution.
-[Alias("circles.state-reader"), DefaultGrainType("circles.circle")]
-public interface ICircleStateReader : IGrainWithStringKey
+// Module-only typed readers ([Internal] as a whole, 06-08): absent from scripts and edge resolution.
+[DigitalBrain.Contracts.NeuronAlias("circles.state-reader"), DigitalBrain.Contracts.DefaultNeuronType("circles.circle")]
+[Internal]
+public interface ICircleStateReader
 {
     Task<CircleState> State();
     // Immutable snapshot only; consumers must intersect it with current trust membership.
-    [Orleans.Concurrency.AlwaysInterleave, Orleans.Concurrency.ReadOnly]
+    [DigitalBrain.Interleaves, DigitalBrain.ReadOnlyCall]
     Task<string[]> Members();
 }
 
-[Alias("circles.post-reader"), DefaultGrainType("circles.chat")]
-public interface ICirclePostReader : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("circles.post-reader"), DigitalBrain.Contracts.DefaultNeuronType("circles.chat")]
+[Internal]
+public interface ICirclePostReader
 {
     Task<CircleLine[]> PostReferences();
 }

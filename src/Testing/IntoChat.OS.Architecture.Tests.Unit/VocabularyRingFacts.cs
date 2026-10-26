@@ -81,6 +81,8 @@ public sealed class VocabularyRingFacts
             [
                 // 06-08 (R4-21(2)): marks the plain contracts every connection neuron implements; the connection key names the type.
                 "IntoChat.OS.Runtime.ConnectionContractAttribute",
+                // 06-08 (R4-21(3)): a plain neuron acting in another brain, as the stamped member there (Circles).
+                "IntoChat.OS.Runtime.IBrainCalls",
                 // Transitional (06-07b, R4-17; deleted in 06-08): module neurons calling still-legacy grains (with LegacyNeuronAccess below).
                 "IntoChat.OS.Runtime.ILegacyNeurons",
                 "IntoChat.OS.Runtime.INeuronContext", "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",

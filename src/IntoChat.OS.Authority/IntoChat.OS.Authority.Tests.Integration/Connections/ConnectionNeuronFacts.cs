@@ -18,7 +18,7 @@ public sealed class ConnectionNeuronFacts
         await using var brain = await Start();
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();
-        var catalog = brain.Get<IConnectionRequests>(alice.BrainId);
+        var catalog = brain.Get<IConnectionRequests>(IConnectionRequests.Key(alice.BrainId));
         await using var changes = await brain.Observe<ConnectionsChanged>(catalog, ct);
         var connection = brain.Get<IConnection>(Key(alice));
         await connection.Connect("api-key", "expired");
@@ -33,7 +33,6 @@ public sealed class ConnectionNeuronFacts
         Assert.True(disconnected.Revision > expired.Revision);
         Assert.Empty(await catalog.ListConnections());
         Assert.DoesNotContain("expired", System.Text.Json.JsonSerializer.Serialize(connected), StringComparison.Ordinal);
-        Assert.Equal(catalog.GetGrainId().ToString(), connected.Publisher);
     }
 
     private static string Key(Person person, string id = "one") => ConnectionKeys.For(person.BrainId, "example", id);

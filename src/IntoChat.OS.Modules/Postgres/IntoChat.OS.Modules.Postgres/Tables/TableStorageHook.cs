@@ -8,20 +8,21 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 internal sealed class TableStorageHook(IServiceProvider services) : IAppStorageHook
 {
     // Resolved lazily: the hook is registered on service collections that are validated
-    // before the Orleans runtime exists.
-    private IGrainFactory Grains => services.GetRequiredService<IGrainFactory>();
+    // before the Orleans runtime exists. The index is a plain neuron (06-08).
+    private ITableIndex Index(string brainId, string appKey)
+        => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableIndex>(new TableOwner(brainId, appKey).Key);
 
     public async Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken)
-        => await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).Retire();
+        => await Index(brainId, appKey).Retire();
 
     public async Task OnCreated(string brainId, string appKey, CancellationToken cancellationToken)
-        => await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).Reopen();
+        => await Index(brainId, appKey).Reopen();
 
     // Tables are pinned where they were first defined, so the tables slot cannot move under them.
     public async Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)
     {
         if (slot != AppTablesSlot.Name) { return; }
-        if ((await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).ReadTables()).Length > 0)
+        if ((await Index(brainId, appKey).ReadTables()).Length > 0)
         { throw new InvalidOperationException("The tables slot cannot be rebound while this app owns tables."); }
     }
 }

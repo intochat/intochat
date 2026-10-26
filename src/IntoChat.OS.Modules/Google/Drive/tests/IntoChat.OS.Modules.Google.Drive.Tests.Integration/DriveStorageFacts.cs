@@ -22,7 +22,7 @@ public sealed class DriveStorageFacts(DriveHost host)
         var view = await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
         Assert.Equal("user@gmail.com", view.Account);
 
-        var connection = Assert.Single(await brain.Get<IConnectionRequests>(person.BrainId).ListConnections(), item => item.Neuron == key);
+        var connection = Assert.Single(await brain.Get<IConnectionRequests>(IConnectionRequests.Key(person.BrainId)).ListConnections(), item => item.Neuron == key);
         Assert.Contains(IStorage.Capability, connection.Capabilities);
 
         var storage = brain.Get<IStorage>(key);

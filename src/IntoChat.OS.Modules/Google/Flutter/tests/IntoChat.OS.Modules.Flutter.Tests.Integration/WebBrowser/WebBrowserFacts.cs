@@ -17,7 +17,7 @@ public sealed class WebBrowserFacts
     private const string AppPages = "http://localhost:181";
 
     private const string Session = "0123456789abcdef0123456789abcdef";
-    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<FlutterModule>()
+    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>()
         .WithModule<PlaywrightModule>()
         // The shell's CDP page session: the debugging port lives on the user's device, so the fake stands in for the attachment.
         .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
@@ -318,7 +318,7 @@ public sealed class WebBrowserFacts
     public async Task Navigating_publishes_the_uri()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var browser = brain.Get<IWebBrowser>("research/docs");
         await using var nav = await brain.Observe<BrowserNavigated>(browser, ct);
         await browser.Navigate("https://learn.microsoft.com/winui", "WinUI");
@@ -398,7 +398,7 @@ public sealed class WebBrowserFacts
         => [.. (await handler.Events()).Decoded().Where(signal => signal is not BrowserObservationChanged)];
 
     // The binding dispatches to the handler asynchronously: wait until it has recorded the expected lifecycle signal.
-    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler, SignalProbe<UiEventHandled> handled, string expected)
+    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler, PlainSignalProbe<UiEventHandled> handled, string expected)
     {
         while ((await handled.NextAsync(ct: TestContext.Current.CancellationToken)).Type != expected) { }
         return await Lifecycle(handler);

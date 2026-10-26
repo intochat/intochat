@@ -69,7 +69,7 @@ internal sealed partial class AppNeuron(
     private DigitalBrain.NeuronId AppId(string key) => new(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Id.Brain.Value.Length + 1)..]);
 
     // The platform-wide Marketplace is still a grain outside every brain.
-    private IGrainFactory GrainFactory => Context.Services.GetRequiredService<IGrainFactory>();
+    private IMarketplace Marketplace => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IMarketplace>(IMarketplace.Key);
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
@@ -388,7 +388,7 @@ internal sealed partial class AppNeuron(
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
-        if (await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(caller.PersonId, Name()) is { } listed
+        if (await Marketplace.Read(caller.PersonId, Name()) is { } listed
             && listed.Source.Scope() != BrainId())
         { throw new InvalidOperationException($"{caller.PersonId}/{Name()} is already published from another brain."); }
         var next = Snapshot.Clone();
@@ -408,7 +408,7 @@ internal sealed partial class AppNeuron(
         await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
-        await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
+        await Marketplace.Upsert(new MarketplaceListing(
             caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
             next.Version, manifest.Icon, manifest.Requires));
         return Describe(Snapshot);
@@ -580,9 +580,9 @@ internal sealed partial class AppNeuron(
         var key = Key;
         // Only this app's own listing comes down with it.
         if (Snapshot.Publisher is { } publisher
-            && await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, Name()) is { } listed
+            && await Marketplace.Read(publisher, Name()) is { } listed
             && listed.Source.Scope() == BrainId())
-        { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
+        { await Marketplace.Remove(publisher, Name()); }
         // Everything the app owns goes with it: its program, then its storage.
         if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
         if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }

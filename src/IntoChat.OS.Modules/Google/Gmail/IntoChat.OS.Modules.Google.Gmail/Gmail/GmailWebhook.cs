@@ -27,7 +27,7 @@ internal static class GmailWebhook
             var retryable = false;
             var found = await dispatch.RunAsync(brainId, new(brainId + "/gmail-push"), async () =>
             {
-                foreach (var key in await grains.GetGrain<IConnectionIndex>(brainId).List())
+                foreach (var key in await plain.Get<IConnectionIndex>(IConnectionIndex.Key(brainId)).List())
                 {
                     if (ConnectionKeys.Parse(key).ConnectorId != GmailModule.Gmail.Id) { continue; }
                     try

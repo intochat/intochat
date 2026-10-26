@@ -18,11 +18,10 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
 {
     internal const string ManifestName = "aspire";
 
-    // R4-04: what the module needs from its host (AspireNeurons). The deployment is still a grain (it rolls the cluster from its
-    // activation); its registrations stay in Configure until the Framework leaves (06-08).
+    // R4-04: what the module needs from its host (AspireNeurons).
     public static DigitalBrain.ModuleManifest Manifest => AspireNeurons.Manifest;
 
-    // The candidates and their queue are plain neurons (06-06d) on the runtime's host grains.
+    // The candidates, their queue (06-06d) and the deployment (06-08) are plain neurons on the runtime's host grains.
     public override Type? Neurons => typeof(AspireNeurons);
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Aspire.IDeployment).Assembly;
@@ -52,7 +51,6 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
         builder.Services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
         builder.Services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Deployment.DeploymentNeuron>, Deployment.DeploymentReconcile>());
     }
 }
 

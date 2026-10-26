@@ -15,15 +15,12 @@ namespace IntoChat.OS.Modules.Flutter.Space;
 
 // Rebuilds spaces when what they show changes. Signals of plain publishers (Card, Person; 06-04) arrive through IBrainListeners,
 // per brain: a brain is followed when its Space activates on this silo, together with its friends, whose posts and profiles it
-// shows. Signals of still-legacy publishers stay on the local hub until they migrate (SpaceWatcherLegacyHubSignals.json).
-internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILogger<SpaceWatcher> logger, CircleMembers friends,
+// shows. Workspaces, apps and circles (06-08) are heard on IClusterListeners for every brain this silo hosts; the local hub is
+// gone (SpaceWatcherLegacyHubSignals.json is empty).
+internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers friends,
     IBrainListeners listeners, DigitalBrain.Spi.IClusterListeners cluster, IntoChat.OS.Runtime.IPlainNeurons plain) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, Task> _followed = new(StringComparer.Ordinal);
-
-    private readonly LocalSignalHub.Subscription<CircleChanged> _circles = hub.Subscribe<CircleChanged>();
-    private readonly LocalSignalHub.Subscription<CircleMembershipRevoked> _revoked = hub.Subscribe<CircleMembershipRevoked>();
-    private readonly LocalSignalHub.Subscription<CircleSpoke> _posts = hub.Subscribe<CircleSpoke>();
 
     // Workspace and app changes come from plain workspaces and apps of every brain this silo hosts (IClusterListeners, R4-20;
     // apps 06-08). Each handler only posts a one-way recomposition, unstamped, so it is cheap in the publishing turn.
@@ -33,18 +30,17 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
         // A host without the Apps module registers no app signals and has no apps to follow.
         await using var apps = await Optional(() => cluster.Listen<AppChanged>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, _ => RefreshApp($"{publisher.Brain.Value}/{publisher.Key}"))));
         await using var presentations = await Optional(() => cluster.Listen<PresentationChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RefreshApp(change.App))));
-        await Consume(stoppingToken);
-    }
-
-    private Task Consume(CancellationToken stoppingToken) => Task.WhenAll(
-        Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
-        Consume(_circles, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])), stoppingToken),
-        Consume(_posts, async change =>
+        // A host without the Circles module registers no circle signals and has no circles to follow.
+        await using var revoked = await Optional(() => cluster.Listen<CircleMembershipRevoked>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RebuildMembers(change.PreviousMembers))));
+        await using var circles = await Optional(() => cluster.Listen<CircleChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])))));
+        await using var posts = await Optional(() => cluster.Listen<CircleSpoke>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, async _ =>
         {
-            var key = change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..];
-            var circle = await grains.GetGrain<ICircle>(ICircle.Key(key[..^5])).State();
-            await RebuildMembers(circle.Members);
-        }, stoppingToken));
+            var circle = await Unstamped(() => plain.Get<ICircleStateReader>(ICircle.Key(publisher.Brain.Value)).Members());
+            await RebuildMembers(circle);
+        })));
+        try { await Task.Delay(Timeout.Infinite, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+    }
 
     // Follows brain and its friends on this silo, once each: their profile and post changes rebuild the spaces that show them.
     public async Task Follow(string brain)
@@ -80,19 +76,6 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
         { logger.LogWarning(error, "Could not rebuild a space after {Signal}.", typeof(T).Name); }
     }
 
-    private async Task Consume<T>(LocalSignalHub.Subscription<T> subscription, Func<T, Task> handle, CancellationToken ct) where T : Signal
-    {
-        using (subscription)
-        {
-            await foreach (var signal in subscription.Reader.ReadAllAsync(ct))
-            {
-                try { await handle(signal); }
-                catch (Exception error) when (error is not OperationCanceledException)
-                { logger.LogWarning(error, "Could not rebuild a space after {Signal}.", typeof(T).Name); }
-            }
-        }
-    }
-
     private async Task RebuildAuthorAndFriends(string? author)
     {
         if (!BrainScope.IsValidId(author)) { return; }
@@ -115,6 +98,12 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     {
         global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await call();
+    }
+
+    private static async Task<T> Unstamped<T>(Func<Task<T>> call)
+    {
+        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        return await call();
     }
     private static string? BrainOf(string key)
     {

@@ -4,22 +4,23 @@ using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
-[GrainType("aspire.deployment")]
+// A plain neuron (06-08): reminders through Context.Reminders, the retained last DeploymentChanged is the runtime's.
+[DigitalBrain.Neuron("aspire.deployment")]
 internal sealed class DeploymentNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<DeploymentState> store,
     IClusterHost host,
     ICandidateHost candidates,
     global::IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
-    : Neuron<DeploymentState>(store), IDeployment, IDeploymentDriver, IRemindable, IRetainsSignals
+    : DigitalBrain.Neuron, IDeployment, IDeploymentDriver, DigitalBrain.Spi.IRemindedNeuron
 {
-    private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
-    private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
+    // The state, loaded on activation; a step that moves nothing visible saves it without a signal.
+    private DeploymentState Snapshot = new();
+    private string BrainId => Id.Brain.Value;
+    private IIntoChatOS Brain => Context.Services.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
     private readonly Guid activation = Guid.NewGuid();
     private IAsyncDisposable? membershipSubscription;
     private long membershipVersion = long.MinValue;
@@ -42,7 +43,7 @@ internal sealed class DeploymentNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // The silos did not start moving: the live build stays what runs, and the caller learns the restart failed.
-            log.LogWarning(error, "Cluster {Deployment} could not restart onto {Target}.", this.GetPrimaryKeyString(), sha);
+            log.LogWarning(error, "Cluster {Deployment} could not restart onto {Target}.", Id.ToString(), sha);
             if (previous.Length > 0) { await host.SetLive(previous, CancellationToken.None); }
             await Save(new DeploymentState { CurrentSha = previous }, Changed(previous, DeploymentStage.Steady));
             throw;
@@ -77,13 +78,13 @@ internal sealed class DeploymentNeuron(
         if (host.Self is not { } self || !instances.Contains(self)) { throw new InvalidOperationException("this process is not a cluster instance"); }
         // The reminder reactivates the cluster when nothing else would: after its own silo's restart, or a crash
         // mid-roll. Registered before the roll is recorded, so no recorded roll is ever without it.
-        await this.RegisterOrUpdateReminder(RollReminder, ReminderPeriod, ReminderPeriod);
+        await Context.Reminders.Start(RollReminder, ReminderPeriod, ReminderPeriod);
         await Save(new DeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances },
             Changed(previous, DeploymentStage.Rolling));
         try { await host.SetLive(sha, CancellationToken.None); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Deployment} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
+            log.LogWarning(error, "Cluster {Deployment} could not point the live build at {Target}.", Id.ToString(), sha);
             await Save(new DeploymentState { CurrentSha = previous, Failure = error.Message }, Changed(previous, DeploymentStage.Steady));
             await StopReminder();
             throw;
@@ -92,7 +93,7 @@ internal sealed class DeploymentNeuron(
         return Describe();
     }
 
-    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName != RollReminder) { return; }
         if (Moving(Snapshot.Stage)) { Drive(); }
@@ -103,7 +104,7 @@ internal sealed class DeploymentNeuron(
     {
         if (driving || handedOver || !Moving(Snapshot.Stage)) { return; }
         driving = true;
-        _ = this.AsReference<IDeploymentDriver>().Step();
+        _ = Get<IDeploymentDriver>(Id).Step();
     }
 
     // One instance per Step: restart it onto TargetSha, wait until it is ready, record it, hand on to the next Step.
@@ -119,7 +120,7 @@ internal sealed class DeploymentNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Deployment} could not set live to {Target} at step.", this.GetPrimaryKeyString(), target);
+            log.LogWarning(error, "Cluster {Deployment} could not set live to {Target} at step.", Id.ToString(), target);
             var name = Snapshot.Remaining.FirstOrDefault(n => n != self) ?? self!;
             await NeverReady(name, new InstanceNeverReadyException($"live.json could not be written: {error.Message}", error));
             return;
@@ -223,11 +224,11 @@ internal sealed class DeploymentNeuron(
         var reason = $"{name} never became ready on {Snapshot.TargetSha}: {error.Message}";
         if (Snapshot.Stage == DeploymentStage.RollingBack)
         {
-            log.LogError(error, "Cluster {Deployment}: rolling back failed at {Instance}.", this.GetPrimaryKeyString(), name);
+            log.LogError(error, "Cluster {Deployment}: rolling back failed at {Instance}.", Id.ToString(), name);
             await Finish($"{Snapshot.Failure}; rolling back: {reason}");
             return;
         }
-        log.LogWarning(error, "Cluster {Deployment}: {Reason}; rolling back to {Previous}.", this.GetPrimaryKeyString(), reason, Snapshot.PreviousSha);
+        log.LogWarning(error, "Cluster {Deployment}: {Reason}; rolling back to {Previous}.", Id.ToString(), reason, Snapshot.PreviousSha);
         // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
         // wait for them to start.
         string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
@@ -249,7 +250,7 @@ internal sealed class DeploymentNeuron(
 
     private async Task StopReminder()
     {
-        if (await this.GetReminder(RollReminder) is { } reminder) { await this.UnregisterReminder(reminder); }
+        if ((await Context.Reminders.Names()).Contains(RollReminder)) { await Context.Reminders.Stop(RollReminder); }
     }
 
     // Runs on every activation: completes a restart the previous build began, and sweeps container orphans.
@@ -271,7 +272,7 @@ internal sealed class DeploymentNeuron(
         else if (Snapshot.Stage == DeploymentStage.Restarting)
         {
             // live.json is written before the silos restart, so a different build means that restart never took.
-            log.LogWarning("Cluster {Deployment} restarted towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
+            log.LogWarning("Cluster {Deployment} restarted towards {Target} but runs {Current}.", Id.ToString(), Snapshot.TargetSha, current);
             abandoned = Snapshot.TargetSha;
             await Save(new DeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
         }
@@ -287,12 +288,12 @@ internal sealed class DeploymentNeuron(
         }
         await Guarded(() => Brain.Neuron<ICandidates>(ICandidates.Relative).Heal(), "heal the candidate queue");
         await Guarded(async () => await candidates.Orphans(await Brain.Neuron<ICandidates>(ICandidates.Relative).Known(), ct), "sweep orphan candidate containers");
-        var receiver = this.AsReference<IDeploymentDriver>();
+        var receiver = Get<IDeploymentDriver>(Id);
         membershipSubscription = membership.Subscribe(snapshot => receiver.MembershipChanged(activation, snapshot));
         try { await MembershipChanged(activation, membership.Current); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Deployment} could not read its initial membership.", this.GetPrimaryKeyString());
+            log.LogWarning(error, "Cluster {Deployment} could not read its initial membership.", Id.ToString());
             await MembershipChanged(activation, null);
         }
     }
@@ -302,7 +303,7 @@ internal sealed class DeploymentNeuron(
         try { await work(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Deployment} could not {Work}.", this.GetPrimaryKeyString(), what);
+            log.LogWarning(error, "Cluster {Deployment} could not {Work}.", Id.ToString(), what);
         }
     }
 
@@ -310,23 +311,22 @@ internal sealed class DeploymentNeuron(
     // membership snapshot after an activation, which publishes once.
     private SiloState[] silos = [];
     private DeploymentChanged? last;
-    private long sequence = DateTimeOffset.UtcNow.Ticks;
-    private long lastSequence;
 
     private DeploymentChanged Changed(string sha, DeploymentStage stage) => new(stage.ToString(), sha, silos);
 
-    // What was retained is what committed: a refused write publishes nothing and retains nothing.
-    private async Task Save(DeploymentState next, DeploymentChanged changed)
+    // What was published is what committed: a refused write publishes nothing.
+    private async Task SaveQuietly(DeploymentState next)
     {
-        await base.Save(next, changed);
-        last = changed;
-        lastSequence = ++sequence;
+        await Context.State.Save(next, []);
+        Snapshot = next;
     }
 
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal == nameof(DeploymentChanged) && last is { } current && lastSequence > since
-            ? [new RetainedSignal(lastSequence, current with { Publisher = Id })]
-            : []);
+    private async Task Save(DeploymentState next, DeploymentChanged changed)
+    {
+        await Context.State.Save(next, [changed]);
+        Snapshot = next;
+        last = changed;
+    }
 
     // Membership enters on the grain scheduler only when Orleans reports a change.
     // An old callback queued during deactivation cannot overwrite the next activation.
@@ -342,23 +342,23 @@ internal sealed class DeploymentNeuron(
             if (membershipSnapshot is not null) { membershipVersion = membershipSnapshot.Version; }
             return;
         }
-        await PublishAsync(next);
+        // Journaled with the unchanged state, so the brain's log holds the last DeploymentChanged for a later reader (06-08).
+        await Context.State.Save(Snapshot, [next]);
         silos = read;
         last = next;
-        lastSequence = ++sequence;
         if (membershipSnapshot is not null) { membershipVersion = membershipSnapshot.Version; }
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        Snapshot = await Context.State.Load<DeploymentState>() ?? new();
+        await Reconcile(cancellationToken);
+    }
+
+    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (membershipSubscription is not null) { await membershipSubscription.DisposeAsync(); }
-        await base.OnDeactivateAsync(reason, cancellationToken);
     }
 
     private DeploymentSnapshot Describe() => new(Snapshot.CurrentSha, Snapshot.Stage, Snapshot.TargetSha, Snapshot.Remaining, Snapshot.Failure);
-}
-
-internal sealed class DeploymentReconcile : IActivationHandler<DeploymentNeuron>
-{
-    public Task Activated(DeploymentNeuron neuron, CancellationToken cancellationToken) => neuron.Reconcile(cancellationToken);
 }

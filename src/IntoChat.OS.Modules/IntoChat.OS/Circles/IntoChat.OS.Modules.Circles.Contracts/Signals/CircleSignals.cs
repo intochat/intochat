@@ -1,22 +1,22 @@
 namespace IntoChat.OS.Modules.Circles.Signals;
 
-[GenerateSerializer, Alias("circles.circle-changed")]
+[DigitalBrain.Signal("circles.circle-changed")]
 public sealed record CircleChanged(
-    [property: Id(0)] string Name,
-    [property: Id(1)] string[] Members,
-    [property: Id(2)] string[] SharedApps,
-    [property: Id(3)] int ComputeSharePercent,
-    [property: Id(5)] string[]? PreviousMembers = null) : Signal;
+    string Name,
+    string[] Members,
+    string[] SharedApps,
+    int ComputeSharePercent,
+    string[]? PreviousMembers = null) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("circles.circle-spoke")]
+[DigitalBrain.Signal("circles.circle-spoke")]
 public sealed record CircleSpoke(
-    [property: Id(0)] string Name,
-    [property: Id(1)] string Speaker,
-    [property: Id(2)] string Text,
-    [property: Id(3)] long Sequence) : Signal;
+    string Name,
+    string Speaker,
+    string Text,
+    long Sequence) : DigitalBrain.Signal;
 
 // Membership revocation has committed; the circle snapshot may still be in progress.
-[GenerateSerializer, Alias("circles.membership-revoked")]
+[DigitalBrain.Signal("circles.membership-revoked")]
 public sealed record CircleMembershipRevoked(
-    [property: Id(0)] string AccountId,
-    [property: Id(1)] string[] PreviousMembers) : Signal;
+    string AccountId,
+    string[] PreviousMembers) : DigitalBrain.Signal;

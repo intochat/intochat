@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.Google.Gmail.Testing;
 using System.Net;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -88,7 +89,7 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         using (person.AsCaller())
         { await brain.Plain().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", GoogleStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
         await person.ConnectAsync("live", ct);
-        var tracked = await brain.Grains().GetGrain<IConnectionIndex>(person.BrainId).List();
+        var tracked = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(person.BrainId)).List();
         Assert.True(Array.IndexOf(tracked, revoked) < Array.IndexOf(tracked, healthy));
         await using var healthyMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(healthy), ct);
         host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "104", history = Array.Empty<object>() }));

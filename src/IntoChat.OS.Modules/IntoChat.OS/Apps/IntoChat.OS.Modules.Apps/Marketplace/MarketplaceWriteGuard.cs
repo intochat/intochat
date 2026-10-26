@@ -1,4 +1,5 @@
 using IntoChat.OS.Connections.Platform.Marketplace;
+using System.Text.Json;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -10,24 +11,35 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
 {
     public async Task Invoke(IIncomingGrainCallContext context)
     {
-        if (context.Grain is MarketplaceNeuron
-            && context.InterfaceMethod.Name is nameof(IMarketplace.Upsert) or nameof(IMarketplace.Remove))
+        // The marketplace is a plain neuron (06-08): its calls arrive on the runtime's host grain as one RuntimeInvocation.
+        if (context.Grain is global::DigitalBrain.Runtime.Orleans.Hosting.INeuronHost
+            && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call
+            && global::DigitalBrain.NeuronId.TryParse(call.Key, out var target) && target.Type == MarketplaceType
+            && call.Method is nameof(IMarketplace.Upsert) or nameof(IMarketplace.Remove))
         {
-            if (context.InterfaceMethod.Name == nameof(IMarketplace.Upsert)
-                && context.Request.GetArgument(0) is MarketplaceListing listed
-                && await catalog.IsOwner(listed.Publisher))
-            { throw new UnauthorizedAccessException($"{listed.Publisher} owns the features folder's apps; no one publishes under it."); }
-            // An Upsert always names its owner: a listing whose source is not a brain has no app to write it.
-            var owner = context.InterfaceMethod.Name == nameof(IMarketplace.Upsert)
-                ? MarketplaceNeuron.OwnerKey((MarketplaceListing)context.Request.GetArgument(0)!) ?? ""
-                : await listings.Read((string)context.Request.GetArgument(0)!, (string)context.Request.GetArgument(1)!) is { } stored
-                    ? MarketplaceNeuron.OwnerKey(MarketplaceNeuron.Listing(stored))
-                    : null;
-            if (owner is not null
-                && (SourceOf(context.SourceId) is not { } source || source.Type != IntoChat.OS.Connections.AppGrainType.Name || source.Key != owner))
-            { throw new UnauthorizedAccessException("Only the app that owns a Marketplace listing may change it."); }
+            var json = global::DigitalBrain.Invocation.RuntimeProtocol.Json;
+            if (call.Method == nameof(IMarketplace.Upsert))
+            {
+                var listed = call.Arguments.Length > 0 ? call.Arguments[0].Deserialize<MarketplaceListing>(json) : null;
+                if (listed is not null && await catalog.IsOwner(listed.Publisher))
+                { throw new UnauthorizedAccessException($"{listed.Publisher} owns the features folder's apps; no one publishes under it."); }
+                // An Upsert always names its owner: a listing whose source is not a brain has no app to write it.
+                Require(context, listed is null ? "" : MarketplaceNeuron.OwnerKey(listed) ?? "");
+            }
+            else if (call.Arguments.Length >= 2
+                && await listings.Read(call.Arguments[0].Deserialize<string>(json) ?? "", call.Arguments[1].Deserialize<string>(json) ?? "") is { } stored)
+            { Require(context, MarketplaceNeuron.OwnerKey(MarketplaceNeuron.Listing(stored))); }
         }
         await context.Invoke();
+    }
+
+    private const string MarketplaceType = "apps.marketplace";
+
+    private static void Require(IIncomingGrainCallContext context, string? owner)
+    {
+        if (owner is not null
+            && (SourceOf(context.SourceId) is not { } source || source.Type != IntoChat.OS.Connections.AppGrainType.Name || source.Key != owner))
+        { throw new UnauthorizedAccessException("Only the app that owns a Marketplace listing may change it."); }
     }
 
     // The calling grain's type and os key, read from the ids Orleans sets on the message (never from the call's body). The app is a

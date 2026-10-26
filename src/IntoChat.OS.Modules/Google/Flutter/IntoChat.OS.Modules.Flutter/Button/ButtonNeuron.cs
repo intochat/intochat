@@ -121,7 +121,7 @@ internal sealed partial class ButtonNeuron
     private async Task<bool> HoldsConnection(string scope, string? id)
     {
         if (string.IsNullOrEmpty(id)) { return false; }
-        foreach (var key in await ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IConnectionIndex>(scope).List())
+        foreach (var key in await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(scope)).List())
         {
             if (ConnectionKeys.Parse(key).ConnectionId.Equals(id, StringComparison.OrdinalIgnoreCase)) { return true; }
         }

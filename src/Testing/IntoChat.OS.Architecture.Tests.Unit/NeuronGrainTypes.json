@@ -46,8 +46,8 @@
   },
   "IntoChat.OS.Authority.Connections.ConnectionIndexNeuron": {
     "Type": "connection.index",
-    "Store": "platform",
-    "StateName": "connections"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Authority.Connections.ConnectionRequestsNeuron": {
     "Type": "integrations.accounts",
@@ -527,32 +527,32 @@
   "IntoChat.OS.Modules.Circles.CircleChatNeuron": {
     "Type": "circles.chat",
     "Store": "cluster",
-    "StateName": "circles.chat"
+    "StateName": "state"
   },
   "IntoChat.OS.Modules.Circles.CircleFactoryNeuron": {
     "Type": "circles.factory",
-    "Store": "cluster",
-    "StateName": "circles.factory"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Circles.CircleInvitesNeuron": {
     "Type": "circles.invites",
-    "Store": "cluster",
-    "StateName": "circles.invites"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Circles.CircleNeuron": {
     "Type": "circles.circle",
     "Store": "cluster",
-    "StateName": "circles.circle"
+    "StateName": "state"
   },
   "IntoChat.OS.Modules.Circles.InviteCodeNeuron": {
     "Type": "circles.invite-code",
-    "Store": "cluster",
-    "StateName": "circles.invite-code"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Circles.InviteKeyNeuron": {
     "Type": "circles.invite-key",
-    "Store": "cluster",
-    "StateName": "circles.invite-key"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Circles.Tests.SharedConnectionNeuron": {
     "Type": "shared",
@@ -831,8 +831,8 @@
   },
   "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentNeuron": {
     "Type": "aspire.deployment",
-    "Store": "cluster",
-    "StateName": "state"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Microsoft.Azure.AzureNeuron": {
     "Type": "azure",
@@ -956,8 +956,8 @@
   },
   "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron": {
     "Type": "postgres.tables",
-    "Store": "cluster",
-    "StateName": "tables"
+    "Store": null,
+    "StateName": null
   },
   "IntoChat.OS.Modules.Postgres.Tables.TableNeuron": {
     "Type": "postgres.table",

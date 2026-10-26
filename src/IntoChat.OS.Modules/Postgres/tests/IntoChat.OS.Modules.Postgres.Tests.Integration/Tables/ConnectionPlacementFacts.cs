@@ -88,7 +88,7 @@ public sealed class ConnectionPlacementFacts
         using (brain.Owner.AsCaller())
         {
             await brain.Get<IConnection>(key).Disconnect();
-            await brain.Get<IPostgresLifecycleTestApp>("uninstall").Uninstall(App(brain));
+            await brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("uninstall")).Uninstall(App(brain));
         }
 
         Assert.Equal([(TablePlacement.Shared, kept.Table)], shared.Drops);
@@ -105,7 +105,7 @@ public sealed class ConnectionPlacementFacts
     }
 
     private static Task<ITestBrain> Start(ITableStore shared, ConnectionTables connection, BoundSlot slot)
-        => TestBrain.Create().WithModule<PostgresModule>()
+        => TestBrain.Create().WithModule<PostgresModule>().WithNeuronModule<PostgresLifecycleTestModule>()
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
             // Rule 4: a wire-level fake would need a loopback Postgres; the stores stand in for the databases,
             // and the slot stands in for an installed app's tables binding.

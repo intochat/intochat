@@ -182,7 +182,7 @@ public static class Settings
     public static SettingsSources Sources(IntoChatOSConnection brain)
     {
         var scope = Scope(brain);
-        var requests = brain.Get<IConnectionRequests>(scope);
+        var requests = brain.Get<IConnectionRequests>(IConnectionRequests.Key(scope));
         return new(
             () => brain.Get<IModelCatalog>(IModelCatalog.Key(scope)).List(),
             async (skip, take) => await (await Index(brain)).List(true, skip, take),

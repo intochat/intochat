@@ -24,7 +24,7 @@ public sealed class PrimitiveBindingFacts
     public async Task UserEventsReachDurableHandlerWhileProjectionDoesNot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("owner/handler");
         var field = brain.Get<ITextField>("owner/field");
         var binding = brain.Get<IUiBinding>("owner/field");
@@ -51,7 +51,7 @@ public sealed class PrimitiveBindingFacts
     public async Task SelectFileButtonAndVoiceDispatchTypedSignals()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("owner/handler");
         foreach (var key in new[] { "owner/select", "owner/file", "owner/button", "owner/voice" }) { await brain.Get<IUiBinding>(key).Bind(UiHandlers.IdOf(handler)); }
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
@@ -85,7 +85,7 @@ public sealed class PrimitiveBindingFacts
     public async Task UnboundInputsWorkAndNavigationPayloadsAreValidated()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         await brain.Get<ITextField>("owner/field").Input("edit");
         await brain.Get<IFileInput>("owner/file").Capture("empty.txt", "");
         var select = brain.Get<ISelect>("owner/select");
@@ -110,7 +110,7 @@ public sealed class PrimitiveBindingFacts
     public async Task ABindingRefusesAHandlerOfAnotherBrainOrWithoutAType()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var binding = brain.Get<IUiBinding>("owner/guarded");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => binding.Bind("someone-else/test.primitive-handler/handler"));
         await Assert.ThrowsAsync<ArgumentException>(() => binding.Bind("owner/handler"));
@@ -122,7 +122,7 @@ public sealed class PrimitiveBindingFacts
     public async Task HandlerCanProjectAnEditWithoutRedispatchingIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var handler = brain.Get<IPrimitiveTestHandler>("owner/projecting-handler");
         var field = brain.Get<ITextField>("owner/projection-field");
         await handler.ProjectTo("owner/projection-field");
@@ -136,25 +136,26 @@ public sealed class PrimitiveBindingFacts
         Assert.Single((await handler.Events()).Decoded());
     }
     // The handler announces each event it has recorded; delivery is at-least-once, so wait for the count.
-    internal static async Task WaitFor(SignalProbe<UiEventHandled> handled, int count, CancellationToken ct)
+    internal static async Task WaitFor(PlainSignalProbe<UiEventHandled> handled, int count, CancellationToken ct)
     {
         while ((await handled.NextAsync(ct: ct)).Count < count) { }
     }
 }
 
-[GenerateSerializer, Alias("test.ui-event-handled")]
-public sealed record UiEventHandled([property: Id(0)] int Count, [property: Id(1)] string Type) : Signal;
+[DigitalBrain.Signal("test.ui-event-handled")]
+public sealed record UiEventHandled(int Count, string Type) : DigitalBrain.Signal;
 
-[Alias("test.primitive-handler"), Orleans.Metadata.DefaultGrainType("test.primitive-handler")]
-public interface IPrimitiveTestHandler : IUiEventHandler, INeuron
+// A plain handler (06-08), hosted by the test assembly's neuron module.
+[DigitalBrain.Contracts.NeuronAlias("test.primitive-handler"), DigitalBrain.Contracts.DefaultNeuronType("test.primitive-handler")]
+public interface IPrimitiveTestHandler : IUiEventHandler
 {
     // The events as they arrived; decode them with UiEvents.Decoded (a plain control's [Signal] record has no Orleans form).
     Task<IReadOnlyList<UiEvent>> Events();
     Task ProjectTo(string name);
 }
 
-[GrainType("test.primitive-handler")]
-public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
+[DigitalBrain.Neuron("test.primitive-handler")]
+public sealed class PrimitiveTestHandler : DigitalBrain.Neuron, IPrimitiveTestHandler
 {
     private readonly List<UiEvent> _events = [];
     private string? _projection;
@@ -164,8 +165,8 @@ public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
     {
         _events.Add(uiEvent);
         if (_projection is not null && uiEvent.As<TextFieldChanged>() is { } changed)
-        { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITextField>(_projection).SetValue("projected: " + changed.Value); }
-        await PublishAsync(new UiEventHandled(_events.Count, uiEvent.Type[(uiEvent.Type.LastIndexOf('.') + 1)..]));
+        { await Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITextField>(_projection).SetValue("projected: " + changed.Value); }
+        await Publish(new UiEventHandled(_events.Count, uiEvent.Type[(uiEvent.Type.LastIndexOf('.') + 1)..]));
     }
     public Task<IReadOnlyList<UiEvent>> Events() => Task.FromResult<IReadOnlyList<UiEvent>>(_events.ToArray());
 }
@@ -179,4 +180,10 @@ public static class UiEvents
 
     public static object[] Decoded(this IReadOnlyList<UiEvent> events)
         => [.. events.Select(uiEvent => System.Text.Json.JsonSerializer.Deserialize(uiEvent.Json, Dispatched[uiEvent.Type], System.Text.Json.JsonSerializerOptions.Web)!)];
+}
+
+[DigitalBrain.Module("test.primitive-handler")]
+public sealed class PrimitiveHandlerModule : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

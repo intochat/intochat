@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -33,11 +34,12 @@ public sealed class LiveSignalFacts
         return JsonDocument.Parse(stream.Current);
     }
 
-    // The next envelope after the ready marker: the stream is connected and replayed, so what follows is live.
+    // The next envelope after the ready marker: the stream is connected and replayed, so what follows is live. A plain source's
+    // retained last signal (a circle's founding CircleChanged, 06-08) is replayed before the marker.
     private static async Task<Task<bool>> AfterReady(IAsyncEnumerator<string> stream, CancellationToken ct)
     {
-        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(LiveSignalEndpoints.Ready, stream.Current);
+        do { Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct)); }
+        while (stream.Current != LiveSignalEndpoints.Ready);
         return stream.MoveNextAsync().AsTask();
     }
 
@@ -105,13 +107,14 @@ public sealed class LiveSignalFacts
         await using var brain = await CirclesBrain(ct);
         var alice = await brain.PersonAsync("alice", ct);
         var circle = await Circle(brain, alice);
-        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [SpokeFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [SpokeFeed], NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
         var next = await AfterReady(stream, ct);
         using (alice.AsCallerIn(circle)) { await brain.Get<ICircleChat>(ICircleChat.Key(circle)).Say("hi"); }
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
         Assert.Equal("CircleSpoke", envelope.RootElement.GetProperty("type").GetString());
-        Assert.Equal($"circles.chat/{circle}/chat", envelope.RootElement.GetProperty("publisher").GetString());
+        // A plain publisher is named by its runtime id "brain/type/key" (06-08).
+        Assert.Equal($"{circle}/circles.chat/chat", envelope.RootElement.GetProperty("publisher").GetString());
         Assert.Equal(("hi", alice.AccountId), (envelope.RootElement.GetProperty("payload").GetProperty("text").GetString(),
             envelope.RootElement.GetProperty("payload").GetProperty("speaker").GetString()));
     }
@@ -124,7 +127,7 @@ public sealed class LiveSignalFacts
         await using var brain = await CirclesBrain(ct);
         var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
         var circle = await Circle(brain, alice);
-        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [ChangedFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [ChangedFeed], NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
         var next = await AfterReady(stream, ct);
         using (alice.AsCallerIn(circle)) { await brain.Get<ICircle>(ICircle.Key(circle)).Invite(bob.AccountId); }
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));

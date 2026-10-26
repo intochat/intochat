@@ -1,6 +1,6 @@
+using IntoChat.OS.Connections;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Signals;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
@@ -10,30 +10,30 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Circles;
 
-[GenerateSerializer, Alias("circles.chat-record")]
 [ExportableState]
 internal sealed class CircleChatRecord
 {
-    [Id(0)] public CircleLine[] Lines { get; set; } = [];
-    [Id(1)] public long Last { get; set; }
-    [Id(2)] public string[] Said { get; set; } = [];
-    [Id(3)] public string[] Published { get; set; } = [];
+    public CircleLine[] Lines { get; set; } = [];
+    public long Last { get; set; }
+    public string[] Said { get; set; } = [];
+    public string[] Published { get; set; } = [];
 }
 
 // A circle brain's chat `{circle}/chat` (T26-1): one line per Say, numbered here, its speaker the member account that
 // said it. A line said twice under one request id is one line.
-[GrainType("circles.chat")]
-internal sealed class CircleChatNeuron(
-    [PersistentState("circles.chat", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CircleChatRecord> store,
-    IIdentityClient identity)
-    : Neuron<CircleChatRecord>(store), ICircleChat, ICirclePostReader
+// A plain neuron (06-08) at "{circle}/chat".
+[DigitalBrain.Neuron("circles.chat")]
+internal sealed class CircleChatNeuron(IIdentityClient identity)
+    : DigitalBrain.Neuron<CircleChatRecord>, ICircleChat, ICirclePostReader
 {
     private const int Kept = 500;
     private const int KeptRequests = 64;
 
-    private string CircleBrain => this.GetPrimaryKeyString()[..^"/chat".Length];
+    private CircleChatRecord Snapshot => State;
 
-    private ICircle Circle => GrainFactory.GetGrain<ICircle>(ICircle.Key(CircleBrain));
+    private string CircleBrain => Id.Brain.Value;
+
+    private ICircle Circle => Get<ICircle>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle"));
 
     public async Task Say(string text, string? requestId = null)
     {
@@ -70,7 +70,7 @@ internal sealed class CircleChatNeuron(
             || await identity.KindOf(brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("The author must own the personal brain."); }
         var membership = await identity.Membership(CircleBrain, caller.PersonId);
-        var circle = await GrainFactory.GetGrain<ICircleStateReader>(ICircle.Key(CircleBrain)).State();
+        var circle = await Get<ICircleStateReader>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle")).State();
         if (membership?.AccountId != caller.AccountId || !circle.Members.Contains(caller.AccountId, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The author must currently belong to the circle."); }
         await Append(caller.AccountId, circle, "post " + postKey, requestId, post: true);

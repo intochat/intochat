@@ -72,15 +72,11 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     private ITableStore Tables(TablePlacement placement)
         => placement.Kind == TablePlacementKind.Connection ? new HostedTables(Context.Get<IPostgresTableHost>(IntoChat.OS.Connections.Platform.Connections.ConnectionGrains.IdFor(placement.Name!))) : provider;
 
-    private ITableIndex Tables(string owner) => Legacy<ITableIndex>(TableIndexNeuron.GrainType, owner);
-
-    // The index is still a grain (06-05b), reached as this neuron (R4-17), so TableLifecycleGuard sees this table's host as the
-    // calling grain. The connection is a plain neuron (06-08), reached by its connection key.
-    private T Legacy<T>(string type, string fullKey) where T : class
+    // The index is a plain neuron (06-08) reached as this neuron, so TableLifecycleGuard sees this table's host as the caller.
+    private ITableIndex Tables(string owner)
     {
-        var brain = BrainKey.ScopeOf(fullKey) ?? throw new UnauthorizedAccessException("This storage key does not name a brain.");
-        return IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<T>(Context,
-            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), type, fullKey[(brain.Length + 1)..]));
+        var brain = BrainKey.ScopeOf(owner) ?? throw new UnauthorizedAccessException("This storage key does not name a brain.");
+        return Context.Get<ITableIndex>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), TableIndexNeuron.GrainType, owner[(brain.Length + 1)..]));
     }
 
     public async Task Retire(string owner)
