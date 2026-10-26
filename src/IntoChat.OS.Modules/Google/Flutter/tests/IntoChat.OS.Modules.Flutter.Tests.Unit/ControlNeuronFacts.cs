@@ -1,5 +1,6 @@
 using DigitalBrain;
 using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Button.Signals;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Text.Signals;
@@ -105,5 +106,26 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         var changes = await runtime.WaitForSignals<TextFieldChanged>(id, 2, Within, ct);
         Assert.All(changes, change => Assert.Equal("", change.Value));
         Assert.DoesNotContain("hunter2", (await field.Read()).Value, StringComparison.Ordinal);
+    }
+    // 06-05b: the chat index is plain; it titles a default entry from the first message and announces each change.
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task TheChatIndexTitlesItsFirstMessageAndArchivesByIdOnly(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id(ChatIndex.GrainType, "apps/ino-data/chats");
+        var index = runtime.Get<IChatIndex>(id);
+
+        await index.Create("main", ChatIndex.NewChat);
+        await index.Touch("main", "  plan   the week  ");
+        await index.Archive("main");
+        await Assert.ThrowsAsync<ArgumentException>(() => index.Archive("not-an-id"));
+
+        Assert.Equal("plan the week", (await index.Get("main"))!.Title);
+        Assert.Empty((await index.List(archived: false)).Entries);
+        Assert.Equal("main", Assert.Single((await index.List(archived: true)).Entries).Id);
+        var changes = await runtime.WaitForSignals<ChatIndexChanged>(id, 3, Within, ct);
+        Assert.All(changes, change => Assert.Equal($"{id.Brain.Value}/apps/ino-data/chats", change.Name));
+        Assert.Equal([1L, 2L, 3L], changes.Select(change => change.Revision));
     }
 }

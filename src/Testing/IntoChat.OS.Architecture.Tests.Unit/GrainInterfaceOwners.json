@@ -66,7 +66,6 @@
   "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs": 2,
   "IntoChat.OS.Modules.ClickHouse.Contracts/Query/IClickHouse.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/Chat/IChat.cs": 1,
-  "IntoChat.OS.Modules.Flutter.Contracts/Chat/IChatIndex.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/Chat/IComposer.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/Compute/ICompute.cs": 1,
   "IntoChat.OS.Modules.Flutter.Contracts/IUiBinding.cs": 2,

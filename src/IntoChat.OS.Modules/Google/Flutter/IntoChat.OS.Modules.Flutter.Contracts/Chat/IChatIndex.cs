@@ -1,17 +1,18 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
 // One entry per conversation of an assistant, at `{DataKey}/chats`. Each conversation stays an agent at
 // `{DataKey}/conversations/{Id}`; the index only names, orders and archives them.
-[Alias("chat-index"), Orleans.Metadata.DefaultGrainType(ChatIndex.GrainType)]
-public interface IChatIndex : INeuron
+[NeuronAlias("chat-index"), DefaultNeuronType(ChatIndex.GrainType)]
+public interface IChatIndex
 {
     // Unarchived (archived: false) or archived (archived: true) entries, newest first; only the newest MaxListed are reachable.
-    [ReadOnly] Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage);
+    [DigitalBrain.ReadOnlyCall] Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage);
     // Idempotent by id: an existing entry is returned unchanged.
     Task<ChatIndexEntry> Create(string id, string title);
     Task Rename(string id, string title);
@@ -20,7 +21,7 @@ public interface IChatIndex : INeuron
     // Marks activity, creating the entry when missing; titles a still-default entry from the first message.
     Task Touch(string id, string? firstMessage);
     Task SetModel(string id, string? modelChoice);
-    [ReadOnly] Task<ChatIndexEntry?> Get(string id);
+    [DigitalBrain.ReadOnlyCall] Task<ChatIndexEntry?> Get(string id);
 }
 
 [GenerateSerializer, Alias("ui.chat-index-entry")]
@@ -34,8 +35,8 @@ public sealed record ChatIndexEntry(
 [GenerateSerializer, Alias("ui.chat-index-page")]
 public sealed record ChatIndexPage([property: Id(0)] ChatIndexEntry[] Entries, [property: Id(1)] int Total);
 
-[GenerateSerializer, Alias("ui.chat-index-changed")]
-public sealed record ChatIndexChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+[Signal("ui.chat-index-changed")]
+public sealed record ChatIndexChanged(string Name, long Revision) : DigitalBrain.Signal;
 
 public static partial class ChatIndex
 {

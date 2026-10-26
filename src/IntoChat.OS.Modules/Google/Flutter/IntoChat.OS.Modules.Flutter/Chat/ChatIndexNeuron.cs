@@ -1,7 +1,6 @@
+using DigitalBrain;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
@@ -14,12 +13,11 @@ internal sealed record ChatIndexState
     [Id(1)] public ChatIndexEntry[] Entries { get; init; } = [];
 }
 
-[GrainType(ChatIndex.GrainType)]
-internal sealed class ChatIndexNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ChatIndexState> store)
-    : Neuron<ChatIndexState>(store), IChatIndex
+[Neuron(ChatIndex.GrainType)]
+internal sealed class ChatIndexNeuron
+    : UiNeuron<ChatIndexState>, IChatIndex
 {
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(skip);
@@ -31,7 +29,7 @@ internal sealed class ChatIndexNeuron(
         return Task.FromResult(new ChatIndexPage([.. reachable.Skip(skip).Take(take)], reachable.Length));
     }
 
-    [ReadOnly]
+    [DigitalBrain.ReadOnlyCall]
     public Task<ChatIndexEntry?> Get(string id) => Task.FromResult(Find(ValidId(id)));
 
     public async Task<ChatIndexEntry> Create(string id, string title)
@@ -87,7 +85,7 @@ internal sealed class ChatIndexNeuron(
     private Task Write(ChatIndexEntry[] entries)
     {
         var next = new ChatIndexState { Revision = Snapshot.Revision + 1, Entries = entries };
-        return Save(next, new ChatIndexChanged(this.GetPrimaryKeyString(), next.Revision));
+        return Save(next, new ChatIndexChanged(FullKey, next.Revision));
     }
 
     private ChatIndexEntry[] Replace(ChatIndexEntry next)
