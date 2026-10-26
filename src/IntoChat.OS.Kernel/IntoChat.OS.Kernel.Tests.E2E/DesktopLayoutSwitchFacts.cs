@@ -23,7 +23,7 @@ public sealed class DesktopLayoutSwitchFacts(ReferenceBrainFixture host) : Brain
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         Assert.Equal("view", (await Connect(ct)).GetProperty("kind").GetString());
         var classic = await TestWait.UntilAsync(_ => Brain.Get<IButton>(desktop + "/classic").Read(), button => button.Activation is not null, Patience, ct);
-        var open = (await Brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(WorkspaceId).Read()).OpenViews.Select(view => view.Id).ToArray();
+        var open = (await Brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(WorkspaceId)).Read()).OpenViews.Select(view => view.Id).ToArray();
 
         for (var round = 0; round < 2; round++)
         {
@@ -36,7 +36,7 @@ public sealed class DesktopLayoutSwitchFacts(ReferenceBrainFixture host) : Brain
             await TestWait.UntilAsync(_ => layout.Read(), text => text.Markdown == "desktop", Patience, ct);
             var desktopRoot = await Connect(ct);
             Assert.Equal(("view", desktop + "/view"), (desktopRoot.GetProperty("kind").GetString(), desktopRoot.GetProperty("name").GetString()));
-            Assert.Equal(open, (await Brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(WorkspaceId).Read()).OpenViews.Select(view => view.Id));
+            Assert.Equal(open, (await Brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(WorkspaceId)).Read()).OpenViews.Select(view => view.Id));
         }
     }
 

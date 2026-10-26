@@ -15,7 +15,7 @@ public sealed class WorkspaceUpdateFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
         WorkspaceViewRef[] views = [new("person", scope + "/apps/profile", "full", "person:alice"), new("document", scope + "/apps/files", "full", "document:123")];
@@ -36,7 +36,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
         var open = new WorkspaceUpdate([new("a", scope + "/apps/files", "full", "")], "a", []);
@@ -53,7 +53,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using (brain.Owner.AsCaller())
         { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => workspace.Apply(new([], null, []), "op", 0)); }
@@ -75,7 +75,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         var desktop = brain.Get<IApp>(IApp.Key(scope, "desktop"));
         await desktop.Import(Bundle("desktop"), new("mallory", new AppSource.Brain("account-mallory", "mallory"), "desktop", "0.1.1"));
         using (brain.Owner.AsApp(scope + "/apps/desktop"))
@@ -94,7 +94,7 @@ public sealed class WorkspaceUpdateFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
         WorkspaceViewRef ino = View(scope, "ino"), notes = View(scope, "notes");
@@ -113,7 +113,7 @@ public sealed class WorkspaceUpdateFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
         WorkspaceViewRef ino = View(scope, "ino"), ino2 = new("ino-2", scope + "/apps/ino", "full", "");
@@ -135,7 +135,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         WorkspaceViewRef ino = View(scope, "ino"), notes = View(scope, "notes"), files = View(scope, "files"), calc = View(scope, "calc");
         using (brain.Owner.AsApp(scope + "/apps/desktop"))
@@ -160,7 +160,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
         var views = Enumerable.Range(0, 9).Select(i => View(scope, "app" + i)).ToArray();
@@ -184,7 +184,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
         WorkspaceViewRef App(int i) => new("app" + i, scope + "/apps/app" + i, "", "");
@@ -203,7 +203,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         WorkspaceViewRef favourite = new("notes", scope + "/apps/notes", "", "");
         using (brain.Owner.AsApp(scope + "/apps/desktop"))
@@ -230,7 +230,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/workspace");
         var update = new WorkspaceUpdate([View(scope, "ino")], null, []);
@@ -244,7 +244,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         var odd = new WorkspaceViewRef(new string('x', 100) + " / ü", scope + "/apps/notes", "full", "");
         WorkspaceViewRef[] views = [odd, .. Enumerable.Range(0, 63).Select(i => new WorkspaceViewRef("v" + i, scope + "/apps/app" + i, "full", ""))];
@@ -266,7 +266,7 @@ public sealed class WorkspaceUpdateFacts
     {
         await using var brain = await Start(TestContext.Current.CancellationToken);
         var scope = brain.Owner.BrainId;
-        var workspace = brain.Get<IWorkspace>(scope);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await Shipped(brain, scope);
         using var caller = brain.Owner.AsApp(scope + "/apps/desktop");
         var ino = View(scope, "ino");

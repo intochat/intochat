@@ -79,7 +79,7 @@ async Task Carry(Routed routed)
             }
             else
             {
-                var workspace = brain.Get<IWorkspace>(scope);
+                var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
                 await workspace.Show(IApp.Key(scope, route.App), routed.Id.ToString(), (await workspace.Read()).Revision);
                 await Ino.Status(brain, InoCopy.JevOpened(chosen, route.Confidence, title));
                 return;

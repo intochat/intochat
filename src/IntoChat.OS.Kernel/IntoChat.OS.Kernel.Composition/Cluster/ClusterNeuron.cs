@@ -1,20 +1,20 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using global::Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
 
-[GrainType("orleans.cluster")]
-internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron, ICluster, IRetainsSignals, IClusterMembershipReceiver
+[DigitalBrain.Neuron("orleans.cluster")]
+internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : DigitalBrain.Neuron, ICluster, IClusterMembershipReceiver
 {
     private ClusterSnapshot? _last;
     private readonly Guid activation = Guid.NewGuid();
     private IAsyncDisposable? subscription;
     private long membershipVersion = long.MinValue;
 
-    internal async Task StartAsync()
+    // Membership changes come in from the feed off any turn; each is handed back to this neuron as a call, so it is a turn.
+    // The runtime retains the last ClusterChanged for a watch opened later (the hand-written retention went with the grain).
+    protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        var receiver = this.AsReference<IClusterMembershipReceiver>();
+        var receiver = Get<IClusterMembershipReceiver>(Id);
         subscription = membership.Subscribe(snapshot => receiver.MembershipChanged(activation, snapshot));
         await MembershipChanged(activation, membership.Current);
     }
@@ -28,32 +28,23 @@ internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron,
         var next = new ClusterSnapshot(snapshot?.Silos ?? [], (_last?.Version ?? 0) + 1);
         if (_last is null || !_last.Silos.SequenceEqual(next.Silos))
         {
-            await PublishAsync(new ClusterChanged(next));
+            await Publish(new ClusterChanged(next));
             _last = next;
         }
         if (snapshot is not null) { membershipVersion = snapshot.Version; }
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (subscription is not null) { await subscription.DisposeAsync(); }
-        await base.OnDeactivateAsync(reason, cancellationToken);
     }
-
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal == nameof(ClusterChanged) && _last is not null && _last.Version > since
-            ? [new RetainedSignal(_last.Version, new ClusterChanged(_last) { Publisher = this.GetPrimaryKeyString() })] : []);
 }
 
-[Alias("orleans.cluster-membership-receiver")]
-internal interface IClusterMembershipReceiver : IGrainWithStringKey
+// The feed's way back into the neuron: one call per membership change, refused for a stale activation.
+[DigitalBrain.Contracts.NeuronAlias("orleans.cluster-membership-receiver"), DigitalBrain.Contracts.DefaultNeuronType("orleans.cluster")]
+public interface IClusterMembershipReceiver
 {
     Task MembershipChanged(Guid activation, ClusterSnapshot? snapshot);
-}
-
-internal sealed class ClusterActivation : IActivationHandler<ClusterNeuron>
-{
-    public Task Activated(ClusterNeuron neuron, CancellationToken cancellationToken) => neuron.StartAsync();
 }
 
 internal static class ThisAssembly

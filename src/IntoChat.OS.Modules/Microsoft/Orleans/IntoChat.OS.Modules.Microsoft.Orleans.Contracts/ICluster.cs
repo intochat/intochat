@@ -1,5 +1,5 @@
+using DigitalBrain.Contracts;
 using IntoChat.OS;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
@@ -16,8 +16,8 @@ public sealed record ClusterSnapshot([property: Id(0)] SiloView[] Silos, [proper
 
 // The membership of the cluster this brain runs on, as Orleans sees it. A roll or restart is the Aspire
 // module's act (IDeployment); this neuron only reports who is up.
-[Alias("orleans.cluster"), DefaultGrainType("orleans.cluster")]
-public interface ICluster : INeuron
+[NeuronAlias("orleans.cluster"), DefaultNeuronType("orleans.cluster")]
+public interface ICluster
 {
     Task<ClusterSnapshot> Read();
     static string Key(string brainId) => $"{brainId}/orleans/cluster";

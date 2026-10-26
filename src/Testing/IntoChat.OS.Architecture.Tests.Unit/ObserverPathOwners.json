@@ -44,7 +44,7 @@
   "IntoChat.OS.Modules.Apps.Tests.Integration/Runtimes/AppRuntimeFacts.cs": 1,
   "IntoChat.OS.Modules.Apps/Features/FeatureBoot.cs": 2,
   "IntoChat.OS.Modules.Circles.Tests.Integration/CircleBrainRooms.cs": 1,
-  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 8,
+  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 7,
   "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/FilteredSubscriptionFacts.cs": 2,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/HangingWatchFacts.cs": 2,

@@ -30,7 +30,7 @@ public sealed class OsDesktopConnectFacts
         using var caller = person.AsCaller();
         var provider = brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>();
         await provider.Connect(ct);
-        var workspace = brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(person.BrainId);
+        var workspace = brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(person.BrainId));
         var before = await workspace.Read();
         using (person.AsApp(IApp.Key(person.BrainId, "desktop")))
         { await workspace.Apply(new([new("ino", IApp.Key(person.BrainId, "ino"), "full", "")], "ino", []), "test:open", before.Revision); }
@@ -63,7 +63,7 @@ public sealed class OsDesktopConnectFacts
 
         Assert.Equal(new IntoChat.OS.Modules.Flutter.UiChildRef("layout", IApp.Key(person.BrainId, "workspace") + "/root"), root);
         Assert.Equal("mallory", (await desktop.Read()).Origin!.Publisher);
-        var workspace = brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(person.BrainId);
+        var workspace = brain.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(person.BrainId));
         var revision = (await workspace.Read()).Revision;
         using (person.AsApp(IApp.Key(person.BrainId, "desktop")))
         {

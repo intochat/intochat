@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Text;
@@ -13,12 +14,24 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
-[GrainType("ui.workspace")]
-internal sealed partial class WorkspaceNeuron(
-    [PersistentState("workspace", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<WorkspaceStorage> store)
-    : RevisionedNeuron<WorkspaceStorage>(store), IWorkspace
+[Neuron("ui.workspace", State = "workspace")]
+internal sealed partial class WorkspaceNeuron
+    : UiNeuron<WorkspaceStorage>, IWorkspace
 {
-    private string Brain => this.GetPrimaryKeyString();
+    // The brain's one workspace, keyed {brain}/main (R4-19); its signals and paths name the brain.
+    private string Brain => Id.Brain.Value;
+
+    // False when the operation was already applied: a replay changes nothing and announces nothing.
+    private async Task<bool> Commit(string operationId, long expectedRevision, Func<WorkspaceStorage, WorkspaceStorage> change, Func<WorkspaceStorage, DigitalBrain.Signal> changed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        if (Snapshot.Operations.Contains(operationId, StringComparer.Ordinal)) { return false; }
+        if (expectedRevision != Snapshot.Revision)
+        { throw new RevisionConflictException($"Expected revision {expectedRevision}; current revision is {Snapshot.Revision}.", Snapshot.Revision); }
+        var next = change(Snapshot).Advanced(operationId);
+        await Save(next, changed(next));
+        return true;
+    }
 
     public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
@@ -151,7 +164,7 @@ internal sealed partial class WorkspaceNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters.", nameof(operationId)); }
         if (await Commit(operationId, expectedRevision, state => change(Seed(state)), state => new WorkspaceChanged(Brain, state.Revision)))
-        { await GrainFactory.GetGrain<ISpace>(Brain).Recompose(); }
+        { await Get<ISpace>(new DigitalBrain.NeuronId(Id.Brain, ISpace.Type, "main")).Recompose(); }
         return await Read();
     }
 
@@ -171,7 +184,7 @@ internal sealed partial class WorkspaceNeuron(
 
 [GenerateSerializer, Alias("ui.workspace-storage")]
 [ExportableState]
-internal sealed record WorkspaceStorage : IRevisioned<WorkspaceStorage>
+internal sealed record WorkspaceStorage
 {
     [Id(0)] public long Revision { get; init; }
     [Id(1)] public string[] Operations { get; init; } = [];

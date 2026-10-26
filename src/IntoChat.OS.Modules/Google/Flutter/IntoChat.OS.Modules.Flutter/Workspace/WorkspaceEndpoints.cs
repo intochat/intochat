@@ -24,7 +24,7 @@ internal static class WorkspaceEndpoints
         brain.MapPost("/reports", (ProblemReportInput input, IIntoChatOS intoChatOS, CancellationToken ct) => ProblemReportEndpoint.File(input, intoChatOS, ct));
     }
 
-    private static IWorkspace Workspace(IIntoChatOS intoChatOS) => intoChatOS.Get<IWorkspace>(BrainScope.CurrentId());
+    private static IWorkspace Workspace(IIntoChatOS intoChatOS) => intoChatOS.Get<IWorkspace>(IWorkspace.Key(BrainScope.CurrentId()));
 
     private static async Task<IResult> Respond(Func<Task<IResult>> action)
     {

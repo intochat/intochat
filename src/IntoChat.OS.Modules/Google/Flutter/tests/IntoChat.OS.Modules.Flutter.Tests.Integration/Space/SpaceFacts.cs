@@ -33,9 +33,9 @@ public sealed class SpaceFacts
         var target = await App(brain, "ino");
         var oldKey = IApp.Key(brain.Owner.BrainId, "assistant");
         var targetKey = IApp.Key(brain.Owner.BrainId, "ino");
-        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId));
         await workspace.Home("alias-home", 0);
-        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         await space.Rebuild();
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == oldKey), TimeSpan.FromSeconds(10), ct);
@@ -83,13 +83,13 @@ public sealed class SpaceFacts
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
             .ConfigureServices(s => { s.RemoveAll<IAppRuntime>(); s.AddSingleton<IOutgoingGrainCallFilter>(calls); }).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
-        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("count-home", 0);
+        await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("count-home", 0);
         var apps = new List<IApp>();
         for (var i = 0; i < 15; i++) { apps.Add(await App(brain, "count-" + i)); }
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Count(node => node.Id.Contains("/apps/count-", StringComparison.Ordinal)) == 15,
             TimeSpan.FromSeconds(10), ct);
-        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        await brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).ReadProfile(brain.Owner.Key("profile"));
         calls.Count = 0;
         calls.Armed = true;
         if (presentation)
@@ -100,22 +100,22 @@ public sealed class SpaceFacts
         else { await apps[7].SaveManifest(new("Only changed", "description", [], [], []), Guid.NewGuid()); }
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Parameters.GetValueOrDefault(presentation ? "icon" : "title") == (presentation ? "changed-icon" : "Only changed")),
             TimeSpan.FromSeconds(10), ct);
-        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        await brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).ReadProfile(brain.Owner.Key("profile"));
         calls.Armed = false;
         Assert.Equal(1, calls.Count);
         calls.Count = 0;
         calls.Armed = true;
-        await brain.Get<IWorkspace>(brain.Owner.BrainId).Show(IApp.Key(brain.Owner.BrainId, "count-7"), "navigate", 1);
+        await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Show(IApp.Key(brain.Owner.BrainId, "count-7"), "navigate", 1);
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Parameters.GetValueOrDefault("focused") == "true"),
             TimeSpan.FromSeconds(10), ct);
-        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        await brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).ReadProfile(brain.Owner.Key("profile"));
         calls.Armed = false;
         Assert.Equal(0, calls.Count);
         var beforeActivation = (await scene.Read()).Revision;
-        await brain.DeactivateAsync(brain.Get<ISpace>(brain.Owner.BrainId), ct);
+        await brain.DeactivateAsync(brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId)), ct);
         calls.Count = 0;
         calls.Armed = true;
-        await brain.Get<ISpace>(brain.Owner.BrainId).ReadProfile(brain.Owner.Key("profile"));
+        await brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).ReadProfile(brain.Owner.Key("profile"));
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Revision > beforeActivation, TimeSpan.FromSeconds(10), ct);
         calls.Armed = false;
         Assert.Equal(15, calls.Count);
@@ -142,8 +142,8 @@ public sealed class SpaceFacts
             }).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         await App(brain, "retry");
-        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("retry-home", 0);
-        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("retry-home", 0);
+        var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         var key = IApp.Key(brain.Owner.BrainId, "retry");
         // Activation composes once and finishes before this call returns. Rebuild alone would also activate the
@@ -200,10 +200,10 @@ public sealed class SpaceFacts
                 s.AddSingleton<IOutgoingGrainCallFilter>(gate);
             }).StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
-        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("burst-home", 0);
+        await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("burst-home", 0);
         var app = await App(brain, "burst");
         if (targeted) { for (var i = 0; i < 14; i++) { await App(brain, "unrelated-" + i); } }
-        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         // Reconcile apps created after Workspace.Home activated the space.
         // The watcher is removed, so these creations supply no invalidations.
@@ -231,6 +231,14 @@ public sealed class SpaceFacts
 
     private sealed class RebuildGate(bool firstScanFails, bool targeted) : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
     {
+        // The (contract alias, method) of a grain call or of a plain call carried to a host grain.
+        private static (string? Contract, string? Method) Called(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
+        {
+            if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
+            var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
+            return (alias, method?.Name);
+        }
+
         public bool Armed;
         public int Reads, MaximumActive;
         private int _active, _rebuilds;
@@ -241,7 +249,9 @@ public sealed class SpaceFacts
         public async Task Invoke(IIncomingGrainCallContext context)
         {
             var first = false;
-            if (Armed && context.InterfaceMethod?.Name is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp))
+            // The space is a plain neuron (06-08): its calls arrive on the runtime's host grain as one RuntimeInvocation.
+            var (_, method) = Called(context.InterfaceMethod, context.Request);
+            if (Armed && method is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp))
             {
                 var count = Interlocked.Increment(ref _rebuilds);
                 first = count == 1;
@@ -253,8 +263,9 @@ public sealed class SpaceFacts
         public async Task Invoke(IOutgoingGrainCallContext context)
         {
             // A single-app refresh reuses the workspace, so its scan waits on the app read.
-            var contract = firstScanFails && !targeted ? typeof(IWorkspace) : typeof(IApp);
-            if (!Armed || context.InterfaceMethod?.DeclaringType != contract || context.InterfaceMethod.Name != "Read")
+            var contract = firstScanFails && !targeted ? IWorkspace.Type : "apps.app2";
+            var (called, method) = Called(context.InterfaceMethod, context.Request);
+            if (!Armed || called != contract || method != "Read")
             { await context.Invoke(); return; }
             var active = Interlocked.Increment(ref _active);
             MaximumActive = Math.Max(MaximumActive, active);
@@ -327,7 +338,7 @@ public sealed class SpaceFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
             .ConfigureServices(s => s.RemoveAll<IAppRuntime>()).StartAsync(ct);
-        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         await using (var home = await brain.Observe<SceneChanged>(scene, ct))
         {
@@ -375,7 +386,7 @@ public sealed class SpaceFacts
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
         calls.Count = 0;
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(brain.Owner.BrainId).Rebuild();
+        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).Rebuild();
         await changed.NextAsync(ct: ct);
         Assert.Equal(0, calls.Count);
     }
@@ -408,8 +419,8 @@ public sealed class SpaceFacts
         using var caller = brain.Owner.AsCaller();
         var key = IApp.Key(brain.Owner.BrainId, "panel");
         var app = await App(brain, "panel");
-        await brain.Get<IWorkspace>(brain.Owner.BrainId).Home("panel-home", 0);
-        var space = brain.Get<ISpace>(brain.Owner.BrainId);
+        await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("panel-home", 0);
+        var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         // Home queues a one-way recompose, and activation may still be composing. The app
         // appearing in the scene is not the end of that work, and a later revision may belong
@@ -490,7 +501,7 @@ public sealed class SpaceFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
         var app = await App(brain, "files");
-        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId));
         await workspace.Home("home", 0);
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
@@ -514,7 +525,7 @@ public sealed class SpaceFacts
         await App(brain, "files");
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
-        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId));
         await workspace.Show(IApp.Key(brain.Owner.BrainId, "files"), "show", 0);
         SceneState shown;
         do { await changed.NextAsync(ct: ct); shown = await scene.Read(); }
@@ -538,7 +549,7 @@ public sealed class SpaceFacts
         var app = await App(brain, "files");
         var key = IApp.Key(brain.Owner.BrainId, "files");
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
-        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId));
         await workspace.Show(key, "show", 0);
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
         await using var presentation = await brain.Observe<IntoChat.OS.Modules.Apps.Signals.PresentationChanged>(app, ct);

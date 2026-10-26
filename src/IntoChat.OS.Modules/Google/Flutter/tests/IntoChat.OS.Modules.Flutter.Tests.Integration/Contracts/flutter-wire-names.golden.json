@@ -59,7 +59,7 @@
   "IntoChat.OS.Modules.Flutter.Color.Signals.ColorChanged": "signal; short=ColorChanged; alias=ui.color-changed",
   "IntoChat.OS.Modules.Flutter.Compute.ComputeRow": "type; alias=ui.compute-row; serialized=True",
   "IntoChat.OS.Modules.Flutter.Compute.ComputeState": "type; alias=ui.compute-state; serialized=True",
-  "IntoChat.OS.Modules.Flutter.Compute.ICompute": "contract; alias=compute; grain=ui.compute; read=IntoChat.OS.Modules.Flutter.Compute.ComputeState; methods=Read()=read",
+  "IntoChat.OS.Modules.Flutter.Compute.ICompute": "contract; alias=compute; grain=ui.compute; read=IntoChat.OS.Modules.Flutter.Compute.ComputeState; methods=Read()=-",
   "IntoChat.OS.Modules.Flutter.Entries.EntryControlMode": "enum; alias=ui.entry-control-mode; serialized=True; members=Key,Collection",
   "IntoChat.OS.Modules.Flutter.Entries.EntryControlSpec": "type; alias=ui.entry-control-spec; serialized=True",
   "IntoChat.OS.Modules.Flutter.Entries.EntryControlState": "type; alias=ui.entry-control-state; serialized=True",

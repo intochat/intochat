@@ -62,7 +62,7 @@ public sealed class ShippedAppFacts(ShippedAppsFixture fixture) : IClassFixture<
         await Button("Install").ClickAsync();
         using (fixture.Person.AsCallerIn(fixture.Scope))
         {
-            await TestWait.UntilAsync(_ => fixture.Brain.Get<IWorkspace>(fixture.Scope).Read(),
+            await TestWait.UntilAsync(_ => fixture.Brain.Get<IWorkspace>(IWorkspace.Key(fixture.Scope)).Read(),
                 state => state.FocusedViewId == "calculator" && state.OpenViews.Any(view => view.Id == "ino") && state.OpenViews.Any(view => view.Id == "apps"),
                 TimeSpan.FromSeconds(60), ct);
         }

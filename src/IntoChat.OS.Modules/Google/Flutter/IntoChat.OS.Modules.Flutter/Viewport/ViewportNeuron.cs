@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -5,16 +6,15 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Viewport;
 
-[GrainType("viewport")]
-internal sealed class ViewportNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ViewportStorage> store)
-    : Neuron<ViewportStorage>(store), IViewport
+[Neuron("viewport")]
+internal sealed class ViewportNeuron
+    : UiNeuron<ViewportStorage>, IViewport
 {
-    public Task<ViewportState> Read() => Task.FromResult(new ViewportState(this.GetPrimaryKeyString(), Snapshot.Revision, Snapshot.Target));
+    public Task<ViewportState> Read() => Task.FromResult(new ViewportState(FullKey, Snapshot.Revision, Snapshot.Target));
 
     public async Task Set(WorkspaceViewRef? target, long expectedRevision)
     {
-        var name = this.GetPrimaryKeyString();
+        var name = FullKey;
         var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
         if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
         var prefix = name[..(marker + 6)];

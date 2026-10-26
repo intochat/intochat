@@ -31,7 +31,6 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.AddSingleton<CircleMembers>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<SpaceNeuron>, SpaceActivation>());
         silo.Services.AddHostedService<SpaceWatcher>();
     }
 

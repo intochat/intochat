@@ -21,6 +21,5 @@ public static class OrleansHostWiring
         ArgumentNullException.ThrowIfNull(silo);
         if (CloudStorage.IsCloud(silo.Services)) { CloudStorage.Configure(silo); }
         silo.Services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<ClusterNeuron>, ClusterActivation>());
     }
 }

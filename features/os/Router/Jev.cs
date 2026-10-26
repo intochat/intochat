@@ -31,7 +31,7 @@ public static class Jev
     // Focuses the router, whose main layout includes its timer status.
     public static async Task Show(IntoChatOSConnection brain)
     {
-        var workspace = brain.Get<IWorkspace>(Scope(brain));
+        var workspace = brain.Get<IWorkspace>(IWorkspace.Key(Scope(brain)));
         await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
     }
 

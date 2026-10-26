@@ -1,11 +1,12 @@
-using Orleans.Concurrency;
+using DigitalBrain.Contracts;
+
 
 namespace IntoChat.OS.Modules.Flutter.Compute;
 
-[Alias("compute"), Orleans.Metadata.DefaultGrainType("ui.compute")]
-public interface ICompute : INeuron
+[NeuronAlias("compute"), DefaultNeuronType("ui.compute")]
+public interface ICompute
 {
-    [ReadOnly, Alias("read")] Task<ComputeState> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ComputeState> Read();
 }
 
 [GenerateSerializer, Alias("ui.compute-state")]

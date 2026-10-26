@@ -20,7 +20,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
         var scope = WorkspaceId;
 
         var status = Brain.Get<IText>(scope + "/apps/ino/status");
-        var workspace = Brain.Get<IWorkspace>(scope);
+        var workspace = Brain.Get<IWorkspace>(IWorkspace.Key(scope));
         await using var changes = await Brain.Observe<TextChanged>(status, ct);
         await using var windows = await Brain.Observe<WorkspaceChanged>(workspace, ct);
         // Other facts on this host run agent turns; only requests made during this fact count.

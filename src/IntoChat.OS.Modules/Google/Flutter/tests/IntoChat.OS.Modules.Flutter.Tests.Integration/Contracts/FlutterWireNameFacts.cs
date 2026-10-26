@@ -44,7 +44,7 @@ public sealed class FlutterWireNameFacts
         {
             var grain = type.GetCustomAttributesData().SingleOrDefault(a => a.AttributeType == typeof(Orleans.Metadata.DefaultGrainTypeAttribute))?.ConstructorArguments[0].Value as string
                 ?? IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(type);
-            var methods = type.GetMethods().OrderBy(Signature, StringComparer.Ordinal)
+            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance).OrderBy(Signature, StringComparer.Ordinal)
                 .Select(method => Signature(method) + "=" + (method.GetCustomAttribute<AliasAttribute>()?.Alias ?? "-"));
             var read = type.GetMethod("Read", Type.EmptyTypes)?.ReturnType is { IsGenericType: true } task ? task.GetGenericArguments()[0].FullName : "-";
             return $"contract; alias={alias}; grain={grain ?? "-"}; read={read}; methods={string.Join(",", methods)}";

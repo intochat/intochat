@@ -39,7 +39,7 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
         using var caller = User.AsCaller();
         await StartDesktop(ct);
         await ClickDesktop("open:apps", ct);
-        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "apps", Patience, ct);
+        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.FocusedViewId == "apps", Patience, ct);
         Assert.Contains(opened.Windows, window => window.Tabs.Any(tab => tab.Id == "apps"));
         var library = await ViewUntil(nodes => nodes.Any(node => node.Key == "installed") && nodes.Any(node => node.Key == "available")
             && nodes.Any(node => node.Kind == UiNodeKind.Button && node.Action?.StartsWith("detail:", StringComparison.Ordinal) == true), ct);
@@ -239,14 +239,14 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
     private async Task OpenApps(string target, CancellationToken ct)
     {
         await ClickDesktop("open:apps", ct);
-        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "apps", Patience, ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.FocusedViewId == "apps", Patience, ct);
         using var sent = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/apps/request", new { operation = "open", input = target }, ct);
         sent.EnsureSuccessStatusCode();
     }
 
     private async Task Activate(string activation, string target, CancellationToken ct)
     {
-        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        var workspace = Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId));
         for (var attempt = 0; attempt < 12; attempt++)
         {
             using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);

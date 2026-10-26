@@ -14,6 +14,9 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(Orlean
 
     public override System.Reflection.Assembly? Contracts => typeof(ICluster).Assembly;
 
+    // The cluster neuron is a plain neuron of the kernel composition (06-08).
+    public override Type? Neurons => typeof(OrleansNeurons);
+
     // Clustering, grain state and reminders are no longer integration fields: IntoChatOS:Topology selects them (03-12).
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For(OrleansIntegrationNames.Id, "Orleans");
 
@@ -27,4 +30,11 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(Orlean
     public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles => IntoChat.OS.Kernel.Composition.OrleansHostWiring.TopologyProfiles;
 
     public override void Configure(ISiloBuilder silo) => IntoChat.OS.Kernel.Composition.OrleansHostWiring.Configure(silo);
+}
+
+// The DigitalBrain module of the kernel composition's plain neurons (06-08): the cluster neuron.
+[DigitalBrain.Module(OrleansIntegrationNames.Id)]
+public sealed class OrleansNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

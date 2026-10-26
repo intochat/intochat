@@ -58,7 +58,7 @@ public sealed class AssistantScenarioFacts
         var alice = await host.PersonAsync("alice", ct);
         var visualizer = IApp.Key(alice.BrainId, "datavisualizer");
         model.Visualizer = visualizer;
-        model.Scope = alice.BrainId;
+        model.Scope = IWorkspace.Key(alice.BrainId);
         model.Open = JsonSerializer.Serialize(new object[] { visualizer, "open-demo", 0 }, JsonSerializerOptions.Web);
         await Connect(host, alice);
         var app = host.Get<IApp>(visualizer);
@@ -76,7 +76,7 @@ public sealed class AssistantScenarioFacts
         Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", request.Input);
         using (alice.AsCaller())
         {
-            Assert.Equal(visualizer, (await host.Get<IWorkspace>(alice.BrainId).Read()).Path[^1]);
+            Assert.Equal(visualizer, (await host.Get<IWorkspace>(IWorkspace.Key(alice.BrainId)).Read()).Path[^1]);
         }
     }
 

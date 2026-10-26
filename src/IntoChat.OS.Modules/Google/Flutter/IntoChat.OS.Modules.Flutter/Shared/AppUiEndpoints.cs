@@ -53,7 +53,7 @@ internal static class AppUiEndpoints
         apps.MapGet("/node", async (string kind, string name, IIntoChatOS brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
-            var space = grains.GetGrain<ISpace>(scope);
+            var space = brain.Get<ISpace>(ISpace.Key(scope));
             if (kind == "person" && name.EndsWith("/profile", StringComparison.Ordinal))
             { return Results.Ok(await space.ReadProfile(name).WaitAsync(ct)); }
             if (kind == "card" && CircleMembers.PostBrain(name) is not null)
@@ -121,10 +121,10 @@ internal static class AppUiEndpoints
             var scope = BrainScope.CurrentId();
             if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
             {
-                var posts = await grains.GetGrain<ISpace>(scope).ReadPosts(input.Name).WaitAsync(ct);
+                var posts = await brain.Get<ISpace>(ISpace.Key(scope)).ReadPosts(input.Name).WaitAsync(ct);
                 if (input.Action != "activate" || !posts.Definition.Items.Any(item => item.Id == input.Value))
                 { throw new UnauthorizedAccessException("Only a visible post can be opened."); }
-                var workspace = grains.GetGrain<IWorkspace>(scope);
+                var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
                 await workspace.Show(input.Value!, input.OperationId?.ToString() ?? Guid.NewGuid().ToString(), (await workspace.Read()).Revision).WaitAsync(ct);
                 return Results.Accepted();
             }

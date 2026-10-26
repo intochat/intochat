@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flutter.Card;
@@ -7,13 +8,12 @@ using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
-[GrainType("ui.space")]
-internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
-    IntoChat.OS.Runtime.IPlainNeurons plain) : Neuron, ISpace
+[Neuron("ui.space")]
+internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
+    IntoChat.OS.Runtime.IPlainNeurons plain) : DigitalBrain.Neuron, ISpace
 {
     public Task<PersonState> ReadProfile(string key) => ReadShared(async () =>
     {
@@ -45,7 +45,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
 
     private async Task<CircleMembers.Friend?> AuthorizeFriend(string author)
     {
-        var viewer = this.GetPrimaryKeyString();
+        var viewer = Id.Brain.Value;
         if (author == viewer) { return null; }
         return (await friends.FriendsOf(viewer)).SingleOrDefault(friend => friend.Brain == author)
             ?? throw new UnauthorizedAccessException("The author is not a current circle friend.");
@@ -54,7 +54,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
     private async Task<T> ReadShared<T>(Func<Task<T>> read)
     {
         var caller = CallerContextStamper.Require();
-        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != this.GetPrimaryKeyString())
+        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Id.Brain.Value)
         { throw new UnauthorizedAccessException("Read Friends through the viewer's space."); }
         // Keep the verified viewer caller on every call; guarded foreign leaves use typed module readers.
         return await read();
@@ -70,7 +70,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
 
     public Task RefreshApp(string key)
     {
-        if (!key.StartsWith(this.GetPrimaryKeyString() + "/apps/", StringComparison.Ordinal))
+        if (!key.StartsWith(Id.Brain.Value + "/apps/", StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("An app must belong to this space."); }
         _dirtyApps.Add(key);
         return Schedule();
@@ -118,7 +118,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
                     if (!_rebuildPending) { throw; }
                     // An accepted invalidation must survive a failed scan even
                     // if no later event arrives to start another worker.
-                    logger.LogWarning(error, "Space {Brain} scan failed; rebuilding its pending invalidation.", this.GetPrimaryKeyString());
+                    logger.LogWarning(error, "Space {Brain} scan failed; rebuilding its pending invalidation.", Id.Brain.Value);
                 }
             }
             while (_rebuildPending);
@@ -128,17 +128,17 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
 
     private async Task RebuildOnce(bool fullRefresh, bool sourcesStale, string[] dirtyApps)
     {
-        var brain = this.GetPrimaryKeyString();
+        var brain = Id.Brain.Value;
         var types = compiled.Entries;
         if (!types.Any(type => type.Name == typeof(IApp).FullName) || !types.Any(type => type.Name == typeof(IScene).FullName)) { return; }
         // This is the module's derived write, even when an app's Show caused the invalidation.
-        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var inherited = global::Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
+        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
             // A presentation change rewrites one app. Workspace, circle and profile changes
             // mark the sources stale and read them again. Membership is a full rebuild.
-            if (fullRefresh || sourcesStale || _workspace is null) { _workspace = await grains.GetGrain<IWorkspace>(brain).Read(); }
+            if (fullRefresh || sourcesStale || _workspace is null) { _workspace = await Get<IWorkspace>(new DigitalBrain.NeuronId(Id.Brain, IWorkspace.Type, "main")).Read(); }
             var held = _workspace ?? throw new InvalidOperationException("The space has no workspace.");
             if (fullRefresh)
             {
@@ -185,7 +185,7 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         }
         finally
         {
-            if (inherited is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is not null) { global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
         }
     }
 
@@ -193,7 +193,8 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
     {
         try
         {
-            var app = await grains.GetGrain<IApp>(key).Read();
+            // Apps are still grains until they migrate (group B); reached as this neuron through the legacy seam.
+            var app = await IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(brain.Length + 1)..])).Read();
             if (app.MigrationTarget is { } target)
             {
                 _entries.Remove(key);
@@ -219,16 +220,14 @@ internal sealed class SpaceNeuron(IGrainFactory grains, IKernel kernel, Compiled
         while (visited.Add(key) && _aliases.TryGetValue(key, out var target)) { key = target; }
         return key;
     }
-}
 
-internal sealed class SpaceActivation(IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService> hosted) : IActivationHandler<SpaceNeuron>
-{
-    // The watcher runs as a hosted service; a host without it (a fact that removes it) follows nothing.
-    private readonly SpaceWatcher? _watcher = hosted.OfType<SpaceWatcher>().FirstOrDefault();
-
-    public async Task Activated(SpaceNeuron neuron, CancellationToken cancellationToken)
+    // On every activation: the watcher (a hosted service; a host without it follows nothing) follows this brain and its friends,
+    // then the space composes once.
+    protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        if (_watcher is not null) { await _watcher.Follow(neuron.GetPrimaryKeyString()); }
-        await neuron.Rebuild();
+        var watcher = Context.Services.GetService(typeof(IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService>)) is IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService> hosted
+            ? hosted.OfType<SpaceWatcher>().FirstOrDefault() : null;
+        if (watcher is not null) { await watcher.Follow(Id.Brain.Value); }
+        await Rebuild();
     }
 }

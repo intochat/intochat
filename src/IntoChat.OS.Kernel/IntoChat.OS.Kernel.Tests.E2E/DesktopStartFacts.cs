@@ -46,7 +46,7 @@ public sealed class DesktopStartFacts(ReferenceBrainFixture host) : BrainFact(ho
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         await Connect(ct);
 
-        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(),
+        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(),
             state => state.OpenViews.Any(view => view.Id == "ino") && state.FocusedViewId == "ino", TimeSpan.FromSeconds(90), ct);
         var greeted = await TestWait.UntilAsync(_ => transcript.Read(),
             chat => chat.Projection?.Messages.Length > 0, TimeSpan.FromSeconds(90), ct);

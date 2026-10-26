@@ -15,7 +15,7 @@ public sealed class DesktopTabFacts(ReferenceBrainFixture host) : BrainFact(host
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(90);
     private string Desktop => WorkspaceId + "/apps/desktop";
-    private IWorkspace Workspace => Brain.Get<IWorkspace>(WorkspaceId);
+    private IWorkspace Workspace => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId));
 
     [Fact(Timeout = 360_000)]
     public async Task NewTabOpensTheDefaultAppInTheFocusedWindowAndSurvivesARestart()

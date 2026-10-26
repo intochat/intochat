@@ -13,7 +13,7 @@ internal static class ProblemReportEndpoint
         try
         {
             var scope = BrainScope.CurrentId();
-            var report = await brain.Get<IProblemReports>(scope).Add(scope, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
+            var report = await brain.Get<IProblemReports>(scope + "/main").Add(scope, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
             return Results.Created($"/brains/{scope}/reports", report);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }

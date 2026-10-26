@@ -17,11 +17,10 @@ namespace IntoChat.OS.Modules.Flutter.Space;
 // per brain: a brain is followed when its Space activates on this silo, together with its friends, whose posts and profiles it
 // shows. Signals of still-legacy publishers stay on the local hub until they migrate (SpaceWatcherLegacyHubSignals.json).
 internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILogger<SpaceWatcher> logger, CircleMembers friends,
-    IBrainListeners listeners) : BackgroundService
+    IBrainListeners listeners, DigitalBrain.Spi.IClusterListeners cluster, IntoChat.OS.Runtime.IPlainNeurons plain) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, Task> _followed = new(StringComparer.Ordinal);
 
-    private readonly LocalSignalHub.Subscription<WorkspaceChanged> _workspace = hub.Subscribe<WorkspaceChanged>();
     private readonly LocalSignalHub.Subscription<PresentationChanged> _presentation = hub.Subscribe<PresentationChanged>();
     private readonly LocalSignalHub.Subscription<AppChanged> _apps = hub.Subscribe<AppChanged>();
 
@@ -29,7 +28,14 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     private readonly LocalSignalHub.Subscription<CircleMembershipRevoked> _revoked = hub.Subscribe<CircleMembershipRevoked>();
     private readonly LocalSignalHub.Subscription<CircleSpoke> _posts = hub.Subscribe<CircleSpoke>();
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(
+    // Workspace changes come from plain workspaces of every brain this silo hosts (IClusterListeners, R4-20).
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await using var workspaces = await cluster.Listen<WorkspaceChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => Rebuild(change.WorkspaceId)));
+        await Consume(stoppingToken);
+    }
+
+    private Task Consume(CancellationToken stoppingToken) => Task.WhenAll(
         Consume(_apps, change => RefreshApp(change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..]), stoppingToken),
         Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
         Consume(_circles, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])), stoppingToken),
@@ -39,7 +45,6 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
             var circle = await grains.GetGrain<ICircle>(ICircle.Key(key[..^5])).State();
             await RebuildMembers(circle.Members);
         }, stoppingToken),
-        Consume(_workspace, change => Rebuild(change.WorkspaceId), stoppingToken),
         Consume(_presentation, change => RefreshApp(change.App), stoppingToken));
 
     // Follows brain and its friends on this silo, once each: their profile and post changes rebuild the spaces that show them.
@@ -90,8 +95,16 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
         { foreach (var brain in await friends.PersonalBrains(account)) { await Rebuild(brain); } }
     }
 
-    private Task Rebuild(string? brain) => brain is null ? Task.CompletedTask : grains.GetGrain<ISpace>(brain).Recompose();
-    private Task RefreshApp(string key) => BrainOf(key) is { } brain ? grains.GetGrain<ISpace>(brain).RefreshApp(key) : Task.CompletedTask;
+    private Task Rebuild(string? brain) => brain is null ? Task.CompletedTask : Unstamped(() => plain.Get<ISpace>(ISpace.Key(brain)).Recompose());
+    private Task RefreshApp(string key) => BrainOf(key) is { } brain ? Unstamped(() => plain.Get<ISpace>(ISpace.Key(brain)).RefreshApp(key)) : Task.CompletedTask;
+
+    // A recomposition is the module's own act. A plain listener runs in the turn that saved the change, with that writer's stamp,
+    // and a friend's change must not reach another brain's space as the friend: the call goes out unstamped, as the hub pump's did.
+    private static async Task Unstamped(Func<Task> call)
+    {
+        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        await call();
+    }
     private static string? BrainOf(string key)
     {
         var marker = key.IndexOf("/apps/", StringComparison.Ordinal);

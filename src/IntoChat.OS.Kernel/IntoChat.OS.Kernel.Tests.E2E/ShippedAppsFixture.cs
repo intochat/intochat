@@ -80,7 +80,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
         if (ClassicOnly.Contains(name))
         {
             await LayoutAsync("classic", ct);
-            var state = await Brain.Get<IWorkspace>(Scope).Read().WaitAsync(ct);
+            var state = await Brain.Get<IWorkspace>(IWorkspace.Key(Scope)).Read().WaitAsync(ct);
             await App("workspace").Request("navigate", JsonSerializer.Serialize(new { revision = state.Revision, action = "open", id = name })).WaitAsync(ct);
         }
         else
@@ -88,12 +88,12 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
             await LayoutAsync("desktop", ct);
             await App("workspace").Request("activate", JsonSerializer.Serialize(new { kind = "workspace", brainId = Scope, application = name })).WaitAsync(ct);
             // The app's tab id is its name; its window (w-<n>) has the one viewport.
-            var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
+            var placed = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(Scope)).Read(), value => value.Windows.Any(window => window.Tabs.Any(tab => tab.Id == name)), Patience, ct);
             var window = placed.Windows.First(window => window.Tabs.Any(tab => tab.Id == name)).Id;
             await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Modules.Flutter.Viewport.IViewport>(IApp.Key(Scope, "desktop") + "/window/" + window).Read(),
                 viewport => viewport.Target is not null, Patience, ct);
         }
-        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(Scope).Read(), value => value.FocusedViewId == name, TimeSpan.FromSeconds(15), ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(Scope)).Read(), value => value.FocusedViewId == name, TimeSpan.FromSeconds(15), ct);
     }
 
     // The layout the page shows for the current scope: the desktop's layout text, mounted by reloading.
@@ -194,7 +194,7 @@ public sealed class ShippedAppsFixture(ReferenceBrainFixture host) : IAsyncLifet
     {
         using var caller = Person.AsCallerIn(Scope);
         var watch = Stopwatch.StartNew();
-        var workspace = Brain.Get<IWorkspace>(Scope);
+        var workspace = Brain.Get<IWorkspace>(IWorkspace.Key(Scope));
         var state = await workspace.Read().WaitAsync(ct);
         foreach (var view in state.OpenViews)
         {

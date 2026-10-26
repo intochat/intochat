@@ -1,15 +1,14 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
-[GrainType("ui.problem-reports")]
-internal sealed class ProblemReportsNeuron(
-    [PersistentState("problem-reports", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ProblemReportsState> store)
-    : Neuron, IProblemReports
+[Neuron("ui.problem-reports", State = "problem-reports")]
+internal sealed class ProblemReportsNeuron
+    : DigitalBrain.Neuron<ProblemReportsState>, IProblemReports
 {
     private const int MaxMessageLength = 4_000;
 
@@ -24,12 +23,13 @@ internal sealed class ProblemReportsNeuron(
         }
 
         var report = new ProblemReport(intentId, workspaceId, message, DateTimeOffset.UtcNow);
-        var previous = store.State.Reports;
-        store.State = store.State with { Reports = [.. previous, report] };
-        try { await store.WriteStateAsync(); }
-        catch { store.State = store.State with { Reports = previous }; throw; }
+        await Save(State with { Reports = [.. State.Reports, report] }, new ProblemReported(workspaceId, intentId));
         return report;
     }
 
-    public Task<IReadOnlyList<ProblemReport>> Read() => Task.FromResult<IReadOnlyList<ProblemReport>>([.. store.State.Reports]);
+    public Task<IReadOnlyList<ProblemReport>> Read() => Task.FromResult<IReadOnlyList<ProblemReport>>([.. State.Reports]);
 }
+
+// A report was filed: the saved change says which intent it came from (never the message itself).
+[Signal("ui.problem-reported")]
+public sealed record ProblemReported(string WorkspaceId, string IntentId) : DigitalBrain.Signal;

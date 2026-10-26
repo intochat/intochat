@@ -40,8 +40,8 @@ public sealed class WorkspaceRouteFacts
     public async Task AReportKeepsTheIntentIdAndSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var reports = brain.Get<IProblemReports>("workspace-scope-1");
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var reports = brain.Get<IProblemReports>("workspace-scope-1/main");
 
         var report = await reports.Add("workspace-1", "run-42", "The table did not open.");
         await brain.DeactivateAsync(reports, ct);
@@ -55,8 +55,8 @@ public sealed class WorkspaceRouteFacts
     public async Task AnEmptyIntentIdIsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            brain.Get<IProblemReports>("workspace-scope-1").Add("workspace-1", "  ", "something broke"));
+            brain.Get<IProblemReports>("workspace-scope-1/main").Add("workspace-1", "  ", "something broke"));
     }
 }

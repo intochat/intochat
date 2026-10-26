@@ -17,7 +17,7 @@ public static class Workspace
     public sealed record Command(long Revision, string Action, string Id);
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Scope(IntoChatOSConnection brain) => Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
+    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(IWorkspace.Key(Scope(brain)));
     public static string Encode(long revision, string action, string id) => JsonSerializer.Serialize(new Command(revision, action, id));
 
     public sealed record Activation(string? BrainId, string? Application, string? Neuron, string? Operation, string? Input);

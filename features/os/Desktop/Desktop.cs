@@ -35,7 +35,7 @@ public static class Desktop
         var at = Key(brain).IndexOf("/apps/", StringComparison.Ordinal);
         return at < 0 ? throw new InvalidOperationException("The desktop key is not an app key: " + Key(brain)) : Key(brain)[..at];
     }
-    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
+    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(IWorkspace.Key(Scope(brain)));
     // Whether the shell's window is narrow (< 900 logical px), as its `narrow` request last reported.
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
     // The layout the next connect shows ("classic" or "desktop"); the kernel's root reads it.
