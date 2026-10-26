@@ -79,12 +79,12 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     // Module plumbing: a contract no edge can name, because it is not public or is [Internal] as a whole (the script catalog and the
     // neuron surface leave such contracts out, CompiledTypes).
     private static bool IsPlumbing(RuntimeInvocation call)
-        => LegacyGrainSink.ContractOf(call.Contract) is { } contract && (!contract.IsVisible || contract.IsDefined(typeof(InternalAttribute), inherit: false));
+        => KernelInvocationSink.ContractOf(call.Contract) is { } contract && (!contract.IsVisible || contract.IsDefined(typeof(InternalAttribute), inherit: false));
 
     // The method's access attribute wins over its contract's; null is the owner rule.
     private static AccessAttribute? Policy(RuntimeInvocation call) => Policies.GetOrAdd((call.Contract, call.Method, call.Arguments.Length), static key =>
     {
-        if (LegacyGrainSink.ContractOf(key.Contract) is not { } contract) { return null; }
+        if (KernelInvocationSink.ContractOf(key.Contract) is not { } contract) { return null; }
         var method = new[] { contract }.Concat(contract.GetInterfaces()).SelectMany(face => face.GetMethods())
             .FirstOrDefault(candidate => candidate.Name == key.Method
                 && candidate.GetParameters().Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == key.Arity);

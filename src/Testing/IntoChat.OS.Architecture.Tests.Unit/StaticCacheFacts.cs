@@ -10,10 +10,8 @@ public sealed partial class StaticCacheFacts
     private static readonly Dictionary<string, string> Owners = new(StringComparer.Ordinal)
     {
         ["LoadedContracts.Found"] = "string",
-        ["Neuron.OneWayTargets"] = "MethodInfo",
-        ["LegacyGrainSink.Contracts"] = "string",
-        ["LegacyGrainSink.HostTypes"] = "string",
-        ["NeuronCallFilter.Policies"] = "(Type",
+        ["KernelInvocationSink.Contracts"] = "string",
+        ["KernelInvocationSink.HostTypes"] = "string",
         ["NeutralCallMapping.Methods"] = "MethodInfo",
         ["NeutralCallMapping.Predicates"] = "Type",
         ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",

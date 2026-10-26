@@ -44,20 +44,6 @@ public sealed record PlainSignalEntry(string Source, long Sequence, string Alias
 // Floor: everything at or below it is trimmed. Last: the publisher's last sequence.
 public sealed record PlainSignalPage(long Floor, long Last, IReadOnlyList<PlainSignalEntry> Signals);
 
-// An IIntoChatOS that also reaches plain neurons (the in-process client and the script connection); PlainNeuronClient
-// dispatches to it.
-public interface IPlainClient
-{
-    // A proxy of the plain contract for the neuron the os full key names.
-    object GetPlain(Type contract, NeuronId id);
-
-    // The [Signal] records T that source (a proxy from GetPlain) publishes after the subscription is registered.
-    IAsyncEnumerable<T> OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken) where T : DigitalBrain.Signal;
-
-    // The brain a relative id resolves in (IIntoChatOS.Neuron, 06-04), when the client knows it without its Self grain.
-    string? RelativeBrain => null;
-}
-
 public static class PlainSignalTypes
 {
     // The frozen [Signal] alias of a DigitalBrain signal record.

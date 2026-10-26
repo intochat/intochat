@@ -4,29 +4,36 @@ using System.Text.Json;
 using System.Threading.Channels;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Flutter.Workspace;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 
 public sealed class LiveSignalFacts
 {
-    private static async IAsyncEnumerable<INeuron> Keys(IIntoChatOS brain, string[] now, Channel<string>? later, Action listed, [EnumeratorCancellation] CancellationToken ct)
+    internal const string BeatAlias = "test.beat";
+
+    // The beaters of the owner's brain, by key.
+    private static DigitalBrain.NeuronId Id(string key) => new(new DigitalBrain.BrainId("owner"), Beater.Type, key);
+
+    private static async IAsyncEnumerable<DigitalBrain.NeuronId> Keys(string[] now, Channel<string>? later, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
-        foreach (var key in now) { yield return brain.Get<IBeater>(key); }
+        foreach (var key in now) { yield return Id(key); }
         listed();
         if (later is null) { yield break; }
-        await foreach (var key in later.Reader.ReadAllAsync(ct)) { yield return brain.Get<IBeater>(key); }
+        await foreach (var key in later.Reader.ReadAllAsync(ct)) { yield return Id(key); }
     }
 
     private static LiveSignalEndpoints.LiveFeed Feed(string key) => Feed([key], null);
 
     private static LiveSignalEndpoints.LiveFeed Feed(string[] now, Channel<string>? later)
-        => LiveSignalEndpoints.Feed<Beat>((brain, _, listed, ct) => Keys(brain, now, later, listed, ct));
+        => LiveSignalEndpoints.Feed<Beat>((_, _, listed, ct) => Keys(now, later, listed, ct));
 
     private static IAsyncEnumerator<string> Open(ITestBrain brain, LiveSignalEndpoints.LiveFeed[] feeds, CancellationToken ct)
-        => LiveSignalEndpoints.Stream(brain, "brain", feeds, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        => LiveSignalEndpoints.Stream(brain, "owner", feeds, NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
+
+    private static IBeater BeaterOf(ITestBrain brain, string key) => brain.Get<IBeater>("owner/" + key);
+
+    private static Task<ITestBrain> Start(CancellationToken ct) => TestBrain.Create().WithNeuronModule<BeaterNeurons>().StartAsync(ct);
 
     private static async Task<JsonDocument> Next(IAsyncEnumerator<string> stream, CancellationToken ct)
     {
@@ -48,15 +55,15 @@ public sealed class LiveSignalFacts
     public async Task APublishedSignalIsForwardedAsATypedEnvelope()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var beater = brain.Get<IBeater>("beater-live");
+        await using var brain = await Start(ct);
+        var beater = BeaterOf(brain, "beater-live");
         await using var stream = Open(brain, [Feed("beater-live")], ct);
         var next = await AfterReady(stream, ct);
         await beater.Beat(7);
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
         Assert.Equal("Beat", envelope.RootElement.GetProperty("type").GetString());
-        Assert.Equal("test.beater/beater-live", envelope.RootElement.GetProperty("publisher").GetString());
+        Assert.Equal("owner/test.beater/beater-live", envelope.RootElement.GetProperty("publisher").GetString());
         Assert.Equal(7, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
     }
 
@@ -138,26 +145,11 @@ public sealed class LiveSignalFacts
 
     [Trait("host", "own")]
     [Fact]
-    public async Task ASourceWithoutRetentionSendsNoSequence()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var beater = brain.Get<IBeater>("beater-plain");
-        await using var stream = Open(brain, [Feed("beater-plain")], ct);
-        var next = await AfterReady(stream, ct);
-        await beater.BeatUnretained(1);
-        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
-        using var envelope = JsonDocument.Parse(stream.Current);
-        Assert.Equal(JsonValueKind.Null, envelope.RootElement.GetProperty("sequence").ValueKind);
-    }
-
-    [Trait("host", "own")]
-    [Fact]
     public async Task ALateSubscriberStartsFromTheRetainedValue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var beater = brain.Get<IBeater>("beater-late");
+        await using var brain = await Start(ct);
+        var beater = BeaterOf(brain, "beater-late");
         await beater.Beat(1);
         await beater.Beat(2);
         await using var stream = Open(brain, [Feed("beater-late")], ct);
@@ -171,13 +163,13 @@ public sealed class LiveSignalFacts
     public async Task ASourceThatAppearsLaterIsStreamedAndNoSourcesKeepsTheStreamOpen()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         var later = Channel.CreateUnbounded<string>();
         await using var stream = Open(brain, [Feed([], later)], ct);
         var next = await AfterReady(stream, ct);
         Assert.False(next.IsCompleted);
         // The beater retains its beat: whether the late source attaches before or after it, the beat arrives.
-        await brain.Get<IBeater>("beater-new").Beat(5);
+        await BeaterOf(brain, "beater-new").Beat(5);
         later.Writer.TryWrite("beater-new");
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
@@ -189,9 +181,9 @@ public sealed class LiveSignalFacts
     public async Task AFailingFeedIsDroppedWithoutEndingTheOthers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         var broken = LiveSignalEndpoints.Feed<Beat>((_, _, _, _) => throw new InvalidOperationException("no sources"));
-        await brain.Get<IBeater>("beater-ok").Beat(3);
+        await BeaterOf(brain, "beater-ok").Beat(3);
         await using var stream = Open(brain, [broken, Feed("beater-ok")], ct);
         using var envelope = await Next(stream, ct);
         Assert.Equal(3, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
@@ -202,7 +194,7 @@ public sealed class LiveSignalFacts
     public async Task AStreamWhoseEveryFeedFailedEndsWithAnError()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         var broken = LiveSignalEndpoints.Feed<Beat>((_, _, _, _) => throw new InvalidOperationException("no sources"));
         await using var stream = Open(brain, [broken], ct);
 
@@ -214,9 +206,9 @@ public sealed class LiveSignalFacts
     public async Task ReadyFollowsTheReplayOfEverySelectedFeed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        await brain.Get<IBeater>("beater-ready").Beat(4);
-        await brain.Get<IBeater>("beater-ready-2").Beat(5);
+        await using var brain = await Start(ct);
+        await BeaterOf(brain, "beater-ready").Beat(4);
+        await BeaterOf(brain, "beater-ready-2").Beat(5);
         await using var stream = Open(brain, [Feed("beater-ready"), Feed("beater-ready-2")], ct);
         using var first = await Next(stream, ct);
         using var second = await Next(stream, ct);
@@ -230,8 +222,8 @@ public sealed class LiveSignalFacts
     public async Task ALateSubscriberGetsTheReplayThenReadyThenLiveSignals()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var beater = brain.Get<IBeater>("beater-late-ready");
+        await using var brain = await Start(ct);
+        var beater = BeaterOf(brain, "beater-late-ready");
         await beater.Beat(1);
         await using var stream = Open(brain, [Feed("beater-late-ready")], ct);
         using var replayed = await Next(stream, ct);
@@ -248,7 +240,7 @@ public sealed class LiveSignalFacts
     public async Task AFeedWithNoSourcesYetIsReadyAtOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         await using var stream = Open(brain, [Feed([], Channel.CreateUnbounded<string>())], ct);
         using var ready = await Next(stream, ct);
         Assert.Equal("ready", ready.RootElement.GetProperty("type").GetString());
@@ -259,7 +251,7 @@ public sealed class LiveSignalFacts
     public async Task CancellingTheRequestEndsTheStream()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         using var disconnect = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await using var stream = Open(brain, [Feed("beater-gone")], disconnect.Token);
         var next = await AfterReady(stream, ct);
@@ -267,16 +259,20 @@ public sealed class LiveSignalFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next.WaitAsync(TimeSpan.FromSeconds(10), ct));
     }
 
-    // A feed whose one source publishes `count` beats as soon as it is watched.
-    private static LiveSignalEndpoints.LiveFeed Burst(string key, int count, TaskCompletionSource published) => new(
-        nameof(Beat),
-        (brain, _, listed, ct) => Keys(brain, [key], null, listed, ct),
-        (_, _, subscribed, ct) => Beats(subscribed, count, published, ct));
+    // A feed whose one source publishes `count` beats as soon as it is watched (the feed's Live seam stands in for its session).
+    private static LiveSignalEndpoints.LiveFeed Burst(string key, int count, TaskCompletionSource published)
+        => LiveSignalEndpoints.Feed<Beat>((_, _, listed, ct) => Keys([key], null, listed, ct)) with
+        { Live = (source, subscribed, ct) => Beats(source, subscribed, count, published, ct) };
 
-    private static async IAsyncEnumerable<Signal> Beats(Func<Task> subscribed, int count, TaskCompletionSource published, [EnumeratorCancellation] CancellationToken ct)
+    private static async IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry> Beats(DigitalBrain.NeuronId source, Func<Task> subscribed, int count,
+        TaskCompletionSource published, [EnumeratorCancellation] CancellationToken ct)
     {
         await subscribed();
-        for (var pulse = 0; pulse < count; pulse++) { ct.ThrowIfCancellationRequested(); yield return new Beat(pulse); }
+        for (var pulse = 0; pulse < count; pulse++)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return new(source.ToString(), pulse + 1, BeatAlias, JsonSerializer.Serialize(new { pulse }), DateTimeOffset.UtcNow);
+        }
         published.TrySetResult();
     }
 
@@ -285,9 +281,10 @@ public sealed class LiveSignalFacts
     public async Task AStalledReaderGetsResyncAndTheStreamEndsInsteadOfBufferingWithoutBound()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await Start(ct);
         var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var stream = LiveSignalEndpoints.Stream(brain, "brain", [Burst("beater-flood", 100, published)], NullLogger.Instance, ct, capacity: 8).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, "owner", [Burst("beater-flood", 100, published)], NullLogger.Instance, ct, capacity: 8,
+            plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
         // The reader stalls while 100 envelopes are published into a buffer of 8.
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
         await published.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
@@ -319,17 +316,23 @@ public sealed class LiveSignalFacts
         => Assert.Equal(["DeploymentChanged", "AppActivity", "CircleChanged", "CircleSpoke"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
 }
 
-[GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;
+[DigitalBrain.Signal(LiveSignalFacts.BeatAlias)]
+public sealed record Beat(int Pulse) : DigitalBrain.Signal;
 
-[Alias("test.beater"), Orleans.Metadata.DefaultGrainType("test.beater")]
-public interface IBeater : INeuron { Task Beat(int pulse); Task BeatUnretained(int pulse); }
+[DigitalBrain.Contracts.NeuronAlias("test.beater"), DigitalBrain.Contracts.DefaultNeuronType(Beater.Type)]
+public interface IBeater { Task Beat(int pulse); }
 
-[GrainType("test.beater")]
-public sealed class Beater : Neuron, IBeater, IRetainsSignals
+// A plain neuron (06-08): its last Beat is retained in its brain's log, which the live stream replays.
+[DigitalBrain.Neuron(Type)]
+public sealed class Beater : DigitalBrain.Neuron, IBeater
 {
-    private Beat? last;
-    public async Task Beat(int pulse) { last = new Beat(pulse) { Publisher = this.GetPrimaryKeyString() }; await PublishAsync(new Beat(pulse)); }
-    public Task BeatUnretained(int pulse) => PublishAsync(new Beat(pulse));
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal == nameof(Beat) && last is not null ? [new RetainedSignal(1, last)] : []);
+    public const string Type = "test.beater";
+
+    public Task Beat(int pulse) => Publish(new Beat(pulse));
+}
+
+[DigitalBrain.Module("test.beater")]
+public sealed class BeaterNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

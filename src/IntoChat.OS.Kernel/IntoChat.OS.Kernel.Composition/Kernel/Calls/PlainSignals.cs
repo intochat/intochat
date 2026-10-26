@@ -15,9 +15,9 @@ internal sealed class PlainSignals(IGrainFactory grains, IServiceProvider servic
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(session);
-        LegacyGrainSink.Register(typeof(ISessionSynapses));
+        KernelInvocationSink.Register(typeof(ISessionSynapses));
         return new SessionChannel(NeuronProxy.Create<ISessionSynapses>(SessionSynapses.For(new global::DigitalBrain.BrainId(brain), session),
-            new LegacyGrainSink(grains, string.Empty)));
+            new KernelInvocationSink(grains, string.Empty)));
     }
 
     public async Task<PlainSignalPage> Read(global::DigitalBrain.NeuronId publisher, long since, int limit, CancellationToken cancellationToken)

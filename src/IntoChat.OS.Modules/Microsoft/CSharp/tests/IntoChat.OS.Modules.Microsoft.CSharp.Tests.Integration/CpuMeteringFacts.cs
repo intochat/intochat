@@ -133,11 +133,13 @@ public sealed class CpuMeteringFacts
         await changes.NextAsync(ct: ct);
 
         await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_000, Skipped: true)]);
-        // Runs are priced one after another, so once the handled batch behind it is priced the skip would have been.
+        // Runs are priced one after another, so once the handled batch behind it is priced the skip would have been. The skip
+        // itself changes the runtime, so the next batch is awaited where the session host reads it, not as a change signal.
         await source.Ping(2);
-        await changes.NextAsync(ct: ct);
+        await TestWait.UntilAsync(_ => runtime.PendingBatches(session), batches => batches.Any(batch => batch.Subscription == subscription && batch.Watermark >= 2),
+            brain.Execution.AssertionTimeout, ct);
         await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 2, 1_000)]);
-        await meter.ScriptPriced.Task.WaitAsync(ct);
+        await meter.ScriptPriced.Task.WaitAsync(brain.Execution.AssertionTimeout, ct);
 
         Assert.Equal($"{subscription}:2", Assert.Single(meter.Calls, call => call.Kind == CostKind.Script).CostId);
     }

@@ -4,18 +4,20 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 
 public sealed class LiveSignalEndpointsFacts
 {
-    // The golden bytes are shared with the Dart mirror's check; a change here is a wire change.
+    // The golden bytes are shared with the Dart mirror's check; a change here is a wire change. Every live feed is a plain
+    // publisher's (06-08), so the envelope is PlainEnvelope's: the payload is the [Signal] record alone.
     [Fact]
     public async Task TheEnvelopeShapeIsUnchanged()
     {
-        var signal = new ChatChanged("brain/chat", 7) { Publisher = "brain/chat" };
+        var publisher = DigitalBrain.NeuronId.Parse("brain/chats.chat/chat");
+        var entry = new IntoChat.OS.Runtime.PlainSignalEntry(publisher.ToString(), 42, "test.live-envelope-chat-changed",
+            """{"name":"brain/chat","revision":7}""", DateTimeOffset.UnixEpoch);
         var golden = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Contracts", "live-envelope.golden.json"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(golden, LiveSignalEndpoints.Envelope(signal, 42, replay: true));
+        Assert.Equal(golden, LiveSignalEndpoints.PlainEnvelope(typeof(ChatChanged), publisher, entry, replay: true));
     }
 }
 
-// A legacy os signal of the shape the golden envelope was captured with (the chat's own ChatChanged is a plain [Signal] since
-// 06-05b; the legacy envelope still serves the signals of grain publishers).
-[GenerateSerializer, Alias("test.live-envelope-chat-changed")]
-public sealed record ChatChanged([property: Id(0)] string Name, [property: Id(1)] long Revision) : Signal;
+// A [Signal] record of the shape the golden envelope was captured with.
+[DigitalBrain.Signal("test.live-envelope-chat-changed")]
+public sealed record ChatChanged(string Name, long Revision) : DigitalBrain.Signal;

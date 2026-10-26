@@ -21,8 +21,6 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
     IntoChat.OS.Runtime.IPlainNeurons? plain = null)
 {
-    private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
-
     public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
     {
         var claims = ValidateToken(brainId, token);
@@ -40,7 +38,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         if (invocation.Contract == RuntimeProtocol.KernelContract) { return await AskKernelAsync(brainId, identity, invocation, cancellationToken).ConfigureAwait(false); }
         var contract = Callable(invocation.Contract);
         var method = contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
-            .Where(candidate => candidate.Name == invocation.Method && !ObserverMethods.Contains(candidate.Name))
+            .Where(candidate => candidate.Name == invocation.Method)
             .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == invocation.Arguments.Length)
             ?? throw new ArgumentException($"{contract.Name} has no method {invocation.Method} taking {invocation.Arguments.Length} arguments.");
         RequireTargetBrain(brainId, invocation.Key, invocation.Method, identity,
@@ -118,12 +116,12 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         {
             // Registered before the first batch is sent, so a refusal surfaces here and not on the stream.
             var contract = Callable(subscribe.Contract);
-            // Transitional (06-07): a plain neuron is named by its runtime id; the runtime hears it through the session synapse neuron.
+            // A neuron is named by its runtime id; the runtime hears it through the session synapse neuron.
             var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract)
                 ? PlainSources.Of(Plain.IdOf(contract, subscribe.Key))
-                : grains.GetGrain(contract, subscribe.Key) is INeuron source ? source.GetGrainId().ToString() : throw new ArgumentException($"{subscribe.Contract} is not a neuron.");
+                : throw new ArgumentException($"{subscribe.Contract} is not a neuron contract.");
             var identity = await IdentityOf(brainId, claims.Session, subscribe.Behavior).ConfigureAwait(false);
-            RequireTargetBrain(brainId, subscribe.Key, nameof(INeuron.Watch), identity, contract.GetCustomAttribute<AccessAttribute>());
+            RequireTargetBrain(brainId, subscribe.Key, "Watch", identity, contract.GetCustomAttribute<AccessAttribute>());
             var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, neuron, subscribe.Signal, subscribe.Selector).ConfigureAwait(false);
             return Results.Ok(new { subscription = id });
         }

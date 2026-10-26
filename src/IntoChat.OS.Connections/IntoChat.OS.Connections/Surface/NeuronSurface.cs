@@ -17,7 +17,7 @@ public static class NeuronSurfaceTools
     public const string ListDescription = "List the neurons that exist in your brain: each one's contract (a full type name for neurons_get and neurons_call), key, creation time and creator. Pass contract to list one type only. To find contracts by what they do, use neurons_search.";
     public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, and methods.";
     public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is {brain}/connection/{connector}/{id}.";
-    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Request with [operation, input]; then read the neuron the app's spec names for the result.";
+    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. To use an app: IApp.Request with [operation, input]; then read the neuron the app's spec names for the result.";
     public const string ContextDescription = "Read who you are acting as, the current brain id and scope for forming neuron keys, and the brains you are a member of.";
 }
 
@@ -27,7 +27,6 @@ public static class NeuronSurfaceTools
 public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
     IntoChat.OS.Runtime.IPlainNeurons? plain = null)
 {
-    private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(IIntoChatOS).GetMethod(nameof(IIntoChatOS.Get))!;
 
@@ -88,7 +87,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
         try { payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
         catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
         var target = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
-            .Where(candidate => candidate.Name == method && !ObserverMethods.Contains(candidate.Name))
+            .Where(candidate => candidate.Name == method)
             .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == payload.Length)
             ?? throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
         var parameters = target.GetParameters();

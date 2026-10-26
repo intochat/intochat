@@ -7,6 +7,6 @@ using IntoChat.OS.Modules.Postgres.Tables.Signals;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var tables = Views.PlainRegistry<ITable>(brain, appKey, view => view.Source.StartsWith("apptable:", StringComparison.Ordinal)
+var tables = Views.Registry<ITable>(brain, appKey, view => view.Source.StartsWith("apptable:", StringComparison.Ordinal)
     ? [view.Source[9..]] : []);
 await brain.React<RowUpserted>(tables, _ => app.Request("refresh", ""), brain.Stopping);

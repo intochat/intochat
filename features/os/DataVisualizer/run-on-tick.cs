@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Time.Reminders.Signals;
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var reminders = Views.PlainRegistry<IReminder>(brain, appKey, view => view.RefreshSeconds > 0 ? [$"{appKey}/views/{view.Id}/refresh"] : []);
+var reminders = Views.Registry<IReminder>(brain, appKey, view => view.RefreshSeconds > 0 ? [$"{appKey}/views/{view.Id}/refresh"] : []);
 await foreach (var tick in brain.On<ReminderTick>(reminders, brain.Stopping))
 {
     // The tick names its reminder; a view removed since is skipped.

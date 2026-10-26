@@ -16,12 +16,12 @@ public sealed class SourceSetFacts(ClientHost host)
         var stream = Sources.Stream<Number>(brain, sources, () => { registered.TrySetResult(); return Task.CompletedTask; },
                 () => reselections.Writer.TryWrite(true), ct)
             .GetAsyncEnumerator(ct);
-        var watcher = new Watcher(brain, stream, stream.MoveNextAsync().AsTask(), reselections.Reader);
+        var watcher = new Watcher(stream, stream.MoveNextAsync().AsTask(), reselections.Reader);
         await registered.Task.WaitAsync(Wait, ct);
         return watcher;
     }
 
-    private sealed class Watcher(ITestBrain brain, IAsyncEnumerator<Number> stream, Task<bool> first, ChannelReader<bool> reselections) : IAsyncDisposable
+    private sealed class Watcher(IAsyncEnumerator<Number> stream, Task<bool> first, ChannelReader<bool> reselections) : IAsyncDisposable
     {
         private Task<bool>? _pending = first;
 
@@ -35,18 +35,17 @@ public sealed class SourceSetFacts(ClientHost host)
         public async Task<(string Publisher, int Value)> Next(CancellationToken ct)
         {
             Assert.True(await Move().WaitAsync(Wait, ct));
-            return (stream.Current.Publisher.Name, stream.Current.Value);
+            return (stream.Current.From, stream.Current.Value);
         }
 
         // Awaits the next re-selection (counted, so one that finished earlier is not missed): its joiners are subscribed
         // and its leavers released, so what a fact emits next is heard by exactly the members that should hear it.
         public async Task Reselected(CancellationToken ct) => await reselections.ReadAsync(ct).AsTask().WaitAsync(Wait, ct);
 
-        // Nothing more is coming once everything published has reached the subscriber channel: the delivery barrier
-        // replaces a fixed pause, and the pending read is checked after it.
+        // Nothing more arrives within a settle period that covers a synapse delivery; the pending read is checked after it.
         public async Task Silent(CancellationToken ct)
         {
-            await ((ISignalDelivery)brain).DeliveredAsync(ct);
+            await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
             var move = Move();
             Assert.False(move.IsCompleted, "A signal arrived that should not have.");
             _pending = move;
@@ -58,9 +57,9 @@ public sealed class SourceSetFacts(ClientHost host)
     private static Sources Members(ITestBrain brain, string registry, Func<int, Task>? onSelect = null)
     {
         var calls = 0;
-        return Sources.Named<ITestRegistry, MembersChanged>(brain.Get<ITestRegistry>(registry), async (r, _) =>
+        return Sources.Named<ITestRegistry, MembersChanged, ITestEmitter>(brain.Get<ITestRegistry>("owner/" + registry), async (r, _) =>
         {
-            var members = (await r.Members()).Select(id => (INeuron)brain.Get<ITestEmitter>(id)).ToArray();
+            var members = (await r.Members()).Select(id => brain.Get<ITestEmitter>("owner/" + id)).ToArray();
             if (onSelect is not null) { await onSelect(Interlocked.Increment(ref calls)); }
             return members;
         });
@@ -71,11 +70,11 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        await using var watch = await Watch(brain, Sources.Of(brain.Get<ITestEmitter>("set-a"), brain.Get<ITestEmitter>("set-b")), ct);
-        await brain.Get<ITestEmitter>("set-a").Emit(1);
-        await brain.Get<ITestEmitter>("set-b").Emit(2);
+        await using var watch = await Watch(brain, Sources.Of(brain.Get<ITestEmitter>("owner/set-a"), brain.Get<ITestEmitter>("owner/set-b")), ct);
+        await brain.Get<ITestEmitter>("owner/set-a").Emit(1);
+        await brain.Get<ITestEmitter>("owner/set-b").Emit(2);
         var received = new[] { await watch.Next(ct), await watch.Next(ct) };
-        Assert.Equal([("test-emitter/set-a", 1), ("test-emitter/set-b", 2)], received.OrderBy(x => x.Value));
+        Assert.Equal([("set-a", 1), ("set-b", 2)], received.OrderBy(x => x.Value));
     }
 
     [Fact]
@@ -83,10 +82,10 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var a = brain.Get<ITestEmitter>("set-twice");
+        var a = brain.Get<ITestEmitter>("owner/set-twice");
         await using var watch = await Watch(brain, Sources.Of(a, a), ct);
         await a.Emit(1);
-        Assert.Equal(("test-emitter/set-twice", 1), await watch.Next(ct));
+        Assert.Equal(("set-twice", 1), await watch.Next(ct));
         await watch.Silent(ct);
     }
 
@@ -95,7 +94,7 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var watch = await Watch(brain, Sources.Of(brain.Get<ITestEmitter>("set-idle")), ct); // registered, first read pending
+        var watch = await Watch(brain, Sources.Of(brain.Get<ITestEmitter>("owner/set-idle")), ct); // registered, first read pending
         var pending = watch.Move();
         await watch.DisposeAsync();
         Assert.False(await pending.WaitAsync(Wait, ct));
@@ -106,17 +105,17 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var registry = brain.Get<ITestRegistry>("reg-1");
+        var registry = brain.Get<ITestRegistry>("owner/reg-1");
         await registry.Set(["reg-1-a"]);
         await using var watch = await Watch(brain, Members(brain, "reg-1"), ct);
-        await brain.Get<ITestEmitter>("reg-1-a").Emit(1);
-        Assert.Equal(("test-emitter/reg-1-a", 1), await watch.Next(ct));
+        await brain.Get<ITestEmitter>("owner/reg-1-a").Emit(1);
+        Assert.Equal(("reg-1-a", 1), await watch.Next(ct));
 
         await registry.Set(["reg-1-b"]);
         await watch.Reselected(ct);
-        await brain.Get<ITestEmitter>("reg-1-a").Emit(2);
-        await brain.Get<ITestEmitter>("reg-1-b").Emit(3);
-        Assert.Equal(("test-emitter/reg-1-b", 3), await watch.Next(ct));
+        await brain.Get<ITestEmitter>("owner/reg-1-a").Emit(2);
+        await brain.Get<ITestEmitter>("owner/reg-1-b").Emit(3);
+        Assert.Equal(("reg-1-b", 3), await watch.Next(ct));
     }
 
     // Quarantined (timing): https://github.com/intochat/os/issues/310 - removed by Phase 4
@@ -125,7 +124,7 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var registry = brain.Get<ITestRegistry>("reg-5");
+        var registry = brain.Get<ITestRegistry>("owner/reg-5");
         await registry.Set(["reg-5-a"]);
         var selecting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -145,9 +144,9 @@ public sealed class SourceSetFacts(ClientHost host)
         // The change published during the first select is followed by one re-selection; once it announces itself the
         // joiner is subscribed, so a single emit from it is heard.
         await reselections.Reader.ReadAsync(ct).AsTask().WaitAsync(Wait, ct);
-        await brain.Get<ITestEmitter>("reg-5-b").Emit(1);
+        await brain.Get<ITestEmitter>("owner/reg-5-b").Emit(1);
         Assert.True(await next.WaitAsync(Wait, ct));
-        Assert.Equal(("test-emitter/reg-5-b", 1), (stream.Current.Publisher.Name, stream.Current.Value));
+        Assert.Equal(("reg-5-b", 1), (stream.Current.From, stream.Current.Value));
     }
 
     [Fact]
@@ -155,12 +154,12 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var registry = brain.Get<ITestRegistry>("reg-2");
+        var registry = brain.Get<ITestRegistry>("owner/reg-2");
         await registry.Set(["reg-2-a"]);
         await using var watch = await Watch(brain, Members(brain, "reg-2"), ct);
         await registry.Set(["reg-2-a", "reg-2-b"]); // a stays
         await watch.Reselected(ct);
-        await brain.Get<ITestEmitter>("reg-2-a").Emit(1);
+        await brain.Get<ITestEmitter>("owner/reg-2-a").Emit(1);
         Assert.Equal(1, (await watch.Next(ct)).Value);
         await watch.Silent(ct);
     }
@@ -170,8 +169,8 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var registry = brain.Get<ITestRegistry>("reg-3");
-        var a = brain.Get<ITestEmitter>("reg-3-a");
+        var registry = brain.Get<ITestRegistry>("owner/reg-3");
+        var a = brain.Get<ITestEmitter>("owner/reg-3-a");
         await registry.Set(["reg-3-a"]);
         await using var watch = await Watch(brain, Members(brain, "reg-3"), ct);
         await registry.Set([]);
@@ -188,7 +187,7 @@ public sealed class SourceSetFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var registry = brain.Get<ITestRegistry>("reg-4");
+        var registry = brain.Get<ITestRegistry>("owner/reg-4");
         await registry.Set(["reg-4-a"]);
         var sources = Members(brain, "reg-4", n => n > 1 ? throw new InvalidOperationException("malformed registry") : Task.CompletedTask);
         await using var watch = await Watch(brain, sources, ct);

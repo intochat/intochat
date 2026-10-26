@@ -52,7 +52,6 @@ public static class KernelStorage
         // A hosted deployment composes over the local journal here; one registered later applies itself.
         foreach (var extension in services.Where(d => d.ServiceType == typeof(IHostedStorageExtension)).Select(d => d.ImplementationInstance).OfType<IHostedStorageExtension>().ToArray())
         { extension.Configure(services, silo.Configuration); }
-        BrainHosting.TryAddKernelRegistration(silo);
         silo.AddStartupTask(static (provider, cancellationToken) =>
         {
             cancellationToken.ThrowIfCancellationRequested();

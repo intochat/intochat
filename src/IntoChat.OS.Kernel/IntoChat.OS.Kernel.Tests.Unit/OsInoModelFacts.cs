@@ -257,10 +257,6 @@ public sealed class OsInoModelFacts
 
     private abstract class FakeNeuron : INeuron
     {
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     private sealed class FakeCatalog(ModelChoices choices) : FakeNeuron, IModelCatalog

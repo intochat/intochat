@@ -7,7 +7,7 @@ using IntoChat.OS.Runtime;
 namespace IntoChat.OS.Kernel.Composition;
 
 // Transitional (06-03, deleted in 06-08): the os surfaces reach a migrated plain [Neuron] by contract and os key through the
-// runtime's host grains, over the same sink the cross-runtime calls use (LegacyGrainSink routes a plain contract to its host).
+// runtime's host grains, over the same sink the cross-runtime calls use (KernelInvocationSink routes a plain contract to its host).
 // The call carries no neuron caller: the surface's own caller context is the host's, not a neuron's.
 internal sealed class PlainNeurons(IGrainFactory grains, ICallFilter? access = null, Microsoft.Extensions.Logging.ILogger<PlainNeuronCallFilter>? logger = null,
     IServiceProvider? services = null) : IPlainNeurons
@@ -35,7 +35,7 @@ internal sealed class PlainNeurons(IGrainFactory grains, ICallFilter? access = n
     public object Get(Type contract, global::DigitalBrain.NeuronId id)
     {
         ArgumentNullException.ThrowIfNull(contract);
-        LegacyGrainSink.Register(contract);
-        return Factories.GetOrAdd(contract, static type => CreateProxy.MakeGenericMethod(type)).Invoke(null, [id, new LegacyGrainSink(grains, string.Empty, StreamAccess)])!;
+        KernelInvocationSink.Register(contract);
+        return Factories.GetOrAdd(contract, static type => CreateProxy.MakeGenericMethod(type)).Invoke(null, [id, new KernelInvocationSink(grains, string.Empty, StreamAccess)])!;
     }
 }

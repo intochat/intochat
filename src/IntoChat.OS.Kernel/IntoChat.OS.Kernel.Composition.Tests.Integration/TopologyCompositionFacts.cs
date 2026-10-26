@@ -82,7 +82,6 @@ public sealed class TopologyCompositionFacts
         var cluster = provider.GetRequiredKeyedService<IGrainStorage>(OsNames.ClusterGrainStorage);
         Assert.Equal("DigitalBrain.Runtime.Orleans.BrainGrainStorage", cluster.GetType().FullName);
         Assert.NotNull(provider.GetRequiredService<IBrainJournalWriter>());
-        Assert.True(BrainHosting.HasKernelRegistration(provider));
         Assert.NotNull(provider.GetRequiredKeyedService<IGrainStorage>(OsNames.LegacyClusterGrainStorage));
         Assert.IsType<LegacyPersistentStateFactory>(provider.GetRequiredService<global::Orleans.Runtime.IPersistentStateFactory>());
         Assert.IsType<LegacySignalJournal>(provider.GetRequiredService<global::IntoChat.OS.Framework.ISignalJournal>());

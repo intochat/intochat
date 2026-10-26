@@ -56,15 +56,15 @@ public sealed class CreatorAttentionFacts
         };
     }
 
-    // The app is a plain neuron (06-08): the Creator reaches it through the brain's plain path.
-    public interface IFakeBrain : IIntoChatOS, IntoChat.OS.Runtime.IPlainClient;
+    // The app is a plain neuron (06-08): the Creator reaches it through the brain's Get.
+    public interface IFakeBrain : IIntoChatOS;
 
     public class FakeBrain : DispatchProxy
     {
         public IApp? App { get; set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-            => targetMethod!.Name is nameof(IIntoChatOS.Get) or nameof(IntoChat.OS.Runtime.IPlainClient.GetPlain) ? App : throw new NotSupportedException(targetMethod.Name);
+            => targetMethod!.Name is nameof(IIntoChatOS.Get) ? App : throw new NotSupportedException(targetMethod.Name);
     }
 
     public sealed class CapturingLoggerProvider : ILoggerProvider

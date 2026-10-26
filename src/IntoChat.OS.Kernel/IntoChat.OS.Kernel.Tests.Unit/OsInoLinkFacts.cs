@@ -215,10 +215,6 @@ public sealed class OsInoLinkFacts
             return Task.FromResult(true);
         }
         public Task<TextState> Read() => Task.FromResult(new TextState { Markdown = Markdown, Version = Version });
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -250,9 +246,5 @@ public sealed class OsInoLinkFacts
             [.. Posts.Select(post => new AgentRun("post/" + post.Id, AgentRunStatus.Completed, "", DateTimeOffset.UtcNow, Reply: post.Text) { Posted = true })]));
         public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => throw new NotSupportedException();
         public Task Clear() => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 }

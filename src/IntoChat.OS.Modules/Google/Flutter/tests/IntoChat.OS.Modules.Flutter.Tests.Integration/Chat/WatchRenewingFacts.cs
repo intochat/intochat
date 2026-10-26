@@ -11,7 +11,7 @@ public sealed class WatchRenewingFacts
     public async Task AComposerFollowsAChatThatReactivatedAfterItWatched()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithFastSubscriptions().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(services => services.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/a/apps/chat";
         var chat = brain.Get<IChat>(key + "/transcript");

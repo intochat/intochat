@@ -19,8 +19,8 @@ public static class AppSubscriptions
         // The selector asks the runtime not to deliver other operations. A delivery that still
         // arrives is passed over, so its batch is acknowledged as skipped rather than as a run.
         var requests = brain is ISelectiveWatch selective
-            ? selective.OnPlain<AppRequested>(app, operation, onSubscribed, cancellationToken)
-            : PlainNeuronClient.On<AppRequested>(brain, app, onSubscribed, cancellationToken);
+            ? selective.On<AppRequested>(app, operation, onSubscribed, cancellationToken)
+            : brain.On<AppRequested>(app, onSubscribed, cancellationToken);
         await foreach (var request in requests.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             if (string.Equals(request.Operation, operation, StringComparison.Ordinal)) { yield return request; }

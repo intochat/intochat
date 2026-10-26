@@ -54,19 +54,11 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
             var types = await brain.Kernel.Types(ct);
             foreach (var source in request.Sources)
             {
-                // A plain neuron (06-07b): one session on the session synapse neuron for the source's types.
-                if (await surface.PlainId(source.Contract, source.Key, ct) is { } id)
-                {
-                    var wanted = source.SignalTypes.Distinct(StringComparer.Ordinal).Select(name => SignalTypes.Find(name, types)).ToArray();
-                    pumps.Add(Task.Run(() => PlainPump(id, source.Key, wanted, channel.Writer, stop.Token), CancellationToken.None));
-                    continue;
-                }
-                var neuron = await surface.Reference(source.Contract, source.Key, ct);
-                foreach (var name in source.SignalTypes.Distinct(StringComparer.Ordinal))
-                {
-                    var type = SignalTypes.Find(name, types);
-                    pumps.Add(Task.Run(() => Pump(neuron, source.Key, type, channel.Writer, stop.Token), CancellationToken.None));
-                }
+                // One session on the session synapse neuron for the source's types.
+                var id = await surface.PlainId(source.Contract, source.Key, ct)
+                    ?? throw new RpcException(new Status(StatusCode.InvalidArgument, $"{source.Contract} is not a neuron contract this brain can watch."));
+                var wanted = source.SignalTypes.Distinct(StringComparer.Ordinal).Select(name => SignalTypes.Find(name, types)).ToArray();
+                pumps.Add(Task.Run(() => PlainPump(id, source.Key, wanted, channel.Writer, stop.Token), CancellationToken.None));
             }
         }
         catch (Exception error) when (error is not RpcException and not OperationCanceledException)
@@ -88,19 +80,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
         }
     }
 
-    private async Task Pump(INeuron neuron, string key, Type type, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
-    {
-        try
-        {
-            // Retention is read once the watch is registered, so nothing published in between is missed.
-            await foreach (var signal in SignalWatch.Open(brain, neuron, type, () => Replay(neuron, key, type.Name, writer, ct), ct))
-            { await writer.WriteAsync(Envelope(key, signal, 0), ct); }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { writer.TryComplete(error); }
-    }
-
-    // The retained last signal of each type first, then live ones, as the legacy pump sends them. Only [Signal] records are
+    // The retained last signal of each type first, then live ones. Only [Signal] records are
     // published by a plain neuron; a gap is sent as nothing, because a change signal only tells the view to read again.
     private async Task PlainPump(global::DigitalBrain.NeuronId id, string key, Type[] wanted, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
     {
@@ -138,26 +118,6 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
         Publisher = id.ToString(),
         Sequence = entry.Sequence,
         Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(JsonSerializer.Deserialize(entry.Json, type, JsonSerializerOptions.Web), type, Json)),
-        ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-    };
-
-    // A source that retains nothing is quiet; a refused read is the watcher's to hear.
-    private static async Task Replay(INeuron neuron, string key, string type, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
-    {
-        RetainedSignal[] retained;
-        try { retained = await neuron.AsReference<IRetainsSignals>().Retained(type, 0).WaitAsync(ct); }
-        catch (UnauthorizedAccessException error) { writer.TryComplete(error); return; }
-        catch (Exception error) when (error is not OperationCanceledException) { return; }
-        if (retained.LastOrDefault() is { } last) { await writer.WriteAsync(Envelope(key, last.Signal, last.Sequence), ct); }
-    }
-
-    private static SignalEnvelope Envelope(string key, Signal signal, long sequence) => new()
-    {
-        Source = key,
-        Type = signal.GetType().Name,
-        Publisher = signal.Publisher.ToString(),
-        Sequence = sequence,
-        Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(signal, signal.GetType(), Json)),
         ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     };
 }

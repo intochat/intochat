@@ -39,7 +39,7 @@ public sealed class PlainLiveFeedFacts
             while ((await plain.Read(id, 0, 1, waited.Token)).Last < 1) { await Task.Delay(20, waited.Token); }
         }
 
-        var feed = LiveSignalEndpoints.PlainFeed<TimerTick>((_, _, listed, _) => One(id, listed));
+        var feed = LiveSignalEndpoints.Feed<TimerTick>((_, _, listed, _) => One(id, listed));
         await using var stream = LiveSignalEndpoints.Stream(brain, brain.Owner.BrainId, [feed], NullLogger.Instance, ct, plain: plain).GetAsyncEnumerator(ct);
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(Within, ct));
         using (var replay = JsonDocument.Parse(stream.Current))

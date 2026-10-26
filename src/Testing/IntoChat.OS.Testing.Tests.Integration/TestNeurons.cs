@@ -1,80 +1,25 @@
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using Microsoft.Extensions.DependencyInjection;
-using Orleans;
-
 namespace IntoChat.OS.Testing.Tests.Integration;
 
-[GenerateSerializer]
-public sealed record Number([property: Id(0)] int Value) : Signal;
-[GenerateSerializer]
-public sealed record Text([property: Id(0)] string Value) : Signal;
-[Alias("test.emitter")]
-public interface ITestEmitter : INeuron
+// The harness facts' source: a plain neuron (06-08) hosted by EmitterNeurons.
+[DigitalBrain.Signal("test.testing.number")]
+public sealed record Number(int Value) : DigitalBrain.Signal;
+
+[DigitalBrain.Contracts.NeuronAlias("test.emitter"), DigitalBrain.Contracts.DefaultNeuronType(TestEmitter.Type)]
+public interface ITestEmitter
 {
     Task Emit(int value);
-    Task EmitText(string value);
-    Task Deactivate();
-}
-[Alias("test.other-emitter")]
-public interface IOtherEmitter : INeuron { Task Emit(int value); }
-[GrainType("test-emitter")]
-public sealed class TestEmitter : Neuron, ITestEmitter
-{
-    public Task Emit(int value) => PublishAsync(new Number(value));
-    public Task EmitText(string value) => PublishAsync(new Text(value));
-    public Task Deactivate() { DeactivateOnIdle(); return Task.CompletedTask; }
-}
-[GrainType("other-emitter")]
-public sealed class OtherEmitter : Neuron, IOtherEmitter
-{
-    public Task Emit(int value) => PublishAsync(new Number(value));
 }
 
-public interface ISiloBrainListener : INeuron
+[DigitalBrain.Neuron(Type)]
+public sealed class TestEmitter : DigitalBrain.Neuron, ITestEmitter
 {
-    Task<bool> HubIsPresent();
-    Task Listen(string sourceId);
-    Task<int> Last();
-    Task<bool> CancelingTheTokenEndsASubscription(string sourceId);
+    public const string Type = "test-emitter";
+
+    public Task Emit(int value) => Publish(new Number(value));
 }
 
-[GrainType("silo-brain-listener")]
-public sealed class SiloBrainListener : Neuron, ISiloBrainListener
+[DigitalBrain.Module("test.testing-emitters")]
+public sealed class EmitterNeurons : DigitalBrain.Module
 {
-    private int _last;
-    private ISignalSubscription<Number>? _subscription;
-
-    public Task<bool> HubIsPresent() => Task.FromResult(ServiceProvider.GetService<LocalSignalHub>() is not null);
-
-    public async Task Listen(string sourceId)
-    {
-        var brain = ServiceProvider.GetRequiredService<IIntoChatOS>();
-        var source = brain.Get<ITestEmitter>(sourceId);
-        _subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(source);
-        _ = Drain();
-    }
-
-    public Task<int> Last() => Task.FromResult(_last);
-
-    public async Task<bool> CancelingTheTokenEndsASubscription(string sourceId)
-    {
-        var brain = ServiceProvider.GetRequiredService<IIntoChatOS>();
-        using var cancellation = new CancellationTokenSource();
-        await using var subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(brain.Get<ITestEmitter>(sourceId), cancellation.Token);
-        await cancellation.CancelAsync();
-        await Task.WhenAny(subscription.Completion, Task.Delay(TimeSpan.FromSeconds(5)));
-        return subscription.Completion.IsCanceled;
-    }
-
-    private async Task Drain()
-    {
-        if (_subscription is null) { return; }
-        await foreach (var number in _subscription.ReadAllAsync())
-        {
-            _last = number.Value;
-        }
-    }
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

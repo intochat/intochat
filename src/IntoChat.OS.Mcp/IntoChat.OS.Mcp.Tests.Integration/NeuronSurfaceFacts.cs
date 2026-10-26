@@ -225,12 +225,10 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         public IBrain Self => throw new NotSupportedException();
         public IKernelView Kernel => throw new NotSupportedException();
 
-        public T Get<T>(NeuronId id) where T : INeuron => throw new NotSupportedException();
-        public T Neuron<T>(NeuronId relative) where T : INeuron => throw new NotSupportedException();
+        public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
+        public T Neuron<T>(NeuronId relative) where T : class => throw new NotSupportedException();
 
-        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-            => throw new NotSupportedException();
-        public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 }

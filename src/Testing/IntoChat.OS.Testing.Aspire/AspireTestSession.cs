@@ -34,7 +34,6 @@ public sealed class AspireTestSession : IAsyncDisposable
 
     public DistributedApplication App { get; }
     public IIntoChatOSBrains Brains => _client!.Services.GetRequiredService<IIntoChatOSBrains>();
-    public IBrainSubscriptions Subscriptions => _client!.Services.GetRequiredService<IBrainSubscriptions>();
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }

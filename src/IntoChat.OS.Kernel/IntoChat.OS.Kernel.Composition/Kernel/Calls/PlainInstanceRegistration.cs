@@ -75,7 +75,7 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
 
     private static bool IsReadOnly(RuntimeInvocation call) => ReadOnly.GetOrAdd((call.Contract, call.Method, call.Arguments.Length), static key =>
     {
-        if (LegacyGrainSink.ContractOf(key.Contract) is not { } contract) { return false; }
+        if (KernelInvocationSink.ContractOf(key.Contract) is not { } contract) { return false; }
         var method = new[] { contract }.Concat(contract.GetInterfaces()).SelectMany(face => face.GetMethods())
             .FirstOrDefault(candidate => candidate.Name == key.Method
                 && candidate.GetParameters().Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == key.Arity);

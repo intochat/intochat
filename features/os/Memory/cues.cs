@@ -19,8 +19,12 @@ var intents = brain.Get<IIntents>(IIntents.Key(Memory.Scope(brain)));
 var watched = new Dictionary<Guid, CancellationTokenSource>();
 var gate = new SemaphoreSlim(1, 1);
 var watchers = new HashSet<Task>();
-var signalTypes = new Intents.CueTypes(() => Load(type => !type.IsAbstract && !type.IsInterface && typeof(Signal).IsAssignableFrom(type)), Assemblies);
-var contractTypes = new Intents.CueTypes(() => Load(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)), Assemblies);
+// A cue names a [Signal] record by its alias; a publisher's contract is the interface whose default neuron type is the type the
+// kernel lists the publisher under.
+var signalTypes = new Intents.CueTypes(() => Load(type => !type.IsAbstract && typeof(DigitalBrain.Signal).IsAssignableFrom(type),
+    type => type.GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias), Assemblies);
+var contractTypes = new Intents.CueTypes(() => Load(type => type.IsInterface,
+    type => type.GetCustomAttribute<DigitalBrain.Contracts.DefaultNeuronTypeAttribute>(inherit: false)?.Type), Assemblies);
 
 var following = Supervise("intent transitions", ct => brain.React<IntentTransitioned>(intents, token => SyncAll(token), ct));
 
@@ -152,10 +156,10 @@ async Task WatchSignal(Guid id, Cue cue, CancellationToken ct)
     var contract = await ContractOf(cue.PublisherKey, ct) ?? throw new InvalidOperationException("the key " + cue.PublisherKey + " is not a known neuron");
     var get = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "Get" && method.IsGenericMethodDefinition
         && method.GetParameters() is [{ ParameterType.Name: "NeuronId" }]);
-    var publisher = (INeuron)get.MakeGenericMethod(contract).Invoke(brain, [(NeuronId)cue.PublisherKey])!;
+    var publisher = get.MakeGenericMethod(contract).Invoke(brain, [(NeuronId)cue.PublisherKey])!;
     var on = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "On" && method.IsGenericMethodDefinition
-        && method.GetParameters() is [{ ParameterType.Name: "INeuron" }, { ParameterType.Name: "CancellationToken" }]);
-    var stream = (IAsyncEnumerable<Signal>)on.MakeGenericMethod(type).Invoke(brain, [publisher, ct])!;
+        && method.GetParameters() is [{ ParameterType.Name: "Object" }, { ParameterType.Name: "CancellationToken" }]);
+    var stream = (IAsyncEnumerable<DigitalBrain.Signal>)on.MakeGenericMethod(type).Invoke(brain, [publisher, ct])!;
     await foreach (var signal in stream.WithCancellation(ct))
     {
         if (!Intents.CueMatches(cue, signal)) { continue; }
@@ -187,13 +191,13 @@ async Task<bool> Fire(Guid id, string what)
 
 static int Assemblies() => AppDomain.CurrentDomain.GetAssemblies().Length;
 
-// Alias to type of every loaded type the filter accepts; the first type with an alias wins.
-static IReadOnlyDictionary<string, Type> Load(Func<Type, bool> accept)
+// Name to type of every loaded type the filter accepts; the first type with a name wins.
+static IReadOnlyDictionary<string, Type> Load(Func<Type, bool> accept, Func<Type, string?> name)
 {
     var map = new Dictionary<string, Type>();
     foreach (var type in AppDomain.CurrentDomain.GetAssemblies().SelectMany(TypesOf).Where(accept))
     {
-        if (NeuronAliases.Of(type) is { } alias) { map.TryAdd(alias, type); }
+        if (name(type) is { } key) { map.TryAdd(key, type); }
     }
     return map;
 }
@@ -204,7 +208,7 @@ static IEnumerable<Type> TypesOf(Assembly assembly)
     catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
 }
 
-// The neuron contract of an existing instance: the kernel names its grain type by alias, a loaded interface carries it.
+// The neuron contract of an existing instance: the kernel names its neuron type, a loaded contract declares it as its default.
 // An alias not yet loaded is looked up again by CueTypes, throttled per alias.
 async Task<Type?> ContractOf(string key, CancellationToken ct)
 {

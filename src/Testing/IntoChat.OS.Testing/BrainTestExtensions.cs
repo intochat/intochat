@@ -8,24 +8,13 @@ namespace IntoChat.OS.Testing;
 
 public static class BrainTestExtensions
 {
-    public static async Task<SignalProbe<T>> Observe<T>(this IIntoChatOS brain, INeuron source, CancellationToken cancellationToken = default) where T : Signal
-    {
-        ArgumentNullException.ThrowIfNull(brain);
-        var subscriptions = brain as IBrainSubscriptions ?? throw new ArgumentException("Observe needs a brain that hands out subscription handles (the test harness brains do).", nameof(brain));
-        var subscription = await subscriptions.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
-        var tracked = brain as ITrackedBrain;
-        var probe = new SignalProbe<T>(subscription, tracked?.BufferCapacity ?? new SubscriptionOptions().BufferCapacity, tracked?.Execution ?? new());
-        tracked?.Track(probe);
-        return probe;
-    }
-
-    // Observe for a plain neuron (06-04): source is the proxy brain.Get returned, T one of its [Signal] records.
+    // Observe a neuron: source is the reference brain.Get returned, T one of its [Signal] records.
     public static async Task<PlainSignalProbe<T>> Observe<T>(this IIntoChatOS brain, object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(source);
         var tracked = brain as ITrackedBrain;
-        var probe = await PlainSignalProbe<T>.Start(brain, source, tracked?.BufferCapacity ?? new SubscriptionOptions().BufferCapacity, tracked?.Execution ?? new(), cancellationToken).ConfigureAwait(false);
+        var probe = await PlainSignalProbe<T>.Start(brain, source, tracked?.BufferCapacity ?? ITrackedBrain.DefaultBufferCapacity, tracked?.Execution ?? new(), cancellationToken).ConfigureAwait(false);
         tracked?.Track(probe);
         return probe;
     }
@@ -37,7 +26,7 @@ public static class BrainTestExtensions
         ArgumentNullException.ThrowIfNull(signals);
         var plain = (IntoChat.OS.Runtime.IPlainSignals)brain.Services.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals))!;
         var tracked = brain as ITrackedBrain;
-        var probe = await PlainSignalProbe<DigitalBrain.Signal>.StartAll(plain, source, signals, tracked?.BufferCapacity ?? new SubscriptionOptions().BufferCapacity,
+        var probe = await PlainSignalProbe<DigitalBrain.Signal>.StartAll(plain, source, signals, tracked?.BufferCapacity ?? ITrackedBrain.DefaultBufferCapacity,
             tracked?.Execution ?? new(), cancellationToken).ConfigureAwait(false);
         tracked?.Track(probe);
         return probe;
@@ -72,7 +61,7 @@ public static class BrainTestExtensions
         return brain.DeactivateAsync(grains.GetGrain(global::Orleans.Runtime.GrainId.Create(HostTypeOf(target.Type), target.ToString())), cancellationToken);
     }
 
-    // The runtime host grain type of a neuron type, by the runtime's policy (as the kernel composition's LegacyGrainSink reads it).
+    // The runtime host grain type of a neuron type, by the runtime's policy (as the kernel composition's KernelInvocationSink reads it).
     private static string HostTypeOf(string type)
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic))

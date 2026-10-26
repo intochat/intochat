@@ -24,7 +24,7 @@ public sealed class AuthorityGrainsFacts
     [Fact]
     public void AnyOtherInterfaceIsRefused()
     {
-        Assert.False(AuthorityGrains.IsAllowListed(typeof(ILegacyProbe)));
+        Assert.False(AuthorityGrains.IsAllowListed(typeof(IStrayGrain)));
         Assert.False(AuthorityGrains.IsAllowListed(typeof(IConnection)));
         Assert.False(AuthorityGrains.IsAllowListed(typeof(IGrainWithStringKey)));
         Assert.False(AuthorityGrains.IsAllowListed(typeof(INeuron)));
@@ -38,6 +38,9 @@ public sealed class AuthorityGrainsFacts
         var grains = brain.Services.GetRequiredService<IAuthorityGrains>();
 
         Assert.NotNull(grains.Get<IBrainEntries>("owner"));
-        Assert.Throws<InvalidOperationException>(() => grains.Get<ILegacyProbe>("owner/l1"));
+        Assert.Throws<InvalidOperationException>(() => grains.Get<IStrayGrain>("owner/l1"));
     }
 }
+
+// A grain interface no allow-list names; refused before any grain is resolved.
+public interface IStrayGrain : IGrainWithStringKey { Task Ping(); }

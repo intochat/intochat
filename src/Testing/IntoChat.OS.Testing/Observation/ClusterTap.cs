@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Testing;
 
 // Every [Signal] record T saved on the test silo from now on, in publish order, with its publisher (06-08): the plain-neuron
-// stand-in for the retired LocalSignalHub subscription, read where the operating system listens (IClusterListeners).
+// stand-in for the retired local signal hub subscription, read where the operating system listens (IClusterListeners).
 public sealed class ClusterTap<T> : IAsyncDisposable where T : DigitalBrain.Signal
 {
     private readonly Channel<(DigitalBrain.NeuronId Publisher, T Signal)> _heard = Channel.CreateUnbounded<(DigitalBrain.NeuronId, T)>();

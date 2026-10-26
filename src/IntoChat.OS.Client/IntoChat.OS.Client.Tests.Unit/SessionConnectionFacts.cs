@@ -338,8 +338,8 @@ public sealed class SessionConnectionFacts
         finally { gate.TrySetResult(HttpStatusCode.OK); }
     }
 
-    public sealed record Changed(int Value) : Signal;
-    public interface ISource : INeuron { Task<int> Double(int value); Task Refuse(); }
+    [DigitalBrain.Signal("tests.client.changed")] public sealed record Changed(int Value) : DigitalBrain.Signal;
+    [DigitalBrain.Contracts.NeuronAlias("tests.client.source")] public interface ISource { Task<int> Double(int value); Task Refuse(); }
 
     [Fact]
     public async Task InvokeGoesToTheInvokeRouteWithTheBehaviorId()
@@ -395,7 +395,8 @@ public sealed class SessionConnectionFacts
 
         Assert.Equal([1, 2, 3], seen);
         var subscribe = Assert.Single(brain.Reports("subscribe"));
-        Assert.Equal(nameof(Changed), subscribe["signal"]!.GetValue<string>());
+        // A [Signal] record is subscribed by its alias.
+        Assert.Equal("tests.client.changed", subscribe["signal"]!.GetValue<string>());
         Assert.Equal(2, (await brain.Acknowledged.Reader.ReadAsync(ct))["watermark"]!.GetValue<long>());
     }
 

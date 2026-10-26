@@ -36,3 +36,6 @@ public sealed class PubSubStoreRestartFacts
 
     private static IGrainStorage Store(ITestBrain brain, string name) => brain.Services.GetRequiredKeyedService<IGrainStorage>(name);
 }
+
+[GenerateSerializer]
+public sealed class CounterState { [Id(0)] public int Value { get; set; } }

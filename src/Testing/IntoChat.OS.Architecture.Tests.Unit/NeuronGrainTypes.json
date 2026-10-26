@@ -122,7 +122,7 @@
   "IntoChat.OS.Authority.Tests.Integration.Storage.LocalCounter": {
     "Type": "test.local-counter",
     "Store": "cluster",
-    "StateName": "s"
+    "StateName": "state"
   },
   "IntoChat.OS.Authority.Tests.Integration.Storage.OutsideCounterGrain": {
     "Type": "test.outside-counter",
@@ -139,26 +139,6 @@
     "Store": null,
     "StateName": null
   },
-  "IntoChat.OS.Client.Orleans.Tests.Integration.EagerEmitter": {
-    "Type": "test-eager-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Client.Orleans.Tests.Integration.FlakyEmitter": {
-    "Type": "test-flaky-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Client.Orleans.Tests.Integration.OtherEmitter": {
-    "Type": "other-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Client.Orleans.Tests.Integration.SiloBrainListener": {
-    "Type": "silo-brain-listener",
-    "Store": null,
-    "StateName": null
-  },
   "IntoChat.OS.Client.Orleans.Tests.Integration.TestEmitter": {
     "Type": "test-emitter",
     "Store": null,
@@ -166,138 +146,8 @@
   },
   "IntoChat.OS.Client.Orleans.Tests.Integration.TestRegistry": {
     "Type": "test-registry",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.ChattySource": {
-    "Type": "test-chatty-source",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.CounterNeuron": {
-    "Type": "test-counter",
     "Store": "cluster",
     "StateName": "state"
-  },
-  "IntoChat.OS.Framework.Tests.Integration.CycleSource": {
-    "Type": "test-cycle-source",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.CycleSubscriber": {
-    "Type": "test-cycle-subscriber",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.DeliveryObserver": {
-    "Type": "test-delivery-observer",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.DeliverySource": {
-    "Type": "test-delivery-source",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.FilteredObserver": {
-    "Type": "test-filtered-observer",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.FilteredSource": {
-    "Type": "test-filtered-source",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Kernel.LedgerNeuron": {
-    "Type": "test-ledger",
-    "Store": "cluster",
-    "StateName": "state"
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Kernel.PlainGrain": {
-    "Type": "test-plain",
-    "Store": "cluster",
-    "StateName": "state"
-  },
-  "IntoChat.OS.Framework.Tests.Integration.ManyObserver": {
-    "Type": "test-many-observer",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.ManySource": {
-    "Type": "test-many-source",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.OtherEmitter": {
-    "Type": "other-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.ProbeNeuron": {
-    "Type": "test-probe",
-    "Store": "cluster",
-    "StateName": "state"
-  },
-  "IntoChat.OS.Framework.Tests.Integration.RelayObserver": {
-    "Type": "test-relay-observer",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.ContextProbe": {
-    "Type": "contextprobe",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingPinger": {
-    "Type": "hangingpinger",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingWatchSource": {
-    "Type": "hangingwatchsource",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.HangingWatcher": {
-    "Type": "hangingwatcher",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.MarkedNeuron": {
-    "Type": "markedneuron",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.Runtime.SkippingProbe": {
-    "Type": "skippingprobe",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.SiloBrainListener": {
-    "Type": "silo-brain-listener",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.TallyNeuron": {
-    "Type": "test-tally",
-    "Store": "cluster",
-    "StateName": "tally"
-  },
-  "IntoChat.OS.Framework.Tests.Integration.TestEmitter": {
-    "Type": "test-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.TraceObserver": {
-    "Type": "test-trace-observer",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Framework.Tests.Integration.TraceSource": {
-    "Type": "test-trace-source",
-    "Store": null,
-    "StateName": null
   },
   "IntoChat.OS.Modules.AI.Agents.AgentNeuron": {
     "Type": "agent",
@@ -969,23 +819,8 @@
     "Store": "cluster",
     "StateName": "pulse"
   },
-  "IntoChat.OS.Testing.Tests.Integration.OtherEmitter": {
-    "Type": "other-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Testing.Tests.Integration.SiloBrainListener": {
-    "Type": "silo-brain-listener",
-    "Store": null,
-    "StateName": null
-  },
   "IntoChat.OS.Testing.Tests.Integration.TestEmitter": {
     "Type": "test-emitter",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide.LegacyProbeSource": {
-    "Type": "probe.legacy",
     "Store": null,
     "StateName": null
   },

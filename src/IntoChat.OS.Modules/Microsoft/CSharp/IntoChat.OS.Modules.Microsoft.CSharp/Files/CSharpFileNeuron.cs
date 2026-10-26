@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
 // A file is one standalone program of its brain's runtime: its source compiles to a single behavior whose
 // id is the file's own key. Running it, its subscriptions and its restarts belong to the runtime's one
-// sandbox session. A plain neuron since 06-06d; the brain runtime is still a grain, reached through ILegacyNeurons.
+// sandbox session. A plain neuron since 06-06d.
 [DigitalBrain.Neuron("microsoft.csharp.file")]
 internal sealed partial class CSharpFileNeuron : DigitalBrain.Neuron<CSharpFileState>, ICSharpFile
 {

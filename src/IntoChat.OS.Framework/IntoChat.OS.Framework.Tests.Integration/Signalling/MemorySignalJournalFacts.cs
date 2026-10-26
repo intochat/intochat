@@ -47,3 +47,6 @@ public sealed class MemorySignalJournalFacts
         Assert.Equal([3L, 4L], (await journal.ReadSince("brain-a", 0, 100)).Select(item => item.Sequence));
     }
 }
+
+[GenerateSerializer] public sealed record SelectedSignal : Signal;
+[GenerateSerializer] public sealed record OtherSignal : Signal;

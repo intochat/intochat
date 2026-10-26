@@ -116,18 +116,16 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         public IKernelView Kernel => throw new NotSupportedException();
 
         // The facts address brain "scope"; a relative id records like the full key it composes.
-        public T Neuron<T>(NeuronId relative) where T : INeuron => Get<T>(relative.Within("scope"));
+        public T Neuron<T>(NeuronId relative) where T : class => Get<T>(relative.Within("scope"));
 
-        public T Get<T>(NeuronId id) where T : INeuron
+        public T Get<T>(NeuronId id) where T : class
         {
             var proxy = DispatchProxy.Create<T, CallRecorder>();
             ((CallRecorder)(object)proxy).Calls = Calls;
             return proxy;
         }
 
-        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-            => throw new NotSupportedException();
-        public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 

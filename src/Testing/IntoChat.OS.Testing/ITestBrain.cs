@@ -3,9 +3,9 @@ using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Testing;
 
-public interface ITestBrain : IIntoChatOS, IBrainSubscriptions, IAsyncDisposable
+public interface ITestBrain : IIntoChatOS, IAsyncDisposable
 {
-    T Get<T>(string id) where T : class, INeuron;
+    T Get<T>(string id) where T : class;
 
     // The brain's HTTP edge, unauthenticated.
     HttpClient HttpClient { get; }

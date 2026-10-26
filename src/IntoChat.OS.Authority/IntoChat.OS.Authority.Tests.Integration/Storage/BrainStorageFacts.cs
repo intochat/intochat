@@ -4,21 +4,28 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
-[Alias("test.local-counter"), Orleans.Metadata.DefaultGrainType("test.local-counter")]
-public interface ILocalCounter : INeuron { Task Set(int value); Task<int> Read(); }
+// A plain neuron (06-08) whose state and signal ride in the brain's log.
+[DigitalBrain.Contracts.NeuronAlias("test.local-counter"), DigitalBrain.Contracts.DefaultNeuronType(LocalCounter.Type)]
+public interface ILocalCounter { Task Set(int value); Task<int> Read(); }
 
-[GenerateSerializer, Alias("test.local-counter.state")]
-public sealed class LocalCounterState { [Id(0)] public int Value { get; set; } }
+public sealed class LocalCounterState { public int Value { get; set; } }
 
-[GenerateSerializer, Alias("test.local-counter.changed")]
-public sealed record LocalChanged([property: Id(0)] int Value) : Signal;
+[DigitalBrain.Signal("test.local-counter.changed")]
+public sealed record LocalChanged(int Value) : DigitalBrain.Signal;
 
-[GrainType("test.local-counter")]
-public sealed class LocalCounter([PersistentState("s", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<LocalCounterState> storage)
-    : Neuron<LocalCounterState>(storage), ILocalCounter
+[DigitalBrain.Neuron(Type)]
+public sealed class LocalCounter : DigitalBrain.Neuron<LocalCounterState>, ILocalCounter
 {
+    public const string Type = "test.local-counter";
+
     public Task Set(int value) => Save(new LocalCounterState { Value = value }, new LocalChanged(value));
-    public Task<int> Read() => Task.FromResult(Snapshot.Value);
+    public Task<int> Read() => Task.FromResult(State.Value);
+}
+
+[DigitalBrain.Module("test.local-counter")]
+public sealed class LocalCounterNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }
 
 [Trait("host", "own")]
@@ -39,47 +46,12 @@ public sealed class BrainStorageFacts
     public async Task TheProductionRecipePersistsStateAndSignalsWithoutAMachineRole()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithNeuronModule<LocalCounterNeurons>().StartAsync(ct);
         Assert.NotNull(brain.Services.GetService<DigitalBrain.Runtime.Orleans.IBrainJournalWriter>());
         using (brain.Owner.AsCaller()) { await brain.Get<ILocalCounter>("owner/apps/counter").Set(17); }
-        var before = await brain.Services.GetRequiredService<ISignalJournal>().ReadSince("owner", 0, 1000);
-        var changed = Assert.Single(before, item => item.Signal is LocalChanged);
+        Assert.Equal([17], (await brain.History<LocalChanged>(brain.Get<ILocalCounter>("owner/apps/counter"), ct)).Select(changed => changed.Value));
         await brain.RestartAsync(ct);
         using (brain.Owner.AsCaller()) { Assert.Equal(17, await brain.Get<ILocalCounter>("owner/apps/counter").Read()); }
-        var after = await brain.Services.GetRequiredService<ISignalJournal>().ReadSince("owner", 0, 1000);
-        Assert.Equal(changed.Sequence, Assert.Single(after, item => item.Signal is LocalChanged).Sequence);
-        Assert.DoesNotContain(await brain.Services.GetRequiredService<ISignalJournal>().ReadSince("owner", changed.Sequence, 1000), item => item.Signal is LocalChanged);
-    }
-
-    // The nudge of a Save that rode in the storage write names the last signal's sequence, the one Read reports,
-    // not the log entry's (a record's ETag).
-    [Fact]
-    public async Task AStorageWriteNudgesWithItsLastSignalSequence()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<ILocalCounter>("owner/apps/counter");
-        var observer = new NudgeRecorder();
-        brain.Services.GetRequiredService<ILocalSignalHub>().Subscribe(counter.GetGrainId(), observer);
-        using (brain.Owner.AsCaller())
-        {
-            await counter.Set(1);
-            await counter.Set(2);
-            var nudge = await observer.Second.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-            var page = await counter.Read(0, 100);
-            Assert.Equal(page.Sequences[^1], nudge.Sequence);
-            Assert.Equal(2, Assert.IsType<LocalChanged>(page.Signals[^1]).Value);
-        }
-    }
-
-    private sealed class NudgeRecorder : INeuronObserver
-    {
-        private int _count;
-        public TaskCompletionSource<SignalNudge> Second { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task Nudge(SignalNudge nudge)
-        {
-            if (Interlocked.Increment(ref _count) == 2) { Second.TrySetResult(nudge); }
-            return Task.CompletedTask;
-        }
+        Assert.Equal([17], (await brain.History<LocalChanged>(brain.Get<ILocalCounter>("owner/apps/counter"), ct)).Select(changed => changed.Value));
     }
 }

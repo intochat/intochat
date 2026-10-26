@@ -235,10 +235,10 @@ public sealed class SharedSubscriptionFacts
         var member = connection.Get<ISource>("member");
         var reselected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var selections = 0;
-        var sources = Sources.Named<ISource, Changed>(registry, (_, _) =>
+        var sources = Sources.Named<ISource, Changed, ISource>(registry, (_, _) =>
         {
             if (Interlocked.Increment(ref selections) == 2) { reselected.TrySetResult(); }
-            return Task.FromResult<INeuron[]>([registry, member]);
+            return Task.FromResult<ISource[]>([registry, member]);
         });
         await using var stream = connection.On<Changed>(sources, ct).GetAsyncEnumerator(ct);
 

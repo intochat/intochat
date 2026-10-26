@@ -14,7 +14,7 @@ public sealed class EntryControlFacts(FlutterHost host)
     {
         using var person = await host.PersonAsync(ct: TestContext.Current.CancellationToken);
         var control = host.Brain.Get<IEntryControl>(person.Key("settings/entry-key-openai"));
-        await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
+        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
         using var settings = ShippedSettings.Caller(person);
         await control.Configure(new(EntryControlMode.Key, "OpenAI", "provider:openai"));
         var state = await control.Read();
@@ -34,7 +34,7 @@ public sealed class EntryControlFacts(FlutterHost host)
     {
         using var person = await host.PersonAsync(ct: TestContext.Current.CancellationToken);
         var control = host.Brain.Get<IEntryControl>(person.Key("settings/entry-collection"));
-        await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
+        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
         using var settings = ShippedSettings.Caller(person);
         await control.Configure(new(EntryControlMode.Collection, "Variables and secrets"));
         Assert.Null((await control.Read()).Spec!.EntryName);
@@ -59,7 +59,7 @@ public sealed class EntryControlFacts(FlutterHost host)
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<IntoChat.OS.Modules.Apps.AppsNeurons>()
             .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly)).StartAsync(ct);
         var control = brain.Get<IEntryControl>(brain.Owner.Key("settings/keys-openai"));
-        await ShippedSettings.Install(key => brain.Get<IApp>(key), brain.Owner);
+        await ShippedSettings.Install(brain.Get<IApp>, brain.Owner);
         using (ShippedSettings.Caller(brain.Owner)) { await control.Configure(new(EntryControlMode.Key, "OpenAI", "provider:openai")); }
         await using var changes = await brain.Observe<EntryControlChanged>(control, ct);
         await control.Changed();
@@ -93,7 +93,7 @@ public sealed class EntryControlFacts(FlutterHost host)
         await Refused(person.AsApp(person.Key("apps/settings")));
         Assert.Null((await control.Read()).Spec);
 
-        var settings = await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
+        var settings = await ShippedSettings.Install(host.Brain.Get<IApp>, person);
         using (person.AsApp(person.Key("apps/settings"))) { await control.Configure(spec); }
         await Refused(person.AsApp(person.Key("apps/notes")));
         await settings.SaveManifest(new AppManifest("Settings", "edited", [], [], []), Guid.NewGuid());

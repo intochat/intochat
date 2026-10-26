@@ -27,13 +27,10 @@ public static class BrainHosting
         // Stored pre-alias bytes still name pre-0.7.0 namespaces.
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, RuntimeCallerMirror>());
-        silo.Services.TryAddSingleton<LocalSignalHub>();
-        silo.Services.TryAddSingleton<ILocalSignalHub>(sp => sp.GetRequiredService<LocalSignalHub>());
         silo.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
         silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
         silo.Services.AddOptions<MemorySignalJournalOptions>();
@@ -42,12 +39,10 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons, PlainNeurons>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IBrainCalls, BrainCalls>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainSignals, PlainSignals>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.ILegacyNeurons, LegacyNeurons>();
         silo.Services.AddAuthorityGrains();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
         silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
-        silo.Services.AddOptions<ObserverOptions>().Validate(options => options.Lease > TimeSpan.Zero, "Observer lease must be positive.").ValidateOnStart();
         // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
         silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
             .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();
@@ -57,40 +52,5 @@ public static class BrainHosting
             options.DefaultVersionSelectorStrategy = nameof(LatestVersion);
         });
         return silo;
-    }
-
-    // Wraps the cluster grain storage so a neuron's first write registers it with the kernel. Call
-    // after the cluster storage provider is registered; without one there is nothing to register in.
-    public static ISiloBuilder AddKernelRegistration(this ISiloBuilder silo)
-    {
-        ArgumentNullException.ThrowIfNull(silo);
-        if (!InstanceRegistration.TryDecorate(silo.Services))
-        { throw new InvalidOperationException($"Register the '{IntoChatOSNames.ClusterGrainStorage}' grain storage before the kernel registration."); }
-        return silo;
-    }
-
-    // For hosts whose cluster storage may be composed after this point (configuration-bound
-    // providers are registered before the silo delegate runs; a later UseOrleans call is not).
-    public static bool TryAddKernelRegistration(this ISiloBuilder silo)
-    {
-        ArgumentNullException.ThrowIfNull(silo);
-        return InstanceRegistration.TryDecorate(silo.Services);
-    }
-
-    // Undoes TryAddKernelRegistration so a later composition step can wrap the cluster storage itself; the step
-    // then calls TryAddKernelRegistration again. False when the storage is not wrapped.
-    public static bool TryRemoveKernelRegistration(this ISiloBuilder silo)
-    {
-        ArgumentNullException.ThrowIfNull(silo);
-        return InstanceRegistration.TryUndecorate(silo.Services);
-    }
-
-    // Whether the resolved cluster storage is the kernel's registration wrapper: what a host checks
-    // at startup after TryAddKernelRegistration.
-    public static bool HasKernelRegistration(IServiceProvider services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage) is InstanceRegistration
-            || services.GetKeyedService<Orleans.Storage.IGrainStorage>(IntoChatOSNames.ClusterGrainStorage) is InstanceRegistration;
     }
 }

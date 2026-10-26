@@ -2,8 +2,8 @@ using System.Threading.Channels;
 
 namespace IntoChat.OS;
 
-// The merge behind IIntoChatOS.On<T>(Sources): one pump per member, each a durable On<T>(neuron)
-// subscription (or, for a plain neuron member, the session synapse subscription PlainNeuronClient opens), all writing to one channel. A registry change re-selects: members that left are
+// The merge behind IIntoChatOS.On<T>(Sources): one pump per member, each the member's On<T>(neuron) session synapse
+// subscription, all writing to one channel. A registry change re-selects: members that left are
 // cancelled, members that joined are pumped from their current position, members that stayed
 // keep their subscription (and so their watermark). Any pump or select failure ends the stream
 // with that error. Disposal ends it quietly; cancelling the token throws OperationCanceledException
@@ -15,12 +15,11 @@ internal static class SourceSet
     // reselected is a test seam: raised after each re-selection (not the first select) once the members that joined
     // have registered their subscriptions and the members that left are released. Nothing in the product passes it.
     public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
-        CancellationToken cancellationToken, Action? reselected = null) where T : Signal
-        => new Stream<T>(brain, sources, static (brain, member, onSubscribed, stop) => brain.On<T>((INeuron)member, onSubscribed, stop),
+        CancellationToken cancellationToken, Action? reselected = null) where T : DigitalBrain.Signal
+        => new Stream<T>(brain, sources, static (brain, member, onSubscribed, stop) => brain.On<T>(member, onSubscribed, stop),
             subscribed, coalesce, reselected, cancellationToken);
 
-    // The same merge over any member subscription: open is asked once per member. Transitional (06-07): the plain-neuron
-    // entry (PlainNeuronClient) passes its session synapse subscription; 06-08 folds it back into one path.
+    // The same merge over any member subscription: open is asked once per member.
     public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources,
         Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken,
         Func<Task>? subscribed = null, bool coalesce = false)

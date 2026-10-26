@@ -27,43 +27,31 @@ internal static class LiveSignalEndpoints
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
-    // Sources yields the neurons that publish the type: those that exist now, then any that appear later.
-    // It calls listed once the ones that exist now are yielded; ending the sequence counts as listed too.
+    // Sources yields the runtime ids of the neurons that publish the [Signal] record: those that exist now, then any that appear
+    // later. It calls listed once the ones that exist now are yielded; ending the sequence counts as listed too. Live is a test
+    // seam that replaces a source's session subscription; nothing in the product passes it.
     internal sealed record LiveFeed(
         string Type,
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> Sources,
-        Func<IIntoChatOS, INeuron, Func<Task>, CancellationToken, IAsyncEnumerable<Signal>> Watch)
+        Type Signal,
+        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources)
     {
-        // Set for a feed of a plain publisher (06-07b): its sources are runtime ids, watched on the session synapse neuron.
-        public PlainSpec? Plain { get; init; }
+        public Func<global::DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry>>? Live { get; init; }
     }
 
-    // Transitional (06-07b, R4-17; folded into LiveFeed in 06-08): the [Signal] record a plain feed carries and its sources.
-    internal sealed record PlainSpec(Type Signal, Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources);
-
-    internal static LiveFeed PlainFeed<T>(
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
-        => new(typeof(T).Name, static (_, _, listed, _) => None(listed), static (_, _, _, _) => throw new NotSupportedException("A plain feed has no grain sources."))
-        { Plain = new(typeof(T), sources) };
-
-    private static async IAsyncEnumerable<INeuron> None(Action listed) { await Task.CompletedTask; listed(); yield break; }
-
     internal static LiveFeed Feed<T>(
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> sources) where T : Signal
-        => new(typeof(T).Name, sources, (brain, source, subscribed, ct) => brain.On<T>(source, subscribed, ct));
+        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
+        => new(typeof(T).Name, typeof(T), sources);
 
     internal static readonly LiveFeed[] Feeds =
     [
         // The deployment is a plain neuron (06-08).
-        PlainFeed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
+        Feed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
         // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
-        PlainFeed<AppActivity>(Apps),
+        Feed<AppActivity>(Apps),
         // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
-        PlainFeed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
-        PlainFeed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
+        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
+        Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
     ];
-
-    private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }
 
     private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> SingleId(global::DigitalBrain.NeuronId id) { await Task.CompletedTask; yield return id; }
 
@@ -183,9 +171,7 @@ internal static class LiveSignalEndpoints
                 if (Interlocked.Increment(ref failed) == feeds.Length)
                 { outbox.Fail(new InvalidOperationException("Every live feed failed; see the server log.")); }
             }
-            var replayed = feeds.Select(feed => Task.Run(() => feed.Plain is { } spec
-                ? DiscoverPlain(brain, brainId, feed.Type, spec, plain, outbox, log, Failed, stop.Token)
-                : Discover(brain, brainId, feed, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, plain, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
@@ -209,11 +195,20 @@ internal static class LiveSignalEndpoints
         finally { await stop.CancelAsync(); }
     }
 
-    // Completes once the retained values of the sources listed at connect time are written (or the feed failed);
-    // discovery keeps running after that.
-    private static Task Discover(IIntoChatOS brain, string brainId, LiveFeed feed, Outbox writer, ILogger log, Action failed, CancellationToken ct)
+    // Completes once the retained values of the sources listed at connect time are written (or the feed failed); discovery keeps
+    // running after that. Each source is watched on its own session.
+    private static Task Discover(IIntoChatOS brain, string brainId, LiveFeed feed, IntoChat.OS.Runtime.IPlainSignals? plain, Outbox writer, ILogger log, Action failed, CancellationToken ct)
     {
+        var type = feed.Type;
         var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (plain is null && feed.Live is null)
+        {
+            log.LogWarning("Live {Type} feed dropped: this host registers no IPlainSignals.", type);
+            failed();
+            replayed.TrySetResult();
+            return replayed.Task;
+        }
+        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(feed.Signal);
         List<Task> initial = [];
         void Listed()
         {
@@ -230,45 +225,7 @@ internal static class LiveSignalEndpoints
                 {
                     var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     if (listing) { lock (initial) { initial.Add(replay.Task); } }
-                    _ = Task.Run(() => Pump(brain, feed, source, writer, log, replay, ct), CancellationToken.None);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", feed.Type); failed(); }
-            finally { if (listing) { listing = false; Listed(); } }
-        }, CancellationToken.None);
-        return replayed.Task;
-    }
-
-    // Discover for a plain feed: the same listing and replay contract, each source on its own session (06-07b).
-    private static Task DiscoverPlain(IIntoChatOS brain, string brainId, string type, PlainSpec spec, IntoChat.OS.Runtime.IPlainSignals? plain, Outbox writer, ILogger log, Action failed, CancellationToken ct)
-    {
-        var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (plain is null)
-        {
-            log.LogWarning("Live {Type} feed dropped: this host registers no IPlainSignals.", type);
-            failed();
-            replayed.TrySetResult();
-            return replayed.Task;
-        }
-        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(spec.Signal);
-        List<Task> initial = [];
-        void Listed()
-        {
-            Task[] pending;
-            lock (initial) { if (replayed.Task.IsCompleted) { return; } pending = [.. initial]; }
-            _ = Task.WhenAll(pending).ContinueWith(_ => replayed.TrySetResult(), TaskScheduler.Default);
-        }
-        _ = Task.Run(async () =>
-        {
-            var listing = true;
-            try
-            {
-                await foreach (var source in spec.Sources(brain, brainId, () => { listing = false; Listed(); }, ct))
-                {
-                    var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                    if (listing) { lock (initial) { initial.Add(replay.Task); } }
-                    _ = Task.Run(() => PlainPump(plain, spec.Signal, alias, source, writer, log, replay, ct), CancellationToken.None);
+                    _ = Task.Run(() => Pump(plain, feed, alias, source, writer, log, replay, ct), CancellationToken.None);
                 }
             }
             catch (OperationCanceledException) { }
@@ -278,18 +235,22 @@ internal static class LiveSignalEndpoints
         return replayed.Task;
     }
 
-    private static async Task PlainPump(IntoChat.OS.Runtime.IPlainSignals plain, Type signal, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
+    private static async Task Pump(IntoChat.OS.Runtime.IPlainSignals? plain, LiveFeed feed, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
+        var signal = feed.Signal;
         try
         {
-            await foreach (var entry in IntoChat.OS.Runtime.PlainWatch.Live(plain, source, [alias], "live/" + Guid.NewGuid().ToString("N"), async () =>
+            async Task Replay()
             {
                 try
                 {
-                    if (await IntoChat.OS.Runtime.PlainWatch.Retained(plain, source, alias, ct) is { } last) { await writer.Write(PlainEnvelope(signal, source, last, replay: true), ct); }
+                    if (plain is not null && await IntoChat.OS.Runtime.PlainWatch.Retained(plain, source, alias, ct) is { } last) { await writer.Write(PlainEnvelope(signal, source, last, replay: true), ct); }
                 }
                 finally { replayed.TrySetResult(); }
-            }, ct))
+            }
+            var live = feed.Live is { } seam ? seam(source, Replay, ct)
+                : IntoChat.OS.Runtime.PlainWatch.Live(plain!, source, [alias], "live/" + Guid.NewGuid().ToString("N"), Replay, ct);
+            await foreach (var entry in live)
             {
                 if (!entry.IsGap && entry.Alias == alias) { await writer.Write(PlainEnvelope(signal, source, entry), ct); }
             }
@@ -307,57 +268,5 @@ internal static class LiveSignalEndpoints
             sequence = (long?)entry.Sequence,
             replay = replay ? true : (bool?)null,
             payload = JsonSerializer.SerializeToElement(JsonSerializer.Deserialize(entry.Json, signal, JsonSerializerOptions.Web), signal, Json),
-        }, Json);
-
-    private static async Task Pump(IIntoChatOS brain, LiveFeed feed, INeuron source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
-    {
-        try
-        {
-            // Retention is read once the watch is registered, so nothing published in between is missed.
-            await foreach (var signal in feed.Watch(brain, source, async () =>
-            {
-                try { await Replay(feed, source, writer, log, ct); }
-                finally { replayed.TrySetResult(); }
-            }, ct))
-            { await writer.Write(Envelope(signal, await SequenceOf(source, feed.Type, signal, ct)), ct); }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { log.LogWarning(error, "Live {Type} source {Source} dropped.", feed.Type, source.GetPrimaryKeyString()); }
-        finally { replayed.TrySetResult(); }
-    }
-
-    private static async Task Replay(LiveFeed feed, INeuron source, Outbox writer, ILogger log, CancellationToken ct)
-    {
-        RetainedSignal[] retained;
-        try { retained = await source.AsReference<IRetainsSignals>().Retained(feed.Type, 0).WaitAsync(ct); }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            log.LogDebug(error, "Live {Type} source {Source} has no retained value.", feed.Type, source.GetPrimaryKeyString());
-            return;
-        }
-        if (retained.LastOrDefault() is { } last) { await writer.Write(Envelope(last.Signal, last.Sequence, replay: true), ct); }
-    }
-
-    // A live signal carries the sequence it was retained under, so a client can tell it from a replayed one.
-    // A source that retains nothing, or has not retained this signal, sends none.
-    private static async Task<long?> SequenceOf(INeuron source, string type, Signal signal, CancellationToken ct)
-    {
-        try
-        {
-            var retained = await source.AsReference<IRetainsSignals>().Retained(type, 0).WaitAsync(ct);
-            var same = retained.LastOrDefault(entry => entry.Signal with { Trace = null } == signal with { Trace = null });
-            return same?.Sequence;
-        }
-        catch (Exception error) when (error is not OperationCanceledException) { return null; }
-    }
-
-    internal static string Envelope(Signal signal, long? sequence = null, bool replay = false) => JsonSerializer.Serialize(
-        new
-        {
-            type = signal.GetType().Name,
-            publisher = signal.Publisher.ToString(),
-            sequence,
-            replay = replay ? true : (bool?)null,
-            payload = JsonSerializer.SerializeToElement(signal, signal.GetType(), Json),
         }, Json);
 }

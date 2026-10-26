@@ -109,14 +109,8 @@ public sealed class InProcessTarget : ITestTarget
         });
         if (plan.Services is { } services)
         {
-            // After the server's and Orleans' registrations, so a fact replaces or decorates theirs; the kernel wraps the
-            // cluster storage after it, so a storage the fact replaced or decorated is wrapped once, outermost.
-            builder.UseOrleans(silo =>
-            {
-                global::IntoChat.OS.Kernel.Composition.BrainHosting.TryRemoveKernelRegistration(silo);
-                services(silo.Services);
-                global::IntoChat.OS.Kernel.Composition.BrainHosting.TryAddKernelRegistration(silo);
-            });
+            // After the server's and Orleans' registrations, so a fact replaces or decorates theirs.
+            builder.UseOrleans(silo => services(silo.Services));
         }
         var app = builder.Build();
         try
@@ -173,7 +167,7 @@ internal sealed class ActivationIndex : IActivationWorkingSetObserver
     }
 }
 
-internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDelivery, IntoChat.OS.Runtime.IPlainClient
+internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDelivery
 {
     private readonly TestBrainPlan _plan;
     private readonly InProcessSession _session;
@@ -214,36 +208,23 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         }
     }
     public TestExecutionOptions Execution => _plan.Execution;
-    int ITrackedBrain.BufferCapacity => Services.GetRequiredService<IOptions<SubscriptionOptions>>().Value.BufferCapacity;
+    int ITrackedBrain.BufferCapacity => ITrackedBrain.DefaultBufferCapacity;
     void ITrackedBrain.Track(IAsyncDisposable resource) => _observations.Own("observation", resource);
 
     private IIntoChatOSBrains Brains => Services.GetRequiredService<IIntoChatOSBrains>();
 
-    public T Get<T>(string id) where T : class, INeuron => Brains.Grain<T>(id);
-    T IIntoChatOS.Get<T>(NeuronId id) => Brains.Grain<T>(id.Name);
-    public T Neuron<T>(NeuronId relative) where T : INeuron => Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
+    // Neurons through the product's in-process client (06-08: every neuron is a DigitalBrain plain neuron).
+    public T Get<T>(string id) where T : class => Brains.Get<T>(id);
+    T IIntoChatOS.Get<T>(NeuronId id) => Brains.Get<T>(id.Name);
+    public T Neuron<T>(NeuronId relative) where T : class => Brains.Get<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
-
-    // 06-07b: plain neurons through the product's in-process client, so facts read the same for grains and plain neurons.
-    object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => ((IntoChat.OS.Runtime.IPlainClient)Brains).GetPlain(contract, id);
-
-    string? IntoChat.OS.Runtime.IPlainClient.RelativeBrain => BrainScope.CurrentId();
-
-    IAsyncEnumerable<T> IntoChat.OS.Runtime.IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
-        => ((IntoChat.OS.Runtime.IPlainClient)Brains).OnPlain<T>(source, onSubscribed, cancellationToken);
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
 
-    public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => Services.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<T>(source, cancellationToken);
-
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal
-        => Brains.On<T>(neuron, cancellationToken);
-
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
         => Brains.On<T>(neuron, onSubscribed, cancellationToken);
 
-    Task ISignalDelivery.DeliveredAsync(CancellationToken cancellationToken)
-        => Services.GetService<ILocalSignalHub>() is { } hub ? hub.FlushAsync(cancellationToken) : Task.CompletedTask;
+    // Saved signals are delivered by the runtime's synapses; there is no local hub left to flush (06-08).
+    Task ISignalDelivery.DeliveredAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default)
     {

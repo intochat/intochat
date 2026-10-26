@@ -216,9 +216,5 @@ public sealed class OsInoChatsFacts
         public Task Unarchive(string id) => throw new NotSupportedException();
         public Task Touch(string id, string? firstMessage) => throw new NotSupportedException();
         public Task SetModel(string id, string? modelChoice) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 }

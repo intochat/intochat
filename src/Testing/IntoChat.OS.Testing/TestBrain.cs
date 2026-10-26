@@ -161,19 +161,6 @@ public sealed class TestBrain
         return this;
     }
 
-    // Short leases and renewals so subscription expiry and reactivation show up within a test's timeout.
-    public TestBrain WithFastSubscriptions(int bufferCapacity = 256)
-        => ConfigureServices(services =>
-        {
-            services.Configure<ObserverOptions>(options => options.Lease = TimeSpan.FromSeconds(2));
-            services.Configure<SubscriptionOptions>(options =>
-            {
-                options.RenewEvery = TimeSpan.FromMilliseconds(200);
-                options.OperationTimeout = TimeSpan.FromMilliseconds(500);
-                options.BufferCapacity = bufferCapacity;
-            });
-        });
-
     public TestBrain On(ITestTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
