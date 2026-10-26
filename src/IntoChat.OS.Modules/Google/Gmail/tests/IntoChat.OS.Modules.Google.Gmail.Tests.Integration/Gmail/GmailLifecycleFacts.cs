@@ -36,6 +36,30 @@ public sealed class GmailLifecycleFacts
         Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(GmailBrain.GmailHost(key), ct)).Reminders);
     }
 
+    // DigitalBrain 0.6.0-preview.18 (plan 04-20) runs activation on the host grain's scheduler: the lifecycle reminder a watched
+    // connection needs is read and set in the activation itself, so it is back before the activating call answers.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ActivationRestoresALostLifecycleReminderBeforeItsFirstCallAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var google = await GoogleStub.StartAsync(ct);
+        await using var brain = await GmailBrain.Compose(TestBrain.Create(), google, watch: true).StartAsync(ct);
+        await brain.Owner.ConnectAsync("restored", ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "restored");
+        var table = brain.Services.GetRequiredService<IReminderTable>();
+        var host = GmailBrain.GmailHost(key);
+        var registered = Assert.Single((await table.ReadRows(host, ct)).Reminders);
+        Assert.Equal(GmailNeuron.LifecycleReminder, registered.ReminderName);
+
+        await brain.DeactivateAsync(brain.Get<IGmail>(key), ct);
+        Assert.True(await table.RemoveRow(host, registered.ReminderName, registered.ETag!, ct));
+        Assert.Empty((await table.ReadRows(host, ct)).Reminders);
+        using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(key).Read(); }
+
+        Assert.Equal(GmailNeuron.LifecycleReminder, Assert.Single((await table.ReadRows(host, ct)).Reminders).ReminderName);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task MissingWatchConfigurationIsVisibleWithoutDisablingReads()

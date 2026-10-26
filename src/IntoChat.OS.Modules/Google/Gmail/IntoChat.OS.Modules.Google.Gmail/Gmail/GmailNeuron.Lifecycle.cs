@@ -274,7 +274,6 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
 
     private async Task RestoreReminderAsync()
     {
-        if (DeferReminder()) { return; }
         var needed = IsGrantReady && (Snapshot.Watch is { TopicName: not null, NextActionAt: not null }
             || Snapshot.History is { Work: not null } or { Wakeup: not null });
         if (!needed) { await RemoveReminderAsync(); return; }
@@ -284,7 +283,6 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
 
     private async Task RemoveReminderAsync()
     {
-        if (DeferReminder()) { return; }
         if ((await Context.Reminders.Names()).Contains(LifecycleReminder)) { await Context.Reminders.Stop(LifecycleReminder); }
     }
 
@@ -299,27 +297,7 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
         { throw new UnauthorizedAccessException("The stored Gmail work belongs to another owner."); }
     }
 
-    // Stored Gmail work resumes on activation (06-08: a plain neuron's OnActivate replaces the activation handler).
-    protected override async Task Activated(CancellationToken cancellationToken)
-    {
-        _activating = true;
-        try { await RecoverLifecycleAsync(cancellationToken); }
-        finally { _activating = false; }
-    }
-
-    // The runtime may run activation off the host grain's scheduler, where its reminders cannot be read: the reminder is then
-    // reconciled once from the final state after the activating turn.
-    private bool _activating;
-    private bool _reminderDeferred;
-
-    private bool DeferReminder()
-    {
-        if (!_activating) { return false; }
-        if (!_reminderDeferred)
-        {
-            _reminderDeferred = true;
-            Context.Defer(async () => { _reminderDeferred = false; await RestoreReminderAsync(); });
-        }
-        return true;
-    }
+    // Stored Gmail work resumes on activation (06-08: a plain neuron's OnActivate replaces the activation handler). Activation runs on
+    // the host grain's scheduler (DigitalBrain 0.6.0-preview.18, plan 04-20), so the lifecycle reminder is read and set right here.
+    protected override Task Activated(CancellationToken cancellationToken) => RecoverLifecycleAsync(cancellationToken);
 }
