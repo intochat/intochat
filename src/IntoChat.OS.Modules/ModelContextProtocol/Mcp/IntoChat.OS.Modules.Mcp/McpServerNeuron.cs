@@ -1,37 +1,32 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
+using DigitalBrain;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Mcp;
 
-[GenerateSerializer, Alias("mcp.server-store")]
-[ExportableState]
+// The persisted shape keeps its state name "mcp.server"; plain state is JSON (06-06d, clean break under SAFE-01: a server
+// connects again on its next Connect).
+[DigitalBrain.State.ExportableState]
 public sealed class McpServerStore
 {
-    [Id(0)] public McpServerState? State { get; set; }
+    public McpServerState? State { get; set; }
 }
 
 // MCP servers keep per-session state (PhotoCraft's open documents live in the session's process), so an
 // activation holds one client and reuses it. The client is a cache: a broken session is dropped and the
 // call retried once on a fresh one; what the brain knows about the server lives in the persisted state.
-[GrainType("mcp.server")]
-internal sealed class McpServerNeuron(
-    [PersistentState("mcp.server", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<McpServerStore> store)
-    : Neuron, IMcpServer
+[DigitalBrain.Neuron("mcp.server", State = "mcp.server")]
+internal sealed class McpServerNeuron : DigitalBrain.Neuron<McpServerStore>, IMcpServer
 {
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
 
     private McpClient? _client;
     private Uri? _endpoint;
-
-    private string Key => this.GetPrimaryKeyString();
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {
@@ -54,40 +49,32 @@ internal sealed class McpServerNeuron(
     public async Task Disconnect(CancellationToken ct = default)
     {
         await Drop();
-        if (store.State?.State is { } state) { await Save(state with { Connected = false }); }
+        if (State.State is { } state) { await Save(state with { Connected = false }); }
     }
 
     public Task<McpServerState> Read()
-        => Task.FromResult(store.State?.State ?? new McpServerState("", "", false, [], null, null));
+        => Task.FromResult(State.State ?? new McpServerState("", "", false, [], null, null));
 
     // A disconnected server offers no tools.
     public Task<ToolSet> Tools(CancellationToken ct = default)
-        => Task.FromResult(store.State?.State is { Connected: true } state ? new ToolSet(state.Title, [.. state.Tools]) : new ToolSet("", []));
+        => Task.FromResult(State.State is { Connected: true } state ? new ToolSet(state.Title, [.. state.Tools]) : new ToolSet("", []));
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tool);
-        var state = store.State?.State is { Connected: true } connected ? connected
+        var state = State.State is { Connected: true } connected ? connected
             : throw new InvalidOperationException("The MCP server is not connected; call Connect first.");
         var input = Arguments(arguments);
         var clock = Stopwatch.StartNew();
         var result = await Session(new Uri(state.Url), async (client, token) =>
             Result(JsonSerializer.SerializeToElement(await client.CallToolAsync(tool, input, cancellationToken: token), McpJsonUtilities.DefaultOptions)), ct);
-        await PublishAsync(new McpToolRan(tool, result.IsError, (int)clock.ElapsedMilliseconds));
+        await Publish(new McpToolRan(tool, result.IsError, (int)clock.ElapsedMilliseconds));
         return result;
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-    {
-        await Drop();
-        await base.OnDeactivateAsync(reason, cancellationToken);
-    }
+    protected override Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken) => Drop();
 
-    private async Task Save(McpServerState state)
-    {
-        store.State = new() { State = state };
-        await store.WriteStateAsync();
-    }
+    private Task Save(McpServerState state) => Save(new McpServerStore { State = state }, new McpServerChanged(state));
 
     private async Task<T> Session<T>(Uri endpoint, Func<McpClient, CancellationToken, Task<T>> operation, CancellationToken ct)
     {

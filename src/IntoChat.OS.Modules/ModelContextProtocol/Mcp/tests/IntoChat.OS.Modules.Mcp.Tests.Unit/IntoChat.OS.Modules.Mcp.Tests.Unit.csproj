@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
   </ItemGroup>
   <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

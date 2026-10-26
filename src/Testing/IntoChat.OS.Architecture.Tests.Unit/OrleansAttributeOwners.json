@@ -353,8 +353,6 @@
   "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailNeuron.cs": 2,
   "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailState.cs": 3,
   "IntoChat.OS.Modules.Google.Gmail/Gmail/IGmailInbound.cs": 1,
-  "IntoChat.OS.Modules.Mcp.Contracts/Mcp/IMcpServer.cs": 6,
-  "IntoChat.OS.Modules.Mcp/McpServerNeuron.cs": 3,
   "IntoChat.OS.Modules.Microsoft.Aspire.Contracts/ICandidate.cs": 17,
   "IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IDeployment.cs": 6,
   "IntoChat.OS.Modules.Microsoft.Aspire.Contracts/Signals/CandidateSignals.cs": 6,

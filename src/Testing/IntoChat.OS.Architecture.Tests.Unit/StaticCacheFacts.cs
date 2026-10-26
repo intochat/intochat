@@ -24,6 +24,7 @@ public sealed partial class StaticCacheFacts
         ["PlainNeurons.Factories"] = "Type",
         ["SignalTypes.Loaded"] = "string",
         ["TaskBoxing.Boxes"] = "Type",
+        ["ToolCapabilitySource.PlainSources"] = "string",
     };
 
     [GeneratedRegex(@"\bstatic\s+(?:readonly\s+)?(?:System\.Collections\.Concurrent\.)?(?:Concurrent)?Dictionary<(?<key>[^,<>]+(?:<[^>]*>)?|\([^)]*\)),[^=;]*>\s+(?<name>\w+)\s*(?:=|;)", RegexOptions.CultureInvariant)]
