@@ -3,6 +3,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
+using StorageV1 = DigitalBrain.Capabilities.Storage;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -18,7 +19,7 @@ internal sealed class WindowsConnectionState : ConnectionState
 [DigitalBrain.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
     IMachineIdentity identity)
-    : ConnectionNeuron<WindowsConnectionState>, IWindows, ILegacyStorage
+    : ConnectionNeuron<WindowsConnectionState>, IWindows, ILegacyStorage, DigitalBrain.Capabilities.Storage.IStorage
 {
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
         identity.Id, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,
@@ -71,6 +72,21 @@ internal sealed class WindowsNeuron(
         }
         return Task.FromResult(chain.ToArray());
     }
+
+    // storage@1 (05-08): the same allowed roots, read fresh on every call, through WindowsStorage. Explicit members: the
+    // 0.6 ILegacyStorage members share their names.
+    private WindowsStorage Storage => new(Snapshot.Roots);
+
+    Task<StorageV1.StorageDescriptor> StorageV1.IStorage.Describe(CancellationToken ct) => Storage.Describe(ct);
+    Task<IReadOnlyList<StorageV1.Item>> StorageV1.IStorage.Roots(CancellationToken ct) => Storage.Roots(ct);
+    Task<StorageV1.Page<StorageV1.Item>> StorageV1.IStorage.List(StorageV1.ItemId folder, StorageV1.ListQuery query, CancellationToken ct) => Storage.List(folder, query, ct);
+    Task<StorageV1.Item> StorageV1.IStorage.Stat(StorageV1.ItemId id, CancellationToken ct) => Storage.Stat(id, ct);
+    Task<StorageV1.Content> StorageV1.IStorage.Read(StorageV1.ItemId id, StorageV1.ByteRange? range, CancellationToken ct) => Storage.Read(id, range, ct);
+    Task<DigitalBrain.Operations.OperationId> StorageV1.IStorage.Write(StorageV1.WritePlan plan, CancellationToken ct) => Storage.Write(plan, ct);
+    Task<StorageV1.Page<StorageV1.Item>> StorageV1.IStorage.Search(StorageV1.SearchQuery query, CancellationToken ct) => Storage.Search(query, ct);
+    Task<IReadOnlyList<StorageV1.Item>> StorageV1.IStorage.Ancestors(StorageV1.ItemId id, CancellationToken ct) => Storage.Ancestors(id, ct);
+    Task<StorageV1.StorageReadStream> StorageV1.IStorage.OpenRead(StorageV1.ItemId item, StorageV1.ByteRange? range, CancellationToken ct) => Storage.OpenRead(item, range, ct);
+    Task<StorageV1.StorageWriteStream> StorageV1.IStorage.OpenWrite(StorageV1.WritePlan plan, CancellationToken ct) => Storage.OpenWrite(plan, ct);
 
     private static string Name(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
 

@@ -298,4 +298,15 @@ public sealed class ContractShapeFacts
         public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default) => throw new NotSupportedException();
     }
+
+    // A range crosses a runtime call as JSON: the struct must bind through its constructor, not the default one (05-08).
+    private static readonly System.Text.Json.JsonSerializerOptions Web = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    [Fact]
+    public void AByteRangeRoundTripsThroughJson()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize<ByteRange?>(new ByteRange(2, 10), Web);
+        var back = System.Text.Json.JsonSerializer.Deserialize<ByteRange?>(json, Web);
+        Assert.Equal((2L, (long?)10), (back!.Value.Offset, back.Value.Length));
+    }
 }

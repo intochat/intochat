@@ -21,6 +21,7 @@ public sealed class KernelCapabilityConnectionsFacts
     private const string Brain = "b1";
     private static readonly string Drive = ConnectionKeys.For(Brain, "google-drive", "home");
     private static readonly string Pc = ConnectionKeys.For(Brain, "windows", "pc");
+    private static readonly string Legacy = ConnectionKeys.For(Brain, LegacyOnlyNeurons.Connector, "old");
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -59,7 +60,12 @@ public sealed class KernelCapabilityConnectionsFacts
         var storages = await broker.Storages(new BrainId(Brain), Ct);
 
         Assert.Equal([Drive, Pc], storages.Select(storage => storage.ConnectionKey));
-        Assert.All(storages, storage => Assert.IsType<LegacyStorageAdapter>(storage.Capability));
+        // A neuron implementing storage@1 is bound natively (05-08 Windows, 05-09 Drive), a legacy-only one through the adapter.
+        var hosted = services.GetRequiredService<ConnectionNeuronTypes>();
+        Assert.All(storages, storage => Assert.IsType(
+            typeof(StorageV1).IsAssignableFrom(hosted.NeuronOf(ConnectionKeys.Parse(storage.ConnectionKey).ConnectorId)) ? typeof(ConnectionStorage) : typeof(LegacyStorageAdapter),
+            storage.Capability));
+        Assert.IsType<ConnectionStorage>(storages[1].Capability);
     }
 
     [Fact]
@@ -85,8 +91,9 @@ public sealed class KernelCapabilityConnectionsFacts
         var kernel = Kernel(new FakeRequests());
 
         await Assert.ThrowsAsync<ArgumentException>(() => kernel.Bind<StorageV1>(new BrainId("b2"), Drive, "files", Ct));
-        Assert.IsType<LegacyStorageAdapter>(await kernel.Bind<StorageV1>(new BrainId(Brain), Drive, "files", Ct));
-        Assert.IsType<FakeLegacyStorage>(await kernel.Bind<ILegacyStorage>(new BrainId(Brain), Drive, "files", Ct));
+        Assert.IsType<LegacyStorageAdapter>(await kernel.Bind<StorageV1>(new BrainId(Brain), Legacy, "files", Ct));
+        Assert.IsType<ConnectionStorage>(await kernel.Bind<StorageV1>(new BrainId(Brain), Pc, "files", Ct));
+        Assert.IsType<FakeLegacyStorage>(await kernel.Bind<ILegacyStorage>(new BrainId(Brain), Legacy, "files", Ct));
     }
 
     [Fact]
@@ -114,8 +121,9 @@ public sealed class KernelCapabilityConnectionsFacts
     private static ServiceProvider Services(FakeRequests requests)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IReadOnlyList<ConnectorDefinition>>([DriveModule.Connector, new ConnectorDefinition("windows", "Windows", ["device"], [])]);
-        services.AddSingleton(new ConnectionNeuronTypes([typeof(DriveNeurons), typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsNeurons)]));
+        services.AddSingleton<IReadOnlyList<ConnectorDefinition>>([DriveModule.Connector, new ConnectorDefinition("windows", "Windows", ["device"], []),
+            new ConnectorDefinition(LegacyOnlyNeurons.Connector, "Legacy", ["api-key"], [])]);
+        services.AddSingleton(new ConnectionNeuronTypes([typeof(DriveNeurons), typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsNeurons), typeof(LegacyOnlyNeurons)]));
         services.AddSingleton<IPlainNeurons>(new FakePlain(requests));
         services.AddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
         return services.BuildServiceProvider();
@@ -132,7 +140,10 @@ public sealed class KernelCapabilityConnectionsFacts
         public object Get(Type contract, string fullKey)
             => contract == typeof(IConnectionRequests) && fullKey == IConnectionRequests.Key(Brain) ? requests : throw new ArgumentException(fullKey);
 
-        public object Get(Type contract, DigitalBrain.NeuronId id) => contract == typeof(ILegacyStorage) ? new FakeLegacyStorage() : throw new ArgumentException(id.ToString());
+        public object Get(Type contract, DigitalBrain.NeuronId id)
+            => contract == typeof(ILegacyStorage) ? new FakeLegacyStorage()
+            : contract == typeof(StorageV1) ? new LegacyStorageAdapter(new FakeLegacyStorage())
+            : throw new ArgumentException(id.ToString());
     }
 
     private sealed class FakeLegacyStorage : ILegacyStorage
@@ -162,4 +173,25 @@ public sealed class KernelCapabilityConnectionsFacts
             return Task.FromResult(new ConnectionRef(kind, "r" + Requested.Count));
         }
     }
+}
+
+// A connector whose neuron implements only the 0.6 storage contract (bound through LegacyStorageAdapter).
+[DigitalBrain.Module(Connector)]
+public sealed class LegacyOnlyNeurons : DigitalBrain.Module
+{
+    public const string Connector = "legacy-store";
+
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([Capability.Storage.V1], [], [], [], []);
+}
+
+public sealed class LegacyOnlyState : ConnectionState;
+
+[DigitalBrain.Neuron(LegacyOnlyNeurons.Connector, State = LegacyOnlyNeurons.Connector)]
+internal sealed class LegacyOnlyNeuron : ConnectionNeuron<LegacyOnlyState>, ILegacyStorage
+{
+    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
+    public Task<StorageEntry[]> Roots(CancellationToken cancellationToken = default) => Task.FromResult<StorageEntry[]>([]);
+    public Task<StorageEntry[]> List(string location, CancellationToken cancellationToken = default) => Task.FromResult<StorageEntry[]>([]);
+    public Task<string> Read(string location, CancellationToken cancellationToken = default) => Task.FromResult("");
+    public Task<StorageEntry[]> Ancestors(string location, CancellationToken cancellationToken = default) => Task.FromResult<StorageEntry[]>([]);
 }

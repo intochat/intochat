@@ -17,4 +17,12 @@ public sealed class WindowsMachineHost : BrainHostFixture
         File.WriteAllText(idFile, MachineId);
         return brain.WithModule<WindowsModule>().WithOptions<WindowsModule, WindowsOptions>(options => options.MachineIdFile = idFile);
     }
+
+    // Pitfall 11 (05-08): on a Windows CI leg (CI set) a run in which no Windows storage kit fact got past the OS skip fails.
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (OperatingSystem.IsWindows() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) && KitRuns.Count == 0)
+        { throw new InvalidOperationException("No Windows storage kit fact ran on a Windows CI leg."); }
+    }
 }

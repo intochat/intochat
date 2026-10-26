@@ -97,6 +97,7 @@ public readonly record struct ByteRange
     /// <summary>Creates a range.</summary>
     /// <param name="Offset">The first byte, zero-based.</param>
     /// <param name="Length">The number of bytes, or null for "to the end".</param>
+    [System.Text.Json.Serialization.JsonConstructor]
     public ByteRange(long Offset, long? Length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(Offset);

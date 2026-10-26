@@ -848,5 +848,10 @@
     "Type": "brain",
     "Store": "cluster",
     "StateName": "brain"
+  },
+  "IntoChat.OS.Kernel.Tests.Unit.Capabilities.LegacyOnlyNeuron": {
+    "Type": "legacy-store",
+    "Store": "cluster",
+    "StateName": "legacy-store"
   }
 }
