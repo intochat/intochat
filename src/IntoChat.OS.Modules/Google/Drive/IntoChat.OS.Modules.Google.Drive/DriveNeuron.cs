@@ -18,9 +18,9 @@ namespace IntoChat.OS.Modules.Google.Drive;
 internal sealed class DriveState : ConnectionState;
 
 // One Google Drive as storage, read only. Locations are Drive file ids; "root" is My Drive.
-// Google documents are exported as plain text; other Google formats are not text.
+// Google documents are exported as plain text; other Google formats are not text. storage@1 lives in DriveStorage.cs (05-09).
 [DigitalBrain.Neuron(DriveScopes.Connector, State = "google-drive")]
-internal sealed class DriveNeuron()
+internal sealed partial class DriveNeuron()
     : ConnectionNeuron<DriveState>, ILegacyStorage
 {
     private const string Root = "root";
@@ -32,12 +32,22 @@ internal sealed class DriveNeuron()
     public Task<StorageEntry[]> Roots(CancellationToken cancellationToken = default) =>
         Task.FromResult<StorageEntry[]>([new(Root, RootName, true)]);
 
+    // Every child, following nextPageToken (D-16: a folder over one page is listed whole).
     public async Task<StorageEntry[]> List(string location, CancellationToken cancellationToken = default)
     {
         var folder = string.IsNullOrEmpty(location) ? Root : location;
         var query = Uri.EscapeDataString($"'{folder.Replace("\\", "\\\\").Replace("'", "\\'")}' in parents and trashed = false");
-        using var json = await GetJsonAsync($"files?q={query}&fields=files(id,name,mimeType)&orderBy=folder,name&pageSize=200", GoogleDriveOperations.List, cancellationToken);
-        return [.. json.RootElement.GetProperty("files").EnumerateArray().Select(Entry)];
+        var entries = new List<StorageEntry>();
+        string? token = null;
+        do
+        {
+            var page = token is null ? "" : $"&pageToken={Uri.EscapeDataString(token)}";
+            using var json = await GetJsonAsync($"files?q={query}&fields=nextPageToken,files(id,name,mimeType)&orderBy=folder,name&pageSize=1000{page}", GoogleDriveOperations.List, cancellationToken);
+            entries.AddRange(json.RootElement.GetProperty("files").EnumerateArray().Select(Entry));
+            token = json.RootElement.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
+        }
+        while (!string.IsNullOrEmpty(token));
+        return [.. entries];
     }
 
     public async Task<string> Read(string location, CancellationToken cancellationToken = default)
@@ -128,7 +138,7 @@ internal sealed class DriveNeuron()
     private Task<HttpResponseMessage> AboutAsync(string accessToken, CancellationToken ct) =>
         RequestAsync(new Uri(Options.Endpoint, "about?fields=user(emailAddress)"), GoogleDriveOperations.About, accessToken, ct);
 
-    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct)
+    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct, RangeHeaderValue? range = null)
     {
         using var trace = EnterTrace();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -136,6 +146,7 @@ internal sealed class DriveNeuron()
         using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GoogleHttp.ClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Range = range;
         request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: FullKey), Guid.NewGuid().ToString("N")));
         return await client.SendAsync(request, linked.Token);
     }

@@ -104,8 +104,11 @@ public sealed class KernelCapabilityConnectionsFacts
 
         var error = Assert.Throws<InvalidOperationException>(() => ModuleCapabilityValidator.Validate(Registry(), [.. modules, typeof(StorageTwoModule)]));
         Assert.Contains("Module 'storage-two' provides unknown capability storage@2.", error.Message, StringComparison.Ordinal);
-        // Without the os binding a legacy-only storage module would be refused.
-        Assert.Throws<InvalidOperationException>(() => ModuleCapabilityValidator.Validate(new CapabilityRegistry(), modules));
+        // A module whose neuron implements only the 0.6 contract passes through the os binding, and is refused without it.
+        ModuleCapabilityValidator.Validate(Registry(), [typeof(LegacyOnlyNeurons)]);
+        Assert.Throws<InvalidOperationException>(() => ModuleCapabilityValidator.Validate(new CapabilityRegistry(), [typeof(LegacyOnlyNeurons)]));
+        // Windows and Drive implement storage@1 themselves (05-08, 05-09): they pass without it.
+        ModuleCapabilityValidator.Validate(new CapabilityRegistry(), modules);
     }
 
     private static CapabilityRegistry Registry()
