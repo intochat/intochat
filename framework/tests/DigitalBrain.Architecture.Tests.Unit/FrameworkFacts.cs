@@ -166,7 +166,11 @@ public sealed class NuGetConfigFacts
     [Fact]
     public void Sources_are_remote_only()
     {
-        var config = XDocument.Load(Path.Combine(Repository.Root, "nuget.config"));
+        // The nearest nuget.config restore uses: framework/ has none of its own since it folded into the os repo (06-00).
+        var directory = new DirectoryInfo(Repository.Root);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "nuget.config"))) { directory = directory.Parent; }
+        Assert.NotNull(directory);
+        var config = XDocument.Load(Path.Combine(directory.FullName, "nuget.config"));
         var sources = config.Descendants("packageSources").Elements("add").Select(e => e.Attribute("value")!.Value).ToList();
 
         Assert.NotEmpty(sources);

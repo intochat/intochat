@@ -32,9 +32,9 @@ public sealed class OsCatalogFacts
         {
             Assert.Contains(module.GetType().Assembly.GetName().Name!, libraries);
         }
-        // The core vocabulary arrives as the DigitalBrain package (CORE-02), never as a project.
+        // The core vocabulary arrives as DigitalBrain (CORE-02), by project reference into framework/ since 06-00.
         Assert.Contains("DigitalBrain", libraries);
-        Assert.Equal("package", dependencies.RootElement.GetProperty("libraries").EnumerateObject()
+        Assert.Equal("project", dependencies.RootElement.GetProperty("libraries").EnumerateObject()
             .Single(library => library.Name.Split('/')[0] == "DigitalBrain").Value.GetProperty("type").GetString());
     }
 

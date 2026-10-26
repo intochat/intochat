@@ -1,2 +1,4 @@
+# framework/ keeps the LF checkout it had as its own repository (06-00); the os root sets eol=crlf.
+* text=auto eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
