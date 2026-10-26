@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -30,7 +31,7 @@ internal sealed class CircleShareGrain(
     TimeProvider clock)
     : Grain, ICircleShares, ICircleShareGrain
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
     public Task<string?> ReadOwner() => Task.FromResult(store.State.OwnerAccountId);
 
     public async Task<string?> TryReserve(ReservationKey key, string member, long maximumMicros)

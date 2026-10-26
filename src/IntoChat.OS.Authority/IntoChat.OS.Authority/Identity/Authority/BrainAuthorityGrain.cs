@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -27,7 +28,7 @@ internal sealed class BrainAuthorityGrain(
     [PersistentState("access", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<BrainAuthorityState> storage,
     TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {

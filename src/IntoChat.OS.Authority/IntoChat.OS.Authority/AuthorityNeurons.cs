@@ -17,8 +17,8 @@ namespace IntoChat.OS.Authority;
 // brain-less (accounts, ledgers, integrations), or keyed by the brain id itself, so neither
 // IIntoChatOS.Neuron<T> nor a brain-relative id names them. This is the module's single place that
 // turns an id into a grain reference; key strings are exactly those callers composed before.
-// Transitional: the grain factory moves behind the runtime's resolver when the provider owns it.
-internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
+// Transitional (06-06c): grains come from the kernel composition's IAuthorityGrains, which holds the grain factory.
+internal sealed class AuthorityNeurons(IAuthorityGrains grains, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
 {
     public IBrain Brain(string brainId) => Resolve<IBrain>(brainId);
     public IBrainAuthority BrainAuthority(string brainId) => Resolve<IBrainAuthority>(brainId);
@@ -45,10 +45,10 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, Microsoft.Extension
     public IMarketplaceCatalog Marketplace() => Resolve<IMarketplaceCatalog>(IMarketplaceCatalog.Key);
 
     // Connection neurons keep the Framework's connector-aware resolution; a key from a caller goes
-    // through the manifest check, not straight to a grain type.
-    public IConnection Connection(string connectionKey) => grains.GetConnection(connectionKey);
-    public IConnectionInbound ConnectionInbound(string connectionKey) => grains.GetConnectionInbound(connectionKey);
-    public T CallerConnection<T>(IServiceProvider services, string key) where T : IGrainWithStringKey => grains.GetNeuronGrain<T>(services, key);
+    // through the manifest check, not straight to a grain type. 06-08 repoints this seam in the composition (R4-24).
+    public IConnection Connection(string connectionKey) => grains.Connection(connectionKey);
+    public IConnectionInbound ConnectionInbound(string connectionKey) => grains.ConnectionInbound(connectionKey);
+    public T CallerConnection<T>(IServiceProvider services, string key) where T : IGrainWithStringKey => grains.CallerConnection<T>(services, key);
 
-    private T Resolve<T>(string key) where T : IGrainWithStringKey => grains.GetGrain<T>(key);
+    private T Resolve<T>(string key) where T : IGrainWithStringKey => grains.Get<T>(key);
 }

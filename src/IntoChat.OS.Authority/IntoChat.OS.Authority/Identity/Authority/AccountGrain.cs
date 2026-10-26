@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Identity;
@@ -17,7 +18,7 @@ internal sealed class AccountGrain(
     [PersistentState("account", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<AccountState> storage,
     TimeProvider clock) : IdentityStateGrain<AccountState>(storage), IAccount
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     public async Task EnsureCreated(Account account)
     {

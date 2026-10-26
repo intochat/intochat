@@ -6,7 +6,6 @@
   "IntoChat.OS.Authority.Tests.Integration/Neurons/NeuronsWatchFacts.cs": 7,
   "IntoChat.OS.Authority.Tests.Integration/Neurons/SelectedBrainFacts.cs": 1,
   "IntoChat.OS.Authority.Tests.Integration/Storage/BrainStorageFacts.cs": 4,
-  "IntoChat.OS.Authority/Neurons/SignalWatch.cs": 1,
   "IntoChat.OS.Client.Orleans.Tests.Integration/SubscriptionLifetimeFacts.cs": 3,
   "IntoChat.OS.Client.Orleans.Tests.Integration/TestNeurons.cs": 1,
   "IntoChat.OS.Client.Orleans/BrainClient.cs": 1,

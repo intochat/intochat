@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -25,7 +26,7 @@ internal sealed class ConnectionRequestsNeuron(
     IReadOnlyList<ConnectorDefinition> connectors)
     : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     public Task Changed(string connectionKey)
     {
