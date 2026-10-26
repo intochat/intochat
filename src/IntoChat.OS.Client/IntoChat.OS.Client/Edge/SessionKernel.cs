@@ -9,7 +9,7 @@ namespace IntoChat.OS.Client;
 // reserved contract. The edge answers for the behavior's own brain only.
 internal sealed class SessionKernel(SessionConnection session, string behavior, BehaviorTrace trace) : IKernelView
 {
-    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
         => Listed(RuntimeProtocol.KernelInstances, [typeof(T).FullName, null], cancellationToken);
 
     public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default)

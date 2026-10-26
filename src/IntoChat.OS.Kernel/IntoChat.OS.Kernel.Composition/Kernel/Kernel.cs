@@ -7,7 +7,7 @@ namespace IntoChat.OS.Kernel.Composition;
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
 public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null) : IKernel
 {
-    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
         => Instances(TypeOf(typeof(T)), cancellationToken);
 
     public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default)

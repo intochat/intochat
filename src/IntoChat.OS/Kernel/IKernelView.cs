@@ -2,10 +2,11 @@ namespace IntoChat.OS;
 
 // The kernel's read-only facts about the caller's brain: which neurons exist and which are awake.
 // The brain is always the stamped caller's; there is no way to name another one. An instance is a
-// neuron with persisted state: it is recorded on its first write, kernel-stamped, never by module code.
+// neuron with persisted state: it is recorded on its first write, kernel-stamped, never by module code. T is a neuron
+// contract, legacy or plain (06-06d: a plain neuron is recorded once a call leaves it with state).
 public interface IKernelView
 {
-    IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron;
+    IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class;
 
     // Of one grain type, or of every type when type is null.
     IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default);

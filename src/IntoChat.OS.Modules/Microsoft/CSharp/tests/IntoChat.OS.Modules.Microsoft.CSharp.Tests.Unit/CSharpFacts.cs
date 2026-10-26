@@ -229,7 +229,7 @@ public sealed class CSharpFacts
 
     private sealed class FakeKernel(TypeEntry[] types) : IKernelView
     {
-        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron => throw new NotSupportedException();
+        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class => throw new NotSupportedException();
         public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(types);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => throw new NotSupportedException();

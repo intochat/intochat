@@ -1362,7 +1362,7 @@ public sealed class FastPathFacts : IDisposable
             finally { record(id, "Types", capturedPhase, completed ? "completed" : "stopped"); }
         }
 
-        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
             => inner.Instances<T>(cancellationToken);
         public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);

@@ -1093,5 +1093,10 @@
     "Type": "test.chat-source",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide.PlainCounted": {
+    "Type": "probe.counted",
+    "Store": null,
+    "StateName": null
   }
 }

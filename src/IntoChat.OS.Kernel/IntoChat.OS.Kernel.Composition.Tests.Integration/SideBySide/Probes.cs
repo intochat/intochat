@@ -129,3 +129,27 @@ public sealed class LegacyProbe([PersistentState("state", IntoChatOSNames.Cluste
         return this.Get<IPlainProbe>(new DB.NeuronId(new DB.BrainId(brain), "probe.plain", key));
     }
 }
+
+// 06-06d: a plain neuron with state, for the kernel's instance directory (Kernel.Instances<T> on both runtimes).
+[DigitalBrain.Contracts.DefaultNeuronType(PlainCounted.Type)]
+public interface IPlainCounted
+{
+    Task Add();
+    [DB.ReadOnlyCall]
+    Task<int> Count();
+    Task Forget();
+}
+
+public sealed record PlainCountedState(int Count);
+
+[DB.Neuron(Type)]
+public sealed class PlainCounted : DB.Neuron, IPlainCounted
+{
+    public const string Type = "probe.counted";
+
+    public async Task Add() => await Context.State.Save(new PlainCountedState(await Count() + 1), []);
+
+    public async Task<int> Count() => (await Context.State.Load<PlainCountedState>())?.Count ?? 0;
+
+    public Task Forget() => Context.State.Clear();
+}

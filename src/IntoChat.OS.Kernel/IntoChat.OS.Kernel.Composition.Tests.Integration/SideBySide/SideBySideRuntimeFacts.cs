@@ -37,6 +37,11 @@ public sealed class SideBySideRuntimeFacts
         var journal = brain.Services.GetRequiredService<ISignalJournal>();
         var part = await journal.SignalsOf(brain.Grains().GetGrain<ILegacyProbe>($"{Brain}/s1").GetGrainId(), 0);
         Assert.Equal(["one", "two"], part!.Signals.Select(item => ((LegacyPinged)item.Signal).Text));
+
+        // 06-06d: the kernel lists the legacy neuron beside a plain one.
+        await Counted(brain, "p1").Add();
+        Assert.Equal([$"{Brain}/s1"], await Listed(brain, LegacyProbe.Type, ct));
+        Assert.Equal([$"{Brain}/p1"], await Listed(brain, PlainCounted.Type, ct));
     }
 
     [Fact(Timeout = 120_000)]
@@ -114,5 +119,34 @@ public sealed class SideBySideRuntimeFacts
             public void ConfigureSilo(ISiloBuilder silo, TopologyContext context) => _inner.ConfigureSilo(silo, context);
             public void ConfigureServices(IServiceCollection services, TopologyContext context) => _inner.ConfigureServices(services, context);
         }
+    }
+
+    // 06-06d (R4-21(4)): the kernel's instance listing sees both kinds of neuron. A legacy grain registers on its first write
+    // through the storage decorator; a plain neuron registers once a call leaves it with state, never for a read-only call, and
+    // retires when its state is cleared.
+    private static IPlainCounted Counted(ITestBrain brain, string key)
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IPlainCounted>($"{Brain}/{key}");
+
+    private static async Task<string[]> Listed(ITestBrain brain, string type, CancellationToken ct)
+    {
+        List<string> keys = [];
+        await foreach (var instance in brain.Services.GetRequiredService<Kernel>().InstancesIn(Brain, type, ct)) { keys.Add(instance.Key); }
+        return [.. keys.Order(StringComparer.Ordinal)];
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task APlainNeuronIsListedOnceItHasStateAndRetiredWhenItIsCleared()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithNeuronModule<PlainProbeModule>().StartAsync(ct);
+
+        Assert.Equal(0, await Counted(brain, "read-only").Count());
+        await Counted(brain, "a").Add();
+        await Counted(brain, "a").Add();
+        await Counted(brain, "b").Add();
+        Assert.Equal([$"{Brain}/a", $"{Brain}/b"], await Listed(brain, PlainCounted.Type, ct));
+
+        await Counted(brain, "a").Forget();
+        Assert.Equal([$"{Brain}/b"], await Listed(brain, PlainCounted.Type, ct));
     }
 }

@@ -12,7 +12,7 @@ public sealed class FixedKernel(params System.Reflection.Assembly[] assemblies) 
 
     public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(Entries);
 
-    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron => AsyncEnumerable.Empty<Instance>();
+    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class => AsyncEnumerable.Empty<Instance>();
 
     public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<Instance>();
 
