@@ -98,7 +98,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest .
           bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"

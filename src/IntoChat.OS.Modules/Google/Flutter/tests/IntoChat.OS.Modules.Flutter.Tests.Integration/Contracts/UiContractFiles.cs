@@ -37,7 +37,7 @@ internal static class UiContractFiles
 
     // The Flutter workspace beside the module's projects: app/core, app/ui, app/shell.
     public static string Dart(string package, string file)
-        => File.ReadAllText(Path.Combine(DirectoryOf("IntoChat.OS.Modules.Flutter"), "..", "app", package, "lib/src", file));
+        => File.ReadAllText(Path.Combine(DirectoryOf("IntoChat.OS.Modules.Flutter"), "..", "..", "app", package, "lib/src", file));
 
     public static JsonObject Golden(string name) => JsonNode.Parse(File.ReadAllText(Path.Combine(TestProject, "Contracts", name)))!.AsObject();
 

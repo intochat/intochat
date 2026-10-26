@@ -221,7 +221,7 @@ public sealed class OsInoLinkFacts
     public void TheChatRendererUsesInoCopy()
     {
         var dart = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Modules.Flutter"),
-            "..", "app", "ui", "lib/src/chat/chat_copy.dart"));
+            "..", "..", "app", "ui", "lib/src/chat/chat_copy.dart"));
         Assert.Contains("empty = '" + InoCopy.EmptyTranscript + "';", dart, StringComparison.Ordinal);
         Assert.Contains("failed = \"" + InoCopy.TurnFailed + "\";", dart, StringComparison.Ordinal);
         Assert.Contains("notInstalled = '" + InoCopy.AppNotInstalled + "';", dart, StringComparison.Ordinal);

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" /></ItemGroup>
 </Project>

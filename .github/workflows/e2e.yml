@@ -67,7 +67,7 @@ jobs:
         run: docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile src/IntoChat.OS.Modules/Google/Flutter/app
 
       - name: Warm the sandbox image layer cache
-        run: docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
+        run: docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
 
       # ArtCraft images are built once per pinned ref by artcraft-images.yml and pulled here; the tags are the first
       # 12 characters of the refs in ArtCraftModuleHosting (E2EWarmUpFacts pins them). A missing tag fails the step:

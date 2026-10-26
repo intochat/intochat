@@ -58,6 +58,6 @@ public sealed class TypeParityFacts
         var module = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
             .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
             .Single(path => Path.GetFileNameWithoutExtension(path) == "IntoChat.OS.Modules.Flutter");
-        return Path.GetFullPath(Path.Combine(root, Path.GetDirectoryName(module)!, "..", "app"));
+        return Path.GetFullPath(Path.Combine(root, Path.GetDirectoryName(module)!, "..", "..", "app"));
     }
 }

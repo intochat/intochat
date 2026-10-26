@@ -34,7 +34,7 @@
     - State reads and writes (state.State, WriteStateAsync) are left as they are: rewrite them to Save(next, signals) (D-02).
 
 .EXAMPLE
-  pwsh scripts/migrate-neuron.ps1 -Path src/IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/Timers/TimerNeuron.cs
+  pwsh scripts/migrate-neuron.ps1 -Path src/IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/Timers/TimerNeuron.cs
   pwsh scripts/migrate-neuron.ps1 -Path (Get-ChildItem src/IntoChat.OS.Modules/Time -Recurse -Filter *.cs) -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess)]

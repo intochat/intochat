@@ -3,8 +3,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS/Tools/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </ItemGroup>
 </Project>

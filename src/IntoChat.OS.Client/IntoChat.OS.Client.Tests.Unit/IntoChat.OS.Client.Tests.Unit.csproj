@@ -5,6 +5,6 @@
   <ItemGroup>
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
   </ItemGroup>
 </Project>

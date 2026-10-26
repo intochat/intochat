@@ -6,6 +6,6 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
   </ItemGroup>
 </Project>

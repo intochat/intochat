@@ -4,6 +4,6 @@
     <Description>Shared in-process fakes for module seams (browser sessions) that several test projects script.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
   </ItemGroup>
 </Project>

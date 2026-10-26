@@ -12,7 +12,7 @@ on:
     branches: [master]
     paths:
       - 'src/IntoChat.OS.Modules/ArtCraft/docker/**'
-      - 'src/IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/ArtCraftModuleHosting.cs'
+      - 'src/IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/ArtCraftModuleHosting.cs'
       - '.github/workflows/artcraft-images.yml'
 
 permissions:

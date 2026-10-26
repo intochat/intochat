@@ -91,7 +91,8 @@ public sealed class RepositoryLayoutFacts
             .Select(segment => segment.StartsWith(Prefix, StringComparison.Ordinal) ? segment[Prefix.Length..] : segment)
             .ToArray();
         var folder = "/" + string.Join('/', segments) + "/";
-        // A module's tests/ directory is grouped either with the module or as its own subfolder.
-        return segments[^1] == "tests" ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
+        // A module's Contracts/, implementation and tests/ directories (by module, R4-03) are grouped either with the module or
+        // as their own subfolder.
+        return segments[^1] is "tests" or "Contracts" or ModuleFolderFacts.SourceFolder ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
     }
 }

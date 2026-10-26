@@ -8,9 +8,9 @@
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
     <!-- GoldenBytesFacts pins a TimerTick's stored bytes. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <!-- Circle brains (Task 27): a circle is born with its room, loaded through the Apps module. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Circles/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
     <Using Include="IntoChat.OS.Testing" />
     <Using Include="IntoChat.OS.Authority.Identity" />
   </ItemGroup>

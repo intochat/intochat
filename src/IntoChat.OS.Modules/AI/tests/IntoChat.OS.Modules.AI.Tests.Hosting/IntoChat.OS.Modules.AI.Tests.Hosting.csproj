@@ -8,8 +8,8 @@
     <Using Remove="IntoChat.OS.Testing.ITestBrain" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Modules.AI.Aspire.Hosting/IntoChat.OS.Modules.AI.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.AI.Aspire.Hosting/IntoChat.OS.Modules.AI.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../../../../Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
   </ItemGroup>
 </Project>

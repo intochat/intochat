@@ -3,7 +3,7 @@
     <Using Include="IntoChat.OS.Testing" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration for typed IntoChat.OS AI model neurons.</Description>
+    <RootNamespace>IntoChat.OS.Modules.AI.Aspire.Hosting</RootNamespace>
+    <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" />
+    <PackageReference Include="Microsoft.AI.Foundry.Local" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
+</Project>
