@@ -120,9 +120,6 @@
   "IntoChat.OS.Modules.Tools.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit": [
-    "Microsoft.Orleans.Sdk"
-  ],
   "IntoChat.OS.Testing": [
     "Microsoft.Orleans.Sdk"
   ],

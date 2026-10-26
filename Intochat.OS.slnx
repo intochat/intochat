@@ -29,8 +29,6 @@
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.Tests.Integration/IntoChat.OS.Framework.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.Tests.Unit/IntoChat.OS.Framework.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
-    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory.Tests.Unit/IntoChat.OS.Runtime.InMemory.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/" />
   <Folder Name="/IntoChat.Cloud/Modules/" />

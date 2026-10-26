@@ -9,13 +9,11 @@ public sealed partial class StaticCacheFacts
 {
     private static readonly Dictionary<string, string> Owners = new(StringComparer.Ordinal)
     {
-        ["CallMarkers.Methods"] = "MethodInfo",
         ["LoadedContracts.Found"] = "string",
         ["Neuron.OneWayTargets"] = "MethodInfo",
         ["LegacyGrainSink.Contracts"] = "string",
         ["LegacyGrainSink.HostTypes"] = "string",
         ["NeuronCallFilter.Policies"] = "(Type",
-        ["NeuronProxy.Casts"] = "Type",
         ["NeutralCallMapping.Methods"] = "MethodInfo",
         ["NeutralCallMapping.Predicates"] = "Type",
         ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",

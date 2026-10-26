@@ -39,7 +39,7 @@ public abstract class Neuron : Grain, INeuron
 
     private protected IServiceProvider Services => Hosted ? _context!.Services : ServiceProvider;
 
-    // Public runtime hook: a runtime that hosts neurons outside Orleans (IntoChat.OS.Runtime.InMemory) calls it
+    // Public runtime hook: a runtime that hosts neurons outside Orleans calls it
     // once, before activation, with its own context. A second call throws, so a context cannot be swapped.
     public void Attach(INeuronContext context)
     {

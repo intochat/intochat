@@ -964,61 +964,6 @@
     "Store": null,
     "StateName": null
   },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.CounterNeuron": {
-    "Type": "counterneuron",
-    "Store": "unused",
-    "StateName": "counter"
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.FailingDeactivation": {
-    "Type": "failingdeactivation",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.HangingSource": {
-    "Type": "hangingsource",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.LeaseHolder": {
-    "Type": "leaseholder",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.LeaseSource": {
-    "Type": "leasesource",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.NeuronAttachFacts+Probe": {
-    "Type": "probe",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.OrleansPredicateNeuron": {
-    "Type": "orleanspredicateneuron",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.Pinger": {
-    "Type": "pinger",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.SourceWatcher": {
-    "Type": "sourcewatcher",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.TickerNeuron": {
-    "Type": "tickerneuron",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit.WorkerNeuron": {
-    "Type": "workerneuron",
-    "Store": null,
-    "StateName": null
-  },
   "IntoChat.OS.Testing.Neurons.PulseNeuron": {
     "Type": "testing.pulse",
     "Store": "cluster",
