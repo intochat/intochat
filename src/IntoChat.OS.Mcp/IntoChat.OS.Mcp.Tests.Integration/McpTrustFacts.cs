@@ -18,7 +18,7 @@ public sealed class McpTrustFacts(McpHost host)
     {
         var runtime = host.Brain;
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(runtime.Services.GetRequiredService<Orleans.IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, runtime.Services);
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddIntoChatOSMcp();
         await using var app = builder.Build();

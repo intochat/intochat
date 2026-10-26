@@ -18,7 +18,6 @@ public sealed class AppUiRouteFacts(FlutterHost host)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(typeof(IIntoChatOS), _ => null!);
-        builder.Services.AddSingleton(typeof(IGrainFactory), _ => null!);
         IEndpointRouteBuilder app = builder.Build();
         AppUiEndpoints.Map(app);
 

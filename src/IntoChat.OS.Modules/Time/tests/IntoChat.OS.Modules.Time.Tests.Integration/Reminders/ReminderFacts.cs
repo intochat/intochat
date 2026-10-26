@@ -99,11 +99,10 @@ public sealed class ReminderFacts(TimeFixture fixture)
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
         await reminder.Stop();
         // Inject already-queued deliveries through Orleans, without invoking the neuron directly.
-        var receiver = runtime.Services.GetRequiredService<IGrainFactory>().GetGrain<IRemindable>(host);
-        await receiver.ReceiveReminder("unrelated", default, ct);
-        await receiver.ReceiveReminder("tick", default, ct);
+        await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(runtime.Services, host, "unrelated", ct);
+        await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(runtime.Services, host, "tick", ct);
         Assert.Equal($"{id.Brain.Value}/queued", Assert.Single(await runtime.Signals<ReminderTick>(id, ct)).ReminderId);
-        await receiver.ReceiveReminder("tick", default, ct);
+        await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(runtime.Services, host, "tick", ct);
         Assert.Equal(2, (await runtime.Signals<ReminderTick>(id, ct)).Count);
         Assert.Empty((await control.Table.ReadRows(host, ct)).Reminders);
     }
@@ -117,7 +116,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         await using var _ = runtime;
         await reminder.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
         var before = await control.NextDeliveryAsync(ct);
-        await runtime.Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0).ForceActivationCollection(TimeSpan.Zero, ct);
+        await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.CollectIdleActivations(runtime.Services, ct);
         ReminderDelivery after;
         do { after = await control.NextDeliveryAsync(ct); }
         while (ReferenceEquals(before.Activation, after.Activation));

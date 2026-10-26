@@ -11,6 +11,7 @@ public static class AuthorityGrainsHosting
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IntoChat.OS.Authority.IAuthorityGrains, AuthorityGrains>();
+        services.TryAddSingleton<IntoChat.OS.Runtime.IStillGrains, StillGrains>();
         return services;
     }
 

@@ -28,9 +28,6 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
 
     protected IServiceProvider ServiceProvider => Context.Services;
 
-    // The Authority's per-brain connection grains (index, catalog) are still raw grains.
-    protected IGrainFactory GrainFactory => Context.Services.GetRequiredService<IGrainFactory>();
-
     // Facts fault the writes of a connection here (IConnectionWriteFaults); a production silo registers none.
     private IConnectionWriteFaults? Faults => Context.Services.GetService<IConnectionWriteFaults>();
 

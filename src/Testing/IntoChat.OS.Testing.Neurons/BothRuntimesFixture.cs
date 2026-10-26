@@ -112,7 +112,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         public ValueTask DisposeAsync() => os.DisposeAsync();
     }
 
-    private sealed class SiloRuntime(IInProcessHost host, BrainId brain, IReadOnlyList<Type> modules) : INeuronRuntime
+    private sealed class SiloRuntime(IInProcessHost host, BrainId brain) : INeuronRuntime
     {
         public static async Task<SiloRuntime> Start(BrainId brain, IReadOnlyList<Type> modules, Action<IServiceCollection> configure,
             IReadOnlyDictionary<string, string?> configuration, string? home, CancellationToken ct)
@@ -121,7 +121,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
             var factory = new LocalSiloHostFactory(new BrainStorageRegistration(assemblies), configure);
             var options = new InProcessHostOptions { Home = home, Modules = modules, Configuration = configuration };
             var host = await factory.Start(options, ct).ConfigureAwait(false);
-            return new SiloRuntime(host, brain, modules);
+            return new SiloRuntime(host, brain);
         }
 
         public NeuronRuntimeKind Kind => NeuronRuntimeKind.Silo;
@@ -130,7 +130,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public IServiceProvider Services => host.Services;
 
-        public T Get<T>(NeuronId id) where T : class => NeuronProxy.Create<T>(id, new HostSink(this));
+        public T Get<T>(NeuronId id) where T : class => SiloNeurons.Get<T>(host.Services, id);
 
         public Task Idle() => Task.CompletedTask;
 
@@ -148,31 +148,5 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         public Task Restart(CancellationToken ct) => host.Restart(ct);
 
         public ValueTask DisposeAsync() => host.DisposeAsync();
-
-        // The host grain of a hosted class, by the runtime's policy: stateless, reentrant or brain-affine.
-        internal INeuronHost Host(NeuronId target)
-        {
-            var neuronClass = modules.Select(module => module.Assembly).Distinct().SelectMany(assembly => assembly.GetTypes())
-                .FirstOrDefault(type => type is { IsAbstract: false, IsClass: true } && typeof(Neuron).IsAssignableFrom(type)
-                    && type.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type == target.Type)
-                ?? throw new InvalidOperationException($"No module under test hosts neuron type '{target.Type}'.");
-            var grainType = neuronClass.IsDefined(typeof(StatelessNeuronAttribute), inherit: false) ? "neuron.host.stateless"
-                : neuronClass.IsDefined(typeof(ReentrantAttribute), inherit: true) ? "neuron.host.reentrant" : "neuron.host";
-            return host.Services.GetRequiredService<IGrainFactory>().GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
-        }
-    }
-
-    // A client-side sink: calls carry no neuron caller, as a test edge does.
-    private sealed class HostSink(SiloRuntime runtime) : IInvocationSink
-    {
-        public Task<JsonElement?> Invoke(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
-            => runtime.Host(target).Invoke(call, cancellationToken);
-
-        public Task Post(NeuronId target, RuntimeInvocation call) => runtime.Host(target).Post(call);
-
-        public async IAsyncEnumerable<JsonElement> Stream(NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            await foreach (var item in runtime.Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return item; }
-        }
     }
 }

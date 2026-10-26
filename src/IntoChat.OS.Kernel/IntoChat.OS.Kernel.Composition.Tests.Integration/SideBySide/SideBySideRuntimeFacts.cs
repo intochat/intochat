@@ -19,7 +19,7 @@ public sealed class SideBySideRuntimeFacts
     private const string Brain = "owner";
 
     private static IPlainProbe Plain(ITestBrain brain, string key)
-        => NeuronProxy.Create<IPlainProbe>(DB.NeuronId.Parse($"{Brain}/probe.plain/{key}"), new KernelInvocationSink(brain.Grains(), "owner/test.edge/facts"));
+        => NeuronProxy.Create<IPlainProbe>(DB.NeuronId.Parse($"{Brain}/probe.plain/{key}"), KernelInvocationSink.For(brain.Services, "owner/test.edge/facts"));
 
     [Fact(Timeout = 120_000)]
     public async Task APlainNeuronAnswersWithItsCallerAndTheKernelListsItOnceItHasState()

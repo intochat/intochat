@@ -53,21 +53,18 @@ public sealed class CompiledTypes
         ? contract
         : throw new ArgumentException($"{name} is not a neuron contract of this brain.");
 
-    // A neuron's Alias becomes the grain type its contract resolves to, as instances record it; a
-    // contract several grains implement keeps its contract alias.
-    public TypeEntry[] Addressed(IGrainFactory grains)
+    // A neuron's Alias becomes the neuron type its contract resolves to, as instances record it; a contract several neurons
+    // implement keeps its contract alias. A plain contract names its [Neuron] type; a connection contract (06-08) names none.
+    // Any other contract is a still-grain's, whose type only the kernel composition (the grain factory's owner) resolves:
+    // stillGrainType answers it, or null.
+    public TypeEntry[] Addressed(Func<Type, string?> stillGrainType)
     {
-        ArgumentNullException.ThrowIfNull(grains);
-        return _addressed ??= [.. Entries.Select(entry => entry.Kind == TypeKind.Neuron && GrainType(grains, _neurons[entry.Name]) is { } type ? entry with { Alias = type } : entry)];
+        ArgumentNullException.ThrowIfNull(stillGrainType);
+        return _addressed ??= [.. Entries.Select(entry => entry.Kind == TypeKind.Neuron && TypeOf(stillGrainType, _neurons[entry.Name]) is { } type ? entry with { Alias = type } : entry)];
     }
 
-    private static string? GrainType(IGrainFactory grains, Type contract)
-    {
-        // A plain contract names its [Neuron] type; a connection contract (06-08) names none and keeps its contract alias.
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract)) { return IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract); }
-        try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString(); }
-        catch (ArgumentException) { return null; }
-    }
+    private static string? TypeOf(Func<Type, string?> stillGrainType, Type contract)
+        => IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) : stillGrainType(contract);
 
     // A legacy grain contract, or a migrated plain contract that names its [Neuron] type (06-03). IRetainsSignals is the legacy
     // retention side-interface every retaining grain adds, never a neuron of its own: once one grain is left implementing it

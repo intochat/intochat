@@ -13,5 +13,15 @@
     "File": "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
     "Kind": "prompt-text",
     "Reason": "prompt text that teaches script authors the reaction shape; not executed os code"
+  },
+  {
+    "File": "IntoChat.OS.Modules.Microsoft.CSharp/Authoring/CSharpScriptSandbox.cs",
+    "Kind": "prompt-text",
+    "Reason": "the authoring description that teaches script authors the synapse shape; not executed os code"
+  },
+  {
+    "File": "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs",
+    "Kind": "prompt-text",
+    "Reason": "the example script shown to authors with the contract catalog; not executed os code"
   }
 ]

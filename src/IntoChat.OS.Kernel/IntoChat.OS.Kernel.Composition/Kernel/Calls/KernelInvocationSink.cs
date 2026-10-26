@@ -21,6 +21,13 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     private static readonly ConcurrentDictionary<string, Type> Contracts = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string?> HostTypes = new(StringComparer.Ordinal);
 
+    // A sink over the grain factory of services (a silo or a cluster client), calling as caller.
+    public static KernelInvocationSink For(IServiceProvider services, string caller)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return new(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services), caller);
+    }
+
     internal static void Register(Type contract) => Contracts.TryAdd(NeuronProxy.ContractName(contract), contract);
 
     public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
@@ -79,6 +86,8 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
 
     // The host grain of the plain [Neuron] class of a type, by the runtime's policy (NeuronTypeRegistry.PolicyOf); null when no
     // loaded class has that type.
+    internal static string? HostTypeOfLoaded(string type) => HostTypeOf(type);
+
     private static string? HostTypeOf(string type) => HostTypes.GetOrAdd(type, static name =>
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic))

@@ -62,7 +62,7 @@ public sealed class AccountFacts(AuthorityHost host)
 
     private static async Task<string[]> BrainsAs(ITestBrain brain, Person person)
     {
-        using (person.AsCaller()) { return await new global::IntoChat.OS.Kernel.Composition.Kernel(brain.Grains).Brains(TestContext.Current.CancellationToken); }
+        using (person.AsCaller()) { return await global::IntoChat.OS.Kernel.Composition.Kernel.For(brain.Services).Brains(TestContext.Current.CancellationToken); }
     }
 
     [Fact]

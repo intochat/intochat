@@ -15,7 +15,7 @@ public sealed class MarketplaceClientFacts
             var parameters = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .SelectMany(constructor => constructor.GetParameters()).ToArray();
             Assert.Contains(parameters, parameter => parameter.ParameterType == typeof(IMarketplaceClient));
-            Assert.DoesNotContain(parameters, parameter => parameter.ParameterType == typeof(IGrainFactory) || parameter.ParameterType == typeof(IClusterClient)
+            Assert.DoesNotContain(parameters, parameter => parameter.ParameterType.Namespace?.StartsWith("Orleans", StringComparison.Ordinal) == true
                 || parameter.GetCustomAttributes().Any(attribute => attribute.GetType().Name == "PersistentStateAttribute"));
         }
     }

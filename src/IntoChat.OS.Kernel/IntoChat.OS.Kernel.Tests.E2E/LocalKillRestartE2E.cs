@@ -63,9 +63,8 @@ public sealed class LocalKillRestartE2E
             var hostGrain = GrainId.Create("neuron.host", id.ToString());
             await using (var client = await ConnectAsync(host.GatewayPort, ct))
             {
-                var grains = client.Services.GetRequiredService<IGrainFactory>();
-                await NeuronProxy.Create<IReminder>(id, new GatewaySink(grains)).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
-                await ActiveAsync(grains, hostGrain, ct);
+                await NeuronProxy.Create<IReminder>(id, global::IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+                await ActiveAsync(client.Services, hostGrain, ct);
             }
             Note($"reminder started on {hostGrain}");
 
@@ -84,11 +83,10 @@ public sealed class LocalKillRestartE2E
 
             await using (var client = await ConnectAsync(host.GatewayPort, ct))
             {
-                var grains = client.Services.GetRequiredService<IGrainFactory>();
                 // No call here: only the registration persisted in the file reminder table can activate the host grain.
-                await ActiveAsync(grains, hostGrain, ct);
+                await ActiveAsync(client.Services, hostGrain, ct);
                 Note($"reminder fired after restart on {hostGrain}");
-                await NeuronProxy.Create<IReminder>(id, new GatewaySink(grains)).Stop();
+                await NeuronProxy.Create<IReminder>(id, global::IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Stop();
             }
         }
         finally
@@ -114,27 +112,11 @@ public sealed class LocalKillRestartE2E
     }
 
     // Waits until the grain has an activation in the cluster.
-    private static async Task ActiveAsync(IGrainFactory grains, GrainId grain, CancellationToken ct)
+    private static async Task ActiveAsync(IServiceProvider client, GrainId grain, CancellationToken ct)
     {
         using var bound = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bound.CancelAfter(TickBound);
-        var management = grains.GetGrain<IManagementGrain>(0);
-        while (!(await management.GetActiveGrains(grain.Type, bound.Token)).Contains(grain)) { await Task.Delay(250, bound.Token); }
-    }
-
-    // A cluster-client sink: calls go to the plain neuron's brain-affine host grain and carry no neuron caller.
-    private sealed class GatewaySink(IGrainFactory grains) : IInvocationSink
-    {
-        private INeuronHost Host(global::DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create("neuron.host", target.ToString()));
-
-        public Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken) => Host(target).Invoke(call, cancellationToken);
-
-        public Task Post(global::DigitalBrain.NeuronId target, RuntimeInvocation call) => Host(target).Post(call);
-
-        public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken)) { yield return item; }
-        }
+        while (!await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.IsActive(client, grain, bound.Token)) { await Task.Delay(250, bound.Token); }
     }
 
     private static async Task<ClientHost> ConnectAsync(int gatewayPort, CancellationToken ct)

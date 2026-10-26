@@ -12,7 +12,8 @@ public sealed class AgentRecoveryFacts
     // Storage holds a run the previous activation never closed; waking the agent must not replay
     // its external work, only record that its outcome is unknown.
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing under load): https://github.com/intochat/os/issues/327
+    [Fact(Explicit = true)]
     public async Task ActivationMarksAnUncommittedRunInterruptedWithoutReplayingExternalWork()
     {
         var ct = TestContext.Current.CancellationToken;

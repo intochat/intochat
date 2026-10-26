@@ -177,7 +177,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Open";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         builder.Services.AddIntoChatOSMcp();
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

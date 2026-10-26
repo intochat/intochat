@@ -19,7 +19,7 @@ public sealed class BrainKeyFacts
     private static ModelCatalog Catalog(ITestBrain brain) => brain.Services.GetRequiredService<ModelCatalog>();
 
     private static IBrainEntries Entries(ITestBrain brain, string brainId)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>(brainId);
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IBrainEntries>(brainId);
 
     [Trait("host", "own")]
     [Fact]

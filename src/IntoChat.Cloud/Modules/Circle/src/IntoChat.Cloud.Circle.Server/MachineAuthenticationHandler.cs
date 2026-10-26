@@ -13,14 +13,14 @@ namespace IntoChat.Cloud.Circle.Server;
 // The IntoChatMachine scheme (D-09; T-10-02, T-10-18): Authorization Bearer plus X-Machine-Proof for the bound key.
 // It never reads a cookie; circle module routes authenticate with this scheme only, through MachineGate.
 internal sealed class MachineAuthenticationHandler(
-    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IGrainFactory grains, INonceCache nonces)
+    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IntoChat.OS.Runtime.IStillGrains grains, INonceCache nonces)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (MachineAuthentication.Bearer(Request) is not { } token) { return AuthenticateResult.NoResult(); }
         if (!MachineTokens.TryCredentialId(token, out var credentialId)) { return AuthenticateResult.Fail("Machine authentication failed."); }
-        var credential = grains.GetGrain<IMachineCredential>(credentialId);
+        var credential = grains.Get<IMachineCredential>(credentialId);
         // Revoked credentials authenticate so their machine can read status; the policies refuse them everywhere else.
         if (await credential.Authenticate(token, includeRevoked: true) is not { } machine
             || !await MachineAuthentication.ProofHolds(Context, machine.PublicKeySpki, token, credential, nonces))
@@ -118,9 +118,9 @@ public sealed partial class CircleServerModule
     // Leave revokes this machine's credential; status answers for revoked credentials too, so a machine learns why.
     partial void MapMembership(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder routes)
     {
-        routes.MapPost(CircleRoutes.Leave, async (HttpContext http, IGrainFactory grains) =>
+        routes.MapPost(CircleRoutes.Leave, async (HttpContext http, IntoChat.OS.Runtime.IStillGrains grains) =>
         {
-            await grains.GetGrain<IMachineCredential>(http.User.FindFirstValue(MachineClaims.Credential)!).Revoke();
+            await grains.Get<IMachineCredential>(http.User.FindFirstValue(MachineClaims.Credential)!).Revoke();
             return Results.NoContent();
         }).AddEndpointFilter(CircleResponses.Filter).RequireCircleMachine();
 

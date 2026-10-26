@@ -7,6 +7,15 @@ namespace IntoChat.OS.Kernel.Composition;
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
 public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null) : IKernel
 {
+    // The kernel over the grain factory of services (a silo, or a cluster client host such as the MCP), with its brain
+    // membership when the host registers one.
+    public static Kernel For(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return new(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services),
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IBrainMembership>(services));
+    }
+
     public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
         => Instances(TypeOf(typeof(T)), cancellationToken);
 
@@ -94,5 +103,12 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
         if (IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) is { } plain) { return plain; }
         try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString()!; }
         catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} has no single grain type: {error.Message}", nameof(contract), error); }
+    }
+
+    // The grain type of a still-grain's contract (CompiledTypes.Addressed), or null when several grains or none implement it.
+    internal static string? StillGrainType(IGrainFactory grains, Type contract)
+    {
+        try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString(); }
+        catch (ArgumentException) { return null; }
     }
 }

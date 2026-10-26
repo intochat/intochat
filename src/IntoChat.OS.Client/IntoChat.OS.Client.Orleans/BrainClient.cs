@@ -5,7 +5,7 @@ namespace IntoChat.OS.Client.Orleans;
 
 // The cluster as a whole: opens brains, resolves neurons for hosts and harnesses, and owns every subscription it handed out
 // through their streams. Neurons are DigitalBrain plain neurons, reached through the kernel composition's seam (06-08).
-internal sealed class BrainClient(IClusterClient cluster, ILogger<BrainClient> logger, IKernelView? kernel = null,
+internal sealed class BrainClient(ILogger<BrainClient> logger, IKernelView? kernel = null,
     IntoChat.OS.Runtime.IPlainNeurons? plainNeurons = null, IntoChat.OS.Runtime.IPlainSignals? plainSignals = null)
     : IIntoChatOSBrains, IAsyncDisposable
 {
@@ -17,8 +17,6 @@ internal sealed class BrainClient(IClusterClient cluster, ILogger<BrainClient> l
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         return new OrleansBrain(this, brainId);
     }
-
-    public IGrainFactory Grains => cluster;
 
     // The kernel view the host registered (the silo, or AddIntoChatOSClient for a cluster client); the kernel composition owns it.
     public IKernelView Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: a silo registers it, and AddIntoChatOSClient does for a cluster client.");

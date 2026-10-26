@@ -18,7 +18,7 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
+internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IntoChat.OS.Runtime.IStillGrains grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
     IntoChat.OS.Runtime.IPlainNeurons? plain = null)
 {
     public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
@@ -52,7 +52,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
                 : cancellationToken;
         }
         // Transitional (06-07): a plain contract (06-03 seam) is called on its runtime host after the same access checks.
-        var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? Plain.Get(contract, invocation.Key) : grains.GetGrain(contract, invocation.Key);
+        var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? Plain.Get(contract, invocation.Key) : grains.Get(contract, invocation.Key);
         Stamp(identity);
         object? returned;
         try { returned = method.Invoke(neuron, values); }

@@ -19,7 +19,7 @@ namespace IntoChat.OS.Modules.Apps;
 // the compiler gate it, with at most one repair; WriteBehavior makes it live and CompleteSynapse records
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
 internal sealed class ReactionWriter(
-    IGrainFactory grains,
+    IntoChat.OS.Runtime.IStillGrains grains,
     IntoChat.OS.Runtime.IPlainNeurons plain,
     IKernel kernel,
     ReactionExamples examples,
@@ -302,7 +302,7 @@ internal sealed class ReactionWriter(
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
-        var result = await grains.GetGrain<ICreatorModel>(0).Generate(brain, Model, new InferenceRequest(
+        var result = await grains.Get<ICreatorModel>(0L).Generate(brain, Model, new InferenceRequest(
             [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection)).WaitAsync(cancellationToken);
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);

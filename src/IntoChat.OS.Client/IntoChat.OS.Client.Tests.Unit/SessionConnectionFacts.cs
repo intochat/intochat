@@ -358,7 +358,7 @@ public sealed class SessionConnectionFacts
         Assert.Equal("Bearer token-1", invoke.Authorization);
     }
 
-    // The edge resolves the wire key as a raw grain key (RuntimeEdge: GetGrain(contract, invocation.Key)), so a
+    // The edge resolves the wire key as a raw grain key (RuntimeEdge resolves the contract at invocation.Key), so a
     // brain-relative id must leave the sandbox as the same "{brain}/{relative}" key the raw-key path sends.
     [Fact]
     public async Task ARelativeNeuronCrossesTheEdgeWithTheRawKeyOfItsBrain()

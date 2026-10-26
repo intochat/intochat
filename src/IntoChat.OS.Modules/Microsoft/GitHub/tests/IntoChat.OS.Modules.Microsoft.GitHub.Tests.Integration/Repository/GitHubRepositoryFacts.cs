@@ -40,7 +40,6 @@ public sealed class GitHubRepositoryFacts
         return key;
     }
 
-    private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
     private static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     // The installation index is a plain neuron in the system brain (06-06d).

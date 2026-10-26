@@ -25,7 +25,7 @@ public sealed partial class CircleServerModule
         routes.MapPost(CircleRoutes.Refresh, Refresh).AddEndpointFilter(CircleResponses.Filter);
     }
 
-    private static async Task<IResult> Enroll(HttpContext http, ICircleInviteRedeemer redeemer, EnrollmentRateLimits limits, IGrainFactory grains)
+    private static async Task<IResult> Enroll(HttpContext http, ICircleInviteRedeemer redeemer, EnrollmentRateLimits limits, IntoChat.OS.Runtime.IStillGrains grains)
     {
         var request = await CircleResponses.ReadBody(http, CircleJsonContext.Default.EnrollRequest);
         if (request is null || !TryKey(request, out var spki)) { return CircleResponses.Malformed; }
@@ -43,7 +43,7 @@ public sealed partial class CircleServerModule
         // The code is spent; within the invite repeat window the same machine and key may try again.
         if (!limits.TryCircle(outcome.CircleId)) { return CircleResponses.Enroll(EnrollErrorKind.RateLimited); }
 
-        var credential = grains.GetGrain<IMachineCredential>(MachineTokens.CredentialIdFor(outcome.CircleId, request.MachineId));
+        var credential = grains.Get<IMachineCredential>(MachineTokens.CredentialIdFor(outcome.CircleId, request.MachineId));
         var tokens = await credential.Enroll(new EnrollGrant(outcome.CircleId, outcome.CircleName, outcome.Role, outcome.AccountId,
             outcome.PendingAccount, request.MachineId, request.MachineName, spki, thumbprint, outcome.Result == RedeemResult.Repeat));
         return tokens is null ? CircleResponses.Enroll(EnrollErrorKind.Rejected) : CircleResponses.Issued(tokens);
@@ -51,12 +51,12 @@ public sealed partial class CircleServerModule
 
     // The refresh carries a proof signed by the bound key; its token binding is the bearer when one is sent (an
     // expired access token is fine), otherwise the refresh token itself.
-    private static async Task<IResult> Refresh(HttpContext http, IGrainFactory grains, INonceCache nonces)
+    private static async Task<IResult> Refresh(HttpContext http, IntoChat.OS.Runtime.IStillGrains grains, INonceCache nonces)
     {
         var request = await CircleResponses.ReadBody(http, CircleJsonContext.Default.RefreshRequest);
         if (request is null || string.IsNullOrEmpty(request.RefreshToken)) { return CircleResponses.Malformed; }
         if (!MachineTokens.TryCredentialId(request.RefreshToken, out var credentialId)) { return CircleResponses.Unauthorized; }
-        var credential = grains.GetGrain<IMachineCredential>(credentialId);
+        var credential = grains.Get<IMachineCredential>(credentialId);
         var key = await credential.PublicKey();
         var bound = MachineAuthentication.Bearer(http.Request) ?? request.RefreshToken;
         if (key.Length == 0 || !await MachineAuthentication.ProofHolds(http, key, bound, credential, nonces)) { return CircleResponses.Unauthorized; }

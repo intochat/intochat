@@ -78,7 +78,7 @@ public sealed class SessionCookieFacts(McpHost host)
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         if (mcp) { builder.Services.AddIntoChatOSMcp(); }
         else
         {

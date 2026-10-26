@@ -18,7 +18,6 @@ public sealed class PublicationButtonCallerFacts
         await using var brain = await Start(ct, builder => builder.WithModule<FlutterModule>());
         var vlad = await brain.PersonAsync("vlad", ct);
         var other = await brain.PersonAsync("other", ct);
-        var grains = brain.Services.GetRequiredService<IGrainFactory>();
         var app = IApp.Key(vlad.BrainId, "circle");
         var click = UiEvent.Of(new ButtonClicked(app + "/fork-button", "{}", Guid.NewGuid()));
         UiEventCaller As(IntoChat.OS.Testing.Person person) => new(person.PrincipalId, person.AccountId, person.BrainId, "User", "AuthenticatedHttp", null, null);

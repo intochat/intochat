@@ -66,9 +66,8 @@ internal static class RuntimeBrain
 
     // A reconcile reminder tick, as the runtime's host grain receives one (06-08: the runtime is a plain neuron on that host).
     public static Task RemindAsync(ITestBrain brain, string scope, CancellationToken ct)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRemindable>(global::Orleans.Runtime.GrainId.Create("neuron.host",
-            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name).ToString()))
-            .ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        => global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(brain.Services,
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name), BrainRuntimeNeuron.ReconcileReminder, ct);
 
     public static string Fingerprint(ITestBrain brain)
         => IntoChat.OS.Client.Runtime.ContractsFingerprint.Of(brain.Services.GetRequiredService<IntoChat.OS.Framework.CompiledTypes>().Assemblies);

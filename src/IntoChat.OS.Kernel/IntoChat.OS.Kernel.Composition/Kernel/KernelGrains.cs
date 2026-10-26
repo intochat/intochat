@@ -100,7 +100,7 @@ internal sealed class InstanceTypesGrain(
 [GrainType("kernel.compiledtypes")]
 internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable
 {
-    public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(GrainFactory));
+    public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)));
 }
 
 [GrainType("kernel.typetable")]
@@ -118,7 +118,7 @@ internal sealed class TypeTableGrain(
     }
 
     // Two features may bring the same type; it is listed once, and stays while any of them is loaded.
-    public Task<TypeEntry[]> List() => Task.FromResult<TypeEntry[]>([.. compiled.Addressed(GrainFactory), .. store.State.Features.DistinctBy(entry => entry.Name)]);
+    public Task<TypeEntry[]> List() => Task.FromResult<TypeEntry[]>([.. compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)), .. store.State.Features.DistinctBy(entry => entry.Name)]);
 
     public Task<Feature[]> Features() => Task.FromResult(store.State.Loaded);
 

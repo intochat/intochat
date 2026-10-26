@@ -235,7 +235,7 @@ internal sealed class CircleNeuron(
 
     // The compute share is an Authority raw grain (allow-listed, NeuronsStillGrains.json): CircleShareGuard admits only the circle
     // neuron its key names, read from the calling host grain, so the call is made from this neuron's turn.
-    private ICircleShares Shares => Context.Services.GetRequiredService<IGrainFactory>().GetGrain<ICircleShares>(FullKey);
+    private ICircleShares Shares => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<ICircleShares>(FullKey);
 
     // R126: inviting and accepting are a person's, on the /brains/{circle} route; an app's script is refused them.
     private static void RequirePerson()

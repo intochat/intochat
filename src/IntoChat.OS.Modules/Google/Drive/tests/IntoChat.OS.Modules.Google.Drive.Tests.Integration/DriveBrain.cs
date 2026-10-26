@@ -16,6 +16,5 @@ internal static class DriveBrain
 
     public static Task<ITestBrain> StartAsync(DriveStub drive, CancellationToken ct) => Compose(TestBrain.Create(), drive).StartAsync(ct);
 
-    public static IGrainFactory Grains(this ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
     public static IntoChat.OS.Runtime.IPlainNeurons Plain(this ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 }

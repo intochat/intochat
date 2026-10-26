@@ -120,11 +120,11 @@ public sealed class BrainGrainStorageFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
 
-        var error = await Assert.ThrowsAnyAsync<Exception>(() => brain.Grains.GetGrain<IOutsideCounter>("@platform/x").Increment());
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => brain.Grains.Get<IOutsideCounter>("@platform/x").Increment());
 
         Assert.IsType<ArgumentException>(error as ArgumentException ?? error.InnerException);
     }
 
     // The probe is a raw grain, reached as the Authority's own grains are (06-08).
-    private static IPartCounter PartCounter(ITestBrain brain) => brain.Grains.GetGrain<IPartCounter>(Counter);
+    private static IPartCounter PartCounter(ITestBrain brain) => brain.Grains.Get<IPartCounter>(Counter);
 }

@@ -15,7 +15,7 @@ public sealed partial class ObserverPathFacts
     internal sealed record AllowedLoop(string File, string Kind, string Reason);
 
     [GeneratedRegex(@"WatchRenewing\(|\bObserverManager\b|\bINeuronObserver\b|\bI?LocalSignalHub\b|\bSignalNudge\b|\.Watch\(|\.Unwatch\(", RegexOptions.CultureInvariant)]
-    private static partial Regex ObserverPath();
+    internal static partial Regex ObserverPath();
 
     [GeneratedRegex(@"await\s+foreach\s*\([^\n]*?\.On\s*[<(]", RegexOptions.CultureInvariant)]
     internal static partial Regex SignalLoop();

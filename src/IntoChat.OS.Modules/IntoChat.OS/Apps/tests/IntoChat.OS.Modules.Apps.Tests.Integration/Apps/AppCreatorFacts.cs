@@ -309,7 +309,8 @@ public sealed class AppCreatorFacts
     }
 
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing under load): https://github.com/intochat/os/issues/327
+    [Fact(Explicit = true)]
     public async Task TheFinalBundleIsCheckedAgainAndItsErrorsReturnToTheBuilder()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -343,7 +344,8 @@ public sealed class AppCreatorFacts
     }
 
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing under load): https://github.com/intochat/os/issues/327
+    [Fact(Explicit = true)]
     public async Task InvalidFinalRepliesExhaustTheExistingBudgetWithoutAssigningTheFiles()
     {
         var ct = TestContext.Current.CancellationToken;

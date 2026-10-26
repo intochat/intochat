@@ -50,7 +50,7 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", async (string kind, string name, IIntoChatOS brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
+        apps.MapGet("/node", async (string kind, string name, IIntoChatOS brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             var space = brain.Get<ISpace>(ISpace.Key(scope));
@@ -116,7 +116,7 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", async (UiEvent input, IIntoChatOS brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
+        apps.MapPost("/event", async (UiEvent input, IIntoChatOS brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))

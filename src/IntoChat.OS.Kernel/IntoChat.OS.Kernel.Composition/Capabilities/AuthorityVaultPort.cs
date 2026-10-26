@@ -16,7 +16,7 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 // caller and hands it here; Authority is not edited. A caller stores in and removes from its own principal's vault; it resolves
 // only references its own vault issued (another owner's reference is denied, a removed one not found). Sealing uses the brain
 // key sealer (IBrainSecretSealer) of the caller's brain with the context inside the sealed text, so another context never opens.
-public sealed class AuthorityVaultPort(IGrainFactory grains, IBrainSecretSealer? sealer = null) : ISecretVaultPort
+public sealed class AuthorityVaultPort(IntoChat.OS.Authority.IAuthorityGrains authority, IBrainSecretSealer? sealer = null) : ISecretVaultPort
 {
     private const string RuntimeApp = "runtime";
 
@@ -85,7 +85,7 @@ public sealed class AuthorityVaultPort(IGrainFactory grains, IBrainSecretSealer?
         return bound.StartsWith(prefix, StringComparison.Ordinal) ? Convert.FromBase64String(bound[prefix.Length..]) : null;
     }
 
-    private OsSecrets Vault(CapabilityCaller caller) => grains.GetGrain<OsSecrets>(caller.PrincipalId);
+    private OsSecrets Vault(CapabilityCaller caller) => authority.Get<OsSecrets>(caller.PrincipalId);
 
     private static CallerContext Owner(CapabilityCaller caller) => new()
     {

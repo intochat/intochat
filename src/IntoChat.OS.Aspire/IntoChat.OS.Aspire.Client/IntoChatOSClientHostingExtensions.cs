@@ -24,7 +24,7 @@ public static class IntoChatOSClientHostingExtensions
         }
         builder.UseOrleansClient(client => client.AddIntoChatOS());
         // The kernel view reads the instance directory through the cluster (the kernel composition, 06-02).
-        builder.Services.TryAddSingleton<IKernelView>(static services => new IntoChat.OS.Kernel.Composition.Kernel(services.GetRequiredService<IClusterClient>()));
+        builder.Services.TryAddSingleton<IKernelView>(IntoChat.OS.Kernel.Composition.Kernel.For);
         return builder;
     }
 }

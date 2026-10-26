@@ -761,3 +761,5 @@ DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Declarations.init ->
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Named(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Open(string! context, DigitalBrain.Capabilities.Secrets.SealedSecret! sealedSecret, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<byte[]!>!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
+DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<T>(System.IServiceProvider! services, DigitalBrain.NeuronId id) -> T!
