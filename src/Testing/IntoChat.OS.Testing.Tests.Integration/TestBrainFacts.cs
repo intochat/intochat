@@ -33,8 +33,7 @@ public sealed class TestBrainFacts(TestingHost host)
         await brain.Get<IPulse>("owner/pulse").Pulse(3);
         await brain.RestartAsync(ct);
         Assert.Equal(address, brain.HttpClient.BaseAddress);
-        var retained = await brain.Get<IPulse>("owner/pulse").Retained(nameof(Pulsed), 0);
-        Assert.Equal(3, Assert.IsType<Pulsed>(Assert.Single(retained).Signal).Value);
+        Assert.Equal(3, (await brain.Get<IPulse>("owner/pulse").Last())?.Value);
     }
 
     [Trait("host", "own")]
@@ -56,7 +55,7 @@ public sealed class TestBrainFacts(TestingHost host)
         var pulse = brain.Get<IPulse>($"owner/pulse-{Guid.NewGuid():N}");
         await pulse.Pulse(5);
         await brain.DeactivateAsync(pulse, ct);
-        Assert.Single(await pulse.Retained(nameof(Pulsed), 0));
+        Assert.Equal(5, (await pulse.Last())?.Value);
     }
 
     [Trait("host", "own")]
@@ -67,7 +66,7 @@ public sealed class TestBrainFacts(TestingHost host)
         await using var first = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
         await using var second = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
         await first.Get<IPulse>("owner/pulse").Pulse(1);
-        Assert.Empty(await second.Get<IPulse>("owner/pulse").Retained(nameof(Pulsed), 0));
+        Assert.Null(await second.Get<IPulse>("owner/pulse").Last());
     }
 
     [Trait("host", "own")]

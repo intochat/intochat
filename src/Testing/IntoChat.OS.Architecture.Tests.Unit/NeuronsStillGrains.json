@@ -125,7 +125,6 @@
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.SourceWatcher",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.TickerNeuron",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.WorkerNeuron",
-  "IntoChat.OS.Testing.Neurons.PulseNeuron",
   "IntoChat.OS.Testing.Tests.Integration.OtherEmitter",
   "IntoChat.OS.Testing.Tests.Integration.SiloBrainListener",
   "IntoChat.OS.Testing.Tests.Integration.TestEmitter"

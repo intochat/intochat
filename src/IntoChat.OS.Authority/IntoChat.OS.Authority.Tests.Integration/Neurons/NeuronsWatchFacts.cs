@@ -34,17 +34,16 @@ public sealed class NeuronsWatchFacts
         Assert.Equal(StatusCode.PermissionDenied, callError.StatusCode);
     }
 
-    // A key without a brain scope is one the filter refuses the retained read on; the watcher must
-    // hear that, not sit on a stream that never replays.
+    // A key without a brain scope names no plain neuron (06-08: the pulse is plain); the watcher must hear that, not sit on a
+    // stream that never replays.
     [Fact]
-    public async Task AWatchWhoseRetainedReadIsRefusedFailsLoudly()
+    public async Task AWatchOfAKeyWithoutABrainFailsLoudly()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
-        await brain.Get<IPulse>("pulse-unscoped").Pulse(1);
         using var call = NeuronsCallFacts.Client(brain).Watch(Watch("pulse-unscoped", nameof(Pulsed)), cancellationToken: ct);
         var error = await Assert.ThrowsAsync<RpcException>(() => call.ResponseStream.MoveNext(ct).WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(StatusCode.PermissionDenied, error.StatusCode);
+        Assert.Contains(error.StatusCode, new[] { StatusCode.PermissionDenied, StatusCode.InvalidArgument });
     }
 
     private static WatchRequest Watch(string key, params string[] types)

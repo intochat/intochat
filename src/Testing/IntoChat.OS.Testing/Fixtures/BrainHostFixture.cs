@@ -26,6 +26,13 @@ public abstract class BrainHostFixture : IAsyncLifetime
         using (owner.AsCaller()) { return await Brain.Observe<T>(source, ct).ConfigureAwait(false); }
     }
 
+    // ObserveAsync for a plain neuron's [Signal] records (06-08), observed as owner.
+    public async Task<PlainSignalProbe<T>> ObserveAsync<T>(object source, Person owner, CancellationToken ct) where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        using (owner.AsCaller()) { return await Brain.Observe<T>(source, ct).ConfigureAwait(false); }
+    }
+
     // Hosts with their own collaborators (a fake model, a token endpoint) start them before, and stop them after, the base.
     public virtual async ValueTask InitializeAsync() => _brain = await Configure(TestBrain.Create()).StartAsync().ConfigureAwait(false);
 

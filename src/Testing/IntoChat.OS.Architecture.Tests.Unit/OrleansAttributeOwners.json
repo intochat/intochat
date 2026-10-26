@@ -496,7 +496,6 @@
   "IntoChat.OS.Testing.Aspire/AspireTestSession.cs": 1,
   "IntoChat.OS.Testing.Tests.Integration/TestBrainLicenseFacts.cs": 1,
   "IntoChat.OS.Testing.Tests.Integration/TestNeurons.cs": 8,
-  "IntoChat.OS.Testing/Neurons/Pulse.cs": 5,
   "IntoChat.OS.Testing/Observation/BehaviorRun.cs": 2,
   "IntoChat.OS.Testing/Targets/ITestTarget.cs": 1,
   "IntoChat.OS.Testing/Targets/InProcessTarget.cs": 1,

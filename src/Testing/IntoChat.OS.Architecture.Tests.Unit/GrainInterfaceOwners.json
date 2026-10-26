@@ -106,7 +106,6 @@
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/TestNeurons.cs": 7,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/WatchRenewalFacts.cs": 2,
   "IntoChat.OS.Testing.Tests.Integration/TestNeurons.cs": 3,
-  "IntoChat.OS.Testing/Neurons/Pulse.cs": 1,
   "IntoChat.OS/Neurons/INeuron.cs": 1,
   "IntoChat.OS/Neurons/IRetainsSignals.cs": 1,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/Chat/ChatSourceText.cs": 1
