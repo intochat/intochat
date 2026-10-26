@@ -57,8 +57,6 @@
   "IntoChat.OS.Modules.Microsoft.CSharp/Authoring/CSharpScriptSandbox.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp/Runtime/BrainRuntimeNeuron.cs": 10,
-  "IntoChat.OS.Modules.Postgres.Tests.Integration/PostgresWriteTableFacts.cs": 1,
-  "IntoChat.OS.Modules.Postgres/Tables/TableNeuron.cs": 6,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/InMemoryRuntimeFacts.cs": 1,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/TestNeurons.cs": 9,
   "IntoChat.OS.Runtime.InMemory.Tests.Unit/WatchRenewalFacts.cs": 5,

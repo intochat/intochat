@@ -1,6 +1,5 @@
 [
   "IntoChat.OS.Modules.Apps.AppsModule",
   "IntoChat.OS.Modules.Mcp.McpModule",
-  "IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule",
-  "IntoChat.OS.Modules.Postgres.PostgresModule"
+  "IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule"
 ]

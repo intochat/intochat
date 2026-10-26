@@ -20,7 +20,7 @@ public sealed class TableStorageHookFacts
         await using var brain = await Start();
         var owner = brain.Owner;
         var app = IApp.Key(owner.BrainId, "a");
-        using (owner.AsApp(app)) { await brain.Get<ITable>("owned").Define(Definition); }
+        using (owner.AsApp(app)) { await brain.Get<ITable>(brain.Owner.Key("owned")).Define(Definition); }
 
         using var caller = owner.AsCaller();
         var hook = Hook(brain);

@@ -1251,9 +1251,9 @@ internal sealed class BrainRuntimeNeuron(
         return Task.CompletedTask;
     }
 
-    // A plain source is subscribed as each program subscribed to it, on that program's session: the source's AdmitSynapse judges
-    // the session "{brain}/runtime.session/csharp/{owner}" (the runtime forwards no other caller, 04-13). What it answers is the
-    // program's verdict on this activation, exactly as a watch's is. Subscribe is idempotent, so the renewal also restores a session
+    // A plain source is subscribed as each program subscribed to it, on that program's session "{brain}/runtime.session/csharp/{owner}",
+    // under the program's caller as a watch is (06-05b): the kernel mirrors that stamp onto the call, so the source's AdmitSynapse
+    // reads it as SynapseRequest.Caller (R4-20). What it answers is the program's verdict on this activation, exactly as a watch's is. Subscribe is idempotent, so the renewal also restores a session
     // that expired while this runtime was away.
     private async Task PlainWatchAsync(string key, Subscription? required)
     {
@@ -1270,7 +1270,7 @@ internal sealed class BrainRuntimeNeuron(
             var caller = new BehaviorIdentity(program.Principal, program.Owner).Caller;
             try
             {
-                await PlainSignals.Session(Brain, PlainSources.SessionOf(program.Owner)).Subscribe(source, aliases);
+                await AsProgram(caller, () => PlainSignals.Session(Brain, PlainSources.SessionOf(program.Owner)).Subscribe(source, aliases));
                 _accepted[(key, program.Owner)] = caller;
                 _unwatchable.Remove((key, program.Owner));
                 EnsurePlainSession(program.Owner);

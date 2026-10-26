@@ -1,4 +1,6 @@
+using DigitalBrain;
+
 namespace IntoChat.OS.Modules.Postgres.Tables.Signals;
 
-[GenerateSerializer, Alias("postgres.table.defined")]
-public sealed record TableDefined([property: Id(0)] string Table, [property: Id(1)] long Revision) : Signal;
+[Signal("postgres.table.defined")]
+public sealed record TableDefined(string Table, long Revision) : DigitalBrain.Signal;

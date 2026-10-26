@@ -71,7 +71,6 @@
     "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron": "windows",
     "IntoChat.OS.Modules.Postgres.PostgresServerNeuron": "postgres",
     "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron": "postgres.tables",
-    "IntoChat.OS.Modules.Postgres.Tables.TableNeuron": "postgres.table",
     "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": "salesforce"
   },
   "GrainInterfaces": {
@@ -175,10 +174,7 @@
     "IntoChat.OS.Modules.Microsoft.Windows.IWindows": "windows",
     "IntoChat.OS.Modules.Postgres.IPostgresServer": "postgres",
     "IntoChat.OS.Modules.Postgres.Tables.IPostgresTableHost": "postgres.table-host",
-    "IntoChat.OS.Modules.Postgres.Tables.ITable": "postgres.table",
-    "IntoChat.OS.Modules.Postgres.Tables.ITableDescriptor": "postgres.table-descriptor",
     "IntoChat.OS.Modules.Postgres.Tables.ITableIndex": "postgres.table-index",
-    "IntoChat.OS.Modules.Postgres.Tables.ITableLifetime": "postgres.table-lifetime",
     "IntoChat.OS.Modules.Salesforce.ISalesforce": "salesforce",
     "IntoChat.OS.Modules.Tools.IToolSource": "tools.source"
   },
@@ -892,13 +888,7 @@
     "IntoChat.OS.Modules.Postgres.ReadPostgresSchema": "db.postgres.read-schema; Table=0",
     "IntoChat.OS.Modules.Postgres.Tables.AcceptedTable": "postgres.table.accepted; Table=0, Definition=1, Revision=2",
     "IntoChat.OS.Modules.Postgres.Tables.IPostgresTableHost": "postgres.table-host (not generated); ",
-    "IntoChat.OS.Modules.Postgres.Tables.ITable": "postgres.table (not generated); ",
-    "IntoChat.OS.Modules.Postgres.Tables.ITableDescriptor": "postgres.table-descriptor (not generated); ",
     "IntoChat.OS.Modules.Postgres.Tables.ITableIndex": "postgres.table-index (not generated); ",
-    "IntoChat.OS.Modules.Postgres.Tables.ITableLifetime": "postgres.table-lifetime (not generated); ",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.RowDeleted": "postgres.table.deleted; Table=0, Key=1",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.RowUpserted": "postgres.table.upserted; Table=0, Key=1",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.TableDefined": "postgres.table.defined; Table=0, Revision=1",
     "IntoChat.OS.Modules.Postgres.Tables.TableColumn": "postgres.table.column; Name=0, Type=1",
     "IntoChat.OS.Modules.Postgres.Tables.TableDefinition": "postgres.table.definition; Columns=0, PrimaryKey=1",
     "IntoChat.OS.Modules.Postgres.Tables.TableDescription": "postgres.table-description; AppId=0, TableId=1, Placement=2, Table=3",
@@ -1003,7 +993,6 @@
     "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron": "windows=cluster:IntoChat.OS.Modules.Microsoft.Windows.WindowsConnectionState",
     "IntoChat.OS.Modules.Postgres.PostgresServerNeuron": "postgres=cluster:IntoChat.OS.Modules.Postgres.PostgresConnectionState",
     "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron": "tables=cluster:IntoChat.OS.Modules.Postgres.Tables.TableIndexState",
-    "IntoChat.OS.Modules.Postgres.Tables.TableNeuron": "state=cluster:IntoChat.OS.Modules.Postgres.Tables.TableState",
     "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": "salesforce=cluster:IntoChat.OS.Modules.Salesforce.SalesforceState"
   },
   "Signals": {
@@ -1071,9 +1060,6 @@
     "IntoChat.OS.Modules.Microsoft.Playwright.BrowserReady": "BrowserReady",
     "IntoChat.OS.Modules.Microsoft.Playwright.BrowserUnavailable": "BrowserUnavailable",
     "IntoChat.OS.Modules.Microsoft.Windows.Signals.FileWritten": "FileWritten",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.RowDeleted": "RowDeleted",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.RowUpserted": "RowUpserted",
-    "IntoChat.OS.Modules.Postgres.Tables.Signals.TableDefined": "TableDefined",
     "IntoChat.OS.Modules.Salesforce.Signals.RecordWritten": "RecordWritten",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteFailed": "SalesforceWriteFailed",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWritePrepared": "SalesforceWritePrepared",

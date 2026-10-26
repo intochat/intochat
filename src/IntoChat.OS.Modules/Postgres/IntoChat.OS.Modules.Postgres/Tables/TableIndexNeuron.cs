@@ -1,6 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.State;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -49,7 +50,7 @@ internal sealed class TableIndexNeuron(
         // Registration must still answer while a table is finishing its in-flight Define.
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
         foreach (var table in state.State.Tables)
-        { await GrainFactory.GetGrain<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
+        { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
     }
 
     // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.

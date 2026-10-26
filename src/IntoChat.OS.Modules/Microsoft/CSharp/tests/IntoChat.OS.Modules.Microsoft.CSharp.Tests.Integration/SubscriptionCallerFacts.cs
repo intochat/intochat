@@ -35,7 +35,7 @@ public sealed class SubscriptionCallerFacts
         using (owner.AsApp(app)) { await table.Define(Definition); }
         var session = await AssignAsync(brain, owner, app, ct);
         var edge = RuntimeBrain.Edge(brain, owner.BrainId);
-        var subscribe = Subscribe<ITable>(app, app + "/items", nameof(RowUpserted));
+        var subscribe = Subscribe<ITable>(app, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted)));
 
         await SubscribeAsync(brain, owner.BrainId, session, subscribe, ct);
         await UpsertAsync(brain, owner, app, table, "one", ct);
@@ -65,9 +65,9 @@ public sealed class SubscriptionCallerFacts
         using (owner.AsApp(app)) { await table.Define(Definition); }
         var session = await AssignAsync(brain, owner, app, ct);
         using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Assign(other, RuntimeBrain.One(RuntimeBrain.Idle), []); }
-        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<ITable>(app, app + "/items", nameof(RowUpserted)), ct);
+        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<ITable>(app, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted))), ct);
 
-        using var refused = await Report(brain, owner.BrainId, session, Subscribe<ITable>(other, app + "/items", nameof(RowUpserted)), ct);
+        using var refused = await Report(brain, owner.BrainId, session, Subscribe<ITable>(other, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted))), ct);
         await UpsertAsync(brain, owner, app, table, "one", ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);

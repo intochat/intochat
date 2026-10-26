@@ -19,21 +19,41 @@ internal sealed record TableState
     [Id(4)] public string? PhysicalTable { get; init; }
 }
 
-[GrainType(GrainType)]
-internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements,
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
+// A table's own state changes that carry no row signal (D-02: a plain neuron saves with the signal that says what changed):
+// the placement pinned before the physical table exists, and the table retired with its app's storage.
+[DigitalBrain.Signal("postgres.table.pending")]
+internal sealed record TablePending(string Table) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("postgres.table.retired")]
+internal sealed record TableRetired(string Table) : DigitalBrain.Signal;
+
+[DigitalBrain.Neuron(GrainType)]
+internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements)
+    : DigitalBrain.Neuron<TableState>, ITable, ITableLifetime
 {
     public const string GrainType = "postgres.table";
 
-    // Only the owning brain and app may watch its rows.
-    public override Task<Guid> Watch(INeuronObserver observer) { _ = Scope(); return base.Watch(observer); }
-    public override Task<Guid> Watch(INeuronObserver observer, string[] signals) { _ = Scope(); return base.Watch(observer, signals); }
-    public override Task Unwatch(INeuronObserver observer) { _ = Scope(); return base.Unwatch(observer); }
+    // The os key "{brain}/{key}" a table is named by in its index and its physical name.
+    private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+
+    // Only the owning brain and app may hold a synapse on its rows (R4-03: the rule the Watch override kept). The caller is the
+    // trusted stamp the runtime read from the subscriber's call (R4-20), never anything the subscriber sends: no stamp, a stamp
+    // without an app, or a stamp of another brain or app is refused.
+    protected override Task AdmitSynapse(DigitalBrain.SynapseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Subscriber.Brain != Id.Brain) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
+        if (request.Caller is not { AppId: { Length: > 0 } app } caller || !BrainScope.IsValidId(caller.BrainId))
+        { throw new UnauthorizedAccessException("A trusted brain and app caller is required."); }
+        if (State.Owner is { } owner && owner != new TableOwner(caller.BrainId, app).Key)
+        { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
+        return Task.CompletedTask;
+    }
 
     private string Scope()
     {
         var scope = TableOwner.Current().Key;
-        if (state.State.Owner is { } owner && owner != scope)
+        if (State.Owner is { } owner && owner != scope)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         return scope;
     }
@@ -43,35 +63,36 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         // Check each operation: caching would allow writes after the owner closes but before
         // its queued Retire reaches this table. Table serialization then orders accepted work before DROP.
         await Tables(Scope()).RequireOpen();
-        return state.State.Accepted ?? throw new PostgresQueryException("Define the table first.");
+        return State.Accepted ?? throw new PostgresQueryException("Define the table first.");
     }
 
     // Retire can reach a table whose Define never persisted; there is nothing placed elsewhere to reclaim.
-    private TablePlacement Pinned => state.State.Placement ?? TablePlacement.Shared;
+    private TablePlacement Pinned => State.Placement ?? TablePlacement.Shared;
 
     private ITableStore Tables(TablePlacement placement)
-        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(GrainFactory.GetGrain<IPostgresTableHost>(placement.Name!)) : provider;
+        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(Legacy<IPostgresTableHost>(PostgresServerNeuron.GrainType, placement.Name!)) : provider;
 
-    private ITableIndex Tables(string owner) => GrainFactory.GetGrain<ITableIndex>(owner);
+    private ITableIndex Tables(string owner) => Legacy<ITableIndex>(TableIndexNeuron.GrainType, owner);
+
+    // The index and the connection are still grains (06-05b). They are reached as this neuron (R4-17), so TableLifecycleGuard
+    // sees this table's host as the calling grain.
+    private T Legacy<T>(string type, string fullKey) where T : class
+    {
+        var brain = BrainKey.ScopeOf(fullKey) ?? throw new UnauthorizedAccessException("This storage key does not name a brain.");
+        return IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<T>(Context,
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), type, fullKey[(brain.Length + 1)..]));
+    }
 
     public async Task Retire(string owner)
     {
-        if (state.State.Owner != owner) { return; }
-        var table = state.State.Accepted?.Table ?? state.State.PhysicalTable ?? TablePolicy.PhysicalName(owner, this.GetPrimaryKeyString());
+        if (State.Owner != owner) { return; }
+        var table = State.Accepted?.Table ?? State.PhysicalTable ?? TablePolicy.PhysicalName(owner, FullKey);
         try { await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None); }
         // A revoked or deleted connection holds the user's own database: nothing here can reach it,
         // and an uninstall must still retire the app's other tables.
         catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException)
-        { ServiceProvider.GetRequiredService<ILogger<TableNeuron>>().LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
-        await Persist(new());
-    }
-
-    private async Task Persist(TableState next)
-    {
-        var previous = state.State;
-        state.State = next;
-        try { await state.WriteStateAsync(); }
-        catch { state.State = previous; throw; }
+        { Context.Services.GetRequiredService<ILogger<TableNeuron>>().LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
+        await Save(new(), new TableRetired(table));
     }
 
     public async Task<AcceptedTable> Define(TableDefinition definition)
@@ -79,24 +100,23 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         var scope = Scope();
         var normalized = TablePolicy.Validate(definition);
         await Tables(scope).RequireOpen();
-        if (state.State.Accepted is { } accepted)
+        if (State.Accepted is { } accepted)
         {
             if (!TablePolicy.Compatible(accepted.Definition, normalized))
             { throw new PostgresQueryException("Incompatible table redefinition; migrations are not supported."); }
-            await Tables(scope).Register(this.GetPrimaryKeyString());
+            await Tables(scope).Register(FullKey);
             return accepted;
         }
-        var table = state.State.PhysicalTable ?? TablePolicy.PhysicalName(scope, this.GetPrimaryKeyString());
+        var table = State.PhysicalTable ?? TablePolicy.PhysicalName(scope, FullKey);
         // The placement is pinned at first Define; a later policy or binding never moves a table.
-        if (state.State.Pending is { } pending && !TablePolicy.Compatible(pending, normalized))
+        if (State.Pending is { } pending && !TablePolicy.Compatible(pending, normalized))
         { throw new PostgresQueryException("Incompatible table redefinition; migrations are not supported."); }
-        var placement = state.State.Placement ?? await placements.Resolve(TableOwner.Current(), CancellationToken.None);
-        await Tables(scope).Register(this.GetPrimaryKeyString());
-        await Persist(state.State with { Owner = scope, Placement = placement, Pending = normalized });
+        var placement = State.Placement ?? await placements.Resolve(TableOwner.Current(), CancellationToken.None);
+        await Tables(scope).Register(FullKey);
+        await Save(State with { Owner = scope, Placement = placement, Pending = normalized }, new TablePending(table));
         await Tables(placement).DefineAsync(placement, table, normalized, CancellationToken.None);
         var result = new AcceptedTable(table, normalized, 1);
-        await Persist(new() { Owner = scope, Accepted = result, Placement = placement });
-        await PublishAsync(new TableDefined(table, result.Revision));
+        await Save(new() { Owner = scope, Accepted = result, Placement = placement }, new TableDefined(table, result.Revision));
         return result;
     }
 
@@ -106,7 +126,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         key = TablePolicy.Values(current.Definition, key, true);
         values = TablePolicy.Values(current.Definition, values, false);
         var changed = await Tables(Pinned).UpsertAsync(Pinned, current.Table, current.Definition, key, values, CancellationToken.None);
-        if (changed) { await PublishAsync(new RowUpserted(current.Table, key)); }
+        if (changed) { await Publish(new RowUpserted(current.Table, key)); }
         return changed;
     }
 
@@ -115,7 +135,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         var current = await Current();
         key = TablePolicy.Values(current.Definition, key, true);
         var changed = await Tables(Pinned).DeleteAsync(Pinned, current.Table, current.Definition, key, CancellationToken.None);
-        if (changed) { await PublishAsync(new RowDeleted(current.Table, key)); }
+        if (changed) { await Publish(new RowDeleted(current.Table, key)); }
         return changed;
     }
 

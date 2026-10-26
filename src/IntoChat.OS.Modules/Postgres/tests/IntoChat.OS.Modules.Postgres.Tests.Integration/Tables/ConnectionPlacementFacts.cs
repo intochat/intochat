@@ -27,7 +27,7 @@ public sealed class ConnectionPlacementFacts
         slot.Bind(App(brain), "c1");
 
         using var app = brain.Owner.AsApp(App(brain));
-        var table = brain.Get<ITable>("placed");
+        var table = brain.Get<ITable>(brain.Owner.Key("placed"));
         await table.Define(Definition);
         await table.Upsert(Key, Values);
 
@@ -44,7 +44,7 @@ public sealed class ConnectionPlacementFacts
         var connection = new ConnectionTables();
         await using var brain = await Start(shared, connection, new BoundSlot());
         using var app = brain.Owner.AsApp(App(brain));
-        await brain.Get<ITable>("fallback").Define(Definition);
+        await brain.Get<ITable>(brain.Owner.Key("fallback")).Define(Definition);
 
         Assert.Equal([("Define", TablePlacement.Shared)], shared.Placements);
         Assert.Empty(connection.ConnectionStrings);
@@ -59,7 +59,7 @@ public sealed class ConnectionPlacementFacts
         await using var brain = await Start(shared, new ConnectionTables(), slot);
         var key = await Connect(brain, "c1");
         slot.Bind(App(brain), "c1");
-        var table = brain.Get<ITable>("revoked");
+        var table = brain.Get<ITable>(brain.Owner.Key("revoked"));
         using (brain.Owner.AsApp(App(brain))) { await table.Define(Definition); }
 
         using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(key).Disconnect(); }
@@ -80,9 +80,9 @@ public sealed class ConnectionPlacementFacts
         AcceptedTable kept;
         using (brain.Owner.AsApp(App(brain)))
         {
-            await brain.Get<ITable>("in-connection").Define(Definition);
+            await brain.Get<ITable>(brain.Owner.Key("in-connection")).Define(Definition);
             slot.Unbind(App(brain));
-            kept = await brain.Get<ITable>("in-shared").Define(Definition);
+            kept = await brain.Get<ITable>(brain.Owner.Key("in-shared")).Define(Definition);
         }
 
         using (brain.Owner.AsCaller())

@@ -16,8 +16,9 @@ public interface ITableIndex : IGrainWithStringKey
     Task Reopen();
 }
 
-[Alias("postgres.table-lifetime")]
-public interface ITableLifetime : IGrainWithStringKey
+// Implemented by the plain TableNeuron (06-05b); TableLifecycleGuard admits only the owner's index as its caller.
+[DigitalBrain.Contracts.NeuronAlias("postgres.table-lifetime"), DigitalBrain.Contracts.DefaultNeuronType(TableNeuron.GrainType)]
+public interface ITableLifetime
 {
     Task Retire(string owner);
 }

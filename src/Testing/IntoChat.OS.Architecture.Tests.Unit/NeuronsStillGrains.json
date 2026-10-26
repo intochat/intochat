@@ -132,7 +132,6 @@
   "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron",
   "IntoChat.OS.Modules.Postgres.PostgresServerNeuron",
   "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron",
-  "IntoChat.OS.Modules.Postgres.Tables.TableNeuron",
   "IntoChat.OS.Modules.Postgres.Tests.Integration.PostgresLifecycleTestApp",
   "IntoChat.OS.Modules.Salesforce.SalesforceNeuron",
   "IntoChat.OS.Runtime.InMemory.Tests.Unit.CounterNeuron",

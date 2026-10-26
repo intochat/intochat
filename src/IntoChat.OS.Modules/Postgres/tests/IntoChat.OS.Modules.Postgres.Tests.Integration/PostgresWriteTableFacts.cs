@@ -31,7 +31,7 @@ public sealed class PostgresWriteTableFacts
             services.AddSingleton<ITablePlacements>(placements);
         }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("pending-ddl");
+        var table = brain.Get<ITable>(brain.Owner.Key("pending-ddl"));
         await Assert.ThrowsAsync<IOException>(() => table.Define(Definition));
         placements.Placement = TablePlacement.BrainDatabase("replacement");
         await brain.DeactivateAsync(table, ct);
@@ -40,7 +40,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("app");
         await owner.Uninstall("app");
 
-        Assert.Equal((TablePlacement.BrainDatabase("original"), TablePolicy.PhysicalName(new TableOwner(brain.Owner.BrainId, "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
+        Assert.Equal((TablePlacement.BrainDatabase("original"), TablePolicy.PhysicalName(new TableOwner(brain.Owner.BrainId, "app").Key, brain.Owner.Key("pending-ddl"))), Assert.Single(provider.Drops));
         Assert.Equal(1, placements.Resolutions);
     }
 
@@ -50,7 +50,7 @@ public sealed class PostgresWriteTableFacts
     {
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
-        var table = brain.Get<ITable>("unbound");
+        var table = brain.Get<ITable>(brain.Owner.Key("unbound"));
         using (brain.Owner.AsApp(""))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Define(Definition));
@@ -69,12 +69,12 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         using (brain.Owner.AsApp("app"))
         {
-            var first = brain.Get<ITable>("first-install");
+            var first = brain.Get<ITable>(brain.Owner.Key("first-install"));
             await first.Define(Definition);
             await first.Upsert(Key(), Values("first"));
         }
         using var fork = brain.Owner.AsApp("fork-file");
-        var forked = brain.Get<ITable>("fork-install");
+        var forked = brain.Get<ITable>(brain.Owner.Key("fork-install"));
         await forked.Define(Definition);
         await forked.Upsert(Key(), Values("fork"));
 
@@ -98,7 +98,7 @@ public sealed class PostgresWriteTableFacts
                 services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, race);
             }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("race");
+        var table = brain.Get<ITable>(brain.Owner.Key("race"));
         await table.Define(Definition);
         race.HoldOpen = true;
         var defining = table.Define(Definition);
@@ -116,7 +116,7 @@ public sealed class PostgresWriteTableFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new MemoryTables());
-        var table = brain.Get<ITable>("lifecycle");
+        var table = brain.Get<ITable>(brain.Owner.Key("lifecycle"));
         var owner = brain.Get<IPostgresLifecycleTestApp>("install");
         using (brain.Owner.AsApp("app"))
         {
@@ -141,7 +141,7 @@ public sealed class PostgresWriteTableFacts
     public async Task AnAppDeletedAndReinstalledCanDefineItsTablesAgain()
     {
         await using var brain = await Start(new MemoryTables());
-        var table = brain.Get<ITable>("memories");
+        var table = brain.Get<ITable>(brain.Owner.Key("memories"));
         var owner = brain.Get<IPostgresLifecycleTestApp>("reinstall");
         using var app = brain.Owner.AsApp("app");
         await table.Define(Definition);
@@ -160,7 +160,7 @@ public sealed class PostgresWriteTableFacts
     {
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
-        var table = brain.Get<ITable>("memories");
+        var table = brain.Get<ITable>(brain.Owner.Key("memories"));
         var owner = brain.Get<IPostgresLifecycleTestApp>("redelete");
         using var app = brain.Owner.AsApp("app");
         await table.Define(Definition);
@@ -190,7 +190,7 @@ public sealed class PostgresWriteTableFacts
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("shared");
+        var table = brain.Get<ITable>(brain.Owner.Key("shared"));
         await table.Define(Definition);
         await table.Upsert(Key(), Values("one"));
         await brain.Get<IPostgresLifecycleTestApp>("shared-install").Uninstall("app");
@@ -214,7 +214,7 @@ public sealed class PostgresWriteTableFacts
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("definitions");
+        var table = brain.Get<ITable>(brain.Owner.Key("definitions"));
         var accepted = await table.Define(Definition);
         Assert.Equal(1, accepted.Revision);
         Assert.Equal(accepted.Table, (await table.Define(new(Definition.Columns.Reverse().ToArray(), ["id"]))).Table);
@@ -232,7 +232,7 @@ public sealed class PostgresWriteTableFacts
         var provider = new MemoryTables();
         await using var brain = await Start(provider);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("invalid");
+        var table = brain.Get<ITable>(brain.Owner.Key("invalid"));
         foreach (var name in new[] { "bad-name", "x; DROP TABLE x", "é", "1name", new string('a', 64), "" })
         { await Assert.ThrowsAsync<PostgresQueryException>(() => table.Define(new([new(name, "text")], [name]))); }
         await Assert.ThrowsAsync<PostgresQueryException>(() => table.Define(new([new("id", "varchar")], ["id"])));
@@ -255,21 +255,65 @@ public sealed class PostgresWriteTableFacts
     {
         await using var brain = await Start(new MemoryTables());
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("rows");
+        var table = brain.Get<ITable>(brain.Owner.Key("rows"));
         await table.Define(Definition);
         await ExerciseRows(table);
     }
 
+    // A refused synapse ends the probe's stream with the source's refusal.
+    private static async Task<Exception> Refused(ITestBrain brain, ITable table, CancellationToken ct)
+    {
+        await using var probe = await brain.Observe<RowUpserted>(table, ct);
+        return await Assert.ThrowsAnyAsync<Exception>(() => probe.NextAsync(ct: ct));
+    }
+
+    // R4-03/R4-20: only the owning brain and app may hold a synapse on a table's rows. The table judges the trusted caller the
+    // runtime read from the subscription's call, so another app's stamp is refused.
     [Trait("host", "own")]
     [Fact]
-    public async Task AnotherAppCannotUnwatchAnOwnedTable()
+    public async Task AnotherAppCannotSubscribeToAnOwnedTable()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new MemoryTables());
-        var table = brain.Get<ITable>("watched");
+        var table = brain.Get<ITable>(brain.Owner.Key("watched"));
         using (brain.Owner.AsApp("app")) { await table.Define(Definition); }
 
-        using var other = brain.Owner.AsApp("other-app");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Unwatch(null!));
+        using (brain.Owner.AsApp("other-app"))
+        {
+            var refused = await Refused(brain, table, ct);
+            Assert.Contains("another brain or app", refused.ToString(), StringComparison.Ordinal);
+        }
+        using (brain.Owner.AsApp("app")) { await using var owned = await brain.Observe<RowUpserted>(table, ct); }
+    }
+
+    // A forged caller is refused: runtime caller keys a call writes itself, without a trusted os stamp, never reach admission
+    // (the kernel mirrors only the trusted stamp onto each call), and under another app's stamp the forged owner is overwritten.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task AForgedCallerCannotSubscribeToAnOwnedTable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(new MemoryTables());
+        var table = brain.Get<ITable>(brain.Owner.Key("forged"));
+        using (brain.Owner.AsApp("app")) { await table.Define(Definition); }
+
+        var owner = brain.Owner.BrainId;
+        try
+        {
+            using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new(brain.Owner.PrincipalId, brain.Owner.AccountId, owner, "app")))
+            {
+                Assert.NotNull(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current);
+                var unstamped = await Refused(brain, table, ct);
+                Assert.Contains("trusted brain and app caller", unstamped.ToString(), StringComparison.Ordinal);
+            }
+            using (brain.Owner.AsApp("other-app"))
+            using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new(brain.Owner.PrincipalId, brain.Owner.AccountId, owner, "app")))
+            {
+                var overwritten = await Refused(brain, table, ct);
+                Assert.Contains("another brain or app", overwritten.ToString(), StringComparison.Ordinal);
+            }
+        }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
     }
 
     [Trait("host", "own")]
@@ -279,7 +323,7 @@ public sealed class PostgresWriteTableFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new MemoryTables());
         using var bob = await brain.PersonAsync("bob", ct);
-        var first = brain.Get<ITable>("first");
+        var first = brain.Get<ITable>(brain.Owner.Key("first"));
         string physical;
         using (brain.Owner.AsApp("app"))
         {
@@ -289,7 +333,7 @@ public sealed class PostgresWriteTableFacts
         foreach (var (person, appId) in new[] { (bob, "app"), (brain.Owner, "other-app") })
         {
             using var app = person.AsApp(appId);
-            var second = brain.Get<ITable>(person.BrainId + appId);
+            var second = brain.Get<ITable>(person.Key(appId));
             Assert.NotEqual(physical, (await second.Define(Definition)).Table);
             Assert.Null(await second.Read(Key()));
             await second.Upsert(Key(), Values("second"));
@@ -308,12 +352,12 @@ public sealed class PostgresWriteTableFacts
 
     [Trait("host", "own")]
     [Fact]
-    public async Task RowSignalsCarryTheKeyAndTheKernelStampedPublisher()
+    public async Task RowSignalsCarryTheTableAndTheKey()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new MemoryTables());
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("signals");
+        var table = brain.Get<ITable>(brain.Owner.Key("signals"));
         await using var defined = await brain.Observe<TableDefined>(table, ct);
         await using var upserted = await brain.Observe<RowUpserted>(table, ct);
         await using var deleted = await brain.Observe<RowDeleted>(table, ct);
@@ -322,13 +366,13 @@ public sealed class PostgresWriteTableFacts
         Assert.Equal(accepted.Table, (await defined.NextAsync(ct: ct)).Table);
 
         await table.Upsert(Key(), Values("payload"));
+        // A plain table's signals are journalled as its own (the runtime names the publisher); each probe is a synapse on this table.
         var row = await upserted.NextAsync(ct: ct);
-        Assert.Equal(table.GetGrainId().ToString(), row.Publisher);
         Assert.Equal(accepted.Table, row.Table);
         Assert.Equal(Key(), row.Key);
 
         await table.Delete(Key());
-        Assert.Equal(table.GetGrainId().ToString(), (await deleted.NextAsync(ct: ct)).Publisher);
+        Assert.Equal(Key(), (await deleted.NextAsync(ct: ct)).Key);
     }
 
     [Trait("host", "own")]
@@ -337,7 +381,7 @@ public sealed class PostgresWriteTableFacts
     {
         await using var brain = await Start(new MemoryTables());
         using var app = brain.Owner.AsApp("app");
-        await Research(brain.Get<ITable>("research-results"));
+        await Research(brain.Get<ITable>(brain.Owner.Key("research-results")));
     }
 
     [Trait("host", "own")]
@@ -350,8 +394,8 @@ public sealed class PostgresWriteTableFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(null, connection!);
         using var bob = await brain.PersonAsync("bob", ct);
-        var table = brain.Get<ITable>("live-" + Guid.NewGuid().ToString("N"));
-        var research = brain.Get<ITable>("research-" + Guid.NewGuid().ToString("N"));
+        var table = brain.Get<ITable>(brain.Owner.Key("live-" + Guid.NewGuid().ToString("N")));
+        var research = brain.Get<ITable>(brain.Owner.Key("research-" + Guid.NewGuid().ToString("N")));
         AcceptedTable accepted;
         using (brain.Owner.AsApp("app")) { accepted = await table.Define(Definition); }
         string? researchName = null;
@@ -375,7 +419,7 @@ public sealed class PostgresWriteTableFacts
                 new([new("id", "text"), new("value", "number")], ["id"]), ct));
             using (bob.AsApp("app"))
             {
-                var other = brain.Get<ITable>("other-" + Guid.NewGuid().ToString("N"));
+                var other = brain.Get<ITable>(brain.Owner.Key("other-" + Guid.NewGuid().ToString("N")));
                 otherName = (await other.Define(Definition)).Table;
                 Assert.Null(await other.Read(Key()));
                 await other.Upsert(Key(), Values("other"));

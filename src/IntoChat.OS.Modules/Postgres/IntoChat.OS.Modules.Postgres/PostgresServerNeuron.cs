@@ -13,12 +13,14 @@ internal sealed class PostgresConnectionState : ConnectionState { }
 
 // Integration keys ("default") serve the deployment's database and hold no state; connection keys
 // serve the user's database from the connection string sealed in this neuron's own state.
-[GrainType("postgres")]
+[GrainType(GrainType)]
 internal sealed class PostgresServerNeuron(
     IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables,
     [PersistentState("postgres", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PostgresConnectionState> store)
     : ConnectionNeuron<PostgresConnectionState>(store), IPostgresServer, IPostgresTableHost
 {
+    internal const string GrainType = "postgres";
+
     [ReadOnly]
     public Task<PostgresQueryResult> Query(PostgresQuery query)
     {

@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
@@ -6,8 +7,8 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 // stamped brain and app; every subsequent operation requires that same caller scope.
 // Each caller acts as its own brain; the table itself checks the stamped owner on every operation.
 [Shared]
-[Alias("postgres.table"), Orleans.Metadata.DefaultGrainType("postgres.table")]
-public interface ITable : INeuron
+[NeuronAlias("postgres.table"), DefaultNeuronType("postgres.table")]
+public interface ITable
 {
     Task<AcceptedTable> Define(TableDefinition definition);
     Task<bool> Upsert(TableValue[] key, TableValue[] values);

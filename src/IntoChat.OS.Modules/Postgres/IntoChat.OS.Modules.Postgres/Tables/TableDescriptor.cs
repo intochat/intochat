@@ -4,8 +4,8 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
-[Alias("postgres.table-descriptor")]
-public interface ITableDescriptor : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("postgres.table-descriptor"), DigitalBrain.Contracts.DefaultNeuronType(TableNeuron.GrainType)]
+public interface ITableDescriptor
 {
     Task<TableDescription> Describe(string owner);
 }
@@ -24,10 +24,10 @@ internal sealed partial class TableNeuron : ITableDescriptor
         var caller = CallerContextStamper.Require();
         if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         var scope = TableOwner.Parse(owner);
-        if (scope.BrainId != BrainScope.CurrentId() || state.State.Owner != owner)
+        if (scope.BrainId != BrainScope.CurrentId() || State.Owner != owner)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         await Tables(owner).RequireOpen();
-        var table = state.State.Accepted ?? throw new PostgresQueryException("This table has not finished being defined.");
-        return new(scope.AppId, this.GetPrimaryKeyString(), state.State.Placement ?? TablePlacement.Shared, table);
+        var table = State.Accepted ?? throw new PostgresQueryException("This table has not finished being defined.");
+        return new(scope.AppId, FullKey, State.Placement ?? TablePlacement.Shared, table);
     }
 }

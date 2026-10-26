@@ -82,8 +82,6 @@
   "IntoChat.OS.Modules.Microsoft.Windows/WindowsEndpoints.cs": 6,
   "IntoChat.OS.Modules.Postgres.Tests.Integration/PostgresWriteTableFacts.cs": 4,
   "IntoChat.OS.Modules.Postgres.Tests.Integration/Tables/TableLifecycleGuardFacts.cs": 4,
-  "IntoChat.OS.Modules.Postgres/Tables/TableIndexNeuron.cs": 1,
-  "IntoChat.OS.Modules.Postgres/Tables/TableNeuron.cs": 2,
   "IntoChat.OS.Modules.Postgres/Tables/TablePlacements.cs": 2,
   "IntoChat.OS.Modules.Postgres/Tables/TableStorageHook.cs": 5,
   "IntoChat.OS.Modules.Tools/ToolCapabilitySource.cs": 2,
