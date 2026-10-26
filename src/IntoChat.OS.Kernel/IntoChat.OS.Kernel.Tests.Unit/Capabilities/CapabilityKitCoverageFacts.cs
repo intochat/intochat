@@ -23,14 +23,12 @@ public sealed class CapabilityKitCoverageFacts
     // The kernel registers secrets@1 and identity@1 itself (keyed singletons over the Authority ports), not through a module.
     private const string KernelTests = "IntoChat.OS.Kernel.Tests.Integration";
 
-    // Temporary allow-list (05-07), deleted by 05-13: Windows passes the storage kit in 05-08, Google Drive in 05-09, and the
-    // kernel's secrets@1/identity@1 registrations pass theirs in 05-12.
+    // Temporary allow-list (05-07), deleted by 05-13: Windows passes the storage kit in 05-08 and Google Drive in 05-09. The
+    // kernel's secrets@1/identity@1 registrations pass theirs since 05-12.
     private static readonly HashSet<(string Module, string Capability)> AllowList =
     [
         ("windows", "storage@1"),
         ("google-drive", "storage@1"),
-        ("kernel", "secrets@1"),
-        ("kernel", "identity@1"),
     ];
 
     [Fact]

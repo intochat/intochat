@@ -32,6 +32,9 @@ public static class KernelCapabilities
         ArgumentNullException.ThrowIfNull(builder);
         builder.ConfigureCapabilities(Configure);
         builder.Services.TryAddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
+        // secrets@1 and identity@1 (05-12): the runtime capabilities over ports to the Authority vault and directory.
+        builder.Services.AddSecretsCapability<AuthorityVaultPort>();
+        builder.Services.AddIdentityCapability<AuthorityDirectoryPort>();
         return builder;
     }
 }

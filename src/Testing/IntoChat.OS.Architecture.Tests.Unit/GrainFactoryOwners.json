@@ -41,5 +41,6 @@
   "IntoChat.OS.Kernel.Tests.E2E/LocalKillRestartE2E.cs": 6,
   "IntoChat.OS.Modules.Time.Tests.Integration/Reminders/ReminderFacts.cs": 4,
   "IntoChat.OS.Modules.Circles.Tests.Integration/PublicationButtonCallerFacts.cs": 1,
-  "IntoChat.OS.Testing/BrainTestExtensions.cs": 3
+  "IntoChat.OS.Testing/BrainTestExtensions.cs": 3,
+  "IntoChat.OS.Kernel.Composition/Capabilities/AuthorityVaultPort.cs": 2
 }
