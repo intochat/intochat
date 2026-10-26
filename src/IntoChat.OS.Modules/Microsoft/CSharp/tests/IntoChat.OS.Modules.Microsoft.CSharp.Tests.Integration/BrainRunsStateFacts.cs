@@ -7,18 +7,6 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 public sealed class BrainRunsStateFacts
 {
     [Fact]
-    public async Task FailedProjectionWriteRestoresThePreviousSnapshot()
-    {
-        var before = new BrainRunsState().Apply([Fact(1, 10)]);
-        var store = new FailedStore(before);
-        var neuron = new BrainRunsNeuron(store);
-        await Assert.ThrowsAsync<IOException>(() => neuron.Record([Fact(2, 20)]));
-        Assert.Same(before, store.State);
-        Assert.Single(store.State.Recent);
-        Assert.Single(Assert.Single(store.State.Statistics).Samples);
-    }
-
-    [Fact]
     public void SamplesRetainTheLatest31SuccessesAndUseTheLowerMedian()
     {
         var facts = Enumerable.Range(1, 40).Select(number => Fact(number, number)).ToArray();
@@ -76,16 +64,6 @@ public sealed class BrainRunsStateFacts
     }
 
     private static RunFact Fact(long watermark, long duration, string hash = "hash", RunOutcome outcome = RunOutcome.Succeeded,
-        string owner = "brain/apps/app") => new(new BehaviorRan("brain/runtime", owner, owner + "/synapses/a.cs", hash,
+        string owner = "brain/apps/app") => RunFact.Of(new BehaviorRan("brain/runtime", owner, owner + "/synapses/a.cs", hash,
             "source", "Changed", watermark, outcome, 1, duration, 0, null), null);
-
-    private sealed class FailedStore(BrainRunsState initial) : IPersistentState<BrainRunsState>
-    {
-        public BrainRunsState State { get; set; } = initial;
-        public string Etag => "existing";
-        public bool RecordExists => true;
-        public Task ReadStateAsync() => Task.CompletedTask;
-        public Task ClearStateAsync() => throw new NotSupportedException();
-        public Task WriteStateAsync() => Task.FromException(new IOException("Write refused."));
-    }
 }

@@ -22,10 +22,15 @@ internal static class SubscriptionFilter
             && string.Equals(operation.GetString(), selector, StringComparison.Ordinal);
     }
 
-    // An os Signal is never an app request (06-08: AppRequested is plain, see AcceptsPlain), so only the self-feed rule applies.
-    public static bool Delivers(string behavior, Signal signal)
+    public static readonly string RunsChangedAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BrainRunsChanged));
+
+    // The self-feed rule over the plain BrainRunsChanged record (06-08), read from its journal JSON: a revision whose behaviors are
+    // only the subscriber is not delivered.
+    public static bool Delivers(string behavior, string alias, string json)
     {
-        return signal is not BrainRunsChanged { Behaviors: { Length: > 0 } behaviors }
+        if (alias != RunsChangedAlias) { return true; }
+        var changed = System.Text.Json.JsonSerializer.Deserialize<BrainRunsChanged>(json, System.Text.Json.JsonSerializerOptions.Web);
+        return changed is not { Behaviors: { Length: > 0 } behaviors }
             || behaviors.Any(owner => !string.Equals(owner, behavior, StringComparison.Ordinal));
     }
 }

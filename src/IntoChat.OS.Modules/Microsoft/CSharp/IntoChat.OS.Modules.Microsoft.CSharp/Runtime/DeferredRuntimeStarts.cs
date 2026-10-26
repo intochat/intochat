@@ -3,22 +3,22 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // Programs may be installed by silo startup before Kestrel binds its HTTP edge.
-// Retry those runtimes once listening starts, through grain references rather
-// than retaining an activation or waiting for its recovery reminder.
+// Retry those runtimes once listening starts, through the plain seam (06-08: the runtime is a plain neuron, named by its brain)
+// rather than retaining an activation or waiting for its recovery reminder.
 internal sealed class DeferredRuntimeStarts(
-    IGrainFactory grains,
+    IntoChat.OS.Runtime.IPlainNeurons neurons,
     [FromKeyedServices(typeof(CSharpModule))] IHostApplicationLifetime lifetime,
     ILogger<DeferredRuntimeStarts> logger) : BackgroundService
 {
-    private readonly Channel<GrainId> _queue = Channel.CreateUnbounded<GrainId>(new() { SingleReader = true });
-    private readonly ConcurrentDictionary<GrainId, byte> _pending = new();
+    private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new() { SingleReader = true });
+    private readonly ConcurrentDictionary<string, byte> _pending = new(StringComparer.Ordinal);
 
-    public void Defer(GrainId runtime)
+    // runtime is the brain whose runtime waits.
+    public void Defer(string runtime)
     {
         // Keep the key until Touch returns: a still-unavailable edge must not
         // enqueue itself recursively. The durable reminder remains its backstop.
@@ -34,7 +34,7 @@ internal sealed class DeferredRuntimeStarts(
             await listening.Task.WaitAsync(stoppingToken);
             await foreach (var runtime in _queue.Reader.ReadAllAsync(stoppingToken))
             {
-                try { await grains.GetGrain<IBrainRuntime>(runtime).Touch(stoppingToken).WaitAsync(stoppingToken); }
+                try { await neurons.Get<IBrainRuntime>(BrainRuntimeKeys.For(runtime)).Touch(stoppingToken).WaitAsync(stoppingToken); }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
                 catch (Exception error)
                 { logger.LogWarning(error, "Could not start deferred runtime {Runtime}; its reminder retries.", runtime); }

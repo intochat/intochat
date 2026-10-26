@@ -36,9 +36,17 @@ internal sealed partial class CSharpFileNeuron : DigitalBrain.Neuron<CSharpFileS
         }
     }
 
-    private IBrainPrograms Programs
-        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IBrainPrograms>(Context,
-            new DigitalBrain.NeuronId(Id.Brain, BrainRuntimeNeuron.GrainTypeName, RuntimeKey[(Id.Brain.Value.Length + 1)..]));
+    // The runtime is a plain neuron of this brain (06-08), reached as this file.
+    private IBrainPrograms Programs => Get<IBrainPrograms>(RuntimeId);
+
+    private DigitalBrain.NeuronId RuntimeId
+    {
+        get
+        {
+            _ = RuntimeKey;
+            return new(Id.Brain, BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name);
+        }
+    }
 
     public async Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default)
         => View(Current.Wanted ? await Programs.Describe(FileId) : null);
@@ -95,9 +103,9 @@ internal sealed partial class CSharpFileNeuron : DigitalBrain.Neuron<CSharpFileS
         await Publish(new CSharpFileChanged(FileId));
     }
 
-    // The runtime is still a grain and its edge face is internal to this module, so the log read goes to that grain.
+    // The runtime's edge face is internal to this module; the log read goes to the runtime neuron of this brain.
     public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
-        => Current.Wanted ? Context.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeEdge>(RuntimeKey).Logs(FileId, tail) : Task.FromResult("");
+        => Current.Wanted ? Get<IBrainRuntimeEdge>(RuntimeId).Logs(FileId, tail) : Task.FromResult("");
 
     // The runtime compiles; a source that does not compile throws out of Assign and nothing is recorded.
     private async Task<CSharpFileSnapshot> AssignAsync(string source)

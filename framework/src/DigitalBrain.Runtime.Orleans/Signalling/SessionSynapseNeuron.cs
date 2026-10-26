@@ -14,12 +14,16 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 /// </summary>
 /// <remarks>Queue changes happen only between awaits on the activation's scheduler; the long-poll completes through <see cref="_wake"/>.</remarks>
 [Neuron(SessionSynapses.NeuronType)]
-internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads)
+internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads,
+    IOptions<global::Orleans.Configuration.SiloMessagingOptions> messaging)
     : Neuron, ISessionSynapses, ISignalSink, IRemindedNeuron
 {
     internal const string SweepTimer = "session.ttl";
 
     private readonly SessionSynapseOptions _options = options.Value;
+    // A poll that waited as long as the caller's response timeout lost its answer to the race: the caller timed out, the response
+    // expired, and a batch cut into it was only resent on the next poll.
+    private readonly TimeSpan _wait = Min(options.Value.NextTimeout, messaging.Value.ResponseTimeout * 2 / 3);
     private readonly List<SessionSignal> _pending = [];
     private SessionBatch? _outstanding;
     private long _issued;
@@ -57,7 +61,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
             if (acked < sent.Number) { return sent; } // not acknowledged: send it again
             _outstanding = null;
         }
-        var until = DateTime.UtcNow + _options.NextTimeout;
+        var until = DateTime.UtcNow + _wait;
         while (_pending.Count == 0)
         {
             var left = until - DateTime.UtcNow;
@@ -104,6 +108,8 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         if (name != SweepTimer || clock.Now - _lastAck < _options.SessionTtl) { return; }
         await End().ConfigureAwait(true);
     }
+
+    private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
 
     private void Wake()
     {

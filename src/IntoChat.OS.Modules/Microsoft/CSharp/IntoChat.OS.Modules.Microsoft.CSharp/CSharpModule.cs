@@ -84,7 +84,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton<RuntimeDirectory>();
         builder.Services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
         builder.Services.TryAddTransient<RuntimeEdge>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         builder.AddIncomingGrainCallFilter<BrainRunsGuard>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)

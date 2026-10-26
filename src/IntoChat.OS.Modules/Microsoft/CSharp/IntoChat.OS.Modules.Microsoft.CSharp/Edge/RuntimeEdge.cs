@@ -26,7 +26,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
     {
         var claims = ValidateToken(brainId, token);
-        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        var runtime = Runtime(brainId);
         return (await runtime.Authorize(claims.Session).ConfigureAwait(false)).Active
             ? (claims, runtime)
             : throw new UnauthorizedAccessException("This session no longer speaks for its brain.");
@@ -100,7 +100,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     {
         ArgumentNullException.ThrowIfNull(report);
         var claims = ValidateToken(brainId, token);
-        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        var runtime = Runtime(brainId);
         // Each runtime mutation validates the session in the same turn as its write.
         // A separate preflight doubles the calls and cannot authorize a later turn.
         var members = (report.Fingerprint is null ? 0 : 1) + (report.Subscribe is null ? 0 : 1)
@@ -181,9 +181,13 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     {
         var key = BrainRuntimeKeys.For(brainId);
         if (!directory.TryIdentity(key, session, behavior, out var identity))
-        { identity = await grains.GetGrain<IBrainRuntimeEdge>(key).Identity(session, behavior).ConfigureAwait(false); }
+        { identity = await Runtime(brainId).Identity(session, behavior).ConfigureAwait(false); }
         return identity ?? throw new ArgumentException($"{behavior} is not a behavior of this brain.");
     }
+
+    // The brain's runtime is a plain neuron (06-08), reached through the host seam.
+    private IBrainRuntimeEdge Runtime(string brainId)
+        => Plain.Get<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
 
     private SessionClaims ValidateToken(string brainId, string? token)
     {

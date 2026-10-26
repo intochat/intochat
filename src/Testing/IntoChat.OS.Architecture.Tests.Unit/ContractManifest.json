@@ -23,9 +23,7 @@
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
     "IntoChat.OS.Kernel.Composition.RetiredReminderGrain": "reminder",
     "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
-    "IntoChat.OS.Modules.Apps.CreatorModelWorker": "apps.creator-model",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron": "microsoft.csharp.runs",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron": "microsoft.csharp.runtime"
+    "IntoChat.OS.Modules.Apps.CreatorModelWorker": "apps.creator-model"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Compute.IBrainComputeGrain": "compute.brain",
@@ -55,15 +53,6 @@
     "IntoChat.OS.INeuron": "kernel.neuron",
     "IntoChat.OS.IRetainsSignals": "brain.retained-signals",
     "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainProgramChanges": "microsoft.csharp.runtime-program-changes",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainPrograms": "microsoft.csharp.programs",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuns": "microsoft.csharp.runs",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRunsRecorder": "microsoft.csharp.runs-recorder",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntime": "microsoft.csharp.runtime",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeArrivals": "microsoft.csharp.runtime-arrivals",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeContinuations": "microsoft.csharp.runtime-continuations",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeEdge": "microsoft.csharp.runtime-edge",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeSession": "microsoft.csharp.runtime-session",
     "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source"
   },
   "Contracts": {
@@ -516,34 +505,16 @@
     "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileStatus": "microsoft.csharp.file-status; ",
     "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpSubscriptionView": "microsoft.csharp.subscription-view; Neuron=0, Signal=1, Pending=2, Delivered=3, Dropped=4",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BehaviorAssembly": "microsoft.csharp.behavior-assembly; Path=0, Hash=1",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BehaviorIdentity": "microsoft.csharp.behavior-identity; Principal=0, Owner=1",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BehaviorView": "microsoft.csharp.behavior-view; Id=0, Hash=1, Status=2, Error=3, Subscriptions=4, Runs=5, Failures=6, LastDurationMicroseconds=7",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunEntry": "microsoft.csharp.run-entry; Sequence=0, Owner=1, Behavior=2, Outcome=3, DurationMicroseconds=4, TraceId=5, Mark=6",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunSample": "microsoft.csharp.run-sample; Mark=0, Microseconds=1",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunStatistics": "microsoft.csharp.run-statistics; Behavior=0, Hash=1, Samples=2",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsChanged": "microsoft.csharp.runs-changed; Revision=0, Behaviors=1",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsSnapshot": "microsoft.csharp.runs-snapshot; Revision=0, Recent=1, Statistics=2",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsState": "microsoft.csharp.runs-state; Revision=0, Sequence=1, Recent=2, Statistics=3, Unannounced=4",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeSnapshot": "microsoft.csharp.runtime-snapshot; Session=0, SessionId=1, Fingerprint=2, LastHeartbeat=3, Behaviors=4, IsReady=5, IsIdle=6",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState": "microsoft.csharp.runtime-state; Programs=0, Subscriptions=1, Session=2, LegacyInitialized=3, LegacyAssignmentRevisions=4, InitializedEntries=5, AssignmentRevisionEntries=6",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainProgramChanges": "microsoft.csharp.runtime-program-changes (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainPrograms": "microsoft.csharp.programs (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuns": "microsoft.csharp.runs (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRunsRecorder": "microsoft.csharp.runs-recorder (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntime": "microsoft.csharp.runtime (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeArrivals": "microsoft.csharp.runtime-arrivals (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeContinuations": "microsoft.csharp.runtime-continuations (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeEdge": "microsoft.csharp.runtime-edge (not generated); ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.IBrainRuntimeSession": "microsoft.csharp.runtime-session (not generated); ",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramAssignment": "microsoft.csharp.program-assignment; Owner=0, Hash=1, LegacySettings=2, Principal=3, Behaviors=4, SettingEntries=5",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramView": "microsoft.csharp.program-view; Owner=0, Hash=1, Behaviors=2",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.RunFact": "microsoft.csharp.run-fact; Fact=0, Trace=1",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.SessionAuthorization": "microsoft.csharp.session-authorization; Active=0, Brain=1",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.SessionRecord": "microsoft.csharp.session-record; Id=0, Status=1, Fingerprint=2, LastHeartbeat=3, Started=4, TokenIssued=5",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.SessionStatus": "microsoft.csharp.session-status; ",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BehaviorRan": "microsoft.csharp.behavior-ran; RuntimeId=0, Owner=1, Behavior=2, Hash=3, Source=4, SignalType=5, Watermark=6, Outcome=7, Batches=8, DurationMicroseconds=9, CpuMicroseconds=10, Error=11",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BehaviorStarted": "microsoft.csharp.behavior-started; RuntimeId=0, Owner=1, Behavior=2, Hash=3, Source=4, SignalType=5, Watermark=6",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged": "microsoft.csharp.runtime-changed; RuntimeId=0",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.RunOutcome": "microsoft.csharp.run-outcome; ",
     "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Subscription": "microsoft.csharp.runtime-subscription; Id=0, Behavior=1, Neuron=2, Signal=3, Pending=4, Delivered=5, Dropped=6, SourceSeq=7, Selector=8",
     "IntoChat.OS.Modules.Microsoft.GitHub.GitHubAccessDeniedException": "github.access-denied; ",
@@ -679,15 +650,9 @@
     "IntoChat.OS.Authority.Secrets.SecretsNeuron": "vault=platform:IntoChat.OS.Authority.Secrets.SecretsState",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "instances=cluster:IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "types=cluster:IntoChat.OS.Kernel.Composition.InstanceTypesGrain+State",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "features=cluster:IntoChat.OS.Kernel.Composition.TypeTableGrain+State",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron": "state=cluster:IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsState",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron": "state=cluster:IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "features=cluster:IntoChat.OS.Kernel.Composition.TypeTableGrain+State"
   },
   "Signals": {
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsChanged": "BrainRunsChanged",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BehaviorRan": "BehaviorRan",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BehaviorStarted": "BehaviorStarted",
-    "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged": "BrainRuntimeChanged",
     "IntoChat.OS.Signal": "Signal"
   }
 }

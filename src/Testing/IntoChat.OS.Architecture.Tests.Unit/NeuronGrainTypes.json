@@ -299,16 +299,6 @@
     "Store": null,
     "StateName": null
   },
-  "IntoChat.OS.Kernel.Testing.Demo.Bitcoin": {
-    "Type": "bitcoin",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Kernel.Testing.Demo.TwitterAccount": {
-    "Type": "twitter",
-    "Store": null,
-    "StateName": null
-  },
   "IntoChat.OS.Modules.AI.Agents.AgentNeuron": {
     "Type": "agent",
     "Store": "cluster",
@@ -855,12 +845,12 @@
     "StateName": "state"
   },
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.ConnectionProbe": {
-    "Type": "connectionprobe",
+    "Type": "tests.csharp.connection-probe",
     "Store": null,
     "StateName": null
   },
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.DeepWireProbe": {
-    "Type": "deepwireprobe",
+    "Type": "tests.csharp.deep-wire",
     "Store": null,
     "StateName": null
   },
@@ -870,27 +860,17 @@
     "StateName": null
   },
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.HangingSource": {
-    "Type": "hangingsource",
+    "Type": "tests.csharp.hanging-source",
     "Store": null,
     "StateName": null
   },
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.HeldRetainer": {
-    "Type": "heldretainer",
+    "Type": "tests.csharp.held-retainer",
     "Store": null,
     "StateName": null
   },
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.Pinger": {
-    "Type": "pinger",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.RetainingSource": {
-    "Type": "retainingsource",
-    "Store": null,
-    "StateName": null
-  },
-  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.SlowRetainer": {
-    "Type": "slowretainer",
+    "Type": "tests.csharp.pinger",
     "Store": null,
     "StateName": null
   },
@@ -942,7 +922,7 @@
   "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.TpmCounterNeuron": {
     "Type": "test.tpm-counter",
     "Store": "cluster",
-    "StateName": "counter"
+    "StateName": "state"
   },
   "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron": {
     "Type": "windows",
@@ -1078,11 +1058,6 @@
     "Type": "test.chat-source",
     "Store": "cluster",
     "StateName": "state"
-  },
-  "IntoChat.OS.Modules.Flutter.Tests.Integration.Chat.ChatSourceTextSource": {
-    "Type": "test.chat-source",
-    "Store": null,
-    "StateName": null
   },
   "IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide.PlainCounted": {
     "Type": "probe.counted",

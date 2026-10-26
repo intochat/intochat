@@ -5,17 +5,16 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
-[GenerateSerializer, Alias("microsoft.csharp.runs-state")]
 [ExportableState]
 internal sealed record BrainRunsState
 {
-    [Id(0)] public long Revision { get; init; }
-    [Id(1)] public long Sequence { get; init; }
-    [Id(2)] public BrainRunEntry[] Recent { get; init; } = [];
-    [Id(3)] public BrainRunStatistics[] Statistics { get; init; } = [];
+    public long Revision { get; init; }
+    public long Sequence { get; init; }
+    public BrainRunEntry[] Recent { get; init; } = [];
+    public BrainRunStatistics[] Statistics { get; init; } = [];
     // Behaviors saved while a later one was still running. They ride the next changed signal, including
     // one published by a new activation, so a crash cannot forget a revision the snapshot already holds.
-    [Id(4)] public string[] Unannounced { get; init; } = [];
+    public string[] Unannounced { get; init; } = [];
 
     public BrainRunsState Apply(RunFact[] facts)
     {
@@ -25,12 +24,12 @@ internal sealed record BrainRunsState
         var changed = false;
         foreach (var fact in facts)
         {
-            if (fact.Fact is not BehaviorRan ran || ran.Outcome == RunOutcome.Skipped) { continue; }
+            if (fact.Ran is not { } ran || ran.Outcome == RunOutcome.Skipped) { continue; }
             var mark = $"{ran.Behavior}|{ran.Source}|{ran.SignalType}|{ran.Watermark}|{ran.Outcome}";
             if (!recent.Any(item => item.Mark == mark))
             {
                 recent.Add(new(++sequence, ran.Owner, ran.Behavior, ran.Outcome, ran.DurationMicroseconds,
-                    (fact.Trace ?? ran.Trace ?? TraceContext.Current)?.TraceId, mark));
+                    (fact.Trace ?? TraceContext.Current)?.TraceId, mark));
                 var excess = recent.Count(item => item.Owner == ran.Owner) - 200;
                 if (excess > 0)
                 {

@@ -59,7 +59,7 @@ public sealed class OperationSubscriptionFacts
         Assert.Equal(["send", "open"], narrowed.Signals.Select(Operation).ToArray());
     }
 
-    private static async Task<SignalBatchEvent> Until(SignalProbe<BrainRuntimeChanged> changes, Func<Task<SignalBatchEvent?>> ready, CancellationToken ct)
+    private static async Task<SignalBatchEvent> Until(PlainSignalProbe<BrainRuntimeChanged> changes, Func<Task<SignalBatchEvent?>> ready, CancellationToken ct)
     {
         while (true)
         {

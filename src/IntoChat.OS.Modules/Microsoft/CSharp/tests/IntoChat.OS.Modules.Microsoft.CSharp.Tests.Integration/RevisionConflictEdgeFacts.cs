@@ -42,7 +42,7 @@ public sealed class RevisionConflictEdgeFacts
         await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
             "token", "fingerprint", new Refusing("unrelated failure", status, null), ct);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => connection.InvokeAsync(
-            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.RefuseStale), []), ct));
         Assert.Contains($"({(int)status}): unrelated failure", failure.Message, StringComparison.Ordinal);
     }
 
@@ -53,7 +53,7 @@ public sealed class RevisionConflictEdgeFacts
         await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"),
             "token", "fingerprint", new Refusing("unrelated failure", HttpStatusCode.ServiceUnavailable, null), ct);
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => connection.InvokeAsync(
-            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.RefuseStale), []), ct));
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, failure.StatusCode);
         Assert.Contains("(503): unrelated failure", failure.Message, StringComparison.Ordinal);
@@ -85,7 +85,7 @@ public sealed class RevisionConflictEdgeFacts
         await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"), session.Token, RuntimeBrain.Fingerprint(brain), new Forward(brain.HttpClient), ct);
 
         var conflict = await Assert.ThrowsAsync<RevisionConflictException>(() => connection.InvokeAsync(
-            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.RefuseStale), []), ct));
 
         Assert.Equal(7, conflict.CurrentRevision);
     }
@@ -100,7 +100,7 @@ public sealed class RevisionConflictEdgeFacts
         await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"), "token", "fingerprint", new Refusing(body), ct);
 
         var refusal = await Assert.ThrowsAsync<ScriptRefusalException>(() => connection.InvokeAsync(
-            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.RefuseStale), []), ct));
 
         Assert.Equal(body, refusal.Message);
         Assert.Equal(RevisionConflictException.Code, refusal.Code);
@@ -108,7 +108,7 @@ public sealed class RevisionConflictEdgeFacts
 
     private static HttpRequestMessage Invocation(string token)
     {
-        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.RefuseStale), []);
         var request = new HttpRequestMessage(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Invoke) { Content = JsonContent.Create(invoke, options: RuntimeProtocol.Json) };
         request.Headers.Authorization = new("Bearer", token);
         return request;

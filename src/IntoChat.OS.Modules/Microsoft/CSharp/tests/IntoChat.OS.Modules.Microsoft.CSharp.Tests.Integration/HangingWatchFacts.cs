@@ -1,12 +1,11 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
-// Watching a source is a call to another grain: one that never answers holds its own lane until the call times
-// out, never the runtime's turn, so the edge, the shell, a live signal and an assignment all go on meanwhile.
+// Subscribing to a source is a call to another neuron (06-08: its admission of the program's session synapse): one that never answers
+// holds its own lane until the call times out, never the runtime's turn, so the edge, the shell, a live signal and an assignment all
+// go on meanwhile.
 public sealed class HangingWatchFacts
 {
     [Trait("host", "own")]
@@ -27,8 +26,8 @@ public sealed class HangingWatchFacts
         var session = (await runtime.Inspect(ct)).SessionId!;
         var hanging = brain.Get<IHangingSource>(owner.Key("apps/source/hanging"));
         var pinger = brain.Get<IPinger>(owner.Key("apps/source/pinger"));
-        await edge.Subscribed(session, app, hanging.GetGrainId().ToString(), nameof(Pinged));
-        var subscription = await edge.Subscribed(session, app, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await edge.Subscribed(session, app, RuntimeBrain.Source(hanging), Pings.Pinged);
+        var subscription = await edge.Subscribed(session, app, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
         var hang = HangingSource.Hang = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -48,28 +47,29 @@ public sealed class HangingWatchFacts
     }
 }
 
-[Alias("tests.csharp.hanging-source")]
+[DigitalBrain.Contracts.NeuronAlias("tests.csharp.hanging-source"), DigitalBrain.Contracts.DefaultNeuronType("tests.csharp.hanging-source")]
 [Public]
-public interface IHangingSource : INeuron
+public interface IHangingSource
 {
     Task Ping(int number);
 }
 
-// A source whose watch, once a fact arms it, answers only when the fact releases it.
-public sealed class HangingSource : Neuron, IHangingSource
+// A source whose admission of a subscriber, once a fact arms it, answers only when the fact releases it.
+[DigitalBrain.Neuron("tests.csharp.hanging-source")]
+public sealed class HangingSource : DigitalBrain.Neuron, IHangingSource
 {
     public static TaskCompletionSource? Hang { get; set; }
     public static TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public Task Ping(int number) => PublishAsync(new Pinged(number));
+    public Task Ping(int number) => Publish(new Pinged(number));
 
-    public override async Task<Guid> Watch(INeuronObserver observer, string[] signals)
+    protected override async Task AdmitSynapse(DigitalBrain.SynapseRequest request)
     {
         if (Hang is { } hang)
         {
             Entered.TrySetResult();
             await hang.Task;
         }
-        return await base.Watch(observer, signals);
+        await base.AdmitSynapse(request);
     }
 }

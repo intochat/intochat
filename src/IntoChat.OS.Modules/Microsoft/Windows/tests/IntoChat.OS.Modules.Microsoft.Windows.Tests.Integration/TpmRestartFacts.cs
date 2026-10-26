@@ -1,23 +1,38 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 
-public interface ITpmCounter : INeuron { Task<int> Increment(); Task<int> Read(); }
+[DigitalBrain.Contracts.NeuronAlias("test.tpm-counter"), DigitalBrain.Contracts.DefaultNeuronType(TpmCounterNeuron.Type)]
+public interface ITpmCounter { Task<int> Increment(); Task<int> Read(); }
 
-[GrainType("test.tpm-counter")]
-public sealed class TpmCounterNeuron([PersistentState("counter", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TpmCounterState> state) : Neuron, ITpmCounter
+// A plain neuron (06-08): its state is written to the brain's log under the custody the fact selects.
+[DigitalBrain.Neuron(Type)]
+public sealed class TpmCounterNeuron : DigitalBrain.Neuron<TpmCounterState>, ITpmCounter
 {
-    public async Task<int> Increment() { state.State.Value++; await state.WriteStateAsync(); return state.State.Value; }
+    public const string Type = "test.tpm-counter";
 
-    public Task<int> Read() => Task.FromResult(state.State.Value);
+    public async Task<int> Increment()
+    {
+        await Save(new TpmCounterState { Value = State.Value + 1 }, new TpmCounted(State.Value + 1));
+        return State.Value;
+    }
+
+    public Task<int> Read() => Task.FromResult(State.Value);
 }
 
-[GenerateSerializer, Alias("test.tpm-counter.state")]
-public sealed class TpmCounterState { [Id(0)] public int Value { get; set; } }
+public sealed class TpmCounterState { public int Value { get; set; } }
+
+[DigitalBrain.Signal("test.tpm-counted")]
+public sealed record TpmCounted(int Value) : DigitalBrain.Signal;
+
+[DigitalBrain.Module("test.tpm-counter")]
+public sealed class TpmCounterModule : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+}
 
 // The local brain key is wrapped by the TPM and state is recovered after restart.
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
@@ -36,6 +51,7 @@ public sealed class TpmRestartFacts
             await using var brain = await TestBrain.Create()
                 .WithConfiguration(IntoChatOSNames.CustodyConfigurationKey, nameof(MasterKeyCustodyKind.Tpm))
                 .WithModule<WindowsModule>()
+                .WithNeuronModule<TpmCounterModule>()
                 // The module's TPM custody and signing key under test-only names, registered after the module's own.
                 .ConfigureServices(services =>
                 {

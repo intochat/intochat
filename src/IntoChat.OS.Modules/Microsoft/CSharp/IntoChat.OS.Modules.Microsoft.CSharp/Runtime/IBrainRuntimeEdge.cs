@@ -2,16 +2,12 @@ using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using Orleans.Concurrency;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
-[GenerateSerializer, Alias("microsoft.csharp.session-authorization")]
-internal sealed record SessionAuthorization([property: Id(0)] bool Active, [property: Id(1)] string Brain);
+internal sealed record SessionAuthorization(bool Active, string Brain);
 
-[GenerateSerializer, Alias("microsoft.csharp.behavior-identity")]
-internal sealed record BehaviorIdentity([property: Id(0)] CallerContext? Principal, [property: Id(1)] string Owner)
+internal sealed record BehaviorIdentity(CallerContext? Principal, string Owner)
 {
     // What a behavior's calls and its subscriptions' watches carry: the app's own principal behind the app proxy,
     // acting on behalf of the person who assigned the program. A program assigned without a caller (tests, the
@@ -34,14 +30,14 @@ internal sealed record BehaviorIdentity([property: Id(0)] CallerContext? Princip
 // The interleaved ones are pure reads, made for every script call (Authorize, Identity) or by the host and
 // the shell: they never wait for a turn in progress. Everything that writes state or the runtime's run
 // bookkeeping (PendingBatches starts runs) takes its own turn.
-[Alias("microsoft.csharp.runtime-edge"), DefaultGrainType("microsoft.csharp.runtime")]
-internal interface IBrainRuntimeEdge : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("microsoft.csharp.runtime-edge"), DigitalBrain.Contracts.DefaultNeuronType("microsoft.csharp.runtime")]
+internal interface IBrainRuntimeEdge
 {
-    [AlwaysInterleave] Task<BehaviorView?> Describe(string behavior);
+    [DigitalBrain.Interleaves] Task<BehaviorView?> Describe(string behavior);
     // Interleaved: it waits on the host, never on this runtime's state.
-    [AlwaysInterleave] Task<string> Logs(string behavior, int tail);
-    [AlwaysInterleave] Task<SessionAuthorization> Authorize(string session);
-    [AlwaysInterleave] Task<BehaviorIdentity?> Identity(string session, string behavior);
+    [DigitalBrain.Interleaves] Task<string> Logs(string behavior, int tail);
+    [DigitalBrain.Interleaves] Task<SessionAuthorization> Authorize(string session);
+    [DigitalBrain.Interleaves] Task<BehaviorIdentity?> Identity(string session, string behavior);
     Task Connected(string session, string fingerprint);
     Task Heartbeat(string session);
     Task<string> Subscribed(string session, string behavior, string neuron, string signal);
@@ -50,5 +46,5 @@ internal interface IBrainRuntimeEdge : IGrainWithStringKey
     Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements);
     Task Reported(string session, BehaviorStatusReport status);
     Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session);
-    [AlwaysInterleave] Task<IReadOnlyList<AssignmentEvent>> Assignments(string session);
+    [DigitalBrain.Interleaves] Task<IReadOnlyList<AssignmentEvent>> Assignments(string session);
 }

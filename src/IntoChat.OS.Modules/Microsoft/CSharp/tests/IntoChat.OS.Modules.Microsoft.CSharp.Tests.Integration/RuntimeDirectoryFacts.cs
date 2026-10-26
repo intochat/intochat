@@ -27,7 +27,7 @@ public sealed class RuntimeDirectoryFacts
     private static BrainRuntimeState State(SessionRecord session) => new()
     {
         Session = session,
-        Programs = [new("owner", "hash", new Dictionary<string, string>(StringComparer.Ordinal), Principal(), [new("synapses/a.cs", "hash")])],
+        Programs = [ProgramAssignment.Of("owner", "hash", new Dictionary<string, string>(StringComparer.Ordinal), Principal(), [new("synapses/a.cs", "hash")])],
     };
 
     private static SessionRecord Session(SessionStatus status)

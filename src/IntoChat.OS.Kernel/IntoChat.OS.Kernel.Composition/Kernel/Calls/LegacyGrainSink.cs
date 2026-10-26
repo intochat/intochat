@@ -95,14 +95,29 @@ public sealed class LegacyGrainSink(IGrainFactory grains, string caller, Func<gl
         return (grain, contract);
     }
 
-    // A contract by its wire name: one LegacyNeuronCalls registered, else a loaded interface of that full name.
+    // A contract by its wire name: one registered, else a loaded interface of that full name, else a loaded interface whose
+    // [NeuronAlias] it is. The alias step matters for the access policy: a neuron's own Get never registers its contract, so
+    // without it a module-internal contract read the owner rule in a process where no IPlainNeurons.Get named it first.
     internal static Type? ContractOf(string name)
     {
         if (Contracts.TryGetValue(name, out var known)) { return known; }
-        var found = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic)
-            .Select(assembly => assembly.GetType(name, throwOnError: false)).FirstOrDefault(type => type is { IsInterface: true });
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic).ToArray();
+        var found = assemblies.Select(assembly => assembly.GetType(name, throwOnError: false)).FirstOrDefault(type => type is { IsInterface: true })
+            ?? assemblies.Where(References)
+                .SelectMany(Loadable).FirstOrDefault(type => type.IsInterface
+                    && type.GetCustomAttribute<global::DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false)?.Alias == name);
         if (found is not null) { Contracts.TryAdd(name, found); }
         return found;
+    }
+
+    // Only assemblies that can declare a contract (they reference DigitalBrain) are scanned for aliases.
+    private static bool References(Assembly assembly)
+        => assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(global::DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
+
+    private static IEnumerable<Type> Loadable(Assembly assembly)
+    {
+        try { return assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
     private INeuronHost Host(global::DigitalBrain.NeuronId target)

@@ -43,8 +43,9 @@ internal static class RuntimeBrain
 
     public static Task<ITestBrain> StartWithAppsAsync(FakeSessionHost host, CancellationToken ct) => Create(host, apps: true).StartAsync(ct);
 
+    // The runtime is a plain neuron (06-08); its module-internal faces are reached through the host seam.
     public static IBrainPrograms Programs(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(scope));
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainPrograms>(BrainRuntimeKeys.For(scope));
 
     // How a plain neuron (06-08: an app) is named to the runtime edge, and the alias of an app request.
     public static string Plain<T>(ITestBrain brain, string key) where T : class
@@ -56,7 +57,18 @@ internal static class RuntimeBrain
     public static IBrainRuntime Runtime(ITestBrain brain, string scope) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
 
     public static IBrainRuntimeEdge Edge(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(scope));
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeEdge>(BrainRuntimeKeys.For(scope));
+
+    // How a plain neuron obtained from brain.Get is named to the runtime edge as a subscription source.
+    public static string Source(object neuron)
+        => IntoChat.OS.Modules.Microsoft.CSharp.Runtime.PlainSources.Of(neuron is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
+            : throw new ArgumentException("Name a plain neuron obtained from the brain's Get.", nameof(neuron)));
+
+    // A reconcile reminder tick, as the runtime's host grain receives one (06-08: the runtime is a plain neuron on that host).
+    public static Task RemindAsync(ITestBrain brain, string scope, CancellationToken ct)
+        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRemindable>(global::Orleans.Runtime.GrainId.Create("neuron.host",
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name).ToString()))
+            .ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
     public static string Fingerprint(ITestBrain brain)
         => IntoChat.OS.Client.Runtime.ContractsFingerprint.Of(brain.Services.GetRequiredService<IntoChat.OS.Framework.CompiledTypes>().Assemblies);

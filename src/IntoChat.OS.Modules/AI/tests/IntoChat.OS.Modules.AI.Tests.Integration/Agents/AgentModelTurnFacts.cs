@@ -18,7 +18,7 @@ public sealed class AgentModelTurnFacts
 
     // The probe's contract is in the host's compiled layer, which no module of the test assembly registers.
     private static Task<ITestBrain> Brain(FakeModelServer model, CancellationToken ct)
-        => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
+        => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).WithNeuronModule<LoopProbeNeurons>()
             .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
 

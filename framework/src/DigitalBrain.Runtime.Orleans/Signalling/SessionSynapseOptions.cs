@@ -9,8 +9,11 @@ public sealed class SessionSynapseOptions
     /// <summary>How often a session or listener checks <see cref="SessionTtl"/>. Default 1 minute.</summary>
     public TimeSpan SessionSweepEvery { get; set; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>How long a <c>Next</c> long-poll waits for signals before it returns null. Default 30 seconds.</summary>
-    public TimeSpan NextTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// How long a <c>Next</c> long-poll waits for signals before it returns null. Default 20 seconds. The wait never reaches the silo's
+    /// response timeout: it is capped at two thirds of it, so an idle poll answers before its caller gives up on it.
+    /// </summary>
+    public TimeSpan NextTimeout { get; set; } = TimeSpan.FromSeconds(20);
 
     /// <summary>Most synapses one session holds; further <c>Subscribe</c> calls are refused. Default 256.</summary>
     public int MaxSessionSynapses { get; set; } = 256;

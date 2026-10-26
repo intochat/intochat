@@ -31,7 +31,6 @@ internal sealed record ReactionRanking(ReactionExample[] Examples, ReactionExamp
 // features folder. Ranking is by meaning when an embedding model is composed (the same unkeyed generator
 // NeuronTypeSearch uses), by words otherwise, then nudged by each synapse's run history in this brain.
 internal sealed class ReactionExamples(
-    IGrainFactory grains,
     IntoChat.OS.Runtime.IPlainNeurons plain,
     IKernel kernel,
     FeatureCatalog catalog,
@@ -59,7 +58,7 @@ internal sealed class ReactionExamples(
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
     public static ReactionExamples Create(IServiceProvider services) => new(
-        services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
+        services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
         Embeddings(services), services.GetRequiredService<ILogger<ReactionExamples>>());
 
     // The sentence embedded once, for every ranking of it; null ranks by words (no model, or the model failed).
@@ -320,7 +319,7 @@ internal sealed class ReactionExamples(
     {
         try
         {
-            var runtime = await grains.GetGrain<IBrainRuntime>(BrainRuntimeKeys.For(brain)).Inspect(cancellationToken).WaitAsync(cancellationToken);
+            var runtime = await plain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brain)).Inspect(cancellationToken).WaitAsync(cancellationToken);
             return runtime.Behaviors.GroupBy(behavior => behavior.Id, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         }
         catch (Exception error) when (error is not OperationCanceledException)

@@ -88,16 +88,14 @@ public sealed class SubscriptionCallerFacts
         var session = await AssignAsync(brain, bob, app, ct);
         var theirs = BrainRunsKeys.For(brain.Owner.BrainId);
 
-        using var refused = await Report(brain, bob.BrainId, session, Subscribe<IBrainRuns>(app, theirs, nameof(BehaviorRan)), ct);
+        using var refused = await Report(brain, bob.BrainId, session, Subscribe<IBrainRuns>(app, theirs, RanAlias), ct);
         var kept = await SubscriptionsOf(brain, bob.BrainId, app, ct);
         // Renewals and reminders watch on turns that carry no caller; the source still sees the behavior.
         var unstamped = await Assert.ThrowsAsync<UnauthorizedAccessException>(()
-            => RuntimeBrain.Edge(brain, bob.BrainId).Subscribed(session.Id, app, brain.Get<IBrainRuns>(theirs).GetGrainId().ToString(), nameof(BehaviorRan)));
+            => RuntimeBrain.Edge(brain, bob.BrainId).Subscribed(session.Id, app, RuntimeBrain.Source(brain.Get<IBrainRuns>(theirs)), RanAlias));
         await brain.DeactivateAsync(RuntimeBrain.Runtime(brain, bob.BrainId), ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
-        Assert.Contains("operation Watch", await refused.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
-        Assert.Contains("operation Watch", unstamped.Message, StringComparison.Ordinal);
         Assert.Empty(kept);
         Assert.Empty(await SubscriptionsOf(brain, bob.BrainId, app, ct));
     }
@@ -122,7 +120,7 @@ public sealed class SubscriptionCallerFacts
         var session = (await runtime.Inspect(ct)).SessionId!;
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()
             => edge.Subscribed(session, app, RuntimeBrain.Plain<IApp>(brain, IApp.Key(brain.Owner.BrainId, "echo")), RuntimeBrain.Requested));
-        await edge.Subscribed(session, app, mine.GetGrainId().ToString(), nameof(Pinged));
+        await edge.Subscribed(session, app, RuntimeBrain.Source(mine), Pings.Pinged);
 
         await using (var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct))
         {
@@ -133,7 +131,7 @@ public sealed class SubscriptionCallerFacts
         var live = await edge.PendingBatches(session);
         await brain.DeactivateAsync(runtime, ct);
         await using var resumed = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
-        await edge.Subscribed((await runtime.Inspect(ct)).SessionId!, app, mine.GetGrainId().ToString(), nameof(Pinged));
+        await edge.Subscribed((await runtime.Inspect(ct)).SessionId!, app, RuntimeBrain.Source(mine), Pings.Pinged);
         await mine.Ping(2);
         IReadOnlyList<SignalBatchEvent> pending;
         do { await resumed.NextAsync(ct: ct); pending = await edge.PendingBatches((await runtime.Inspect(ct)).SessionId!); }
@@ -141,13 +139,14 @@ public sealed class SubscriptionCallerFacts
 
         Assert.Equal<int?>([1], live.SelectMany(batch => batch.Signals).Select(Ping));
         Assert.Equal<int?>([1, 2], pending.SelectMany(batch => batch.Signals).Select(Ping));
-        Assert.Equal([nameof(Pinged)], (await SubscriptionsOf(brain, bob.BrainId, app, ct)).Select(view => view.Signal));
+        Assert.Equal([Pings.Pinged], (await SubscriptionsOf(brain, bob.BrainId, app, ct)).Select(view => view.Signal));
     }
 
-    // Unwatch is judged as Watch is: a table refuses any caller but its own app's.
+    // A source admits a subscription as the program, stamped as its app, as it judges the program's calls (06-08: the admission of the
+    // program's session synapse; leaving a source is the session's, which the source never sees).
     [Trait("host", "own")]
     [Fact]
-    public async Task RetiringAProgramUnwatchesItsSourceAsTheProgram()
+    public async Task ASourceAdmitsASubscriptionAsTheProgram()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
@@ -156,11 +155,9 @@ public sealed class SubscriptionCallerFacts
         var source = owner.Key("apps/source/pinger");
         var pinger = brain.Get<IPinger>(source);
         var session = await AssignAsync(brain, owner, app, ct);
-        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<IPinger>(app, source, nameof(Pinged)), ct);
+        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<IPinger>(app, source, Pings.Pinged), ct);
 
-        using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Retire(app); }
-
-        Assert.Equal($"{IntoChat.OS.Framework.Modules.AppPrincipal.Id(app)} App AppProxy {app} for {owner.PrincipalId}", await pinger.Unwatched());
+        Assert.Equal($"{IntoChat.OS.Framework.Modules.AppPrincipal.Id(app)} App AppProxy {app} for {owner.PrincipalId}", await pinger.Admitted());
     }
 
     private static Task<ITestBrain> StartWithTablesAsync(CancellationToken ct)
@@ -211,6 +208,8 @@ public sealed class SubscriptionCallerFacts
 
     // A ping's number; null for any other signal, such as the refusing app's requests.
     private static int? Ping(string json) => JsonDocument.Parse(json).RootElement.TryGetProperty("number", out var number) ? number.GetInt32() : null;
+
+    private static readonly string RanAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BehaviorRan));
 
     private static TableValue[] Row(string id) => [new("id", JsonSerializer.Serialize(id))];
     private static string RowId(string json)

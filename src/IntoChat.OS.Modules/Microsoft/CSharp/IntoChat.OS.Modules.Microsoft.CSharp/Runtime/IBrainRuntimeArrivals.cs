@@ -1,15 +1,13 @@
-using Orleans.Concurrency;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One-way so the publishing neuron never waits on this brain's runtime.
-[Alias("microsoft.csharp.runtime-arrivals"), DefaultGrainType("microsoft.csharp.runtime")]
-internal interface IBrainRuntimeArrivals : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("microsoft.csharp.runtime-arrivals"), DigitalBrain.Contracts.DefaultNeuronType("microsoft.csharp.runtime")]
+internal interface IBrainRuntimeArrivals
 {
     // Reads every source's part log from its subscriptions' watermarks; sent by a reactivated runtime to itself.
-    [OneWay] Task CatchUp();
+    [DigitalBrain.OneWayCall] Task CatchUp();
 
     // Reads one source's part log from its subscriptions' watermarks, once the catch-up watched it.
-    [OneWay] Task Read(string source);
+    [DigitalBrain.OneWayCall] Task Read(string source);
 }

@@ -1,27 +1,27 @@
-using Orleans.Concurrency;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // A whole program of one owner: every synapse of an app (or a standalone file's one program). The brain
 // runtime compiles, stores and assigns it in one call, so a write that does not compile never reaches a
 // running behavior.
-[Alias("microsoft.csharp.programs"), DefaultGrainType("microsoft.csharp.runtime")]
-public interface IBrainPrograms : IGrainWithStringKey
+// A plain contract of the brain runtime (06-08); [Internal] as a whole: module code (the Apps runtime, the C# files) assigns
+// programs, no edge caller does.
+[DigitalBrain.Contracts.NeuronAlias("microsoft.csharp.programs"), DigitalBrain.Contracts.DefaultNeuronType("microsoft.csharp.runtime")]
+[DigitalBrain.Access.Internal]
+public interface IBrainPrograms
 {
     // Interleaved: compiling and storing touch none of the runtime's state, so its other calls go on meanwhile;
     // the compiled program is applied in a turn of its own.
-    [AlwaysInterleave] Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
+    [DigitalBrain.Interleaves] Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
     Task Retire(string owner);
     // A pure read: it never waits for a turn in progress.
-    [AlwaysInterleave] Task<ProgramView?> Describe(string owner);
+    [DigitalBrain.Interleaves] Task<ProgramView?> Describe(string owner);
 }
 
-[GenerateSerializer, Alias("microsoft.csharp.program-view")]
 public sealed record ProgramView(
-    [property: Id(0)] string Owner,
-    [property: Id(1)] string Hash,
-    [property: Id(2)] BehaviorView[] Behaviors);
+    string Owner,
+    string Hash,
+    BehaviorView[] Behaviors);
 
 public static class BehaviorIds
 {

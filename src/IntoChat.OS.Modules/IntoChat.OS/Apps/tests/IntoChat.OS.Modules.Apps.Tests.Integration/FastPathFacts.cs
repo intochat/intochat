@@ -1274,6 +1274,8 @@ public sealed class FastPathFacts : IDisposable
             })
             .WithFakeModel(model)
             .WithFakeAppRuntime(runtime)
+            // The scripted brain runtime stand-in is a plain neuron of this assembly (06-08).
+            .WithNeuronModule<FixtureConnectorNeurons>()
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IScriptSandbox>(sandbox);
@@ -1551,11 +1553,11 @@ public sealed class FastPathFacts : IDisposable
     // The fast path's retrieval over the brain's own grains, with the embedding model and cache size the fact picks.
     private static ReactionExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
         int vectorCapacity = ReactionExamples.DefaultVectorCapacity)
-        => new(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), brain.Services.GetRequiredService<IKernel>(),
+        => new(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), brain.Services.GetRequiredService<IKernel>(),
             brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<ReactionExamples>>(), vectorCapacity);
 
     private static Task Script(ITestBrain brain, params BehaviorView[] behaviors)
-        => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain)).AsReference<IScriptedRuntime>().Script(behaviors);
+        => brain.Get<IScriptedRuntime>(BrainRuntimeKeys.For(Brain)).Script(behaviors);
 
     // A pantry synapse the runtime has deployed and keeps running, with its run record.
     private static BehaviorView Ran(string path, long runs, long failures)

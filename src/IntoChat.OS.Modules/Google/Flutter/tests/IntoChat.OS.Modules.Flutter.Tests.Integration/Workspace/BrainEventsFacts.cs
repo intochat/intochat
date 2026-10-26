@@ -8,7 +8,6 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.Extensions.Logging.Abstractions;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 
@@ -19,6 +18,14 @@ public sealed class BrainEventsFacts
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
         return JsonDocument.Parse(stream.Current);
     }
+
+    // The stub publishes the runtime's BrainRuntimeChanged without the CSharp module composed, so its assembly is
+    // registered for the journal here.
+    private static Task<ITestBrain> Start(CancellationToken ct)
+        => TestBrain.Create().WithModule<AppsModule>().WithNeuronModule<StubRuntimeModule>()
+            .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(
+                services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly, typeof(BrainRuntimeChanged).Assembly))
+            .StartAsync(ct);
 
     private static string[] Ids(JsonDocument snapshot)
         => [.. snapshot.RootElement.GetProperty("nodes").EnumerateArray().Select(node => node.GetProperty("id").GetString()!)];
@@ -31,7 +38,7 @@ public sealed class BrainEventsFacts
     public async Task ANewNeuronAppearsInTheBrainStream()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await Start(ct);
         var person = await brain.PersonAsync("growth", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
@@ -56,7 +63,7 @@ public sealed class BrainEventsFacts
     public async Task ASynapseAppearsOnceAnAppsBehaviorSubscribesAndItsAppRuns()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await Start(ct);
         var person = await brain.PersonAsync("wiring", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
@@ -69,7 +76,7 @@ public sealed class BrainEventsFacts
         Assert.Empty(Synapses(first));
         Assert.Equal("Idle", Node(first, appKey).GetProperty("status").GetString());
 
-        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
+        var runtime = brain.Get<IStubRuntime>(BrainRuntimeKeys.For(scope));
         await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
 
         while (true)
@@ -89,14 +96,14 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatCannotBeReadKeepsTheLastSynapsesInsteadOfEmittingADegradedSnapshot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await Start(ct);
         var person = await brain.PersonAsync("degraded", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
         var publisher = IApp.Key(scope, "club");
-        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
+        var runtime = brain.Get<IStubRuntime>(BrainRuntimeKeys.For(scope));
         await runtime.Fail(false);
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
@@ -124,14 +131,14 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatKeepsFailingPastTheTtlStreamsIdleNodesWithoutEdgesAndEdgesReturnWhenItRecoversQuietly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await Start(ct);
         var person = await brain.PersonAsync("stale", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
         var publisher = IApp.Key(scope, "club");
-        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
+        var runtime = brain.Get<IStubRuntime>(BrainRuntimeKeys.For(scope));
         await runtime.Fail(false);
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200)).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
@@ -169,7 +176,7 @@ public sealed class BrainEventsFacts
     public async Task ABrainWithNoRuntimeStreamsItsNeuronsAndNoSynapses()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await Start(ct);
         var person = await brain.PersonAsync("alone", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
@@ -188,39 +195,47 @@ public sealed class BrainEventsFacts
         => snapshot.RootElement.GetProperty("nodes").EnumerateArray().Single(node => node.GetProperty("id").GetString() == id);
 }
 
-[Alias("test.stub-runtime"), DefaultGrainType("test.stub-runtime")]
-public interface IStubRuntime : INeuron
+[DigitalBrain.Contracts.NeuronAlias("test.stub-runtime"), DigitalBrain.Contracts.DefaultNeuronType("microsoft.csharp.runtime")]
+public interface IStubRuntime
 {
     Task Run(string behavior, string neuron, string signal);
     Task Fail(bool failing, bool announce = true);
 }
 
 // Stands where the brain runtime would: it answers Inspect with the subscriptions a test hands it and
-// publishes BrainRuntimeChanged as the real one does.
-[GrainType("microsoft.csharp.runtime")]
-public sealed class StubRuntime : Neuron, IBrainRuntime, IStubRuntime
+// publishes BrainRuntimeChanged as the real one does. A plain neuron (06-08) of the runtime's type.
+[DigitalBrain.Neuron("microsoft.csharp.runtime")]
+public sealed class StubRuntime : DigitalBrain.Neuron, IBrainRuntime, IStubRuntime
 {
     private static readonly ConcurrentDictionary<string, BrainRuntimeSnapshot> Snapshots = new();
 
     private static readonly ConcurrentDictionary<string, bool> Failing = new();
 
+    private string RuntimeId => $"{Id.Brain.Value}/{Id.Key}";
+
     public Task Fail(bool failing, bool announce = true)
     {
-        Failing[this.GetPrimaryKeyString()] = failing;
-        return announce ? PublishAsync(new BrainRuntimeChanged(this.GetPrimaryKeyString())) : Task.CompletedTask;
+        Failing[RuntimeId] = failing;
+        return announce ? Publish(new BrainRuntimeChanged(RuntimeId)) : Task.CompletedTask;
     }
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
-        => Failing.GetValueOrDefault(this.GetPrimaryKeyString())
+        => Failing.GetValueOrDefault(RuntimeId)
             ? Task.FromException<BrainRuntimeSnapshot>(new InvalidOperationException("runtime unavailable"))
-            : Task.FromResult(Snapshots.GetValueOrDefault(this.GetPrimaryKeyString()) ?? new(SessionStatus.None, null, null, null, []));
+            : Task.FromResult(Snapshots.GetValueOrDefault(RuntimeId) ?? new(SessionStatus.None, null, null, null, []));
 
     public Task Touch(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public async Task Run(string behavior, string neuron, string signal)
     {
-        Snapshots[this.GetPrimaryKeyString()] = new(SessionStatus.Connected, "session", null, null,
+        Snapshots[RuntimeId] = new(SessionStatus.Connected, "session", null, null,
             [new BehaviorView(behavior, "hash", "Running", null, [new CSharpSubscriptionView(neuron, signal, 0, 0, 0)])]);
-        await PublishAsync(new BrainRuntimeChanged(this.GetPrimaryKeyString()));
+        await Publish(new BrainRuntimeChanged(RuntimeId));
     }
+}
+
+[DigitalBrain.Module("test.stub-runtime")]
+public sealed class StubRuntimeModule : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

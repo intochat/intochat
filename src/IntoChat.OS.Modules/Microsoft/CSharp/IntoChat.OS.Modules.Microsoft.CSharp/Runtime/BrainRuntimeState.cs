@@ -16,10 +16,11 @@ internal sealed record ProgramAssignment(
     [property: Id(4)] BehaviorAssembly[] Behaviors,
     [property: Id(5)] StringEntry[] SettingEntries)
 {
-    public ProgramAssignment(string owner, string hash, IEnumerable<KeyValuePair<string, string>> settings, CallerContext? principal, BehaviorAssembly[] behaviors)
-        : this(owner, hash, null, principal, behaviors, StringEntry.From(settings)) { }
+    // A factory, not a second constructor: the runtime's state is JSON (06-08), which binds one constructor.
+    public static ProgramAssignment Of(string owner, string hash, IEnumerable<KeyValuePair<string, string>> settings, CallerContext? principal, BehaviorAssembly[] behaviors)
+        => new(owner, hash, null, principal, behaviors, StringEntry.From(settings));
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Settings => StringEntry.ToMap(SettingEntries, LegacySettings);
 }
 
@@ -53,14 +54,14 @@ internal sealed record BrainRuntimeState
     [Id(5)] public StringEntry[] InitializedEntries { get; init; } = [];
     [Id(6)] public StringEntry[] AssignmentRevisionEntries { get; init; } = [];
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Initialized
     {
         get => StringEntry.ToMap(InitializedEntries, LegacyInitialized);
         init { InitializedEntries = StringEntry.From(value); LegacyInitialized = null; }
     }
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> AssignmentRevisions
     {
         get => StringEntry.ToMap(AssignmentRevisionEntries, LegacyAssignmentRevisions);

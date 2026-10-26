@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 namespace IntoChat.OS.Modules.Apps;
 
 // Runs a csharp app as one program of its brain's runtime. The app key's brain scope names the runtime.
-internal sealed class CSharpAppRuntime(IGrainFactory grains) : IAppRuntime
+internal sealed class CSharpAppRuntime(IntoChat.OS.Runtime.IPlainNeurons plain) : IAppRuntime
 {
     public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
     {
@@ -23,6 +23,6 @@ internal sealed class CSharpAppRuntime(IGrainFactory grains) : IAppRuntime
         var brain = BrainKey.BrainOf(appKey);
         if (brain.Length == 0 || !appKey.StartsWith(brain + "/apps/", StringComparison.Ordinal))
         { throw new ArgumentException("An app key is {brain}/apps/{name}.", nameof(appKey)); }
-        return grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(brain));
+        return plain.Get<IBrainPrograms>(BrainRuntimeKeys.For(brain));
     }
 }

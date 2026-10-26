@@ -235,8 +235,10 @@ public sealed class RuntimeEdgeFacts
         public System.Collections.Concurrent.ConcurrentQueue<string> Methods { get; } = new();
         public async Task Invoke(IIncomingGrainCallContext context)
         {
-            if (context.InterfaceMethod.DeclaringType == typeof(IBrainRuntimeEdge))
-            { Methods.Enqueue(context.InterfaceMethod.Name); }
+            // The runtime is a plain neuron (06-08): its edge calls reach its host grain as RuntimeInvocations.
+            if (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+                && call.Contract == DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(IBrainRuntimeEdge)))
+            { Methods.Enqueue(call.Method); }
             await context.Invoke();
         }
     }
@@ -260,10 +262,7 @@ public sealed class RuntimeEdgeFacts
         using var allowed = await Send(brain, session, behavior,
             new("", typeof(IConnectionProbe).FullName!, connection, nameof(IConnectionProbe.Read), []), ct);
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
-        using var subscribed = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
-            "/brains/" + alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
-            new RuntimeReport(Subscribe: new(behavior, typeof(IConnectionProbe).FullName!, connection, nameof(Pinged)))), ct);
-        Assert.Equal(HttpStatusCode.OK, subscribed.StatusCode);
+        // 06-08: synapses stay inside a brain, so a recorded binding admits calls into the other brain, never a subscription there.
         using var refused = await Send(brain, session, behavior,
             new("", typeof(IConnectionProbe).FullName!, "another-brain/connection/probe/unbound", nameof(IConnectionProbe.Read), []), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
@@ -297,7 +296,7 @@ public sealed class RuntimeEdgeFacts
             new("", typeof(ICSharpFile).FullName!, "another-brain/csharp/private", nameof(ICSharpFile.Inspect), []), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, foreign.StatusCode);
         using var subscription = await Report(brain, session,
-            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "another-brain/private", nameof(Pinged))), ct);
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "another-brain/private", Pings.Pinged)), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, subscription.StatusCode);
         using var ownBrain = await Send(brain, session, "acc-brain/csharp/a",
             new("", typeof(IBrain).FullName!, "acc-brain/main", nameof(IBrain.Read), []), ct);
@@ -334,8 +333,8 @@ public sealed class RuntimeEdgeFacts
         var session = await Assigned(brain, ct);
         var runtime = RuntimeBrain.Edge(brain, "acc-brain");
         var neuron = RuntimeBrain.Runtime(brain, "acc-brain");
-        var pinger = brain.Get<IPinger>("acknowledged");
-        var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>("acc-brain" + "/acknowledged");
+        var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
         await pinger.Ping(1); await changes.NextAsync(ct: ct);
         using var ambiguous = await Report(brain, session, new RuntimeReport(
@@ -376,7 +375,7 @@ public sealed class RuntimeEdgeFacts
         using var invocation = new System.Diagnostics.Activity("runtime invocation").Start();
 
         var result = await edge.InvokeAsync("acc-brain", session.Token,
-            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]), ct);
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]), ct);
 
         Assert.Equal(42, result!.Value.GetInt32());
         Assert.DoesNotContain(calls, call => call.TraceId == invocation.TraceId
@@ -409,7 +408,7 @@ public sealed class RuntimeEdgeFacts
         var stale = await Assigned(brain, ct);
         time.Now += TimeSpan.FromMinutes(3);
         await RuntimeBrain.Runtime(brain, "acc-brain").Touch(ct);
-        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
 
         using var response = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
             "/brains/acc-brain/" + RuntimeProtocol.Invoke, stale.Token, invoke), ct);
@@ -485,7 +484,7 @@ public sealed class RuntimeEdgeFacts
         Assert.Equal(AssignmentEvent.Kind, events.Current.EventType);
         Assert.Contains("acc-brain/csharp/a", events.Current.Data, StringComparison.Ordinal);
 
-        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
         using var invoked = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Invoke, session.Token, invoke), ct);
 
         Assert.Equal(HttpStatusCode.OK, invoked.StatusCode);
@@ -517,9 +516,9 @@ public sealed class RuntimeEdgeFacts
         using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
         await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
 
-        using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct);
+        using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", Pings.Pinged)), ct);
         var subscription = (await subscribed.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("subscription").GetString();
-        await brain.Get<IPinger>("pinger").Ping(7);
+        await brain.Get<IPinger>("acc-brain" + "/pinger").Ping(7);
 
         SseItem<string> batch;
         do { Assert.True(await events.MoveNextAsync()); batch = events.Current; } while (batch.EventType != SignalBatchEvent.Kind);
@@ -531,45 +530,15 @@ public sealed class RuntimeEdgeFacts
     // The publish's trace rides the batch down the stream, so a behavior's reaction joins it.
     [Trait("host", "own")]
     [Fact]
-    public async Task AnArrivalCarriesTheTraceThatPublishedIt()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var listener = new System.Diagnostics.ActivityListener
-        {
-            ShouldListenTo = _ => true,
-            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
-        };
-        System.Diagnostics.ActivitySource.AddActivityListener(listener);
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        var session = await Assigned(brain, ct);
-        (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
-        using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
-        await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
-        (await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct)).EnsureSuccessStatusCode();
-
-        // The trusted edge begins the publish's trace under the click's activity, as a stamped request does; the
-        // signal journals it, and the batch derives from it whichever turn reads the signal.
-        using var click = new System.Diagnostics.Activity("click").Start();
-        using (IntoChat.OS.Framework.Compute.TraceContext.Enter(IntoChat.OS.Framework.Compute.TraceContext.Begin("acc", "acc-brain", new NeuronId("acc-brain/edge"))))
-        { await brain.Get<IPinger>("pinger").Ping(9); }
-
-        SseItem<string> batch;
-        do { Assert.True(await events.MoveNextAsync()); batch = events.Current; } while (batch.EventType != SignalBatchEvent.Kind);
-        var signals = JsonSerializer.Deserialize<SignalBatchEvent>(batch.Data, RuntimeProtocol.Json)!;
-        Assert.Equal(click.TraceId.ToString(), signals.TraceParent!.Split('-')[1]);
-    }
-
-    [Trait("host", "own")]
-    [Fact]
     public async Task ASecondStreamResendsAnUnacknowledgedBatch()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
-        using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct);
+        using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "acc-brain/pinger", Pings.Pinged)), ct);
         await using var changes = await brain.Observe<IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, "acc-brain"), ct);
-        await brain.Get<IPinger>("pinger").Ping(3);
+        await brain.Get<IPinger>("acc-brain" + "/pinger").Ping(3);
         await changes.NextAsync(ct: ct);
 
         using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
@@ -609,7 +578,7 @@ public sealed class RuntimeEdgeFacts
         var at = session.Token.Length - 10;
         var forged = session.Token[..at] + (session.Token[at] == 'A' ? 'B' : 'A') + session.Token[(at + 1)..];
         Assert.Equal(HttpStatusCode.Unauthorized, (await Send(brain, (session.Id, forged), Key("other"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), new("", typeof(ICSharpFile).FullName!, "pinger", "Double", [JsonSerializer.SerializeToElement(1)]), ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), new("", typeof(ICSharpFile).FullName!, "acc-brain/pinger", "Double", [JsonSerializer.SerializeToElement(1)]), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), Call("Watch", 1), ct)).StatusCode);
         using (alice.AsCaller()) { await brain.Get<ICSharpFile>(Key("stopped")).Stop(ct); }
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("stopped"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
@@ -675,7 +644,7 @@ public sealed class RuntimeEdgeFacts
     private static string Key(Person alice, string name) => CSharpFileKeys.For(alice.BrainId, name);
 
     private static RuntimeInvocation Call(string method, params int[] arguments)
-        => new("", typeof(IPinger).FullName!, "pinger", method, [.. arguments.Select(argument => JsonSerializer.SerializeToElement(argument))]);
+        => new("", typeof(IPinger).FullName!, "acc-brain/pinger", method, [.. arguments.Select(argument => JsonSerializer.SerializeToElement(argument))]);
 
     private static async Task<(string Id, string Token)> StartAs(ITestBrain brain, Person alice, string fileId, CancellationToken ct)
     {

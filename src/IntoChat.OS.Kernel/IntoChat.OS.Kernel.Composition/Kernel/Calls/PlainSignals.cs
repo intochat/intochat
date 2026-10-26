@@ -36,11 +36,16 @@ internal sealed class PlainSignals(IGrainFactory grains, IServiceProvider servic
 
         public Task Unsubscribe(global::DigitalBrain.NeuronId source) => session.Unsubscribe(source);
 
+        // A poll whose answer timed out reads as an empty one: the caller polls again with the same ack and the session sends the
+        // batch it cut into the lost answer again, so a slow silo delays signals instead of ending the subscription.
         public async Task<PlainSignalBatch?> Next(long acked, CancellationToken cancellationToken)
-            => await session.Next(acked, cancellationToken).ConfigureAwait(false) is { } batch
-                ? new PlainSignalBatch(batch.Number, [.. batch.Signals.Select(signal =>
-                    new PlainSignalEntry(signal.Source, signal.Sequence, signal.Alias, signal.Payload.GetRawText(), signal.At))])
-                : null;
+        {
+            SessionBatch? batch;
+            try { batch = await session.Next(acked, cancellationToken).ConfigureAwait(false); }
+            catch (TimeoutException) when (!cancellationToken.IsCancellationRequested) { return null; }
+            return batch is null ? null : new PlainSignalBatch(batch.Number, [.. batch.Signals.Select(signal =>
+                new PlainSignalEntry(signal.Source, signal.Sequence, signal.Alias, signal.Payload.GetRawText(), signal.At))]);
+        }
 
         public Task End() => session.End();
     }

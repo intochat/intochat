@@ -1,16 +1,14 @@
-using IntoChat.OS;
-using Orleans.Concurrency;
-using Orleans.Metadata;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // One per brain: the behaviors it wants running, their durable subscriptions, and the one sandbox
 // session that runs them all.
-[Alias("microsoft.csharp.runtime"), DefaultGrainType("microsoft.csharp.runtime")]
-public interface IBrainRuntime : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("microsoft.csharp.runtime"), DigitalBrain.Contracts.DefaultNeuronType("microsoft.csharp.runtime")]
+public interface IBrainRuntime
 {
     // A pure read: it never waits for a turn in progress.
-    [AlwaysInterleave] Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default);
+    [DigitalBrain.Interleaves] Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default);
     // Sign-in and the shell call this: ensures a session when anything is assigned, otherwise nothing.
     Task Touch(CancellationToken cancellationToken = default);
 }

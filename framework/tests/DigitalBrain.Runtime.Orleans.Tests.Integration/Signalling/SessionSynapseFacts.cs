@@ -181,3 +181,29 @@ public sealed class SessionTtlFacts(SessionTtlSilo silo) : IClassFixture<Session
         Assert.DoesNotContain(Session, await registry.Behind(NeuronId.Parse(Source), long.MaxValue));
     }
 }
+
+/// <summary>A session silo whose calls time out after 3 seconds.</summary>
+public sealed class ShortResponseSilo : SessionSilo
+{
+    protected override Action<IServiceCollection>? ConfigureServices
+        => services => services.Configure<global::Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromSeconds(3));
+}
+
+// An idle long-poll answers before its caller's response timeout, so its answer is never dropped as expired and a batch cut into
+// it reaches the caller on that poll (it waited NextTimeout, which equalled the default response timeout).
+public sealed class SessionNextTimeoutFacts(ShortResponseSilo silo) : IClassFixture<ShortResponseSilo>
+{
+    [Fact]
+    public async Task An_idle_Next_returns_null_before_the_silos_response_timeout()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = silo.Session("idle");
+        await session.Subscribe(NeuronId.Parse("b1/probe.counter/session-idle"), ["probe.counted"]);
+
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var batch = await session.Next(0, ct);
+
+        Assert.Null(batch);
+        Assert.InRange(started.Elapsed, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2.9));
+    }
+}

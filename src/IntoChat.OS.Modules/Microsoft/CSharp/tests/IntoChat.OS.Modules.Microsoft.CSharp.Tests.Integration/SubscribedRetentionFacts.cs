@@ -8,8 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
-// AppNeuron retains AppRequested; a synapse that subscribes after its app's requests were published
-// still receives them because Subscribed seeds the new subscription's backlog from that retention.
+// An app's journal is its AppRequested backlog; a synapse that subscribes after its app's requests were published still receives them
+// because Subscribed seeds the new subscription's backlog from it. 06-08: every source is plain; the legacy retention seam
+// (IRetainsSignals) and the facts about which grains were asked for it are gone.
 public sealed class SubscribedRetentionFacts
 {
     private const string Brain = "retention-brain";
@@ -72,32 +73,11 @@ public sealed class SubscribedRetentionFacts
         await using var brain = await RuntimeBrain.StartWithAppsAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("pinger");
+        var pinger = brain.Get<IPinger>(Brain + "/pinger");
 
-        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
 
         Assert.Empty(await Edge(brain).PendingBatches(session));
-    }
-
-    // Whether a source retains is its grain type's to say, from the cluster's manifest: a source that does not is
-    // never asked, rather than answering a failed cast across the cluster for every subscription to it.
-    [Trait("host", "own")]
-    [Fact]
-    public async Task OnlyASourceThatRetainsIsAskedForABacklog()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var asked = new RetentionCalls();
-        await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
-            .ConfigureServices(services => services.AddSingleton<IOutgoingGrainCallFilter>(asked)).StartAsync(ct);
-        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
-        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("silent");
-        var retainer = brain.Get<ISlowRetainer>("asked");
-
-        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
-        await Edge(brain).Subscribed(session, Behavior, retainer.GetGrainId().ToString(), nameof(Pinged));
-
-        Assert.Equal([retainer.GetGrainId().ToString()], asked.Targets);
     }
 
     [Trait("host", "own")]
@@ -148,63 +128,9 @@ public sealed class SubscribedRetentionFacts
         Assert.Equal(1, sub.Dropped);
     }
 
-    [Trait("host", "own")]
-    [Fact]
-    public async Task ASubscriptionIsSeededWhileItsSourceIsInALongTurn()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartWithAppsAsync(new FakeSessionHost(), ct);
-        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
-        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var source = brain.Get<ISlowRetainer>("slow");
-        var turn = source.HoldThenPublish();
-        await SlowRetainer.Entered.Task.WaitAsync(ct);
-
-        await Edge(brain).Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
-
-        SlowRetainer.Release.SetResult();
-        await turn;
-    }
-
-    // Every backlog request the brain's grains send, by target.
-    private sealed class RetentionCalls : IOutgoingGrainCallFilter
-    {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _targets = new();
-
-        public string[] Targets => [.. _targets];
-
-        public Task Invoke(IOutgoingGrainCallContext context)
-        {
-            if (context.InterfaceMethod?.DeclaringType == typeof(IRetainsSignals)) { _targets.Enqueue(context.TargetId.ToString()); }
-            return context.Invoke();
-        }
-    }
-
     private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);
 
     private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Brain);
 
     private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
-}
-// A source that retains and is busy: its turn holds until released, the way a neuron mid-publish waits
-// on the runtime.
-[Alias("tests.csharp.slow-retainer")]
-public interface ISlowRetainer : IRetainsSignals
-{
-    Task HoldThenPublish();
-}
-
-public sealed class SlowRetainer : Neuron, ISlowRetainer
-{
-    public static TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    public Task<RetainedSignal[]> Retained(string signal, long since) => Task.FromResult<RetainedSignal[]>([]);
-
-    public async Task HoldThenPublish()
-    {
-        Entered.SetResult();
-        await Release.Task;
-        await PublishAsync(new Pinged(1));
-    }
 }
