@@ -54,9 +54,10 @@ public sealed class ConnectionNeuronFacts
         Assert.DoesNotContain("hunter2", System.Text.Json.JsonSerializer.Serialize(await connection.Read()), StringComparison.Ordinal);
         Assert.Equal("len:7", await brain.Get<IExample>(Key(alice)).Echo());
         Assert.Equal("hunter2", await brain.Get<IExample>(Key(alice)).SeenValue());
-        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
+        // The connection is a plain neuron (06-08): its state is stored under its host grain.
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
         var state = new GrainState<ExampleState>();
-        await storage.ReadStateAsync("example", brain.Get<IExample>(Key(alice)).GetGrainId(), state);
+        await storage.ReadStateAsync("example", Orleans.Runtime.GrainId.Create("neuron.host", ConnectionGrains.IdFor(Key(alice)).ToString()), state);
         Assert.True(state.RecordExists);
         var sealed_ = Assert.Single(state.State!.Secrets);
         Assert.Equal("value", sealed_.Name);
@@ -129,10 +130,10 @@ public sealed class ConnectionNeuronFacts
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var bob = await brain.PersonAsync("bob", TestContext.Current.CancellationToken);
         using (bob.AsCaller())
-        { await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Grains.GetConnectionInbound(Key(alice)).AcceptGrant(grant)); }
+        { await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Plain.GetConnectionInbound(Key(alice)).AcceptGrant(grant)); }
         using (alice.AsCaller())
         {
-            var view = await brain.Grains.GetConnectionInbound(Key(alice)).AcceptGrant(grant);
+            var view = await brain.Plain.GetConnectionInbound(Key(alice)).AcceptGrant(grant);
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             Assert.Equal(grant.ExpiresAt, view.ExpiresAt);
         }
@@ -219,7 +220,7 @@ public sealed class ConnectionNeuronFacts
             .StartAsync(ct);
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();
-        var inbound = brain.Grains.GetConnectionInbound(Key(alice));
+        var inbound = brain.Plain.GetConnectionInbound(Key(alice));
         var example = brain.Get<IExample>(Key(alice));
         await inbound.AcceptGrant(new("oauth", "access-0", "refresh-0", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
         Assert.Equal("len:8", await example.Echo());

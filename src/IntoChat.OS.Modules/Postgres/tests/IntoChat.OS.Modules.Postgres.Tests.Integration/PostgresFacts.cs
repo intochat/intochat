@@ -18,7 +18,7 @@ public sealed class PostgresFacts(PostgresHost host)
     public async Task ParametersAreBoundNotInterpolated()
     {
         var brain = host.Brain;
-        var result = await brain.Get<IPostgresServer>("default")
+        var result = await brain.Get<IPostgresServer>("system/default")
             .Query(new("select id from people where country = $1", 10, [new("country", "u's; drop table people")]));
         Assert.Equal(1, result.RowCount);
     }
@@ -28,14 +28,14 @@ public sealed class PostgresFacts(PostgresHost host)
     {
         var brain = host.Brain;
         var many = Enumerable.Range(0, 17).Select(i => new PostgresParameter($"p{i}", "x")).ToArray();
-        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new("select 1", 10, many)));
+        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("system/default").Query(new("select 1", 10, many)));
     }
 
     [Fact]
     public async Task QueryReturnsTypedRowsThroughTheDefaultGrainType()
     {
         var brain = host.Brain;
-        var result = await brain.Get<IPostgresServer>("default").Query(new(" select id from people; ", 10));
+        var result = await brain.Get<IPostgresServer>("system/default").Query(new(" select id from people; ", 10));
         Assert.Equal(1, result.RowCount);
         Assert.False(result.Truncated);
         Assert.Equal("id", Assert.Single(result.Columns).Name);
@@ -46,7 +46,7 @@ public sealed class PostgresFacts(PostgresHost host)
     public async Task InvalidQueriesAreRejectedBeforeDatabaseAccess()
     {
         var brain = host.Brain;
-        var postgres = brain.Get<IPostgresServer>("default");
+        var postgres = brain.Get<IPostgresServer>("system/default");
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new(" ")));
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("delete from people")));
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("select 1", 0)));
@@ -58,7 +58,7 @@ public sealed class PostgresFacts(PostgresHost host)
     public async Task SchemaAndConnectionAreAvailableThroughTheNeuron()
     {
         await using var brain = await StartAsync("reporting");
-        var postgres = brain.Get<IPostgresServer>("default");
+        var postgres = brain.Get<IPostgresServer>("system/default");
         var schema = await postgres.ReadSchema(new(" reporting.people "));
         Assert.Equal("reporting.people", Assert.Single(schema.Tables).Name);
         var connection = await postgres.ReadConnection();
@@ -114,7 +114,7 @@ public sealed class PostgresFacts(PostgresHost host)
     public async Task InvalidSchemaNameIsRejected()
     {
         var brain = host.Brain;
-        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").ReadSchema(new("people; drop table people")));
+        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("system/default").ReadSchema(new("people; drop table people")));
     }
 
     [Fact]

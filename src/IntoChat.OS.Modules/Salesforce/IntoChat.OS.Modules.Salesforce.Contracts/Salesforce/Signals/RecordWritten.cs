@@ -2,5 +2,5 @@ using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Salesforce.Signals;
 
-[GenerateSerializer, Alias("salesforce.record-written")]
-public sealed record RecordWritten([property: Id(0)] SalesforceWritePreview Preview) : Signal;
+[DigitalBrain.Signal("salesforce.record-written")]
+public sealed record RecordWritten(SalesforceWritePreview Preview) : DigitalBrain.Signal;

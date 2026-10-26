@@ -18,5 +18,5 @@ public interface IAuthorityGrains
     IConnectionInbound ConnectionInbound(string connectionKey);
 
     // A caller-supplied key resolves through the manifest check, never straight to a grain type.
-    T CallerConnection<T>(IServiceProvider services, string connectionKey) where T : IGrainWithStringKey;
+    T CallerConnection<T>(IServiceProvider services, string connectionKey) where T : class;
 }

@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Salesforce.Signals;
 
 namespace IntoChat.OS.Modules.Salesforce;
 
-[GrainType("salesforce")]
+[DigitalBrain.Neuron("salesforce", State = "salesforce")]
 internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
@@ -19,17 +19,13 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
 
     private readonly ISalesforceProvider _provider;
     private readonly TimeProvider _time;
-    private readonly IPersistentState<SalesforceState> _state;
 
     public SalesforceNeuron(
         ISalesforceProvider provider,
-        TimeProvider time,
-        [PersistentState("salesforce", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SalesforceState> state)
-        : base(state)
+        TimeProvider time)
     {
         _provider = provider;
         _time = time;
-        _state = state;
     }
 
     // The token response names the org: its instance URL must be HTTPS. Another org drops the old org's writes.
@@ -108,7 +104,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         var preview = new SalesforceWritePreview(
             Guid.NewGuid().ToString("n"), command.Tool, schema.SchemaHash!, command.Arguments, _time.GetUtcNow().AddMinutes(10));
         Snapshot.PendingWrite = preview;
-        await Save(Snapshot, new SalesforceWritePrepared(preview));
+        await Commit(Snapshot, new SalesforceWritePrepared(preview));
         return preview;
     }
 
@@ -127,7 +123,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         if (schema.Reason is not null)
         {
             Snapshot.PendingWrite = null;
-            await _state.WriteStateAsync();
+            await SaveQuietly(Snapshot);
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return preview;
         }
@@ -139,7 +135,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
 
         Snapshot.PendingWrite = null;
         Snapshot.SubmittingWrite = preview;
-        await _state.WriteStateAsync();
+        await SaveQuietly(Snapshot);
         try
         {
             var recordId = await SubmitWriteAsync(preview, CancellationToken.None);
@@ -148,7 +144,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         finally
         {
             Snapshot.SubmittingWrite = null;
-            await _state.WriteStateAsync();
+            await SaveQuietly(Snapshot);
         }
     }
 

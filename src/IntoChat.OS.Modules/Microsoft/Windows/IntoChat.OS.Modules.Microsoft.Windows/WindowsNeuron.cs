@@ -15,11 +15,10 @@ internal sealed class WindowsConnectionState : ConnectionState
 // The connection to one Windows PC. Its key names the machine; only a silo whose machine id matches serves it,
 // and connecting proves the device value is this very machine. As storage, every location is confined
 // to the allowed roots, read fresh on every call.
-[GrainType("windows")]
+[DigitalBrain.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
-    IMachineIdentity identity,
-    [PersistentState("windows", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<WindowsConnectionState> store)
-    : ConnectionNeuron<WindowsConnectionState>(store), IWindows, IStorage
+    IMachineIdentity identity)
+    : ConnectionNeuron<WindowsConnectionState>, IWindows, IStorage
 {
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
         identity.Id, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,
@@ -85,16 +84,11 @@ internal sealed class WindowsNeuron(
         if (Key.Connection != identity.Id)
         { throw new ServiceUnavailableException($"Windows machine '{Key.Connection}' is not this silo's machine."); }
     }
-}
 
-// Neuron seals OnActivateAsync, so the machine check runs as an activation handler: an activation for
-// another machine fails before any call (Facts, Connect, Probe) reaches the neuron.
-internal sealed class WindowsActivation : IActivationHandler<WindowsNeuron>
-{
-    public Task Activated(WindowsNeuron neuron, CancellationToken cancellationToken)
+    // An activation for another machine fails before any call (Facts, Connect, Probe) reaches the neuron.
+    protected override Task Activated(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(neuron);
-        neuron.RequireThisMachine();
+        RequireThisMachine();
         return Task.CompletedTask;
     }
 }

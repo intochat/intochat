@@ -10,5 +10,6 @@ internal static class BrainGrains
     {
         public AuthorityNeurons Platform => brain.Services.GetRequiredService<AuthorityNeurons>();
         public IGrainFactory Grains => brain.Services.GetRequiredService<IGrainFactory>();
+        public IntoChat.OS.Runtime.IPlainNeurons Plain => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
     }
 }

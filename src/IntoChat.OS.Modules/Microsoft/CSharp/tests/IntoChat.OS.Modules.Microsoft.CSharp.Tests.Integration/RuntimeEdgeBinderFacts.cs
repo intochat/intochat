@@ -69,5 +69,7 @@ public sealed class RuntimeEdgeBinderFacts
             Asked.Enqueue((contract, fullKey));
             return inner.Get(contract, fullKey);
         }
+
+        public object Get(Type contract, DigitalBrain.NeuronId id) => inner.Get(contract, id);
     }
 }

@@ -7,9 +7,10 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Connections.Platform.Connections;
 
 // Every connector's connection neuron derives from this. The credential is sealed state; the hooks
-// receive it opened for one provider call inside the grain turn and never return it.
-public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) : Neuron<TState>(store), IConnection, IConnectionInbound
-    where TState : ConnectionState
+// receive it opened for one provider call inside the turn and never return it. A plain neuron (06-08): its state is the
+// connector's ConnectionState record (clean break, R4-24: users connect again).
+public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IConnection, IConnectionInbound
+    where TState : ConnectionState, new()
 {
     private const string ValueSecret = "value";
     private const string AccessSecret = "access";
@@ -19,12 +20,67 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     private (string Brain, string Connector, string Connection)? _key;
     protected (string Brain, string Connector, string Connection) Key => _key ??= OwnKey();
 
+    // The state, as the connectors read and change it in place before a save.
+    protected TState Snapshot => State;
+
+    // The os full key "{brain}/{key}" the neuron was addressed by as a grain.
+    protected string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+
+    protected IServiceProvider ServiceProvider => Context.Services;
+
+    // The Authority's per-brain connection grains (index, catalog) are still raw grains.
+    protected IGrainFactory GrainFactory => Context.Services.GetRequiredService<IGrainFactory>();
+
+    // Facts fault the writes of a connection here (IConnectionWriteFaults); a production silo registers none.
+    private IConnectionWriteFaults? Faults => Context.Services.GetService<IConnectionWriteFaults>();
+
+    protected async Task PublishAsync(DigitalBrain.Signal signal)
+    {
+        var faults = Faults;
+        if (faults is not null) { await faults.BeforeWrite(FullKey, null, [signal]); }
+        await Publish(signal);
+        if (faults is not null) { await faults.AfterWrite(FullKey, null, [signal]); }
+    }
+
+    // Every save of a connection: the state and its signals as one journal entry.
+    protected async Task Commit(TState next, params DigitalBrain.Signal[] signals)
+    {
+        var faults = Faults;
+        if (faults is not null) { await faults.BeforeWrite(FullKey, next, signals); }
+        await Save(next, signals);
+        if (faults is not null) { await faults.AfterWrite(FullKey, next, signals); }
+    }
+
+    // There is no save without a signal (06-08): a change that moves no status says the connection was updated.
+    protected Task SaveQuietly(TState next) => Commit(next, new ConnectionUpdated(Key.Connector, Key.Connection));
+
+    // The state as loaded is the facts' view of the last committed state; the connector's own activation runs after.
+    protected sealed override Task OnActivate(CancellationToken cancellationToken)
+    {
+        Faults?.Loaded(FullKey, State);
+        return Activated(cancellationToken);
+    }
+
+    protected virtual Task Activated(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    // The connectors change the live state in place before a save; a save that failed puts the values it held back
+    // (a plain neuron's State has no setter, so the copy is member by member).
+    protected void Restore(TState before)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        foreach (var property in typeof(TState).GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+        {
+            if (property is { CanRead: true, CanWrite: true } && property.GetIndexParameters().Length == 0)
+            { property.SetValue(Snapshot, property.GetValue(before)); }
+        }
+    }
+
     // ConnectionGrains resolves a key by its connector, so the connector is this neuron's grain type;
     // a key reaching another type (an explicit GetGrain) is refused rather than served as the wrong connector.
     private (string, string, string) OwnKey()
     {
-        var key = ConnectionKeys.Parse(this.GetPrimaryKeyString());
-        if (key.ConnectorId != this.GetGrainId().Type.ToString())
+        var key = ConnectionKeys.Parse(FullKey);
+        if (key.ConnectorId != Id.Type)
         { throw new ArgumentException("A connection key must name the connector this neuron serves.", "key"); }
         return key;
     }
@@ -45,7 +101,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     protected virtual Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
         => credential.Refresh is null
             ? throw new InvalidOperationException("The connection has no refresh token.")
-            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(this.GetPrimaryKeyString(), Snapshot.AuthMethodId, credential.Refresh, ct);
+            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(FullKey, Snapshot.AuthMethodId, credential.Refresh, ct);
 
     protected virtual Task OnConnectedAsync() => Task.CompletedTask;
     protected virtual Task OnDisconnectedAsync() => Task.CompletedTask;
@@ -115,7 +171,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         Snapshot.ExpiresAt = null;
         Snapshot.Account = null;
         await Transition(ConnectionStatus.Disconnected, null, notifyCatalog: false);
-        await GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Untrack(this.GetPrimaryKeyString());
+        await GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Untrack(FullKey);
         await NotifyCatalog();
     }
 
@@ -270,20 +326,20 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     {
         Snapshot.Status = status;
         Snapshot.Detail = detail;
-        Signal signal = status switch
+        DigitalBrain.Signal signal = status switch
         {
             ConnectionStatus.Connected => new ConnectionConnected(Key.Connector, Key.Connection, Snapshot.AuthMethodId, Snapshot.Account),
             ConnectionStatus.Expired => new ConnectionExpired(Key.Connector, Key.Connection),
             ConnectionStatus.Failing => new ConnectionFailing(Key.Connector, Key.Connection, detail ?? ""),
             _ => new ConnectionDisconnected(Key.Connector, Key.Connection),
         };
-        await Save(Snapshot, signal);
+        await Commit(Snapshot, signal);
         if (notifyCatalog) { await NotifyCatalog(); }
     }
 
-    private Task NotifyCatalog() => GrainFactory.GetGrain<IConnectionCatalogUpdates>(Key.Brain).Changed(this.GetPrimaryKeyString());
+    private Task NotifyCatalog() => GrainFactory.GetGrain<IConnectionCatalogUpdates>(Key.Brain).Changed(FullKey);
 
-    private Task Track() => GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Track(this.GetPrimaryKeyString());
+    private Task Track() => GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Track(FullKey);
 
     private void RequireAuthMethod(string authMethodId)
     {

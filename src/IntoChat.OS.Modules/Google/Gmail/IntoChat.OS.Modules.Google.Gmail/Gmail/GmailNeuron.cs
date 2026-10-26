@@ -11,12 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-[GrainType("gmail")]
-internal sealed partial class GmailNeuron(
-    [PersistentState("gmail", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<GmailState> store)
-    : ConnectionNeuron<GmailState>(store), IGmail, IGmailInbound
+[DigitalBrain.Neuron("gmail", State = "gmail")]
+internal sealed partial class GmailNeuron()
+    : ConnectionNeuron<GmailState>, IGmail, IGmailInbound
 {
-    private readonly IPersistentState<GmailState> _store = store;
     private sealed record ToolAvailability(bool AcceptedMailbox, bool DraftReceipts);
     private volatile ToolAvailability _toolAvailability = new(false, false);
     private bool _grantAcceptancePending;
@@ -56,11 +54,10 @@ internal sealed partial class GmailNeuron(
         {
             if (!_grantWriteCommitted)
             {
-                _store.State = before;
-                // A failed acknowledgement may hide a successful write. Reload before any new turn.
+                Restore(before);
+                // A failed acknowledgement may hide a successful write: the grant stays pending until a save commits.
                 _grantAcceptancePending = true;
                 PublishToolAvailability();
-                DeactivateOnIdle();
             }
             throw;
         }
@@ -150,11 +147,11 @@ internal sealed partial class GmailNeuron(
         var trace = TraceContext.Current;
         if (trace is not null && (trace.BrainId != Key.Brain || trace.PayerAccountId != caller.AccountId))
         { throw new UnauthorizedAccessException("The Gmail invocation trace does not belong to the trusted caller."); }
-        return TraceContext.Enter(trace ?? TraceContext.Begin(caller.AccountId, Key.Brain, Id));
+        return TraceContext.Enter(trace ?? TraceContext.Begin(caller.AccountId, Key.Brain, new IntoChat.OS.NeuronId(FullKey)));
     }
 
     private GoogleCallContext NewCallContext(string? invocationId = null)
-        => new(Funding.OwnConnection, new(Neuron: this.GetPrimaryKeyString()), invocationId ?? Guid.NewGuid().ToString("N"));
+        => new(Funding.OwnConnection, new(Neuron: FullKey), invocationId ?? Guid.NewGuid().ToString("N"));
 
     private GmailFailure? GrantFailure(bool compose = false)
     {

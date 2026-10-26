@@ -143,7 +143,7 @@ public sealed class GmailDraftFacts
     }
 
     private static Task<ConnectionView> Grant(ITestBrain brain, string key, string scopes)
-        => brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "fixture-access", "fixture-refresh",
+        => brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "fixture-access", "fixture-refresh",
             DateTimeOffset.UtcNow.AddDays(7), scopes, null, "{}"));
 
     [Fact, Trait("host", "own")]

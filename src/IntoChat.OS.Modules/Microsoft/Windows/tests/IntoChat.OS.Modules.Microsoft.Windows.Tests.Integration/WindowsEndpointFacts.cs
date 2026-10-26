@@ -93,17 +93,24 @@ public sealed class WindowsEndpointFacts(WindowsMachineHost shared)
 public sealed class OtherStorageModule() : Module(new ModuleId("other-storage"))
 {
     public static ConnectorDefinition Connector => new("other-storage", "Other storage", ["api-key"], []) { Neurons = [typeof(IOtherStorage)] };
+    public override Type? Neurons => typeof(OtherStorageNeurons);
     public override void Configure(ISiloBuilder silo) { }
 }
 
-[Alias("other-storage"), global::Orleans.Metadata.DefaultGrainType("other-storage")]
-public interface IOtherStorage : INeuron { }
+[DigitalBrain.Contracts.NeuronAlias("other-storage"), DigitalBrain.Contracts.DefaultNeuronType("other-storage")]
+public interface IOtherStorage { }
 
-[GrainType("other-storage")]
-internal sealed class OtherStorageNeuron(
-    [PersistentState("other-storage", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ConnectionState> store)
-    : ConnectionNeuron<ConnectionState>(store), IOtherStorage
+[DigitalBrain.Neuron("other-storage", State = "other-storage")]
+internal sealed class OtherStorageNeuron()
+    : ConnectionNeuron<ConnectionState>, IOtherStorage
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
         => Task.FromResult(ConnectionProbeResult.Connected());
+}
+
+// The fact's connection neurons are plain (06-08): this module's assembly [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("other-storage")]
+public sealed class OtherStorageNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

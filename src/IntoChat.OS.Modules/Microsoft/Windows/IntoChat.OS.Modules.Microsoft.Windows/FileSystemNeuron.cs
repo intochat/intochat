@@ -30,6 +30,6 @@ internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFil
         var connection = WindowsKeys.Connection(this.GetPrimaryKeyString());
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        return MachineRoots.Resolve(await GrainFactory.GetGrain<IWindows>(connection).Roots(), path);
+        return MachineRoots.Resolve(await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IWindows>(connection).Roots(), path);
     }
 }

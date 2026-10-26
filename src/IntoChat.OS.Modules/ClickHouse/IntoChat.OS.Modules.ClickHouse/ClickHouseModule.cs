@@ -22,12 +22,10 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
 
     // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
     // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
-        Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest => ClickHouseNeurons.Manifest;
+
+    // The connection neuron is plain (06-08): ClickHouseNeurons' assembly [Neuron] classes run on the runtime's host grains.
+    public override Type? Neurons => typeof(ClickHouseNeurons);
 
     public override bool RequiresContainer => true;
 
@@ -52,4 +50,16 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
         services.TryAddSingleton<IClickHouseSourceFactory, ClickHouseClientSourceFactory>();
         services.AddHealthChecks().AddCheck<ClickHouseHealthCheck>("clickhouse", tags: ["ready"]);
     }
+}
+
+// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module(ClickHouseModule.ManifestName)]
+public sealed class ClickHouseNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
+        Secrets: []);
 }

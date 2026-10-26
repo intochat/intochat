@@ -23,12 +23,10 @@ public sealed partial class DriveModule : Module<DriveModuleOptions>
 {
     public const string ModuleName = DriveScopes.Connector;
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<DriveModuleOptions>()],
-        Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest => DriveNeurons.Manifest;
+
+    // The connection neuron is plain (06-08): DriveNeurons' assembly [Neuron] classes run on the runtime's host grains.
+    public override Type? Neurons => typeof(DriveNeurons);
 
     // Registration still goes through ConnectorDefinition until Plan 05-07 moves Provides onto the manifest.
     public static ConnectorDefinition Connector { get; } = new(DriveScopes.Connector, "Google Drive", [GoogleAuth.Integration], [GoogleAuth.Integration])
@@ -62,3 +60,15 @@ internal static class DriveScopes
 
 [GenerateSerializer, Alias("db.google-drive.unavailable")]
 public sealed class DriveUnavailableException(string message) : InvalidOperationException(message);
+
+// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module(DriveModule.ModuleName)]
+public sealed class DriveNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<DriveModuleOptions>()],
+        Secrets: []);
+}

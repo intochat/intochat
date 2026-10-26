@@ -3,8 +3,8 @@ using System.ComponentModel;
 namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // One Azure subscription, keyed {brain}/connection/azure/{subscriptionId}. Ensure is an idempotent PUT per kind.
-[Alias("azure"), Orleans.Metadata.DefaultGrainType("azure")]
-public interface IAzure : INeuron
+[DigitalBrain.Contracts.NeuronAlias("azure"), DigitalBrain.Contracts.DefaultNeuronType("azure")]
+public interface IAzure
 {
     [Description("Create or update one Azure resource from its spec and return its reference; a second call with the same spec changes nothing.")]
     Task<ResourceRef> Ensure(ResourceSpec spec);

@@ -18,11 +18,10 @@ internal sealed record AzureEnsured(
 
 // The connection to one Azure subscription; its key names the subscription. It remembers what it ensured,
 // so the inventory is readable without listing Azure.
-[GrainType("azure")]
+[DigitalBrain.Neuron("azure", State = "azure")]
 internal sealed class AzureNeuron(
-    IAzureArm arm,
-    [PersistentState("azure", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<AzureConnectionState> store)
-    : ConnectionNeuron<AzureConnectionState>(store), IAzure
+    IAzureArm arm)
+    : ConnectionNeuron<AzureConnectionState>, IAzure
 {
     public async Task<ResourceRef> Ensure(ResourceSpec spec)
     {

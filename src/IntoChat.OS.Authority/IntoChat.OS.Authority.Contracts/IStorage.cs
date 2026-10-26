@@ -6,8 +6,9 @@ namespace IntoChat.OS.Integrations;
 // connector's Capabilities, and its connection neuron (keyed by the connection key) implements
 // IStorage. Locations are opaque to callers: a Windows path, a Drive file id. The empty location
 // is the storage itself, whose children are Roots. Each connector enforces its own confinement.
-[Alias("storage")]
-public interface IStorage : INeuron
+// A plain contract every storage connection implements (06-08): the connection key names its neuron type.
+[DigitalBrain.Contracts.NeuronAlias("storage"), IntoChat.OS.Runtime.ConnectionContract]
+public interface IStorage
 {
     const string Capability = "storage";
 

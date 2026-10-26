@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Orleans.Concurrency;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Access;
@@ -18,10 +17,12 @@ public enum ConnectionStatus
 
 // The connector's edge neuron is the connection: keyed {brain}/connection/{connector}/{id}, it owns
 // its credential as sealed state. The shell, the assistant and module tools talk to this face.
-[Alias("connection")]
-public interface IConnection : INeuron
+// A plain contract (06-08) that every connector's neuron implements, so it names no neuron type: the connection key's connector
+// does (ConnectionGrains resolves it, R4-21(2)).
+[DigitalBrain.Contracts.NeuronAlias("connection"), IntoChat.OS.Runtime.ConnectionContract]
+public interface IConnection
 {
-    [ReadOnly] Task<ConnectionView> Read();
+    [DigitalBrain.ReadOnlyCall] Task<ConnectionView> Read();
     Task<ConnectionView> Connect(string authMethodId, string value);
     Task<ConnectionView> Probe();
     Task Disconnect();
@@ -42,21 +43,22 @@ public interface IConnection : INeuron
     // an app of that brain, kept as an alias.
     [Internal] Task ShareInto(string brainId, string app);
 
-    [Internal, AlwaysInterleave] Task<bool> IsSharedInto(string brainId, string app);
+    [Internal, DigitalBrain.Interleaves] Task<bool> IsSharedInto(string brainId, string app);
 
     // R155: the sharing is withdrawn (its sharer left the brain it was shared into).
     [Internal] Task UnshareFrom(string brainId, string app);
 
     [Internal] Task ShareWith(string principalId);
 
-    [Internal, AlwaysInterleave] Task<bool> IsSharedWith(string principalId);
+    [Internal, DigitalBrain.Interleaves] Task<bool> IsSharedWith(string principalId);
 
     [Internal] Task UnshareWith(string principalId);
 }
 
-// Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
-[Alias("connection.inbound")]
-public interface IConnectionInbound : IGrainWithStringKey
+// Reached only by the Platform OAuth callback, which stamps the owner recorded at login start. A plain contract (06-08) of every
+// connection neuron, addressed by the connection key's connector like IConnection.
+[DigitalBrain.Contracts.NeuronAlias("connection.inbound"), IntoChat.OS.Runtime.ConnectionContract]
+public interface IConnectionInbound
 {
     Task<ConnectionView> AcceptGrant(OAuthGrant grant);
 }

@@ -65,11 +65,15 @@ public static class ServerHostingExtensions
         // A Framework module that brings plain neurons names its DigitalBrain module (Module.Neurons, 06-03); it is hosted when
         // the Framework module is selected.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>()).Distinct()];
+        // A connection key addresses only a connector a hosted connection neuron serves (06-08).
+        builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules.Select(static module => module.Assembly)));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
-        // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS.
+        // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS, and every
+        // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
         builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly)
             .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
             .Append(typeof(IBrain).Assembly)
+            .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
             .Distinct()]);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);

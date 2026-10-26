@@ -180,8 +180,8 @@ internal sealed class CircleNeuron(
             var app = IntoChat.OS.Modules.Apps.IApp.Key(CircleBrain, binding.AppName);
             try
             {
-                if (binding.Copy) { await GrainFactory.GetConnection(binding.ConnectionKey).Disconnect(); }
-                else { await GrainFactory.GetConnection(binding.ConnectionKey).UnshareFrom(CircleBrain, app); }
+                if (binding.Copy) { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(binding.ConnectionKey).Disconnect(); }
+                else { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(binding.ConnectionKey).UnshareFrom(CircleBrain, app); }
                 await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IntoChat.OS.Modules.Apps.IApp>(app).Configure([], new() { [binding.Slot] = "" });
             }
             // The gate also requires the sharer to be a member (R155), so a binding not cleared here admits nothing.
@@ -286,19 +286,19 @@ internal sealed class CircleNeuron(
             if (connectionIds.Contains(id, StringComparer.Ordinal))
             {
                 // R147: the circle's own copy holds the definition; R130 seals its credential under the circle key.
-                var view = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).Read());
+                var view = await AsSharer(caller, source, () => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(owned).Read());
                 var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
-                await GrainFactory.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
+                await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
                 // Re-seal the selected credential for the destination brain; neuron calls carry ciphertext.
-                var reSealed = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).ExportFor(CircleBrain));
+                var reSealed = await AsSharer(caller, source, () => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(owned).ExportFor(CircleBrain));
                 if (reSealed.Length > 0)
-                { await GrainFactory.GetConnection(copy).Import(view.AuthMethodId, view.Account, reSealed, ConnectionStatus.Connected, null); }
+                { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(copy).Import(view.AuthMethodId, view.Account, reSealed, ConnectionStatus.Connected, null); }
                 slots[slot.Name] = copy;
                 bindings.Add(new(caller.AccountId, appName, slot.Name, copy, Copy: true));
             }
             else
             {
-                await AsSharer(caller, source, async () => { await GrainFactory.GetConnection(owned).ShareInto(CircleBrain, circleApp); return true; });
+                await AsSharer(caller, source, async () => { await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(owned).ShareInto(CircleBrain, circleApp); return true; });
                 slots[slot.Name] = owned;
                 bindings.Add(new(caller.AccountId, appName, slot.Name, owned, Copy: false));
             }

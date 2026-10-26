@@ -17,7 +17,7 @@ internal static class IntegrationCatalogEndpoints
         // The shell picks from this list, so a connector no connection neuron serves is not offered to it.
         endpoints.MapGet("/connectors", async (HttpContext context, [FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
             CallerContextStamper.TryGet(out _)
-                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnectionGrainType(context.RequestServices, entry.Id)).ToArray())
+                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnector(context.RequestServices, entry.Id)).ToArray())
                 : Results.Unauthorized());
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");

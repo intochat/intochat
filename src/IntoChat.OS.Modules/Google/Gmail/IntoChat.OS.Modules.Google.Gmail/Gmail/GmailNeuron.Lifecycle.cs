@@ -8,16 +8,14 @@ using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Timers;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-internal sealed partial class GmailNeuron : IRemindable
+internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
 {
     internal const string LifecycleReminder = "gmail-lifecycle";
     private static readonly TimeSpan LifecyclePeriod = TimeSpan.FromMinutes(1);
     private const string WatchDetailPrefix = "Gmail push watch ";
-    private IReminderRegistry Reminders => ServiceProvider.GetRequiredService<IReminderRegistry>();
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
@@ -97,12 +95,13 @@ internal sealed partial class GmailNeuron : IRemindable
         await RestoreReminderAsync();
     }
 
-    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    // The lifecycle reminder is the runtime host's durable reminder (06-08: a plain neuron's Context.Reminders).
+    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName != LifecycleReminder) { return; }
         if (!IsGrantReady) { await RemoveReminderAsync(); return; }
         var trace = Snapshot.History?.Wakeup?.Trace ?? Snapshot.History?.Work?.Trace;
-        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, new(this.GetPrimaryKeyString()), async () =>
+        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, new(FullKey), async () =>
         {
             await RecoverLifecycleAsync(CancellationToken.None);
             if (Snapshot.History is { } history && (history.Wakeup is not null || history.Work is not null)
@@ -110,7 +109,7 @@ internal sealed partial class GmailNeuron : IRemindable
             { await ProcessHistoryAsync(CancellationToken.None); }
             await RenewWatchIfDueAsync(CancellationToken.None);
             await RestoreReminderAsync();
-        }, trace);
+        }, trace, CancellationToken.None);
     }
 
     public async Task<GmailPushAcceptance> AcceptWatchPush(GmailWatchPush push)
@@ -275,17 +274,18 @@ internal sealed partial class GmailNeuron : IRemindable
 
     private async Task RestoreReminderAsync()
     {
+        if (DeferReminder()) { return; }
         var needed = IsGrantReady && (Snapshot.Watch is { TopicName: not null, NextActionAt: not null }
             || Snapshot.History is { Work: not null } or { Wakeup: not null });
         if (!needed) { await RemoveReminderAsync(); return; }
-        if (await Reminders.GetReminder(this.GetGrainId(), LifecycleReminder) is null)
-        { await Reminders.RegisterOrUpdateReminder(this.GetGrainId(), LifecycleReminder, LifecyclePeriod, LifecyclePeriod); }
+        if (!(await Context.Reminders.Names()).Contains(LifecycleReminder))
+        { await Context.Reminders.Start(LifecycleReminder, LifecyclePeriod, LifecyclePeriod); }
     }
 
     private async Task RemoveReminderAsync()
     {
-        var reminder = await Reminders.GetReminder(this.GetGrainId(), LifecycleReminder);
-        if (reminder is not null) { await Reminders.UnregisterReminder(this.GetGrainId(), reminder); }
+        if (DeferReminder()) { return; }
+        if ((await Context.Reminders.Names()).Contains(LifecycleReminder)) { await Context.Reminders.Stop(LifecycleReminder); }
     }
 
     private Task SetWatchDetailAsync(string? detail)
@@ -298,9 +298,28 @@ internal sealed partial class GmailNeuron : IRemindable
         if (trace.BrainId != Key.Brain || trace.PayerAccountId != caller.AccountId)
         { throw new UnauthorizedAccessException("The stored Gmail work belongs to another owner."); }
     }
-}
 
-internal sealed class GmailActivation : IActivationHandler<GmailNeuron>
-{
-    public Task Activated(GmailNeuron neuron, CancellationToken cancellationToken) => neuron.RecoverLifecycleAsync(cancellationToken);
+    // Stored Gmail work resumes on activation (06-08: a plain neuron's OnActivate replaces the activation handler).
+    protected override async Task Activated(CancellationToken cancellationToken)
+    {
+        _activating = true;
+        try { await RecoverLifecycleAsync(cancellationToken); }
+        finally { _activating = false; }
+    }
+
+    // The runtime may run activation off the host grain's scheduler, where its reminders cannot be read: the reminder is then
+    // reconciled once from the final state after the activating turn.
+    private bool _activating;
+    private bool _reminderDeferred;
+
+    private bool DeferReminder()
+    {
+        if (!_activating) { return false; }
+        if (!_reminderDeferred)
+        {
+            _reminderDeferred = true;
+            Context.Defer(async () => { _reminderDeferred = false; await RestoreReminderAsync(); });
+        }
+        return true;
+    }
 }

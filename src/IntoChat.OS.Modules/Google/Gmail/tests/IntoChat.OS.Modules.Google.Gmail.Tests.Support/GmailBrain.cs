@@ -51,6 +51,15 @@ public static class GmailBrain
     // Gmail's inbound grain behind the edge is not a neuron; the brain's grain factory reaches it.
     public static IGrainFactory Grains(this ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 
+    // The Gmail connection is a plain neuron (06-08): its durable reminders live on its runtime host grain.
+    public static Orleans.Runtime.GrainId GmailHost(string connectionKey)
+        => Orleans.Runtime.GrainId.Create("neuron.host", IntoChat.OS.Connections.Platform.Connections.ConnectionGrains.IdFor(connectionKey).ToString());
+
+    // Fires the Gmail lifecycle reminder as the reminder service would.
+    public static Task RemindGmail(this ITestBrain brain, string connectionKey, CancellationToken cancellationToken = default)
+        => brain.Grains().GetGrain<IRemindable>(GmailHost(connectionKey)).ReceiveReminder(GmailNeuron.LifecycleReminder, default, cancellationToken);
+    public static IntoChat.OS.Runtime.IPlainNeurons Plain(this ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+
     // The Platform's browser login: start it, then return through its callback with a code.
     public static async Task ConnectAsync(this Person person, string connectionId, CancellationToken ct, string authMethodId = "google-oauth")
     {

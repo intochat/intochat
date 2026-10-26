@@ -35,12 +35,13 @@ public sealed class GitHubRepositoryFacts
         var key = KeyOf(person);
         using (person.AsCaller())
         {
-            await Grains(brain).GetConnectionInbound(key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/intochat-os", "{}"));
+            await Plain(brain).GetConnectionInbound(key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/intochat-os", "{}"));
         }
         return key;
     }
 
     private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+    private static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     // The installation index is a plain neuron in the system brain (06-06d).
     private static IGitHubRepositoryIndex Index(ITestBrain brain, long installation)
@@ -200,7 +201,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct);
         await ConnectAsync(brain);
         var other = await brain.PersonAsync("other", ct);
-        var inbound = Grains(brain).GetConnectionGrain<IGitHubInbound>(Key);
+        var inbound = Plain(brain).Get<IGitHubInbound>(Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 99, 11, null), ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 9, 12, null), ct));
         using (other.AsCaller())
@@ -222,7 +223,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct);
         using (brain.Owner.AsCaller())
         {
-            await Assert.ThrowsAsync<GitHubUnavailableException>(() => Grains(brain).GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
+            await Assert.ThrowsAsync<GitHubUnavailableException>(() => Plain(brain).GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
         }
         Assert.Equal(ConnectionStatus.Disconnected, (await brain.Get<IConnection>(Key).Read()).Status);
     }

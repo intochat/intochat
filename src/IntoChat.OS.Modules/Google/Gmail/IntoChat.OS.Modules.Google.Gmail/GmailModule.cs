@@ -33,12 +33,10 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
 {
     // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
     // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<GmailModuleOptions>()],
-        Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest => GmailNeurons.Manifest;
+
+    // The connection neuron is plain (06-08): GmailNeurons' assembly [Neuron] classes run on the runtime's host grains.
+    public override Type? Neurons => typeof(GmailNeurons);
 
     public const string ClockKey = "google-gmail";
     public const string WatchPath = "/google/gmail/watch";
@@ -64,9 +62,20 @@ public sealed partial class GmailModule : Module<GmailModuleOptions>, IHttpModul
         collection.TryAddSingleton<IGmailApi>(provider => new GmailApi(provider.GetRequiredService<IHttpClientFactory>(),
             provider.GetRequiredService<GmailModuleOptions>(), provider.GetRequiredKeyedService<TimeProvider>(ClockKey),
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GmailApi>>()));
-        collection.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<GmailNeuron>, GmailActivation>());
         GoogleAuth.Require(collection, "gmail");
     }
 
     public void Configure(IEndpointRouteBuilder endpoints) => GmailWebhook.Map(endpoints);
+}
+
+// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("gmail")]
+public sealed class GmailNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<GmailModuleOptions>()],
+        Secrets: []);
 }

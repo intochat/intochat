@@ -23,12 +23,10 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
 
     // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
     // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<WindowsOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(WindowsModule.ManifestName))],
-        Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest => WindowsNeurons.Manifest;
+
+    // The connection neuron is plain (06-08): WindowsNeurons' assembly [Neuron] classes run on the runtime's host grains.
+    public override Type? Neurons => typeof(WindowsNeurons);
 
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
@@ -47,7 +45,6 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
         silo.Services.TryAddSingleton<MachineIdentity>();
         silo.Services.TryAddSingleton<IMachineIdentity>(provider => provider.GetRequiredService<MachineIdentity>());
         silo.Services.TryAddSingleton(MachineKeyStore);
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<WindowsNeuron>, WindowsActivation>());
         if (OperatingSystem.IsWindows()
             && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(silo.Configuration, IntoChatOSNames.CustodyConfigurationKey), ignoreCase: true, out var custody)
             && custody == MasterKeyCustodyKind.Tpm)
@@ -72,4 +69,16 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
             ? new TpmMasterKeyCustody()
             : throw new InvalidOperationException("The Microsoft Platform Crypto Provider (TPM) is not available on this machine."));
     }
+}
+
+// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module(WindowsModule.ManifestName)]
+public sealed class WindowsNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<WindowsOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(WindowsModule.ManifestName))],
+        Secrets: []);
 }

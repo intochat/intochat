@@ -407,12 +407,12 @@ public sealed class PostgresWriteTableFacts
                 await ExerciseRows(table);
                 await table.Upsert(Key(), Values("'; DROP TABLE --"));
                 // Raw deployment SQL has no brain scope; an app must use its scoped table door.
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>("default").Query(new($"SELECT value FROM public.{accepted.Table}")));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>("system/default").Query(new($"SELECT value FROM public.{accepted.Table}")));
             }
             // Host code, with no caller, reads the deployment's database directly.
-            var result = await brain.Get<IPostgresServer>("default").Query(new($"SELECT value FROM public.{accepted.Table}"));
+            var result = await brain.Get<IPostgresServer>("system/default").Query(new($"SELECT value FROM public.{accepted.Table}"));
             Assert.Equal("'; DROP TABLE --", JsonSerializer.Deserialize<string>(Assert.Single(Assert.Single(result.Rows))));
-            await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
+            await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("system/default").Query(new($"DELETE FROM public.{accepted.Table}")));
             var provider = brain.Services.GetRequiredService<ITableStore>();
             await provider.DefineAsync(TablePlacement.Shared, accepted.Table, Definition, ct);
             await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(TablePlacement.Shared, accepted.Table,

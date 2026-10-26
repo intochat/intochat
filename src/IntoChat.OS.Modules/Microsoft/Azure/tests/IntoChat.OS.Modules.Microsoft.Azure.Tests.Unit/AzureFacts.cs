@@ -170,7 +170,7 @@ public sealed class AzureFacts
         Assert.Single(await neuron.Inventory("test"));
     }
 
-    private static AzureNeuron Neuron(IAzureArm arm) => new(arm, new FakeState<AzureConnectionState>()) { SubscriptionOverride = Sample.Subscription };
+    private static AzureNeuron Neuron(IAzureArm arm) => AzureNeurons.Create(arm, Sample.Subscription);
 
     private sealed class FailingAfter(int succeed) : IAzureArm
     {

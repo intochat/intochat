@@ -6,7 +6,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
-internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration, IntoChat.OS.Runtime.IPlainNeurons plain)
+internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, IntoChat.OS.Runtime.IPlainNeurons plain)
 {
     public async Task<GitHubWebhookAcceptance> HandleAsync(ReadOnlyMemory<byte> body,
         IReadOnlyDictionary<string, string[]> headers, CancellationToken cancellationToken)
@@ -55,7 +55,7 @@ internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegist
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
                 try
                 {
-                    var target = grains.GetConnectionGrain<IGitHubInbound>(key);
+                    var target = plain.Get<IGitHubInbound>(key);
                     if (await target.Coordinates().ConfigureAwait(false) is not { } coordinates
                         || repository is not null && coordinates.RepositoryId != repository)
                     {

@@ -11,14 +11,28 @@ public static class PlainNeuronContracts
     public static bool Is(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        return type.IsInterface && !typeof(INeuron).IsAssignableFrom(type) && type.IsDefined(typeof(DefaultNeuronTypeAttribute), inherit: false);
+        return type.IsInterface && !typeof(INeuron).IsAssignableFrom(type)
+            && (type.IsDefined(typeof(DefaultNeuronTypeAttribute), inherit: false) || IsConnection(type));
     }
+
+    // A contract every connection neuron may implement (IConnection, IStorage; 06-08, R4-21(2)): it names no neuron type, the
+    // connection key "{brain}/connection/{connector}/{id}" does.
+    public static bool IsConnection(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.IsInterface && type.IsDefined(typeof(ConnectionContractAttribute), inherit: false);
+    }
+
+    // The connector a canonical connection key names, or null.
+    public static string? ConnectorOf(string fullKey)
+        => fullKey.Split('/') is [var brain, "connection", var connector, var id] && NeuronAddress.IsBrainId(brain) && connector.Length > 0 && id.Length > 0
+            ? Uri.UnescapeDataString(connector) : null;
 
     // The neuron type the contract resolves to, or null when it is not a plain contract.
     public static string? TypeOf(Type contract)
     {
         ArgumentNullException.ThrowIfNull(contract);
-        return Is(contract) ? contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)!.Type : null;
+        return Is(contract) ? contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type : null;
     }
 }
 
@@ -34,14 +48,27 @@ public interface IPlainNeurons
     /// <exception cref="ArgumentException">T is not a plain contract, or fullKey names no brain.</exception>
     T Get<T>(string fullKey) where T : class => (T)Get(typeof(T), fullKey);
 
+    // A typed proxy of contract for the neuron id names (06-08, R4-21(2)): a contract several neuron types implement (IConnection)
+    // names no type of its own, so the caller's id picks the class. The caller validates the id's type first.
+    object Get(Type contract, DigitalBrain.NeuronId id);
+
+    T Get<T>(DigitalBrain.NeuronId id) where T : class => (T)Get(typeof(T), id);
+
     // The runtime neuron id ("brain/type/key") the os full key names for contract.
     /// <exception cref="ArgumentException">contract is not a plain contract, or fullKey names no brain.</exception>
     DigitalBrain.NeuronId IdOf(Type contract, string fullKey)
     {
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentException.ThrowIfNullOrWhiteSpace(fullKey);
-        var type = PlainNeuronContracts.TypeOf(contract) ?? throw new ArgumentException($"{contract.Name} is not a plain neuron contract.", nameof(contract));
+        var type = PlainNeuronContracts.TypeOf(contract)
+            ?? (PlainNeuronContracts.IsConnection(contract)
+                ? PlainNeuronContracts.ConnectorOf(fullKey) ?? throw new ArgumentException($"{contract.Name} addresses a connection: '{fullKey}' is not a connection key.", nameof(fullKey))
+                : throw new ArgumentException($"{contract.Name} is not a plain neuron contract.", nameof(contract)));
         var brain = NeuronAddress.ScopeOf(fullKey) ?? throw new ArgumentException($"'{fullKey}' names no brain: a plain neuron key is {{brain}}/{{key}}.", nameof(fullKey));
         return new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), type, fullKey[(brain.Length + 1)..]);
     }
 }
+
+// Marks a plain contract every connection neuron may implement (06-08, R4-21(2)): the connection key names its neuron type.
+[AttributeUsage(AttributeTargets.Interface, Inherited = false)]
+public sealed class ConnectionContractAttribute : Attribute;

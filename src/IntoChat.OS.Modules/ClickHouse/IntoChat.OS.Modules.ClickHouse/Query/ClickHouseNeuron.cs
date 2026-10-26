@@ -1,25 +1,21 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 [GenerateSerializer, Alias("clickhouse.connection-state")]
 internal sealed class ClickHouseConnectionState : ConnectionState { }
 
-// Read-only door to a database. The integration key ("default") serves the deployment's database
+// Read-only door to a database. The integration key ("system/default") serves the deployment's database
 // and holds no state; a connection key serves the user's database from the connection string
 // sealed in this neuron's own state. Every query, schema read and ping is served live.
-[GrainType(ClickHouseNames.NeuronType)]
+[DigitalBrain.Neuron(ClickHouseNames.NeuronType, State = "clickhouse")]
 internal sealed class ClickHouseNeuron(
-    IClickHouseProvider provider, IClickHouseSourceFactory sources,
-    [PersistentState("clickhouse", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ClickHouseConnectionState> store)
-    : ConnectionNeuron<ClickHouseConnectionState>(store), IClickHouse
+    IClickHouseProvider provider, IClickHouseSourceFactory sources)
+    : ConnectionNeuron<ClickHouseConnectionState>, IClickHouse
 {
     private const int MaxTableNameLength = 255;
-
-    [ReadOnly]
     public async Task<ClickHouseQueryResult> Query(ClickHouseQuery query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -44,8 +40,6 @@ internal sealed class ClickHouseNeuron(
 
         return await WithProvider(source => source.QueryAsync(query.Sql, query.MaxRows, cancellationToken), cancellationToken).ConfigureAwait(true);
     }
-
-    [ReadOnly]
     public async Task<ClickHouseSchema> ReadSchema(ReadClickHouseSchema query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -57,8 +51,6 @@ internal sealed class ClickHouseNeuron(
 
         return await WithProvider(source => source.ReadSchemaAsync(table, cancellationToken), cancellationToken).ConfigureAwait(true);
     }
-
-    [ReadOnly]
     public Task<ClickHouseConnection> ReadConnection(CancellationToken cancellationToken = default)
         => WithProvider(source => source.PingAsync(cancellationToken), cancellationToken);
 
@@ -70,7 +62,7 @@ internal sealed class ClickHouseNeuron(
 
     private Task<T> WithProvider<T>(Func<IClickHouseProvider, Task<T>> operation, CancellationToken cancellationToken)
     {
-        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { return operation(provider); }
+        if (!ConnectionKeys.Is(FullKey)) { return operation(provider); }
         (string Brain, string Connector, string Connection) key;
         try { key = Key; }
         catch (ArgumentException) { throw new UnauthorizedAccessException("A canonical connection key is required."); }

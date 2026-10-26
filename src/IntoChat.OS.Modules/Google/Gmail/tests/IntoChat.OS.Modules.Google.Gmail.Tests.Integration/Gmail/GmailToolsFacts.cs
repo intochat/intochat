@@ -26,7 +26,7 @@ public sealed class GmailToolsFacts
         using var caller = brain.Owner.AsCaller();
         var gmail = brain.Get<IGmail>(key);
         Assert.Empty((await gmail.Tools(ct)).Tools);
-        await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
+        await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
 
         google.ClearRequests();
         var descriptors = (await gmail.Tools(ct)).Tools;
@@ -104,7 +104,7 @@ public sealed class GmailToolsFacts
         await using var brain = await GmailBrain.StartAsync(google, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "draft-tools");
         using var caller = brain.Owner.AsCaller();
-        await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
+        await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
             GmailScopes.Read + " https://www.googleapis.com/auth/gmail.compose", null, "{}"));
         var gmail = brain.Get<IGmail>(key);
         google.ClearRequests();
@@ -143,7 +143,7 @@ public sealed class GmailToolsFacts
         await using var brain = await GmailBrain.StartAsync(google, ct);
         using var caller = brain.Owner.AsCaller();
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "tool-outcomes");
-        await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
+        await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
             GmailScopes.Read + " https://www.googleapis.com/auth/gmail.compose", null, "{}"));
         var gmail = brain.Get<IGmail>(key);
         foreach (var (reply, status) in new[] { (new GoogleStubReply(200, new { }), GmailDraftOperationStatus.Unknown), (new GoogleStubReply(400), GmailDraftOperationStatus.Failed) })

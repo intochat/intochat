@@ -20,7 +20,7 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : Neuron, IConsol
         var connection = WindowsKeys.Connection(this.GetPrimaryKeyString());
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await GrainFactory.GetGrain<IWindows>(connection).Roots();
+        var roots = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IWindows>(connection).Roots();
         var directory = MachineRoots.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 

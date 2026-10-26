@@ -15,7 +15,7 @@ internal static class GmailWebhook
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(GmailModule.WatchPath + "/{brainId}", async (string brainId, HttpRequest request,
-            IGmailPushAuthenticator authenticator, IBrainOwnerDispatch dispatch, IGrainFactory grains, ILogger<GmailModule> logger, CancellationToken ct) =>
+            IGmailPushAuthenticator authenticator, IBrainOwnerDispatch dispatch, IGrainFactory grains, IntoChat.OS.Runtime.IPlainNeurons plain, ILogger<GmailModule> logger, CancellationToken ct) =>
         {
             if (!await authenticator.AuthenticateAsync(request, ct)) { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.NotFound(); }
@@ -34,7 +34,7 @@ internal static class GmailWebhook
                     {
                         await dispatch.RunAsync(brainId, new(key), async () =>
                         {
-                            var result = await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push);
+                            var result = await plain.Get<IGmailInbound>(key).AcceptWatchPush(push);
                             accepted |= result == GmailPushAcceptance.Accepted;
                             duplicate |= result == GmailPushAcceptance.Duplicate;
                             retryable |= result == GmailPushAcceptance.Retryable;

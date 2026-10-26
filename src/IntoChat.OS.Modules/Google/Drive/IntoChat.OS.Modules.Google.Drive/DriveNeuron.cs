@@ -19,10 +19,9 @@ internal sealed class DriveState : ConnectionState;
 
 // One Google Drive as storage, read only. Locations are Drive file ids; "root" is My Drive.
 // Google documents are exported as plain text; other Google formats are not text.
-[GrainType(DriveScopes.Connector)]
-internal sealed class DriveNeuron(
-    [PersistentState("google-drive", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<DriveState> store)
-    : ConnectionNeuron<DriveState>(store), IStorage
+[DigitalBrain.Neuron(DriveScopes.Connector, State = "google-drive")]
+internal sealed class DriveNeuron()
+    : ConnectionNeuron<DriveState>, IStorage
 {
     private const string Root = "root";
     private const string RootName = "My Drive";
@@ -137,7 +136,7 @@ internal sealed class DriveNeuron(
         using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GoogleHttp.ClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: this.GetPrimaryKeyString()), Guid.NewGuid().ToString("N")));
+        request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: FullKey), Guid.NewGuid().ToString("N")));
         return await client.SendAsync(request, linked.Token);
     }
 
@@ -147,7 +146,7 @@ internal sealed class DriveNeuron(
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
         { throw new UnauthorizedAccessException("The Drive connection belongs to another brain."); }
         return TraceContext.Current is null
-            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(this.GetPrimaryKeyString()))) : null;
+            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(FullKey))) : null;
     }
 
     private DriveModuleOptions Options => ServiceProvider.GetRequiredService<DriveModuleOptions>();

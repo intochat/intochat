@@ -52,7 +52,7 @@ internal sealed class ConnectionRequestsNeuron(
         {
             var identity = ConnectionKeys.Parse(key);
             if (connectors.FirstOrDefault(connector => connector.Id == identity.ConnectorId) is not { } declared) { continue; }
-            var connection = await GrainFactory.GetConnection(key).Read();
+            var connection = await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().GetConnection(key).Read();
             result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
                 connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt)
             { Capabilities = [.. declared.Capabilities] });

@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
 // access once; installation tokens minted from the App key do the ongoing work.
-[GrainType("github")]
+[DigitalBrain.Neuron("github", State = "github")]
 internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
 {
     private const int MaxProcessedDeliveries = 512;
@@ -20,21 +20,17 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     private readonly IGitHubUserAccess _access;
     private readonly IGitHubInstallationVerifier _verifier;
     private readonly GitHubAppRegistration _registration;
-    private readonly IPersistentState<GitHubRepositoryState> _state;
 
     public GitHubRepositoryNeuron(IGitHubRepositorySource source, IGitHubUserAccess access, IGitHubInstallationVerifier verifier,
-        GitHubAppRegistration registration,
-        [PersistentState("github", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<GitHubRepositoryState> state)
-        : base(state)
+        GitHubAppRegistration registration)
     {
         _source = source;
         _access = access;
         _verifier = verifier;
         _registration = registration;
-        _state = state;
     }
 
-    private GitHubRepository Repository => new(this.GetPrimaryKeyString(), Snapshot.AppId, Snapshot.InstallationId, Snapshot.RepositoryId, Snapshot.Owner, Snapshot.Name);
+    private GitHubRepository Repository => new(FullKey, Snapshot.AppId, Snapshot.InstallationId, Snapshot.RepositoryId, Snapshot.Owner, Snapshot.Name);
 
     // The installation index is a plain neuron in the system brain (06-06d); this connection is still a grain.
     private IGitHubRepositoryIndex Index(long installationId)
@@ -44,10 +40,10 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     {
         var appId = await _registration.ReadAppIdAsync(CancellationToken.None) ?? throw new GitHubUnavailableException("GitHub App integration is unavailable.");
         var target = grant.Target ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
-        var resolved = (await _access.ResolveAsync(grant.AccessToken, appId, target, CancellationToken.None)) with { Key = this.GetPrimaryKeyString() };
+        var resolved = (await _access.ResolveAsync(grant.AccessToken, appId, target, CancellationToken.None)) with { Key = FullKey };
         await _verifier.VerifyAsync(resolved, CancellationToken.None);
         if (Snapshot.InstallationId != 0 && Snapshot.InstallationId != resolved.InstallationId)
-        { await Index(Snapshot.InstallationId).Remove(this.GetPrimaryKeyString()); }
+        { await Index(Snapshot.InstallationId).Remove(FullKey); }
         if (Snapshot.RepositoryId != resolved.RepositoryId)
         {
             // Another repository's observations never carry over.
@@ -64,12 +60,12 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         return grant with { AccessToken = "installation", RefreshToken = null, ExpiresAt = null };
     }
 
-    protected override Task OnConnectedAsync() => Index(Snapshot.InstallationId).Add(this.GetPrimaryKeyString());
+    protected override Task OnConnectedAsync() => Index(Snapshot.InstallationId).Add(FullKey);
 
     protected override Task OnDisconnectedAsync()
     {
-        _verifier.Forget(this.GetPrimaryKeyString());
-        return Snapshot.InstallationId == 0 ? Task.CompletedTask : Index(Snapshot.InstallationId).Remove(this.GetPrimaryKeyString());
+        _verifier.Forget(FullKey);
+        return Snapshot.InstallationId == 0 ? Task.CompletedTask : Index(Snapshot.InstallationId).Remove(FullKey);
     }
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
@@ -193,7 +189,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     // Connected, and a probe that finds access restored brings its webhooks back with it.
     private Task RevokeAsync(string reason)
     {
-        _verifier.Forget(this.GetPrimaryKeyString());
+        _verifier.Forget(FullKey);
         return MarkFailing(reason);
     }
 
@@ -219,7 +215,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         Snapshot.PullRequests = observed.Values.OrderBy(item => item.Number).ToArray();
         Snapshot.ProcessedDeliveries = deliveries;
         Snapshot.LastWebhookAt = webhookAt ?? Snapshot.LastWebhookAt;
-        await _state.WriteStateAsync(cancellationToken);
+        await SaveQuietly(Snapshot);
         foreach (var fact in facts)
         {
             await PublishAsync(fact);

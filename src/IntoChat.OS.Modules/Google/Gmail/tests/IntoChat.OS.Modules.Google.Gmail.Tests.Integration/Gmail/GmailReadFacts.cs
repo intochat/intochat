@@ -20,7 +20,7 @@ public sealed class GmailReadFacts
         faults.FailNextGrant = true;
         await Assert.ThrowsAnyAsync<Exception>(() => Grant(brain, key));
         google.EmailAddress = before.Account!;
-        await brain.Grains().GetConnection(key).Probe();
+        await brain.Plain().GetConnection(key).Probe();
         var after = Assert.IsType<GmailState>(faults.SnapshotFor(key));
         Assert.Equal(before.BoundMailbox, after.BoundMailbox);
         Assert.Equal(before.Account, after.Account);
@@ -34,7 +34,7 @@ public sealed class GmailReadFacts
     }
 
     private static Task<ConnectionView> Grant(ITestBrain brain, string key)
-        => brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "fixture-access", "fixture-refresh",
+        => brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "fixture-access", "fixture-refresh",
             DateTimeOffset.UtcNow.AddDays(7), GmailScopes.Read, null, "{}"));
 
     [Fact, Trait("host", "own")]
@@ -51,7 +51,7 @@ public sealed class GmailReadFacts
         google.EmailAddress = "committed@example.test";
         faults.LoseNextGrantAcknowledgement = true;
         await Assert.ThrowsAnyAsync<Exception>(() => Grant(brain, key));
-        Assert.Equal("committed@example.test", (await brain.Grains().GetConnection(key).Probe()).Account);
+        Assert.Equal("committed@example.test", (await brain.Plain().GetConnection(key).Probe()).Account);
         var after = Assert.IsType<GmailState>(faults.SnapshotFor(key));
         Assert.Equal("committed@example.test", after.BoundMailbox);
         Assert.Equal(before.GrantGeneration + 1, after.GrantGeneration);

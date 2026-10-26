@@ -19,7 +19,7 @@ public sealed class DriveStorageFacts(DriveHost host)
         var person = await host.PersonAsync("drive", ct);
         var key = ConnectionKeys.For(person.BrainId, DriveModule.Connector.Id, "primary");
         using var caller = person.AsCaller();
-        var view = await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
+        var view = await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
         Assert.Equal("user@gmail.com", view.Account);
 
         var connection = Assert.Single(await brain.Get<IConnectionRequests>(person.BrainId).ListConnections(), item => item.Neuron == key);
@@ -58,7 +58,7 @@ public sealed class DriveStorageFacts(DriveHost host)
         var person = await host.PersonAsync("drive", ct);
         var key = ConnectionKeys.For(person.BrainId, DriveModule.Connector.Id, "primary");
         using var caller = person.AsCaller();
-        await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
+        await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IStorage>(key).Read("notes", ct));
     }

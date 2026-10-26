@@ -4,9 +4,8 @@ namespace IntoChat.OS.Modules.Salesforce;
 
 // One Salesforce org connection, keyed {brain}/connection/salesforce/{id}. Connecting, probing and
 // disconnecting it are IConnection's; reads may refresh the token and persist it, so none is read-only.
-[Alias("salesforce")]
-[Orleans.Metadata.DefaultGrainType("salesforce")]
-public interface ISalesforce : INeuron
+[DigitalBrain.Contracts.NeuronAlias("salesforce"), DigitalBrain.Contracts.DefaultNeuronType("salesforce")]
+public interface ISalesforce
 {
     Task<SalesforceWritePreview> PrepareWrite(PrepareSalesforceWrite command);
 

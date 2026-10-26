@@ -63,7 +63,8 @@ public sealed class CompiledTypes
 
     private static string? GrainType(IGrainFactory grains, Type contract)
     {
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) is { } plain) { return plain; }
+        // A plain contract names its [Neuron] type; a connection contract (06-08) names none and keeps its contract alias.
+        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract)) { return IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract); }
         try { return grains.GetGrain(contract, "_").GetGrainId().Type.ToString(); }
         catch (ArgumentException) { return null; }
     }

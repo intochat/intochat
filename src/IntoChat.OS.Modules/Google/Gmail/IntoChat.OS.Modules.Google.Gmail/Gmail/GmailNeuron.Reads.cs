@@ -13,7 +13,7 @@ internal sealed partial class GmailNeuron
         await EnsureGrantBindingAsync();
         if (GrantFailure() is { } unavailable) { return GmailInboxResult.FromFailure(unavailable); }
         string? pageToken = null;
-        if (request.PageToken is not null && !GmailPageTokens.TryRead(request.PageToken, this.GetPrimaryKeyString(),
+        if (request.PageToken is not null && !GmailPageTokens.TryRead(request.PageToken, FullKey,
             Snapshot.BoundMailbox!, Snapshot.GrantGeneration, Snapshot.PageTokenKey, out pageToken))
         { return GmailInboxResult.FromFailure(new("invalid_input", "The continuation does not belong to this mailbox grant.", [new("pageToken", "invalid", "Read a fresh inbox page.")])); }
 
@@ -42,7 +42,7 @@ internal sealed partial class GmailNeuron
                         else { messages.Add(Summary(metadata.Value!)); }
                     }
                 }
-                var next = page.NextPageToken is null ? null : GmailPageTokens.Write(page.NextPageToken, this.GetPrimaryKeyString(),
+                var next = page.NextPageToken is null ? null : GmailPageTokens.Write(page.NextPageToken, FullKey,
                     Snapshot.BoundMailbox!, Snapshot.GrantGeneration, Snapshot.PageTokenKey);
                 return GmailInboxResult.FromValue(new([.. messages], next, [.. missing]));
             }, linked.Token);

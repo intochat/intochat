@@ -1,19 +1,17 @@
 using System.ComponentModel;
-using Orleans.Concurrency;
-using ReadOnly = Orleans.Concurrency.ReadOnlyAttribute;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // One Windows PC, keyed {brain}/connection/windows/{machineId}. Served only by a silo running on that PC.
-[Alias("windows"), Orleans.Metadata.DefaultGrainType("windows")]
-public interface IWindows : INeuron
+[DigitalBrain.Contracts.NeuronAlias("windows"), DigitalBrain.Contracts.DefaultNeuronType("windows")]
+public interface IWindows
 {
     [Description("Facts about this Windows machine: id, name, Windows version, processors and memory.")]
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<WindowsFacts> Facts();
 
     [Description("The folders on this machine that files and console commands may use.")]
-    [ReadOnly, AlwaysInterleave]
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
     Task<string[]> Roots();
 
     [Description("Allow files and console commands inside a folder on this machine.")]

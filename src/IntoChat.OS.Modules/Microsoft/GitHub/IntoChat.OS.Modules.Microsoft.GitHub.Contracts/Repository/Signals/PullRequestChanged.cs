@@ -2,8 +2,8 @@ using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 
-[GenerateSerializer, Alias("github.pull-request-changed")]
+[DigitalBrain.Signal("github.pull-request-changed")]
 public sealed record PullRequestChanged(
-    [property: Id(0)] int Number,
-    [property: Id(1)] string Version,
-    [property: Id(2)] string SubjectKey) : Signal;
+    int Number,
+    string Version,
+    string SubjectKey) : DigitalBrain.Signal;

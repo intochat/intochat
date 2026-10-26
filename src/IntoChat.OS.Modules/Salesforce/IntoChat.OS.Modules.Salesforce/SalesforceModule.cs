@@ -22,12 +22,10 @@ public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
 {
     // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
     // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>()],
-        Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest => SalesforceNeurons.Manifest;
+
+    // The connection neuron is plain (06-08): SalesforceNeurons' assembly [Neuron] classes run on the runtime's host grains.
+    public override Type? Neurons => typeof(SalesforceNeurons);
 
     public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {
@@ -49,4 +47,16 @@ public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
         var endpoint = options.ResolveMcpEndpoint();
         collection.TryAddSingleton<ISalesforceProvider>(_ => new SalesforceMcpProvider(endpoint));
     }
+}
+
+// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("salesforce")]
+public sealed class SalesforceNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>()],
+        Secrets: []);
 }

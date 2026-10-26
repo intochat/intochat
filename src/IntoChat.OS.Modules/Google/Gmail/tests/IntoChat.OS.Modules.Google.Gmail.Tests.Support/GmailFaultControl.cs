@@ -4,7 +4,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Storage;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Testing;
 
@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Google.Gmail.Testing;
 public sealed class GmailFaultControl
 {
     private readonly ConcurrentDictionary<string, GmailState> _states = new(StringComparer.Ordinal);
-    private readonly ConcurrentQueue<MailReceived> _mail = new();
+    private readonly ConcurrentQueue<RecordedMail> _mail = new();
     public bool FailNextDraftIntent { get; set; }
     public bool FailNextGrant { get; set; }
     public bool LoseNextGrantAcknowledgement { get; set; }
@@ -23,21 +23,15 @@ public sealed class GmailFaultControl
     public bool FailNextMailAppend { get; set; }
     public bool LoseNextMailAppendAcknowledgement { get; set; }
     public bool FailNextAccountingCompletion { get; set; }
-    public MailReceived[] JournaledMail => [.. _mail];
+    // A plain signal carries no trace (06-08): the fixture records the trace the publishing turn ran under.
+    public sealed record RecordedMail(string EmailAddress, string HistoryId, Trace? Trace);
+    public RecordedMail[] JournaledMail => [.. _mail];
     public object? SnapshotFor(string connectionKey) => _states.TryGetValue(connectionKey, out var state) ? state.Copy() : null;
 
     public void Configure(IServiceCollection services)
     {
-        var storage = services.Last(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-            && Equals(descriptor.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
-        services.Remove(storage);
-        services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (provider, key) => new FaultingStorage(
-            (IGrainStorage)(storage.KeyedImplementationInstance ?? storage.KeyedImplementationFactory?.Invoke(provider, key)
-                ?? ActivatorUtilities.CreateInstance(provider, storage.KeyedImplementationType!)), this));
-        var journal = services.Last(descriptor => descriptor.ServiceType == typeof(ISignalJournal));
-        services.Remove(journal);
-        services.AddSingleton<ISignalJournal>(provider => new FaultingJournal((ISignalJournal)(journal.ImplementationInstance
-            ?? journal.ImplementationFactory?.Invoke(provider) ?? ActivatorUtilities.CreateInstance(provider, journal.ImplementationType!)), this));
+        // The Gmail connection is a plain neuron (06-08): its writes reach the fixture through the connection write seam.
+        services.AddSingleton<IConnectionWriteFaults>(new ConnectionFaults(this));
         var meter = services.Last(descriptor => descriptor.ServiceType == typeof(ICostMeter));
         services.Remove(meter);
         services.Add(new ServiceDescriptor(typeof(ICostMeter), provider => new FaultingMeter((ICostMeter)(meter.ImplementationInstance
@@ -63,45 +57,33 @@ public sealed class GmailFaultControl
         { FailNextWakeupClear = false; throw new IOException("Fixture wake-up clear write failure."); }
     }
 
-    private sealed class FaultingStorage(IGrainStorage inner, GmailFaultControl faults) : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
+    private sealed class ConnectionFaults(GmailFaultControl faults) : IConnectionWriteFaults
     {
-        public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+        public void Loaded(string connectionKey, object state)
+        { if (state is GmailState loaded) { faults._states[connectionKey] = loaded.Copy(); } }
+
+        public Task BeforeWrite(string connectionKey, object? next, IReadOnlyList<DigitalBrain.Signal> signals)
         {
-            await inner.ReadStateAsync(stateName, grainId, grainState);
-            if (grainState.State is GmailState state) { faults._states[grainId.Key.ToString()] = state.Copy(); }
+            if (next is GmailState state) { faults.BeforeWrite(connectionKey, state); }
+            if (signals.OfType<MailReceived>().Any() && faults.FailNextMailAppend)
+            { faults.FailNextMailAppend = false; throw new IOException("Fixture signal journal write failure."); }
+            return Task.CompletedTask;
         }
-        public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+
+        public Task AfterWrite(string connectionKey, object? next, IReadOnlyList<DigitalBrain.Signal> signals)
         {
-            var grantChanged = grainState.State is GmailState candidate
-                && faults._states.TryGetValue(grainId.Key.ToString(), out var previous)
+            var grantChanged = next is GmailState candidate
+                && faults._states.TryGetValue(connectionKey, out var previous)
                 && candidate.GrantGeneration != previous.GrantGeneration;
-            if (grainState.State is GmailState state) { faults.BeforeWrite(grainId.Key.ToString(), state); }
-            await inner.WriteStateAsync(stateName, grainId, grainState);
-            if (grainState.State is GmailState committed) { faults._states[grainId.Key.ToString()] = committed.Copy(); }
+            if (next is GmailState committed) { faults._states[connectionKey] = committed.Copy(); }
+            var mail = signals.OfType<MailReceived>().ToArray();
+            foreach (var signal in mail) { faults._mail.Enqueue(new(signal.EmailAddress, signal.HistoryId, IntoChat.OS.Framework.Compute.TraceContext.Current)); }
             if (grantChanged && faults.LoseNextGrantAcknowledgement)
             { faults.LoseNextGrantAcknowledgement = false; throw new IOException("Fixture grant acknowledgement lost."); }
-        }
-        public Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
-            => inner.ClearStateAsync(stateName, grainId, grainState);
-        public void Participate(ISiloLifecycle lifecycle)
-        { if (inner is ILifecycleParticipant<ISiloLifecycle> participant) { participant.Participate(lifecycle); } }
-    }
-
-    private sealed class FaultingJournal(ISignalJournal inner, GmailFaultControl faults) : ISignalJournal
-    {
-        public async Task<long> Append(GrainId publisher, Signal[] signals)
-        {
-            var mail = signals.OfType<MailReceived>().ToArray();
-            if (mail.Length > 0 && faults.FailNextMailAppend)
-            { faults.FailNextMailAppend = false; throw new IOException("Fixture signal journal write failure."); }
-            var sequence = await inner.Append(publisher, signals);
-            foreach (var signal in mail) { faults._mail.Enqueue(signal); }
             if (mail.Length > 0 && faults.LoseNextMailAppendAcknowledgement)
             { faults.LoseNextMailAppendAcknowledgement = false; throw new IOException("Fixture journal acknowledgement lost."); }
-            return sequence;
+            return Task.CompletedTask;
         }
-        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => inner.ReadSince(brainId, since, limit);
-        public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => inner.SignalsOf(publisher, since);
     }
 
     private sealed class FaultingMeter(ICostMeter inner, GmailFaultControl faults) : ICostMeter

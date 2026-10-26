@@ -57,6 +57,7 @@ internal static class CircleBrainRooms
     }
 
     public static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+    public static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     public static ICircle Circle(ITestBrain brain, string circle) => brain.Get<ICircle>(ICircle.Key(circle));
 
@@ -74,7 +75,7 @@ internal static class CircleBrainRooms
             var app = brain.Get<IApp>(IApp.Key(person.BrainId, name));
             await app.Import(new AppBundle(name, "1.0.0", Manifest(name), $"# {name}", files ?? []));
             if (connectionId is null) { return; }
-            await Grains(brain).GetConnection(ConnectionKeys.For(person.BrainId, Connector, connectionId)).Connect("api-key", "secret-" + connectionId);
+            await Plain(brain).GetConnection(ConnectionKeys.For(person.BrainId, Connector, connectionId)).Connect("api-key", "secret-" + connectionId);
             await app.Configure([], new() { ["db"] = connectionId });
         }
     }
@@ -132,11 +133,12 @@ public sealed class SharedConnectorModule() : Module(new ModuleId(CircleBrainRoo
     public static ConnectorDefinition Connector => new(CircleBrainRooms.Connector, "Shared", ["api-key", "oauth"], ["shared-oauth"])
     { Neurons = [typeof(IShared)], OAuthMethods = [new("oauth", "https://shared.test/authorize", "https://shared.test/token", [], "shared-oauth")] };
     public static IntegrationSchema Integration => IntegrationSchema.For("shared-oauth", "Shared OAuth");
+    public override Type? Neurons => typeof(SharedConnectorNeurons);
     public override void Configure(ISiloBuilder silo) { }
 }
 
-[Alias("shared"), Orleans.Metadata.DefaultGrainType("shared")]
-public interface IShared : INeuron
+[DigitalBrain.Contracts.NeuronAlias("shared"), DigitalBrain.Contracts.DefaultNeuronType("shared")]
+public interface IShared
 {
     Task<string> Use();
 }
@@ -144,10 +146,9 @@ public interface IShared : INeuron
 [GenerateSerializer, Alias("shared.state")]
 public sealed class SharedState : ConnectionState { }
 
-[GrainType("shared")]
-internal sealed class SharedConnectionNeuron(
-    [PersistentState("shared", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SharedState> store)
-    : ConnectionNeuron<SharedState>(store), IShared
+[DigitalBrain.Neuron("shared", State = "shared")]
+internal sealed class SharedConnectionNeuron()
+    : ConnectionNeuron<SharedState>, IShared
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
 
@@ -156,4 +157,11 @@ internal sealed class SharedConnectionNeuron(
         => Task.FromResult(new OAuthGrant(Snapshot.AuthMethodId, "refreshed-access", "refresh-2", DateTimeOffset.UtcNow.AddHours(1), "read", null, "{}"));
 
     public Task<string> Use() => UseCredentialAsync((credential, _) => Task.FromResult(Key.Brain + ":" + credential.Value), CancellationToken.None);
+}
+
+// The fact's connection neurons are plain (06-08): this module's assembly [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("shared-connector")]
+public sealed class SharedConnectorNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

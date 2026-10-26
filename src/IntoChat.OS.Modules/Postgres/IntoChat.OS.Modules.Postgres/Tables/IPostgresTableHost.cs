@@ -2,8 +2,8 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 
 // A Connection placement's table operations, run inside the connection's own neuron so the
 // credential never leaves it. Internal: scripts reach tables only through ITable.
-[Alias("postgres.table-host")]
-internal interface IPostgresTableHost : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("postgres.table-host"), DigitalBrain.Contracts.DefaultNeuronType(PostgresServerNeuron.GrainType)]
+internal interface IPostgresTableHost
 {
     Task Define(string table, TableDefinition definition);
     Task Drop(string table);

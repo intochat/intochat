@@ -4,24 +4,20 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Postgres.Tables;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Postgres;
 
 [GenerateSerializer, Alias("postgres.connection-state")]
 internal sealed class PostgresConnectionState : ConnectionState { }
 
-// Integration keys ("default") serve the deployment's database and hold no state; connection keys
+// Integration keys ("system/default") serve the deployment's database and hold no state; connection keys
 // serve the user's database from the connection string sealed in this neuron's own state.
-[GrainType(GrainType)]
+[DigitalBrain.Neuron(GrainType, State = "postgres")]
 internal sealed class PostgresServerNeuron(
-    IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables,
-    [PersistentState("postgres", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PostgresConnectionState> store)
-    : ConnectionNeuron<PostgresConnectionState>(store), IPostgresServer, IPostgresTableHost
+    IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables)
+    : ConnectionNeuron<PostgresConnectionState>, IPostgresServer, IPostgresTableHost
 {
     internal const string GrainType = "postgres";
-
-    [ReadOnly]
     public Task<PostgresQueryResult> Query(PostgresQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -39,8 +35,6 @@ internal sealed class PostgresServerNeuron(
         catch (ArgumentException error) { throw new PostgresQueryException(error.Message); }
         return WithProvider(provider => provider.QueryAsync(sql, query.MaxRows, parameters, CancellationToken.None));
     }
-
-    [ReadOnly]
     public Task<PostgresSchema> ReadSchema(ReadPostgresSchema query)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -51,8 +45,6 @@ internal sealed class PostgresServerNeuron(
         }
         return WithProvider(provider => provider.ReadSchemaAsync(table, CancellationToken.None));
     }
-
-    [ReadOnly]
     public Task<PostgresConnection> ReadConnection() => WithProvider(provider => provider.PingAsync(CancellationToken.None));
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
@@ -79,7 +71,7 @@ internal sealed class PostgresServerNeuron(
     // Inside the user's database the deployment's isolation policy does not apply: tables keep their names.
     private async Task<T> WithTables<T>(Func<ITableStore, Task<T>> operation)
     {
-        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { throw new UnauthorizedAccessException("Only a connection hosts tables."); }
+        if (!ConnectionKeys.Is(FullKey)) { throw new UnauthorizedAccessException("Only a connection hosts tables."); }
         RequireOwnBrain();
         try { return await UseCredentialAsync((credential, _) => operation(tables.ForConnectionString(credential.Value)), CancellationToken.None); }
         catch (InvalidOperationException error) when (error is not PostgresQueryException)
@@ -97,7 +89,7 @@ internal sealed class PostgresServerNeuron(
 
     private Task<T> WithProvider<T>(Func<IPostgresProvider, Task<T>> operation)
     {
-        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { return operation(platform); }
+        if (!ConnectionKeys.Is(FullKey)) { return operation(platform); }
         RequireOwnBrain();
         return UseCredentialAsync((credential, _) => operation(connections.ForConnectionString(credential.Value)), CancellationToken.None);
     }

@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
+    <PackageReference Include="DigitalBrain.Testing" />
     <ProjectReference Include="../../../CSharp/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
   </ItemGroup>
 </Project>

@@ -2,9 +2,8 @@ using IntoChat.OS.Modules.Tools;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-[Alias("gmail")]
-[Orleans.Metadata.DefaultGrainType("gmail")]
-public interface IGmail : ILegacyToolSource
+[DigitalBrain.Contracts.NeuronAlias("gmail"), DigitalBrain.Contracts.DefaultNeuronType("gmail")]
+public interface IGmail : IToolSource
 {
     Task<GmailInboxResult> ReadInbox(GmailInboxRequest request, CancellationToken ct = default);
     Task<GmailMessageResult> ReadMessage(GmailMessageRequest request, CancellationToken ct = default);

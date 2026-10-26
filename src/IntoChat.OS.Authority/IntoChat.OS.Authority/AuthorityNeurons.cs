@@ -48,7 +48,7 @@ internal sealed class AuthorityNeurons(IAuthorityGrains grains, Microsoft.Extens
     // through the manifest check, not straight to a grain type. 06-08 repoints this seam in the composition (R4-24).
     public IConnection Connection(string connectionKey) => grains.Connection(connectionKey);
     public IConnectionInbound ConnectionInbound(string connectionKey) => grains.ConnectionInbound(connectionKey);
-    public T CallerConnection<T>(IServiceProvider services, string key) where T : IGrainWithStringKey => grains.CallerConnection<T>(services, key);
+    public T CallerConnection<T>(IServiceProvider services, string key) where T : class => grains.CallerConnection<T>(services, key);
 
     private T Resolve<T>(string key) where T : IGrainWithStringKey => grains.Get<T>(key);
 }

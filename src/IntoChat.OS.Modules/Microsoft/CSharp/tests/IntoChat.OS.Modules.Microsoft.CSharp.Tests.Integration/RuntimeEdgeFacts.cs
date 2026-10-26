@@ -37,7 +37,7 @@ public sealed class RuntimeEdgeFacts
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "script-mail");
         using (brain.Owner.AsCaller())
         {
-            await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
+            await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1),
                 GmailScopes.Read + " https://www.googleapis.com/auth/gmail.compose", null, "{}"));
             var discovery = brain.Services.GetRequiredService<CSharpContractDiscovery>();
             foreach (var method in new[] { nameof(IGmail.ReadInbox), nameof(IGmail.ReadMessage), nameof(IGmail.PreviewDraft), nameof(IGmail.CreateDraft), nameof(IGmail.GetDraftOperation) })
@@ -108,7 +108,7 @@ public sealed class RuntimeEdgeFacts
         await using var brain = await GmailBrain.Compose(RuntimeBrain.Create(new FakeSessionHost()), google).StartAsync(ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "reactive-mail");
         using (brain.Owner.AsCaller())
-        { await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}")); }
+        { await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access", "refresh", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}")); }
         var compilation = brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
         {
             ["gmail-reactive.cs"] = """

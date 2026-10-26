@@ -19,7 +19,7 @@ public static class AuthorityGrainsHosting
     public static IServiceCollection AddPlainNeurons(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons>(provider => new PlainNeurons(provider.GetRequiredService<IGrainFactory>()));
+        services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons>(provider => new PlainNeurons(provider.GetRequiredService<IGrainFactory>(), services: provider));
         return services;
     }
 }

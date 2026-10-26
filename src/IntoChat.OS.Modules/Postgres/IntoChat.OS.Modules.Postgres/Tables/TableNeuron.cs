@@ -70,12 +70,12 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     private TablePlacement Pinned => State.Placement ?? TablePlacement.Shared;
 
     private ITableStore Tables(TablePlacement placement)
-        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(Legacy<IPostgresTableHost>(PostgresServerNeuron.GrainType, placement.Name!)) : provider;
+        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(Context.Get<IPostgresTableHost>(IntoChat.OS.Connections.Platform.Connections.ConnectionGrains.IdFor(placement.Name!))) : provider;
 
     private ITableIndex Tables(string owner) => Legacy<ITableIndex>(TableIndexNeuron.GrainType, owner);
 
-    // The index and the connection are still grains (06-05b). They are reached as this neuron (R4-17), so TableLifecycleGuard
-    // sees this table's host as the calling grain.
+    // The index is still a grain (06-05b), reached as this neuron (R4-17), so TableLifecycleGuard sees this table's host as the
+    // calling grain. The connection is a plain neuron (06-08), reached by its connection key.
     private T Legacy<T>(string type, string fullKey) where T : class
     {
         var brain = BrainKey.ScopeOf(fullKey) ?? throw new UnauthorizedAccessException("This storage key does not name a brain.");

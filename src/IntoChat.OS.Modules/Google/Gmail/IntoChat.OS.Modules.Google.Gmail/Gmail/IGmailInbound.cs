@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-[Alias("gmail.inbound"), Orleans.Metadata.DefaultGrainType("gmail")]
-internal interface IGmailInbound : IGrainWithStringKey
+[DigitalBrain.Contracts.NeuronAlias("gmail.inbound"), DigitalBrain.Contracts.DefaultNeuronType("gmail")]
+internal interface IGmailInbound
 {
     Task<GmailPushAcceptance> AcceptWatchPush(GmailWatchPush push);
 }

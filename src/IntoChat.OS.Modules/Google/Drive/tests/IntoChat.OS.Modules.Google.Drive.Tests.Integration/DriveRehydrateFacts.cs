@@ -17,7 +17,7 @@ public sealed class DriveRehydrateFacts
         var key = ConnectionKeys.For(brain.Owner.BrainId, "google-drive", "primary");
         using (brain.Owner.AsCaller())
         {
-            await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token",
+            await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token",
                 DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
         }
 

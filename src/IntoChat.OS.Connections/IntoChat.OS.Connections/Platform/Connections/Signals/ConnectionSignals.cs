@@ -3,14 +3,19 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Platform.Connections.Signals;
 
-[GenerateSerializer, Alias("connection.connected")]
-public sealed record ConnectionConnected([property: Id(0)] string ConnectorId, [property: Id(1)] string ConnectionId, [property: Id(2)] string AuthMethodId, [property: Id(3)] string? Account) : Signal;
+[DigitalBrain.Signal("connection.connected")]
+public sealed record ConnectionConnected(string ConnectorId, string ConnectionId, string AuthMethodId, string? Account) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("connection.expired")]
-public sealed record ConnectionExpired([property: Id(0)] string ConnectorId, [property: Id(1)] string ConnectionId) : Signal;
+[DigitalBrain.Signal("connection.expired")]
+public sealed record ConnectionExpired(string ConnectorId, string ConnectionId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("connection.failing")]
-public sealed record ConnectionFailing([property: Id(0)] string ConnectorId, [property: Id(1)] string ConnectionId, [property: Id(2)] string Detail) : Signal;
+[DigitalBrain.Signal("connection.failing")]
+public sealed record ConnectionFailing(string ConnectorId, string ConnectionId, string Detail) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("connection.disconnected")]
-public sealed record ConnectionDisconnected([property: Id(0)] string ConnectorId, [property: Id(1)] string ConnectionId) : Signal;
+[DigitalBrain.Signal("connection.disconnected")]
+public sealed record ConnectionDisconnected(string ConnectorId, string ConnectionId) : DigitalBrain.Signal;
+
+// A connection's state changed without a status change (a sharing recorded or withdrawn, a module's own bookkeeping): a plain
+// neuron saves only with a signal (06-08).
+[DigitalBrain.Signal("connection.updated")]
+public sealed record ConnectionUpdated(string ConnectorId, string ConnectionId) : DigitalBrain.Signal;

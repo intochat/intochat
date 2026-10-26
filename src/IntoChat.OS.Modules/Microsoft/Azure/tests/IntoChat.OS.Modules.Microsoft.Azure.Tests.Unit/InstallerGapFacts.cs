@@ -246,7 +246,7 @@ public sealed class InstallerGapFacts
     public async Task A_container_app_with_internal_ingress_secret_files_and_registries_passes_through_the_neuron_unchanged()
     {
         var arm = new RecordingAzure();
-        var neuron = new AzureNeuron(arm, new FakeState<AzureConnectionState>()) { SubscriptionOverride = "s" };
+        var neuron = AzureNeurons.Create(arm, "s");
         var spec = new ContainerAppSpec
         {
             Name = "intochat-test-os-ui",

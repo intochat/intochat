@@ -1,18 +1,17 @@
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Postgres;
 
-[Alias("postgres"), Orleans.Metadata.DefaultGrainType("postgres")]
-public interface IPostgresServer : INeuron
+[DigitalBrain.Contracts.NeuronAlias("postgres"), DigitalBrain.Contracts.DefaultNeuronType("postgres")]
+public interface IPostgresServer
 {
     // Server-side caps.
-    [ReadOnly, Alias("query")]
+    [DigitalBrain.ReadOnlyCall]
     Task<PostgresQueryResult> Query(PostgresQuery query);
 
     // Reads tables and columns of the configured database; omit Table for the index.
-    [ReadOnly, Alias("schema")]
+    [DigitalBrain.ReadOnlyCall]
     Task<PostgresSchema> ReadSchema(ReadPostgresSchema query);
 
-    [ReadOnly, Alias("connection")]
+    [DigitalBrain.ReadOnlyCall]
     Task<PostgresConnection> ReadConnection();
 }

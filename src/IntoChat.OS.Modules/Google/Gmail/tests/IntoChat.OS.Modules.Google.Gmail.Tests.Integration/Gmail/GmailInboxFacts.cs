@@ -113,6 +113,6 @@ public sealed class GmailInboxFacts
     }
 
     private static Task<ConnectionView> Grant(ITestBrain brain, string key)
-        => brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "read-fixture-access", "read-fixture-refresh",
+        => brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "read-fixture-access", "read-fixture-refresh",
             DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
 }

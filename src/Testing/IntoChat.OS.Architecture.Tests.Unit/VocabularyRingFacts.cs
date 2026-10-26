@@ -79,6 +79,8 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             [
+                // 06-08 (R4-21(2)): marks the plain contracts every connection neuron implements; the connection key names the type.
+                "IntoChat.OS.Runtime.ConnectionContractAttribute",
                 // Transitional (06-07b, R4-17; deleted in 06-08): module neurons calling still-legacy grains (with LegacyNeuronAccess below).
                 "IntoChat.OS.Runtime.ILegacyNeurons",
                 "IntoChat.OS.Runtime.INeuronContext", "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",

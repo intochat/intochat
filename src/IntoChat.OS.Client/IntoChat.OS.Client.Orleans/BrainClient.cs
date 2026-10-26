@@ -31,7 +31,8 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
     // The kernel view the host registered (the silo, or AddIntoChatOSClient for a cluster client); the kernel composition owns it.
     public IKernelView Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: a silo registers it, and AddIntoChatOSClient does for a cluster client.");
 
-    public T Grain<T>(string key) where T : INeuron => cluster.GetNeuronGrain<T>(cluster.ServiceProvider, key);
+    // Connections are plain neurons (06-08), reached through the plain seam; a still-legacy neuron is its grain.
+    public T Grain<T>(string key) where T : INeuron => cluster.GetGrain<T>(key);
 
     // Transitional (06-07, R4-15): plain neurons are reached through the kernel composition's seam, which a silo registers.
     public object Plain(Type contract, string key)
