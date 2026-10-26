@@ -75,7 +75,7 @@ public sealed class NeuronBinder
         ArgumentNullException.ThrowIfNull(call);
         if (call.Kind == InvocationResultKind.Stream) { throw new BindingException($"{call.Contract.Name}.{call.Method.Name} returns a stream; stream it."); }
         var returned = Call(target, call, arguments, cancellationToken);
-        var result = call.IsTask ? await TaskBoxing.ResultAsync((Task)returned!, call.TaskResultType).ConfigureAwait(false) : returned;
+        var result = call.IsTask ? await TaskBoxing.ResultAsync((Task)returned!, call.TaskResultType).ConfigureAwait(true) : returned;
         return call.ResultType is null ? null : PooledJson.Encode(result, call.ResultType);
     }
 
@@ -93,7 +93,7 @@ public sealed class NeuronBinder
 
     private static async IAsyncEnumerable<JsonElement> Encode(BoundCall call, IAsyncEnumerable<object?> items, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var item in items.ConfigureAwait(false))
+        await foreach (var item in items.ConfigureAwait(true))
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return JsonSerializer.SerializeToElement(item, call.ResultType!, RuntimeProtocol.Json);

@@ -60,7 +60,14 @@ internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSta
 
     public void Defer(Func<Task> work) => Deferred.Add(work);
 
-    public Task<T?> Load<T>() => Task.FromResult(_stored is T value ? value : default);
+    /// <summary>When set, <see cref="Load{T}"/> completes later on a thread-pool thread, as a real store's read can.</summary>
+    public bool LoadsOffThread { get; set; }
+
+    public Task<T?> Load<T>()
+    {
+        var value = _stored is T stored ? stored : default;
+        return LoadsOffThread ? Task.Run(async () => { await Task.Delay(20); return value; }) : Task.FromResult(value);
+    }
 
     public Task Save<T>(T next, IReadOnlyList<Signal> signals)
     {

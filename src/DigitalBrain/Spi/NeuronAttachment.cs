@@ -15,8 +15,8 @@ public static class NeuronAttachment
     public static async Task Activate(Neuron neuron, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(neuron);
-        await neuron.Load().ConfigureAwait(false);
-        await neuron.Activate(cancellationToken).ConfigureAwait(false);
+        await neuron.Load().ConfigureAwait(true);
+        await neuron.Activate(cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>Runs the neuron's deactivation.</summary>

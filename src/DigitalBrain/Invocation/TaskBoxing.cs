@@ -12,10 +12,10 @@ internal static class TaskBoxing
     // resultType is the task's result type, or null for a task without one.
     public static async Task<object?> ResultAsync(Task task, Type? resultType)
     {
-        if (resultType is null) { await task.ConfigureAwait(false); return null; }
+        if (resultType is null) { await task.ConfigureAwait(true); return null; }
         var box = Boxes.GetOrAdd(resultType, static result => BoxMethod.MakeGenericMethod(result).CreateDelegate<Func<Task, Task<object?>>>());
-        return await box(task).ConfigureAwait(false);
+        return await box(task).ConfigureAwait(true);
     }
 
-    private static async Task<object?> Box<T>(Task task) => await ((Task<T>)task).ConfigureAwait(false);
+    private static async Task<object?> Box<T>(Task task) => await ((Task<T>)task).ConfigureAwait(true);
 }

@@ -52,7 +52,7 @@ public abstract class RevisionedNeuron<TState> : Neuron<TState> where TState : c
         if (State.Operations.Contains(operationId, StringComparer.Ordinal)) { return false; }
         RequireRevision(expectedRevision, State.Revision);
         var next = change(State).Advanced(operationId);
-        await Save(next, changed(next)).ConfigureAwait(false);
+        await Save(next, changed(next)).ConfigureAwait(true);
         return true;
     }
 
