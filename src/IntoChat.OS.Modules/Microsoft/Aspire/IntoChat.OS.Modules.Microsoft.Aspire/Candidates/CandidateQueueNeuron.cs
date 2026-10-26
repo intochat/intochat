@@ -1,19 +1,16 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 // At most one candidate is live per brain; the rest wait here in proposal order.
-[GrainType("aspire.candidates")]
-internal sealed class CandidateQueueNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CandidateQueueState> store,
-    ICandidateHost host)
-    : Neuron<CandidateQueueState>(store), ICandidates
+// A plain neuron since 06-06d.
+[DigitalBrain.Neuron("aspire.candidates")]
+internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.Neuron<CandidateQueueState>, ICandidates
 {
-    private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
-    private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
+    private CandidateQueueState Snapshot => State;
+    private string BrainId => Id.Brain.Value;
+    private IIntoChatOS Brain => Context.Services.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
 
     public async Task<string> Propose(CandidateProposal proposal)
     {

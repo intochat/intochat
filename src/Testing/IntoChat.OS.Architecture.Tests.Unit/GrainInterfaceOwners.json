@@ -77,7 +77,6 @@
   "IntoChat.OS.Modules.Flutter/Workspace/IProblemReports.cs": 1,
   "IntoChat.OS.Modules.Google.Gmail/Contracts/Gmail/IGmail.cs": 1,
   "IntoChat.OS.Modules.Google.Gmail/Gmail/IGmailInbound.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.Aspire.Contracts/ICandidate.cs": 2,
   "IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IDeployment.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Aspire/Deployment/IDeploymentDriver.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Azure.Contracts/IAzure.cs": 1,

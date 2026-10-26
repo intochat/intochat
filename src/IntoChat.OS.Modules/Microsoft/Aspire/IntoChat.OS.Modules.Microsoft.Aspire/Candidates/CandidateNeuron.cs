@@ -1,21 +1,19 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
-[GrainType("aspire.candidate")]
-internal sealed class CandidateNeuron(
-    [PersistentState("state", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<CandidateState> store,
-    ICandidateHost host,
-    ICandidateVerifier verifier,
-    ILogger<CandidateNeuron> log)
-    : Neuron<CandidateState>(store), ICandidate
+// A plain neuron since 06-06d. The index, the live cluster (still a grain) and the candidates are reached through the brain's
+// in-process client, as before.
+[DigitalBrain.Neuron("aspire.candidate")]
+internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier verifier, ILogger<CandidateNeuron> log)
+    : DigitalBrain.Neuron<CandidateState>, ICandidate
 {
-    private string Key => this.GetPrimaryKeyString();
+    private CandidateState Snapshot => State;
+    private IServiceProvider ServiceProvider => Context.Services;
+    private string Key => $"{Id.Brain.Value}/{Id.Key}";
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
     private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
@@ -28,7 +26,7 @@ internal sealed class CandidateNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(branch);
         ArgumentNullException.ThrowIfNull(plan);
-        if (Exists && Snapshot.History.Length > 0) { throw new InvalidOperationException($"Candidate {Sha} is already {Snapshot.Stage}."); }
+        if (Snapshot.History.Length > 0) { throw new InvalidOperationException($"Candidate {Sha} is already {Snapshot.Stage}."); }
         await Move(CandidateStage.Proposed, new CandidateState { Branch = branch, Summary = summary, Plan = plan }, null);
         return Describe();
     }
@@ -196,7 +194,7 @@ internal sealed class CandidateNeuron(
         catch (Exception error) { log.LogWarning(error, "Candidate {Candidate} could not put the live ref back.", Key); }
     }
 
-    private Task Move(CandidateStage stage, CandidateState next, Signal? acted)
+    private Task Move(CandidateStage stage, CandidateState next, DigitalBrain.Signal? acted)
         => Save(next with { Stage = stage, History = [.. next.History, stage] }, new CandidateChanged(Sha, stage), acted);
 
     private CandidateSnapshot Describe()

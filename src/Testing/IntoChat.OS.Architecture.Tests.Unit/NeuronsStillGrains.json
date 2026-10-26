@@ -100,8 +100,6 @@
   "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceNeuron",
   "IntoChat.OS.Modules.Google.Drive.DriveNeuron",
   "IntoChat.OS.Modules.Google.Gmail.GmailNeuron",
-  "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateNeuron",
-  "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateQueueNeuron",
   "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentNeuron",
   "IntoChat.OS.Modules.Microsoft.Azure.AzureNeuron",
   "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron",

@@ -1,10 +1,9 @@
-using IntoChat.OS;
-
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
-[GenerateSerializer, Alias("aspire.candidate.changed")] public sealed record CandidateChanged([property: Id(0)] string Sha, [property: Id(1)] CandidateStage Stage) : Signal;
-[GenerateSerializer, Alias("aspire.candidate.started")] public sealed record CandidateStarted([property: Id(0)] string Sha, [property: Id(1)] CandidateEndpoints Endpoints) : Signal;
-[GenerateSerializer, Alias("aspire.candidate.healthy")] public sealed record CandidateHealthy([property: Id(0)] string Sha) : Signal;
-[GenerateSerializer, Alias("aspire.candidate.verified")] public sealed record CandidateVerified([property: Id(0)] string Sha, [property: Id(1)] VerificationReport Report) : Signal;
-[GenerateSerializer, Alias("aspire.candidate.promoted")] public sealed record CandidatePromoted([property: Id(0)] string Sha) : Signal;
-[GenerateSerializer, Alias("aspire.candidate.failed")] public sealed record CandidateFailed([property: Id(0)] string Sha, [property: Id(1)] CandidateStage Stage, [property: Id(2)] string Reason) : Signal;
+// [Signal] records since 06-06d (the candidates are plain neurons); aliases unchanged.
+[DigitalBrain.Signal("aspire.candidate.changed")] public sealed record CandidateChanged(string Sha, CandidateStage Stage) : DigitalBrain.Signal;
+[DigitalBrain.Signal("aspire.candidate.started")] public sealed record CandidateStarted(string Sha, CandidateEndpoints Endpoints) : DigitalBrain.Signal;
+[DigitalBrain.Signal("aspire.candidate.healthy")] public sealed record CandidateHealthy(string Sha) : DigitalBrain.Signal;
+[DigitalBrain.Signal("aspire.candidate.verified")] public sealed record CandidateVerified(string Sha, VerificationReport Report) : DigitalBrain.Signal;
+[DigitalBrain.Signal("aspire.candidate.promoted")] public sealed record CandidatePromoted(string Sha) : DigitalBrain.Signal;
+[DigitalBrain.Signal("aspire.candidate.failed")] public sealed record CandidateFailed(string Sha, CandidateStage Stage, string Reason) : DigitalBrain.Signal;

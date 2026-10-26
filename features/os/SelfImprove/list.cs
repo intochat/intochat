@@ -5,10 +5,10 @@ using IntoChat.OS.Modules.Microsoft.Aspire;
 // ends one; ended candidates stay in it so their last move is never missed. The index itself is not a
 // member: it is already watched as the registry, and request renders the list once Propose answers.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
-var candidates = Sources.Named<ICandidates, CandidateChanged>(brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain))), async (_, ct) =>
+var candidates = Sources.Named<ICandidates, CandidateChanged, ICandidate>(brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain))), async (_, ct) =>
 {
     if (!await SelfImprove.IsAvailableAsync(brain)) { return []; }
-    var members = new List<INeuron>();
+    var members = new List<ICandidate>();
     await foreach (var instance in brain.Kernel.Instances<ICandidate>(ct)) { members.Add(brain.Get<ICandidate>(instance.Key)); }
     return [.. members];
 });
