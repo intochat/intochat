@@ -31,6 +31,15 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
+    // R4-04: what the module needs from its host. Its neurons are still grains (06-06b: the runtime, its runs and files wait
+    // for plain-aware Instances and the legacy publishers); its registrations stay in Configure until the Framework leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<CSharpOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("csharp")))],
+        Secrets: []);
+
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
