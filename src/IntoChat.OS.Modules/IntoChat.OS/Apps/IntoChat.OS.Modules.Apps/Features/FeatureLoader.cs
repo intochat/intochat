@@ -4,10 +4,10 @@ namespace IntoChat.OS.Modules.Apps;
 // a person's Marketplace listing, or an app the Creator published. A new app is imported, an
 // existing one has its program replaced (settings, connections and data stay); either way the
 // copy remembers where it came from. Whether a load is allowed is the caller's policy.
-public sealed class FeatureLoader(IGrainFactory grains, IEnumerable<IFeatureMigration> migrations)
+public sealed class FeatureLoader(IntoChat.OS.Runtime.IPlainNeurons plain, IEnumerable<IFeatureMigration> migrations)
 {
     public Task<AppSnapshot> Create(string brain, string name, AppBundle bundle, AppOrigin origin, AppInstallReceipt installation, CancellationToken ct)
-        => grains.GetGrain<IApp>(IApp.Key(brain, name)).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
+        => plain.Get<IApp>(IApp.Key(brain, name)).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
 
     public async Task<AppSnapshot> Load(string brain, string name, AppBundle bundle, AppOrigin origin, CancellationToken ct)
     {
@@ -19,7 +19,7 @@ public sealed class FeatureLoader(IGrainFactory grains, IEnumerable<IFeatureMigr
         span?.SetTag("feature.owner", origin.Publisher);
         span?.SetTag("feature.name", name);
         span?.SetTag("feature.version", bundle.Version);
-        var target = grains.GetGrain<IApp>(IApp.Key(brain, name));
+        var target = plain.Get<IApp>(IApp.Key(brain, name));
         var named = bundle with { Name = name };
         // The origin travels with the program in one write: a deploy that fails or outlasts this
         // call still leaves a copy that knows where it came from, and the next load finishes it.

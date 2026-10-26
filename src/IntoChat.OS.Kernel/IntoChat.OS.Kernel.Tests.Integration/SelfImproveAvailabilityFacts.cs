@@ -326,7 +326,7 @@ public sealed class SelfImproveAvailabilityFacts
         public Guid Request(string operation, string input, Guid? id = null)
         {
             var requestId = id ?? Guid.NewGuid();
-            Publish(App, nameof(AppRequested), new AppRequested(operation, input, requestId));
+            Publish(App, IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested)), new AppRequested(operation, input, requestId));
             return requestId;
         }
 

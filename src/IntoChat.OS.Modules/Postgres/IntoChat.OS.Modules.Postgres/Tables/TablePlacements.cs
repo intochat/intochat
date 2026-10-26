@@ -37,7 +37,7 @@ internal sealed class AppTablesSlot(IServiceProvider services) : ITablesSlot
     public async Task<string?> BoundConnection(TableOwner owner)
     {
         if (!owner.AppId.StartsWith(owner.BrainId + "/apps/", StringComparison.Ordinal)) { return null; } // a bare behavior owns no slots
-        var app = await services.GetRequiredService<IGrainFactory>().GetGrain<IApp>(owner.AppId).Read();
+        var app = await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IApp>(owner.AppId).Read();
         return app.Manifest.Slots.Any(slot => slot.Name == Name && slot.Connector == "postgres")
             && app.Connections.TryGetValue(Name, out var id)
             ? ConnectionKeys.For(owner.BrainId, "postgres", id) : null;

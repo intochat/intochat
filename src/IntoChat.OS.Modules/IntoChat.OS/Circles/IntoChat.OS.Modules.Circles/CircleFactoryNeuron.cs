@@ -80,7 +80,7 @@ internal sealed class CircleFactoryNeuron(
             if (listing.Source is not AppSource.Brain source || publisher is { Length: > 0 } && listing.Publisher != publisher) { continue; }
             try
             {
-                var releases = await GrainFactory.GetGrain<IApp>(IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
+                var releases = await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IntoChat.OS.Modules.Apps.IApp>(IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
                 items.AddRange(releases.Where(release => release.Reference.Publisher == listing.Publisher
                     && release.Reference.Source == source && release.Reference.Name == listing.Name));
             }

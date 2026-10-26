@@ -91,13 +91,13 @@ public sealed class OsInoMigrationFacts
                 Assert.Empty(transcript.UnreadMessageIds);
             }
             Assert.Equal(inoKey, (await legacy.Read()).MigrationTarget);
-            var retained = await ino.AsReference<IRetainsSignals>().Retained(nameof(IntoChat.OS.Modules.Apps.Signals.AppRequested), 0);
-            Assert.Single(retained, item => item.Signal is IntoChat.OS.Modules.Apps.Signals.AppRequested request && request.RequestId == requestId);
+            var retained = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(inoKey).RetainedRequests();
+            Assert.Single(retained, item => item.Request.RequestId == requestId);
             var merged = (await brain.Get<IText>(legacyKey + "/handled/new").Read()).Markdown.Split('\n').TakeLast(256).ToArray();
             Assert.Contains(oldHandled.ToString(), merged);
             Assert.Contains(forwardedHandled.ToString(), merged);
         }
-        var archived = await brain.Get<IApp>(legacyKey).AsReference<IAppMigration>().Archive("ino-v3");
+        var archived = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(legacyKey).Archive("ino-v3");
         Assert.Equal("public static class Mine { }", archived.Files["custom.cs"]);
     }
 

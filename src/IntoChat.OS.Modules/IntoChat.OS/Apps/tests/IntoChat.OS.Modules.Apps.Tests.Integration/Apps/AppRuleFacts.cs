@@ -121,9 +121,9 @@ public sealed class AppRuleFacts
         return app;
     }
 
-    private sealed class JudgingSandbox(Func<Signal, Verdict> rule) : IScriptSandbox
+    private sealed class JudgingSandbox(Func<object, Verdict> rule) : IScriptSandbox
     {
-        public List<Signal> Judged { get; } = [];
+        public List<object> Judged { get; } = [];
         public bool CanRun => true;
         public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
@@ -133,7 +133,7 @@ public sealed class AppRuleFacts
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptCompilationCheck(true, []));
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
         {
             Judged.Add(signal);
             return Task.FromResult<Verdict[]>([rule(signal)]);

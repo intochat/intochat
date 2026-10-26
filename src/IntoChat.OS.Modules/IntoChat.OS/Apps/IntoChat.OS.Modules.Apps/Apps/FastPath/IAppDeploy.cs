@@ -1,17 +1,17 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Apps;
 
 // The fast-path writer's side of an app, plumbing no edge can address (not an INeuron contract): the writer
 // deploys outside the app's turn, so the app hands it the program to run and the principal it runs as.
-[Alias("apps.deploy")]
-internal interface IAppDeploy : IGrainWithStringKey
+// A module-internal plain contract of the app neuron (06-08), alias unchanged.
+[DigitalBrain.Contracts.NeuronAlias("apps.deploy"), DigitalBrain.Contracts.DefaultNeuronType(IntoChat.OS.Connections.AppGrainType.Name)]
+internal interface IAppDeploy
 {
-    // Queue after activation and serialize with edits; INeuron.Watch already interleaves runtime callbacks.
-    [OneWay] Task Restore();
+    // Queued after activation as its own turn, so it serializes with edits.
+    [DigitalBrain.OneWayCall] Task Restore();
     // Records the requested synapse's source on its request (never in the app's files) and answers the app's
     // program with it. Throws when the request is not waiting or the program would break the shape.
     Task<StagedProgram> Stage(Guid operationId, string path, string source);

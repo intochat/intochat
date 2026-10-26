@@ -14,13 +14,62 @@ namespace IntoChat.OS.Modules.Apps;
 // The app: the only durable thing in the module. Manifest, spec, files, connections,
 // semver history, status and activity all live here; the Builder is a cache that writes
 // its results back in.
-[GrainType(IntoChat.OS.Connections.AppGrainType.Name)]
+// A plain neuron (06-08) with the persisted AppState ("app2", clean break R4-24). Delete clears the record; until the next save
+// the app then reads as never created (the DigitalBrain base keeps the last state in memory, so the cleared view is held here).
+[DigitalBrain.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
 internal sealed partial class AppNeuron(
-    [PersistentState("app2", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
-    : Neuron<AppState>(store), IApp, IAppDeploy, IRetainsSignals, IAppMigration
+    : DigitalBrain.Neuron<AppState>, IApp, IAppDeploy, IAppMigration
 {
+    private static readonly AppState Cleared = new();
+    private bool _cleared;
+    // The state being saved: Read interleaves with a turn, and a reader that heard the change (its signal is journalled before the
+    // base sets State) must see it, as readers of the grain's store did (06-08).
+    private AppState? _saving;
+
+    private AppState Snapshot => _saving ?? (_cleared ? Cleared : State);
+    // Whether the app has a record: created apps always carry a manifest.
+    private bool Exists => Snapshot.Manifest is not null;
+    private IServiceProvider ServiceProvider => Context.Services;
+    // The os full key "{brain}/apps/{name}" the app was addressed by as a grain.
+    private string Key => $"{Id.Brain.Value}/{Id.Key}";
+
+    // Every activation reconciles an interrupted turn, then queues the program's restore as its own turn.
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await Interrupt();
+        if (!Snapshot.MigrationPaused && Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram))
+        { _ = Get<IAppDeploy>(Id).Restore(); }
+    }
+
+    protected override void OnCommitted() => _cleared = false;
+
+    private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => Save(next, [first, second, third]);
+
+    private new Task Save(AppState next, DigitalBrain.Signal changed, DigitalBrain.Signal? acted = null)
+        => Save(next, acted is null ? [changed] : [changed, acted]);
+
+    private new async Task Save(AppState next, IReadOnlyList<DigitalBrain.Signal> signals)
+    {
+        _saving = next;
+        try { await base.Save(next, signals); }
+        finally { _saving = null; }
+    }
+
+    // Deleting the record ends the app's existence (the kernel retires the instance), then says so.
+    private async Task Clear(DigitalBrain.Signal changed)
+    {
+        await Context.State.Clear();
+        _cleared = true;
+        await Publish(changed);
+    }
+
+    // Another app of this brain, by its os key.
+    private DigitalBrain.NeuronId AppId(string key) => new(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Id.Brain.Value.Length + 1)..]);
+
+    // The platform-wide Marketplace is still a grain outside every brain.
+    private IGrainFactory GrainFactory => Context.Services.GetRequiredService<IGrainFactory>();
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
@@ -111,7 +160,7 @@ internal sealed partial class AppNeuron(
         {
             var sources = Sources(next);
             RequireShape(sources);
-            hashes = await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(next), CancellationToken.None);
+            hashes = await runtime.Deploy(Key, sources, Configuration(next), CancellationToken.None);
         }
         // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
         var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
@@ -147,7 +196,7 @@ internal sealed partial class AppNeuron(
         {
             if (Snapshot.Connections.TryGetValue(slot, out var current) && current == id) { continue; }
             foreach (var hook in storageHooks)
-            { await hook.RequireRebindable(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), slot, CancellationToken.None); }
+            { await hook.RequireRebindable(Snapshot.BrainScopeId ?? "", Key, slot, CancellationToken.None); }
         }
         var next = Snapshot.Clone();
         foreach (var (name, value) in settings ?? []) { next.PutSetting(name, value); }
@@ -201,16 +250,19 @@ internal sealed partial class AppNeuron(
     // A turn-in-progress activity (not listening or waiting, which an idle app on a live synapse keeps) retained across a deactivation belongs to a turn that died with the process; a late
     // listener must not see it as current. Do not republish the activity; reconcile its reserved
     // presentation flags in the same durable write so the visible presence is not left running.
+    // 06-08: a late listener is replayed the app's newest journalled AppActivity (the runtime's retention), so the reconciled
+    // activity is journalled with the reconciled flags; live listeners hear the interruption too.
     internal Task Interrupt()
     {
-        if (!Exists || Snapshot.ActivityRetention is not [{ Signal: AppActivity { State: var state } retained }]
+        if (!Exists || Snapshot.LastActivity is not { State: var state } retained
             || !LiveStates.Contains(state, StringComparer.Ordinal))
         { return Task.CompletedTask; }
         var next = Snapshot.Clone();
         next.ActivitySequence++;
-        next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, retained with { State = "attention", Detail = "interrupted" })];
+        var interrupted = retained with { State = "attention", Detail = "interrupted" };
+        next.LastActivity = interrupted;
         var presentation = ApplyActivityPresentation(next, "attention");
-        return presentation is null ? SaveQuietly(next) : Save(next, presentation);
+        return presentation is null ? Save(next, interrupted) : Save(next, interrupted, presentation);
     }
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(Snapshot.BuildAttempt);
@@ -230,10 +282,10 @@ internal sealed partial class AppNeuron(
         if (building) { next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state, detail);
         next.ActivitySequence++;
-        next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, activity with { Publisher = Id })];
+        next.LastActivity = activity;
         var presentation = ApplyActivityPresentation(next, state, blackboard);
         if (building && presentation is not null)
-        { await Save(next, [(new AppChanged(Name(), next.Version, next.Status), null), (activity, null), (presentation, null)]); }
+        { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity, presentation); }
         else if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
         else if (presentation is not null) { await Save(next, activity, presentation); }
         else { await Save(next, activity); }
@@ -267,7 +319,7 @@ internal sealed partial class AppNeuron(
         if (board.Count == current.Blackboard.Count && board.All(pair => current.Blackboard.TryGetValue(pair.Key, out var held) && held == pair.Value))
         { return null; }
         next.Presentation = current with { Revision = checked(current.Revision + 1), Blackboard = board };
-        return new(this.GetPrimaryKeyString(), next.ProgramRevision, next.Presentation.Revision);
+        return new(Key, next.ProgramRevision, next.Presentation.Revision);
     }
 
     public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
@@ -525,7 +577,7 @@ internal sealed partial class AppNeuron(
     {
         RequireRunningProgram();
         if (Snapshot.Manifest is null) { return; }
-        var key = this.GetPrimaryKeyString();
+        var key = Key;
         // Only this app's own listing comes down with it.
         if (Snapshot.Publisher is { } publisher
             && await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, Name()) is { } listed
@@ -543,7 +595,7 @@ internal sealed partial class AppNeuron(
 
     private async Task Reopen()
     {
-        foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), this.GetPrimaryKeyString(), CancellationToken.None); }
+        foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), Key, CancellationToken.None); }
     }
 
     public async Task<Guid> Request(string operation, string input)
@@ -560,20 +612,20 @@ internal sealed partial class AppNeuron(
         var id = Guid.NewGuid();
         if (Snapshot.MigrationTarget is { } target)
         {
-            await GrainFactory.GetGrain<IAppMigration>(target).Accept(operation, input, id);
+            await Get<IAppMigration>(AppId(target)).Accept(operation, input, id);
             return id;
         }
-        var requested = new AppRequested(operation, input, id) with { Publisher = Id };
+        var requested = new AppRequested(operation, input, id);
         if (await Rejection(requested) is { } rejected)
         {
-            await PublishAsync(new AppRejected(operation, rejected));
+            await Publish(new AppRejected(operation, rejected));
             await Progress("attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}");
             throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}");
         }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
         // for whoever subscribes later, so a synapse that starts after the request still gets it.
         var next = Snapshot.Clone();
-        var retained = new RetainedSignal(next.RequestSequence + 1, requested);
+        var retained = new RetainedRequest(next.RequestSequence + 1, requested);
         next.RequestSequence = retained.Sequence;
         // During cutover two independent retained windows are combined. Do not immediately
         // truncate half of that adopted window when the first new command arrives.
@@ -599,7 +651,7 @@ internal sealed partial class AppNeuron(
             new AppSynapse(operationId, sentence.Trim(), keys, SynapseStatus.Requested, clock.GetUtcNow(), [])];
         await Persist(next);
         // The writer runs on the work queue, outside this turn, and calls back as an outside caller.
-        ServiceProvider.GetRequiredService<ReactionWriter>().Enqueue(this.GetPrimaryKeyString(), operationId, sentence.Trim(), keys);
+        ServiceProvider.GetRequiredService<ReactionWriter>().Enqueue(Key, operationId, sentence.Trim(), keys);
         return Describe(Snapshot);
     }
 
@@ -678,12 +730,12 @@ internal sealed partial class AppNeuron(
             Hash = hash ?? entry.Hash,
             Source = null,
         };
-        Signal outcome = refused.Length == 0
+        DigitalBrain.Signal outcome = refused.Length == 0
             ? new SynapseWritten(entry.Path!, hash ?? entry.Hash ?? "", elapsedMs, attempts)
             : new SynapseRejected(entry.Sentence, refused);
         var replacedProgram = next.ProgramRevision != Snapshot.ProgramRevision;
         await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
-        if (replacedProgram) { await PublishAsync(new PresentationChanged(this.GetPrimaryKeyString(), next.ProgramRevision, 0)); }
+        if (replacedProgram) { await Publish(new PresentationChanged(Key, next.ProgramRevision, 0)); }
         return Describe(Snapshot);
     }
 
@@ -700,18 +752,7 @@ internal sealed partial class AppNeuron(
         return verdicts.FirstOrDefault(verdict => !verdict.Allowed);
     }
 
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal switch
-        {
-            nameof(AppRequested) => [.. Snapshot.RequestRetention.Where(candidate => candidate.Sequence > since)],
-            nameof(AppActivity) => [.. Snapshot.ActivityRetention.Where(candidate => candidate.Sequence > since)],
-            _ => [],
-        });
-
-    internal Task RestoreAfterActivation()
-        => !Snapshot.MigrationPaused && Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram)
-            ? Defer<IAppDeploy>(deploy => deploy.Restore())
-            : Task.CompletedTask;
+    public Task<RetainedRequest[]> RetainedRequests() => Task.FromResult(Snapshot.RequestRetention);
 
     public async Task Restore()
     {
@@ -728,12 +769,12 @@ internal sealed partial class AppNeuron(
             // host's contracts replace old binary calls, even when the app's version did not change.
             // This ordinary grain turn serializes source capture and reassignment with program edits.
             RequireShape(sources);
-            await runtime.Deploy(this.GetPrimaryKeyString(), sources, configuration, CancellationToken.None);
+            await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
         }
         catch (Exception error)
         {
             ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogError(error,
-                "Could not restore the program of app {App} against the current contracts.", this.GetPrimaryKeyString());
+                "Could not restore the program of app {App} against the current contracts.", Key);
         }
         finally
         {
@@ -754,9 +795,9 @@ internal sealed partial class AppNeuron(
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
-        if (sources.Count == 0) { await runtime.Retire(this.GetPrimaryKeyString(), CancellationToken.None); return; }
+        if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
         RequireShape(sources);
-        await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(Snapshot), CancellationToken.None);
+        await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
     }
 
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
@@ -781,7 +822,7 @@ internal sealed partial class AppNeuron(
     {
         var values = new Dictionary<string, string>(state.Settings, StringComparer.Ordinal);
         foreach (var (slot, id) in state.Connections) { values[AppRuntimeConfiguration.AccountBindingKey(slot)] = id; }
-        values["App"] = this.GetPrimaryKeyString();
+        values["App"] = Key;
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
@@ -840,7 +881,7 @@ internal sealed partial class AppNeuron(
 
     private string Name()
     {
-        var key = this.GetPrimaryKeyString();
+        var key = Key;
         var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
         return marker >= 0 ? key[(marker + "/apps/".Length)..] : key;
     }
@@ -848,7 +889,7 @@ internal sealed partial class AppNeuron(
     // The key is {brain}/apps/{name}; the brain scope is ambient in the address.
     private string BrainId()
     {
-        var key = this.GetPrimaryKeyString();
+        var key = Key;
         var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
         return marker >= 0 ? key[..marker] : "";
     }
@@ -870,7 +911,7 @@ internal sealed partial class AppNeuron(
         => next.ProgramRevision == Snapshot.ProgramRevision
             ? Save(next, new AppChanged(Name(), next.Version, next.Status))
             : Save(next, new AppChanged(Name(), next.Version, next.Status),
-                new PresentationChanged(this.GetPrimaryKeyString(), next.ProgramRevision, 0));
+                new PresentationChanged(Key, next.ProgramRevision, 0));
 
     private AppSnapshot Describe(AppState state) => new(
         Name(),
@@ -893,11 +934,3 @@ internal sealed partial class AppNeuron(
         state.MigrationTarget);
 }
 
-internal sealed class AppActivation : IActivationHandler<AppNeuron>
-{
-    public async Task Activated(AppNeuron neuron, CancellationToken cancellationToken)
-    {
-        await neuron.Interrupt();
-        await neuron.RestoreAfterActivation();
-    }
-}

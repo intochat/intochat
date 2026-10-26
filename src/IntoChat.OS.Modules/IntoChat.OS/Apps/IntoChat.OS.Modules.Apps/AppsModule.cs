@@ -23,7 +23,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
 
-    // 06-08: the module's plain neurons (the feature reconciler, the studio); the rest are still grains registered in Configure.
+    // 06-08: the module's plain neurons (apps, the feature reconciler, the studio, the store); the marketplace is still a grain.
     public override Type? Neurons => typeof(AppsNeurons);
 
     public override void Configure(ISiloBuilder silo)
@@ -43,7 +43,6 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<ReactionWriter>();
         silo.AddStartupTask<FeatureBoot>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AppNeuron>, AppActivation>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

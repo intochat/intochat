@@ -88,13 +88,13 @@ internal sealed partial class AppNeuron
     {
         var next = Snapshot.Clone();
         next.Presentation = presentation;
-        return Save(next, new PresentationChanged(this.GetPrimaryKeyString(), next.ProgramRevision, presentation.Revision));
+        return Save(next, new PresentationChanged(Key, next.ProgramRevision, presentation.Revision));
     }
 
     private void RequireExecutingAssignment(long expectedProgramRevision)
     {
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App
-            || !string.Equals(caller.AppId, this.GetPrimaryKeyString(), StringComparison.Ordinal))
+            || !string.Equals(caller.AppId, Key, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only this app's executing assignment may publish its presentation."); }
         RequireCreated();
         if (expectedProgramRevision != Snapshot.ProgramRevision)

@@ -67,6 +67,13 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
         return Watch<T>(source, onSubscribed, selector, cancellationToken);
     }
 
+    public IAsyncEnumerable<T> OnPlain<T>(object source, string selector, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(selector);
+        return Watch<T>(source, onSubscribed, selector, cancellationToken);
+    }
+
     // A plain neuron's [Signal] records (06-04: scripts hold this class, so PlainNeuronClient's On does not bind here).
     public IAsyncEnumerable<T> On<T>(object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Watch<T>(source, static () => Task.CompletedTask, selector: null, cancellationToken);

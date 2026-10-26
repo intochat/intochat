@@ -13,4 +13,13 @@ public static class AuthorityGrainsHosting
         services.TryAddSingleton<IntoChat.OS.Authority.IAuthorityGrains, AuthorityGrains>();
         return services;
     }
+
+    // 06-08: a cluster client host (the MCP) reaches plain neurons (apps among them) through the runtime's host grains, as the
+    // silo does; the silo's call filters still judge each call by the stamped caller.
+    public static IServiceCollection AddPlainNeurons(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons>(provider => new PlainNeurons(provider.GetRequiredService<IGrainFactory>()));
+        return services;
+    }
 }

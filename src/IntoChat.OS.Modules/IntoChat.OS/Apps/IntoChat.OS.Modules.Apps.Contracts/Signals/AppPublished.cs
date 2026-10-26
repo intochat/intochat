@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.Apps.Signals;
 
-[GenerateSerializer, Alias("apps.app-published")]
+[DigitalBrain.Signal("apps.app-published")]
 public sealed record AppPublished(
-    [property: Id(0)] string Name,
-    [property: Id(1)] string Version) : Signal;
+    string Name,
+    string Version) : DigitalBrain.Signal;

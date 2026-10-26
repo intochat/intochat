@@ -29,7 +29,7 @@ internal sealed partial class AppNeuron
         // Retrying retirement is necessary if its acknowledgement was lost. The persisted gate
         // also prevents activation from assigning this old program again.
         if (Snapshot.MigrationPaused && Runtime is { } runtime)
-        { await runtime.Retire(this.GetPrimaryKeyString(), CancellationToken.None); }
+        { await runtime.Retire(Key, CancellationToken.None); }
     }
 
     public Task<AppState> Archive(string migration)
@@ -47,7 +47,7 @@ internal sealed partial class AppNeuron
             if (adopted != source) { throw new InvalidOperationException("This migration already adopted another source."); }
             return;
         }
-        var original = await GrainFactory.GetGrain<IAppMigration>(source).Archive(migration);
+        var original = await Get<IAppMigration>(AppId(source)).Archive(migration);
         var next = Snapshot.Clone();
         foreach (var (key, value) in original.Settings) { next.PutSetting(key, value); }
         foreach (var (key, value) in original.Connections) { next.PutConnection(key, value); }
@@ -70,7 +70,7 @@ internal sealed partial class AppNeuron
         await Persist(next);
         // Include requests accepted while the source was paused. New requests now go directly
         // to the target; replay of this transfer is deduplicated by original request identity.
-        await GrainFactory.GetGrain<IAppMigration>(target).MergeRequests(Snapshot.RequestRetention);
+        await Get<IAppMigration>(AppId(target)).MergeRequests(Snapshot.RequestRetention);
     }
 
     public async Task Resume(string migration)
@@ -95,10 +95,10 @@ internal sealed partial class AppNeuron
         await Persist(next);
     }
 
-    public async Task MergeRequests(RetainedSignal[] requests)
+    public async Task MergeRequests(RetainedRequest[] requests)
     {
         if (Snapshot.Migration is null) { throw new InvalidOperationException("Request adoption requires a migration."); }
-        foreach (var request in requests.Select(item => item.Signal).OfType<AppRequested>())
+        foreach (var request in requests.Select(item => item.Request))
         {
             await Accept(request.Operation, request.Input, request.RequestId);
             if (Snapshot.MigrationRequests.Any(held => held.RequestId == request.RequestId)) { continue; }
@@ -108,11 +108,11 @@ internal sealed partial class AppNeuron
         }
     }
 
-    private static void AddRequests(AppState next, RetainedSignal[] requests)
+    private static void AddRequests(AppState next, RetainedRequest[] requests)
     {
-        foreach (var request in requests.Select(item => item.Signal).OfType<AppRequested>())
+        foreach (var request in requests.Select(item => item.Request))
         {
-            if (next.RequestRetention.Any(item => item.Signal is AppRequested held && held.RequestId == request.RequestId)) { continue; }
+            if (next.RequestRetention.Any(item => item.Request.RequestId == request.RequestId)) { continue; }
             next.RequestSequence++;
             next.RequestRetention = [.. next.RequestRetention, new(next.RequestSequence, request)];
             next.MigrationRequests = [.. next.MigrationRequests, request];
@@ -125,7 +125,7 @@ internal sealed partial class AppNeuron
         ArgumentNullException.ThrowIfNull(input);
         if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
         if (requestId == Guid.Empty) { throw new ArgumentException("A request identity is required."); }
-        var prior = Snapshot.RequestRetention.Select(item => item.Signal).OfType<AppRequested>()
+        var prior = Snapshot.RequestRetention.Select(item => item.Request)
             .Concat(Snapshot.MigrationRequests).FirstOrDefault(item => item.RequestId == requestId);
         if (prior is not null)
         {
@@ -133,7 +133,7 @@ internal sealed partial class AppNeuron
             { throw new InvalidOperationException("A request identity cannot be reused for another command."); }
             return;
         }
-        var request = new AppRequested(operation, input, requestId) with { Publisher = Id };
+        var request = new AppRequested(operation, input, requestId);
         if (!Snapshot.MigrationPaused)
         {
             if (Snapshot.Manifest is null || !Snapshot.Manifest.Operations.Any(candidate => candidate.Name == operation))
@@ -155,7 +155,7 @@ internal sealed partial class AppNeuron
 
     private void CheckSibling(string key)
     {
-        if (IApp.NameOf(BrainId(), key) is null || key == this.GetPrimaryKeyString())
+        if (IApp.NameOf(BrainId(), key) is null || key == Key)
         { throw new ArgumentException("A migration target must be another app in the same brain."); }
     }
 }

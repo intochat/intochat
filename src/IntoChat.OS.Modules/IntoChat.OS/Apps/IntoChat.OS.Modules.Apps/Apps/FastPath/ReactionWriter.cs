@@ -20,6 +20,7 @@ namespace IntoChat.OS.Modules.Apps;
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
 internal sealed class ReactionWriter(
     IGrainFactory grains,
+    IntoChat.OS.Runtime.IPlainNeurons plain,
     IKernel kernel,
     ReactionExamples examples,
     NeuronTypeSearch search,
@@ -86,8 +87,8 @@ internal sealed class ReactionWriter(
         using var span = Telemetry.StartActivity("apps.fastpath.write", ActivityKind.Internal, parentContext: default, startTime: job.RequestedAt);
         span?.SetTag("apps.app", job.AppKey);
         span?.SetTag("apps.fastpath.operation", job.OperationId.ToString());
-        var app = grains.GetGrain<IApp>(job.AppKey);
-        var deploys = grains.GetGrain<IAppDeploy>(job.AppKey);
+        var app = plain.Get<IApp>(job.AppKey);
+        var deploys = plain.Get<IAppDeploy>(job.AppKey);
         // The job owns the request's completion: every path below, a throw or a cancellation included, ends in
         // CompleteSynapse, so no request stays Requested while its job is gone.
         Outcome outcome;

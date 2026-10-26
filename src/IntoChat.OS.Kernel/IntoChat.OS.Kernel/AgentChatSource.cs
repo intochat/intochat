@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace IntoChat.OS.Kernel;
 
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
-internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider services) : IChatAgentSource
+internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSource
 {
     // The agent is a plain neuron (06-06d): the chat holds a synapse on its signals.
     public ChatAgentSubscription Subscription(string key)
@@ -61,7 +61,7 @@ internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider ser
             if (entries[i].App is not { } card) { continue; }
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
-                try { manifest = (await grains.GetGrain<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
+                try { manifest = (await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }

@@ -72,7 +72,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
     // Rules run in the brain's sandbox session, never here: this host compiles the bundle's shared
     // classes off the grain thread (once per content), stores the library like a behavior, and asks the
     // session for verdicts. No answer in time, or no answer at all, is a rejection.
-    public async Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+    public async Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         ArgumentNullException.ThrowIfNull(signal);

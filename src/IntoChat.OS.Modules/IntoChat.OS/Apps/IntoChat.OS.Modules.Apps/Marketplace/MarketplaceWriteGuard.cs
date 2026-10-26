@@ -24,9 +24,23 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
                     ? MarketplaceNeuron.OwnerKey(MarketplaceNeuron.Listing(stored))
                     : null;
             if (owner is not null
-                && (context.SourceId is not { } source || source.Type.ToString() != IntoChat.OS.Connections.AppGrainType.Name || source.Key.ToString() != owner))
+                && (SourceOf(context.SourceId) is not { } source || source.Type != IntoChat.OS.Connections.AppGrainType.Name || source.Key != owner))
             { throw new UnauthorizedAccessException("Only the app that owns a Marketplace listing may change it."); }
         }
         await context.Invoke();
+    }
+
+    // The calling grain's type and os key, read from the ids Orleans sets on the message (never from the call's body). The app is a
+    // plain neuron (06-08): its call leaves from its runtime host grain, keyed by its neuron id "brain/type/key".
+    private static (string Type, string Key)? SourceOf(GrainId? source)
+    {
+        if (source is not { } id) { return null; }
+        var type = id.Type.ToString()!;
+        var key = id.Key.ToString()!;
+        if (type.StartsWith("neuron.host", StringComparison.Ordinal))
+        {
+            return global::DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+        }
+        return (type, key);
     }
 }

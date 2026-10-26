@@ -46,7 +46,7 @@ public sealed class FastPathFacts : IDisposable
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
         var app = brain.Get<IApp>(brain.Setting("App")!);
         await foreach (var request in brain.On(app, "ask", brain.Stopping))
-        { await brain.Get<IText>(app.GetPrimaryKeyString() + "/answer").Set("lemons"); }
+        { await brain.Get<IText>(brain.Setting("App") + "/answer").Set("lemons"); }
         """;
 
     private const string TwoReactions = """
@@ -98,10 +98,9 @@ public sealed class FastPathFacts : IDisposable
             if (proposed && refuse) { throw new InvalidOperationException("assignment refused after startup"); }
         };
         model.Script(Writer, Reply("lemons.cs", Lemons));
-        await using var outcomes = await brain.Observe<Signal>(app, ct);
         await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
         var failure = await attempted.Task.WaitAsync(ct);
-        await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct);
+        await Settled(app, 1, ct);
         Assert.Null(failure);
         var state = await app.Read();
         Assert.Equal(refuse ? "restored" : "proposed", state.Presentation!.Root!.Sphere!.Icon);
@@ -389,7 +388,7 @@ public sealed class FastPathFacts : IDisposable
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
         Assert.Contains("Every neuron key a reaction creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
-        Assert.Contains("app.GetPrimaryKeyString() + \"/alert\"", prompt, StringComparison.Ordinal);
+        Assert.Contains("brain.Setting(\"App\") + \"/alert\"", prompt, StringComparison.Ordinal);
         Assert.Contains("A sentence that needs a missing contract is refused, never faked", prompt, StringComparison.Ordinal);
         Assert.Contains(AgentPrompts.Refusal + " <what is missing", prompt, StringComparison.Ordinal);
     }
@@ -1048,20 +1047,18 @@ public sealed class FastPathFacts : IDisposable
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
         var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
-        await using var outcomes = await brain.Observe<Signal>(app, ct);
 
         await Task.WhenAll(
             app.WriteSynapse("when asked, answer apples", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer pears", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer plums", [], Guid.NewGuid()));
 
-        for (var landed = 0; landed < 3; landed++)
-        { await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct); }
+        await Settled(app, 3, ct);
         var live = await app.Read();
         Assert.Equal(3, live.Synapses!.Length);
         // Every deploy here lands, so none may be rejected for having waited on another, and each written file is
         // both in the app and in what the runtime runs.
-        var program = runtime.Current(app.GetPrimaryKeyString()) ?? [];
+        var program = runtime.Current(await AppKey(app)) ?? [];
         Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
         Assert.All(live.Synapses, synapse => Assert.True(live.Files.ContainsKey(synapse.Path!) && program.ContainsKey(synapse.Path!)));
         Assert.True(runtime.TimedOutCalls >= 3, $"{runtime.TimedOutCalls} deploy calls timed out");
@@ -1095,7 +1092,7 @@ public sealed class FastPathFacts : IDisposable
         Assert.Equal((SynapseStatus.Written, "lemons.cs", "hash:lemons.cs"), (entry.Status, entry.Path, entry.Hash));
         Assert.Empty(entry.Errors);
         Assert.Equal(Lemons, live.Files["lemons.cs"]);
-        Assert.Equal(Lemons, runtime.Current(app.GetPrimaryKeyString())?["lemons.cs"]);
+        Assert.Equal(Lemons, runtime.Current(await AppKey(app))?["lemons.cs"]);
         // The first call timed out and the repeat joined the deploy in flight: one deploy, not two.
         Assert.True(runtime.TimedOutCalls >= 1, $"{runtime.TimedOutCalls} deploy calls timed out");
         Assert.Equal(1, runtime.Deploys);
@@ -1123,8 +1120,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.False(live.Files.ContainsKey("stuck.cs"));
         Assert.Equal(ReactionWriter.MaxDeployCalls, runtime.TimedOutCalls);
         // The runtime was brought back to the app's files: whatever it holds for the app has no stuck.cs.
-        Assert.False(runtime.Current(app.GetPrimaryKeyString())?.ContainsKey("stuck.cs") ?? false);
-        Assert.Contains(app.GetPrimaryKeyString(), runtime.Retired);
+        Assert.False(runtime.Current(await AppKey(app))?.ContainsKey("stuck.cs") ?? false);
+        Assert.Contains(await AppKey(app), runtime.Retired);
     }
 
     [Trait("host", "own")]
@@ -1147,7 +1144,7 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single((await app.Read()).Synapses!);
         Assert.Equal(SynapseStatus.Rejected, entry.Status);
         // The program before the write landed again after the stuck one: the runtime runs lemons.cs alone.
-        Assert.Equal(["lemons.cs"], runtime.Current(app.GetPrimaryKeyString())!.Keys);
+        Assert.Equal(["lemons.cs"], runtime.Current(await AppKey(app))!.Keys);
         Assert.Equal(2, runtime.Landed.Count(program => program.Keys.SequenceEqual(["lemons.cs"])));
     }
 
@@ -1519,6 +1516,9 @@ public sealed class FastPathFacts : IDisposable
         }
     }
 
+    // The os key of an app of the fact's brain (06-08: a plain proxy carries no grain key).
+    private static async Task<string> AppKey(IApp app) => IApp.Key(Brain, (await app.Read()).Name);
+
     private static async Task<IApp> Created(ITestBrain brain, string name)
     {
         var app = brain.Get<IApp>(IApp.Key(Brain, name));
@@ -1542,10 +1542,16 @@ public sealed class FastPathFacts : IDisposable
         { Console.WriteLine("{{marker}}"); }
         """;
 
+    // Until count of the app's requested synapses have an outcome (06-08: the plain app's SynapseWritten/SynapseRejected are not
+    // observed as one stream, so the outcome is read from the app).
+    private static Task Settled(IApp app, int count, CancellationToken ct)
+        => TestWait.UntilAsync(_ => app.Read(), state => state.Synapses is { } synapses && synapses.Count(synapse => synapse.Status != SynapseStatus.Requested) >= count,
+            TimeSpan.FromSeconds(30), ct);
+
     // The fast path's retrieval over the brain's own grains, with the embedding model and cache size the fact picks.
     private static ReactionExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
         int vectorCapacity = ReactionExamples.DefaultVectorCapacity)
-        => new(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services.GetRequiredService<IKernel>(),
+        => new(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), brain.Services.GetRequiredService<IKernel>(),
             brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<ReactionExamples>>(), vectorCapacity);
 
     private static Task Script(ITestBrain brain, params BehaviorView[] behaviors)
@@ -1625,7 +1631,7 @@ public sealed class FastPathFacts : IDisposable
             return Result(files);
         }
 
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
     }
 }

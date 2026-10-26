@@ -144,8 +144,9 @@ public sealed class FriendsReplayFacts
     private static async Task<AppRequested> Replay(ITestBrain brain, IApp app, CancellationToken ct)
     {
         await brain.DeactivateAsync(app, ct);
-        var retention = app.AsReference<IRetainsSignals>();
-        return Assert.IsType<AppRequested>(Assert.Single(await retention.Retained(nameof(AppRequested), 0)).Signal);
+        // The plain app keeps its requests in its state (06-08); the host-only migration contract reads them.
+        var retention = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(IApp.Key(brain.Owner.BrainId, "friends"));
+        return Assert.Single(await retention.RetainedRequests()).Request;
     }
 
     private static async Task Handle(ITestBrain brain, AppRequested request)

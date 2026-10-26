@@ -34,9 +34,10 @@ public sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> op
     {
         ArgumentNullException.ThrowIfNull(request);
         var type = Type.GetType(request.SignalType, throwOnError: false);
-        if (type is null || !typeof(Signal).IsAssignableFrom(type))
+        // An os Signal, or a plain neuron's [Signal] record (06-08: AppRequested is plain).
+        if (type is null || !(typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type)))
         { return new([new(Library, false, $"this sandbox does not know the signal {request.SignalType}")]); }
-        var signal = (Signal)request.Signal.Deserialize(type, RuntimeProtocol.Json)!;
+        var signal = request.Signal.Deserialize(type, RuntimeProtocol.Json)!;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         RuleSet rules;
         try { rules = await Load(session, request).WaitAsync(request.Budget, cancellationToken).ConfigureAwait(false); }
@@ -141,10 +142,10 @@ public sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> op
 
         public JudgeVerdict[] Failures => failures;
 
-        public IEnumerable<(Type Type, Type Signal, MethodInfo Validate)> Matching(Signal signal)
+        public IEnumerable<(Type Type, Type Signal, MethodInfo Validate)> Matching(object signal)
             => rules.Where(rule => rule.Signal.IsInstanceOfType(signal));
 
-        public static JudgeVerdict Run((Type Type, Type Signal, MethodInfo Validate) rule, Signal signal)
+        public static JudgeVerdict Run((Type Type, Type Signal, MethodInfo Validate) rule, object signal)
         {
             try
             {

@@ -32,6 +32,7 @@ internal sealed record ReactionRanking(ReactionExample[] Examples, ReactionExamp
 // NeuronTypeSearch uses), by words otherwise, then nudged by each synapse's run history in this brain.
 internal sealed class ReactionExamples(
     IGrainFactory grains,
+    IntoChat.OS.Runtime.IPlainNeurons plain,
     IKernel kernel,
     FeatureCatalog catalog,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
@@ -58,7 +59,7 @@ internal sealed class ReactionExamples(
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
     public static ReactionExamples Create(IServiceProvider services) => new(
-        services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
+        services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
         Embeddings(services), services.GetRequiredService<ILogger<ReactionExamples>>());
 
     // The sentence embedded once, for every ranking of it; null ranks by words (no model, or the model failed).
@@ -160,7 +161,7 @@ internal sealed class ReactionExamples(
         {
             if (IApp.NameOf(brain, instance.Key) is not null) { keys.Add(instance.Key); }
         }
-        var apps = await Task.WhenAll(keys.Select(key => grains.GetGrain<IApp>(key).Read().WaitAsync(cancellationToken)));
+        var apps = await Task.WhenAll(keys.Select(key => plain.Get<IApp>(key).Read().WaitAsync(cancellationToken)));
         for (var i = 0; i < keys.Count; i++)
         {
             var key = keys[i];

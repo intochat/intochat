@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 // The Creator, addressable: one neuron per brain wrapping the Author and Builder. Build waits for
 // the background Builder to land, so a single routed call answers with the finished app.
-// A plain neuron (06-08); the app it builds is still a grain, read as this neuron through the legacy seam until Apps move.
+// A plain neuron (06-08).
 [DigitalBrain.Neuron("apps.studio")]
 internal sealed class AppStudioNeuron(Creator creator) : DigitalBrain.Neuron, IAppStudio
 {
@@ -24,7 +24,7 @@ internal sealed class AppStudioNeuron(Creator creator) : DigitalBrain.Neuron, IA
         var authored = await Author(request, ct);
         var key = IApp.Key(Scope, authored.Name);
         await creator.Implement(Context.Services.GetRequiredService<IIntoChatOS>(), key, null, ct);
-        var app = IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Scope.Length + 1)..]));
+        var app = Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Scope.Length + 1)..]));
         var deadline = DateTimeOffset.UtcNow + BuildTimeout;
         while (DateTimeOffset.UtcNow < deadline)
         {

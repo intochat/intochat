@@ -31,7 +31,7 @@ internal sealed partial class AppNeuron
         if (await identity.OwnerOfBrain(brain) is not { } account) { return; }
         await identity.EnsureMember(new Member
         {
-            PrincipalId = AppPrincipal.Id(this.GetPrimaryKeyString()),
+            PrincipalId = AppPrincipal.Id(Key),
             AccountId = account.AccountId,
             BrainId = brain,
             Role = MemberRole.App,
@@ -44,7 +44,7 @@ internal sealed partial class AppNeuron
     {
         if (ServiceProvider.GetService<IIdentityClient>() is not { } identity) { return; }
         var brain = BrainId();
-        var principal = AppPrincipal.Id(this.GetPrimaryKeyString());
+        var principal = AppPrincipal.Id(Key);
         if (await identity.Membership(brain, principal) is { Role: MemberRole.App })
         { await identity.RemovePrincipalMember(brain, principal); }
     }

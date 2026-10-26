@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Flutter.Text.Signals;
 // The shown app was installed, updated or removed: show the view again, so its status and actions follow.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Apps.Scope(brain);
-var shown = Sources.Named<IText, TextChanged>(Apps.ViewState(brain), async (_, ct) =>
+var shown = Sources.Named<IText, TextChanged, IApp>(Apps.ViewState(brain), async (_, ct) =>
 {
     var target = AppsNames.Parse((await Apps.ReadState(Apps.ViewState(brain))).Target);
     var name = target.Installed ?? target.App;

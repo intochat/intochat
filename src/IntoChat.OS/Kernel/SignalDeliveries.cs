@@ -10,9 +10,10 @@ namespace IntoChat.OS;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class SignalDeliveries
 {
-    private static readonly ConditionalWeakTable<Signal, object> Skipped = [];
+    // An os Signal or a plain [Signal] record (06-08: AppRequested is plain).
+    private static readonly ConditionalWeakTable<object, object> Skipped = [];
 
-    public static void Skip(Signal signal) => Skipped.AddOrUpdate(signal, Skipped);
+    public static void Skip(object signal) => Skipped.AddOrUpdate(signal, Skipped);
 
-    public static bool WasSkipped(Signal signal) => Skipped.TryGetValue(signal, out _);
+    public static bool WasSkipped(object signal) => Skipped.TryGetValue(signal, out _);
 }

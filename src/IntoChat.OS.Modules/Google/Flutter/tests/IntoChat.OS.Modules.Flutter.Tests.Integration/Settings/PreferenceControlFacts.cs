@@ -15,7 +15,7 @@ public sealed class PreferenceControlFacts(FlutterHost host)
     private async Task<IPreferenceControl> Control(IntoChat.OS.Testing.Person person, string name, PreferenceSpec spec)
     {
         var control = host.Brain.Get<IPreferenceControl>(person.Key("settings/" + name));
-        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
         using (ShippedSettings.Caller(person)) { await control.Configure(spec); }
         return control;
     }
@@ -134,7 +134,7 @@ public sealed class PreferenceControlFacts(FlutterHost host)
     {
         using var person = await host.PersonAsync(ct: Ct);
         var control = host.Brain.Get<IPreferenceControl>(person.Key("settings/pref-bad"));
-        await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
         using (ShippedSettings.Caller(person))
         {
             await Assert.ThrowsAsync<ArgumentException>(() => control.Configure(new(PreferenceStore.NotifyAgentFinished, " ", PreferenceKind.Toggle)));
@@ -170,7 +170,7 @@ public sealed class PreferenceControlFacts(FlutterHost host)
         await Refused(person.AsApp(person.Key("apps/settings")));
         using (person.AsCaller()) { Assert.Null((await control.Read()).Spec); }
 
-        var settings = await ShippedSettings.Install(host.Brain.Get<IApp>, person);
+        var settings = await ShippedSettings.Install(key => host.Brain.Get<IApp>(key), person);
         using (person.AsApp(person.Key("apps/settings"))) { await control.Configure(spec); }
         await Refused(person.AsApp(person.Key("apps/notes")));
 

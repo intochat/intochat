@@ -29,7 +29,7 @@ public sealed class SessionCapabilitiesFacts
 
     private sealed class Sandbox(bool canRun) : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => canRun;
         public string AuthoringDescription => "External script process";

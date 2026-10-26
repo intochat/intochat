@@ -106,7 +106,7 @@ internal static class CircleBrainRooms
             return Task.FromResult(new ScriptCompilationCheck(failing.Length == 0, failing));
         }
 
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
     }
 

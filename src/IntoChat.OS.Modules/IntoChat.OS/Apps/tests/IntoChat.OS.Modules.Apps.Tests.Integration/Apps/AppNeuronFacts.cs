@@ -45,7 +45,7 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "spec");
         await app.WriteBehavior("synapses/echo.cs", "// echo", Guid.NewGuid());
         await app.Delete();
-        var deploy = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key);
+        var deploy = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppDeploy>(key);
 
         var program = await deploy.Program();
         var unsettled = await deploy.Unsettle(Guid.NewGuid(), "late", 1, 1, null);

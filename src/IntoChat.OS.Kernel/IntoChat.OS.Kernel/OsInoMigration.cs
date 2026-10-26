@@ -51,8 +51,10 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
             await target.Create(bundle.Manifest, bundle.Spec).WaitAsync(ct);
             await target.RecordOrigin(new("os", new AppSource.Shipped(), "ino", bundle.Version)).WaitAsync(ct);
         }
-        var old = source.AsReference<IAppMigration>();
-        var destination = target.AsReference<IAppMigration>();
+        // The app neuron's host-only migration contract (06-08: apps are plain), reached through the silo's plain seam.
+        var plain = services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+        var old = plain.Get<IAppMigration>(sourceKey);
+        var destination = plain.Get<IAppMigration>(targetKey);
         await old.Pause(Migration).WaitAsync(ct);
         await destination.Pause(Migration).WaitAsync(ct);
         await destination.Adopt(Migration, sourceKey).WaitAsync(ct);
@@ -78,8 +80,8 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         // The old Ino forwarding ids differ from the Assistant ids. Keep both sets so retained
         // completed forwarding requests cannot create a second conversation or recording.
         await old.Redirect(Migration, targetKey).WaitAsync(ct);
-        var retained = await target.AsReference<IRetainsSignals>().Retained(nameof(IntoChat.OS.Modules.Apps.Signals.AppRequested), 0).WaitAsync(ct);
-        var replayable = retained.Select(item => item.Signal).OfType<IntoChat.OS.Modules.Apps.Signals.AppRequested>().Select(request => request.RequestId).ToHashSet();
+        var retained = await destination.RetainedRequests().WaitAsync(ct);
+        var replayable = retained.Select(item => item.Request.RequestId).ToHashSet();
         await MergeLedger(scope, "apps/ino/handled/new-conversation", "apps/assistant/handled/new", replayable, ct);
         await MergeLedger(scope, "apps/ino/handled/voice", "apps/assistant/handled/voice", replayable, ct);
 
@@ -97,7 +99,7 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         var app = brains.Open(brain).Neuron<IApp>("apps/ino");
         var current = await app.Read().WaitAsync(ct);
         if (current.Settings.ContainsKey("ChatDataApp") && current.Settings.GetValueOrDefault("CompletedAppMigration") != Migration)
-        { await app.AsReference<IAppMigration>().Resume(Migration).WaitAsync(ct); }
+        { await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(IApp.Key(brain, "ino")).Resume(Migration).WaitAsync(ct); }
     }
 
     private static async Task MergeLedger(IIntoChatOS scope, NeuronId from, NeuronId to, HashSet<Guid> replayable, CancellationToken ct)

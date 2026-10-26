@@ -161,9 +161,12 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
                 { _entries.Remove(key); }
                 foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _aliases.Remove(key); }
+                // A dirty app the directory does not list yet is read too: a plain app announces its first change before the kernel's
+                // directory registers it, and its deletion before the directory retires it (06-08). ReadApp drops one that reads as
+                // never created.
                 foreach (var key in dirtyApps)
                 {
-                    if (members.Contains(key)) { await ReadApp(brain, key); }
+                    if (members.Contains(key) || IApp.NameOf(brain, key) is not null) { await ReadApp(brain, key); }
                 }
             }
             var workspace = held with { Path = held.Path.Select(ResolveAlias).ToArray() };
@@ -193,8 +196,14 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     {
         try
         {
-            // Apps are still grains until they migrate (group B); reached as this neuron through the legacy seam.
-            var app = await IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(brain.Length + 1)..])).Read();
+            var app = await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(brain.Length + 1)..])).Read();
+            // A deleted app answers as never created (no title) until the directory retires it.
+            if (app.Manifest.Title.Length == 0)
+            {
+                _entries.Remove(key);
+                _aliases.Remove(key);
+                return;
+            }
             if (app.MigrationTarget is { } target)
             {
                 _entries.Remove(key);

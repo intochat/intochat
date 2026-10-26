@@ -54,6 +54,8 @@ internal sealed class BrainRuntimeNeuron(
     : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeContinuations, IBrainRuntimeSession, IRemindable, INeuronObserver
 {
     internal const string GrainTypeName = "microsoft.csharp.runtime";
+    // How many of a plain app's requests seed a new subscription: the window the app grain retained (64).
+    private const int RetainedRequests = 64;
     internal const string ReconcileReminder = "reconcile";
     // Orleans reminders fire at most once a minute.
     private static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
@@ -684,7 +686,8 @@ internal sealed class BrainRuntimeNeuron(
             var buffered = s;
             foreach (var item in signals.Where(j => j.Sequence > s.SourceSeq && j.Type == s.Signal))
             {
-                if (item.Signal is { } signal && !SubscriptionFilter.Delivers(s.Behavior, s.Selector, signal)) { continue; }
+                if (item.Signal is { } signal && !SubscriptionFilter.Delivers(s.Behavior, signal)) { continue; }
+                if (item.Signal is null && !SubscriptionFilter.AcceptsPlain(s.Selector, item.Type, item.Json)) { continue; }
                 buffered = buffered.Arrive(item.Json ?? JsonSerializer.Serialize(item.Signal!, item.Signal!.GetType(), RuntimeProtocol.Json), cap);
             }
             var through = Math.Max(Math.Max(s.SourceSeq, floor), signals.Count == 0 ? 0 : signals[^1].Sequence);
@@ -1023,11 +1026,20 @@ internal sealed class BrainRuntimeNeuron(
     // source, a runs neuron among them, contributes nothing and is not asked.
     private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since, string? selector)
     {
-        if (PlainSources.Is(neuron)) { return []; }
+        if (PlainSources.TryParse(neuron, out var plain))
+        {
+            // A plain app keeps no retention of its own (06-08): its journal is the backlog. The app's requests seed the last
+            // RetainedRequests of them, its activity the last one, as the grain's retention did; any other plain signal seeds nothing.
+            var keep = signal == SubscriptionFilter.RequestedAlias ? RetainedRequests : signal == SubscriptionFilter.ActivityAlias ? 1 : 0;
+            if (keep == 0) { return []; }
+            var (_, entries) = await ReadPlainAfterAsync(plain, 0);
+            return [.. entries.Where(entry => entry.Type == signal && SubscriptionFilter.AcceptsPlain(selector, entry.Type, entry.Json))
+                .TakeLast(keep).Select(entry => entry.Json!)];
+        }
         var source = GrainId.Parse(neuron);
         if (!Retains(source)) { return []; }
         var retained = await GrainFactory.GetGrain<IRetainsSignals>(source).Retained(signal, since);
-        return [.. retained.Where(item => SubscriptionFilter.Accepts(selector, item.Signal))
+        return [.. retained
             .Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
     }
 

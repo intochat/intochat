@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using IntoChat.OS.Framework.Diagnostics;
 using DigitalBrain;
 using System.Text;
 using System.Text.Json;
@@ -36,9 +38,9 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWo
     private string Scope => Id.Brain.Value;
     private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();
 
-    // An app of this brain by its os key: apps are still legacy grains (06-05b), reached as this neuron (R4-17).
+    // An app of this brain by its os key (apps are plain since 06-08).
     private IApp App(string appKey)
-        => IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, appKey[(Scope.Length + 1)..]));
+        => Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, appKey[(Scope.Length + 1)..]));
 
     public async Task Ask(RouteRequest request, CancellationToken ct)
     {
@@ -179,7 +181,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWo
     private async Task<MenuOperation[]> MenuOperations()
     {
         var catalog = ServiceProvider.GetRequiredService<AppOperationCatalog>();
-        if (catalog.TryGet(Scope, out var cached)) { return cached; }
+        if (catalog.TryGet(Scope, out var cached) && await Fresh(catalog)) { return catalog.TryGet(Scope, out var current) ? current : cached; }
         List<(string App, MenuOperation[] Operations)> loaded = [];
         try
         {
@@ -199,6 +201,31 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWo
         catch (Exception error) when (error is not OperationCanceledException) { return []; }
         catalog.Replace(Scope, loaded);
         return loaded.SelectMany(item => item.Operations).ToArray();
+    }
+
+    // Reads into the ready menu the installed apps it has not read yet; false when the directory or an app cannot be read.
+    private async Task<bool> Fresh(AppOperationCatalog catalog)
+    {
+        try
+        {
+            var kernel = ServiceProvider.GetRequiredService<IKernel>();
+            List<string> names = [];
+            await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
+            { if (IApp.NameOf(Scope, instance.Key) is { } name) { names.Add(name); } }
+            foreach (var name in catalog.Unknown(Scope, names))
+            {
+                var snapshot = await App(IApp.Key(Scope, name)).Read();
+                catalog.Upsert(Scope, name, snapshot.MigrationTarget is not null || snapshot.Manifest is null ? []
+                    : [.. snapshot.Manifest.Operations.Select(operation => new MenuOperation(name, operation.Name,
+                        string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))]);
+            }
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            ServiceProvider.GetRequiredService<ILogger<AppOperationCatalog>>().LogSwallowed(error, "The app menu could not be refreshed; it is read again");
+            return false;
+        }
     }
 
     // The second tier's menu: the runtime tools this brain's sources registered (each a concrete instance

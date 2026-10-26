@@ -55,7 +55,8 @@ internal static class LiveSignalEndpoints
     internal static readonly LiveFeed[] Feeds =
     [
         Feed<DeploymentChanged>(static (brain, brainId, _, _) => Single(brain.Get<IDeployment>(IDeployment.Key(brainId)))),
-        Feed<AppActivity>(Apps),
+        // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
+        PlainFeed<AppActivity>(Apps),
         // R126: asked of a circle brain's own /live; the shell watches each circle the person is in.
         Feed<CircleChanged>(static (brain, brainId, _, _) => Single(brain.Get<ICircle>(ICircle.Key(brainId)))),
         Feed<CircleSpoke>(static (brain, brainId, _, _) => Single(brain.Get<ICircleChat>(ICircleChat.Key(brainId)))),
@@ -70,7 +71,7 @@ internal static class LiveSignalEndpoints
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
     // A null key marks the end of the listing. A key waiting in the buffer is not queued again, so the dedup set
     // holds at most the buffer's keys; once read, `seen` keeps the stream from yielding it twice.
-    private static async IAsyncEnumerable<INeuron> Apps(IIntoChatOS brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
+    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> Apps(IIntoChatOS brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
         var keys = Channel.CreateBounded<string?>(new BoundedChannelOptions(KeyBuffer) { FullMode = BoundedChannelFullMode.Wait });
         HashSet<string> queued = [];
@@ -97,7 +98,8 @@ internal static class LiveSignalEndpoints
         {
             if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
-            else if (IApp.NameOf(brainId, key) is not null && seen.Add(key)) { yield return brain.Get<IApp>(key); }
+            else if (IApp.NameOf(brainId, key) is not null && seen.Add(key))
+            { yield return new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.AppGrainType.Name, key[(brainId.Length + 1)..]); }
         }
     }
 

@@ -1,7 +1,5 @@
 {
-  "AppChanged": 1,
   "CircleChanged": 1,
   "CircleMembershipRevoked": 1,
-  "CircleSpoke": 1,
-  "PresentationChanged": 1
+  "CircleSpoke": 1
 }

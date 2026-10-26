@@ -30,7 +30,7 @@ public sealed class SubscribedRetentionFacts
         var request = await app.Request("open", "before subscription");
         var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
-        var subscription = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")), RuntimeBrain.Requested);
 
         Assert.True(stream.Reader.TryRead(out var pushed), "The retained seed must reach the live stream without another signal or reconnect.");
         var batch = Assert.IsType<IntoChat.OS.Client.Runtime.V1.SignalBatchEvent>(pushed.Payload);
@@ -53,7 +53,7 @@ public sealed class SubscribedRetentionFacts
         var first = await app.Request("open", "one");
         var second = await app.Request("open", "two");
 
-        var subscription = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")), RuntimeBrain.Requested);
 
         var pending = Assert.Single(await Edge(brain).PendingBatches(session));
         Assert.Equal(subscription, pending.Subscription);
@@ -111,11 +111,11 @@ public sealed class SubscribedRetentionFacts
         await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await app.Request("open", "one");
-        var subscription = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")), RuntimeBrain.Requested);
         Assert.Single(Assert.Single(await Edge(brain).PendingBatches(session)).Signals);
 
         await Edge(brain).Acknowledge(session, subscription, 1);
-        var again = await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+        var again = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")), RuntimeBrain.Requested);
 
         Assert.Equal(subscription, again);
         Assert.Empty(await Edge(brain).PendingBatches(session));
@@ -133,7 +133,7 @@ public sealed class SubscribedRetentionFacts
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         var first = await app.Request("open", "0");
         for (var i = 1; i < 65; i++) { await app.Request("open", i.ToString()); }
-        await Edge(brain).Subscribed(session, Behavior, app.GetGrainId().ToString(), nameof(AppRequested));
+        await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")), RuntimeBrain.Requested);
         Assert.Equal(64, Assert.Single(await Edge(brain).PendingBatches(session)).Signals.Length);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
 
@@ -144,7 +144,7 @@ public sealed class SubscribedRetentionFacts
         Assert.Equal(64, pending.Signals.Length);
         Assert.DoesNotContain(first, pending.Signals.Select(SignalJson.RequestId).ToArray());
         var sub = Assert.Single(Assert.Single((await Runtime(brain).Inspect(ct)).Behaviors).Subscriptions,
-            s => s.Neuron == app.GetGrainId().ToString());
+            s => s.Neuron == RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo")));
         Assert.Equal(1, sub.Dropped);
     }
 

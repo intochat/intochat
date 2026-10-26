@@ -45,7 +45,7 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
             {
                 var signal = JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!;
                 yield return signal;
-                skipped &= signal is Signal delivered && SignalDeliveries.WasSkipped(delivered);
+                skipped &= SignalDeliveries.WasSkipped(signal);
             }
             // Resuming here means the consumer asked for more: every signal of the batch was handled.
             var cpuMicros = (long)Math.Max(0, (Process.GetCurrentProcess().TotalProcessorTime - cpuStart).TotalMicroseconds);

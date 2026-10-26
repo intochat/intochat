@@ -67,11 +67,13 @@ public sealed class AppRouteFacts
         Assert.Equal("Drafted", draft.GetProperty("status").GetString());
 
         // Implement answers 202 Building and the Builder lands in the background.
-        await using var changes = await brain.Observe<AppChanged>(brain.Get<IApp>(IApp.Key(alice.BrainId, "shouter")), ct);
         using var implementing = await alice.Http.PostAsJsonAsync($"{apps}/shouter/implement", new { }, ct);
         Assert.Equal(HttpStatusCode.Accepted, implementing.StatusCode);
         Assert.Equal("Building", (await Json(implementing, ct)).GetProperty("status").GetString());
-        await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
+        // The build lands in the background; the app's own state says when (a loaded host needs longer than a probe's wait).
+        var app = brain.Get<IApp>(IApp.Key(alice.BrainId, "shouter"));
+        using (alice.AsCaller())
+        { await TestWait.UntilAsync(_ => app.Read(), state => state.Status == AppStatus.Live, TimeSpan.FromSeconds(60), ct); }
 
         // A live version exports; the list shows the app; delete removes it.
         using var exported = await alice.Http.GetAsync($"{apps}/shouter/export", ct);
@@ -127,7 +129,7 @@ public sealed class AppRouteFacts
 
     private sealed class RouteSandbox : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";

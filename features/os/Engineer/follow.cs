@@ -9,7 +9,7 @@ using IntoChat.OS.Modules.Flutter.Text.Signals;
 // so an outcome that landed while this script was away is read when it starts again.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Engineer.Scope(brain);
-var targets = Sources.Named<IText, TextChanged>(Engineer.Targets(brain), async (registry, ct) =>
+var targets = Sources.Named<IText, TextChanged, IApp>(Engineer.Targets(brain), async (registry, ct) =>
     [.. (await Engineer.Names(registry)).Select(name => brain.Get<IApp>(IApp.Key(scope, name)))]);
 
 await brain.React<AppChanged>(targets, async ct =>

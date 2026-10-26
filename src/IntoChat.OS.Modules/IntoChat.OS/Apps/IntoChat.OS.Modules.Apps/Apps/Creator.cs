@@ -17,6 +17,7 @@ namespace IntoChat.OS.Modules.Apps;
 // neuron — never inside a request, never inside a grain turn.
 internal sealed class Creator(
     IGrainFactory grains,
+    IntoChat.OS.Runtime.IPlainNeurons plain,
     NeuronTypeSearch search,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
@@ -101,7 +102,7 @@ internal sealed class Creator(
     {
         // The queue's grain client is unstamped (trusted cluster path); progress and results
         // land on the neuron, which is the only durable record of this run.
-        var app = grains.GetGrain<IApp>(appKey);
+        var app = plain.Get<IApp>(appKey);
         try
         {
             var task = new StringBuilder()
@@ -156,7 +157,7 @@ internal sealed class Creator(
         catch (Exception failure)
         {
             if (failureIsVisibleElsewhere) { logger.LogSwallowed(failure, "attention report failed"); }
-            else { logger.LogWarning(failure, "attention report failed for {App}", app.GetPrimaryKeyString()); }
+            else { logger.LogWarning(failure, "attention report failed for an app."); }
         }
     }
 

@@ -39,9 +39,9 @@ public sealed class SpaceFacts
         await space.Rebuild();
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == oldKey), TimeSpan.FromSeconds(10), ct);
-        var migration = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppMigration>(oldKey);
+        var migration = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(oldKey);
         await migration.Pause("alias-test");
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppMigration>(targetKey).Pause("alias-test");
+        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(targetKey).Pause("alias-test");
         await migration.Redirect("alias-test", targetKey);
         var beforeRefresh = (await scene.Read()).Revision;
         await space.RefreshApp(oldKey);
@@ -170,7 +170,7 @@ public sealed class SpaceFacts
         public int Count;
         public Task Invoke(IOutgoingGrainCallContext context)
         {
-            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IApp) && context.InterfaceMethod.Name == nameof(IApp.Read))
+            if (Armed && Calls.Is(context.InterfaceMethod, context.Request, "apps.app2", nameof(IApp.Read)))
             {
                 Interlocked.Increment(ref Count);
                 if (FailNext) { FailNext = false; throw new InvalidOperationException("Transient app read failure."); }
@@ -231,13 +231,6 @@ public sealed class SpaceFacts
 
     private sealed class RebuildGate(bool firstScanFails, bool targeted) : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
     {
-        // The (contract alias, method) of a grain call or of a plain call carried to a host grain.
-        private static (string? Contract, string? Method) Called(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
-        {
-            if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
-            var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
-            return (alias, method?.Name);
-        }
 
         public bool Armed;
         public int Reads, MaximumActive;
@@ -250,7 +243,7 @@ public sealed class SpaceFacts
         {
             var first = false;
             // The space is a plain neuron (06-08): its calls arrive on the runtime's host grain as one RuntimeInvocation.
-            var (_, method) = Called(context.InterfaceMethod, context.Request);
+            var (_, method) = Calls.Of(context.InterfaceMethod, context.Request);
             if (Armed && method is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp))
             {
                 var count = Interlocked.Increment(ref _rebuilds);
@@ -264,7 +257,7 @@ public sealed class SpaceFacts
         {
             // A single-app refresh reuses the workspace, so its scan waits on the app read.
             var contract = firstScanFails && !targeted ? IWorkspace.Type : "apps.app2";
-            var (called, method) = Called(context.InterfaceMethod, context.Request);
+            var (called, method) = Calls.Of(context.InterfaceMethod, context.Request);
             if (!Armed || called != contract || method != "Read")
             { await context.Invoke(); return; }
             var active = Interlocked.Increment(ref _active);
@@ -325,8 +318,7 @@ public sealed class SpaceFacts
         public int Rebuilds;
         public Task Invoke(IOutgoingGrainCallContext context)
         {
-            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(ISpace)
-                && context.InterfaceMethod.Name == nameof(ISpace.Rebuild)) { Interlocked.Increment(ref Rebuilds); }
+            if (Armed && Calls.Is(context.InterfaceMethod, context.Request, ISpace.Type, nameof(ISpace.Rebuild))) { Interlocked.Increment(ref Rebuilds); }
             return context.Invoke();
         }
     }
@@ -450,20 +442,20 @@ public sealed class SpaceFacts
         // at once and leaves its work to that worker, which finishes last, so zero means nothing is queued or running.
         public int PendingSpaceRequests => Volatile.Read(ref _sent) - Volatile.Read(ref _finished);
 
-        private static bool IsRequest(System.Reflection.MethodInfo? method)
-            => method?.DeclaringType == typeof(ISpace) && method.Name is nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp) or nameof(ISpace.Recompose);
+        private static bool IsRequest(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
+            => Calls.Of(method, request) is (ISpace.Type, nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp) or nameof(ISpace.Recompose));
 
         public async Task Invoke(IIncomingGrainCallContext context)
         {
-            if (!IsRequest(context.InterfaceMethod)) { await context.Invoke(); return; }
+            if (!IsRequest(context.InterfaceMethod, context.Request)) { await context.Invoke(); return; }
             try { await context.Invoke(); }
             finally { Interlocked.Increment(ref _finished); }
         }
 
         public Task Invoke(IOutgoingGrainCallContext context)
         {
-            if (IsRequest(context.InterfaceMethod)) { Interlocked.Increment(ref _sent); }
-            if (Armed && context.InterfaceMethod?.DeclaringType == typeof(IWorkspace) && context.InterfaceMethod.Name == nameof(IWorkspace.Read))
+            if (IsRequest(context.InterfaceMethod, context.Request)) { Interlocked.Increment(ref _sent); }
+            if (Armed && Calls.Is(context.InterfaceMethod, context.Request, IWorkspace.Type, nameof(IWorkspace.Read)))
             { Interlocked.Increment(ref Count); }
             return context.Invoke();
         }
@@ -579,4 +571,19 @@ public sealed class SpaceFacts
         using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files")))
         { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IScene>(brain.Owner.BrainId + "/space").Set(new([], new()), 0)); }
     }
+}
+
+// The (contract alias, method) of a grain call or of a plain call carried to its runtime host grain (06-08: apps, spaces and
+// workspaces are plain neurons, so their calls reach Orleans' filters as one RuntimeInvocation).
+internal static class Calls
+{
+    public static (string? Contract, string? Method) Of(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
+    {
+        if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
+        var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
+        return (alias, method?.Name);
+    }
+
+    public static bool Is(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request, string contract, string name)
+        => Of(method, request) is var (called, invoked) && called == contract && invoked == name;
 }

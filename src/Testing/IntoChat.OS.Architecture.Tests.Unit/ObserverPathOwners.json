@@ -33,16 +33,14 @@
   "IntoChat.OS.Kernel.Tests.Unit/OsInoLinkFacts.cs": 6,
   "IntoChat.OS.Kernel.Tests.Unit/OsInoModelFacts.cs": 3,
   "IntoChat.OS.Kernel.Tests.Unit/OsSettingsLogicFacts.cs": 3,
-  "IntoChat.OS.Modules.AI/Routing/AppMenuHost.cs": 1,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppCreatorFacts.cs": 5,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppNeuronFacts.cs": 1,
-  "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppPresentationFacts.cs": 5,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/ReactionShapeFacts.cs": 10,
   "IntoChat.OS.Modules.Apps.Tests.Integration/FastPathFacts.cs": 5,
   "IntoChat.OS.Modules.Apps.Tests.Integration/FeatureCatalogFacts.cs": 1,
   "IntoChat.OS.Modules.Apps.Tests.Integration/Runtimes/AppRuntimeFacts.cs": 1,
   "IntoChat.OS.Modules.Circles.Tests.Integration/CircleBrainRooms.cs": 1,
-  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 7,
+  "IntoChat.OS.Modules.Flutter/Space/SpaceWatcher.cs": 5,
   "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/FilteredSubscriptionFacts.cs": 2,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/HangingWatchFacts.cs": 2,
@@ -65,5 +63,6 @@
   "IntoChat.OS/Signals/SignalNudge.cs": 1,
   "IntoChat.OS.Kernel.Composition/Kernel/BrainHosting.cs": 3,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/PlainScriptFacts.cs": 1,
-  "IntoChat.OS.Authority.Tests.Integration/Neurons/PlainWatchFacts.cs": 2
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/PlainWatchFacts.cs": 2,
+  "IntoChat.OS.Testing/Observation/ClusterTap.cs": 1
 }

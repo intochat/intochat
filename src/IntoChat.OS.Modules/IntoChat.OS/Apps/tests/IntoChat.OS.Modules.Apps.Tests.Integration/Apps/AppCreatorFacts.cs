@@ -501,7 +501,7 @@ public sealed class AppCreatorFacts
         public IReadOnlyList<Dictionary<string, string>> Bundles { get { lock (gate) { return [.. bundles]; } } }
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
             => ReadContracts([moduleId], cancellationToken);
@@ -525,7 +525,7 @@ public sealed class AppCreatorFacts
 
     private sealed class GatedSandbox : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -548,7 +548,7 @@ public sealed class AppCreatorFacts
     {
         public bool Truncate { get; init; }
         public System.Collections.Concurrent.ConcurrentQueue<(string Module, string Contract, string? Method)> Details { get; } = new();
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";

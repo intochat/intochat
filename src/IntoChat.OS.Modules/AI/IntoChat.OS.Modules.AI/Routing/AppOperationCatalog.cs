@@ -11,6 +11,8 @@ internal sealed class AppOperationCatalog
     private sealed class Menu
     {
         public Dictionary<string, MenuOperation[]> Apps { get; } = new(StringComparer.Ordinal);
+        // Every app the menu has read, those without operations too.
+        public HashSet<string> Known { get; } = new(StringComparer.Ordinal);
         public bool Ready;
     }
 
@@ -33,8 +35,10 @@ internal sealed class AppOperationCatalog
         lock (menu)
         {
             menu.Apps.Clear();
+            menu.Known.Clear();
             foreach (var (app, operations) in apps)
             {
+                menu.Known.Add(app);
                 if (operations.Length > 0) { menu.Apps[app] = operations; }
             }
             menu.Ready = true;
@@ -47,8 +51,16 @@ internal sealed class AppOperationCatalog
         var menu = _menus.GetOrAdd(brain, _ => new Menu());
         lock (menu)
         {
+            menu.Known.Add(app);
             if (operations.Length == 0) { menu.Apps.Remove(app); }
             else { menu.Apps[app] = operations; }
         }
+    }
+
+    // The apps of names the ready menu of brain has not read yet (06-08: an app's change reaches the menu after its call returns).
+    public string[] Unknown(string brain, IEnumerable<string> names)
+    {
+        if (!_menus.TryGetValue(brain, out var menu)) { return [.. names]; }
+        lock (menu) { return [.. names.Where(name => !menu.Known.Contains(name))]; }
     }
 }

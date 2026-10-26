@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 // brain, is untouched. One app failing must not keep the others from catching up.
 // It only updates what a brain already has, so a circle brain (R125: born with its room, no OS
 // default) is reconciled like any other.
-// A plain neuron (06-08); the apps it reads are still grains, reached as this neuron through the legacy seam until they move.
+// A plain neuron (06-08), reading the brain's plain apps.
 [DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
@@ -32,7 +32,7 @@ internal sealed class FeatureReconciler(
         foreach (var name in names)
         {
             AppSnapshot snapshot;
-            try { snapshot = await IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct); }
+            try { snapshot = await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
             if (snapshot.MigrationTarget is not null) { continue; }

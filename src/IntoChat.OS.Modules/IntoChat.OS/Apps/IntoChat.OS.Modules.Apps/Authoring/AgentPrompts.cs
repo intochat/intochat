@@ -158,7 +158,7 @@ internal static class AgentPrompts
         reaction is given, edit it into the requested reaction and keep what still applies. Never write "app.cs".
 
         Every neuron key a reaction creates or reads starts with the app key or the brain scope: the app's own
-        neurons are `app.GetPrimaryKeyString() + "/alert"` (or brain.Setting("App") + "/alert"), and a key
+        neurons are `brain.Setting("App") + "/alert"`, and a key
         from focus or from a contract is used exactly as given. Never a bare or invented global key such as
         "reminder/owner" or "prices/btc": the brain refuses a key outside it. Never read a neuron that nothing
         in the contracts, the focus or the examples writes; an empty neuron is not a data source.

@@ -122,8 +122,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         var app = host.Get<IApp>(IApp.Key(scope, "calculator"));
         await app.Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
-        await using var requested = await host.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var requested = await host.Observe<AppRequested>(app, ct);
 
         var outcome = await host.Get<IRouter>(IRouter.Key(scope)).Dispatch("open calculator", null, ct);
 
@@ -133,9 +132,9 @@ public sealed class SystemOneRouterFacts
         Assert.Equal(("calculator", "open"), (outcome.Route.App, outcome.Route.Operation));
         Assert.True(outcome.Route.IsDirect);
         Assert.Null(outcome.Arguments);
-        Assert.True(await signals.MoveNextAsync());
+        var request = await requested.NextAsync(ct: ct);
         // "open" takes what the shell posts to open an app, never the sentence that asked for it.
-        Assert.Equal(("open", ""), (signals.Current.Operation, signals.Current.Input));
+        Assert.Equal(("open", ""), (request.Operation, request.Input));
         await reply;
     }
 
@@ -458,10 +457,10 @@ public sealed class SystemOneRouterFacts
             {
                 await host.Get<IApp>(IApp.Key(scope, "ino")).Create(new AppManifest("Ino", "talk to your brain",
                     [new("open", "compose the assistant surface"), new("send", "start a turn with this message")], [], []), "spec");
-                var grains = host.Services.GetRequiredService<IGrainFactory>();
-                var old = grains.GetGrain<IAppMigration>(IApp.Key(scope, "assistant"));
+                var grains = host.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+                var old = grains.Get<IAppMigration>(IApp.Key(scope, "assistant"));
                 await old.Pause("test");
-                await grains.GetGrain<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
+                await grains.Get<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
                 await old.Redirect("test", IApp.Key(scope, "ino"));
             }
             await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");

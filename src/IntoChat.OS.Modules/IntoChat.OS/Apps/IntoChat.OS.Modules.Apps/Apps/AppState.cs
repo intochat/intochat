@@ -32,9 +32,11 @@ public sealed class AppState
     [Id(20)] public bool Edited { get; set; }
     [Id(21)] public AppVersionRecord? Published { get; set; }
     [Id(22)] public string? Publisher { get; set; }
-    [Id(23)] public RetainedSignal[] RequestRetention { get; set; } = [];
+    // 06-08: requests kept for synapses that start later, as plain AppRequested records (was RetainedSignal).
+    [Id(23)] public RetainedRequest[] RequestRetention { get; set; } = [];
     [Id(24)] public long RequestSequence { get; set; }
-    [Id(25)] public RetainedSignal[] ActivityRetention { get; set; } = [];
+    // 06-08: the last activity, held so an interrupted turn can be reconciled on the next activation (was a RetainedSignal array).
+    [Id(25)] public Signals.AppActivity? LastActivity { get; set; }
     [Id(26)] public long ActivitySequence { get; set; }
     // The fast path's requests and their outcomes, newest last.
     [Id(27)] public AppSynapse[] Synapses { get; set; } = [];
@@ -111,7 +113,7 @@ public sealed class AppState
         Publisher = Publisher,
         RequestRetention = [.. RequestRetention],
         RequestSequence = RequestSequence,
-        ActivityRetention = [.. ActivityRetention],
+        LastActivity = LastActivity,
         ActivitySequence = ActivitySequence,
         Synapses = [.. Synapses],
         Releases = [.. Releases],
@@ -136,7 +138,8 @@ public sealed record AppVersionRecord(
     [property: Id(4), LegacyShape] Dictionary<string, string>? LegacyFiles,
     [property: Id(5)] StringEntry[] FileEntries)
 {
-    public AppVersionRecord(string version, DateTimeOffset savedAt, AppManifest manifest, string spec, IEnumerable<KeyValuePair<string, string>> files)
+    // Internal, so the record's one public constructor is the one JSON reads it with (06-08: the plain app's state).
+    internal AppVersionRecord(string version, DateTimeOffset savedAt, AppManifest manifest, string spec, IEnumerable<KeyValuePair<string, string>> files)
         : this(version, savedAt, manifest, spec, null, StringEntry.From(files)) { }
 
     [IgnoreDataMember]

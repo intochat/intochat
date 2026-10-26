@@ -68,7 +68,7 @@ public sealed class AppReactivationFacts
         runtime.Block = false;
         try
         {
-            await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key).Restore();
+            await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppDeploy>(key).Restore();
             await app.Read();
         }
         finally { runtime.Release.TrySetResult(); }

@@ -21,7 +21,6 @@ public interface IPinger : INeuron
 {
     Task Ping(int number);
 
-    Task Request(string operation);
 
     Task<int> Double(int number, CancellationToken cancellationToken = default);
 
@@ -50,8 +49,6 @@ public sealed class Pinger : Neuron, IPinger
         await PublishAsync(new Ignored(number));
         await PublishAsync(new Pinged(number));
     }
-
-    public Task Request(string operation) => PublishAsync(new AppRequested(operation, "", Guid.NewGuid()));
 
     public Task<int> Double(int number, CancellationToken cancellationToken = default) => Task.FromResult(number * 2);
 

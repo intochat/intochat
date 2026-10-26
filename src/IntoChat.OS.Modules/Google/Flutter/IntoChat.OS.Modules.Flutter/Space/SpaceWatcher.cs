@@ -21,22 +21,22 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
 {
     private readonly ConcurrentDictionary<string, Task> _followed = new(StringComparer.Ordinal);
 
-    private readonly LocalSignalHub.Subscription<PresentationChanged> _presentation = hub.Subscribe<PresentationChanged>();
-    private readonly LocalSignalHub.Subscription<AppChanged> _apps = hub.Subscribe<AppChanged>();
-
     private readonly LocalSignalHub.Subscription<CircleChanged> _circles = hub.Subscribe<CircleChanged>();
     private readonly LocalSignalHub.Subscription<CircleMembershipRevoked> _revoked = hub.Subscribe<CircleMembershipRevoked>();
     private readonly LocalSignalHub.Subscription<CircleSpoke> _posts = hub.Subscribe<CircleSpoke>();
 
-    // Workspace changes come from plain workspaces of every brain this silo hosts (IClusterListeners, R4-20).
+    // Workspace and app changes come from plain workspaces and apps of every brain this silo hosts (IClusterListeners, R4-20;
+    // apps 06-08). Each handler only posts a one-way recomposition, unstamped, so it is cheap in the publishing turn.
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await using var workspaces = await cluster.Listen<WorkspaceChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => Rebuild(change.WorkspaceId)));
+        // A host without the Apps module registers no app signals and has no apps to follow.
+        await using var apps = await Optional(() => cluster.Listen<AppChanged>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, _ => RefreshApp($"{publisher.Brain.Value}/{publisher.Key}"))));
+        await using var presentations = await Optional(() => cluster.Listen<PresentationChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RefreshApp(change.App))));
         await Consume(stoppingToken);
     }
 
     private Task Consume(CancellationToken stoppingToken) => Task.WhenAll(
-        Consume(_apps, change => RefreshApp(change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..]), stoppingToken),
         Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
         Consume(_circles, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])), stoppingToken),
         Consume(_posts, async change =>
@@ -44,8 +44,7 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
             var key = change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..];
             var circle = await grains.GetGrain<ICircle>(ICircle.Key(key[..^5])).State();
             await RebuildMembers(circle.Members);
-        }, stoppingToken),
-        Consume(_presentation, change => RefreshApp(change.App), stoppingToken));
+        }, stoppingToken));
 
     // Follows brain and its friends on this silo, once each: their profile and post changes rebuild the spaces that show them.
     public async Task Follow(string brain)
@@ -61,6 +60,18 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
         await listeners.Listen<PersonChanged>(id, (change, _) => Guarded(change, change => RebuildAuthorAndFriends(change.Name.EndsWith("/profile", StringComparison.Ordinal) ? change.Name[..^8] : null)));
         await listeners.Listen<CardChanged>(id, (change, _) => Guarded(change, change => RebuildAuthorAndFriends(CircleMembers.PostBrain(change.Name))));
     });
+
+    private static async Task<IAsyncDisposable> Optional(Func<Task<IAsyncDisposable>> listen)
+    {
+        try { return await listen(); }
+        catch (ArgumentException) { return NoListener.Instance; }
+    }
+
+    private sealed class NoListener : IAsyncDisposable
+    {
+        public static readonly NoListener Instance = new();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 
     private async Task Guarded<T>(T signal, Func<T, Task> handle)
     {
