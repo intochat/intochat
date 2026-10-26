@@ -4,7 +4,6 @@ using System.Text.Json;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,24 +12,25 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 
-// Every message held here is built from concrete arrays: the storage serializer cannot bring
-// collection-expression wrappers back on reactivation.
-[GenerateSerializer, Alias("agent.storage")]
+// The agent's record as plain JSON state (06-06d; it keeps its state name "agent", clean break under SAFE-01). Every message
+// held here is built from concrete arrays.
 [ExportableState]
 internal sealed record AgentStorage
 {
-    [Id(0)] public long Revision { get; init; }
-    [Id(1)] public AgentDefinition Definition { get; init; } = new();
-    [Id(2)] public AiMessage[] Transcript { get; init; } = [];
-    [Id(3)] public string? Summary { get; init; }
-    [Id(4)] public AgentRun? ActiveRun { get; init; }
-    [Id(5)] public AgentRun[] Runs { get; init; } = [];
-    [Id(6)] public long Version { get; init; }
+    public long Revision { get; init; }
+    public AgentDefinition Definition { get; init; } = new();
+    public AiMessage[] Transcript { get; init; } = [];
+    public string? Summary { get; init; }
+    public AgentRun? ActiveRun { get; init; }
+    public AgentRun[] Runs { get; init; } = [];
+    public long Version { get; init; }
 }
 
-[GrainType("agent")]
-internal sealed class AgentNeuron(
-    [PersistentState("agent", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<AgentStorage> store) : Neuron, IAgent, IAgentDriver
+// A plain neuron since 06-06d. Every call interleaves (the contract says so), as the grain's did: a turn streams for minutes while
+// Read, Cancel and Post reach the agent. The pending write (_beforeWrite, _write) keeps interleaving readers on committed versions;
+// most writes publish nothing, so Persist saves through the runtime state directly and signals follow with Publish.
+[DigitalBrain.Neuron("agent", State = "agent")]
+internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
 {
     private const int KeptRuns = 64;
     // Replayed history is bounded by size as well as count: tool results (capability listings,
@@ -47,13 +47,17 @@ internal sealed class AgentNeuron(
     // Set only after Acquire has returned, and cleared only after Release has returned, so Drive's
     // tail does not pay a second grain call for a token the first signal already released.
     private bool _continuationHeld;
-    private AgentStorage State => store.State;
+    // The agent's state as this activation holds it; the base's State is only what activation loaded.
+    private AgentStorage _state = new();
+    // Set when a write's outcome is unknown: the next call reloads the stored state and closes what it left open.
+    private bool _stale;
+    private new AgentStorage State => _state;
     // Commands still see the in-flight reservation (for admission and cancellation), but
     // interleaving readers must not expose a version before its write has committed.
     private AgentStorage? _beforeWrite;
     private TaskCompletionSource? _write;
     private AgentStorage Committed => _beforeWrite ?? State;
-    private string Key => this.GetPrimaryKeyString();
+    private string Key => FullKey;
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
 
@@ -97,23 +101,40 @@ internal sealed class AgentNeuron(
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
 
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        _state = base.State;
+        await Resume();
+    }
+
     // A run the previous activation left open is interrupted: external tool outcomes may be unknown.
-    internal async Task Resume()
+    private async Task Resume()
     {
         if (State.ActiveRun is { } open)
         {
             const string Error = "Activation ended before the run committed; external tool outcomes may be unknown.";
             await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted, Error)) });
-            // Announced once activation is done, so the request that woke the agent (a subscription, a
+            // Announced by a one-way call to the agent itself, so the request that woke the agent (a subscription, a
             // late Drive) is served first and a Start caller still gets the run's end.
-            await Defer<IAgentDriver>(driver => driver.Interrupted(open.RunId, Error));
+            await Context.Get<IAgentDriver>(Id).Interrupted(open.RunId, Error);
         }
+    }
+
+    // After a write whose outcome is unknown the stored state is the truth: reload it and close the run it left open. The grain
+    // deactivated for this; a plain activation reloads in place on its next call.
+    private async Task Fresh()
+    {
+        if (!_stale || _active is not null || _mutating) { return; }
+        _stale = false;
+        _state = await Context.State.Load<AgentStorage>() ?? new();
+        await Resume();
     }
 
     public async Task Interrupted(string runId, string error) => await Notify(new TurnFailed(Key, runId, await Mask(error), Cancelled: false));
 
     public async Task Configure(AgentDefinition definition, long expectedRevision)
     {
+        await Fresh();
         EnsureIdle();
         ArgumentNullException.ThrowIfNull(definition);
         if (State.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
@@ -144,6 +165,7 @@ internal sealed class AgentNeuron(
 
     public async Task<AgentState> Read()
     {
+        await Fresh();
         if (_write is { } pending) { await pending.Task; }
         var state = Committed;
         return new AgentState(state.Revision, state.Definition, state.Summary, state.ActiveRun, [.. state.Runs]) { Version = state.Version };
@@ -151,6 +173,7 @@ internal sealed class AgentNeuron(
 
     public async Task<AiMessage[]> Transcript()
     {
+        await Fresh();
         if (_write is { } pending) { await pending.Task; }
         return [.. Committed.Transcript];
     }
@@ -171,6 +194,7 @@ internal sealed class AgentNeuron(
 
     public async Task Clear()
     {
+        await Fresh();
         EnsureIdle();
         _mutating = true;
         try
@@ -186,6 +210,7 @@ internal sealed class AgentNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var runId = "post/" + id;
+        await Fresh();
         // A pending post is not durable yet, so a duplicate must retry after its write commits.
         if (_mutating) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
         // A replayed post (same id) never adds a second entry.
@@ -204,6 +229,7 @@ internal sealed class AgentNeuron(
 
     public async Task<string> Start(AgentTurn turn)
     {
+        await Fresh();
         var (runId, replay) = Admit(turn);
         if (replay is not null)
         {
@@ -216,7 +242,7 @@ internal sealed class AgentNeuron(
         {
             await AcquireContinuation(runId);
             var driven = turn with { RunId = runId };
-            await Defer<IAgentDriver>(driver => driver.Drive(driven, runId));
+            await Context.Get<IAgentDriver>(Id).Drive(driven, runId);
         }
         catch
         {
@@ -244,7 +270,7 @@ internal sealed class AgentNeuron(
     {
         string runId;
         AgentRun? replay;
-        if (started is null) { (runId, replay) = Admit(turn); }
+        if (started is null) { await Fresh(); (runId, replay) = Admit(turn); }
         else if (State.ActiveRun?.RunId == started && _active is null) { (runId, replay) = (started, null); }
         else
         {
@@ -515,8 +541,8 @@ internal sealed class AgentNeuron(
     // stored run back and Resume closes it as interrupted.
     private void Abandon(Exception error, string runId)
     {
-        Logger.LogError(error, "Agent run {RunId} could not store its outcome; the agent deactivates to recover from storage.", runId);
-        this.DeactivateOnIdle();
+        Logger.LogError(error, "Agent run {RunId} could not store its outcome; the agent recovers from storage on its next call.", runId);
+        _stale = true;
     }
 
     private static AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
@@ -534,15 +560,21 @@ internal sealed class AgentNeuron(
         => [.. calls.Select(call => call.CallId == callId ? update(call) : call)];
 
     // Neuron<TState>.Save always publishes a signal; most agent writes have none, and a failed
-    // signal must never undo a committed write, so the agent persists on its own.
+    // signal must never undo a committed write, so the agent persists through the runtime state on its own.
     private async Task Persist(AgentStorage next)
     {
-        var previous = store.State;
+        var previous = _state;
         var writing = _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _beforeWrite = previous;
-        store.State = next with { Version = previous.Version + 1 };
-        try { await store.WriteStateAsync(); }
-        catch { store.State = previous; throw; }
+        _state = next with { Version = previous.Version + 1 };
+        try
+        {
+            var writes = ServiceProvider.GetService<AgentWrites>();
+            if (writes is not null) { await writes.Before(_state); }
+            await Context.State.Save(_state, []);
+            writes?.Committed(_state);
+        }
+        catch { _state = previous; throw; }
         finally
         {
             _beforeWrite = null;
@@ -551,7 +583,7 @@ internal sealed class AgentNeuron(
         }
     }
 
-    private async Task Notify(Signal signal, bool persisted = true)
+    private async Task Notify(DigitalBrain.Signal signal, bool persisted = true)
     {
         // Failed persistence needs a fresh Read to reactivate/recover the abandoned run,
         // even when a consumer already projected the last committed version.
@@ -564,7 +596,7 @@ internal sealed class AgentNeuron(
             TurnFailed failed => failed with { Version = version },
             _ => signal,
         };
-        try { await PublishAsync(signal); }
+        try { await Publish(signal); }
         catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
     }
 
@@ -615,8 +647,11 @@ internal sealed class AgentNeuron(
     }
 }
 
-// The framework resolves activation handlers from DI; AIModule registers this one.
-internal sealed class AgentResume : IActivationHandler<AgentNeuron>
+// A test seam over the agent's own writes (06-06d): the runtime's journal is not a grain storage a fact can wrap, so the
+// persistence and storage-fault facts register one to hold or fail a write. Never registered in production.
+internal abstract class AgentWrites
 {
-    public Task Activated(AgentNeuron neuron, CancellationToken cancellationToken) => neuron.Resume();
+    public abstract Task Before(AgentStorage next);
+
+    public virtual void Committed(AgentStorage committed) { }
 }

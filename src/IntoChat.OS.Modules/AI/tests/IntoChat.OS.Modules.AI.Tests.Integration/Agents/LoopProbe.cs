@@ -49,7 +49,7 @@ public sealed class LoopProbe : Neuron, ILoopProbe
     // The agent must have recorded the call before the neuron it reaches runs.
     public async Task<string> SeenByAgent(string agent)
     {
-        var run = (await GrainFactory.GetGrain<IAgent>(agent).Read()).ActiveRun;
+        var run = (await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAgent>(agent).Read()).ActiveRun;
         return run?.ToolCalls.Any(item => item.Name == NeuronSurfaceTools.CallName) == true ? "recorded" : "unrecorded";
     }
 }

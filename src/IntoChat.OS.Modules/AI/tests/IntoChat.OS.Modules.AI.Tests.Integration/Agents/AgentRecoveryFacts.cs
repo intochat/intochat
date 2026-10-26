@@ -20,8 +20,8 @@ public sealed class AgentRecoveryFacts
         await using var brain = await AgentFacts.Brain(client, ct);
         var key = AgentFacts.Key("recovered");
         // The run is planted in the module's grain storage as a crashed activation left it.
-        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
-        await storage.WriteStateAsync("agent", GrainId.Create("agent", key), new GrainState<AgentStorage>(new AgentStorage
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+        await storage.WriteStateAsync("agent", AgentFacts.StateId(key), new GrainState<AgentStorage>(new AgentStorage
         {
             ActiveRun = new AgentRun("interrupted-run", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow)
             { ToolCalls = [new AgentToolCall("call", "lookup", "{}")] },

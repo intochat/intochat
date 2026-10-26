@@ -29,7 +29,7 @@ public sealed class RedactionFacts
         await using var brain = await Brain(ct);
         using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
 
         var first = await agent.Start(AgentTurn.Text("echo the key", runId: "turn-1", contracts: [Probe.Contract]));
         var seen = await AgentTurnStartFacts.UntilEnd(signals, first, ct);
@@ -47,8 +47,8 @@ public sealed class RedactionFacts
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(state.Runs), StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await agent.Transcript()), StringComparison.Ordinal);
         var persisted = new GrainState<AgentStorage>();
-        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
-        await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("main")), persisted);
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+        await storage.ReadStateAsync("agent", AgentFacts.StateId(AgentFacts.Key("main")), persisted);
         var exported = JsonSerializer.Serialize(persisted.State);
         Assert.DoesNotContain(Canary, exported, StringComparison.Ordinal);
         Assert.Contains(RedactionMask, exported, StringComparison.Ordinal);

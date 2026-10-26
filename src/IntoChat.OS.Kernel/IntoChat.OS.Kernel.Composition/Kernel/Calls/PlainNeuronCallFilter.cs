@@ -27,7 +27,17 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
         // was: the module authorizes before it calls.
         if (LegacyGrainSink.ContractOf(call.Contract) is { IsVisible: false }) { await context.Invoke(); return; }
 
-        var id = global::DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!);
+        await Authorize(filter, logger, caller, global::DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!), call);
+        global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
+        await context.Invoke();
+    }
+
+    // The os access policy for one call of caller into the plain neuron id. Orleans hands a streaming call to the host grain through
+    // its async-enumerable extension, which no incoming filter sees, so the sink that starts a stream asks here first (06-06d).
+    /// <exception cref="UnauthorizedAccessException">The policy refuses the call.</exception>
+    internal static async Task Authorize(ICallFilter filter, ILogger logger, CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call)
+    {
+        if (LegacyGrainSink.ContractOf(call.Contract) is { IsVisible: false }) { return; }
         var (scope, isPublic) = Policy(call) switch
         {
             PublicAttribute => (null, true),
@@ -53,8 +63,6 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
                 caller.PrincipalId, caller.BrainId, call.Method, id.Type, decision.Explanation);
             throw new UnauthorizedAccessException($"{decision.Explanation} (target {id.Type}, operation {call.Method})");
         }
-        global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
-        await context.Invoke();
     }
 
     // The method's access attribute wins over its contract's; null is the owner rule.

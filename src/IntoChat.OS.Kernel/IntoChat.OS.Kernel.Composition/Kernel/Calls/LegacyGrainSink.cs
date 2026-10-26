@@ -16,7 +16,7 @@ namespace IntoChat.OS.Kernel.Composition;
 // of the target's type. Both directions carry the caller's neuron id in the runtime's provenance slot (RequestContext
 // "db.caller", which host grains read as Context.Caller and legacy grains read through LegacyNeuronCalls.CallerOf). Only
 // contracts routed through LegacyNeuronCalls reach this sink, and the composition is the only owner (T-06-42).
-public sealed class LegacyGrainSink(IGrainFactory grains, string caller) : IInvocationSink
+public sealed class LegacyGrainSink(IGrainFactory grains, string caller, Func<global::DigitalBrain.NeuronId, global::DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null) : IInvocationSink
 {
     // The runtime's provenance key (DigitalBrain.Runtime.Orleans HostNeuronContext.CallerKey), read by every host grain.
     public const string CallerKey = "db.caller";
@@ -60,7 +60,12 @@ public sealed class LegacyGrainSink(IGrainFactory grains, string caller) : IInvo
         ArgumentNullException.ThrowIfNull(call);
         Stamp();
         IAsyncEnumerable<JsonElement> items;
-        if (Legacy(target, call) is not { } legacy) { items = Host(target).Stream(Stamped(call), cancellationToken); }
+        if (Legacy(target, call) is not { } legacy)
+        {
+            // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
+            if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(false); }
+            items = Host(target).Stream(Stamped(call), cancellationToken);
+        }
         else
         {
             var (grain, method, arguments) = Bind(legacy.Grain, legacy.Contract, call, cancellationToken);

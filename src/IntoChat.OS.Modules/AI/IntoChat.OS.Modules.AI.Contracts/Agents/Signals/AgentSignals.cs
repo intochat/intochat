@@ -1,44 +1,47 @@
-using IntoChat.OS;
+using DigitalBrain;
 
 namespace IntoChat.OS.Modules.AI.Agents.Signals;
 
-[GenerateSerializer, Alias("agent.configured")]
-public sealed record AgentConfigured([property: Id(0)] string AgentId, [property: Id(1)] long Revision) : Signal;
+[Signal("agent.configured")]
+public sealed record AgentConfigured(string AgentId, long Revision) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("agent.turn-started")]
-public sealed record TurnStarted([property: Id(0)] string AgentId, [property: Id(1)] string RunId, [property: Id(2)] string UserText) : Signal
+[Signal("agent.turn-started")]
+public sealed record TurnStarted(string AgentId, string RunId, string UserText) : DigitalBrain.Signal
 {
     // Persisted conversation version at publication; zero means no version was supplied.
-    [Id(3)] public long Version { get; init; }
+    public long Version { get; init; }
 }
 
 // Sequence numbers a run's progress from 1; delivery is at-least-once, so handlers key their
 // writes by (RunId, Sequence). Kind is text, tool-call, tool-result, card or receipt. A text step
 // holds the text streamed since the previous one (chunks are coalesced); in sequence they are the reply.
-[GenerateSerializer, Alias("agent.turn-progressed")]
-public sealed record TurnProgressed(
-    [property: Id(0)] string AgentId,
-    [property: Id(1)] string RunId,
-    [property: Id(2)] string Kind,
-    [property: Id(3)] string? Text,
-    [property: Id(4)] string? Tool,
-    [property: Id(5)] string? Payload,
-    [property: Id(6)] int Sequence) : Signal
+[Signal("agent.turn-progressed")]
+public sealed record TurnProgressed(string AgentId, string RunId, string Kind, string? Text, string? Tool, string? Payload, int Sequence) : DigitalBrain.Signal
 {
-    [Id(7)] public long Version { get; init; }
+    public long Version { get; init; }
 }
 
-[GenerateSerializer, Alias("agent.turn-completed")]
-public sealed record TurnCompleted([property: Id(0)] string AgentId, [property: Id(1)] string RunId, [property: Id(2)] string Reply) : Signal
+[Signal("agent.turn-completed")]
+public sealed record TurnCompleted(string AgentId, string RunId, string Reply) : DigitalBrain.Signal
 {
-    [Id(3)] public long Version { get; init; }
+    public long Version { get; init; }
 }
 
-[GenerateSerializer, Alias("agent.turn-failed")]
-public sealed record TurnFailed([property: Id(0)] string AgentId, [property: Id(1)] string RunId, [property: Id(2)] string Error, [property: Id(3)] bool Cancelled) : Signal
+[Signal("agent.turn-failed")]
+public sealed record TurnFailed(string AgentId, string RunId, string Error, bool Cancelled) : DigitalBrain.Signal
 {
-    [Id(4)] public long Version { get; init; }
+    public long Version { get; init; }
 }
 
-[GenerateSerializer, Alias("agent.transcript-cleared")]
-public sealed record TranscriptCleared([property: Id(0)] string AgentId, [property: Id(1)] long Revision) : Signal;
+[Signal("agent.transcript-cleared")]
+public sealed record TranscriptCleared(string AgentId, long Revision) : DigitalBrain.Signal;
+
+public static class AgentSignals
+{
+    // The agent neuron's type.
+    public const string NeuronType = "agent";
+
+    // Every signal an agent publishes: what a follower (a chat) holds its synapse on.
+    public static Type[] All { get; } =
+        [typeof(AgentConfigured), typeof(TurnStarted), typeof(TurnProgressed), typeof(TurnCompleted), typeof(TurnFailed), typeof(TranscriptCleared)];
+}

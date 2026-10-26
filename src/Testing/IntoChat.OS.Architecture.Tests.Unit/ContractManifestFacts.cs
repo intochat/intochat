@@ -58,7 +58,8 @@ public sealed class ContractManifestFacts
         Assert.Equal("ledger", manifest.Grains["IntoChat.OS.Authority.Compute.LedgerGrain"]);
         Assert.True(manifest.Contracts.Count > 500, $"{manifest.Contracts.Count} contracts");
         Assert.True(manifest.Grains.Count > 50, $"{manifest.Grains.Count} grains");
-        Assert.True(manifest.States.Count > 50, $"{manifest.States.Count} grains with state");
+        // Shrinks as neurons leave Orleans storage (06-06d: 50 left); the floor only proves the capture found the stateful grains.
+        Assert.True(manifest.States.Count > 25, $"{manifest.States.Count} grains with state");
     }
 
     [Fact(Explicit = true)]

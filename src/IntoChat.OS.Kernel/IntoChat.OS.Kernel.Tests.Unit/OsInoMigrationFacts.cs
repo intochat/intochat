@@ -165,8 +165,8 @@ public sealed class OsInoMigrationFacts
         public ChatAgentSubscription Subscription(string key)
         {
             var brain = key[..key.IndexOf('/', StringComparison.Ordinal)];
-            return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.NeuronType, key[(brain.Length + 1)..]),
-                IntoChat.OS.Modules.AI.Agents.Signals.AgentChanges.Signals);
+            return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.NeuronType, key[(brain.Length + 1)..]),
+                IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.All);
         }
         public Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
             => Task.FromResult(new ChatAgentSnapshot(new(key, selectionRevision, 0, []), null));

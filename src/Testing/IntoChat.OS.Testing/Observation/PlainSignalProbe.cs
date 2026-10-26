@@ -33,6 +33,49 @@ public sealed class PlainSignalProbe<T> : IAsyncDisposable where T : DigitalBrai
         return probe;
     }
 
+    // Every signal of the given [Signal] types source publishes, in publication order (06-06d: what Observe<Signal> gave for a
+    // grain neuron). One session on the session synapse neuron holds the synapse for all of them.
+    internal static async Task<PlainSignalProbe<T>> StartAll(IntoChat.OS.Runtime.IPlainSignals signals, object source, IReadOnlyList<Type> types, int buffer,
+        TestExecutionOptions execution, CancellationToken cancellationToken)
+    {
+        var target = source is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
+            : throw new ArgumentException("Observe a plain neuron obtained from this brain's Get.", nameof(source));
+        var byAlias = types.ToDictionary(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf, StringComparer.Ordinal);
+        var probe = new PlainSignalProbe<T>(buffer, execution);
+        var session = signals.Session(target.Brain.Value, "client/" + Guid.NewGuid().ToString("N"));
+        await session.Subscribe(target, [.. byAlias.Keys]).WaitAsync(execution.AssertionTimeout, cancellationToken).ConfigureAwait(false);
+        probe._subscribed.TrySetResult();
+        probe._worker = probe.ObserveAsync(ReadAll(session, byAlias, probe._cancel.Token));
+        return probe;
+    }
+
+    private static async IAsyncEnumerable<T> ReadAll(IntoChat.OS.Runtime.IPlainSession session, Dictionary<string, Type> byAlias,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        long acked = 0;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                IntoChat.OS.Runtime.PlainSignalBatch? batch;
+                try { batch = await session.Next(acked, cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { yield break; }
+                if (batch is null) { continue; }
+                foreach (var entry in batch.Signals)
+                {
+                    if (byAlias.TryGetValue(entry.Alias, out var type))
+                    { yield return (T)System.Text.Json.JsonSerializer.Deserialize(entry.Json, type, System.Text.Json.JsonSerializerOptions.Web)!; }
+                }
+                acked = batch.Number;
+            }
+        }
+        finally
+        {
+            try { await session.End().ConfigureAwait(false); }
+            catch (Exception) { /* the session expires after the runtime's SessionTtl */ }
+        }
+    }
+
     public IReadOnlyList<T> Snapshot { get { lock (_gate) { return _recent.ToArray(); } } }
 
     private async Task ObserveAsync(IAsyncEnumerable<T> signals)

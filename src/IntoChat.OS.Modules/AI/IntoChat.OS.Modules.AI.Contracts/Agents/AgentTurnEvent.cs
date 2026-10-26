@@ -3,6 +3,17 @@ using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 
+// Plain calls stream the events as JSON (06-06d), so the abstract record names its cases.
+[System.Text.Json.Serialization.JsonPolymorphic(TypeDiscriminatorPropertyName = "$event")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(Started), "started")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(ModelSelected), "model-selected")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(Text), "text")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(ToolStarted), "tool-started")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(ToolCompleted), "tool-completed")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(ToolFailed), "tool-failed")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(Completed), "completed")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(Finished), "finished")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(Failed), "failed")]
 [GenerateSerializer, Alias("ai.turn-event")]
 public abstract record AgentTurnEvent
 {

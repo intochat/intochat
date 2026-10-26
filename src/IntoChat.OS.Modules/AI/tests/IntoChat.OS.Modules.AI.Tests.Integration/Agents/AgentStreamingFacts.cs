@@ -55,8 +55,8 @@ public sealed class AgentStreamingFacts
             Assert.Equal(before.Revision, streaming.Revision);
             streamingVersion = streaming.Version;
             var persisted = new GrainState<AgentStorage>();
-            var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage);
-            await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("abandoned")), persisted);
+            var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
+            await storage.ReadStateAsync("agent", AgentFacts.StateId(AgentFacts.Key("abandoned")), persisted);
             Assert.Equal("partial", persisted.State?.ActiveRun?.Reply);
             Assert.Equal(streaming.Version, persisted.State?.Version);
         }
@@ -80,7 +80,7 @@ public sealed class AgentStreamingFacts
         string[] chunks = [.. Enumerable.Range(0, 500).Select(i => $"w{i} ")];
         await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, _) => Chunks(chunks)), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("story"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var before = (await agent.Read()).Version;
         var clock = Stopwatch.StartNew();
         var runId = await agent.Start(AgentTurn.Text("write a story"));
@@ -110,7 +110,7 @@ public sealed class AgentStreamingFacts
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, token) => Stalling(resume.Task, token)), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("stalled"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("tell me a story"));
         try
         {

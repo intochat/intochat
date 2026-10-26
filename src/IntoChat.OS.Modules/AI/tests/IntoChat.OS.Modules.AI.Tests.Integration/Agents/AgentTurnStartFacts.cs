@@ -1,12 +1,9 @@
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Runtime;
-using Orleans.Storage;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 
@@ -21,7 +18,7 @@ public sealed class AgentTurnStartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await AgentFacts.Brain(StubChatClient.Replying("hello there"), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("hi", instructions: "Be brief."));
         var seen = await UntilEnd(signals, runId, ct);
         Assert.Equal("hi", Assert.IsType<TurnStarted>(seen[0]).UserText);
@@ -47,7 +44,7 @@ public sealed class AgentTurnStartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await AgentFacts.Brain(StubChatClient.Failing("provider down"), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("hi"));
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.Contains("provider down", failed.Error, StringComparison.Ordinal);
@@ -68,7 +65,7 @@ public sealed class AgentTurnStartFacts
         var client = StubChatClient.Replying("once");
         await using var brain = await AgentFacts.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
         await UntilEnd(signals, "run-1", ct);
         Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
@@ -101,7 +98,7 @@ public sealed class AgentTurnStartFacts
         finally { release.TrySetResult(); }
     }
 
-    private static long SignalVersion(Signal signal)
+    private static long SignalVersion(DigitalBrain.Signal signal)
     {
         var payload = JsonSerializer.SerializeToElement(signal, signal.GetType());
         Assert.True(payload.TryGetProperty("Version", out var version), "Lifecycle signals must identify their persisted conversation version.");
@@ -135,10 +132,10 @@ public sealed class AgentTurnStartFacts
     public async Task CancelBeforeTheDriverStartsEndsTheStartedRunCancelled()
     {
         var ct = TestContext.Current.CancellationToken;
-        var writes = new AgentWrites();
+        var writes = new HeldWrites();
         await using var brain = await Brain(StubChatClient.Replying("never"), writes, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var held = writes.HoldNext();
         var start = agent.Start(AgentTurn.Text("hi", runId: "run-1"));
         await held.WaitAsync(ct);
@@ -167,7 +164,7 @@ public sealed class AgentTurnStartFacts
         await using var brain = await AgentFacts.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { Timeout = TimeSpan.FromMilliseconds(200) }, 0);
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("slow"));
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.False(failed.Cancelled);
@@ -186,7 +183,7 @@ public sealed class AgentTurnStartFacts
         var ct = TestContext.Current.CancellationToken;
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var writes = new AgentWrites();
+        var writes = new HeldWrites();
         var client = new StubChatClient(async (messages, _, _) =>
         {
             if (messages[^1].Text == "first") { entered.TrySetResult(); await release.Task; }
@@ -194,7 +191,7 @@ public sealed class AgentTurnStartFacts
         });
         await using var brain = await Brain(client, writes, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("first"));
         await entered.Task.WaitAsync(ct);
         writes.Fail = true;
@@ -212,17 +209,13 @@ public sealed class AgentTurnStartFacts
         Assert.Equal("done", await agent.GetResponse("second", ct));
     }
 
-    // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
-    private static Task<ITestBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
-        => AgentFacts.Builder(client).ConfigureServices(services =>
-        {
-            var original = services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
-            services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
-                new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
-        }).StartAsync(ct);
+    // Storage faults are in-process: the agent's writes are held or failed through its write seam (06-06d: the runtime's journal
+    // is not a grain storage a fact can wrap).
+    private static Task<ITestBrain> Brain(StubChatClient client, HeldWrites writes, CancellationToken ct)
+        => AgentFacts.Builder(client).ConfigureServices(services => services.AddSingleton<AgentWrites>(writes)).StartAsync(ct);
 
     // Controls the agent's own writes: fail them, or hold the next one until released.
-    private sealed class AgentWrites
+    private sealed class HeldWrites : AgentWrites
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private TaskCompletionSource? _held;
@@ -236,7 +229,7 @@ public sealed class AgentTurnStartFacts
 
         public void Release() => _gate.TrySetResult();
 
-        public async Task Write()
+        public override async Task Before(AgentStorage next)
         {
             if (Fail) { throw new IOException("Injected storage failure."); }
             if (Interlocked.Exchange(ref _held, null) is { } held)
@@ -247,23 +240,10 @@ public sealed class AgentTurnStartFacts
         }
     }
 
-    private sealed class AgentWriteStorage(IGrainStorage inner, AgentWrites writes) : IGrainStorage
-    {
-        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
-
-        public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
-        {
-            if (name == "agent") { await writes.Write(); }
-            await inner.WriteStateAsync(name, id, state);
-        }
-
-        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
-    }
-
     // Every signal of the run, from its start to its completion or failure.
-    internal static async Task<List<Signal>> UntilEnd(SignalProbe<Signal> signals, string runId, CancellationToken ct)
+    internal static async Task<List<DigitalBrain.Signal>> UntilEnd(PlainSignalProbe<DigitalBrain.Signal> signals, string runId, CancellationToken ct)
     {
-        var seen = new List<Signal>();
+        var seen = new List<DigitalBrain.Signal>();
         while (true)
         {
             var signal = await signals.NextAsync(ct: ct);

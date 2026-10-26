@@ -95,7 +95,7 @@ internal sealed partial class CSharpFileNeuron : DigitalBrain.Neuron<CSharpFileS
         await Publish(new CSharpFileChanged(FileId));
     }
 
-    // The runtime's edge face is internal to this module (a proxy cannot implement it), so the log read goes to its grain.
+    // The runtime is still a grain and its edge face is internal to this module, so the log read goes to that grain.
     public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
         => Current.Wanted ? Context.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeEdge>(RuntimeKey).Logs(FileId, tail) : Task.FromResult("");
 

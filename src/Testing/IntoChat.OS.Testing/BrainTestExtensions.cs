@@ -30,6 +30,19 @@ public static class BrainTestExtensions
         return probe;
     }
 
+    // Observe for every signal of several [Signal] types a plain neuron publishes, in order (06-06d).
+    public static async Task<PlainSignalProbe<DigitalBrain.Signal>> ObserveAll(this ITestBrain brain, object source, IReadOnlyList<Type> signals, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        ArgumentNullException.ThrowIfNull(signals);
+        var plain = (IntoChat.OS.Runtime.IPlainSignals)brain.Services.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals))!;
+        var tracked = brain as ITrackedBrain;
+        var probe = await PlainSignalProbe<DigitalBrain.Signal>.StartAll(plain, source, signals, tracked?.BufferCapacity ?? new SubscriptionOptions().BufferCapacity,
+            tracked?.Execution ?? new(), cancellationToken).ConfigureAwait(false);
+        tracked?.Track(probe);
+        return probe;
+    }
+
     // A plain neuron's held [Signal] records of type T, oldest first, read from its brain's log (06-04): what the os journal read
     // Read(from, count) gave for a grain neuron.
     public static async Task<T[]> History<T>(this ITestBrain brain, object neuron, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal

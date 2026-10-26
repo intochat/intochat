@@ -64,7 +64,6 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         services.TryAddSingleton<InferenceService>();
         services.TryAddSingleton<IModelInference>(provider => provider.GetRequiredService<InferenceService>());
         services.TryAddSingleton<NeuronSurface>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AgentNeuron>, AgentResume>());
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);

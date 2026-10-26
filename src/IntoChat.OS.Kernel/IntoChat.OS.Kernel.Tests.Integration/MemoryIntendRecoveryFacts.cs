@@ -255,7 +255,7 @@ public sealed class MemoryIntendRecoveryFacts
             if (call.Contract == typeof(IAgent).FullName && call.Method == nameof(IAgent.Start))
             {
                 var turn = call.Arguments[0].Deserialize<AgentTurn>(RuntimeProtocol.Json)!;
-                Publish(nameof(TurnCompleted), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
+                Publish(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(TurnCompleted)), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
                 return new(HttpStatusCode.NoContent);
             }
             if (call.Contract == typeof(IIntents).FullName)

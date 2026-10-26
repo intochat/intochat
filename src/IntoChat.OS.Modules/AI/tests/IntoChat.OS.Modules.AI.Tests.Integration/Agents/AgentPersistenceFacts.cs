@@ -3,10 +3,8 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Storage;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 
@@ -20,13 +18,7 @@ public sealed class AgentPersistenceFacts
         var ct = timeout.Token;
         var writes = new HeldWrite("completion", false);
         await using var brain = await AgentFacts.Builder(StubChatClient.Replying("reply"))
-            .ConfigureServices(services =>
-            {
-                var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
-                    && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
-                    new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
-            }).StartAsync(ct);
+            .ConfigureServices(services => services.AddSingleton<AgentWrites>(writes)).StartAsync(ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("posting"));
         var posting = agent.Post("greeting", "first");
         try
@@ -60,14 +52,8 @@ public sealed class AgentPersistenceFacts
         var ct = timeout.Token;
         var writes = new HeldWrite(phase, fail);
         await using var brain = await AgentFacts.Builder(StubChatClient.Replying("reply")).WithModule<FlutterModule>()
-            // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
-            .ConfigureServices(services =>
-            {
-                var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
-                    && Equals(service.ServiceKey, IntoChatOSNames.LegacyClusterGrainStorage));
-                services.AddKeyedSingleton<IGrainStorage>(IntoChatOSNames.LegacyClusterGrainStorage, (services, key) =>
-                    new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
-            }).StartAsync(ct);
+            // Storage faults are in-process: the agent's writes are held or failed through its write seam (06-06d).
+            .ConfigureServices(services => services.AddSingleton<AgentWrites>(writes)).StartAsync(ct);
         var source = AgentFacts.Key("committed");
         var agent = brain.Get<IAgent>(source);
         var chat = brain.Get<IChat>(AgentFacts.Key("projection"));
@@ -119,14 +105,14 @@ public sealed class AgentPersistenceFacts
             .Select(run => new ChatEntry(run.RunId, IntoChat.OS.Modules.Flutter.Chat.ChatRole.Assistant, run.Reply ?? "")
             { Status = run.Status.ToString().ToLowerInvariant() })]);
 
-    private sealed class HeldWrite(string phase, bool fail)
+    private sealed class HeldWrite(string phase, bool fail) : AgentWrites
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ConcurrentDictionary<long, AgentStorage> Commits { get; } = new() { [0] = new() };
         private bool _used;
 
-        public async Task Before(AgentStorage next)
+        public override async Task Before(AgentStorage next)
         {
             var matches = phase switch
             {
@@ -140,22 +126,7 @@ public sealed class AgentPersistenceFacts
             await Release.Task;
             if (fail) { throw new IOException("Injected single write failure."); }
         }
-    }
 
-    private sealed class GatedStorage(IGrainStorage inner, HeldWrite writes) : IGrainStorage
-    {
-        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
-        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
-
-        public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
-        {
-            if (name == "agent") { await writes.Before((AgentStorage)(object)state.State!); }
-            await inner.WriteStateAsync(name, id, state);
-            if (name == "agent")
-            {
-                var committed = (AgentStorage)(object)state.State!;
-                writes.Commits[committed.Version] = committed;
-            }
-        }
+        public override void Committed(AgentStorage committed) => Commits[committed.Version] = committed;
     }
 }

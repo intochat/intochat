@@ -1,4 +1,6 @@
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Facts;
 using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
@@ -141,6 +143,33 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         Assert.Equal("fake", described.Model);
         await model.Generate(Ask("release"), ct);
         await held;
+    }
+
+    // 06-06d: the agent is plain. Its configuration, posts and clearing need no model, so they hold on both runtimes; turns run
+    // against the inference stack in the agent facts of the Integration tier.
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task AnAgentKeepsItsConfigurationAndPostsAndClearsThemWithItsSignals(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("agent", "agents/plain-" + kind);
+        var agent = runtime.Get<IAgent>(id);
+
+        await agent.Configure(new() { Instructions = "Be brief." }, 0);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Configure(new(), 0));
+        await agent.Post("hello", "greeting");
+        await agent.Post("hello", "greeting");
+
+        var state = await agent.Read();
+        Assert.Equal((1L, "Be brief.", "post/greeting", true), (state.Revision, state.Definition.Instructions, Assert.Single(state.Runs).RunId, state.Runs[0].Posted));
+        Assert.Single(await agent.Transcript());
+        await agent.Clear();
+        Assert.Empty(await agent.Transcript());
+        Assert.Equal(2, (await agent.Read()).Revision);
+        var key = $"{id.Brain.Value}/{id.Key}";
+        Assert.Equal(key, Assert.Single(await runtime.WaitForSignals<AgentConfigured>(id, 1, Within, ct)).AgentId);
+        Assert.Equal("post/greeting", Assert.Single(await runtime.WaitForSignals<TurnCompleted>(id, 1, Within, ct)).RunId);
+        Assert.Equal(2, Assert.Single(await runtime.WaitForSignals<TranscriptCleared>(id, 1, Within, ct)).Revision);
     }
 
     private static InferenceRequest Ask(string text) => new([new("user", [new AiText(text)])]);
