@@ -53,6 +53,8 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain, IntoChat.OS.Runtime
 
     object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => Plain.GetPlain(contract, id);
 
+    string? IntoChat.OS.Runtime.IPlainClient.RelativeBrain => BrainScope.CurrentId();
+
     IAsyncEnumerable<T> IntoChat.OS.Runtime.IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
         => Plain.OnPlain<T>(source, onSubscribed, cancellationToken);
     public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);

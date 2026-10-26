@@ -26,9 +26,7 @@ public static class PlainNeuronClient
     public static T Neuron<T>(this IIntoChatOS brain, NeuronId relative) where T : class
     {
         ArgumentNullException.ThrowIfNull(brain);
-        var scope = Plain(brain).RelativeBrain
-            ?? (brain.Self is Orleans.Runtime.IAddressable self ? self.GetGrainId().Key.ToString() : null)
-            ?? throw new InvalidOperationException("This brain is not known.");
+        var scope = Plain(brain).RelativeBrain ?? throw new InvalidOperationException("This brain is not known.");
         return Get<T>(brain, relative.Within(scope));
     }
 

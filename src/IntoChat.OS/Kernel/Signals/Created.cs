@@ -9,5 +9,5 @@ namespace IntoChat.OS;
 /// on <see cref="Activated"/>.
 /// </remarks>
 /// <param name="Owner">The account the brain was created for.</param>
-[GenerateSerializer, Alias("brain.created")]
-public sealed record Created([property: Id(0)] Owner Owner) : Signal;
+[DigitalBrain.Signal("brain.created")]
+public sealed record Created(Owner Owner) : DigitalBrain.Signal;

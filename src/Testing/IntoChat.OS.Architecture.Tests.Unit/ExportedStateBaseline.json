@@ -720,11 +720,11 @@
     ]
   },
   {
-    "type": "IntoChat.OS.State",
+    "type": "IntoChat.OS.Kernel.Composition.BrainStorage",
     "state": "brain",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Framework.BrainNeuron"
+      "IntoChat.OS.Kernel.Composition.BrainNeuron"
     ]
   }
 ]

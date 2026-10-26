@@ -22,7 +22,7 @@ public sealed class NeuronsCallFacts(AuthorityHost host)
     {
         BrainId = brainId,
         Contract = typeof(IBrain).FullName,
-        Key = "owner",
+        Key = "owner/main",
         Method = nameof(IBrain.Read),
         Arguments = ByteString.CopyFromUtf8(arguments),
     };

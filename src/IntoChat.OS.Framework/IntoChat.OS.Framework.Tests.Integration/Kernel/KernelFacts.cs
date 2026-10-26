@@ -49,7 +49,7 @@ public sealed class KernelFacts(FrameworkHost host)
         var brain = host.Brain;
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
-        await using var created = await brain.Observe<InstanceCreated>(brain.Get<IBrain>(alice.BrainId), ct);
+        await using var created = await brain.Observe<InstanceCreated>(brain.Get<IBrain>(IBrain.Key(alice.BrainId)), ct);
         var ledger = brain.Get<ILedger>(alice.Key("ledger/1"));
 
         await ledger.Set(1);
@@ -59,7 +59,6 @@ public sealed class KernelFacts(FrameworkHost host)
         Assert.Equal(("test-ledger", alice.Key("ledger/1"), alice.PrincipalId), (instance.Type, instance.Key, instance.Creator));
         var signal = await created.NextAsync(signal => signal.Type == "test-ledger", ct);
         Assert.Equal(alice.Key("ledger/1"), signal.Key);
-        Assert.Equal("brain/" + alice.BrainId, signal.Publisher.Name);
     }
 
     [Fact]
@@ -96,7 +95,7 @@ public sealed class KernelFacts(FrameworkHost host)
         var brain = host.Brain;
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
-        await using var retired = await brain.Observe<InstanceRetired>(brain.Get<IBrain>(alice.BrainId), ct);
+        await using var retired = await brain.Observe<InstanceRetired>(brain.Get<IBrain>(IBrain.Key(alice.BrainId)), ct);
         var ledger = brain.Get<ILedger>(alice.Key("ledger/1"));
         await ledger.Set(1);
 

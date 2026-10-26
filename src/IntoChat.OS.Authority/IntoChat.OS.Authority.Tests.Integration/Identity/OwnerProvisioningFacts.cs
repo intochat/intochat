@@ -97,9 +97,8 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
 
         public AppCallerAtBirth Using(AuthorityNeurons platform) { _platform = platform; return this; }
 
-        public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+        public async Task Created(string scope, Created created, CancellationToken cancellationToken)
         {
-            var scope = kernel.GetPrimaryKeyString();
             var authority = _platform!.BrainAuthority(scope);
             Decisions.Add(await authority.Authorize(Request(created.Owner.AccountId, scope)));
         }

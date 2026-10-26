@@ -13,11 +13,12 @@ namespace IntoChat.OS.Kernel.Composition.Tests.Integration.Authority;
 public sealed class AuthorityGrainsFacts
 {
     [Fact]
-    public void AuthorityGrainInterfacesAndTheBrainAreAllowListed()
+    public void AuthorityGrainInterfacesAreAllowListedAndThePlainBrainIsNot()
     {
         Assert.True(AuthorityGrains.IsAllowListed(typeof(IBrainEntries)));
         Assert.True(AuthorityGrains.IsAllowListed(typeof(ISecrets)));
-        Assert.True(AuthorityGrains.IsAllowListed(typeof(IBrain)));
+        // The brain neuron is plain (06-08): Authority reaches it through IAuthorityGrains.Brain, never as a grain.
+        Assert.False(AuthorityGrains.IsAllowListed(typeof(IBrain)));
     }
 
     [Fact]

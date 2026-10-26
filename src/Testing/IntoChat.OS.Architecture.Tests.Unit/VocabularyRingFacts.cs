@@ -148,7 +148,7 @@ public sealed class VocabularyRingFacts
 
     private static bool IsRuntimeSpi(Type t) => t.Namespace == RuntimeNamespace;
 
-    private static bool IsSignal(Type t) => typeof(Signal).IsAssignableFrom(t);
+    private static bool IsSignal(Type t) => typeof(Signal).IsAssignableFrom(t) || typeof(DigitalBrain.Signal).IsAssignableFrom(t);
 
     private static bool IsSerializable(Type t) => t.GetCustomAttributes(inherit: false).Any(a => a.GetType().Name == "GenerateSerializerAttribute");
 

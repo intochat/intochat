@@ -284,8 +284,8 @@ public sealed class RuntimeEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
             .WithConfiguration(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.PostureKey, "Secured").StartAsync(ct);
-        await brain.Get<IBrain>("acc-brain").Create(new Owner("acc"));
-        await brain.Get<IBrain>("another-brain").Create(new Owner("another"));
+        await brain.Get<IBrain>(IBrain.Key("acc-brain")).Create(new Owner("acc"));
+        await brain.Get<IBrain>(IBrain.Key("another-brain")).Create(new Owner("another"));
         var session = await Assigned(brain, ct);
 
         using var connected = await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct);
@@ -300,16 +300,16 @@ public sealed class RuntimeEdgeFacts
             new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "another-brain/private", nameof(Pinged))), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, subscription.StatusCode);
         using var ownBrain = await Send(brain, session, "acc-brain/csharp/a",
-            new("", typeof(IBrain).FullName!, "acc-brain", nameof(IBrain.Read), []), ct);
+            new("", typeof(IBrain).FullName!, "acc-brain/main", nameof(IBrain.Read), []), ct);
         Assert.Equal(HttpStatusCode.OK, ownBrain.StatusCode);
         using var otherBrain = await Send(brain, session, "acc-brain/csharp/a",
-            new("", typeof(IBrain).FullName!, "another-brain", nameof(IBrain.Read), []), ct);
+            new("", typeof(IBrain).FullName!, "another-brain/main", nameof(IBrain.Read), []), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, otherBrain.StatusCode);
         using var ownRootSubscription = await Report(brain, session,
-            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "acc-brain", nameof(Created))), ct);
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "acc-brain/main", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(Created)))), ct);
         Assert.Equal(HttpStatusCode.OK, ownRootSubscription.StatusCode);
         using var otherRootSubscription = await Report(brain, session,
-            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "another-brain", nameof(Created))), ct);
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "another-brain/main", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(Created)))), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, otherRootSubscription.StatusCode);
 
         foreach (var (method, path) in new[] { (HttpMethod.Post, RuntimeProtocol.Invoke), (HttpMethod.Post, RuntimeProtocol.Report), (HttpMethod.Get, RuntimeProtocol.Stream) })

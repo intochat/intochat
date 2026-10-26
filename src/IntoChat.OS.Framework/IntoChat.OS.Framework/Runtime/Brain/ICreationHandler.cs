@@ -6,5 +6,6 @@ namespace IntoChat.OS.Framework;
 // its creator gets it. Idempotent and independent: one failing does not fail the brain.
 public interface ICreationHandler
 {
-    Task Created(IBrain kernel, Created created, CancellationToken cancellationToken);
+    // brainId names the brain just created (06-08: the brain neuron is plain; handlers no longer receive its grain).
+    Task Created(string brainId, Created created, CancellationToken cancellationToken);
 }

@@ -16,10 +16,10 @@ internal sealed class CircleBirth(IIdentityClient identity, IGrainFactory grains
     public const string RoomOwner = "os";
     public const string RoomName = "circleroom";
 
-    public Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+    public Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(kernel);
-        return Born(kernel.GetPrimaryKeyString(), cancellationToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        return Born(brainId, cancellationToken);
     }
 
     // Idempotent: the core is founded once and the room loaded again in place, so a birth that failed part-way is

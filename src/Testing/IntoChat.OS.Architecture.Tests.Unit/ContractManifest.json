@@ -19,7 +19,6 @@
     "IntoChat.OS.Authority.Marketplace.MarketplaceGrain": "platform.marketplace",
     "IntoChat.OS.Authority.Secrets.SecretsNeuron": "vault",
     "IntoChat.OS.Authority.Workshop.WorkshopNeuron": "platform.workshop",
-    "IntoChat.OS.Framework.BrainNeuron": "brain",
     "IntoChat.OS.Kernel.Composition.BrainSignalReaderGrain": "brain.signal-reader",
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
@@ -81,10 +80,8 @@
     "IntoChat.OS.Framework.ICompiledTypeTable": "kernel.compiled-type-table",
     "IntoChat.OS.Framework.IInstanceDirectory": "kernel.instance-directory",
     "IntoChat.OS.Framework.IInstanceTypes": "kernel.instance-types",
-    "IntoChat.OS.Framework.IKernelAnnouncer": "kernel.announcer",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table",
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
-    "IntoChat.OS.IBrain": "brain",
     "IntoChat.OS.INeuron": "kernel.neuron",
     "IntoChat.OS.IRetainsSignals": "brain.retained-signals",
     "IntoChat.OS.Integrations.IConnectionRequests": "integrations.accounts",
@@ -134,7 +131,6 @@
     "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source"
   },
   "Contracts": {
-    "IntoChat.OS.Activated": "brain.activated; Owner=0",
     "IntoChat.OS.Authority.Compute.BrainComputeState": "compute.brain-state; Calls=0, Outbox=1, Sequence=2, Traces=3",
     "IntoChat.OS.Authority.Compute.CircleShareState": "platform.circle-share-state; OwnerAccountId=0, Percent=1, DrawnMicros=2, Members=3, Day=4, Reservations=5",
     "IntoChat.OS.Authority.Compute.ExternalCallReceipt": "compute.external-receipt; Handle=0, Trace=1, Cost=2, Funding=3, Request=4, Quote=5, FeePercent=6, MaximumMicros=7, Payer=8, BudgetReserved=9, FundingReserved=10, Admitted=11, Outcome=12, LedgerSettled=13, BudgetSettled=14, FundingSettled=15, Settled=16, Acknowledged=17, Origin=18, AdmissionRejected=19",
@@ -235,7 +231,6 @@
     "IntoChat.OS.Contracts.Compute.ExternalCallRequest": "compute.external-call-request; Operation=0, Quantity=1, Unit=2, Funding=3, InvocationId=4, CostId=5, Subject=6",
     "IntoChat.OS.Contracts.Compute.Funding": "compute.funding; Kind=0, CircleKey=1",
     "IntoChat.OS.Contracts.Compute.PriceQuote": "compute.price-quote; Unit=0, MicrosPerUnit=1, TariffVersion=2, EffectiveFrom=3, Source=4, ChargePolicy=5",
-    "IntoChat.OS.Created": "brain.created; Owner=0",
     "IntoChat.OS.Framework.BrainAffinePlacement": "os.brain-affine-placement; ",
     "IntoChat.OS.Framework.CallDecision": "enforcement.call-decision; Allowed=0, Denial=1, Explanation=2, ConsumesOnce=3",
     "IntoChat.OS.Framework.CallRequest": "enforcement.call-request; Caller=0, TargetNeuron=1, Operation=2, SemanticTypeIds=3, EstimatedCompute=4, HasSideEffects=5, EnforceTarget=6, TargetScope=7, PublicOperation=8",
@@ -244,7 +239,6 @@
     "IntoChat.OS.Framework.ICompiledTypeTable": "kernel.compiled-type-table (not generated); ",
     "IntoChat.OS.Framework.IInstanceDirectory": "kernel.instance-directory (not generated); ",
     "IntoChat.OS.Framework.IInstanceTypes": "kernel.instance-types (not generated); ",
-    "IntoChat.OS.Framework.IKernelAnnouncer": "kernel.announcer (not generated); ",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table (not generated); ",
     "IntoChat.OS.Framework.Modules.CallerContext": "enforcement.caller-context; PrincipalId=0, AccountId=1, BrainId=2, Kind=3, StampedBy=4, AppId=5, ConversationId=6, OnBehalfOf=7",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Account": "identity.account; AccountId=0, Name=1, OwnerPrincipalId=2, CreatedAt=3",
@@ -253,12 +247,9 @@
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory (not generated); ",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Member": "identity.member; PrincipalId=0, AccountId=1, BrainId=2, Role=3, DisplayName=4, JoinedAt=5",
     "IntoChat.OS.Framework.UntrustedCallerException": "enforcement.untrusted-caller; ",
-    "IntoChat.OS.IBrain": "brain (not generated); ",
     "IntoChat.OS.INeuron": "kernel.neuron (not generated); ",
     "IntoChat.OS.IRetainsSignals": "brain.retained-signals (not generated); ",
     "IntoChat.OS.Instance": "kernel.instance; Type=0, Key=1, Created=2, Creator=3",
-    "IntoChat.OS.InstanceCreated": "kernel.instance-created; Type=0, Key=1",
-    "IntoChat.OS.InstanceRetired": "kernel.instance-retired; Type=0, Key=1",
     "IntoChat.OS.Integrations.ConnectionRef": "integrations.account-ref; Kind=0, Id=1",
     "IntoChat.OS.Integrations.ConnectionRequested": "integrations.account-requested; Kind=0, Id=1",
     "IntoChat.OS.Integrations.ConnectionSummary": "integrations.connection-summary; Kind=0, Id=1, Neuron=2, Status=3, Account=4, LastProbedAt=5, Capabilities=6",
@@ -817,7 +808,6 @@
     "IntoChat.OS.State": "brain.state; Owner=0, CreatedAt=1",
     "IntoChat.OS.Synapse": "synapse; Publisher=0, Signal=1",
     "IntoChat.OS.Trace": "brain.trace; TraceId=0, PayerAccountId=1, BrainId=2, Origin=3, BudgetMicros=4",
-    "IntoChat.OS.TypeAdded": "kernel.type-added; Name=0",
     "IntoChat.OS.TypeEntry": "kernel.type-entry; Name=0, Alias=1, Kind=2, Provider=3, Description=4, Shape=5, Implements=6",
     "IntoChat.OS.TypeKind": "kernel.type-kind; ",
     "IntoChat.OS.Verdict": "brain.verdict; Allowed=0, Reason=1, Rule=2"
@@ -840,7 +830,6 @@
     "IntoChat.OS.Authority.Integrations.IntegrationNeuron": "registration=platform:IntoChat.OS.Authority.Integrations.IntegrationState",
     "IntoChat.OS.Authority.Marketplace.MarketplaceGrain": "marketplace=platform:IntoChat.OS.Authority.Marketplace.MarketplaceCatalogState",
     "IntoChat.OS.Authority.Secrets.SecretsNeuron": "vault=platform:IntoChat.OS.Authority.Secrets.SecretsState",
-    "IntoChat.OS.Framework.BrainNeuron": "brain=cluster:IntoChat.OS.State",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "instances=cluster:IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "types=cluster:IntoChat.OS.Kernel.Composition.InstanceTypesGrain+State",
     "IntoChat.OS.Kernel.Composition.TypeTableGrain": "features=cluster:IntoChat.OS.Kernel.Composition.TypeTableGrain+State",
@@ -866,14 +855,10 @@
     "IntoChat.OS.Modules.Salesforce.SalesforceNeuron": "salesforce=cluster:IntoChat.OS.Modules.Salesforce.SalesforceState"
   },
   "Signals": {
-    "IntoChat.OS.Activated": "Activated",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected": "ConnectionConnected",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionDisconnected": "ConnectionDisconnected",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionExpired": "ConnectionExpired",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionFailing": "ConnectionFailing",
-    "IntoChat.OS.Created": "Created",
-    "IntoChat.OS.InstanceCreated": "InstanceCreated",
-    "IntoChat.OS.InstanceRetired": "InstanceRetired",
     "IntoChat.OS.Integrations.ConnectionRequested": "ConnectionRequested",
     "IntoChat.OS.Integrations.ConnectionsChanged": "ConnectionsChanged",
     "IntoChat.OS.Modules.Apps.Signals.AppActivity": "AppActivity",
@@ -901,7 +886,6 @@
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteFailed": "SalesforceWriteFailed",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWritePrepared": "SalesforceWritePrepared",
     "IntoChat.OS.Modules.Salesforce.Signals.SalesforceWriteUncertain": "SalesforceWriteUncertain",
-    "IntoChat.OS.Signal": "Signal",
-    "IntoChat.OS.TypeAdded": "TypeAdded"
+    "IntoChat.OS.Signal": "Signal"
   }
 }

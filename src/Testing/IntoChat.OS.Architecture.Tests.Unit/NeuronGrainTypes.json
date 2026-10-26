@@ -169,11 +169,6 @@
     "Store": null,
     "StateName": null
   },
-  "IntoChat.OS.Framework.BrainNeuron": {
-    "Type": "brain",
-    "Store": "cluster",
-    "StateName": "brain"
-  },
   "IntoChat.OS.Framework.Tests.Integration.ChattySource": {
     "Type": "test-chatty-source",
     "Store": null,
@@ -1093,5 +1088,10 @@
     "Type": "probe.counted",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.BrainNeuron": {
+    "Type": "brain",
+    "Store": "cluster",
+    "StateName": "brain"
   }
 }

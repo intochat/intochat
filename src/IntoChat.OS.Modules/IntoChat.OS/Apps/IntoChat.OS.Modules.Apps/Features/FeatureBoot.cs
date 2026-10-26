@@ -7,21 +7,29 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Loads the features folder at boot (the feature.load spans), then watches the brain's lifecycle the
-// way OsDefaults installs on it: every activation (the kernel's Activated signal) brings the brain's
-// unedited features to the folder's version. The pump is fire-and-forget from the startup task; a
-// failure never fails the silo or a brain's activation.
+// Loads the features folder at boot (the feature.load spans), then follows the brain's lifecycle the way OsDefaults installs
+// on it: every activation (the plain brain neuron's Activated signal, heard on this silo through IClusterListeners, 06-08)
+// brings the brain's unedited features to the folder's version once the folder has loaded. Reconciling is fire-and-forget off
+// the listener, as the hub pump was: a failure never fails the silo or a brain's activation.
 internal sealed class FeatureBoot(
-    IGrainFactory grains, FeatureCatalog catalog, LocalSignalHub hub, ILogger<FeatureBoot> logger) : IStartupTask
+    IGrainFactory grains, FeatureCatalog catalog, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask
 {
-    public Task Execute(CancellationToken cancellationToken)
+    private Task _loaded = Task.CompletedTask;
+
+    public async Task Execute(CancellationToken cancellationToken)
     {
-        var activations = hub.Subscribe<Activated>();
-        _ = Task.Run(() => PumpAsync(activations, cancellationToken), CancellationToken.None);
-        return Task.CompletedTask;
+        // Registered before the load starts, so no activation during the load is missed; each waits for the load.
+        // The registration lives as long as the silo (idempotent by listener name), so its handle is not kept.
+        _ = await listeners.Listen<Activated>(nameof(FeatureBoot), (publisher, _, _) =>
+        {
+            var brainId = publisher.Brain.Value;
+            _ = Task.Run(() => ReconcileAsync(brainId, cancellationToken), CancellationToken.None);
+            return Task.CompletedTask;
+        });
+        _loaded = Task.Run(LoadAsync, CancellationToken.None);
     }
 
-    private async Task PumpAsync(LocalSignalHub.Subscription<Activated> activations, CancellationToken cancellationToken)
+    private async Task LoadAsync()
     {
         try
         {
@@ -32,19 +40,18 @@ internal sealed class FeatureBoot(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogError(error, "The features folder {Path} did not load.", catalog.Directory?.Path); }
+    }
+
+    private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)
+    {
+        // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act.
+        RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
-            await foreach (var activated in activations.Reader.ReadAllAsync(cancellationToken))
-            {
-                // The brain neuron publishes Activated; its publisher name is "brain/{brainId}".
-                var name = activated.Publisher.Name;
-                var brainId = name[(name.IndexOf('/') + 1)..];
-                try { await grains.GetGrain<IFeatureReconciler>(IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken); }
-                catch (Exception error) when (error is not OperationCanceledException)
-                { logger.LogWarning(error, "Reconciling features for brain {Brain} failed.", brainId); }
-            }
+            await _loaded;
+            await grains.GetGrain<IFeatureReconciler>(IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }
         catch (Exception error) when (error is not OperationCanceledException)
-        { logger.LogError(error, "The feature reconciler stopped watching activations."); }
+        { logger.LogWarning(error, "Reconciling features for brain {Brain} failed.", brainId); }
     }
 }

@@ -20,7 +20,7 @@ namespace IntoChat.OS.Authority;
 // Transitional (06-06c): grains come from the kernel composition's IAuthorityGrains, which holds the grain factory.
 internal sealed class AuthorityNeurons(IAuthorityGrains grains, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
 {
-    public IBrain Brain(string brainId) => Resolve<IBrain>(brainId);
+    public IBrain Brain(string brainId) => grains.Brain(brainId);
     public IBrainAuthority BrainAuthority(string brainId) => Resolve<IBrainAuthority>(brainId);
     public IAccount Account(string accountId) => Resolve<IAccount>(accountId);
     public IPrincipal Principal(string principalId) => Resolve<IPrincipal>(principalId);

@@ -19,13 +19,6 @@ internal interface IInstanceTypes : IGrainWithStringKey
     Task<string[]> List();
 }
 
-// The brain neuron publishes the kernel's instance signals, so they arrive with the brain as publisher.
-[Alias("kernel.announcer")]
-internal interface IKernelAnnouncer : IGrainWithStringKey
-{
-    [Orleans.Concurrency.OneWay] Task Announce(Signal signal);
-}
-
 internal static class InstanceDirectoryKey
 {
     public static string Of(string brain, string type) => brain + "/" + type;

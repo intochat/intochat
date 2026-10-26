@@ -53,7 +53,8 @@ internal sealed class CircleFactoryNeuron(
         {
             // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a
             // no-op once the brain exists, and a creation handler's failure is only logged there, so the birth runs again.
-            await GrainFactory.GetGrain<IBrain>(circle).Create(new Owner(caller.AccountId));
+            // The brain neuron is plain (06-08); the host seam reaches the new circle brain, stamped as its creator in it.
+            await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrain>(IBrain.Key(circle)).Create(new Owner(caller.AccountId));
             if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }
         }
         finally { CallerContextStamper.Stamp(caller); }

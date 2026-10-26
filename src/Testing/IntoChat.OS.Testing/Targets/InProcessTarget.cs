@@ -227,6 +227,8 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
     // 06-07b: plain neurons through the product's in-process client, so facts read the same for grains and plain neurons.
     object IntoChat.OS.Runtime.IPlainClient.GetPlain(Type contract, NeuronId id) => ((IntoChat.OS.Runtime.IPlainClient)Brains).GetPlain(contract, id);
 
+    string? IntoChat.OS.Runtime.IPlainClient.RelativeBrain => BrainScope.CurrentId();
+
     IAsyncEnumerable<T> IntoChat.OS.Runtime.IPlainClient.OnPlain<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken)
         => ((IntoChat.OS.Runtime.IPlainClient)Brains).OnPlain<T>(source, onSubscribed, cancellationToken);
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;

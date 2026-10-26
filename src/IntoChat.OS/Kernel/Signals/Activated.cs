@@ -8,5 +8,5 @@ namespace IntoChat.OS;
 /// fires on every activation, handlers are idempotent: they catch up, they do not initialize.
 /// </remarks>
 /// <param name="Owner">The account the brain belongs to.</param>
-[GenerateSerializer, Alias("brain.activated")]
-public sealed record Activated([property: Id(0)] Owner Owner) : Signal;
+[DigitalBrain.Signal("brain.activated")]
+public sealed record Activated(Owner Owner) : DigitalBrain.Signal;

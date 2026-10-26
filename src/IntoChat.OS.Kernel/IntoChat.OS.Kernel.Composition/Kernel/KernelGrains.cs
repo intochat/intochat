@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -46,7 +47,7 @@ internal sealed class InstanceDirectoryGrain(
         store.State.Entries = [.. entries];
         await store.WriteStateAsync();
         if (first) { await GrainFactory.GetGrain<IInstanceTypes>(Brain).Add(Type); }
-        Announce(new InstanceCreated(Type, key));
+        Announce(brain => brain.InstanceCreated(Type, key));
     }
 
     // The live instances of this directory's type in its brain: compaction never drops these.
@@ -61,17 +62,17 @@ internal sealed class InstanceDirectoryGrain(
         if (!store.State.Entries.Any(entry => entry.Key == key)) { return; }
         store.State.Entries = [.. store.State.Entries.Where(entry => entry.Key != key)];
         await store.WriteStateAsync();
-        Announce(new InstanceRetired(Type, key));
+        Announce(brain => brain.InstanceRetired(Type, key));
     }
 
     public Task<Instance[]> List() => Task.FromResult(store.State.Entries);
 
     // One-way and unstamped: the brain neuron may be the very grain whose first write is being
     // registered, so awaiting it would deadlock; no caller travels because the kernel is the author.
-    private void Announce(Signal signal)
+    private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        _ = GrainFactory.GetGrain<IKernelAnnouncer>(Brain).Announce(signal);
+        _ = announce(ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainAnnouncer>(IBrain.Key(Brain)));
     }
 }
 
@@ -138,8 +139,9 @@ internal sealed class TypeTableGrain(
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
         {
             RequestContext.Remove(CallerContextStamper.RequestContextKey);
+            var announcer = ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainAnnouncer>(IBrain.Key(brain));
             foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
-            { _ = GrainFactory.GetGrain<IKernelAnnouncer>(brain).Announce(new TypeAdded(added.Name)); }
+            { _ = announcer.TypeAdded(added.Name); }
         }
     }
 

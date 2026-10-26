@@ -37,7 +37,7 @@ public sealed class LocalRestartFacts
         using var person = await brain.PersonAsync("restart-owner", ct);
         var created = (await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(person.AccountId, person.PrincipalId, "restart", "Restart", BrainKind.Personal)).Member.BrainId;
-        using (person.AsCallerIn(created)) { await brain.Get<IBrain>(created).Create(new Owner(person.AccountId)); }
+        using (person.AsCallerIn(created)) { await brain.Get<IBrain>(IBrain.Key(created)).Create(new Owner(person.AccountId)); }
         var key = created + "/restart";
 
         await Reminder(brain, key).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));

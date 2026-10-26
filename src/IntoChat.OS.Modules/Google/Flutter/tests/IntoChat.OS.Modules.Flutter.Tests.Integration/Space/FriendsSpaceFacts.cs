@@ -34,9 +34,9 @@ public sealed class FriendsSpaceFacts
     private sealed class CreationFriends(CircleMembers friends) : ICreationHandler
     {
         public bool Completed { get; private set; }
-        public async Task Created(IBrain kernel, Created created, CancellationToken ct)
+        public async Task Created(string brainId, Created created, CancellationToken ct)
         {
-            await friends.FriendsOf(kernel.GetPrimaryKeyString()).WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await friends.FriendsOf(brainId).WaitAsync(TimeSpan.FromSeconds(5), ct);
             Completed = true;
         }
     }

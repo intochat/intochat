@@ -67,9 +67,8 @@ internal sealed class OsDefaults(
     IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
     IntoChat.OS.Connections.Platform.Identity.IIdentityClient identity) : ICreationHandler
 {
-    public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+    public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        var brainId = kernel.GetPrimaryKeyString();
         if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind.Circle) { return; }
         foreach (var app in options.Value.Apps)
         {

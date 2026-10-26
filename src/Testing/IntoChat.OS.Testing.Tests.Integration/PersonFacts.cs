@@ -31,7 +31,7 @@ public sealed class PersonFacts(TestingHost host)
         using (alice.AsCaller())
         {
             Assert.Equal(alice.BrainId, BrainScope.CurrentId());
-            var self = await brain.Get<IBrain>(alice.BrainId).Read();
+            var self = await brain.Get<IBrain>(IBrain.Key(alice.BrainId)).Read();
             Assert.Equal(alice.AccountId, self.Owner.AccountId);
         }
         Assert.Null(Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey));

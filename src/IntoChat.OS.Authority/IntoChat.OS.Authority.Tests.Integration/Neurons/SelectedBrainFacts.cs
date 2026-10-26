@@ -24,7 +24,7 @@ public sealed class SelectedBrainFacts
         var destination = provision.Member.BrainId;
         using (person.AsCallerIn(destination))
         {
-            await brain.Get<IBrain>(destination).Create(new Owner(person.AccountId));
+            await brain.Get<IBrain>(IBrain.Key(destination)).Create(new Owner(person.AccountId));
         }
         using var handler = new HttpClientHandler();
         using var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = brain.HttpClient.BaseAddress };

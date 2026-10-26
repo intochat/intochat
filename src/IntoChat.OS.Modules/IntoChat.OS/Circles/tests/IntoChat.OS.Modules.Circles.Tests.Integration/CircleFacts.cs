@@ -124,7 +124,7 @@ public sealed class CircleFacts(CirclesHost host)
         var recorded = (await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(alice.AccountId, alice.PrincipalId, "circle|r-1", "friends", BrainKind.Circle)).Member.BrainId;
         // The brain neuron is created but its creation handler fails: no creator is stamped, so CircleBirth refuses.
-        await brain.Get<IBrain>(recorded).Create(new Owner(alice.AccountId));
+        await brain.Get<IBrain>(IBrain.Key(recorded)).Create(new Owner(alice.AccountId));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => alice.In(recorded, () => Circle(brain, recorded).State()));
 
         var circle = await CreateIn(brain, alice, "friends", "r-1");

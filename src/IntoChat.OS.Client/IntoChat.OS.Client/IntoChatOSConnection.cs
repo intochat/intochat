@@ -49,7 +49,7 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IBrain Self => _session.Brain is { Length: > 0 } brain
-        ? NeuronProxy.Create<IBrain>(_session, _behavior, brain, _trace)
+        ? (IBrain)NeuronProxy.Create(typeof(IBrain), _session, _behavior, IBrain.Key(brain), _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IKernelView Kernel => new SessionKernel(_session, _behavior, _trace);

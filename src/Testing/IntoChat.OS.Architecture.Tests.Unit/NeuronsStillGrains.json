@@ -36,7 +36,6 @@
   "IntoChat.OS.Client.Orleans.Tests.Integration.TestEmitter",
   "IntoChat.OS.Client.Orleans.Tests.Integration.TestRegistry",
   "IntoChat.OS.Connections.Platform.Connections.ConnectionNeuron`1",
-  "IntoChat.OS.Framework.BrainNeuron",
   "IntoChat.OS.Framework.Neuron",
   "IntoChat.OS.Framework.Neuron`1",
   "IntoChat.OS.Framework.RevisionedNeuron`1",

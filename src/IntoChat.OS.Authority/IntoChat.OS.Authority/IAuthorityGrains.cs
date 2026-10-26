@@ -10,6 +10,9 @@ public interface IAuthorityGrains
 {
     T Get<T>(string key) where T : IGrainWithStringKey;
 
+    // The brain neuron of brainId (06-08: a plain neuron of the kernel composition, keyed {brain}/main), reached as the host.
+    IBrain Brain(string brainId);
+
     IConnection Connection(string connectionKey);
 
     IConnectionInbound ConnectionInbound(string connectionKey);

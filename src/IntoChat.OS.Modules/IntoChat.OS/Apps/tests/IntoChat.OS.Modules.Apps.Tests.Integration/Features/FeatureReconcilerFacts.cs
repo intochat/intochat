@@ -218,7 +218,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
         var (alice, copy) = await Installed(brain);
-        var kernel = brain.Get<IBrain>(alice.BrainId);
+        var kernel = brain.Get<IBrain>(IBrain.Key(alice.BrainId));
         await ShipNewerVersion(brain);
         await using var changes = await brain.Observe<AppChanged>(copy, ct);
 

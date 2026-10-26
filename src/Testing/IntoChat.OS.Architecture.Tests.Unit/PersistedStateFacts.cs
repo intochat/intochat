@@ -10,7 +10,7 @@ public sealed partial class PersistedStateFacts
     public void PersistedStateHasUniqueIdsAndConcreteCollections()
     {
         Assert.NotEmpty(States);
-        Assert.Contains(States, type => type == typeof(State));
+        Assert.Contains(States, type => type.FullName == "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceStorage");
         Assert.Contains(States, type => type.FullName == "IntoChat.OS.Authority.Secrets.SecretsState");
         var violations = States.SelectMany(PersistedStateRules.ShapeViolations).ToArray();
         Assert.True(violations.Length == 0, string.Join(Environment.NewLine, violations));

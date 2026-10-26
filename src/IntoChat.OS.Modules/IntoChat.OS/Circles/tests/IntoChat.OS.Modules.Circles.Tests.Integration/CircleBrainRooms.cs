@@ -42,7 +42,7 @@ internal static class CircleBrainRooms
         var provision = await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(creator.AccountId, creator.PrincipalId, Guid.NewGuid().ToString("N"), name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
-        using (creator.AsCallerIn(circle)) { await brain.Get<IBrain>(circle).Create(new Owner(creator.AccountId)); }
+        using (creator.AsCallerIn(circle)) { await brain.Get<IBrain>(IBrain.Key(circle)).Create(new Owner(creator.AccountId)); }
         return circle;
     }
 

@@ -41,7 +41,7 @@
   "IntoChat.OS.Modules.Circles.Tests.Integration/SharedConnectionFacts.cs": 1,
   "IntoChat.OS.Modules.Circles/CircleBirth.cs": 2,
   "IntoChat.OS.Modules.Circles/CircleChatNeuron.cs": 2,
-  "IntoChat.OS.Modules.Circles/CircleFactoryNeuron.cs": 4,
+  "IntoChat.OS.Modules.Circles/CircleFactoryNeuron.cs": 3,
   "IntoChat.OS.Modules.Circles/CircleNeuron.cs": 8,
   "IntoChat.OS.Modules.Circles/CirclesModule.cs": 2,
   "IntoChat.OS.Modules.Flutter.Tests.Integration/AppUiRouteFacts.cs": 1,
