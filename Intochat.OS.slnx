@@ -251,6 +251,37 @@
     <File Path=".editorconfig" />
     <File Path="Directory.Packages.props" />
   </Folder>
+  <Folder Name="/framework/src/">
+    <Project Path="framework/src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
+    <Project Path="framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
+    <Project Path="framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
+    <Project Path="framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
+    <Project Path="framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <Project Path="framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <Project Path="framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
+    <Project Path="framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <Project Path="framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <Project Path="framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <Project Path="framework/src/DigitalBrain/DigitalBrain.csproj" />
+  </Folder>
+  <Folder Name="/framework/templates/">
+    <Project Path="framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj" />
+  </Folder>
+  <Folder Name="/framework/tests/">
+    <Project Path="framework/tests/DigitalBrain.Analyzers.Tests.Unit/DigitalBrain.Analyzers.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Capabilities.Identity.Tests.Unit/DigitalBrain.Capabilities.Identity.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Capabilities.Secrets.Tests.Unit/DigitalBrain.Capabilities.Secrets.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Capabilities.Storage.Tests.Unit/DigitalBrain.Capabilities.Storage.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Runtime.Http.Tests.Unit/DigitalBrain.Runtime.Http.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Tests.Integration/DigitalBrain.Runtime.Orleans.Tests.Integration.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Tests.Unit/DigitalBrain.Runtime.Orleans.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
+    <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
+  </Folder>
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
 </Solution>

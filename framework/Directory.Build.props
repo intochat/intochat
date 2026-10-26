@@ -19,8 +19,8 @@
     <VersionPrefix>$(DigitalBrainVersion)</VersionPrefix>
     <Authors>Digital Brain Tech</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/intochat/digitalbrain</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/intochat/digitalbrain</RepositoryUrl>
+    <PackageProjectUrl>https://docs.intochat.io/framework/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/intochat/os</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>neurons;signals;synapses;brain;actors</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

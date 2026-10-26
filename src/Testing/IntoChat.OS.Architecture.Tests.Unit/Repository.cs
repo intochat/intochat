@@ -18,7 +18,17 @@ internal static class Repository
 
     internal static readonly XDocument Solution = XDocument.Load(System.IO.Path.Combine(Root, SolutionFile));
 
+    // The folded-in framework (framework/, 06-00) shares the solution but not the os rules: its own
+    // DigitalBrain.Architecture.Tests.Unit govern it, and FrameworkBoundaryFacts hold the folder boundary.
+    internal const string FrameworkDirectory = "framework";
+
+    internal static bool IsFrameworkEntry(XElement entry)
+        => entry.Attribute("Path")!.Value.Replace('\\', '/').StartsWith(FrameworkDirectory + "/", StringComparison.Ordinal);
+
+    internal static readonly string FrameworkRoot = System.IO.Path.Combine(Root, FrameworkDirectory);
+
     internal static readonly IReadOnlyDictionary<string, Project> Projects = Solution.Descendants("Project")
+        .Where(entry => !IsFrameworkEntry(entry))
         .Select(entry =>
         {
             var relative = entry.Attribute("Path")!.Value.Replace('\\', '/');
