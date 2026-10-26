@@ -36,7 +36,7 @@ public sealed class GmailLifecycleFacts
         Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(GmailBrain.GmailHost(key), ct)).Reminders);
     }
 
-    // DigitalBrain 0.6.0-preview.18 (plan 04-20) runs activation on the host grain's scheduler: the lifecycle reminder a watched
+    // DigitalBrain (plan 04-20) runs activation on the host grain's scheduler: the lifecycle reminder a watched
     // connection needs is read and set in the activation itself, so it is back before the activating call answers.
     [Trait("host", "own")]
     [Fact]

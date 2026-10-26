@@ -8,7 +8,7 @@
     <!-- The protocol, the session connection and the client behaviors connect through; shared, never reloaded per behavior. -->
     <ProjectReference Include="../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
     <!-- The core vocabulary the script compiler seeds (DigitalBrain arrives through IntoChat.OS). -->
-    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />

@@ -298,6 +298,6 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
     }
 
     // Stored Gmail work resumes on activation (06-08: a plain neuron's OnActivate replaces the activation handler). Activation runs on
-    // the host grain's scheduler (DigitalBrain 0.6.0-preview.18, plan 04-20), so the lifecycle reminder is read and set right here.
+    // the host grain's scheduler (DigitalBrain, plan 04-20), so the lifecycle reminder is read and set right here.
     protected override Task Activated(CancellationToken cancellationToken) => RecoverLifecycleAsync(cancellationToken);
 }

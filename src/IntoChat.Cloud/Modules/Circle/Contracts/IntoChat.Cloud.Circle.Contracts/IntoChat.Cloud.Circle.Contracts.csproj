@@ -6,6 +6,6 @@
   </PropertyGroup>
   <!-- DigitalBrain and the BCL only: no host runtime, web framework, os internals or vendor SDKs. -->
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
   </ItemGroup>
 </Project>

@@ -8,7 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition.Tests.Integration" />
     <!-- The cloud topology (Topology=cloud): only the composition references the Azure runtime package (03-12). -->
-    <PackageReference Include="DigitalBrain.Runtime.Orleans.Azure" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />

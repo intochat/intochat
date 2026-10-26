@@ -5,7 +5,7 @@
     <RootNamespace>IntoChat.OS</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
   </ItemGroup>

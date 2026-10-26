@@ -13,9 +13,15 @@
     <None Include="$(MSBuildThisFileDirectory)src/Assets/nuget/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
+  <!-- The DigitalBrain package bundled DigitalBrain.Analyzers and its DB00xx rules flowed to every consumer transitively.
+       With framework/ referenced by project (06-00) the analyzer is attached here to every os C# project instead. -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" IsAspireProjectResource="false" />
+  </ItemGroup>
+
   <!-- Modules opt in to the transitional Framework module generator with <IntoChatOSModule>true</IntoChatOSModule>. -->
   <ItemGroup Condition="'$(IntoChatOSModule)' == 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)src/IntoChat.OS.Framework/IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src/IntoChat.OS.Framework/IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" IsAspireProjectResource="false" />
   </ItemGroup>
 
   <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:
