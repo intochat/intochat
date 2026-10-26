@@ -8,22 +8,23 @@ namespace IntoChat.OS.Modules.Apps;
 
 // The Creator, addressable: one neuron per brain wrapping the Author and Builder. Build waits for
 // the background Builder to land, so a single routed call answers with the finished app.
-[GrainType("apps.studio")]
-internal sealed class AppStudioNeuron(Creator creator) : Neuron, IAppStudio
+// A plain neuron (06-08); the app it builds is still a grain, read as this neuron through the legacy seam until Apps move.
+[DigitalBrain.Neuron("apps.studio")]
+internal sealed class AppStudioNeuron(Creator creator) : DigitalBrain.Neuron, IAppStudio
 {
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(500);
-    private string Scope => BrainKey.ScopeOf(this.GetPrimaryKeyString()) ?? this.GetPrimaryKeyString();
+    private string Scope => Id.Brain.Value;
 
     public Task<AppSnapshot> Author(string request, CancellationToken ct)
-        => creator.Author(ServiceProvider.GetRequiredService<IIntoChatOS>(), Scope, null, request, ct);
+        => creator.Author(Context.Services.GetRequiredService<IIntoChatOS>(), Scope, null, request, ct);
 
     public async Task<AppSnapshot> Build(string request, CancellationToken ct)
     {
         var authored = await Author(request, ct);
         var key = IApp.Key(Scope, authored.Name);
-        await creator.Implement(ServiceProvider.GetRequiredService<IIntoChatOS>(), key, null, ct);
-        var app = GrainFactory.GetGrain<IApp>(key);
+        await creator.Implement(Context.Services.GetRequiredService<IIntoChatOS>(), key, null, ct);
+        var app = IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Scope.Length + 1)..]));
         var deadline = DateTimeOffset.UtcNow + BuildTimeout;
         while (DateTimeOffset.UtcNow < deadline)
         {

@@ -25,7 +25,7 @@ public sealed class AppStudioFacts
         var alice = await brain.PersonAsync("alice", ct);
 
         using var _ = alice.AsCaller();
-        var built = await brain.Get<IAppStudio>(alice.BrainId).Build("a calculator with a keypad", ct);
+        var built = await brain.Get<IAppStudio>(IAppStudio.Key(alice.BrainId)).Build("a calculator with a keypad", ct);
 
         Assert.Equal(AppStatus.Live, built.Status);
         Assert.Equal("Calculator", built.Manifest.Title);

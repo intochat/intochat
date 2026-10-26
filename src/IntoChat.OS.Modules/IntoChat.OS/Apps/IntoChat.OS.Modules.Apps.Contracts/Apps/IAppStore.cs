@@ -90,15 +90,16 @@ public sealed record AppDetail(
 
 // The Marketplace as a brain's scripts see it: the gallery, grouped, and one consented install path. Get stays for
 // scripts and installs only apps that ask for nothing; an app with requirements is installed from Apps.
-[Alias("apps.store"), DefaultGrainType("apps.store")]
-public interface IAppStore : INeuron
+// A plain neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("apps.store"), DigitalBrain.Contracts.DefaultNeuronType("apps.store")]
+public interface IAppStore
 {
-    [ReadOnly, AlwaysInterleave] Task<IReadOnlyList<GalleryEntry>> List();
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<IReadOnlyList<GalleryEntry>> List();
     Task<InstallOutcome> Get(string publisher, string name);
     Task<InstallOutcome> Install(InstallRequest request);
     Task<InstallOutcome> Update(UpdateRequest request);
     Task<InstallOutcome> Remove(string name);
-    [ReadOnly, AlwaysInterleave] Task<AppDetail?> Describe(AppRef reference);
+    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AppDetail?> Describe(AppRef reference);
     static string Key(string brainId) => $"{brainId}/{Relative}";
     // The id inside its brain.
     const string Relative = "apps/store";

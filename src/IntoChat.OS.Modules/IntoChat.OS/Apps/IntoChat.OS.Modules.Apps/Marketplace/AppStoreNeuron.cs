@@ -11,10 +11,11 @@ namespace IntoChat.OS.Modules.Apps;
 
 // The Marketplace for a brain's scripts: the gallery grouped Built-in / Mine / From others, and
 // Get, which installs through AppInstaller and answers a refusal as a message instead of throwing.
-[GrainType("apps.store")]
-internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller installer, ILogger<AppStoreNeuron> logger) : Neuron, IAppStore
+// A plain neuron (06-08); the apps it reads and installs are reached through the silo's IIntoChatOS and AppInstaller.
+[DigitalBrain.Neuron("apps.store")]
+internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller installer, ILogger<AppStoreNeuron> logger) : DigitalBrain.Neuron, IAppStore
 {
-    private string Scope => BrainKey.ScopeOf(this.GetPrimaryKeyString()) ?? this.GetPrimaryKeyString();
+    private string Scope => Id.Brain.Value;
 
     public async Task<IReadOnlyList<GalleryEntry>> List()
     {
@@ -22,7 +23,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         if (BrainScope.CurrentId() != Scope) { return []; }
         var account = CallerContextStamper.TryGet(out var caller) ? caller.AccountId : null;
         var listings = await marketplace.List(default);
-        var installed = await InstalledApps.Read(ServiceProvider.GetRequiredService<IIntoChatOS>(), Scope, default);
+        var installed = await InstalledApps.Read(Context.Services.GetRequiredService<IIntoChatOS>(), Scope, default);
         var held = installed.ToDictionary(app => app.Name, app => app.Snapshot, StringComparer.Ordinal);
         var entries = new List<GalleryEntry>();
         var shown = new HashSet<string>(StringComparer.Ordinal);
@@ -65,7 +66,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     private async Task<GalleryEntry[]> Connections()
     {
         ConnectorOffer[] offers;
-        try { offers = await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers(); }
+        try { offers = await Context.Services.GetRequiredService<IIntoChatOS>().Get<IConnectionRequests>(Scope).ListOffers(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             logger.LogWarning(error, "The gallery could not read the connection catalog of {Brain}; it shows apps only.", Scope);
@@ -90,7 +91,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         if (!CallerContextStamper.TryGet(out var caller)) { return false; }
         if (caller.Kind == CallerKind.User) { return true; }
         return caller.Kind == CallerKind.App && caller.AppId == IApp.Key(Scope, "desktop")
-            && ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(caller.AppId).Read(), "desktop");
+            && ShippedApps.Is(await Context.Services.GetRequiredService<IIntoChatOS>().Get<IApp>(caller.AppId).Read(), "desktop");
     }
 
     // Scripts install only apps that ask for nothing: one with requirements is installed from Apps, where the person sees them.
@@ -197,5 +198,5 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         catch (InvalidDataException) { return null; }
     }
 
-    private IApp App(string key) => ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(key);
+    private IApp App(string key) => Context.Services.GetRequiredService<IIntoChatOS>().Get<IApp>(key);
 }

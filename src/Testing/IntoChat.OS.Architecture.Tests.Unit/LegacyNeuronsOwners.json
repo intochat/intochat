@@ -5,5 +5,7 @@
   "IntoChat.OS.Modules.AI/Routing/RouterNeuron.cs": 1,
   "IntoChat.OS.Modules.Postgres/Tables/TableNeuron.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp/Files/CSharpFileNeuron.cs": 2,
-  "IntoChat.OS.Modules.Flutter/Space/SpaceNeuron.cs": 1
+  "IntoChat.OS.Modules.Flutter/Space/SpaceNeuron.cs": 1,
+  "IntoChat.OS.Modules.Apps/Features/FeatureReconciler.cs": 1,
+  "IntoChat.OS.Modules.Apps/Studio/AppStudioNeuron.cs": 1
 }

@@ -10,16 +10,16 @@ namespace IntoChat.OS.Modules.Apps;
 // brain, is untouched. One app failing must not keep the others from catching up.
 // It only updates what a brain already has, so a circle brain (R125: born with its room, no OS
 // default) is reconciled like any other.
-[GrainType("apps.reconciler")]
+// A plain neuron (06-08); the apps it reads are still grains, reached as this neuron through the legacy seam until they move.
+[DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
-    IGrainFactory grains, IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
+    IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
     IEnumerable<IFeatureMigration> migrations)
-    : Neuron, IFeatureReconciler
+    : DigitalBrain.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {
-        var key = this.GetPrimaryKeyString();
-        var brainId = key[..key.LastIndexOf('/')];
+        var brainId = Id.Brain.Value;
         foreach (var migration in migrations)
         {
             try { await migration.PrepareBrain(brainId, ct); }
@@ -32,7 +32,7 @@ internal sealed class FeatureReconciler(
         foreach (var name in names)
         {
             AppSnapshot snapshot;
-            try { snapshot = await grains.GetGrain<IApp>(IApp.Key(brainId, name)).Read().WaitAsync(ct); }
+            try { snapshot = await IntoChat.OS.Runtime.LegacyNeuronAccess.Legacy<IApp>(Context, new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
             if (snapshot.MigrationTarget is not null) { continue; }
@@ -62,7 +62,7 @@ internal sealed class FeatureReconciler(
             try { await loader.Load(brainId, name, bundle, origin, ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Reconciling {Brain}/{App} to {Version} failed.", brainId, name, bundle.Version); continue; }
-            await PublishAsync(new AppReconciled(name, origin.Version, bundle.Version));
+            await Publish(new AppReconciled(name, origin.Version, bundle.Version));
         }
     }
 }

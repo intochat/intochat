@@ -18,17 +18,13 @@ namespace IntoChat.OS.Modules.Apps;
 
 public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IHttpModule
 {
-    // R4-04: what the module needs from its host: its options section. Its neurons are still grains (06-06d: the app's
-    // operation selectors and retained signals reach scripts only on the legacy path until the C# runtime moves, 06-08); their
-    // registrations stay in Configure until the Framework leaves.
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AppsOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
-        Secrets: []);
+    // R4-04: what the module needs from its host: its options section (AppsNeurons carries it).
+    public static DigitalBrain.ModuleManifest Manifest => AppsNeurons.Manifest;
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
+
+    // 06-08: the module's plain neurons (the feature reconciler, the studio); the rest are still grains registered in Configure.
+    public override Type? Neurons => typeof(AppsNeurons);
 
     public override void Configure(ISiloBuilder silo)
     {
@@ -58,4 +54,16 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         AppsEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
     }
+}
+
+// The DigitalBrain module of the Apps module's plain neurons (06-08).
+[DigitalBrain.Module("apps")]
+public sealed class AppsNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<AppsOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
+        Secrets: []);
 }

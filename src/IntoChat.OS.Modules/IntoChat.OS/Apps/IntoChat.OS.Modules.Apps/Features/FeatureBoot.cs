@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps;
 // brings the brain's unedited features to the folder's version once the folder has loaded. Reconciling is fire-and-forget off
 // the listener, as the hub pump was: a failure never fails the silo or a brain's activation.
 internal sealed class FeatureBoot(
-    IGrainFactory grains, FeatureCatalog catalog, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask
+    IntoChat.OS.Runtime.IPlainNeurons plain, FeatureCatalog catalog, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask
 {
     private Task _loaded = Task.CompletedTask;
 
@@ -49,7 +49,7 @@ internal sealed class FeatureBoot(
         try
         {
             await _loaded;
-            await grains.GetGrain<IFeatureReconciler>(IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
+            await plain.Get<IFeatureReconciler>(IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "Reconciling features for brain {Brain} failed.", brainId); }

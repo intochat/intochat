@@ -24,7 +24,7 @@ await brain.React<TextChanged>(Engineer.Builds(brain), async ct =>
         await Engineer.Save(brain, building);
         try
         {
-            var built = await brain.Get<IAppStudio>(scope).Build(request.Build.Length > 0 ? request.Build : request.Text, ct);
+            var built = await brain.Get<IAppStudio>(IAppStudio.Key(scope)).Build(request.Build.Length > 0 ? request.Build : request.Text, ct);
             await Engineer.Save(brain, building with
             {
                 Target = built.Name,
