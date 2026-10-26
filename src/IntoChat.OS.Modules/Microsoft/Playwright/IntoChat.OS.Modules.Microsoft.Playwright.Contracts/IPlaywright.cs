@@ -1,10 +1,11 @@
-using IntoChat.OS;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-[Alias("playwright")]
-[Orleans.Metadata.DefaultGrainType("playwright")]
-public interface IPlaywright : INeuron
+// A plain contract since 06-06d. Every call may interleave (the neuron is reentrant): a navigation waits on the page while a
+// detach or a second connect reaches the browser.
+[NeuronAlias("playwright"), DefaultNeuronType("playwright")]
+public interface IPlaywright
 {
     Task Start(CancellationToken ct = default);
     Task Stop(CancellationToken ct = default);

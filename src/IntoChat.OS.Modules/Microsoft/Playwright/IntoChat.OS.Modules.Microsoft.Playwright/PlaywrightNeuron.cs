@@ -1,12 +1,19 @@
-using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain;
 using IntoChat.OS.Framework;
-using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-[GrainType("playwright"), Reentrant]
-internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuron, IPlaywright
+// A plain neuron since 06-06d, reentrant as the grain was. The browser lives in this activation, so the activation is kept alive
+// with an ITimers keep-alive timer (04-18) where the grain delayed its deactivation: five minutes for a managed session that
+// was just started, for as long as a desktop attachment lasts, and released when the session ends.
+[DigitalBrain.Neuron("playwright"), Reentrant]
+internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : DigitalBrain.Neuron, IPlaywright
 {
+    private const string KeepAlive = "playwright.session";
+    private static readonly TimeSpan ManagedLifetime = TimeSpan.FromMinutes(5);
+    // A periodic keep-alive timer holds the activation until it is stopped.
+    private static readonly TimeSpan AttachedRenewal = TimeSpan.FromHours(1);
+
     private readonly BrowserSessionOwner _owner = new(provider);
     private long _generation;
     private string? _managedAccount;
@@ -18,6 +25,10 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
         { throw new UnauthorizedAccessException("The managed browser belongs to another account."); }
     }
 
+    private void HoldFor(TimeSpan due, TimeSpan? period) => Context.Timers.Start(KeepAlive, due, period, keepAlive: true);
+
+    private void Release() => Context.Timers.Stop(KeepAlive);
+
     public async Task Start(CancellationToken ct = default)
     {
         var caller = CallerContextStamper.Require();
@@ -28,19 +39,19 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
         _managedAccount = caller.AccountId;
         var sessionId = Guid.NewGuid().ToString("N");
         _managedSessionId = sessionId;
-        DelayDeactivation(TimeSpan.FromMinutes(5));
+        HoldFor(ManagedLifetime, null);
         try
         {
             await _owner.Start(caller.AccountId, sessionId, ct);
             if (generation == _generation && _owner.Read().Ready)
-            { await PublishAsync(new BrowserReady(sessionId)); }
+            { await Publish(new BrowserReady(sessionId)); }
         }
         catch
         {
             if (generation == _generation)
             {
-                DelayDeactivation(TimeSpan.Zero);
-                await PublishAsync(new BrowserUnavailable(sessionId));
+                Release();
+                await Publish(new BrowserUnavailable(sessionId));
             }
             throw;
         }
@@ -60,19 +71,19 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
         ct.ThrowIfCancellationRequested();
         if (_owner.Read() is { Ready: true } current && current.SessionId == attachment.SessionId) { return; }
         var generation = ++_generation;
-        DelayDeactivation(Timeout.InfiniteTimeSpan);
+        HoldFor(AttachedRenewal, AttachedRenewal);
         try
         {
             await _owner.Attach(attachment, ct);
             if (generation == _generation && _owner.Read().Ready)
-            { await PublishAsync(new BrowserReady(attachment.SessionId)); }
+            { await Publish(new BrowserReady(attachment.SessionId)); }
         }
         catch
         {
             if (generation == _generation)
             {
-                if (!_owner.Read().Connected) { DelayDeactivation(TimeSpan.Zero); }
-                await PublishAsync(new BrowserUnavailable(attachment.SessionId));
+                if (!_owner.Read().Connected) { Release(); }
+                await Publish(new BrowserUnavailable(attachment.SessionId));
             }
             throw;
         }
@@ -85,8 +96,8 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
         if (_owner.Read().SessionId != sessionId) { return; }
         ++_generation;
         var detach = _owner.Detach(sessionId, ct);
-        DelayDeactivation(TimeSpan.Zero);
-        await PublishAsync(new BrowserUnavailable(sessionId));
+        Release();
+        await Publish(new BrowserUnavailable(sessionId));
         await detach;
     }
 
@@ -111,12 +122,11 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
         }
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken)
     {
         var session = _owner.Read().SessionId;
         ++_generation;
         await _owner.DisposeAsync();
-        if (session is not null) { await PublishAsync(new BrowserUnavailable(session)); }
-        await base.OnDeactivateAsync(reason, cancellationToken);
+        if (session is not null) { await Publish(new BrowserUnavailable(session)); }
     }
 }

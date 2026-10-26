@@ -27,7 +27,8 @@ internal sealed class WebBrowserNeuron(
     private Task? _connecting;
     private Task? _disconnecting;
     private string DriverKey => Snapshot.PlaywrightKey ?? this.GetPrimaryKeyString();
-    private IPlaywright Driver => GrainFactory.GetGrain<IPlaywright>(DriverKey);
+    // The browser is a plain neuron (06-06d); this neuron is still a grain and reaches it through the plain-neuron seam.
+    private IPlaywright Driver => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IPlaywright>(DriverKey);
 
     public async Task Configure(string playwrightKey)
     {

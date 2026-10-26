@@ -1,12 +1,10 @@
-using IntoChat.OS;
-
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-[GenerateSerializer, Alias("playwright.ready")]
-public sealed record BrowserReady([property: Id(0)] string SessionId) : Signal;
+[DigitalBrain.Signal("playwright.ready")]
+public sealed record BrowserReady(string SessionId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("playwright.unavailable")]
-public sealed record BrowserUnavailable([property: Id(0)] string SessionId) : Signal;
+[DigitalBrain.Signal("playwright.unavailable")]
+public sealed record BrowserUnavailable(string SessionId) : DigitalBrain.Signal;
 
 [GenerateSerializer, Alias("playwright.not-connected")]
 public sealed class BrowserNotConnectedException() : InvalidOperationException("The browser is not connected. Open or reconnect the browser and retry.");

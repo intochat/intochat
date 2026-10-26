@@ -31,11 +31,10 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
         await browser.Attach(new(1234, new string('a', 32)), ct);
         var signal = await ready.NextAsync(ct: ct);
-        Assert.Equal(browser.GetGrainId().ToString(), signal.Publisher);
         Assert.Equal(new string('a', 32), signal.SessionId);
         Assert.True((await browser.Read()).Ready);
         await brain.DeactivateAsync(browser, ct);
@@ -50,7 +49,7 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         await using var unavailable = await brain.Observe<BrowserUnavailable>(browser, ct);
         var id = new string('a', 32);
         await browser.Attach(new(1234, id), ct);
@@ -70,7 +69,7 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true, BlockedSessionId = new string('a', 32) };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
         var first = browser.Attach(new(1234, new string('a', 32)), ct);
         await provider.Started.Task.WaitAsync(ct);
@@ -90,7 +89,7 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true, Release = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         var attach = browser.Attach(new(1234, new string('a', 32)), ct);
         await provider.Started.Task.WaitAsync(ct);
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
@@ -107,7 +106,7 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true, BlockedSessionId = new string('a', 32) };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         await using var ready = await brain.Observe<BrowserReady>(browser, ct);
         await using var unavailable = await brain.Observe<BrowserUnavailable>(browser, ct);
         var id = new string('a', 32);
@@ -127,7 +126,7 @@ public sealed class PlaywrightNeuronFacts(PlaywrightHost host)
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeBrowserSessionProvider { HangNavigation = true };
         await using var brain = await Start(provider);
-        var browser = brain.Get<IPlaywright>("browser");
+        var browser = brain.Get<IPlaywright>(brain.Owner.Key("browser"));
         var attachment = new BrowserAttachment(1234, new string('a', 32));
         await browser.Attach(attachment, ct);
         var navigation = browser.Navigate("https://example.com", ct);

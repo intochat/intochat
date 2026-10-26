@@ -103,8 +103,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryIndex.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/IGitHubInbound.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Orleans.Contracts/ICluster.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IPageTools.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IPlaywright.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/TpmRestartFacts.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/WindowsEndpointFacts.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Windows/Contracts/IConsole.cs": 1,

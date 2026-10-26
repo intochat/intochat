@@ -1,23 +1,20 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Tools;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-[GenerateSerializer, Alias("playwright.page-tools-store")]
+// Plain JSON state under the grain's state name (06-06d, clean break under SAFE-01: page tools are configured again).
 [ExportableState]
 public sealed class PageToolsStore
 {
-    [Id(0)] public PageToolsState? State { get; set; }
+    public PageToolsState? State { get; set; }
 }
 
-[GrainType("playwright.page-tools")]
-internal sealed partial class PageToolsNeuron(
-    [PersistentState("playwright.page-tools", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PageToolsStore> store)
-    : Neuron, IPageTools
+// A plain neuron and a plain tool source since 06-06d; it drives the page through the plain IPlaywright neuron of its brain.
+[DigitalBrain.Neuron("playwright.page-tools", State = "playwright.page-tools")]
+internal sealed partial class PageToolsNeuron : DigitalBrain.Neuron<PageToolsStore>, IPageTools
 {
     private const int RenderingBudgetMs = 15_000;
 
@@ -31,8 +28,7 @@ internal sealed partial class PageToolsNeuron(
             """{"type":"object","properties":{"method":{"type":"string"},"params":{"type":"object"}},"required":["method"]}""", false),
     ];
 
-    private string Key => this.GetPrimaryKeyString();
-    private string Brain => BrainKey.BrainOf(Key);
+    private string Brain => Id.Brain.Value;
 
     public async Task<PageToolsState> Configure(PageToolsSpec spec, CancellationToken ct = default)
     {
@@ -42,20 +38,19 @@ internal sealed partial class PageToolsNeuron(
         if (!spec.Driver.StartsWith(Brain + "/", StringComparison.Ordinal))
         { throw new UnauthorizedAccessException($"The driver '{spec.Driver}' is not in brain '{Brain}'."); }
         var state = new PageToolsState(spec.Title, spec.Driver, spec.Api, true);
-        store.State = new() { State = state };
-        await store.WriteStateAsync(ct);
+        await Save(new PageToolsStore { State = state }, new PageToolsChanged(state));
         return state;
     }
 
-    public Task<PageToolsState> Read() => Task.FromResult(store.State?.State ?? new PageToolsState("", "", "", false));
+    public Task<PageToolsState> Read() => Task.FromResult(State.State ?? new PageToolsState("", "", "", false));
 
     // Unconfigured page tools offer none.
     public Task<ToolSet> Tools(CancellationToken ct = default)
-        => Task.FromResult(store.State?.State is { Configured: true } state ? new ToolSet(state.Title, [.. Descriptors]) : new ToolSet("", []));
+        => Task.FromResult(State.State is { Configured: true } state ? new ToolSet(state.Title, [.. Descriptors]) : new ToolSet("", []));
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
     {
-        var state = store.State?.State is { Configured: true } configured ? configured
+        var state = State.State is { Configured: true } configured ? configured
             : throw new InvalidOperationException("The page tools are not configured.");
         using var document = Arguments(arguments);
         var input = document.RootElement;
@@ -69,7 +64,7 @@ internal sealed partial class PageToolsNeuron(
         // The page answers from its frame loop: a hidden page never settles, so bound it inside the page.
         var expression = $"Promise.race([{call}, new Promise((_, reject) => setTimeout(() => reject(new Error('page not rendering')), {RenderingBudgetMs}))])";
         string json;
-        try { json = await GrainFactory.GetGrain<IPlaywright>(state.Driver).Evaluate(expression, ct); }
+        try { json = await Context.Get<IPlaywright>(new DigitalBrain.NeuronId(Id.Brain, "playwright", state.Driver[(Brain.Length + 1)..])).Evaluate(expression, ct); }
         catch (Exception error) when (error.Message.Contains("page not rendering", StringComparison.Ordinal))
         { return new ToolResult(true, "page not rendering: open the app's window", []); }
         if (tool == "commands" && input.TryGetProperty("filter", out var filter) && filter.GetString() is { Length: > 0 } text)

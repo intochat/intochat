@@ -117,8 +117,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryIndex",
   "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryNeuron",
   "IntoChat.OS.Modules.Microsoft.Orleans.Cluster.ClusterNeuron",
-  "IntoChat.OS.Modules.Microsoft.Playwright.PageToolsNeuron",
-  "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightNeuron",
   "IntoChat.OS.Modules.Microsoft.Windows.ConsoleNeuron",
   "IntoChat.OS.Modules.Microsoft.Windows.FileSystemNeuron",
   "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.OtherStorageNeuron",
